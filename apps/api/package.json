@@ -7,12 +7,11 @@
     "build": "tsc -b tsconfig.json"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/openai": "catalog:",
     "@chaptale/shared": "workspace:*",
-    "@langchain/core": "catalog:",
-    "@langchain/langgraph": "catalog:",
-    "@langchain/openai": "catalog:",
+    "ai": "catalog:",
     "express": "catalog:",
-    "langchain": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
