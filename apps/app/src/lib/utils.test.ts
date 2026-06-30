@@ -4,6 +4,6 @@ import { cn } from './utils';
 
 describe('cn', () => {
   it('merges truthy class names', () => {
-    expect(cn('base', false && 'hidden', 'active')).toBe('base active');
+    expect(cn('base', undefined, 'active')).toBe('base active');
   });
 });

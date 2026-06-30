@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b tsconfig.json && vite build",
+    "typecheck": "vue-tsc -b tsconfig.json",
     "preview": "vite preview",
     "test": "vitest run --config ../../vitest.config.ts --project app",
     "test:watch": "vitest --config ../../vitest.config.ts --project app"

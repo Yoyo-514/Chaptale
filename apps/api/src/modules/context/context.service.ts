@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import type { ChatMessage } from '@chaptale/shared';
 
 export const systemPrompt = `
@@ -34,9 +35,23 @@ export const chaptaleSystemPrompt = `
   当主人提出创作相关需求时，优先协助构思、整理、改写、续写、校对和分析作品结构。
 `;
 
-/**
- * 当前会话历史。
- *
- * 这里只保存需要返回给前端展示的消息；系统提示词由模型调用层单独注入。
- */
-export const context: ChatMessage[] = [];
+@Injectable()
+export class ContextService {
+  private readonly messages: ChatMessage[] = [];
+
+  getSystemPrompt() {
+    return systemPrompt;
+  }
+
+  getChaptaleSystemPrompt() {
+    return chaptaleSystemPrompt;
+  }
+
+  getMessages() {
+    return this.messages;
+  }
+
+  push(message: ChatMessage) {
+    this.messages.push(message);
+  }
+}

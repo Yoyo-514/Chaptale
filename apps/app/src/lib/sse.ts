@@ -1,3 +1,5 @@
+/* oxlint-disable eslint(no-await-in-loop) -- SSE 队列消费需要按消息顺序等待下一条事件。 */
+
 export type SSEOptions = {
   params: Record<string, any>;
   signal: AbortSignal;
@@ -28,25 +30,25 @@ export async function sse<T>(path: string, options: SSEOptions) {
 
     const eventSource = new EventSource(url);
 
-    eventSource.onopen = () => {
+    eventSource.addEventListener('open', () => {
       // 返回生成器，这样调用方就可以 for await
       resolve(generator());
-    };
+    });
 
-    eventSource.onerror = () => {
+    eventSource.addEventListener('error', () => {
       reject(new Error('EventSource connection error'));
       // 防止浏览器自动重连
       eventSource.close();
-    };
+    });
 
-    eventSource.onmessage = event => {
+    eventSource.addEventListener('message', event => {
       if (!event.data) return;
       try {
         resolvers?.resolve(JSON.parse(event.data));
       } catch (error) {
         resolvers?.reject(error);
       }
-    };
+    });
 
     // 自定义 close 事件
     eventSource.addEventListener('close', () => {

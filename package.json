@@ -2,18 +2,30 @@
   "name": "chaptale",
   "version": "1.5.0",
   "private": true,
-  "packageManager": "pnpm@10.22.0",
-  "author": "yoyo514",
   "description": "A cross-platform creative writing IDE for novels and scripts",
+  "keywords": [
+    "ai",
+    "creative-writing",
+    "ide",
+    "novel",
+    "script"
+  ],
   "license": "MIT",
+  "author": "yoyo514",
   "type": "module",
   "scripts": {
-    "dev": "run-p dev:*",
+    "dev": "run-p dev:app dev:api",
     "dev:app": "pnpm --filter @chaptale/app dev",
     "dev:api": "pnpm --filter @chaptale/api dev",
-    "build": "pnpm -r --filter @chaptale/shared --filter @chaptale/app --filter @chaptale/api build",
+    "build": "pnpm -r --if-present build",
+    "build:shared": "pnpm --filter @chaptale/shared build",
     "build:app": "pnpm --filter @chaptale/app build",
     "build:api": "pnpm --filter @chaptale/api build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "typecheck:shared": "pnpm --filter @chaptale/shared typecheck",
+    "typecheck:app": "pnpm --filter @chaptale/app typecheck",
+    "typecheck:api": "pnpm --filter @chaptale/api typecheck",
+    "check": "run-s lint typecheck test",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "lint": "oxlint .",
@@ -23,21 +35,6 @@
     "prepare": "husky",
     "preview": "pnpm --filter @chaptale/app preview"
   },
-  "lint-staged": {
-    "**/*.{js,jsx,ts,tsx,json,jsonc,vue}": [
-      "oxfmt"
-    ],
-    "**/*.{js,jsx,ts,tsx}": [
-      "oxlint --fix"
-    ]
-  },
-  "keywords": [
-    "creative-writing",
-    "novel",
-    "script",
-    "ide",
-    "ai"
-  ],
   "devDependencies": {
     "@vitejs/plugin-vue": "catalog:",
     "husky": "catalog:",
@@ -47,7 +44,16 @@
     "oxlint": "catalog:",
     "vitest": "catalog:"
   },
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx,json,jsonc,vue}": [
+      "oxfmt"
+    ],
+    "**/*.{js,jsx,ts,tsx}": [
+      "oxlint --fix"
+    ]
+  },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "packageManager": "pnpm@11.9.0"
 }

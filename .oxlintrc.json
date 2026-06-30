@@ -29,6 +29,15 @@
     "no-console": "off",
     "no-unused-vars": "off",
     "eqeqeq": "error",
-    "no-var": "error"
+    "no-var": "error",
+    "no-await-in-loop": "off",
+    "eslint/no-await-in-loop": "off",
+    "import/no-unassigned-import": "off",
+    "typescript/no-extraneous-class": [
+      "error",
+      {
+        "allowWithDecorator": true
+      }
+    ]
   }
 }
