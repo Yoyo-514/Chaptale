@@ -2,7 +2,7 @@ import { useKeyPress, useMount, useReactive } from 'ahooks';
 import { ArrowRightIcon, GlobeIcon, Loader2Icon, SquareIcon } from 'lucide-react';
 import { useRef } from 'react';
 
-import type { ChatMessage } from '@/types';
+import type { ChatMessage } from '@chaptale/shared';
 import { MessageItem } from './components/MessageItem';
 import { ssePost } from './lib/sse';
 import { cn } from './lib/utils';
@@ -121,7 +121,7 @@ function App() {
     <main className={cn(styles.main, isWelcome && styles.mainWelcome)}>
       {/* 标题 */}
       <section className={styles.header}>
-        <h1 className={styles.title}>{isWelcome ? '有什么需要帮忙的喵？' : 'Neko'}</h1>
+        <h1 className={styles.title}>{isWelcome ? '开始构思你的故事' : 'Chaptale'}</h1>
       </section>
 
       {/* 聊天消息 */}
@@ -145,7 +145,7 @@ function App() {
             value={state.input}
             onChange={e => (state.input = e.target.value)}
             disabled={state.isConnecting || state.isReplying}
-            placeholder='在这里输入喵~'
+            placeholder='输入灵感、设定或剧情片段'
           />
           <div className={styles.bottomToolbar}>
             <div className={cn(styles.websearchButton, state.isEnabledWebSearch && styles.websearchButtonActive)}>

@@ -1,0 +1,36 @@
+{
+  "name": "@chaptale/app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b tsconfig.json && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@chaptale/shared": "workspace:*",
+    "@radix-ui/react-slot": "catalog:",
+    "@unocss/reset": "catalog:",
+    "ahooks": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "github-markdown-css": "catalog:",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-markdown": "catalog:",
+    "remark-gfm": "catalog:"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "catalog:",
+    "@iconify/utils": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@unocss/preset-icons": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "sass": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:"
+  }
+}

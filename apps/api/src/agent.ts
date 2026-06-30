@@ -4,8 +4,8 @@ import { context } from './context';
 import { createGraph } from './graph';
 import { isToolCall } from './utils';
 
-// 和前端共享的类型
-import type { ChatMessage } from '../src/types/index';
+// 和应用共享的类型
+import type { ChatMessage } from '@chaptale/shared';
 
 export type StreamOptions = {
   signal: AbortSignal;

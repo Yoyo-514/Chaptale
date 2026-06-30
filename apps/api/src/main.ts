@@ -7,8 +7,8 @@ import * as agent from './agent.ts';
 import { context } from './context.ts';
 import { isToolCall } from './utils.ts';
 
-// 和前端共享的类型
-import type { ChatMessage } from '../src/types/index.d.ts';
+// 和应用共享的类型
+import type { ChatMessage } from '@chaptale/shared';
 
 const app = express();
 

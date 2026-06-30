@@ -1,0 +1,24 @@
+{
+  "name": "@chaptale/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file ../../.env --watch src/main.ts",
+    "build": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@chaptale/shared": "workspace:*",
+    "@langchain/core": "catalog:",
+    "@langchain/langgraph": "catalog:",
+    "@langchain/openai": "catalog:",
+    "express": "catalog:",
+    "langchain": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "catalog:",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

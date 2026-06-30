@@ -4,7 +4,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { cn } from '@/lib/utils';
-import type { ChatMessage, WebsearchResult } from '@/types';
+import type { ChatMessage, WebsearchResult } from '@chaptale/shared';
 
 import 'github-markdown-css/github-markdown.css';
 import styles from './MessageItem.module.scss';

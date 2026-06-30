@@ -1,0 +1,34 @@
+{
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn",
+    "style": "off",
+    "pedantic": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "plugins": ["typescript", "react", "react-hooks", "unicorn", "oxc", "import", "jsx-a11y"],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es6": true
+  },
+  "ignorePatterns": [
+    "dist/**",
+    "build/**",
+    "node_modules/**",
+    "coverage/**",
+    "*.config.js",
+    "*.config.mjs",
+    "*.config.ts",
+    "pnpm-lock.yaml",
+    "package-lock.json"
+  ],
+  "rules": {
+    "no-console": "off",
+    "no-unused-vars": "off",
+    "eqeqeq": "error",
+    "no-var": "error"
+  }
+}
