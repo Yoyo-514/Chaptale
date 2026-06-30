@@ -28,3 +28,7 @@ coverage
 
 # temp
 temp/
+
+# AI memory
+.serena
+guide-docs

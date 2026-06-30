@@ -17,14 +17,16 @@
     "clsx": "catalog:",
     "github-markdown-css": "catalog:",
     "markdown-it": "catalog:",
+    "reka-ui": "catalog:",
     "vue": "catalog:"
   },
   "devDependencies": {
     "@iconify-json/lucide": "catalog:",
-    "@iconify/utils": "catalog:",
     "@types/markdown-it": "catalog:",
     "@unocss/preset-icons": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
+    "@vue/test-utils": "catalog:",
+    "happy-dom": "catalog:",
     "sass": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",

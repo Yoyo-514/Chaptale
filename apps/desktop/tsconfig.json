@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "dist-types",
+    "types": ["node"],
+    "lib": ["ES2024", "DOM"],
+    "noEmit": true,
+    "erasableSyntaxOnly": false
+  },
+  "include": ["electron.vite.config.ts", "src/**/*.ts"],
+  "references": [
+    {
+      "path": "../../packages/shared"
+    }
+  ]
+}

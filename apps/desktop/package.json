@@ -1,0 +1,45 @@
+{
+  "name": "@chaptale/desktop",
+  "private": true,
+  "description": "Chaptale desktop application shell",
+  "type": "module",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development electron-vite dev",
+    "build": "cross-env NODE_ENV=production electron-vite build",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "cd ../.. && vitest run --config vitest.config.ts --project desktop",
+    "preview": "cross-env NODE_ENV=production electron-vite preview"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@chaptale/shared": "workspace:*",
+    "@unocss/reset": "catalog:",
+    "ai": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "dotenv": "catalog:",
+    "github-markdown-css": "catalog:",
+    "markdown-it": "catalog:",
+    "reka-ui": "catalog:",
+    "vue": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "catalog:",
+    "@types/markdown-it": "catalog:",
+    "@types/node": "catalog:",
+    "@unocss/preset-icons": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
+    "cross-env": "catalog:",
+    "electron": "catalog:",
+    "electron-vite": "catalog:",
+    "sass": "catalog:",
+    "typescript": "catalog:",
+    "unocss": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "vue-tsc": "catalog:"
+  }
+}

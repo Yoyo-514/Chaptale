@@ -18,17 +18,17 @@
   ],
   "type": "module",
   "scripts": {
-    "dev": "run-p dev:app dev:api",
+    "dev": "pnpm --filter @chaptale/desktop dev",
+    "dev:desktop": "pnpm --filter @chaptale/desktop dev",
     "dev:app": "pnpm --filter @chaptale/app dev",
-    "dev:api": "pnpm --filter @chaptale/api dev",
     "build": "turbo run build",
     "build:shared": "turbo run build --filter @chaptale/shared",
+    "build:desktop": "turbo run build --filter @chaptale/desktop",
     "build:app": "turbo run build --filter @chaptale/app",
-    "build:api": "turbo run build --filter @chaptale/api",
     "typecheck": "turbo run typecheck",
     "typecheck:shared": "turbo run typecheck --filter @chaptale/shared",
+    "typecheck:desktop": "turbo run typecheck --filter @chaptale/desktop",
     "typecheck:app": "turbo run typecheck --filter @chaptale/app",
-    "typecheck:api": "turbo run typecheck --filter @chaptale/api",
     "check": "run-s lint typecheck test",
     "test": "turbo run test",
     "test:watch": "vitest --config vitest.config.ts",
@@ -37,7 +37,9 @@
     "format": "oxfmt .",
     "format:check": "oxfmt . --check",
     "prepare": "husky",
-    "preview": "pnpm --filter @chaptale/app preview"
+    "preview": "pnpm --filter @chaptale/desktop preview",
+    "preview:app": "pnpm --filter @chaptale/app preview",
+    "preview:desktop": "pnpm --filter @chaptale/desktop preview"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "catalog:",

@@ -29,6 +29,11 @@
   --input: #f1f5f9;
   --ring: #66ccff;
 
+  // Electron 标题栏
+  --titlebar: #0a0a0e;
+  --titlebar-border: #1e1e24;
+  --titlebar-foreground: #a0a0a8;
+
   // 图表色彩 - 基于主色调的和谐色系
   --chart-1: #66ccff;
   --chart-2: #33b3ff;
@@ -73,6 +78,11 @@
   --input: #1e293b;
   --ring: #003366;
 
+  // Electron 标题栏
+  --titlebar: #0a0a0e;
+  --titlebar-border: #1e1e24;
+  --titlebar-foreground: #a0a0a8;
+
   // 图表色彩 - 暗色主题和谐色系
   --chart-1: #3b82f6;
   --chart-2: #1d4ed8;
@@ -106,142 +116,10 @@ body {
   font-family: "DM Sans", sans-serif;
 }
 
-// UnoCSS 语义化类名映射
-// 背景色类
-.bg {
-  &-background {
-    background-color: var(--background);
-  }
-  &-card {
-    background-color: var(--card);
-  }
-  &-popover {
-    background-color: var(--popover);
-  }
-  &-primary {
-    background-color: var(--primary);
-  }
-  &-secondary {
-    background-color: var(--secondary);
-  }
-  &-muted {
-    background-color: var(--muted);
-  }
-  &-accent {
-    background-color: var(--accent);
-  }
-  &-input {
-    background-color: var(--input);
-  }
-  &-sidebar {
-    background-color: var(--sidebar);
-  }
-  &-sidebar-primary {
-    background-color: var(--sidebar-primary);
-  }
-  &-sidebar-accent {
-    background-color: var(--sidebar-accent);
-  }
-
-  // 图表颜色
-  &-chart-1 {
-    background-color: var(--chart-1);
-  }
-  &-chart-2 {
-    background-color: var(--chart-2);
-  }
-  &-chart-3 {
-    background-color: var(--chart-3);
-  }
-  &-chart-4 {
-    background-color: var(--chart-4);
-  }
-  &-chart-5 {
-    background-color: var(--chart-5);
-  }
-}
-
-// 文字颜色类
-.text {
-  &-foreground {
-    color: var(--foreground);
-  }
-  &-card-foreground {
-    color: var(--card-foreground);
-  }
-  &-popover-foreground {
-    color: var(--popover-foreground);
-  }
-  &-primary-foreground {
-    color: var(--primary-foreground);
-  }
-  &-secondary-foreground {
-    color: var(--secondary-foreground);
-  }
-  &-muted-foreground {
-    color: var(--muted-foreground);
-  }
-  &-accent-foreground {
-    color: var(--accent-foreground);
-  }
-  &-destructive {
-    color: var(--destructive);
-  }
-  &-sidebar-foreground {
-    color: var(--sidebar-foreground);
-  }
-  &-sidebar-primary-foreground {
-    color: var(--sidebar-primary-foreground);
-  }
-  &-sidebar-accent-foreground {
-    color: var(--sidebar-accent-foreground);
-  }
-
-  // 图表颜色
-  &-chart-1 {
-    color: var(--chart-1);
-  }
-  &-chart-2 {
-    color: var(--chart-2);
-  }
-  &-chart-3 {
-    color: var(--chart-3);
-  }
-  &-chart-4 {
-    color: var(--chart-4);
-  }
-  &-chart-5 {
-    color: var(--chart-5);
-  }
-}
-
-// 边框颜色类
-.border {
-  &-border {
-    border-color: var(--border);
-  }
-  &-sidebar-border {
-    border-color: var(--sidebar-border);
-  }
-}
-
-// Ring 颜色
-.ring-ring {
-  --un-ring-color: var(--ring);
-}
-
-// 圆角类
-.rounded {
-  &-sm {
-    border-radius: calc(var(--radius) - 4px);
-  }
-  &-md {
-    border-radius: calc(var(--radius) - 2px);
-  }
-  &-lg {
-    border-radius: var(--radius);
-  }
-  &-xl {
-    border-radius: calc(var(--radius) + 4px);
-  }
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
 }

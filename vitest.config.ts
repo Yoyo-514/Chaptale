@@ -15,6 +15,14 @@ export default defineConfig({
         test: {
           name: 'app',
           root: './apps/app',
+          environment: 'happy-dom',
+          include: ['src/**/*.test.ts']
+        }
+      }),
+      defineProject({
+        test: {
+          name: 'desktop',
+          root: './apps/desktop',
           environment: 'node',
           include: ['src/**/*.test.ts']
         }
