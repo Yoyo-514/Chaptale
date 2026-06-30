@@ -7,8 +7,8 @@
     "build": "vue-tsc -b tsconfig.json && vite build",
     "typecheck": "vue-tsc -b tsconfig.json",
     "preview": "vite preview",
-    "test": "vitest run --config ../../vitest.config.ts --project app",
-    "test:watch": "vitest --config ../../vitest.config.ts --project app"
+    "test": "cd ../.. && vitest run --config vitest.config.ts --project app",
+    "test:watch": "cd ../.. && vitest --config vitest.config.ts --project app"
   },
   "dependencies": {
     "@chaptale/shared": "workspace:*",

@@ -34,6 +34,7 @@ catalog:
   rxjs: ^7.8.2
   sass: ^1.101.0
   tsx: ^4.22.4
+  turbo: ^2.10.2
   typescript: ^6.0.3
   unocss: ^66.7.4
   vite: ^8.1.2
@@ -92,3 +93,10 @@ minimumReleaseAgeExclude:
   - oxlint@1.72.0
   - vite@8.1.2
   - vue-tsc@3.3.6
+  - '@turbo/darwin-64@2.10.2'
+  - '@turbo/darwin-arm64@2.10.2'
+  - '@turbo/linux-64@2.10.2'
+  - '@turbo/linux-arm64@2.10.2'
+  - '@turbo/windows-64@2.10.2'
+  - '@turbo/windows-arm64@2.10.2'
+  - turbo@2.10.2
