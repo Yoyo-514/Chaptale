@@ -9,12 +9,12 @@ export default defineConfig({
         plugins: [vue()],
         resolve: {
           alias: {
-            '@': path.resolve(__dirname, './apps/app/src')
+            '@': path.resolve(__dirname, './apps/desktop-ui/src')
           }
         },
         test: {
-          name: 'app',
-          root: './apps/app',
+          name: 'ui',
+          root: './apps/desktop-ui',
           environment: 'happy-dom',
           include: ['src/**/*.test.ts']
         }

@@ -2,9 +2,9 @@ import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAgentIpc } from './ipc/agent.ipc';
-import { loadRootEnv } from './services/env.service';
 import { AgentService } from './services/agent.service';
 import { ContextService } from './services/context.service';
+import { loadRootEnv } from './services/env.service';
 import { ModelService } from './services/model.service';
 import { ToolsService } from './services/tools.service';
 
@@ -20,7 +20,7 @@ function createMainWindow() {
     minWidth: 960,
     minHeight: 640,
     title: 'Chaptale',
-    icon: path.join(currentDir, '../../resources/icon.ico'),
+    icon: path.join(currentDir, '../../resources/favicon.ico'),
     // 隐藏系统标题栏文字，保留原生窗口控制按钮
     titleBarStyle: 'hidden',
     // Windows/Linux 下显示原生窗口控制按钮（覆盖在页面上）

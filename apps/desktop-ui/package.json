@@ -1,5 +1,5 @@
 {
-  "name": "@chaptale/app",
+  "name": "@chaptale/desktop-ui",
   "private": true,
   "type": "module",
   "scripts": {

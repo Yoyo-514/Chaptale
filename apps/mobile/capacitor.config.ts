@@ -1,10 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.chaptale.mobile',
+  appId: 'com.chaptale.app',
   appName: 'Chaptale',
-  webDir: '../app/dist',
-  bundledWebRuntime: false
+  webDir: '../mobile-ui'
 };
 
 export default config;

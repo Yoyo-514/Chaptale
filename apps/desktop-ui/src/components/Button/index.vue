@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils';
 import { buttonVariants } from './button.variants';
 
 const props = withDefaults(

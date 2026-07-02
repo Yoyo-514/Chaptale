@@ -9,18 +9,18 @@ allowBuilds:
   vue-demi: true
 
 catalog:
-  '@ai-sdk/anthropic': ^4.0.3
-  '@ai-sdk/openai': ^4.0.4
+  '@ai-sdk/anthropic': ^4.0.5
+  '@ai-sdk/openai': ^4.0.5
   '@capacitor/cli': ^8.4.1
   '@capacitor/core': ^8.4.1
   '@iconify-json/lucide': ^1.2.115
   '@types/markdown-it': ^14.1.2
-  '@types/node': ^26.0.1
+  '@types/node': ^26.1.0
   '@vue/test-utils': ^2.4.11
   '@unocss/preset-icons': ^66.7.4
   '@unocss/reset': ^66.7.4
   '@vitejs/plugin-vue': ^6.0.7
-  ai: ^7.0.8
+  ai: ^7.0.11
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
   cross-env: ^10.1.0

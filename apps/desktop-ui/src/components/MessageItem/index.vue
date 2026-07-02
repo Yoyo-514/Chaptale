@@ -2,8 +2,8 @@
 import MarkdownIt from 'markdown-it';
 import { computed, ref } from 'vue';
 
+import { cn } from '@/utils';
 import type { ChatMessage, WebsearchResult } from '@chaptale/shared';
-import { cn } from '@/lib/utils';
 
 import 'github-markdown-css/github-markdown.css';
 

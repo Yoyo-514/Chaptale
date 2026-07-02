@@ -1,9 +1,9 @@
 import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'electron-vite';
 import path from 'node:path';
 import UnoCSS from 'unocss/vite';
-import { defineConfig } from 'electron-vite';
 
-const appRoot = path.resolve(__dirname, '../app');
+const appRoot = path.resolve(__dirname, '../desktop-ui');
 
 export default defineConfig({
   main: {

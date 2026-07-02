@@ -5,7 +5,7 @@
       "path": "./packages/shared"
     },
     {
-      "path": "./apps/app"
+      "path": "./apps/desktop-ui"
     },
     {
       "path": "./apps/desktop"

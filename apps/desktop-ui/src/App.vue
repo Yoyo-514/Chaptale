@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import type { ChatMessage } from '@chaptale/shared';
 import MessageItem from './components/MessageItem/index.vue';
 import TitleBar from './components/TitleBar/index.vue';
-import { cn } from './lib/utils';
+import { cn } from './utils';
 
 type AppState = {
   messages: ChatMessage[];
