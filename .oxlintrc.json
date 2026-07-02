@@ -38,6 +38,7 @@
       {
         "allowWithDecorator": true
       }
-    ]
+    ],
+    "unicorn/require-module-specifiers": "allow"
   }
 }
