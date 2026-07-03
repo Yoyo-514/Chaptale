@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -59,6 +59,17 @@ describe('JsonlSessionRepository', () => {
         payload: { content: '你好喵' }
       }
     ]);
+  });
+
+  it('deletes the underlying jsonl session file', async () => {
+    const repository = new JsonlSessionRepository({ rootDir, cwd: rootDir });
+    const session = await repository.create({ name: '待删除会话' });
+
+    await expect(access(session.path)).resolves.toBeUndefined();
+
+    await repository.delete(session.id);
+
+    await expect(access(session.path)).rejects.toThrow();
   });
 
   it('supports leaf switching for branch-style history reads', async () => {

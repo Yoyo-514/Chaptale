@@ -63,6 +63,24 @@ export const useSessionStore = defineStore('session', {
       return session;
     },
 
+    async deleteSession(sessionId: string) {
+      this.error = '';
+      const deletedCurrentSession = this.currentSessionId === sessionId;
+
+      try {
+        await getDesktopApi().session.delete(sessionId);
+        this.sessions = this.sessions.filter(session => session.id !== sessionId);
+
+        if (deletedCurrentSession) {
+          this.currentSessionId = this.sessions[0]?.id ?? '';
+        }
+
+        await this.loadSessions();
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+      }
+    },
+
     async selectSession(sessionId: string) {
       this.currentSessionId = sessionId;
     },
