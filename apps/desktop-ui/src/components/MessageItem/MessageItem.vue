@@ -5,8 +5,6 @@ import { computed, ref } from 'vue';
 import { cn } from '@/utils';
 import type { ChatMessage, WebsearchResult } from '@chaptale/shared';
 
-import 'github-markdown-css/github-markdown.css';
-
 const props = defineProps<{
   message: ChatMessage;
 }>();
@@ -50,7 +48,7 @@ const displayedResults = computed(() => {
       v-else-if="message.type === 'tool_call' && message.payload.name === 'websearch'"
       class="message-websearch-keywords"
     >
-      <span class="i-lucide-search message-websearch-keywords-icon" aria-hidden="true" />
+      <span class="i-mingcute-search-line message-websearch-keywords-icon" aria-hidden="true" />
       <span class="message-websearch-keywords-text">
         正在搜索：
         <span class="message-websearch-keywords-query">{{ message.payload.args.keywords }}</span>
@@ -62,7 +60,7 @@ const displayedResults = computed(() => {
       class="message-websearch-results"
     >
       <p class="message-websearch-results-header">
-        <span class="i-lucide-globe" aria-hidden="true" />
+        <span class="i-mingcute-earth-line" aria-hidden="true" />
         已搜索 {{ websearchResults.length }} 条结果
       </p>
 
@@ -99,15 +97,15 @@ const displayedResults = computed(() => {
 }
 
 .message-user {
-  @apply rounded-full bg-neutral-100 px-4 py-1.5;
+  @apply max-w-[80%] rounded-full bg-primary px-4 py-1.5 text-primary-foreground shadow-inset-highlight;
 }
 
 .message-websearch-keywords {
-  @apply flex items-center gap-2 truncate rounded-full bg-neutral-100 px-4 py-1.5;
+  @apply flex max-w-full items-center gap-2 truncate rounded-full border border-border-subtle bg-surface-acrylic px-4 py-1.5 text-foreground shadow-inset-highlight;
 }
 
 .message-websearch-keywords-icon {
-  @apply shrink-0;
+  @apply shrink-0 text-primary-solid;
 }
 
 .message-websearch-keywords-text {
@@ -115,15 +113,15 @@ const displayedResults = computed(() => {
 }
 
 .message-websearch-keywords-query {
-  @apply text-sm text-gray-500;
+  @apply text-sm text-muted-foreground;
 }
 
 .message-websearch-results {
-  @apply flex flex-col gap-1 rounded-xl bg-neutral-100 py-3;
+  @apply flex max-w-full flex-col gap-1 rounded-xl border border-border-subtle bg-surface-acrylic py-3 text-foreground shadow-inset-highlight;
 }
 
 .message-websearch-results-header {
-  @apply flex items-center gap-2 px-4 font-medium;
+  @apply flex items-center gap-2 px-4 font-medium text-secondary-foreground;
 }
 
 .message-results-list {
@@ -131,15 +129,15 @@ const displayedResults = computed(() => {
 }
 
 .message-result-item {
-  @apply mx-2 flex flex-col gap-1 rounded-md p-2 transition-colors duration-200 hover:bg-neutral-200;
+  @apply mx-2 flex flex-col gap-1 rounded-md p-2 transition-colors duration-200 hover:bg-surface-muted;
 }
 
 .message-result-title {
-  @apply font-medium;
+  @apply font-medium text-primary-solid;
 }
 
 .message-result-description {
-  @apply line-clamp-2 text-sm;
+  @apply line-clamp-2 text-sm text-muted-foreground;
 }
 
 .message-toggle {
@@ -147,6 +145,6 @@ const displayedResults = computed(() => {
 }
 
 .message-toggle-text {
-  @apply cursor-pointer text-sm text-gray-500 transition-colors duration-200 hover:text-gray-700;
+  @apply cursor-pointer text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground;
 }
 </style>

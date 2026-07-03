@@ -1,119 +1,251 @@
 /* stylelint-disable at-rule-no-unknown */
+@use './markdown';
+
 // 全局样式文件 - Design Tokens & 基础样式
 
 // CSS 变量定义 - Design Tokens
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  // 基础色彩 - 浅色主题
-  --background: #ffffff;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  // 原子色板 - 天依色略浅 + Fluent 辅色
+  --palette-tianyi-50: #f3fbff;
+  --palette-tianyi-100: #e7f7ff;
+  --palette-tianyi-200: #d8f2ff;
+  --palette-tianyi-300: #b8ecff;
+  --palette-tianyi-400: #8fdcff;
+  --palette-tianyi-500: #66ccff;
+  --palette-tianyi-600: #2aaee8;
+  --palette-tianyi-700: #0086bd;
+  --palette-tianyi-800: #006b98;
+  --palette-tianyi-900: #102f3d;
 
-  // 主色调系统 - 基于 #66CCFF
-  --primary: #66ccff;
-  --primary-foreground: #ffffff;
-  --secondary: #e0f4ff;
-  --secondary-foreground: #003366;
-  --muted: #f1f9ff;
-  --muted-foreground: #475569;
-  --accent: #4db8ff;
-  --accent-foreground: #ffffff;
+  --palette-cream-50: #fffdf8;
+  --palette-cream-100: #fffaf2;
+  --palette-cream-200: #f8efe1;
+
+  --palette-lavender-100: #f4f0ff;
+  --palette-lavender-200: #eae4ff;
+  --palette-lavender-700: #5a4a8f;
+  --palette-lavender-900: #33265c;
+
+  --palette-sakura-100: #fff0f8;
+  --palette-sakura-200: #ffd9ed;
+  --palette-sakura-700: #9b416e;
+  --palette-sakura-900: #4a2638;
+
+  --palette-mint-100: #effdf8;
+  --palette-mint-200: #dffaf2;
+  --palette-mint-900: #163c35;
+
+  --palette-danger-100: #fff0f0;
+  --palette-danger-600: #d83b3b;
+  --palette-danger-900: #5c1f1f;
+
+  // 语义色彩 - 浅色主题
+  --background: var(--palette-cream-100);
+  --foreground: var(--palette-tianyi-900);
+  --card: rgb(255 255 255 / 0.82);
+  --card-foreground: var(--foreground);
+  --popover: rgb(255 255 255 / 0.9);
+  --popover-foreground: var(--foreground);
+
+  // 主色调系统 - 天依色略浅，文字对比符合 WCAG 2.1 AA
+  --primary: var(--palette-tianyi-400);
+  --primary-hover: var(--palette-tianyi-300);
+  --primary-active: var(--palette-tianyi-500);
+  --primary-foreground: var(--palette-tianyi-900);
+  --primary-solid: var(--palette-tianyi-800);
+  --primary-solid-hover: #005b82;
+  --primary-solid-foreground: #ffffff;
+
+  // 辅色系统 - 低饱和二次元点缀
+  --secondary: var(--palette-tianyi-100);
+  --secondary-foreground: #124359;
+  --muted: #f4f9fb;
+  --muted-foreground: #607987;
+  --accent: var(--palette-lavender-200);
+  --accent-foreground: var(--palette-lavender-900);
+  --accent-sakura: var(--palette-sakura-200);
+  --accent-sakura-foreground: var(--palette-sakura-900);
+  --accent-mint: var(--palette-mint-200);
+  --accent-mint-foreground: var(--palette-mint-900);
+
+  // Fluent Surface / Acrylic
+  --surface: var(--palette-cream-50);
+  --surface-elevated: #ffffff;
+  --surface-muted: #f7fbfd;
+  --surface-acrylic: rgb(255 255 255 / 0.68);
+  --surface-acrylic-strong: rgb(255 255 255 / 0.78);
+  --surface-acrylic-subtle: rgb(255 255 255 / 0.52);
+  --mica-background: var(--palette-cream-100);
+  --mica-tint: rgb(243 251 255 / 0.72);
 
   // 功能色彩
-  --destructive: #ef4444;
-  --border: #e2e8f0;
-  --input: #f1f5f9;
-  --ring: #66ccff;
+  --destructive: var(--palette-danger-600);
+  --destructive-foreground: #ffffff;
+  --destructive-background: var(--palette-danger-100);
+  --destructive-background-foreground: var(--palette-danger-900);
+  --border: #d7edf7;
+  --border-subtle: #e9f6fb;
+  --border-strong: #aadff2;
+  --ring: var(--palette-tianyi-500);
+
+  // 输入控件
+  --input: rgb(255 255 255 / 0.72);
+  --input-background: var(--input);
+  --input-border: #c6e8f5;
+  --input-foreground: var(--foreground);
+  --input-placeholder: #6c8793;
+  --input-focus-border: var(--palette-tianyi-500);
+  --input-focus-shadow: 0 0 0 3px rgb(102 204 255 / 0.28);
 
   // Electron 标题栏
-  --titlebar: #0a0a0e;
-  --titlebar-border: #1e1e24;
-  --titlebar-foreground: #a0a0a8;
+  --titlebar: var(--palette-tianyi-50);
+  --titlebar-border: var(--border);
+  --titlebar-foreground: #2b5f73;
+  --titlebar-control-hover: rgb(102 204 255 / 0.16);
 
-  // 图表色彩 - 基于主色调的和谐色系
-  --chart-1: #66ccff;
-  --chart-2: #33b3ff;
-  --chart-3: #99d9ff;
-  --chart-4: #0099cc;
-  --chart-5: #b3e6ff;
+  // 交互动作
+  --action-background: var(--palette-tianyi-400);
+  --action-background-hover: var(--palette-tianyi-300);
+  --action-foreground: var(--primary-foreground);
+  --action-shadow: 0 8px 20px rgb(102 204 255 / 0.32);
+
+  // 阴影与玻璃效果
+  --shadow-soft: 0 12px 32px rgb(56 125 153 / 0.12);
+  --shadow-float: 0 18px 48px rgb(56 125 153 / 0.18);
+  --shadow-inset-highlight: inset 0 1px 0 rgb(255 255 255 / 0.72);
+  --blur-acrylic: blur(18px) saturate(1.35);
+  --blur-acrylic-subtle: blur(12px) saturate(1.2);
+
+  // 图表色彩 - 天依蓝为主，薰衣草紫 / 樱粉 / 薄荷青为辅
+  --chart-1: var(--palette-tianyi-500);
+  --chart-2: var(--palette-tianyi-700);
+  --chart-3: var(--palette-lavender-700);
+  --chart-4: var(--palette-sakura-700);
+  --chart-5: #38b89f;
 
   // 侧边栏
-  --sidebar: #fafbfc;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #66ccff;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e0f4ff;
-  --sidebar-accent-foreground: #003366;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #66ccff;
+  --sidebar: rgb(255 255 255 / 0.72);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 // 暗色主题
 .dark {
-  // 基础色彩
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --card: #1e293b;
-  --card-foreground: #f8fafc;
-  --popover: #1e293b;
-  --popover-foreground: #f8fafc;
+  // 语义色彩
+  --background: #0d1f29;
+  --foreground: #e7f7ff;
+  --card: rgb(18 48 62 / 0.78);
+  --card-foreground: var(--foreground);
+  --popover: rgb(18 48 62 / 0.92);
+  --popover-foreground: var(--foreground);
 
-  // 主色调系统 - 基于 #003366
-  --primary: #003366;
-  --primary-foreground: #ffffff;
-  --secondary: #1e3a5f;
-  --secondary-foreground: #e2e8f0;
-  --muted: #334155;
-  --muted-foreground: #94a3b8;
-  --accent: #1e40af;
-  --accent-foreground: #ffffff;
+  // 主色调系统
+  --primary: var(--palette-tianyi-400);
+  --primary-hover: var(--palette-tianyi-300);
+  --primary-active: var(--palette-tianyi-500);
+  --primary-foreground: #082431;
+  --primary-solid: var(--palette-tianyi-500);
+  --primary-solid-hover: var(--palette-tianyi-400);
+  --primary-solid-foreground: #082431;
+
+  // 辅色系统
+  --secondary: rgb(102 204 255 / 0.18);
+  --secondary-foreground: #d8f2ff;
+  --muted: rgb(216 242 255 / 0.12);
+  --muted-foreground: #a9c6d3;
+  --accent: rgb(234 228 255 / 0.18);
+  --accent-foreground: #f4f0ff;
+  --accent-sakura: rgb(255 217 237 / 0.18);
+  --accent-sakura-foreground: #fff0f8;
+  --accent-mint: rgb(223 250 242 / 0.16);
+  --accent-mint-foreground: #effdf8;
+
+  // Fluent Surface / Acrylic
+  --surface: #122f3d;
+  --surface-elevated: #183a4a;
+  --surface-muted: #102a36;
+  --surface-acrylic: rgb(18 48 62 / 0.66);
+  --surface-acrylic-strong: rgb(18 48 62 / 0.78);
+  --surface-acrylic-subtle: rgb(18 48 62 / 0.48);
+  --mica-background: #0d1f29;
+  --mica-tint: rgb(16 47 61 / 0.72);
 
   // 功能色彩
-  --destructive: #dc2626;
-  --border: #334155;
-  --input: #1e293b;
-  --ring: #003366;
+  --destructive: #ff8a8a;
+  --destructive-foreground: #2d0d0d;
+  --destructive-background: rgb(255 138 138 / 0.14);
+  --destructive-background-foreground: #ffd6d6;
+  --border: rgb(184 236 255 / 0.22);
+  --border-subtle: rgb(184 236 255 / 0.14);
+  --border-strong: rgb(184 236 255 / 0.34);
+  --ring: var(--palette-tianyi-400);
+
+  // 输入控件
+  --input: rgb(13 31 41 / 0.72);
+  --input-background: var(--input);
+  --input-border: rgb(184 236 255 / 0.28);
+  --input-foreground: var(--foreground);
+  --input-placeholder: #92b2c0;
+  --input-focus-border: var(--palette-tianyi-400);
+  --input-focus-shadow: 0 0 0 3px rgb(143 220 255 / 0.24);
 
   // Electron 标题栏
-  --titlebar: #0a0a0e;
-  --titlebar-border: #1e1e24;
-  --titlebar-foreground: #a0a0a8;
+  --titlebar: #102f3d;
+  --titlebar-border: rgb(184 236 255 / 0.18);
+  --titlebar-foreground: #d8f2ff;
+  --titlebar-control-hover: rgb(143 220 255 / 0.18);
 
-  // 图表色彩 - 暗色主题和谐色系
-  --chart-1: #3b82f6;
-  --chart-2: #1d4ed8;
-  --chart-3: #60a5fa;
-  --chart-4: #1e40af;
-  --chart-5: #93c5fd;
+  // 交互动作
+  --action-background: var(--palette-tianyi-500);
+  --action-background-hover: var(--palette-tianyi-300);
+  --action-foreground: #082431;
+  --action-shadow: 0 8px 24px rgb(102 204 255 / 0.24);
+
+  // 阴影与玻璃效果
+  --shadow-soft: 0 12px 32px rgb(0 0 0 / 0.24);
+  --shadow-float: 0 18px 48px rgb(0 0 0 / 0.34);
+  --shadow-inset-highlight: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  --blur-acrylic: blur(18px) saturate(1.28);
+  --blur-acrylic-subtle: blur(12px) saturate(1.14);
+
+  // 图表色彩
+  --chart-1: var(--palette-tianyi-400);
+  --chart-2: var(--palette-tianyi-500);
+  --chart-3: #c8bdff;
+  --chart-4: #ffadd8;
+  --chart-5: #7ce2ce;
 
   // 侧边栏
-  --sidebar: #1e293b;
-  --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #003366;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #e2e8f0;
-  --sidebar-border: #475569;
-  --sidebar-ring: #003366;
+  --sidebar: rgb(18 48 62 / 0.7);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 // 全局基础样式
 * {
   border-color: var(--border);
   outline-color: rgb(from var(--ring) r g b / 0.5);
-  transition-property: color, background-color, border-color;
+  transition-property: color, background-color, border-color, box-shadow, opacity;
   transition-duration: 0.15s;
   transition-timing-function: ease-in-out;
 }
 
 body {
-  background-color: var(--background);
+  background: var(--mica-background);
   color: var(--foreground);
-  font-family: "DM Sans", sans-serif;
+  font-family: 'DM Sans', sans-serif;
 }
 
 html,

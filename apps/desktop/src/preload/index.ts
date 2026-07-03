@@ -8,12 +8,19 @@ import type {
   AgentRunResult,
   AgentStartPayload,
   AppPlatformResult,
-  ChaptaleDesktopApi
+  ChaptaleDesktopApi,
+  WindowStateResult
 } from '@chaptale/ipc-contract';
 import type { IpcRendererEvent } from 'electron';
 
 const desktopApi: ChaptaleDesktopApi = {
   getPlatform: () => ipcRenderer.invoke(IPC_CHANNELS.app.getPlatform) as Promise<AppPlatformResult>,
+  windowControl: {
+    minimize: () => ipcRenderer.invoke(IPC_CHANNELS.window.minimize) as Promise<WindowStateResult>,
+    toggleMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.window.toggleMaximize) as Promise<WindowStateResult>,
+    close: () => ipcRenderer.invoke(IPC_CHANNELS.window.close) as Promise<void>,
+    isMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.window.isMaximized) as Promise<WindowStateResult>
+  },
   agent: {
     getHistory: () => ipcRenderer.invoke(IPC_CHANNELS.agent.getHistory),
     stream: async (query, handlers) => {

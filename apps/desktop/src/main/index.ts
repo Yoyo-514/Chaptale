@@ -3,6 +3,7 @@ import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAgentIpc } from './ipc/agent.ipc';
+import { registerWindowIpc } from './ipc/window.ipc';
 import { AgentService } from './services/agent.service';
 import { ContextService } from './services/context.service';
 import { loadRootEnv } from './services/env.service';
@@ -11,6 +12,8 @@ import { ToolsService } from './services/tools.service';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
+const appIconPath = path.join(currentDir, '../../resources/favicon.ico');
+const appUserModelId = 'com.chaptale.desktop';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -21,20 +24,10 @@ function createMainWindow() {
     minWidth: 960,
     minHeight: 640,
     title: 'Chaptale',
-    icon: path.join(currentDir, '../../resources/favicon.ico'),
-    // 隐藏系统标题栏文字，保留原生窗口控制按钮
-    titleBarStyle: 'hidden',
-    // Windows/Linux 下显示原生窗口控制按钮（覆盖在页面上）
-    ...(process.platform !== 'darwin'
-      ? {
-          titleBarOverlay: {
-            color: '#0a0a0e',
-            symbolColor: '#a0a0a8',
-            height: 36
-          }
-        }
-      : {}),
-    backgroundColor: '#101014',
+    icon: appIconPath,
+    // 使用自定义标题栏和窗口控制按钮，避免原生控件与应用视觉风格割裂。
+    frame: false,
+    backgroundColor: '#fffaf2',
     webPreferences: {
       preload: path.join(currentDir, '../preload/index.js'),
       contextIsolation: true,
@@ -42,6 +35,10 @@ function createMainWindow() {
       sandbox: false
     }
   });
+
+  if (process.platform === 'win32') {
+    window.setIcon(appIconPath);
+  }
 
   // 隐藏默认菜单栏
   Menu.setApplicationMenu(null);
@@ -65,6 +62,10 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(appUserModelId);
+  }
+
   loadRootEnv();
 
   const contextService = new ContextService();
@@ -84,6 +85,7 @@ app.whenReady().then(() => {
   );
 
   registerAgentIpc(agentService, contextService);
+  registerWindowIpc();
 
   const mainWindow = createMainWindow();
 

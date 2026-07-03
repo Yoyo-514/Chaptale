@@ -10,11 +10,11 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground shadow-xs hover:opacity-90',
+        default: 'bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover',
         destructive:
-          'bg-destructive text-white shadow-xs hover:opacity-90 focus-visible:ring-destructive dark:opacity-90',
-        outline: 'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input',
-        secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:opacity-80',
+          'bg-destructive text-destructive-foreground shadow-xs hover:opacity-90 focus-visible:ring-destructive dark:opacity-90',
+        outline: 'border border-border bg-surface shadow-xs hover:bg-accent hover:text-accent-foreground',
+        secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-primary-hover',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline'
       },

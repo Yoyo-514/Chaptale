@@ -121,10 +121,6 @@ async function handleSend() {
   <div class="app-shell">
     <TitleBar />
     <main :class="cn('app-main', isWelcome && 'app-main-welcome')">
-      <section class="app-header">
-        <h1 class="app-title">{{ isWelcome ? '开始构思你的故事' : 'Chaptale' }}</h1>
-      </section>
-
       <section class="app-messages-section">
         <div class="app-messages-list">
           <MessageItem v-for="(message, index) in state.messages" :key="index" :message="message" />
@@ -146,16 +142,16 @@ async function handleSend() {
 
           <div class="app-bottom-toolbar">
             <div :class="cn('app-websearch-button', state.isEnabledWebSearch && 'app-websearch-button-active')">
-              <span class="i-lucide-globe" aria-hidden="true" />
+              <span class="i-mingcute-earth-line" aria-hidden="true" />
               <span>联网搜索</span>
             </div>
           </div>
 
           <div class="app-send-button-wrapper">
             <div :class="cn('app-send-button', state.isConnecting && 'app-send-button-disabled')" @click="handleSend">
-              <span v-if="state.isConnecting" class="i-lucide-loader-circle animate-spin" aria-label="正在连接" />
-              <span v-else-if="state.isReplying" class="i-lucide-square" aria-label="中断" />
-              <span v-else class="i-lucide-send-horizontal" aria-label="发送" />
+              <span v-if="state.isConnecting" class="i-mingcute-loading-line animate-spin" aria-label="正在连接" />
+              <span v-else-if="state.isReplying" class="i-mingcute-stop-line" aria-label="中断" />
+              <span v-else class="i-mingcute-send-plane-line" aria-label="发送" />
             </div>
           </div>
         </div>
@@ -170,19 +166,11 @@ async function handleSend() {
 }
 
 .app-main {
-  @apply flex-1 overflow-y-auto pb-28;
+  @apply flex-1 overflow-y-auto pt-6 pb-28;
 }
 
 .app-main-welcome {
   @apply flex h-full flex-col justify-center;
-}
-
-.app-header {
-  @apply sticky left-0 top-0;
-}
-
-.app-title {
-  @apply relative mx-auto bg-background p-4 text-3xl font-medium md:w-3xl;
 }
 
 .app-messages-section {
@@ -194,11 +182,11 @@ async function handleSend() {
 }
 
 .app-error-message {
-  @apply mt-4 rounded bg-red-50 p-4 py-3 text-sm text-red-500;
+  @apply mt-4 rounded-xl border border-destructive bg-destructive-background p-4 py-3 text-sm text-destructive-background-foreground;
 }
 
 .app-input-section {
-  @apply w-full bg-background p-4 pt-0 md:w-3xl;
+  @apply w-full p-4 pt-0 md:w-3xl;
 }
 
 .app-input-section-welcome {
@@ -210,11 +198,17 @@ async function handleSend() {
 }
 
 .app-input-container {
-  @apply relative flex flex-col gap-2 rounded-xl border-2 bg-background pb-10 transition-colors duration-200 focus-within:border-primary;
+  @apply relative flex flex-col gap-2 rounded-xl border-2 border-input-border bg-input-background pb-10 shadow-inset-highlight transition-colors duration-200 focus-within:border-input-focus;
+
+  backdrop-filter: var(--blur-acrylic-subtle);
+}
+
+.app-input-container:focus-within {
+  box-shadow: var(--input-focus-shadow), var(--shadow-inset-highlight);
 }
 
 .app-input-field {
-  @apply h-11 bg-transparent px-4 outline-none;
+  @apply h-11 bg-transparent px-4 text-input-foreground outline-none placeholder:text-input-placeholder;
 }
 
 .app-bottom-toolbar {
@@ -222,11 +216,11 @@ async function handleSend() {
 }
 
 .app-websearch-button {
-  @apply flex cursor-not-allowed items-center gap-1 rounded-md p-1 px-2 text-sm transition-colors duration-200 hover:bg-gray-100;
+  @apply flex cursor-not-allowed items-center gap-1 rounded-md p-1 px-2 text-sm text-muted-foreground transition-colors duration-200 hover:bg-surface-muted;
 }
 
 .app-websearch-button-active {
-  @apply bg-blue-100 text-blue-600 hover:bg-blue-100;
+  @apply bg-secondary text-secondary-foreground hover:bg-primary-hover;
 }
 
 .app-send-button-wrapper {
@@ -234,10 +228,10 @@ async function handleSend() {
 }
 
 .app-send-button {
-  @apply flex-center cursor-pointer rounded-full bg-black p-1.5 text-white transition-colors duration-200;
+  @apply flex-center cursor-pointer rounded-full bg-action p-1.5 text-action-foreground shadow-soft transition-colors duration-200 hover:bg-action-hover;
 }
 
 .app-send-button-disabled {
-  @apply pointer-events-none bg-neutral-500;
+  @apply pointer-events-none bg-muted text-muted-foreground shadow-none;
 }
 </style>

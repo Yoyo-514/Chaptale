@@ -1,0 +1,48 @@
+appId: com.chaptale.desktop
+productName: Chaptale
+copyright: Copyright © 2026 yoyo514
+
+asar: true
+electronDist: node_modules/electron/dist
+
+files:
+  - dist/**
+  - package.json
+
+directories:
+  buildResources: resources
+  output: release
+
+win:
+  icon: resources/favicon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: Chaptale
+  uninstallDisplayName: Chaptale
+
+mac:
+  icon: resources/icon.icns
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+
+linux:
+  icon: resources/icons
+  category: Development
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64

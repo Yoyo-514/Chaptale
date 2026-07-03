@@ -1,0 +1,73 @@
+/* stylelint-disable at-rule-no-unknown */
+// 通用 Markdown 渲染样式。
+// 该文件由 styles/index.scss 统一导出，组件只需要使用 .markdown-body 容器类。
+
+.markdown-body {
+  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic px-4 py-3 text-foreground shadow-inset-highlight;
+
+  backdrop-filter: var(--blur-acrylic-subtle);
+}
+
+.markdown-body * {
+  @apply border-border-subtle;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body pre,
+.markdown-body table {
+  margin: 0.75rem 0;
+}
+
+.markdown-body a {
+  @apply text-primary-solid underline underline-offset-3 transition-colors duration-200 hover:text-primary-solid-hover;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.35rem;
+}
+
+.markdown-body li + li {
+  margin-top: 0.25rem;
+}
+
+.markdown-body blockquote {
+  @apply rounded-r-lg border-l-3 border-primary bg-secondary px-3 py-2 text-secondary-foreground;
+}
+
+.markdown-body code {
+  @apply rounded-md bg-secondary px-1.5 py-0.5 text-[0.875em] text-secondary-foreground;
+}
+
+.markdown-body pre {
+  @apply overflow-x-auto rounded-lg border border-border-subtle bg-surface-muted p-3 text-sm shadow-inset-highlight;
+}
+
+.markdown-body pre code {
+  @apply bg-transparent p-0 text-foreground;
+}
+
+.markdown-body table {
+  @apply block max-w-full overflow-x-auto rounded-lg border border-border-subtle;
+  border-spacing: 0;
+}
+
+.markdown-body th,
+.markdown-body td {
+  @apply border-b border-border-subtle px-3 py-2;
+}
+
+.markdown-body th {
+  @apply bg-secondary text-left text-secondary-foreground;
+}

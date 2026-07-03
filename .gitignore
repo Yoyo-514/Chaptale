@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 .turbo
 dist
+release
 dist-types
 dist-ssr
 coverage

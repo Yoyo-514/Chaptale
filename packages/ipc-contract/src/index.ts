@@ -4,6 +4,12 @@ export const IPC_CHANNELS = {
   app: {
     getPlatform: 'app:get-platform'
   },
+  window: {
+    minimize: 'window:minimize',
+    toggleMaximize: 'window:toggle-maximize',
+    close: 'window:close',
+    isMaximized: 'window:is-maximized'
+  },
   agent: {
     getHistory: 'agent:get-history',
     start: 'agent:start',
@@ -19,6 +25,10 @@ export type IpcChannelGroup = typeof IPC_CHANNELS;
 export type AppPlatformResult = {
   platform: string;
   versions: Record<string, string>;
+};
+
+export type WindowStateResult = {
+  isMaximized: boolean;
 };
 
 export type AgentStartPayload = {
@@ -50,6 +60,12 @@ export type StreamAgentHandlers = {
 
 export type ChaptaleDesktopApi = {
   getPlatform: () => Promise<AppPlatformResult>;
+  windowControl: {
+    minimize: () => Promise<WindowStateResult>;
+    toggleMaximize: () => Promise<WindowStateResult>;
+    close: () => Promise<void>;
+    isMaximized: () => Promise<WindowStateResult>;
+  };
   agent: {
     getHistory: () => Promise<ChatMessage[]>;
     stream: (query: string, handlers: StreamAgentHandlers) => Promise<AgentRunResult>;
