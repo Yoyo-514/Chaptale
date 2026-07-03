@@ -3,13 +3,21 @@ import { ipcMain } from 'electron';
 import { AgentService } from '../services/agent.service';
 import { ContextService } from '../services/context.service';
 
-import type { AgentDoneEvent, AgentErrorEvent, AgentMessageEvent, AgentStartPayload } from '@chaptale/ipc-contract';
+import type {
+  AgentDoneEvent,
+  AgentErrorEvent,
+  AgentHistoryPayload,
+  AgentMessageEvent,
+  AgentStartPayload
+} from '@chaptale/ipc-contract';
 import type { WebContents } from 'electron';
 
 export function registerAgentIpc(agentService: AgentService, contextService: ContextService) {
   const controllers = new Map<string, AbortController>();
 
-  ipcMain.handle(IPC_CHANNELS.agent.getHistory, () => contextService.getMessages());
+  ipcMain.handle(IPC_CHANNELS.agent.getHistory, (_event, payload?: AgentHistoryPayload) =>
+    contextService.getMessages(payload?.sessionId)
+  );
 
   ipcMain.handle(IPC_CHANNELS.agent.start, (event, payload: AgentStartPayload) => {
     const abortController = new AbortController();
@@ -37,6 +45,7 @@ export function registerAgentIpc(agentService: AgentService, contextService: Con
     try {
       for await (const message of agentService.stream({
         query: payload.query,
+        sessionId: payload.sessionId,
         signal: abortController.signal
       })) {
         webContents.send(IPC_CHANNELS.agent.message, {

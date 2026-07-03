@@ -3,11 +3,13 @@ import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAgentIpc } from './ipc/agent.ipc';
+import { registerSessionIpc } from './ipc/session.ipc';
 import { registerWindowIpc } from './ipc/window.ipc';
 import { AgentService } from './services/agent.service';
 import { ContextService } from './services/context.service';
 import { loadRootEnv } from './services/env.service';
 import { ModelService } from './services/model.service';
+import { JsonlSessionRepository } from './services/session.repository';
 import { ToolsService } from './services/tools.service';
 
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -68,7 +70,11 @@ app.whenReady().then(() => {
 
   loadRootEnv();
 
-  const contextService = new ContextService();
+  const sessionRepository = new JsonlSessionRepository({
+    rootDir: path.join(app.getPath('userData'), 'chaptale'),
+    cwd: app.getPath('userData')
+  });
+  const contextService = new ContextService(sessionRepository);
   const modelService = new ModelService();
   const toolsService = new ToolsService();
   const agentService = new AgentService(contextService, modelService, toolsService);
@@ -84,6 +90,7 @@ app.whenReady().then(() => {
       }) satisfies AppPlatformResult
   );
 
+  registerSessionIpc(sessionRepository);
   registerAgentIpc(agentService, contextService);
   registerWindowIpc();
 

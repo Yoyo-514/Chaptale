@@ -8,6 +8,7 @@ import { ToolsService } from './tools.service';
 export type StreamOptions = {
   signal: AbortSignal;
   query: string;
+  sessionId?: string;
 };
 
 export class AgentService {
@@ -47,9 +48,9 @@ export class AgentService {
   }
 
   async *stream(options: StreamOptions): AsyncGenerator<ChatMessage> {
-    const { signal, query } = options;
+    const { signal, query, sessionId } = options;
 
-    // 添加用户消息到上下文
+    // 添加用户消息到当前会话上下文
     const userMessage: ChatMessage = {
       type: 'user',
       payload: {
@@ -57,7 +58,7 @@ export class AgentService {
       }
     };
 
-    this.contextService.push(userMessage);
+    await this.contextService.push(userMessage, sessionId);
 
     // 用于在流式输出结束后，将完整模型回复保存到上下文
     let assistantContent = '';
@@ -68,7 +69,7 @@ export class AgentService {
       model: this.modelService.model,
       abortSignal: signal,
       system: [this.contextService.getSystemPrompt(), this.contextService.getChaptaleSystemPrompt()].join('\n\n'),
-      messages: this.toModelMessages(this.contextService.getMessages()),
+      messages: this.toModelMessages(await this.contextService.getMessages(sessionId)),
       tools: this.toolsService.tools,
       // 允许模型在一次请求中完成有限轮工具调用，避免无限循环
       stopWhen: stepCountIs(5),
@@ -104,7 +105,7 @@ export class AgentService {
           }
         };
 
-        this.contextService.push(message);
+        await this.contextService.push(message, sessionId);
         yield message;
         continue;
       }
@@ -121,19 +122,22 @@ export class AgentService {
           }
         };
 
-        this.contextService.push(message);
+        await this.contextService.push(message, sessionId);
         yield message;
       }
     }
 
     // 保存本次模型完整回复，供后续对话继续使用
     if (assistantContent) {
-      this.contextService.push({
-        type: 'assistant',
-        payload: {
-          content: assistantContent
-        }
-      });
+      await this.contextService.push(
+        {
+          type: 'assistant',
+          payload: {
+            content: assistantContent
+          }
+        },
+        sessionId
+      );
     }
   }
 }

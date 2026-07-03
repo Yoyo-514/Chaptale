@@ -34,8 +34,16 @@ export const chaptaleSystemPrompt = `
   当主人提出创作相关需求时，优先协助构思、整理、改写、续写、校对和分析作品结构。
 `;
 
+export type SessionMessageStore = {
+  ensureDefaultSession: () => Promise<{ id: string }>;
+  getMessages: (sessionId: string) => Promise<ChatMessage[]>;
+  appendMessage: (sessionId: string, message: ChatMessage) => Promise<unknown>;
+};
+
 export class ContextService {
-  private readonly messages: ChatMessage[] = [];
+  private defaultSessionId?: string;
+
+  constructor(private readonly sessionStore: SessionMessageStore) {}
 
   getSystemPrompt() {
     return systemPrompt;
@@ -45,11 +53,25 @@ export class ContextService {
     return chaptaleSystemPrompt;
   }
 
-  getMessages() {
-    return this.messages;
+  async resolveSessionId(sessionId?: string) {
+    if (sessionId) {
+      return sessionId;
+    }
+
+    if (this.defaultSessionId) {
+      return this.defaultSessionId;
+    }
+
+    const session = await this.sessionStore.ensureDefaultSession();
+    this.defaultSessionId = session.id;
+    return session.id;
   }
 
-  push(message: ChatMessage) {
-    this.messages.push(message);
+  async getMessages(sessionId?: string) {
+    return this.sessionStore.getMessages(await this.resolveSessionId(sessionId));
+  }
+
+  async push(message: ChatMessage, sessionId?: string) {
+    return this.sessionStore.appendMessage(await this.resolveSessionId(sessionId), message);
   }
 }

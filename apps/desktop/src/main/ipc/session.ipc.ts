@@ -1,0 +1,49 @@
+import { IPC_CHANNELS } from '@chaptale/ipc-contract';
+import { ipcMain, shell } from 'electron';
+import { JsonlSessionRepository } from '../services/session.repository';
+
+import type {
+  CreateSessionOptions,
+  DeleteSessionPayload,
+  RenameSessionPayload,
+  SetSessionLeafPayload
+} from '@chaptale/ipc-contract';
+
+export function registerSessionIpc(sessionRepository: JsonlSessionRepository) {
+  ipcMain.handle(IPC_CHANNELS.session.list, () => sessionRepository.list());
+
+  ipcMain.handle(IPC_CHANNELS.session.create, (_event, options?: CreateSessionOptions) =>
+    sessionRepository.create(options)
+  );
+
+  ipcMain.handle(IPC_CHANNELS.session.getEntries, (_event, sessionId: string) =>
+    sessionRepository.getEntries(sessionId)
+  );
+
+  ipcMain.handle(IPC_CHANNELS.session.getMessages, (_event, sessionId: string) =>
+    sessionRepository.getMessages(sessionId)
+  );
+
+  ipcMain.handle(IPC_CHANNELS.session.rename, (_event, payload: RenameSessionPayload) =>
+    sessionRepository.appendSessionInfo(payload.sessionId, payload.name)
+  );
+
+  ipcMain.handle(IPC_CHANNELS.session.delete, (_event, payload: DeleteSessionPayload) =>
+    sessionRepository.delete(payload.sessionId)
+  );
+
+  ipcMain.handle(IPC_CHANNELS.session.setLeaf, (_event, payload: SetSessionLeafPayload) =>
+    sessionRepository.setLeafId(payload.sessionId, payload.leafId)
+  );
+
+  ipcMain.handle(IPC_CHANNELS.session.getStorageDebugInfo, () => sessionRepository.getStorageDebugInfo());
+
+  ipcMain.handle(IPC_CHANNELS.session.openStorageDir, async () => {
+    const sessionDir = await sessionRepository.ensureSessionDir();
+    const errorMessage = await shell.openPath(sessionDir);
+
+    if (errorMessage) {
+      throw new Error(errorMessage);
+    }
+  });
+}

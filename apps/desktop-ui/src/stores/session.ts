@@ -1,0 +1,95 @@
+import type { ChatMessage } from '@chaptale/shared';
+import type {
+  ChaptaleSessionListItem,
+  ChaptaleSessionStorageDebugInfo,
+  CreateSessionOptions
+} from '@chaptale/ipc-contract';
+import { defineStore } from 'pinia';
+
+function getDesktopApi() {
+  if (!window.chaptaleDesktop) {
+    throw new Error('当前界面需要在 Chaptale 桌面端中运行');
+  }
+
+  return window.chaptaleDesktop;
+}
+
+export const useSessionStore = defineStore('session', {
+  state: () => ({
+    sessions: [] as ChaptaleSessionListItem[],
+    currentSessionId: '',
+    storageDebugInfo: undefined as ChaptaleSessionStorageDebugInfo | undefined,
+    isLoading: false,
+    error: ''
+  }),
+  getters: {
+    currentSession(state) {
+      return state.sessions.find(session => session.id === state.currentSessionId);
+    }
+  },
+  actions: {
+    async loadSessions() {
+      this.isLoading = true;
+      this.error = '';
+
+      try {
+        this.sessions = await getDesktopApi().session.list();
+        if (!this.currentSessionId && this.sessions[0]) {
+          this.currentSessionId = this.sessions[0].id;
+        }
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async ensureActiveSession() {
+      await this.loadSessions();
+
+      if (this.currentSessionId) {
+        return this.currentSessionId;
+      }
+
+      const session = await this.createSession({ name: '默认会话' });
+      return session.id;
+    },
+
+    async createSession(options: CreateSessionOptions = {}) {
+      this.error = '';
+      const session = await getDesktopApi().session.create(options);
+      this.currentSessionId = session.id;
+      await this.loadSessions();
+      return session;
+    },
+
+    async selectSession(sessionId: string) {
+      this.currentSessionId = sessionId;
+    },
+
+    async loadStorageDebugInfo() {
+      this.error = '';
+
+      try {
+        this.storageDebugInfo = await getDesktopApi().session.getStorageDebugInfo();
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+      }
+    },
+
+    async openStorageDir() {
+      this.error = '';
+
+      try {
+        await getDesktopApi().session.openStorageDir();
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+      }
+    },
+
+    async getCurrentMessages(): Promise<ChatMessage[]> {
+      const sessionId = await this.ensureActiveSession();
+      return getDesktopApi().agent.getHistory(sessionId);
+    }
+  }
+});

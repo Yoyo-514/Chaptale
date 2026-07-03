@@ -9,6 +9,7 @@ import type {
   AgentStartPayload,
   AppPlatformResult,
   ChaptaleDesktopApi,
+  CreateSessionOptions,
   WindowStateResult
 } from '@chaptale/ipc-contract';
 import type { IpcRendererEvent } from 'electron';
@@ -21,9 +22,21 @@ const desktopApi: ChaptaleDesktopApi = {
     close: () => ipcRenderer.invoke(IPC_CHANNELS.window.close) as Promise<void>,
     isMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.window.isMaximized) as Promise<WindowStateResult>
   },
+  session: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.session.list),
+    create: (options?: CreateSessionOptions) => ipcRenderer.invoke(IPC_CHANNELS.session.create, options),
+    getEntries: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.getEntries, sessionId),
+    getMessages: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.getMessages, sessionId),
+    rename: (sessionId: string, name: string) => ipcRenderer.invoke(IPC_CHANNELS.session.rename, { sessionId, name }),
+    delete: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.delete, { sessionId }) as Promise<void>,
+    setLeaf: (sessionId: string, leafId: string | null) =>
+      ipcRenderer.invoke(IPC_CHANNELS.session.setLeaf, { sessionId, leafId }) as Promise<void>,
+    getStorageDebugInfo: () => ipcRenderer.invoke(IPC_CHANNELS.session.getStorageDebugInfo),
+    openStorageDir: () => ipcRenderer.invoke(IPC_CHANNELS.session.openStorageDir) as Promise<void>
+  },
   agent: {
-    getHistory: () => ipcRenderer.invoke(IPC_CHANNELS.agent.getHistory),
-    stream: async (query, handlers) => {
+    getHistory: (sessionId?: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.getHistory, { sessionId }),
+    stream: async (query, handlers, sessionId) => {
       const runId = crypto.randomUUID();
 
       const cleanup = () => {
@@ -60,7 +73,7 @@ const desktopApi: ChaptaleDesktopApi = {
       ipcRenderer.on(IPC_CHANNELS.agent.done, handleDone);
       ipcRenderer.on(IPC_CHANNELS.agent.error, handleError);
 
-      await ipcRenderer.invoke(IPC_CHANNELS.agent.start, { runId, query } satisfies AgentStartPayload);
+      await ipcRenderer.invoke(IPC_CHANNELS.agent.start, { runId, query, sessionId } satisfies AgentStartPayload);
       return { runId };
     },
     cancel: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.cancel, runId) as Promise<AgentRunResult>
