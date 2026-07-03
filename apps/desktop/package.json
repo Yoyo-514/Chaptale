@@ -22,7 +22,7 @@
   "dependencies": {
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
-    "@earendil-works/pi-ai": "^0.80.3",
+    "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@unocss/reset": "catalog:",
     "class-variance-authority": "catalog:",

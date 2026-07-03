@@ -12,6 +12,9 @@ catalogs:
     '@capacitor/core':
       specifier: ^8.4.1
       version: 8.4.1
+    '@earendil-works/pi-ai':
+      specifier: ^0.80.3
+      version: 0.80.3
     '@earendil-works/pi-coding-agent':
       specifier: ^0.80.3
       version: 0.80.3
@@ -150,7 +153,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@earendil-works/pi-ai':
-        specifier: ^0.80.3
+        specifier: 'catalog:'
         version: 0.80.3(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
