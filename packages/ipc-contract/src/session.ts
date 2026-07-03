@@ -49,11 +49,6 @@ export type ChaptaleSessionInfoEntry = ChaptaleSessionTreeEntryBase & {
   name?: string;
 };
 
-export type ChaptaleLeafEntry = ChaptaleSessionTreeEntryBase & {
-  type: 'leaf';
-  targetId: string | null;
-};
-
 export type ChaptaleCustomEntry<T = unknown> = ChaptaleSessionTreeEntryBase & {
   type: 'custom';
   name: string;
@@ -72,7 +67,6 @@ export type ChaptaleSessionTreeEntry =
   | ChaptaleBranchSummaryEntry
   | ChaptaleLabelEntry
   | ChaptaleSessionInfoEntry
-  | ChaptaleLeafEntry
   | ChaptaleCustomEntry
   | ChaptaleCustomMessageEntry;
 
@@ -117,4 +111,6 @@ export type ChaptaleSessionStorageDebugInfo = {
   rootDir: string;
   sessionDir: string;
   cwd: string;
+  storageMode?: 'global' | 'workspace';
+  workspacePath?: string;
 };

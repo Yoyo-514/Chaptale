@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import type { ChatMessage } from '@chaptale/shared';
 import MessageItem from '../../components/MessageItem/MessageItem.vue';
 import { useSessionStore } from '../../stores/session';
+import { useToastStore } from '../../stores/toast';
 import { cn } from '../../utils';
 import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInputBox.vue';
@@ -15,18 +16,17 @@ type ChatState = {
   isConnecting: boolean;
   isReplying: boolean;
   isEnabledWebSearch: boolean;
-  error: string;
 };
 
 const sessionStore = useSessionStore();
+const toastStore = useToastStore();
 
 const state = reactive<ChatState>({
   messages: [],
   input: '',
   isConnecting: false,
   isReplying: false,
-  isEnabledWebSearch: true,
-  error: ''
+  isEnabledWebSearch: true
 });
 
 const mainRef = ref<HTMLElement | null>(null);
@@ -53,13 +53,12 @@ async function handleSelectRecentSession(sessionId: string) {
 
 async function loadCurrentSessionMessages() {
   if (!window.chaptaleDesktop) {
-    state.error = '当前界面需要在 Chaptale 桌面端中运行';
+    toastStore.error('当前界面需要在 Chaptale 桌面端中运行');
     return;
   }
 
-  state.error = '';
   const messages = await sessionStore.getCurrentMessages().catch(error => {
-    state.error = error instanceof Error ? error.message : String(error);
+    toastStore.error('读取会话消息失败', error instanceof Error ? error.message : String(error));
     return [];
   });
   state.messages = messages;
@@ -96,7 +95,6 @@ async function handleSend() {
 
   try {
     state.isConnecting = true;
-    state.error = '';
 
     if (!window.chaptaleDesktop) {
       throw new Error('当前界面需要在 Chaptale 桌面端中运行');
@@ -141,7 +139,9 @@ async function handleSend() {
         },
         onError: message => {
           activeRunId.value = '';
-          state.error = message;
+
+          toastStore.error('AI 回复失败', message);
+
           state.isReplying = false;
           state.isConnecting = false;
         }
@@ -152,7 +152,7 @@ async function handleSend() {
     activeRunId.value = runId;
     state.isConnecting = false;
   } catch (error) {
-    state.error = error instanceof Error ? error.message : String(error);
+    toastStore.error('发送失败', error instanceof Error ? error.message : String(error));
     state.isReplying = false;
     state.isConnecting = false;
   }
@@ -170,10 +170,6 @@ async function handleSend() {
 
       <div v-else class="chat-messages-list">
         <MessageItem v-for="(message, index) in state.messages" :key="index" :message="message" />
-      </div>
-
-      <div v-if="state.error" class="chat-error-message">
-        {{ state.error }}
       </div>
     </section>
 
@@ -210,13 +206,5 @@ async function handleSend() {
 
 .chat-messages-list {
   @apply flex flex-1 flex-col gap-4;
-}
-
-.chat-error-message {
-  @apply mt-4 rounded-xl border p-4 py-3 text-sm;
-
-  background: var(--destructive-background);
-  border-color: var(--destructive);
-  color: var(--destructive-background-foreground);
 }
 </style>

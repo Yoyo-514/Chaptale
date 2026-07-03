@@ -33,3 +33,5 @@ temp/
 # AI memory
 .serena
 guide-docs
+.playwright-mcp
+.pi-subagents

@@ -1,16 +1,16 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
+import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAgentIpc } from './ipc/agent.ipc';
+import { registerModelsIpc } from './ipc/models.ipc';
 import { registerSessionIpc } from './ipc/session.ipc';
+import { registerSettingsIpc } from './ipc/settings.ipc';
 import { registerWindowIpc } from './ipc/window.ipc';
-import { AgentService } from './services/agent.service';
-import { ContextService } from './services/context.service';
-import { loadRootEnv } from './services/env.service';
-import { ModelService } from './services/model.service';
-import { JsonlSessionRepository } from './services/session.repository';
-import { ToolsService } from './services/tools.service';
+import { PiAgentService } from './services/pi-agent.service';
+import { PiModelService } from './services/pi-model.service';
+import { PiSessionRepository } from './services/session.repository';
+import { SettingsService } from './services/settings.service';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
@@ -68,16 +68,15 @@ app.whenReady().then(() => {
     app.setAppUserModelId(appUserModelId);
   }
 
-  loadRootEnv();
-
-  const sessionRepository = new JsonlSessionRepository({
-    rootDir: path.join(app.getPath('userData'), 'chaptale'),
-    cwd: app.getPath('userData')
+  const settingsService = new SettingsService();
+  const sessionRepository = new PiSessionRepository({
+    rootDir: settingsService.agentDir,
+    cwd: () => settingsService.getCurrentCwd(),
+    sessionDir: () => settingsService.getCurrentSessionDir(),
+    getStorageContext: () => settingsService.getStorageContext()
   });
-  const contextService = new ContextService(sessionRepository);
-  const modelService = new ModelService();
-  const toolsService = new ToolsService();
-  const agentService = new AgentService(contextService, modelService, toolsService);
+  const piModelService = new PiModelService(settingsService);
+  const piAgentService = new PiAgentService(settingsService, piModelService);
 
   ipcMain.handle(
     IPC_CHANNELS.app.getPlatform,
@@ -91,7 +90,9 @@ app.whenReady().then(() => {
   );
 
   registerSessionIpc(sessionRepository);
-  registerAgentIpc(agentService, contextService);
+  registerSettingsIpc(settingsService, () => piAgentService.invalidateSessions());
+  registerModelsIpc(piModelService);
+  registerAgentIpc(piAgentService);
   registerWindowIpc();
 
   const mainWindow = createMainWindow();

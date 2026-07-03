@@ -1,7 +1,6 @@
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import { ipcMain } from 'electron';
-import { AgentService } from '../services/agent.service';
-import { ContextService } from '../services/context.service';
+import { PiAgentService } from '../services/pi-agent.service';
 
 import type {
   AgentDoneEvent,
@@ -12,12 +11,16 @@ import type {
 } from '@chaptale/ipc-contract';
 import type { WebContents } from 'electron';
 
-export function registerAgentIpc(agentService: AgentService, contextService: ContextService) {
+export function registerAgentIpc(agentService: PiAgentService) {
   const controllers = new Map<string, AbortController>();
 
-  ipcMain.handle(IPC_CHANNELS.agent.getHistory, (_event, payload?: AgentHistoryPayload) =>
-    contextService.getMessages(payload?.sessionId)
-  );
+  ipcMain.handle(IPC_CHANNELS.agent.getHistory, (_event, payload?: AgentHistoryPayload) => {
+    if (!payload?.sessionId) {
+      return [];
+    }
+
+    return agentService.getHistory(payload.sessionId);
+  });
 
   ipcMain.handle(IPC_CHANNELS.agent.start, (event, payload: AgentStartPayload) => {
     const abortController = new AbortController();

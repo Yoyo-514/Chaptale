@@ -1,6 +1,6 @@
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import { ipcMain, shell } from 'electron';
-import { JsonlSessionRepository } from '../services/session.repository';
+import { PiSessionRepository } from '../services/session.repository';
 
 import type {
   CreateSessionOptions,
@@ -9,7 +9,7 @@ import type {
   SetSessionLeafPayload
 } from '@chaptale/ipc-contract';
 
-export function registerSessionIpc(sessionRepository: JsonlSessionRepository) {
+export function registerSessionIpc(sessionRepository: PiSessionRepository) {
   ipcMain.handle(IPC_CHANNELS.session.list, () => sessionRepository.list());
 
   ipcMain.handle(IPC_CHANNELS.session.create, (_event, options?: CreateSessionOptions) =>

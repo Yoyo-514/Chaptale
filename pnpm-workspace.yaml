@@ -3,17 +3,19 @@ packages:
   - packages/*
 
 allowBuilds:
+  "@google/genai": true
   "@parcel/watcher": true
   electron: true
   electron-winstaller: true
   esbuild: true
+  protobufjs: true
   vue-demi: true
 
 catalog:
-  "@ai-sdk/anthropic": ^4.0.5
-  "@ai-sdk/openai": ^4.0.5
   "@capacitor/cli": ^8.4.1
   "@capacitor/core": ^8.4.1
+  "@earendil-works/pi-coding-agent": ^0.80.3
+  "@earendil-works/pi-ai": ^0.80.3
   "@iconify-json/mingcute": ^1.2.7
   "@types/markdown-it": ^14.1.2
   "@types/node": ^26.1.0
@@ -21,11 +23,9 @@ catalog:
   "@unocss/preset-icons": ^66.7.4
   "@unocss/reset": ^66.7.4
   "@vitejs/plugin-vue": ^6.0.7
-  ai: ^7.0.11
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
   cross-env: ^10.1.0
-  dotenv: ^17.4.2
   electron: ^43.0.0
   electron-builder: ^26.15.6
   electron-vite: ^5.0.0
@@ -39,6 +39,7 @@ catalog:
   reka-ui: ^2.10.1
   sass: ^1.101.0
   turbo: ^2.10.2
+  typebox: ^1.1.38
   typescript: ^6.0.3
   unocss: ^66.7.4
   pinia: ^3.0.4
@@ -47,14 +48,8 @@ catalog:
   vue: ^3.5.39
   vue-router: ^4.6.4
   vue-tsc: ^3.3.6
-  zod: ^4.4.3
 
 minimumReleaseAgeExclude:
-  - "@ai-sdk/anthropic@4.0.3"
-  - "@ai-sdk/gateway@4.0.6"
-  - "@ai-sdk/openai@4.0.4"
-  - "@ai-sdk/provider-utils@5.0.2"
-  - "@ai-sdk/provider@4.0.1"
   - "@oxfmt/binding-android-arm-eabi@0.57.0"
   - "@oxfmt/binding-android-arm64@0.57.0"
   - "@oxfmt/binding-darwin-arm64@0.57.0"
@@ -94,7 +89,6 @@ minimumReleaseAgeExclude:
   - "@oxlint/binding-win32-ia32-msvc@1.72.0"
   - "@oxlint/binding-win32-x64-msvc@1.72.0"
   - "@vue/language-core@3.3.6"
-  - ai@7.0.8
   - oxfmt@0.57.0
   - oxlint@1.72.0
   - vite@8.1.2

@@ -19,6 +19,25 @@ export const IPC_CHANNELS = {
     getStorageDebugInfo: 'session:get-storage-debug-info',
     openStorageDir: 'session:open-storage-dir'
   },
+  settings: {
+    getState: 'settings:get-state',
+    update: 'settings:update',
+    selectWorkspaceDir: 'settings:select-workspace-dir',
+    openConfigDir: 'settings:open-config-dir'
+  },
+  models: {
+    list: 'models:list',
+    setDefault: 'models:set-default',
+    setProviderApiKey: 'models:set-provider-api-key',
+    fetchCustomProviderModels: 'models:fetch-custom-provider-models',
+    addCustomProvider: 'models:add-custom-provider',
+    addCustomModel: 'models:add-custom-model',
+    setCustomProviderApiKey: 'models:set-custom-provider-api-key',
+    removeCustomProviderApiKey: 'models:remove-custom-provider-api-key',
+    updateCustomModelInput: 'models:update-custom-model-input',
+    removeCustomModel: 'models:remove-custom-model',
+    removeProviderAuth: 'models:remove-provider-auth'
+  },
   agent: {
     getHistory: 'agent:get-history',
     start: 'agent:start',

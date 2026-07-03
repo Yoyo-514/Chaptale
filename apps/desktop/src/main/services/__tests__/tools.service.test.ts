@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ToolsService } from '../tools.service';
+import { websearch } from '../tools.service';
 
-describe('ToolsService', () => {
+describe('websearch', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -31,10 +31,9 @@ describe('ToolsService', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const service = new ToolsService();
-    const results = await service.websearch({ keywords: 'Chaptale' });
+    const results = await websearch({ keywords: 'Chaptale' });
 
-    expect(fetchMock).toHaveBeenCalledWith('https://www.bing.com/search?format=rss&q=Chaptale');
+    expect(fetchMock).toHaveBeenCalledWith('https://www.bing.com/search?format=rss&q=Chaptale', undefined);
     expect(results).toEqual([
       {
         title: 'Chaptale',
@@ -51,8 +50,6 @@ describe('ToolsService', () => {
       } as Response;
     });
 
-    const service = new ToolsService();
-
-    await expect(service.websearch({ keywords: 'empty' })).resolves.toEqual([]);
+    await expect(websearch({ keywords: 'empty' })).resolves.toEqual([]);
   });
 });

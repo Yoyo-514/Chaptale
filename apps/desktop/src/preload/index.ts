@@ -2,6 +2,8 @@ import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import { contextBridge, ipcRenderer } from 'electron';
 
 import type {
+  AddCustomModelPayload,
+  AddCustomProviderPayload,
   AgentDoneEvent,
   AgentErrorEvent,
   AgentMessageEvent,
@@ -10,6 +12,17 @@ import type {
   AppPlatformResult,
   ChaptaleDesktopApi,
   CreateSessionOptions,
+  FetchCustomProviderModelsPayload,
+  FetchCustomProviderModelsResult,
+  ListModelsResult,
+  RemoveCustomModelPayload,
+  RemoveCustomProviderApiKeyPayload,
+  RemoveProviderAuthPayload,
+  SetCustomProviderApiKeyPayload,
+  SetDefaultModelPayload,
+  SetProviderApiKeyPayload,
+  UpdateChaptaleSettingsPayload,
+  UpdateCustomModelInputPayload,
   WindowStateResult
 } from '@chaptale/ipc-contract';
 import type { IpcRendererEvent } from 'electron';
@@ -33,6 +46,38 @@ const desktopApi: ChaptaleDesktopApi = {
       ipcRenderer.invoke(IPC_CHANNELS.session.setLeaf, { sessionId, leafId }) as Promise<void>,
     getStorageDebugInfo: () => ipcRenderer.invoke(IPC_CHANNELS.session.getStorageDebugInfo),
     openStorageDir: () => ipcRenderer.invoke(IPC_CHANNELS.session.openStorageDir) as Promise<void>
+  },
+  settings: {
+    getState: () => ipcRenderer.invoke(IPC_CHANNELS.settings.getState),
+    update: (payload: UpdateChaptaleSettingsPayload) => ipcRenderer.invoke(IPC_CHANNELS.settings.update, payload),
+    selectWorkspaceDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.selectWorkspaceDir),
+    openConfigDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.openConfigDir) as Promise<void>
+  },
+  models: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.models.list) as Promise<ListModelsResult>,
+    setDefault: (payload: SetDefaultModelPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.setDefault, payload) as Promise<ListModelsResult>,
+    setProviderApiKey: (payload: SetProviderApiKeyPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.setProviderApiKey, payload) as Promise<ListModelsResult>,
+    fetchCustomProviderModels: (payload: FetchCustomProviderModelsPayload) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.models.fetchCustomProviderModels,
+        payload
+      ) as Promise<FetchCustomProviderModelsResult>,
+    addCustomProvider: (payload: AddCustomProviderPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.addCustomProvider, payload) as Promise<ListModelsResult>,
+    addCustomModel: (payload: AddCustomModelPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.addCustomModel, payload) as Promise<ListModelsResult>,
+    setCustomProviderApiKey: (payload: SetCustomProviderApiKeyPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.setCustomProviderApiKey, payload) as Promise<ListModelsResult>,
+    removeCustomProviderApiKey: (payload: RemoveCustomProviderApiKeyPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.removeCustomProviderApiKey, payload) as Promise<ListModelsResult>,
+    updateCustomModelInput: (payload: UpdateCustomModelInputPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.updateCustomModelInput, payload) as Promise<ListModelsResult>,
+    removeCustomModel: (payload: RemoveCustomModelPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.removeCustomModel, payload) as Promise<ListModelsResult>,
+    removeProviderAuth: (payload: RemoveProviderAuthPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.removeProviderAuth, payload) as Promise<ListModelsResult>
   },
   agent: {
     getHistory: (sessionId?: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.getHistory, { sessionId }),

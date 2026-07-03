@@ -1,193 +1,369 @@
 import type { ChatMessage } from '@chaptale/shared';
 import type {
-  ChaptaleSessionEntry,
+  ChaptaleSessionInfoEntry,
   ChaptaleSessionListItem,
   ChaptaleSessionMetadata,
+  ChaptaleSessionStorageDebugInfo,
   ChaptaleSessionTreeEntry,
   CreateSessionOptions
 } from '@chaptale/ipc-contract';
-import { randomBytes } from 'node:crypto';
+import { SessionManager, type SessionEntry, type SessionInfo } from '@earendil-works/pi-coding-agent';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
-const SESSION_FILE_EXTENSION = '.jsonl';
-const SESSION_HEADER_VERSION = 3;
-
-export type JsonlSessionRepositoryOptions = {
+export type PiSessionRepositoryOptions = {
   rootDir: string;
-  cwd: string;
+  cwd: string | (() => string | Promise<string>);
+  sessionDir: string | (() => string | Promise<string>);
+  getStorageContext?: () =>
+    | { storageMode?: 'global' | 'workspace'; workspacePath?: string }
+    | Promise<{ storageMode?: 'global' | 'workspace'; workspacePath?: string }>;
 };
 
-type SessionHeader = ChaptaleSessionEntry;
+type PiMessage = Parameters<SessionManager['appendMessage']>[0];
 
-type ParsedSessionFile = {
-  metadata: ChaptaleSessionMetadata;
-  entries: ChaptaleSessionTreeEntry[];
+type MinimalPiTextContent = {
+  type: 'text';
+  text: string;
 };
 
-function createTimestamp() {
-  return new Date().toISOString();
+type MinimalPiToolCall = {
+  type: 'toolCall';
+  id: string;
+  name: string;
+  arguments: Record<string, any>;
+};
+
+type MinimalPiAssistantMessage = {
+  role: 'assistant';
+  content: (MinimalPiTextContent | MinimalPiToolCall)[];
+  api: string;
+  provider: string;
+  model: string;
+  usage: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    totalTokens: number;
+    cost: {
+      input: number;
+      output: number;
+      cacheRead: number;
+      cacheWrite: number;
+      total: number;
+    };
+  };
+  stopReason: 'stop' | 'length' | 'toolUse' | 'error' | 'aborted';
+  timestamp: number;
+};
+
+type MinimalPiToolResultMessage = {
+  role: 'toolResult';
+  toolCallId: string;
+  toolName: string;
+  content: MinimalPiTextContent[];
+  isError: boolean;
+  timestamp: number;
+};
+
+function createZeroUsage(): MinimalPiAssistantMessage['usage'] {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 0
+    }
+  };
 }
 
-function createUuidV7() {
-  const bytes = randomBytes(16);
-  const timestamp = BigInt(Date.now());
+function getTextFromContent(content: unknown) {
+  if (typeof content === 'string') {
+    return content;
+  }
 
-  bytes[0] = Number((timestamp >> 40n) & 0xffn);
-  bytes[1] = Number((timestamp >> 32n) & 0xffn);
-  bytes[2] = Number((timestamp >> 24n) & 0xffn);
-  bytes[3] = Number((timestamp >> 16n) & 0xffn);
-  bytes[4] = Number((timestamp >> 8n) & 0xffn);
-  bytes[5] = Number(timestamp & 0xffn);
-  bytes[6] = (bytes[6] & 0x0f) | 0x70;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  if (!Array.isArray(content)) {
+    return '';
+  }
 
-  const hex = [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  return content
+    .map(item => {
+      if (!item || typeof item !== 'object') {
+        return '';
+      }
+
+      const block = item as Record<string, unknown>;
+      if (block.type === 'text' && typeof block.text === 'string') {
+        return block.text;
+      }
+
+      if (block.type === 'toolCall' && typeof block.name === 'string') {
+        return `调用工具：${block.name}`;
+      }
+
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n');
 }
 
-function createSessionId() {
-  return createUuidV7();
-}
+function toPiMessage(message: ChatMessage): PiMessage {
+  const timestamp = Date.now();
 
-function createEntryId() {
-  return createUuidV7();
-}
-
-function toSafeFileTimestamp(timestamp: string) {
-  return timestamp.replaceAll(':', '-').replaceAll('.', '-');
-}
-
-function assertSessionHeader(value: unknown, filePath: string): asserts value is SessionHeader {
-  if (!value || typeof value !== 'object') {
-    throw new Error(`Invalid session header in ${filePath}`);
+  if (message.type === 'user') {
+    return {
+      role: 'user',
+      content: message.payload.content,
+      timestamp
+    } as PiMessage;
   }
 
-  const header = value as Record<string, unknown>;
-  if (header.type !== 'session' || header.version !== SESSION_HEADER_VERSION) {
-    throw new Error(`Unsupported session header in ${filePath}`);
-  }
-
-  if (typeof header.id !== 'string' || !header.id) {
-    throw new Error(`Session header missing id in ${filePath}`);
-  }
-
-  if (typeof header.timestamp !== 'string' || !header.timestamp) {
-    throw new Error(`Session header missing timestamp in ${filePath}`);
-  }
-
-  if (typeof header.cwd !== 'string' || !header.cwd) {
-    throw new Error(`Session header missing cwd in ${filePath}`);
-  }
-
-  if (header.parentSession !== undefined && typeof header.parentSession !== 'string') {
-    throw new Error(`Session header parentSession must be a string in ${filePath}`);
-  }
-}
-
-function assertSessionTreeEntry(
-  value: unknown,
-  filePath: string,
-  lineNumber: number
-): asserts value is ChaptaleSessionTreeEntry {
-  if (!value || typeof value !== 'object') {
-    throw new Error(`Invalid session entry at ${filePath}:${lineNumber}`);
-  }
-
-  const entry = value as Record<string, unknown>;
-  if (typeof entry.type !== 'string') {
-    throw new Error(`Session entry missing type at ${filePath}:${lineNumber}`);
-  }
-
-  if (typeof entry.id !== 'string' || !entry.id) {
-    throw new Error(`Session entry missing id at ${filePath}:${lineNumber}`);
-  }
-
-  if (entry.parentId !== null && typeof entry.parentId !== 'string') {
-    throw new Error(`Session entry has invalid parentId at ${filePath}:${lineNumber}`);
-  }
-
-  if (typeof entry.timestamp !== 'string' || !entry.timestamp) {
-    throw new Error(`Session entry missing timestamp at ${filePath}:${lineNumber}`);
-  }
-
-  if (entry.type === 'leaf' && entry.targetId !== null && typeof entry.targetId !== 'string') {
-    throw new Error(`Leaf entry has invalid targetId at ${filePath}:${lineNumber}`);
-  }
-}
-
-function leafIdAfterEntry(entry: ChaptaleSessionTreeEntry, currentLeafId: string | null) {
-  if (entry.type === 'leaf') {
-    return entry.targetId;
-  }
-
-  return entry.id || currentLeafId;
-}
-
-function toMessagePreview(message: ChatMessage) {
-  if ('content' in message.payload && typeof message.payload.content === 'string') {
-    return message.payload.content.slice(0, 80);
+  if (message.type === 'assistant') {
+    return {
+      role: 'assistant',
+      content: [{ type: 'text', text: message.payload.content }],
+      api: 'chaptale',
+      provider: 'chaptale',
+      model: 'chaptale-current',
+      usage: createZeroUsage(),
+      stopReason: 'stop',
+      timestamp
+    } satisfies MinimalPiAssistantMessage as PiMessage;
   }
 
   if (message.type === 'tool_call') {
-    return `调用工具：${message.payload.name}`;
+    return {
+      role: 'assistant',
+      content: [
+        {
+          type: 'toolCall',
+          id: message.payload.id,
+          name: message.payload.name,
+          arguments: message.payload.args
+        }
+      ],
+      api: 'chaptale',
+      provider: 'chaptale',
+      model: 'chaptale-current',
+      usage: createZeroUsage(),
+      stopReason: 'toolUse',
+      timestamp
+    } satisfies MinimalPiAssistantMessage as PiMessage;
   }
 
   if (message.type === 'tool_result') {
-    return `工具结果：${message.payload.name}`;
+    return {
+      role: 'toolResult',
+      toolCallId: message.payload.tool_call_id,
+      toolName: message.payload.name,
+      content: [{ type: 'text', text: message.payload.content }],
+      isError: false,
+      timestamp
+    } satisfies MinimalPiToolResultMessage as PiMessage;
   }
 
-  return '';
+  return {
+    role: 'user',
+    content: message.payload.content,
+    timestamp
+  } as PiMessage;
 }
 
-export class JsonlSessionRepository {
-  private readonly sessionDir: string;
-
-  constructor(private readonly options: JsonlSessionRepositoryOptions) {
-    this.sessionDir = path.join(options.rootDir, 'sessions');
+function fromPiMessage(message: unknown): ChatMessage | undefined {
+  if (!message || typeof message !== 'object') {
+    return undefined;
   }
 
-  getStorageDebugInfo() {
+  const record = message as Record<string, unknown>;
+
+  if (record.role === 'user') {
+    return {
+      type: 'user',
+      payload: {
+        content: getTextFromContent(record.content)
+      }
+    };
+  }
+
+  if (record.role === 'assistant') {
+    const content = Array.isArray(record.content) ? record.content : [];
+    const toolCall = content.find(item =>
+      Boolean(item && typeof item === 'object' && (item as Record<string, unknown>).type === 'toolCall')
+    ) as Record<string, unknown> | undefined;
+
+    if (toolCall) {
+      return {
+        type: 'tool_call',
+        payload: {
+          id: typeof toolCall.id === 'string' ? toolCall.id : '',
+          name: typeof toolCall.name === 'string' ? toolCall.name : 'tool',
+          args:
+            typeof toolCall.arguments === 'object' && toolCall.arguments !== null
+              ? (toolCall.arguments as Record<string, any>)
+              : {}
+        }
+      };
+    }
+
+    return {
+      type: 'assistant',
+      payload: {
+        content: getTextFromContent(content)
+      }
+    };
+  }
+
+  if (record.role === 'toolResult') {
+    return {
+      type: 'tool_result',
+      payload: {
+        tool_call_id: typeof record.toolCallId === 'string' ? record.toolCallId : '',
+        name: typeof record.toolName === 'string' ? record.toolName : 'tool',
+        content: getTextFromContent(record.content)
+      }
+    };
+  }
+
+  return undefined;
+}
+
+function toEntry(entry: SessionEntry): ChaptaleSessionTreeEntry {
+  if (entry.type === 'session_info') {
+    return {
+      type: 'session_info',
+      id: entry.id,
+      parentId: entry.parentId,
+      timestamp: entry.timestamp,
+      name: entry.name
+    };
+  }
+
+  if (entry.type === 'message') {
+    return {
+      type: 'message',
+      id: entry.id,
+      parentId: entry.parentId,
+      timestamp: entry.timestamp,
+      message: fromPiMessage(entry.message) ?? {
+        type: 'assistant',
+        payload: { content: '' }
+      }
+    };
+  }
+
+  if (entry.type === 'compaction') {
+    return {
+      type: 'compaction',
+      id: entry.id,
+      parentId: entry.parentId,
+      timestamp: entry.timestamp,
+      summary: entry.summary,
+      firstKeptEntryId: entry.firstKeptEntryId,
+      tokensBefore: entry.tokensBefore,
+      details: entry.details,
+      fromHook: entry.fromHook
+    };
+  }
+
+  if (entry.type === 'branch_summary') {
+    return {
+      type: 'branch_summary',
+      id: entry.id,
+      parentId: entry.parentId,
+      timestamp: entry.timestamp,
+      fromId: entry.fromId,
+      summary: entry.summary,
+      details: entry.details,
+      fromHook: entry.fromHook
+    };
+  }
+
+  if (entry.type === 'label') {
+    return {
+      type: 'label',
+      id: entry.id,
+      parentId: entry.parentId,
+      timestamp: entry.timestamp,
+      targetId: entry.targetId,
+      label: entry.label
+    };
+  }
+
+  return {
+    type: 'custom',
+    id: entry.id,
+    parentId: entry.parentId,
+    timestamp: entry.timestamp,
+    name: entry.type,
+    data: entry
+  };
+}
+
+function flushSessionFile(manager: SessionManager) {
+  const internals = manager as unknown as { _rewriteFile?: () => void; flushed?: boolean };
+  internals._rewriteFile?.();
+  internals.flushed = true;
+}
+
+function toListItem(info: SessionInfo): ChaptaleSessionListItem {
+  return {
+    id: info.id,
+    createdAt: info.created.toISOString(),
+    cwd: info.cwd,
+    path: info.path,
+    parentSessionPath: info.parentSessionPath,
+    name: info.name,
+    updatedAt: info.modified.toISOString(),
+    leafId: null,
+    messageCount: info.messageCount,
+    lastMessagePreview: info.firstMessage || info.allMessagesText.slice(0, 80) || undefined
+  };
+}
+
+export class PiSessionRepository {
+  private readonly leafOverrides = new Map<string, string | null>();
+
+  constructor(private readonly options: PiSessionRepositoryOptions) {}
+
+  async getStorageDebugInfo(): Promise<ChaptaleSessionStorageDebugInfo> {
+    const context = (await this.options.getStorageContext?.()) ?? {};
+
     return {
       rootDir: this.options.rootDir,
-      sessionDir: this.sessionDir,
-      cwd: this.options.cwd
+      sessionDir: await this.resolveSessionDir(),
+      cwd: await this.resolveCwd(),
+      storageMode: context.storageMode,
+      workspacePath: context.workspacePath
     };
   }
 
   async ensureSessionDir() {
-    await fs.mkdir(this.sessionDir, { recursive: true });
-    return this.sessionDir;
+    const sessionDir = await this.resolveSessionDir();
+    await fs.mkdir(sessionDir, { recursive: true });
+    return sessionDir;
   }
 
   async create(options: CreateSessionOptions = {}): Promise<ChaptaleSessionMetadata> {
-    await fs.mkdir(this.sessionDir, { recursive: true });
-
-    const id = options.id ?? createSessionId();
-    const timestamp = createTimestamp();
-    const filePath = this.createSessionFilePath(id, timestamp);
-    const header: SessionHeader = {
-      type: 'session',
-      version: SESSION_HEADER_VERSION,
-      id,
-      timestamp,
-      cwd: options.cwd ?? this.options.cwd,
+    const cwd = options.cwd ?? (await this.resolveCwd());
+    const sessionDir = await this.ensureSessionDir();
+    const manager = SessionManager.create(cwd, sessionDir, {
+      id: options.id,
       parentSession: options.parentSessionPath
-    };
-
-    await fs.writeFile(filePath, `${JSON.stringify(header)}\n`, 'utf8');
+    });
 
     if (options.name) {
-      await this.appendSessionInfo(id, options.name);
+      manager.appendSessionInfo(options.name);
     }
 
-    return {
-      id,
-      createdAt: timestamp,
-      cwd: header.cwd,
-      path: filePath,
-      parentSessionPath: header.parentSession
-    };
+    flushSessionFile(manager);
+    return this.getMetadataFromManager(manager);
   }
 
   async ensureDefaultSession(): Promise<ChaptaleSessionMetadata> {
@@ -196,70 +372,40 @@ export class JsonlSessionRepository {
   }
 
   async list(): Promise<ChaptaleSessionListItem[]> {
-    await fs.mkdir(this.sessionDir, { recursive: true });
-
-    const names = await fs.readdir(this.sessionDir);
-    const items = await Promise.all(
-      names
-        .filter(name => name.endsWith(SESSION_FILE_EXTENSION))
-        .map(async name => this.toListItem(path.join(this.sessionDir, name)))
-    );
-
-    return items
-      .filter((item): item is ChaptaleSessionListItem => item !== undefined)
-      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    const [cwd, sessionDir] = await Promise.all([this.resolveCwd(), this.ensureSessionDir()]);
+    const items = await SessionManager.list(cwd, sessionDir);
+    return items.map(toListItem).toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
   async getMetadata(sessionId: string): Promise<ChaptaleSessionMetadata> {
-    const filePath = await this.findSessionPath(sessionId);
-    return this.loadMetadata(filePath);
+    const manager = await this.openSession(sessionId);
+    return this.getMetadataFromManager(manager);
   }
 
   async getMessages(sessionId: string): Promise<ChatMessage[]> {
-    const entries = await this.getPathToRoot(sessionId);
-    return entries
-      .filter((entry): entry is Extract<ChaptaleSessionTreeEntry, { type: 'message' }> => entry.type === 'message')
-      .map(entry => entry.message);
+    const manager = await this.openSession(sessionId);
+    return manager
+      .buildSessionContext()
+      .messages.map(fromPiMessage)
+      .filter((message): message is ChatMessage => message !== undefined);
   }
 
   async getEntries(sessionId: string): Promise<ChaptaleSessionTreeEntry[]> {
-    const filePath = await this.findSessionPath(sessionId);
-    return (await this.parseSessionFile(filePath)).entries;
+    const manager = await this.openSession(sessionId);
+    return manager.getEntries().map(toEntry);
   }
 
-  async getPathToRoot(sessionId: string, leafId?: string | null): Promise<ChaptaleSessionTreeEntry[]> {
-    const entries = await this.getEntries(sessionId);
-    const byId = new Map(entries.map(entry => [entry.id, entry]));
-    const result: ChaptaleSessionTreeEntry[] = [];
-    let currentId = leafId ?? this.getLeafIdFromEntries(entries);
-
-    while (currentId) {
-      const entry = byId.get(currentId);
-      if (!entry) {
-        break;
-      }
-
-      result.push(entry);
-      currentId = entry.parentId;
-    }
-
-    return result.toReversed();
+  async getPathToRoot(sessionId: string): Promise<ChaptaleSessionTreeEntry[]> {
+    const manager = await this.openSession(sessionId);
+    return manager.getBranch().map(toEntry);
   }
 
-  async appendMessage(
-    sessionId: string,
-    message: ChatMessage
-  ): Promise<Extract<ChaptaleSessionTreeEntry, { type: 'message' }>> {
-    const entry: Extract<ChaptaleSessionTreeEntry, { type: 'message' }> = {
-      type: 'message',
-      id: createEntryId(),
-      parentId: await this.getLeafId(sessionId),
-      timestamp: createTimestamp(),
-      message
-    };
-
-    await this.appendEntry(sessionId, entry);
-    return entry;
+  async appendMessage(sessionId: string, message: ChatMessage) {
+    const manager = await this.openSession(sessionId);
+    const id = manager.appendMessage(toPiMessage(message));
+    this.leafOverrides.set(sessionId, id);
+    flushSessionFile(manager);
+    return toEntry(manager.getEntry(id)!);
   }
 
   async appendCompaction(
@@ -268,74 +414,75 @@ export class JsonlSessionRepository {
     firstKeptEntryId: string,
     tokensBefore: number,
     details?: unknown
-  ): Promise<Extract<ChaptaleSessionTreeEntry, { type: 'compaction' }>> {
-    const entry: Extract<ChaptaleSessionTreeEntry, { type: 'compaction' }> = {
-      type: 'compaction',
-      id: createEntryId(),
-      parentId: await this.getLeafId(sessionId),
-      timestamp: createTimestamp(),
-      summary,
-      firstKeptEntryId,
-      tokensBefore,
-      details
-    };
-
-    await this.appendEntry(sessionId, entry);
-    return entry;
+  ) {
+    const manager = await this.openSession(sessionId);
+    const id = manager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details);
+    this.leafOverrides.set(sessionId, id);
+    flushSessionFile(manager);
+    return toEntry(manager.getEntry(id)!);
   }
 
-  async appendSessionInfo(
-    sessionId: string,
-    name: string
-  ): Promise<Extract<ChaptaleSessionTreeEntry, { type: 'session_info' }>> {
-    const entry: Extract<ChaptaleSessionTreeEntry, { type: 'session_info' }> = {
-      type: 'session_info',
-      id: createEntryId(),
-      parentId: await this.getLeafId(sessionId),
-      timestamp: createTimestamp(),
-      name
-    };
+  async appendSessionInfo(sessionId: string, name: string): Promise<ChaptaleSessionInfoEntry> {
+    const manager = await this.openSession(sessionId);
+    const id = manager.appendSessionInfo(name);
+    this.leafOverrides.set(sessionId, id);
+    flushSessionFile(manager);
+    const entry = toEntry(manager.getEntry(id)!);
 
-    await this.appendEntry(sessionId, entry);
+    if (entry.type !== 'session_info') {
+      throw new Error('Failed to append session info');
+    }
+
     return entry;
   }
 
   async setLeafId(sessionId: string, targetId: string | null): Promise<void> {
-    const entry: Extract<ChaptaleSessionTreeEntry, { type: 'leaf' }> = {
-      type: 'leaf',
-      id: createEntryId(),
-      parentId: await this.getLeafId(sessionId),
-      timestamp: createTimestamp(),
-      targetId
-    };
+    const manager = await this.openSession(sessionId);
 
-    await this.appendEntry(sessionId, entry);
+    if (targetId) {
+      this.leafOverrides.set(sessionId, targetId);
+      manager.branch(targetId);
+      return;
+    }
+
+    this.leafOverrides.set(sessionId, null);
+    manager.resetLeaf();
   }
 
   async delete(sessionId: string): Promise<void> {
-    const filePath = await this.findSessionPath(sessionId);
-    await fs.unlink(filePath);
+    const session = await this.findSessionInfo(sessionId);
+    const sessionDir = await this.ensureSessionDir();
+    const resolvedSessionPath = path.resolve(session.path);
+    const resolvedSessionDir = path.resolve(sessionDir);
+
+    if (!resolvedSessionPath.startsWith(`${resolvedSessionDir}${path.sep}`)) {
+      throw new Error(`Refuse to delete session outside current session directory: ${session.path}`);
+    }
+
+    await fs.unlink(resolvedSessionPath);
   }
 
-  private async appendEntry(sessionId: string, entry: ChaptaleSessionTreeEntry) {
-    const filePath = await this.findSessionPath(sessionId);
-    assertSessionTreeEntry(entry, filePath, -1);
-    await fs.appendFile(filePath, `${JSON.stringify(entry)}\n`, 'utf8');
+  private async openSession(sessionId: string) {
+    const [session, cwd, sessionDir] = await Promise.all([
+      this.findSessionInfo(sessionId),
+      this.resolveCwd(),
+      this.ensureSessionDir()
+    ]);
+    const manager = SessionManager.open(session.path, sessionDir, cwd);
+    const leafOverride = this.leafOverrides.get(sessionId);
+
+    if (leafOverride !== undefined) {
+      if (leafOverride) {
+        manager.branch(leafOverride);
+      } else {
+        manager.resetLeaf();
+      }
+    }
+
+    return manager;
   }
 
-  private async getLeafId(sessionId: string) {
-    return this.getLeafIdFromEntries(await this.getEntries(sessionId));
-  }
-
-  private getLeafIdFromEntries(entries: ChaptaleSessionTreeEntry[]) {
-    return entries.reduce<string | null>((leafId, entry) => leafIdAfterEntry(entry, leafId), null);
-  }
-
-  private createSessionFilePath(id: string, timestamp: string) {
-    return path.join(this.sessionDir, `${toSafeFileTimestamp(timestamp)}-${id}${SESSION_FILE_EXTENSION}`);
-  }
-
-  private async findSessionPath(sessionId: string) {
+  private async findSessionInfo(sessionId: string) {
     const sessions = await this.list();
     const session = sessions.find(item => item.id === sessionId);
 
@@ -343,76 +490,31 @@ export class JsonlSessionRepository {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
-    return session.path;
+    return session;
   }
 
-  private async loadMetadata(filePath: string): Promise<ChaptaleSessionMetadata> {
-    const [firstLine] = (await fs.readFile(filePath, 'utf8')).split(/\r?\n/, 1);
-    const parsed = JSON.parse(firstLine);
-    assertSessionHeader(parsed, filePath);
+  private getMetadataFromManager(manager: SessionManager): ChaptaleSessionMetadata {
+    const header = manager.getHeader();
+    const sessionFile = manager.getSessionFile();
+
+    if (!header || !sessionFile) {
+      throw new Error('Persistent pi session was not created');
+    }
 
     return {
-      id: parsed.id,
-      createdAt: parsed.timestamp,
-      cwd: parsed.cwd,
-      path: filePath,
-      parentSessionPath: parsed.parentSession
+      id: header.id,
+      createdAt: header.timestamp,
+      cwd: header.cwd,
+      path: sessionFile,
+      parentSessionPath: header.parentSession
     };
   }
 
-  private async parseSessionFile(filePath: string): Promise<ParsedSessionFile> {
-    const content = await fs.readFile(filePath, 'utf8');
-    const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
-    const [headerLine, ...entryLines] = lines;
-
-    if (!headerLine) {
-      throw new Error(`Session file missing header: ${filePath}`);
-    }
-
-    const header = JSON.parse(headerLine);
-    assertSessionHeader(header, filePath);
-
-    const entries = entryLines.map((line, index) => {
-      const parsed = JSON.parse(line);
-      assertSessionTreeEntry(parsed, filePath, index + 2);
-      return parsed;
-    });
-
-    return {
-      metadata: {
-        id: header.id,
-        createdAt: header.timestamp,
-        cwd: header.cwd,
-        path: filePath,
-        parentSessionPath: header.parentSession
-      },
-      entries
-    };
+  private async resolveSessionDir() {
+    return typeof this.options.sessionDir === 'function' ? await this.options.sessionDir() : this.options.sessionDir;
   }
 
-  private async toListItem(filePath: string): Promise<ChaptaleSessionListItem | undefined> {
-    try {
-      const parsed = await this.parseSessionFile(filePath);
-      const sessionInfoEntries = parsed.entries.filter(
-        (entry): entry is Extract<ChaptaleSessionTreeEntry, { type: 'session_info' }> => entry.type === 'session_info'
-      );
-      const messageEntries = parsed.entries.filter(
-        (entry): entry is Extract<ChaptaleSessionTreeEntry, { type: 'message' }> => entry.type === 'message'
-      );
-      const lastEntry = parsed.entries.at(-1);
-      const lastMessage = messageEntries.at(-1)?.message;
-
-      return {
-        ...parsed.metadata,
-        name: sessionInfoEntries.at(-1)?.name,
-        updatedAt: lastEntry?.timestamp ?? parsed.metadata.createdAt,
-        leafId: this.getLeafIdFromEntries(parsed.entries),
-        messageCount: messageEntries.length,
-        lastMessagePreview: lastMessage ? toMessagePreview(lastMessage) : undefined
-      };
-    } catch (error) {
-      console.warn(`Skip invalid session file ${filePath}:`, error);
-      return undefined;
-    }
+  private async resolveCwd() {
+    return typeof this.options.cwd === 'function' ? await this.options.cwd() : this.options.cwd;
   }
 }

@@ -3,21 +3,31 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { JsonlSessionRepository } from '../session.repository';
+import { PiSessionRepository } from '../session.repository';
 
 let rootDir: string;
+let sessionDir: string;
+
+function createRepository() {
+  return new PiSessionRepository({
+    rootDir,
+    cwd: rootDir,
+    sessionDir
+  });
+}
 
 beforeEach(async () => {
-  rootDir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-session-repo-'));
+  rootDir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-pi-session-repo-'));
+  sessionDir = path.join(rootDir, 'sessions', 'global');
 });
 
 afterEach(async () => {
   await rm(rootDir, { recursive: true, force: true });
 });
 
-describe('JsonlSessionRepository', () => {
-  it('creates pi-like v3 jsonl session files', async () => {
-    const repository = new JsonlSessionRepository({ rootDir, cwd: rootDir });
+describe('PiSessionRepository', () => {
+  it('creates pi v3 jsonl session files through SessionManager', async () => {
+    const repository = createRepository();
 
     const session = await repository.create({ name: '测试会话' });
     const content = await readFile(session.path, 'utf8');
@@ -35,45 +45,26 @@ describe('JsonlSessionRepository', () => {
     });
   });
 
-  it('appends messages as a parent-linked path to the current leaf', async () => {
-    const repository = new JsonlSessionRepository({ rootDir, cwd: rootDir });
-    const session = await repository.create();
+  it('lists pi sessions from the configured session directory', async () => {
+    const repository = createRepository();
 
-    const first = await repository.appendMessage(session.id, {
+    const session = await repository.create({ name: '列表会话' });
+    await repository.appendMessage(session.id, {
       type: 'user',
       payload: { content: '你好' }
     });
-    const second = await repository.appendMessage(session.id, {
-      type: 'assistant',
-      payload: { content: '你好喵' }
-    });
 
-    expect(second.parentId).toBe(first.id);
-    await expect(repository.getMessages(session.id)).resolves.toEqual([
-      {
-        type: 'user',
-        payload: { content: '你好' }
-      },
-      {
-        type: 'assistant',
-        payload: { content: '你好喵' }
-      }
+    await expect(repository.list()).resolves.toEqual([
+      expect.objectContaining({
+        id: session.id,
+        name: '列表会话',
+        messageCount: 1
+      })
     ]);
   });
 
-  it('deletes the underlying jsonl session file', async () => {
-    const repository = new JsonlSessionRepository({ rootDir, cwd: rootDir });
-    const session = await repository.create({ name: '待删除会话' });
-
-    await expect(access(session.path)).resolves.toBeUndefined();
-
-    await repository.delete(session.id);
-
-    await expect(access(session.path)).rejects.toThrow();
-  });
-
-  it('supports leaf switching for branch-style history reads', async () => {
-    const repository = new JsonlSessionRepository({ rootDir, cwd: rootDir });
+  it('maps Chaptale messages to pi messages and reads the active branch', async () => {
+    const repository = createRepository();
     const session = await repository.create();
 
     const root = await repository.appendMessage(session.id, {
@@ -100,5 +91,16 @@ describe('JsonlSessionRepository', () => {
         payload: { content: '新分支' }
       }
     ]);
+  });
+
+  it('deletes the underlying pi jsonl session file', async () => {
+    const repository = createRepository();
+    const session = await repository.create({ name: '待删除会话' });
+
+    await expect(access(session.path)).resolves.toBeUndefined();
+
+    await repository.delete(session.id);
+
+    await expect(access(session.path)).rejects.toThrow();
   });
 });

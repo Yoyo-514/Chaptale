@@ -20,19 +20,17 @@
     "preview": "cross-env NODE_ENV=production electron-vite preview"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "catalog:",
-    "@ai-sdk/openai": "catalog:",
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
+    "@earendil-works/pi-ai": "^0.80.3",
+    "@earendil-works/pi-coding-agent": "catalog:",
     "@unocss/reset": "catalog:",
-    "ai": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
-    "dotenv": "catalog:",
     "markdown-it": "catalog:",
     "reka-ui": "catalog:",
-    "vue": "catalog:",
-    "zod": "catalog:"
+    "typebox": "catalog:",
+    "vue": "catalog:"
   },
   "devDependencies": {
     "@iconify-json/mingcute": "catalog:",
