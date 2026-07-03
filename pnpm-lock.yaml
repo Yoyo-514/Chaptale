@@ -152,6 +152,9 @@ importers:
       '@ai-sdk/openai':
         specifier: 'catalog:'
         version: 4.0.5(zod@4.4.3)
+      '@chaptale/ipc-contract':
+        specifier: workspace:*
+        version: link:../../packages/ipc-contract
       '@chaptale/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -231,6 +234,9 @@ importers:
 
   apps/desktop-ui:
     dependencies:
+      '@chaptale/ipc-contract':
+        specifier: workspace:*
+        version: link:../../packages/ipc-contract
       '@chaptale/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -304,6 +310,10 @@ importers:
         version: 8.4.1
 
   packages/ipc-contract:
+    dependencies:
+      '@chaptale/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       typescript:
         specifier: 'catalog:'

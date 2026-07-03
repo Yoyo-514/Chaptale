@@ -1,33 +1,17 @@
-import { ipcMain, type WebContents } from 'electron';
-import type { ChatMessage } from '@chaptale/shared';
+import { IPC_CHANNELS } from '@chaptale/ipc-contract';
+import { ipcMain } from 'electron';
 import { AgentService } from '../services/agent.service';
 import { ContextService } from '../services/context.service';
 
-export type AgentStartPayload = {
-  runId: string;
-  query: string;
-};
-
-export type AgentMessageEvent = {
-  runId: string;
-  message: ChatMessage;
-};
-
-export type AgentDoneEvent = {
-  runId: string;
-};
-
-export type AgentErrorEvent = {
-  runId: string;
-  message: string;
-};
+import type { AgentDoneEvent, AgentErrorEvent, AgentMessageEvent, AgentStartPayload } from '@chaptale/ipc-contract';
+import type { WebContents } from 'electron';
 
 export function registerAgentIpc(agentService: AgentService, contextService: ContextService) {
   const controllers = new Map<string, AbortController>();
 
-  ipcMain.handle('agent:get-history', () => contextService.getMessages());
+  ipcMain.handle(IPC_CHANNELS.agent.getHistory, () => contextService.getMessages());
 
-  ipcMain.handle('agent:start', (event, payload: AgentStartPayload) => {
+  ipcMain.handle(IPC_CHANNELS.agent.start, (event, payload: AgentStartPayload) => {
     const abortController = new AbortController();
     controllers.set(payload.runId, abortController);
 
@@ -39,7 +23,7 @@ export function registerAgentIpc(agentService: AgentService, contextService: Con
     return { runId: payload.runId };
   });
 
-  ipcMain.handle('agent:cancel', (_event, runId: string) => {
+  ipcMain.handle(IPC_CHANNELS.agent.cancel, (_event, runId: string) => {
     controllers.get(runId)?.abort();
     controllers.delete(runId);
     return { runId };
@@ -55,24 +39,24 @@ export function registerAgentIpc(agentService: AgentService, contextService: Con
         query: payload.query,
         signal: abortController.signal
       })) {
-        webContents.send('agent:message', {
+        webContents.send(IPC_CHANNELS.agent.message, {
           runId: payload.runId,
           message
         } satisfies AgentMessageEvent);
       }
 
-      webContents.send('agent:done', {
+      webContents.send(IPC_CHANNELS.agent.done, {
         runId: payload.runId
       } satisfies AgentDoneEvent);
     } catch (error) {
       if (abortController.signal.aborted) {
-        webContents.send('agent:done', {
+        webContents.send(IPC_CHANNELS.agent.done, {
           runId: payload.runId
         } satisfies AgentDoneEvent);
         return;
       }
 
-      webContents.send('agent:error', {
+      webContents.send(IPC_CHANNELS.agent.error, {
         runId: payload.runId,
         message: error instanceof Error ? error.message : String(error)
       } satisfies AgentErrorEvent);

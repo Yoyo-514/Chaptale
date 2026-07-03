@@ -6,6 +6,10 @@
     "outDir": "dist-types",
     "types": ["node"],
     "lib": ["ES2024", "DOM"],
+    "paths": {
+      "@chaptale/ipc-contract": ["../../packages/ipc-contract/src/index.ts"],
+      "@chaptale/shared": ["../../packages/shared/src/index.ts"]
+    },
     "noEmit": true,
     "erasableSyntaxOnly": false
   },
@@ -13,6 +17,9 @@
   "references": [
     {
       "path": "../../packages/shared"
+    },
+    {
+      "path": "../../packages/ipc-contract"
     }
   ]
 }

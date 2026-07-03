@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerAgentIpc } from './ipc/agent.ipc';
@@ -71,10 +72,16 @@ app.whenReady().then(() => {
   const toolsService = new ToolsService();
   const agentService = new AgentService(contextService, modelService, toolsService);
 
-  ipcMain.handle('app:get-platform', () => ({
-    platform: process.platform,
-    versions: process.versions
-  }));
+  ipcMain.handle(
+    IPC_CHANNELS.app.getPlatform,
+    () =>
+      ({
+        platform: process.platform,
+        versions: Object.fromEntries(
+          Object.entries(process.versions).filter((entry): entry is [string, string] => entry[1] !== undefined)
+        )
+      }) satisfies AppPlatformResult
+  );
 
   registerAgentIpc(agentService, contextService);
 

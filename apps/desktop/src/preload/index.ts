@@ -1,33 +1,37 @@
+import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import { contextBridge, ipcRenderer } from 'electron';
+
+import type {
+  AgentDoneEvent,
+  AgentErrorEvent,
+  AgentMessageEvent,
+  AgentRunResult,
+  AgentStartPayload,
+  AppPlatformResult,
+  ChaptaleDesktopApi
+} from '@chaptale/ipc-contract';
 import type { IpcRendererEvent } from 'electron';
-import type { ChatMessage } from '@chaptale/shared';
 
-type StreamAgentHandlers = {
-  onMessage: (message: ChatMessage) => void;
-  onDone?: () => void;
-  onError?: (message: string) => void;
-};
-
-const desktopApi = {
-  getPlatform: () => ipcRenderer.invoke('app:get-platform'),
+const desktopApi: ChaptaleDesktopApi = {
+  getPlatform: () => ipcRenderer.invoke(IPC_CHANNELS.app.getPlatform) as Promise<AppPlatformResult>,
   agent: {
-    getHistory: () => ipcRenderer.invoke('agent:get-history') as Promise<ChatMessage[]>,
-    stream: async (query: string, handlers: StreamAgentHandlers) => {
+    getHistory: () => ipcRenderer.invoke(IPC_CHANNELS.agent.getHistory),
+    stream: async (query, handlers) => {
       const runId = crypto.randomUUID();
 
       const cleanup = () => {
-        ipcRenderer.removeListener('agent:message', handleMessage);
-        ipcRenderer.removeListener('agent:done', handleDone);
-        ipcRenderer.removeListener('agent:error', handleError);
+        ipcRenderer.removeListener(IPC_CHANNELS.agent.message, handleMessage);
+        ipcRenderer.removeListener(IPC_CHANNELS.agent.done, handleDone);
+        ipcRenderer.removeListener(IPC_CHANNELS.agent.error, handleError);
       };
 
-      const handleMessage = (_event: IpcRendererEvent, event: { runId: string; message: ChatMessage }) => {
+      const handleMessage = (_event: IpcRendererEvent, event: AgentMessageEvent) => {
         if (event.runId === runId) {
           handlers.onMessage(event.message);
         }
       };
 
-      const handleDone = (_event: IpcRendererEvent, event: { runId: string }) => {
+      const handleDone = (_event: IpcRendererEvent, event: AgentDoneEvent) => {
         if (event.runId !== runId) {
           return;
         }
@@ -36,7 +40,7 @@ const desktopApi = {
         handlers.onDone?.();
       };
 
-      const handleError = (_event: IpcRendererEvent, event: { runId: string; message: string }) => {
+      const handleError = (_event: IpcRendererEvent, event: AgentErrorEvent) => {
         if (event.runId !== runId) {
           return;
         }
@@ -45,17 +49,17 @@ const desktopApi = {
         handlers.onError?.(event.message);
       };
 
-      ipcRenderer.on('agent:message', handleMessage);
-      ipcRenderer.on('agent:done', handleDone);
-      ipcRenderer.on('agent:error', handleError);
+      ipcRenderer.on(IPC_CHANNELS.agent.message, handleMessage);
+      ipcRenderer.on(IPC_CHANNELS.agent.done, handleDone);
+      ipcRenderer.on(IPC_CHANNELS.agent.error, handleError);
 
-      await ipcRenderer.invoke('agent:start', { runId, query });
+      await ipcRenderer.invoke(IPC_CHANNELS.agent.start, { runId, query } satisfies AgentStartPayload);
       return { runId };
     },
-    cancel: (runId: string) => ipcRenderer.invoke('agent:cancel', runId) as Promise<{ runId: string }>
+    cancel: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.cancel, runId) as Promise<AgentRunResult>
   }
 };
 
 contextBridge.exposeInMainWorld('chaptaleDesktop', desktopApi);
 
-export type ChaptaleDesktopApi = typeof desktopApi;
+export type { ChaptaleDesktopApi };

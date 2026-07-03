@@ -13,6 +13,7 @@
     "outDir": "dist-types",
     "paths": {
       "@/*": ["./src/*"],
+      "@chaptale/ipc-contract": ["../../packages/ipc-contract/src/index.ts"],
       "@chaptale/shared": ["../../packages/shared/src/index.ts"]
     }
   },
@@ -20,6 +21,9 @@
   "references": [
     {
       "path": "../../packages/shared"
+    },
+    {
+      "path": "../../packages/ipc-contract"
     }
   ]
 }
