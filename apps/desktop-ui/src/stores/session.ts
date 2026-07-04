@@ -6,7 +6,7 @@ import type {
 } from '@chaptale/ipc-contract';
 import { defineStore } from 'pinia';
 
-import { getDesktopApi, toErrorMessage } from './desktop-api';
+import { getDesktopApi, toErrorMessage } from './utils/desktop-api';
 
 export const useSessionStore = defineStore('session', {
   state: () => ({

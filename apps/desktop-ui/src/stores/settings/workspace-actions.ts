@@ -1,0 +1,53 @@
+import type { UpdateChaptaleSettingsPayload } from '@chaptale/ipc-contract';
+
+import { getDesktopApi } from '../utils/desktop-api';
+import type { SettingsStoreContext } from './types';
+
+export const workspaceSettingsActions = {
+  async load(this: SettingsStoreContext) {
+    this.isLoading = true;
+
+    try {
+      const state = await this.runAction('读取设置失败', () => getDesktopApi().settings.getState());
+      if (state) {
+        this.state = state;
+      }
+    } finally {
+      this.isLoading = false;
+    }
+  },
+
+  async update(this: SettingsStoreContext, payload: UpdateChaptaleSettingsPayload) {
+    this.isLoading = true;
+
+    try {
+      const state = await this.runAction('更新设置失败', () => getDesktopApi().settings.update(payload));
+      if (state) {
+        this.state = state;
+      }
+    } finally {
+      this.isLoading = false;
+    }
+  },
+
+  async selectWorkspaceDir(this: SettingsStoreContext) {
+    this.isLoading = true;
+
+    try {
+      const result = await this.runAction('选择工作区失败', () => getDesktopApi().settings.selectWorkspaceDir());
+      if (result && !result.canceled && result.state) {
+        this.state = result.state;
+      }
+    } finally {
+      this.isLoading = false;
+    }
+  },
+
+  async useGlobalStorage(this: SettingsStoreContext) {
+    await this.update({ storage: { mode: 'global' } });
+  },
+
+  async openConfigDir(this: SettingsStoreContext) {
+    await this.runAction('打开配置目录失败', () => getDesktopApi().settings.openConfigDir());
+  }
+};

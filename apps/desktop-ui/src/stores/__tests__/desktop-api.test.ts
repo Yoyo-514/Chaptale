@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { toErrorMessage } from '../desktop-api';
+import { toErrorMessage } from '../utils/desktop-api';
 
 describe('desktop-api helpers', () => {
   it('strips Electron IPC remote method prefix', () => {
