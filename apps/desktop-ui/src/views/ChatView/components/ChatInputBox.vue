@@ -76,7 +76,7 @@ function handleSubmit() {
 }
 
 .chat-input-section-fixed {
-  @apply fixed bottom-0 left-1/2 -translate-x-1/2;
+  @apply fixed bottom-6 left-1/2 -translate-x-1/2;
 }
 
 .chat-input-container {

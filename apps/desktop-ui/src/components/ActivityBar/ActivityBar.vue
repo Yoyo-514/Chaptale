@@ -8,7 +8,7 @@ const settingsStore = useSettingsStore();
   <aside class="activity-bar" aria-label="应用活动栏">
     <div class="activity-bar-spacer" />
     <button class="activity-bar-button" type="button" aria-label="打开设置" @click="settingsStore.openPanel()">
-      <span class="i-mingcute-settings-3-line" aria-hidden="true" />
+      <span class="i-mingcute-settings-3-line size-6" aria-hidden="true" />
     </button>
   </aside>
 </template>
@@ -27,10 +27,9 @@ const settingsStore = useSettingsStore();
 }
 
 .activity-bar-button {
-  @apply flex-center size-8 border text-base outline-none transition-colors duration-150;
+  @apply flex-center size-8 text-base outline-none transition-colors duration-150;
 
   background: var(--surface-acrylic-strong);
-  border-color: var(--border-subtle);
   border-radius: calc(var(--radius) * 0.5);
   color: var(--muted-foreground);
 }

@@ -3,6 +3,7 @@ import { RouterView } from 'vue-router';
 
 import ActivityBar from '../components/ActivityBar/ActivityBar.vue';
 import SettingsPanel from '../components/SettingsPanel/SettingsPanel.vue';
+import StatusBar from '../components/StatusBar/StatusBar.vue';
 import TitleBar from '../components/TitleBar/TitleBar.vue';
 </script>
 
@@ -13,6 +14,7 @@ import TitleBar from '../components/TitleBar/TitleBar.vue';
       <ActivityBar />
       <RouterView />
     </div>
+    <StatusBar />
     <SettingsPanel />
   </div>
 </template>

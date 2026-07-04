@@ -10,7 +10,7 @@ import type {
 } from '@chaptale/ipc-contract';
 import { defineStore } from 'pinia';
 
-import { useToastStore } from './toast';
+import { useNotificationStore } from './notification';
 
 export type SettingsSection = 'workspace' | 'llm' | 'files';
 
@@ -52,7 +52,7 @@ export const useSettingsStore = defineStore('settings', {
         return await action();
       } catch (error) {
         this.error = toErrorMessage(error);
-        useToastStore().error(title, this.error);
+        useNotificationStore().error(title, this.error);
         return undefined;
       }
     },

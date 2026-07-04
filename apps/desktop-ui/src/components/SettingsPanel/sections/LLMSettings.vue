@@ -11,8 +11,8 @@ import {
 } from 'reka-ui';
 import { computed, reactive, ref, watch } from 'vue';
 
+import { useNotificationStore } from '../../../stores/notification';
 import { useSettingsStore } from '../../../stores/settings';
-import { useToastStore } from '../../../stores/toast';
 import { createCustomModelDraft, draftToInput, parseContextWindow, resetCustomModelDraft } from './custom-model-draft';
 import CustomModelDraftForm from './CustomModelDraftForm.vue';
 
@@ -22,8 +22,8 @@ type ProviderView = ChaptaleProviderInfo & {
   modelCount: number;
 };
 
+const notificationStore = useNotificationStore();
 const settingsStore = useSettingsStore();
-const toastStore = useToastStore();
 const selectedProviderId = ref('');
 const activeModelGroup = ref<ModelGroup>('builtin');
 const isCustomFormOpen = ref(false);
@@ -111,7 +111,7 @@ async function submitProviderApiKey(provider: string) {
   const apiKey = providerApiKeys[provider]?.trim();
 
   if (!apiKey) {
-    toastStore.error('API Key 不能为空');
+    notificationStore.error('API Key 不能为空');
     return;
   }
 
@@ -187,7 +187,7 @@ async function submitCustomModelToProvider(provider: string) {
   });
 
   if (succeeded) {
-    toastStore.success('模型已添加');
+    notificationStore.success('模型已添加');
     resetCustomModelDraft(customModelDraft);
   }
 }
@@ -206,7 +206,7 @@ async function submitCustomProvider() {
   });
 
   if (succeeded) {
-    toastStore.success('供应商已添加');
+    notificationStore.success('供应商已添加');
     activeModelGroup.value = 'custom';
     selectedProviderId.value = customProvider.provider.trim();
     customProvider.provider = '';

@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import type { ChatMessage } from '@chaptale/shared';
 import MessageItem from '../../components/MessageItem/MessageItem.vue';
 import { useSessionStore } from '../../stores/session';
-import { useToastStore } from '../../stores/toast';
+import { useNotificationStore } from '../../stores/notification';
 import { cn } from '../../utils';
 import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInputBox.vue';
@@ -19,7 +19,7 @@ type ChatState = {
 };
 
 const sessionStore = useSessionStore();
-const toastStore = useToastStore();
+const notificationStore = useNotificationStore();
 
 const state = reactive<ChatState>({
   messages: [],
@@ -53,12 +53,12 @@ async function handleSelectRecentSession(sessionId: string) {
 
 async function loadCurrentSessionMessages() {
   if (!window.chaptaleDesktop) {
-    toastStore.error('当前界面需要在 Chaptale 桌面端中运行');
+    notificationStore.error('当前界面需要在 Chaptale 桌面端中运行');
     return;
   }
 
   const messages = await sessionStore.getCurrentMessages().catch(error => {
-    toastStore.error('读取会话消息失败', error instanceof Error ? error.message : String(error));
+    notificationStore.error('读取会话消息失败', error instanceof Error ? error.message : String(error));
     return [];
   });
   state.messages = messages;
@@ -140,7 +140,7 @@ async function handleSend() {
         onError: message => {
           activeRunId.value = '';
 
-          toastStore.error('AI 回复失败', message);
+          notificationStore.error('AI 回复失败', message);
 
           state.isReplying = false;
           state.isConnecting = false;
@@ -152,7 +152,7 @@ async function handleSend() {
     activeRunId.value = runId;
     state.isConnecting = false;
   } catch (error) {
-    toastStore.error('发送失败', error instanceof Error ? error.message : String(error));
+    notificationStore.error('发送失败', error instanceof Error ? error.message : String(error));
     state.isReplying = false;
     state.isConnecting = false;
   }

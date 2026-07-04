@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import AppToaster from '../components/AppToaster/AppToaster.vue';
+import NotificationCenter from '../components/NotificationCenter/NotificationCenter.vue';
 import BasicLayout from '../layouts/BasicLayout.vue';
 </script>
 
 <template>
   <BasicLayout />
-  <AppToaster />
+  <NotificationCenter />
 </template>
