@@ -1,15 +1,22 @@
 <script setup lang="ts">
-import { onMounted, reactive } from 'vue';
+import { onMounted } from 'vue';
 
 import { useSettingsStore } from '../../stores/settings';
+import { useDraggablePanel } from './composables/useDraggablePanel';
 import ConfigFilesSettings from './sections/ConfigFilesSettings.vue';
 import LLMSettings from './sections/LLMSettings.vue';
 import WorkspaceSettings from './sections/WorkspaceSettings.vue';
 import SettingsSidebar from './SettingsSidebar.vue';
 
 const settingsStore = useSettingsStore();
-const position = reactive({ x: 88, y: 72 });
-const drag = reactive({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
+const { position, handlePointerDown, handlePointerMove, handlePointerUp } = useDraggablePanel({
+  initialX: 88,
+  initialY: 72,
+  minX: 56,
+  minY: 44,
+  width: 760,
+  height: 520
+});
 
 onMounted(() => {
   if (settingsStore.isOpen && !settingsStore.state) {
@@ -20,40 +27,6 @@ onMounted(() => {
     void settingsStore.loadModels();
   }
 });
-
-function handlePointerDown(event: PointerEvent) {
-  const target = event.target as HTMLElement;
-  if (target.closest('button, input, select, textarea, a')) {
-    return;
-  }
-
-  drag.active = true;
-  drag.startX = event.clientX;
-  drag.startY = event.clientY;
-  drag.originX = position.x;
-  drag.originY = position.y;
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-}
-
-function handlePointerMove(event: PointerEvent) {
-  if (!drag.active) {
-    return;
-  }
-
-  const nextX = drag.originX + event.clientX - drag.startX;
-  const nextY = drag.originY + event.clientY - drag.startY;
-  position.x = Math.max(56, Math.min(nextX, window.innerWidth - 760));
-  position.y = Math.max(44, Math.min(nextY, window.innerHeight - 520));
-}
-
-function handlePointerUp(event: PointerEvent) {
-  if (!drag.active) {
-    return;
-  }
-
-  drag.active = false;
-  (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
-}
 </script>
 
 <template>

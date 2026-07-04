@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger
 } from 'reka-ui';
 
-import type { CustomModelDraft } from './custom-model-draft';
+import type { CustomModelDraft } from '../utils/custom-model-draft';
 
 /**
  * 自定义模型草稿表单（供“添加供应商”与“已有供应商添加模型”复用）。
