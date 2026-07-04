@@ -1,7 +1,7 @@
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 import { describe, expect, it } from 'vitest';
 
-import { getSessionTitle } from '../utils/session-display';
+import { getSessionTitle } from '../session-display';
 
 function createSession(overrides: Partial<ChaptaleSessionListItem>): ChaptaleSessionListItem {
   return {

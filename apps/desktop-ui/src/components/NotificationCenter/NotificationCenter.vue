@@ -1,24 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { useNotificationStore, type NotificationItem } from '../../stores/notification';
+import { useNotificationStore } from '../../stores/notification';
+import NotificationCenterItem from './NotificationCenterItem.vue';
 
 const notificationStore = useNotificationStore();
 
 const panelTitle = computed(() => (notificationStore.items.length === 0 ? '无新通知' : '通知'));
-
-function getNotificationIcon(kind: NotificationItem['kind']) {
-  if (kind === 'error') return 'i-mingcute-warning-line';
-  if (kind === 'success') return 'i-mingcute-check-circle-line';
-  return 'i-mingcute-information-line';
-}
-
-function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
 </script>
 
 <template>
@@ -62,32 +50,12 @@ function formatTime(timestamp: number) {
       </header>
 
       <ul v-if="notificationStore.items.length > 0" class="notification-list">
-        <li
+        <NotificationCenterItem
           v-for="notification in notificationStore.recentItems"
           :key="notification.id"
-          class="notification-item"
-          :class="`is-${notification.kind}`"
-        >
-          <span :class="['notification-item-icon', getNotificationIcon(notification.kind)]" aria-hidden="true" />
-          <div class="notification-item-copy">
-            <div class="notification-item-heading">
-              <strong>{{ notification.title }}</strong>
-              <time>{{ formatTime(notification.createdAt) }}</time>
-            </div>
-            <p v-if="notification.description" class="notification-item-description">
-              {{ notification.description }}
-            </p>
-          </div>
-          <button
-            class="notification-dismiss-button"
-            type="button"
-            aria-label="移除通知"
-            title="移除通知"
-            @click="notificationStore.dismiss(notification.id)"
-          >
-            <span class="i-mingcute-close-line" aria-hidden="true" />
-          </button>
-        </li>
+          :notification="notification"
+          @dismiss="notificationStore.dismiss"
+        />
       </ul>
     </section>
   </Transition>
@@ -131,8 +99,7 @@ function formatTime(timestamp: number) {
   @apply flex shrink-0 items-center gap-0.5;
 }
 
-.notification-action-button,
-.notification-dismiss-button {
+.notification-action-button {
   @apply flex-center shrink-0 border-0 outline-none transition-colors duration-150;
 
   background: transparent;
@@ -143,8 +110,7 @@ function formatTime(timestamp: number) {
   @apply size-6 rounded text-base;
 }
 
-.notification-action-button:hover,
-.notification-dismiss-button:hover {
+.notification-action-button:hover {
   background: var(--surface-muted);
   color: var(--foreground);
 }
@@ -161,57 +127,5 @@ function formatTime(timestamp: number) {
   @apply m-0 flex list-none flex-col overflow-y-auto border-t p-0;
 
   border-color: var(--border-subtle);
-}
-
-.notification-item {
-  @apply flex gap-2 border-b px-3 py-2.5;
-
-  border-color: var(--border-subtle);
-}
-
-.notification-item:last-child {
-  border-bottom: 0;
-}
-
-.notification-item-icon {
-  @apply mt-0.5 size-4 shrink-0;
-
-  color: var(--muted-foreground);
-}
-
-.notification-item.is-error .notification-item-icon {
-  color: var(--destructive);
-}
-
-.notification-item.is-success .notification-item-icon {
-  color: var(--primary-solid);
-}
-
-.notification-item-copy {
-  @apply min-w-0 flex-1;
-}
-
-.notification-item-heading {
-  @apply flex items-start justify-between gap-3;
-}
-
-.notification-item-heading strong {
-  @apply min-w-0 break-words text-xs font-semibold leading-4;
-}
-
-.notification-item-heading time {
-  @apply shrink-0 text-[10px] leading-4;
-
-  color: var(--muted-foreground);
-}
-
-.notification-item-description {
-  @apply m-0 mt-1 break-words text-xs leading-4;
-
-  color: var(--muted-foreground);
-}
-
-.notification-dismiss-button {
-  @apply size-6 rounded text-sm;
 }
 </style>

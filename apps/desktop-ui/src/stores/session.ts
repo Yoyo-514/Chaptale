@@ -6,13 +6,7 @@ import type {
 } from '@chaptale/ipc-contract';
 import { defineStore } from 'pinia';
 
-function getDesktopApi() {
-  if (!window.chaptaleDesktop) {
-    throw new Error('当前界面需要在 Chaptale 桌面端中运行');
-  }
-
-  return window.chaptaleDesktop;
-}
+import { getDesktopApi, toErrorMessage } from './desktop-api';
 
 export const useSessionStore = defineStore('session', {
   state: () => ({
@@ -38,7 +32,7 @@ export const useSessionStore = defineStore('session', {
           this.currentSessionId = this.sessions[0].id;
         }
       } catch (error) {
-        this.error = error instanceof Error ? error.message : String(error);
+        this.error = toErrorMessage(error);
       } finally {
         this.isLoading = false;
       }
@@ -77,7 +71,7 @@ export const useSessionStore = defineStore('session', {
 
         await this.loadSessions();
       } catch (error) {
-        this.error = error instanceof Error ? error.message : String(error);
+        this.error = toErrorMessage(error);
       }
     },
 
@@ -91,7 +85,7 @@ export const useSessionStore = defineStore('session', {
       try {
         this.storageDebugInfo = await getDesktopApi().session.getStorageDebugInfo();
       } catch (error) {
-        this.error = error instanceof Error ? error.message : String(error);
+        this.error = toErrorMessage(error);
       }
     },
 
@@ -101,7 +95,7 @@ export const useSessionStore = defineStore('session', {
       try {
         await getDesktopApi().session.openStorageDir();
       } catch (error) {
-        this.error = error instanceof Error ? error.message : String(error);
+        this.error = toErrorMessage(error);
       }
     },
 
