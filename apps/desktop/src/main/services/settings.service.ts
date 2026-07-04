@@ -4,87 +4,17 @@ import type {
   ChaptaleStorageSettings,
   UpdateChaptaleSettingsPayload
 } from '@chaptale/ipc-contract';
-import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const SETTINGS_VERSION = 1;
-const DEFAULT_SETTINGS: ChaptaleSettings = {
-  version: SETTINGS_VERSION,
-  storage: {
-    mode: 'global'
-  },
-  llm: {}
-};
+import { readJsonFile, writeJsonFile } from '../settings/json-file';
+import { cloneDefaultSettings, mergeSettings } from '../settings/settings-defaults';
+import { toWorkspaceSessionDirName } from '../settings/workspace-session-dir';
 
 export type SettingsServiceOptions = {
   rootDir?: string;
 };
-
-function cloneDefaultSettings(): ChaptaleSettings {
-  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as ChaptaleSettings;
-}
-
-function sanitizeWorkspaceLabel(workspacePath: string) {
-  const baseName = path.basename(workspacePath) || 'workspace';
-  // oxlint-disable-next-line no-control-regex
-  return baseName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '-').slice(0, 48) || 'workspace';
-}
-
-function toWorkspaceSessionDirName(workspacePath: string) {
-  const normalized = path.resolve(workspacePath).toLowerCase();
-  const hash = createHash('sha256').update(normalized).digest('hex').slice(0, 12);
-  return `${sanitizeWorkspaceLabel(workspacePath)}-${hash}`;
-}
-
-function mergeSettings(value: Partial<ChaptaleSettings> | undefined): ChaptaleSettings {
-  return {
-    ...cloneDefaultSettings(),
-    ...value,
-    version: SETTINGS_VERSION,
-    storage: {
-      ...DEFAULT_SETTINGS.storage,
-      ...value?.storage
-    },
-    llm: {
-      ...DEFAULT_SETTINGS.llm,
-      ...value?.llm
-    }
-  };
-}
-
-async function readJsonFile<T>(filePath: string): Promise<T | undefined> {
-  try {
-    const raw = await fs.readFile(filePath, 'utf8');
-
-    // 容忍空文件 / 损坏文件：设置文件可从默认值再生，不应让单次读取失败拖死所有 IPC handler。
-    if (!raw.trim()) {
-      return undefined;
-    }
-
-    try {
-      return JSON.parse(raw) as T;
-    } catch {
-      return undefined;
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return undefined;
-    }
-
-    throw error;
-  }
-}
-
-async function writeJsonFile(filePath: string, value: unknown) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-
-  // 先写临时文件再 rename，保证读方永远看到完整 JSON，避免并发 IPC 下读到截断中的文件。
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  await fs.writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  await fs.rename(tempPath, filePath);
-}
 
 export class SettingsService {
   readonly rootDir: string;
@@ -169,16 +99,6 @@ export class SettingsService {
     return this.enqueue(() => this.readSettingsUnsafe());
   }
 
-  private async readSettingsUnsafe(): Promise<ChaptaleSettings> {
-    return mergeSettings(await readJsonFile<Partial<ChaptaleSettings>>(this.settingsPath));
-  }
-
-  private enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.settingsQueue.then(task, task);
-    this.settingsQueue = run.catch(() => undefined);
-    return run;
-  }
-
   async ensureSettingsFile() {
     // 只在文件缺失时创建默认设置；读路径绝不重写文件，
     // 避免启动时多个 IPC handler 并发触发 “读到半截断文件” 的竞态。
@@ -219,5 +139,15 @@ export class SettingsService {
     }
 
     return path.join(this.sessionsRootDir, 'global');
+  }
+
+  private async readSettingsUnsafe(): Promise<ChaptaleSettings> {
+    return mergeSettings(await readJsonFile<Partial<ChaptaleSettings>>(this.settingsPath));
+  }
+
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.settingsQueue.then(task, task);
+    this.settingsQueue = run.catch(() => undefined);
+    return run;
   }
 }

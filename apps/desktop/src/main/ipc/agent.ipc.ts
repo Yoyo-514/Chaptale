@@ -46,6 +46,10 @@ export function registerAgentIpc(agentService: PiAgentService) {
     abortController: AbortController
   ) {
     try {
+      if (!payload.sessionId) {
+        throw new Error('缺少 sessionId：Agent 流式执行需要绑定具体会话');
+      }
+
       for await (const message of agentService.stream({
         query: payload.query,
         sessionId: payload.sessionId,

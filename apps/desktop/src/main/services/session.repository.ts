@@ -7,9 +7,13 @@ import type {
   ChaptaleSessionTreeEntry,
   CreateSessionOptions
 } from '@chaptale/ipc-contract';
-import { SessionManager, type SessionEntry, type SessionInfo } from '@earendil-works/pi-coding-agent';
+import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+
+import { toSessionListItem, toSessionTreeEntry } from '../sessions/pi-session-entry.mapper';
+import { flushSessionFile } from '../sessions/pi-session-file';
+import { fromPiMessage, toPiMessage } from '../sessions/pi-session-message.mapper';
 
 export type PiSessionRepositoryOptions = {
   rootDir: string;
@@ -19,313 +23,6 @@ export type PiSessionRepositoryOptions = {
     | { storageMode?: 'global' | 'workspace'; workspacePath?: string }
     | Promise<{ storageMode?: 'global' | 'workspace'; workspacePath?: string }>;
 };
-
-type PiMessage = Parameters<SessionManager['appendMessage']>[0];
-
-type MinimalPiTextContent = {
-  type: 'text';
-  text: string;
-};
-
-type MinimalPiToolCall = {
-  type: 'toolCall';
-  id: string;
-  name: string;
-  arguments: Record<string, any>;
-};
-
-type MinimalPiAssistantMessage = {
-  role: 'assistant';
-  content: (MinimalPiTextContent | MinimalPiToolCall)[];
-  api: string;
-  provider: string;
-  model: string;
-  usage: {
-    input: number;
-    output: number;
-    cacheRead: number;
-    cacheWrite: number;
-    totalTokens: number;
-    cost: {
-      input: number;
-      output: number;
-      cacheRead: number;
-      cacheWrite: number;
-      total: number;
-    };
-  };
-  stopReason: 'stop' | 'length' | 'toolUse' | 'error' | 'aborted';
-  timestamp: number;
-};
-
-type MinimalPiToolResultMessage = {
-  role: 'toolResult';
-  toolCallId: string;
-  toolName: string;
-  content: MinimalPiTextContent[];
-  isError: boolean;
-  timestamp: number;
-};
-
-function createZeroUsage(): MinimalPiAssistantMessage['usage'] {
-  return {
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    totalTokens: 0,
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      total: 0
-    }
-  };
-}
-
-function getTextFromContent(content: unknown) {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return '';
-  }
-
-  return content
-    .map(item => {
-      if (!item || typeof item !== 'object') {
-        return '';
-      }
-
-      const block = item as Record<string, unknown>;
-      if (block.type === 'text' && typeof block.text === 'string') {
-        return block.text;
-      }
-
-      if (block.type === 'toolCall' && typeof block.name === 'string') {
-        return `调用工具：${block.name}`;
-      }
-
-      return '';
-    })
-    .filter(Boolean)
-    .join('\n');
-}
-
-function toPiMessage(message: ChatMessage): PiMessage {
-  const timestamp = Date.now();
-
-  if (message.type === 'user') {
-    return {
-      role: 'user',
-      content: message.payload.content,
-      timestamp
-    } as PiMessage;
-  }
-
-  if (message.type === 'assistant') {
-    return {
-      role: 'assistant',
-      content: [{ type: 'text', text: message.payload.content }],
-      api: 'chaptale',
-      provider: 'chaptale',
-      model: 'chaptale-current',
-      usage: createZeroUsage(),
-      stopReason: 'stop',
-      timestamp
-    } satisfies MinimalPiAssistantMessage as PiMessage;
-  }
-
-  if (message.type === 'tool_call') {
-    return {
-      role: 'assistant',
-      content: [
-        {
-          type: 'toolCall',
-          id: message.payload.id,
-          name: message.payload.name,
-          arguments: message.payload.args
-        }
-      ],
-      api: 'chaptale',
-      provider: 'chaptale',
-      model: 'chaptale-current',
-      usage: createZeroUsage(),
-      stopReason: 'toolUse',
-      timestamp
-    } satisfies MinimalPiAssistantMessage as PiMessage;
-  }
-
-  if (message.type === 'tool_result') {
-    return {
-      role: 'toolResult',
-      toolCallId: message.payload.tool_call_id,
-      toolName: message.payload.name,
-      content: [{ type: 'text', text: message.payload.content }],
-      isError: false,
-      timestamp
-    } satisfies MinimalPiToolResultMessage as PiMessage;
-  }
-
-  return {
-    role: 'user',
-    content: message.payload.content,
-    timestamp
-  } as PiMessage;
-}
-
-function fromPiMessage(message: unknown): ChatMessage | undefined {
-  if (!message || typeof message !== 'object') {
-    return undefined;
-  }
-
-  const record = message as Record<string, unknown>;
-
-  if (record.role === 'user') {
-    return {
-      type: 'user',
-      payload: {
-        content: getTextFromContent(record.content)
-      }
-    };
-  }
-
-  if (record.role === 'assistant') {
-    const content = Array.isArray(record.content) ? record.content : [];
-    const toolCall = content.find(item =>
-      Boolean(item && typeof item === 'object' && (item as Record<string, unknown>).type === 'toolCall')
-    ) as Record<string, unknown> | undefined;
-
-    if (toolCall) {
-      return {
-        type: 'tool_call',
-        payload: {
-          id: typeof toolCall.id === 'string' ? toolCall.id : '',
-          name: typeof toolCall.name === 'string' ? toolCall.name : 'tool',
-          args:
-            typeof toolCall.arguments === 'object' && toolCall.arguments !== null
-              ? (toolCall.arguments as Record<string, any>)
-              : {}
-        }
-      };
-    }
-
-    return {
-      type: 'assistant',
-      payload: {
-        content: getTextFromContent(content)
-      }
-    };
-  }
-
-  if (record.role === 'toolResult') {
-    return {
-      type: 'tool_result',
-      payload: {
-        tool_call_id: typeof record.toolCallId === 'string' ? record.toolCallId : '',
-        name: typeof record.toolName === 'string' ? record.toolName : 'tool',
-        content: getTextFromContent(record.content)
-      }
-    };
-  }
-
-  return undefined;
-}
-
-function toEntry(entry: SessionEntry): ChaptaleSessionTreeEntry {
-  if (entry.type === 'session_info') {
-    return {
-      type: 'session_info',
-      id: entry.id,
-      parentId: entry.parentId,
-      timestamp: entry.timestamp,
-      name: entry.name
-    };
-  }
-
-  if (entry.type === 'message') {
-    return {
-      type: 'message',
-      id: entry.id,
-      parentId: entry.parentId,
-      timestamp: entry.timestamp,
-      message: fromPiMessage(entry.message) ?? {
-        type: 'assistant',
-        payload: { content: '' }
-      }
-    };
-  }
-
-  if (entry.type === 'compaction') {
-    return {
-      type: 'compaction',
-      id: entry.id,
-      parentId: entry.parentId,
-      timestamp: entry.timestamp,
-      summary: entry.summary,
-      firstKeptEntryId: entry.firstKeptEntryId,
-      tokensBefore: entry.tokensBefore,
-      details: entry.details,
-      fromHook: entry.fromHook
-    };
-  }
-
-  if (entry.type === 'branch_summary') {
-    return {
-      type: 'branch_summary',
-      id: entry.id,
-      parentId: entry.parentId,
-      timestamp: entry.timestamp,
-      fromId: entry.fromId,
-      summary: entry.summary,
-      details: entry.details,
-      fromHook: entry.fromHook
-    };
-  }
-
-  if (entry.type === 'label') {
-    return {
-      type: 'label',
-      id: entry.id,
-      parentId: entry.parentId,
-      timestamp: entry.timestamp,
-      targetId: entry.targetId,
-      label: entry.label
-    };
-  }
-
-  return {
-    type: 'custom',
-    id: entry.id,
-    parentId: entry.parentId,
-    timestamp: entry.timestamp,
-    name: entry.type,
-    data: entry
-  };
-}
-
-function flushSessionFile(manager: SessionManager) {
-  const internals = manager as unknown as { _rewriteFile?: () => void; flushed?: boolean };
-  internals._rewriteFile?.();
-  internals.flushed = true;
-}
-
-function toListItem(info: SessionInfo): ChaptaleSessionListItem {
-  return {
-    id: info.id,
-    createdAt: info.created.toISOString(),
-    cwd: info.cwd,
-    path: info.path,
-    parentSessionPath: info.parentSessionPath,
-    name: info.name,
-    updatedAt: info.modified.toISOString(),
-    leafId: null,
-    messageCount: info.messageCount,
-    lastMessagePreview: info.firstMessage || info.allMessagesText.slice(0, 80) || undefined
-  };
-}
 
 export class PiSessionRepository {
   private readonly leafOverrides = new Map<string, string | null>();
@@ -374,7 +71,7 @@ export class PiSessionRepository {
   async list(): Promise<ChaptaleSessionListItem[]> {
     const [cwd, sessionDir] = await Promise.all([this.resolveCwd(), this.ensureSessionDir()]);
     const items = await SessionManager.list(cwd, sessionDir);
-    return items.map(toListItem).toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    return items.map(toSessionListItem).toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
   async getMetadata(sessionId: string): Promise<ChaptaleSessionMetadata> {
@@ -392,12 +89,12 @@ export class PiSessionRepository {
 
   async getEntries(sessionId: string): Promise<ChaptaleSessionTreeEntry[]> {
     const manager = await this.openSession(sessionId);
-    return manager.getEntries().map(toEntry);
+    return manager.getEntries().map(toSessionTreeEntry);
   }
 
   async getPathToRoot(sessionId: string): Promise<ChaptaleSessionTreeEntry[]> {
     const manager = await this.openSession(sessionId);
-    return manager.getBranch().map(toEntry);
+    return manager.getBranch().map(toSessionTreeEntry);
   }
 
   async appendMessage(sessionId: string, message: ChatMessage) {
@@ -405,7 +102,7 @@ export class PiSessionRepository {
     const id = manager.appendMessage(toPiMessage(message));
     this.leafOverrides.set(sessionId, id);
     flushSessionFile(manager);
-    return toEntry(manager.getEntry(id)!);
+    return toSessionTreeEntry(manager.getEntry(id)!);
   }
 
   async appendCompaction(
@@ -419,7 +116,7 @@ export class PiSessionRepository {
     const id = manager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details);
     this.leafOverrides.set(sessionId, id);
     flushSessionFile(manager);
-    return toEntry(manager.getEntry(id)!);
+    return toSessionTreeEntry(manager.getEntry(id)!);
   }
 
   async appendSessionInfo(sessionId: string, name: string): Promise<ChaptaleSessionInfoEntry> {
@@ -427,7 +124,7 @@ export class PiSessionRepository {
     const id = manager.appendSessionInfo(name);
     this.leafOverrides.set(sessionId, id);
     flushSessionFile(manager);
-    const entry = toEntry(manager.getEntry(id)!);
+    const entry = toSessionTreeEntry(manager.getEntry(id)!);
 
     if (entry.type !== 'session_info') {
       throw new Error('Failed to append session info');
