@@ -73,6 +73,7 @@ app.whenReady().then(() => {
     rootDir: settingsService.agentDir,
     cwd: () => settingsService.getCurrentCwd(),
     sessionDir: () => settingsService.getCurrentSessionDir(),
+    sessionsRootDir: settingsService.sessionsRootDir,
     getStorageContext: () => settingsService.getStorageContext()
   });
   const piModelService = new PiModelService(settingsService);

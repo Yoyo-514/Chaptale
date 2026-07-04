@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router';
-
 import ActivityBar from '../components/ActivityBar/ActivityBar.vue';
+import ChatLayout from './ChatLayout.vue';
 import SettingsPanel from '../components/SettingsPanel/SettingsPanel.vue';
 import StatusBar from '../components/StatusBar/StatusBar.vue';
 import TitleBar from '../components/TitleBar/TitleBar.vue';
@@ -12,7 +11,7 @@ import TitleBar from '../components/TitleBar/TitleBar.vue';
     <TitleBar />
     <div class="basic-layout-body">
       <ActivityBar />
-      <RouterView />
+      <ChatLayout />
     </div>
     <StatusBar />
     <SettingsPanel />

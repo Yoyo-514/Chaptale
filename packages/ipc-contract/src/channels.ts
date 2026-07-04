@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
     getMessages: 'session:get-messages',
     rename: 'session:rename',
     delete: 'session:delete',
+    deleteMany: 'session:delete-many',
     setLeaf: 'session:set-leaf',
     getStorageDebugInfo: 'session:get-storage-debug-info',
     openStorageDir: 'session:open-storage-dir'

@@ -3,7 +3,6 @@ import MessageItem from '../../components/MessageItem/MessageItem.vue';
 import { cn } from '../../utils';
 import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInputBox.vue';
-import SessionToolbar from './components/SessionToolbar.vue';
 import { useChatController } from './composables/useChatController';
 
 const chat = useChatController();
@@ -11,10 +10,6 @@ const chat = useChatController();
 
 <template>
   <main :ref="chat.setMainElement" :class="cn('chat-main', chat.isWelcome.value && 'chat-main-welcome')">
-    <div class="chat-workspace-header">
-      <SessionToolbar />
-    </div>
-
     <section :class="cn('chat-messages-section', chat.isWelcome.value && 'chat-messages-section-welcome')">
       <ChatEmptyState
         v-if="chat.isWelcome.value"
@@ -39,15 +34,11 @@ const chat = useChatController();
 
 <style scoped lang="scss">
 .chat-main {
-  @apply flex flex-1 flex-col overflow-y-auto pt-3 pb-28;
+  @apply flex flex-1 flex-col overflow-y-auto pt-3 pb-2;
 }
 
 .chat-main-welcome {
   @apply h-full;
-}
-
-.chat-workspace-header {
-  @apply mx-auto w-full px-4 pb-4 md:w-3xl;
 }
 
 .chat-messages-section {

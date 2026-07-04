@@ -78,12 +78,20 @@ export type ChaptaleSessionMetadata = {
   parentSessionPath?: string;
 };
 
+export type ChaptaleSessionScope = 'global' | 'workspace';
+
 export type ChaptaleSessionListItem = ChaptaleSessionMetadata & {
   name?: string;
   updatedAt: string;
   leafId: string | null;
   messageCount: number;
   lastMessagePreview?: string;
+  /** 会话存储范围：全局目录或当前工作区目录 */
+  scope: ChaptaleSessionScope;
+  /** 会话内 assistant 消息累计 token 消耗 */
+  totalTokens: number;
+  /** 会话内 assistant 消息累计费用（美元） */
+  totalCost: number;
 };
 
 export type CreateSessionOptions = {
@@ -100,6 +108,10 @@ export type RenameSessionPayload = {
 
 export type DeleteSessionPayload = {
   sessionId: string;
+};
+
+export type DeleteSessionsPayload = {
+  sessionIds: string[];
 };
 
 export type SetSessionLeafPayload = {

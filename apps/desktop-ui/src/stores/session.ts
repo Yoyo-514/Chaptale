@@ -75,6 +75,28 @@ export const useSessionStore = defineStore('session', {
       }
     },
 
+    async deleteSessions(sessionIds: string[]) {
+      this.error = '';
+      const ids = [...new Set(sessionIds)];
+
+      if (ids.length === 0) {
+        return;
+      }
+
+      try {
+        await getDesktopApi().session.deleteMany(ids);
+        this.sessions = this.sessions.filter(session => !ids.includes(session.id));
+
+        if (ids.includes(this.currentSessionId)) {
+          this.currentSessionId = this.sessions[0]?.id ?? '';
+        }
+
+        await this.loadSessions();
+      } catch (error) {
+        this.error = toErrorMessage(error);
+      }
+    },
+
     async selectSession(sessionId: string) {
       this.currentSessionId = sessionId;
     },

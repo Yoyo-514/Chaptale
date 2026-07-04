@@ -5,6 +5,7 @@ import { PiSessionRepository } from '../services/session.repository';
 import type {
   CreateSessionOptions,
   DeleteSessionPayload,
+  DeleteSessionsPayload,
   RenameSessionPayload,
   SetSessionLeafPayload
 } from '@chaptale/ipc-contract';
@@ -30,6 +31,10 @@ export function registerSessionIpc(sessionRepository: PiSessionRepository) {
 
   ipcMain.handle(IPC_CHANNELS.session.delete, (_event, payload: DeleteSessionPayload) =>
     sessionRepository.delete(payload.sessionId)
+  );
+
+  ipcMain.handle(IPC_CHANNELS.session.deleteMany, (_event, payload: DeleteSessionsPayload) =>
+    sessionRepository.deleteMany(payload.sessionIds)
   );
 
   ipcMain.handle(IPC_CHANNELS.session.setLeaf, (_event, payload: SetSessionLeafPayload) =>

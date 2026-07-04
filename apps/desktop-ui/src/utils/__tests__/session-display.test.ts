@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { getSessionTitle } from '../session-display';
 
 function createSession(overrides: Partial<ChaptaleSessionListItem>): ChaptaleSessionListItem {
-  return {
+  const session = {
     id: 'session-1',
     name: undefined,
     cwd: 'E:/backend-study/Chaptale',
@@ -14,7 +14,17 @@ function createSession(overrides: Partial<ChaptaleSessionListItem>): ChaptaleSes
     leafId: null,
     createdAt: '2026-07-04T00:00:00.000Z',
     updatedAt: '2026-07-04T00:00:00.000Z',
+    scope: 'global' as const,
+    totalTokens: 0,
+    totalCost: 0,
     ...overrides
+  };
+
+  return {
+    ...session,
+    scope: session.scope ?? 'global',
+    totalTokens: session.totalTokens ?? 0,
+    totalCost: session.totalCost ?? 0
   };
 }
 

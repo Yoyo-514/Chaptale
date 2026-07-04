@@ -3,8 +3,11 @@ import {
   DefaultResourceLoader,
   SessionManager,
   SettingsManager,
-  type AgentSession
+  type AgentSession,
+  type SessionInfo
 } from '@earendil-works/pi-coding-agent';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 import { chaptaleSystemPrompt, systemPrompt } from '../prompt';
 import type { PiModelService } from '../services/pi-model.service';
@@ -27,18 +30,14 @@ export class PiAgentSessionFactory {
 
   async create(sessionId: string): Promise<AgentSession> {
     const { settingsService, modelService } = this.options;
-    const [cwd, sessionDir] = await Promise.all([
-      settingsService.getCurrentCwd(),
-      settingsService.getCurrentSessionDir()
-    ]);
-
-    const sessions = await SessionManager.list(cwd, sessionDir);
-    const target = sessions.find(item => item.id === sessionId);
+    const target = await findSessionById(settingsService, sessionId);
 
     if (!target) {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
+    const cwd = target.cwd || (await settingsService.getCurrentCwd());
+    const sessionDir = path.dirname(target.path);
     const sessionManager = SessionManager.open(target.path, sessionDir, cwd);
     const settingsManager = SettingsManager.create(cwd, settingsService.agentDir);
 
@@ -72,4 +71,31 @@ export class PiAgentSessionFactory {
 
     return session;
   }
+}
+
+async function findSessionById(settingsService: SettingsService, sessionId: string): Promise<SessionInfo | undefined> {
+  const sessionDirs = await getKnownSessionDirs(settingsService);
+
+  for (const sessionDir of sessionDirs) {
+    const sessions = await SessionManager.listAll(sessionDir);
+    const target = sessions.find(item => item.id === sessionId);
+
+    if (target) {
+      return target;
+    }
+  }
+
+  return undefined;
+}
+
+async function getKnownSessionDirs(settingsService: SettingsService) {
+  const currentSessionDir = await settingsService.getCurrentSessionDir();
+  await fs.mkdir(settingsService.sessionsRootDir, { recursive: true });
+
+  const entries = await fs.readdir(settingsService.sessionsRootDir, { withFileTypes: true });
+  const dirs = entries
+    .filter(entry => entry.isDirectory())
+    .map(entry => path.join(settingsService.sessionsRootDir, entry.name));
+
+  return [...new Set([currentSessionDir, ...dirs])];
 }

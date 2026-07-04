@@ -41,6 +41,7 @@ export type ChaptaleDesktopApi = {
     getMessages: (sessionId: string) => Promise<ChatMessage[]>;
     rename: (sessionId: string, name: string) => Promise<ChaptaleSessionInfoEntry>;
     delete: (sessionId: string) => Promise<void>;
+    deleteMany: (sessionIds: string[]) => Promise<void>;
     setLeaf: (sessionId: string, leafId: string | null) => Promise<void>;
     getStorageDebugInfo: () => Promise<ChaptaleSessionStorageDebugInfo>;
     openStorageDir: () => Promise<void>;

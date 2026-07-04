@@ -31,21 +31,21 @@ async function handleOpenHistory() {
 
 <template>
   <TooltipProvider :delay-duration="120">
-    <div class="session-toolbar" aria-label="当前会话工具栏">
-      <div class="session-toolbar-title" :title="sessionTitle">
-        <span class="i-mingcute-chat-3-line session-toolbar-title-icon" aria-hidden="true" />
-        <span class="session-toolbar-title-text">{{ sessionTitle }}</span>
+    <div class="chat-toolbar" aria-label="聊天工具栏">
+      <div class="chat-toolbar-title" :title="sessionTitle">
+        <span class="i-mingcute-chat-3-line chat-toolbar-title-icon" aria-hidden="true" />
+        <span class="chat-toolbar-title-text">{{ sessionTitle }}</span>
       </div>
 
-      <div class="session-toolbar-actions">
+      <div class="chat-toolbar-actions">
         <TooltipRoot>
           <TooltipTrigger as-child>
-            <button class="session-toolbar-button" type="button" aria-label="新建会话" @click="handleCreateSession">
+            <button class="chat-toolbar-button" type="button" aria-label="新建会话" @click="handleCreateSession">
               <span class="i-mingcute-add-line" aria-hidden="true" />
             </button>
           </TooltipTrigger>
           <TooltipPortal>
-            <TooltipContent class="session-toolbar-tooltip" side="bottom" align="center" :side-offset="3">
+            <TooltipContent class="chat-toolbar-tooltip" side="bottom" align="center" :side-offset="3">
               新建会话
             </TooltipContent>
           </TooltipPortal>
@@ -53,12 +53,12 @@ async function handleOpenHistory() {
 
         <TooltipRoot>
           <TooltipTrigger as-child>
-            <button class="session-toolbar-button" type="button" aria-label="历史记录" @click="handleOpenHistory">
+            <button class="chat-toolbar-button" type="button" aria-label="历史记录" @click="handleOpenHistory">
               <span class="i-mingcute-history-line" aria-hidden="true" />
             </button>
           </TooltipTrigger>
           <TooltipPortal>
-            <TooltipContent class="session-toolbar-tooltip" side="bottom" align="center" :side-offset="3">
+            <TooltipContent class="chat-toolbar-tooltip" side="bottom" align="center" :side-offset="3">
               历史记录
             </TooltipContent>
           </TooltipPortal>
@@ -69,48 +69,48 @@ async function handleOpenHistory() {
 </template>
 
 <style scoped lang="scss">
-.session-toolbar {
+.chat-toolbar {
   @apply flex min-w-0 items-center justify-between gap-2 border-b px-1 pb-2;
 
   border-color: var(--border-subtle);
 }
 
-.session-toolbar-title {
+.chat-toolbar-title {
   @apply flex min-w-0 flex-1 items-center gap-1.5 text-xs font-medium;
 
   color: var(--muted-foreground);
 }
 
-.session-toolbar-title-icon {
+.chat-toolbar-title-icon {
   @apply shrink-0 text-sm;
 
   color: var(--primary-solid);
 }
 
-.session-toolbar-title-text {
+.chat-toolbar-title-text {
   @apply min-w-0 truncate;
 }
 
-.session-toolbar-actions {
+.chat-toolbar-actions {
   @apply flex shrink-0 items-center gap-1;
 }
 
-.session-toolbar-button {
+.chat-toolbar-button {
   @apply flex-center size-7 text-base outline-none transition-colors duration-150;
 
   color: var(--muted-foreground);
 }
 
-.session-toolbar-button:hover {
+.chat-toolbar-button:hover {
   background: var(--surface-muted);
   color: var(--foreground);
 }
 
-.session-toolbar-button:focus-visible {
+.chat-toolbar-button:focus-visible {
   box-shadow: var(--input-focus-shadow);
 }
 
-:global(.session-toolbar-tooltip) {
+:global(.chat-toolbar-tooltip) {
   @apply z-50 border px-2 py-1 text-xs shadow-soft;
 
   background: var(--popover);

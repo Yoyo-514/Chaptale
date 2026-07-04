@@ -58,7 +58,10 @@ describe('PiSessionRepository', () => {
       expect.objectContaining({
         id: session.id,
         name: '列表会话',
-        messageCount: 1
+        messageCount: 1,
+        scope: 'global',
+        totalTokens: 0,
+        totalCost: 0
       })
     ]);
   });
@@ -102,5 +105,16 @@ describe('PiSessionRepository', () => {
     await repository.delete(session.id);
 
     await expect(access(session.path)).rejects.toThrow();
+  });
+
+  it('deletes multiple session files in one repository operation', async () => {
+    const repository = createRepository();
+    const first = await repository.create({ name: '批量删除 1' });
+    const second = await repository.create({ name: '批量删除 2' });
+
+    await repository.deleteMany([first.id, second.id]);
+
+    await expect(access(first.path)).rejects.toThrow();
+    await expect(access(second.path)).rejects.toThrow();
   });
 });

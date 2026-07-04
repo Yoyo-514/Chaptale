@@ -72,11 +72,11 @@ function handleSubmit() {
 
 <style scoped lang="scss">
 .chat-input-section {
-  @apply w-full p-4 pt-0 md:w-3xl;
+  @apply mx-auto w-full p-4 pt-0 md:w-3xl;
 }
 
 .chat-input-section-fixed {
-  @apply fixed bottom-6 left-1/2 -translate-x-1/2;
+  @apply sticky bottom-0 z-10;
 }
 
 .chat-input-container {

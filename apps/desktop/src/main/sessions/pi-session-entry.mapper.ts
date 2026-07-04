@@ -1,4 +1,4 @@
-import type { ChaptaleSessionListItem, ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
+import type { ChaptaleSessionListItem, ChaptaleSessionScope, ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
 import type { SessionEntry, SessionInfo } from '@earendil-works/pi-coding-agent';
 
 import { fromPiMessage } from './pi-session-message.mapper';
@@ -75,7 +75,10 @@ export function toSessionTreeEntry(entry: SessionEntry): ChaptaleSessionTreeEntr
   };
 }
 
-export function toSessionListItem(info: SessionInfo): ChaptaleSessionListItem {
+export function toSessionListItem(
+  info: SessionInfo,
+  extras: { scope: ChaptaleSessionScope; totalTokens: number; totalCost: number }
+): ChaptaleSessionListItem {
   return {
     id: info.id,
     createdAt: info.created.toISOString(),
@@ -86,6 +89,9 @@ export function toSessionListItem(info: SessionInfo): ChaptaleSessionListItem {
     updatedAt: info.modified.toISOString(),
     leafId: null,
     messageCount: info.messageCount,
-    lastMessagePreview: info.firstMessage || info.allMessagesText.slice(0, 80) || undefined
+    lastMessagePreview: info.firstMessage || info.allMessagesText.slice(0, 80) || undefined,
+    scope: extras.scope,
+    totalTokens: extras.totalTokens,
+    totalCost: extras.totalCost
   };
 }

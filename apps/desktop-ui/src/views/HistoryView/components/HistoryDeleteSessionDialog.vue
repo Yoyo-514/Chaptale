@@ -11,36 +11,84 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from 'reka-ui';
+import { computed } from 'vue';
 
 import { getSessionTitle } from '../../../utils/session-display';
 
-const props = defineProps<{
-  session: ChaptaleSessionListItem;
-}>();
+const props = withDefaults(
+  defineProps<{
+    session?: ChaptaleSessionListItem;
+    selectedCount?: number;
+    disabled?: boolean;
+    variant?: 'icon' | 'bulk';
+  }>(),
+  {
+    selectedCount: 0,
+    disabled: false,
+    variant: 'icon'
+  }
+);
 
 const emit = defineEmits<{
   delete: [sessionId: string];
+  deleteSelected: [];
 }>();
+
+const isBulkDelete = computed(() => props.variant === 'bulk');
+const triggerLabel = computed(() => (isBulkDelete.value ? '删除选中' : ''));
+const title = computed(() => (isBulkDelete.value ? '删除选中的会话？' : '删除这个会话？'));
+const description = computed(() => {
+  if (isBulkDelete.value) {
+    return `将从本机历史记录中删除 ${props.selectedCount} 个会话，此操作不可撤销。`;
+  }
+
+  return `“${props.session ? getSessionTitle(props.session) : '未命名会话'}” 会从本机历史记录中删除，此操作不可撤销。`;
+});
+const confirmLabel = computed(() => (isBulkDelete.value ? `删除 ${props.selectedCount} 项` : '删除'));
+const ariaLabel = computed(() => {
+  if (isBulkDelete.value) {
+    return '删除选中的会话';
+  }
+
+  return props.session ? `删除 ${getSessionTitle(props.session)}` : '删除会话';
+});
+
+function handleConfirm() {
+  if (isBulkDelete.value) {
+    emit('deleteSelected');
+    return;
+  }
+
+  if (props.session) {
+    emit('delete', props.session.id);
+  }
+}
 </script>
 
 <template>
   <AlertDialogRoot>
     <AlertDialogTrigger as-child>
-      <button class="history-delete-button" type="button" :aria-label="`删除 ${getSessionTitle(props.session)}`">
-        <span class="i-mingcute-delete-2-line" aria-hidden="true" />
+      <button
+        :class="['history-delete-trigger', isBulkDelete ? 'history-delete-bulk-button' : 'history-delete-button']"
+        type="button"
+        :aria-label="ariaLabel"
+        :disabled="props.disabled"
+      >
+        <span v-if="!isBulkDelete" class="i-mingcute-delete-2-line" aria-hidden="true" />
+        <span v-else>{{ triggerLabel }}</span>
       </button>
     </AlertDialogTrigger>
     <AlertDialogPortal>
       <AlertDialogOverlay class="history-delete-overlay" />
       <AlertDialogContent class="history-delete-dialog">
-        <AlertDialogTitle class="history-delete-title">删除这个会话？</AlertDialogTitle>
+        <AlertDialogTitle class="history-delete-title">{{ title }}</AlertDialogTitle>
         <AlertDialogDescription class="history-delete-description">
-          “{{ getSessionTitle(props.session) }}” 会从本机历史记录中删除，此操作不可撤销。
+          {{ description }}
         </AlertDialogDescription>
         <div class="history-delete-actions">
           <AlertDialogCancel class="history-delete-cancel">取消</AlertDialogCancel>
-          <AlertDialogAction class="history-delete-confirm" @click="emit('delete', props.session.id)">
-            删除
+          <AlertDialogAction class="history-delete-confirm" @click="handleConfirm">
+            {{ confirmLabel }}
           </AlertDialogAction>
         </div>
       </AlertDialogContent>
@@ -49,17 +97,36 @@ const emit = defineEmits<{
 </template>
 
 <style scoped lang="scss">
+.history-delete-trigger {
+  @apply outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
 .history-delete-button {
-  @apply flex-center absolute bottom-1.5 right-1.5 size-6 border text-sm opacity-0 outline-none transition-all duration-150;
+  @apply flex-center absolute bottom-1.5 right-1.5 size-6 border text-sm opacity-0 transition-all duration-200 ease-out;
 
   background: var(--surface-acrylic-strong);
   border-color: var(--border-subtle);
   border-radius: calc(var(--radius) * 0.5);
   color: var(--muted-foreground);
   pointer-events: none;
+  transform: translate(0.25rem, 0.25rem) scale(0.92);
 }
 
-.history-delete-button:focus-visible {
+.history-delete-bulk-button {
+  @apply border px-3 py-1.5 text-sm font-medium;
+
+  background: var(--destructive);
+  border-color: var(--destructive);
+  border-radius: calc(var(--radius) * 0.5);
+  color: var(--destructive-foreground);
+}
+
+.history-delete-bulk-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.history-delete-button:focus-visible,
+.history-delete-bulk-button:focus-visible {
   box-shadow: var(--input-focus-shadow);
 }
 
@@ -67,12 +134,6 @@ const emit = defineEmits<{
   background: var(--destructive-background);
   border-color: var(--destructive);
   color: var(--destructive-background-foreground);
-}
-
-:global(.history-item:hover) .history-delete-button,
-:global(.history-item:focus-within) .history-delete-button {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 :global(.history-delete-overlay) {
@@ -83,7 +144,7 @@ const emit = defineEmits<{
 }
 
 :global(.history-delete-dialog) {
-  @apply fixed left-1/2 top-1/2 z-50 w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 border p-5 shadow-float;
+  @apply fixed left-1/2 top-1/2 z-50 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 border p-5 shadow-float;
 
   background: var(--popover);
   border-color: var(--border);

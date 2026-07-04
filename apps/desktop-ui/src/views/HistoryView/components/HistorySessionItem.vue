@@ -1,24 +1,58 @@
 <script setup lang="ts">
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
+import { CheckboxIndicator, CheckboxRoot } from 'reka-ui';
 
 import { cn } from '../../../utils';
-import { formatSessionTime, getSessionTitle } from '../../../utils/session-display';
+import {
+  formatSessionCost,
+  formatSessionScope,
+  formatSessionTime,
+  formatTokenCount,
+  getSessionTitle
+} from '../../../utils/session-display';
 import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 
 const props = defineProps<{
   session: ChaptaleSessionListItem;
   isActive: boolean;
+  isSelectionMode: boolean;
+  isSelected: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [session: ChaptaleSessionListItem];
   delete: [sessionId: string];
+  toggleSelect: [sessionId: string];
 }>();
+
+function handleMainClick() {
+  if (props.isSelectionMode) {
+    emit('toggleSelect', props.session.id);
+    return;
+  }
+
+  emit('select', props.session);
+}
 </script>
 
 <template>
-  <div :class="cn('history-item', props.isActive && 'history-item-active')" role="listitem">
-    <button class="history-item-select" type="button" @click="emit('select', props.session)">
+  <div
+    :class="cn('history-item', props.isActive && 'history-item-active', props.isSelected && 'history-item-selected')"
+    role="listitem"
+  >
+    <CheckboxRoot
+      v-if="props.isSelectionMode"
+      class="history-item-checkbox"
+      :model-value="props.isSelected"
+      :aria-label="`选择 ${getSessionTitle(props.session)}`"
+      @update:model-value="emit('toggleSelect', props.session.id)"
+    >
+      <CheckboxIndicator class="history-item-checkbox-indicator">
+        <span class="i-mingcute-check-line" aria-hidden="true" />
+      </CheckboxIndicator>
+    </CheckboxRoot>
+
+    <button class="history-item-select" type="button" @click="handleMainClick">
       <span class="history-item-icon" aria-hidden="true">
         <span class="i-mingcute-chat-3-line" />
       </span>
@@ -31,21 +65,28 @@ const emit = defineEmits<{
         <span class="history-item-preview">
           {{ props.session.lastMessagePreview || '暂无消息' }}
         </span>
+        <span class="history-item-stats" aria-label="会话统计">
+          <span>{{ formatSessionScope(props.session.scope) }}</span>
+          <span>{{ props.session.messageCount }} 条</span>
+          <span>{{ formatTokenCount(props.session.totalTokens) }} token</span>
+          <span>{{ formatSessionCost(props.session.totalCost) }}</span>
+        </span>
       </span>
 
-      <span class="history-item-meta">
-        <span>{{ props.session.messageCount }}</span>
-      </span>
-      <span class="i-mingcute-right-line history-item-arrow" aria-hidden="true" />
+      <span v-if="!props.isSelectionMode" class="i-mingcute-right-line history-item-arrow" aria-hidden="true" />
     </button>
 
-    <HistoryDeleteSessionDialog :session="props.session" @delete="emit('delete', $event)" />
+    <HistoryDeleteSessionDialog
+      v-if="!props.isSelectionMode"
+      :session="props.session"
+      @delete="emit('delete', $event)"
+    />
   </div>
 </template>
 
 <style scoped lang="scss">
 .history-item {
-  @apply relative flex w-full items-center gap-2 border p-2 transition-all duration-150;
+  @apply relative flex w-full items-center gap-2 overflow-hidden border p-2 transition-all duration-150;
 
   border-color: transparent;
   border-radius: calc(var(--radius) * 0.5);
@@ -53,7 +94,7 @@ const emit = defineEmits<{
 }
 
 .history-item:hover {
-  background: var(--primary-hover);
+  background: var(--surface-muted);
 }
 
 .history-item-active {
@@ -61,8 +102,35 @@ const emit = defineEmits<{
   border-color: var(--border-strong);
 }
 
+.history-item-selected {
+  background: var(--secondary);
+  border-color: var(--primary-solid);
+}
+
+.history-item-checkbox {
+  @apply flex-center size-5 shrink-0 border outline-none transition-colors duration-150;
+
+  background: var(--input);
+  border-color: var(--input-border);
+  border-radius: calc(var(--radius) * 0.3);
+}
+
+.history-item-checkbox[data-state='checked'] {
+  background: var(--primary-solid);
+  border-color: var(--primary-solid);
+  color: var(--primary-solid-foreground);
+}
+
+.history-item-checkbox:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+}
+
+.history-item-checkbox-indicator {
+  @apply flex-center text-sm;
+}
+
 .history-item-select {
-  @apply flex min-w-0 flex-1 items-center gap-3 p-1 text-left outline-none;
+  @apply flex min-w-0 flex-1 items-center gap-3 p-1 pr-12 text-left outline-none;
 }
 
 .history-item-select:focus-visible {
@@ -101,19 +169,36 @@ const emit = defineEmits<{
   color: var(--muted-foreground);
 }
 
-.history-item-meta {
-  @apply flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs;
+.history-item-stats {
+  @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.7rem];
 
-  background: var(--surface-muted);
   color: var(--muted-foreground);
 }
 
+.history-item-stats span {
+  @apply rounded-full px-2 py-0.5;
+
+  background: var(--surface-acrylic-subtle);
+}
+
 .history-item-arrow {
-  @apply shrink-0 transition-all duration-150;
+  @apply absolute right-3 top-3 shrink-0 text-xl transition-all duration-200 ease-out;
+
+  color: var(--muted-foreground);
+  opacity: 0;
+  transform: translateX(0.35rem) scale(0.9);
 }
 
 .history-item:hover .history-item-arrow,
 .history-item:focus-within .history-item-arrow {
-  @apply translate-y-[-0.75rem];
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+.history-item:hover :deep(.history-delete-button),
+.history-item:focus-within :deep(.history-delete-button) {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, 0) scale(1);
 }
 </style>

@@ -3,6 +3,7 @@ import type {
   ChaptaleSessionInfoEntry,
   ChaptaleSessionListItem,
   ChaptaleSessionMetadata,
+  ChaptaleSessionScope,
   ChaptaleSessionStorageDebugInfo,
   ChaptaleSessionTreeEntry,
   CreateSessionOptions
@@ -14,11 +15,13 @@ import path from 'node:path';
 import { toSessionListItem, toSessionTreeEntry } from '../sessions/pi-session-entry.mapper';
 import { flushSessionFile } from '../sessions/pi-session-file';
 import { fromPiMessage, toPiMessage } from '../sessions/pi-session-message.mapper';
+import { readSessionUsage } from '../sessions/pi-session-usage';
 
 export type PiSessionRepositoryOptions = {
   rootDir: string;
   cwd: string | (() => string | Promise<string>);
   sessionDir: string | (() => string | Promise<string>);
+  sessionsRootDir?: string | (() => string | Promise<string>);
   getStorageContext?: () =>
     | { storageMode?: 'global' | 'workspace'; workspacePath?: string }
     | Promise<{ storageMode?: 'global' | 'workspace'; workspacePath?: string }>;
@@ -69,9 +72,21 @@ export class PiSessionRepository {
   }
 
   async list(): Promise<ChaptaleSessionListItem[]> {
-    const [cwd, sessionDir] = await Promise.all([this.resolveCwd(), this.ensureSessionDir()]);
-    const items = await SessionManager.list(cwd, sessionDir);
-    return items.map(toSessionListItem).toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    const sessionDirs = await this.getKnownSessionDirs();
+    const sessions = await Promise.all(
+      sessionDirs.map(async sessionDir => {
+        const scope = getSessionScope(sessionDir);
+        const items = await SessionManager.listAll(sessionDir);
+        return Promise.all(
+          items.map(async info => {
+            const usage = await readSessionUsage(info.path, info.modified.getTime());
+            return toSessionListItem(info, { scope, ...usage });
+          })
+        );
+      })
+    );
+
+    return sessions.flat().toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
   async getMetadata(sessionId: string): Promise<ChaptaleSessionMetadata> {
@@ -148,24 +163,34 @@ export class PiSessionRepository {
 
   async delete(sessionId: string): Promise<void> {
     const session = await this.findSessionInfo(sessionId);
-    const sessionDir = await this.ensureSessionDir();
-    const resolvedSessionPath = path.resolve(session.path);
-    const resolvedSessionDir = path.resolve(sessionDir);
+    await this.deleteSessionFile(session);
+  }
 
-    if (!resolvedSessionPath.startsWith(`${resolvedSessionDir}${path.sep}`)) {
-      throw new Error(`Refuse to delete session outside current session directory: ${session.path}`);
+  async deleteMany(sessionIds: string[]): Promise<void> {
+    const uniqueSessionIds = [...new Set(sessionIds)];
+
+    if (uniqueSessionIds.length === 0) {
+      return;
     }
 
-    await fs.unlink(resolvedSessionPath);
+    const sessions = await this.list();
+    const sessionMap = new Map(sessions.map(session => [session.id, session]));
+
+    for (const sessionId of uniqueSessionIds) {
+      const session = sessionMap.get(sessionId);
+
+      if (!session) {
+        throw new Error(`Session not found: ${sessionId}`);
+      }
+
+      await this.deleteSessionFile(session);
+    }
   }
 
   private async openSession(sessionId: string) {
-    const [session, cwd, sessionDir] = await Promise.all([
-      this.findSessionInfo(sessionId),
-      this.resolveCwd(),
-      this.ensureSessionDir()
-    ]);
-    const manager = SessionManager.open(session.path, sessionDir, cwd);
+    const [session, fallbackCwd] = await Promise.all([this.findSessionInfo(sessionId), this.resolveCwd()]);
+    const sessionDir = path.dirname(session.path);
+    const manager = SessionManager.open(session.path, sessionDir, session.cwd || fallbackCwd);
     const leafOverride = this.leafOverrides.get(sessionId);
 
     if (leafOverride !== undefined) {
@@ -177,6 +202,18 @@ export class PiSessionRepository {
     }
 
     return manager;
+  }
+
+  private async deleteSessionFile(session: ChaptaleSessionListItem) {
+    const sessionsRootDir = await this.resolveSessionsRootDir();
+    const resolvedSessionPath = path.resolve(session.path);
+    const resolvedSessionsRootDir = path.resolve(sessionsRootDir);
+
+    if (!resolvedSessionPath.startsWith(`${resolvedSessionsRootDir}${path.sep}`)) {
+      throw new Error(`Refuse to delete session outside sessions root directory: ${session.path}`);
+    }
+
+    await fs.unlink(resolvedSessionPath);
   }
 
   private async findSessionInfo(sessionId: string) {
@@ -207,6 +244,29 @@ export class PiSessionRepository {
     };
   }
 
+  private async getKnownSessionDirs() {
+    const [currentSessionDir, sessionsRootDir] = await Promise.all([
+      this.ensureSessionDir(),
+      this.resolveSessionsRootDir()
+    ]);
+    await fs.mkdir(sessionsRootDir, { recursive: true });
+
+    const entries = await fs.readdir(sessionsRootDir, { withFileTypes: true });
+    const dirs = entries.filter(entry => entry.isDirectory()).map(entry => path.join(sessionsRootDir, entry.name));
+
+    return [...new Set([currentSessionDir, ...dirs])];
+  }
+
+  private async resolveSessionsRootDir() {
+    if (this.options.sessionsRootDir) {
+      return typeof this.options.sessionsRootDir === 'function'
+        ? await this.options.sessionsRootDir()
+        : this.options.sessionsRootDir;
+    }
+
+    return path.dirname(await this.resolveSessionDir());
+  }
+
   private async resolveSessionDir() {
     return typeof this.options.sessionDir === 'function' ? await this.options.sessionDir() : this.options.sessionDir;
   }
@@ -214,4 +274,8 @@ export class PiSessionRepository {
   private async resolveCwd() {
     return typeof this.options.cwd === 'function' ? await this.options.cwd() : this.options.cwd;
   }
+}
+
+function getSessionScope(sessionDir: string): ChaptaleSessionScope {
+  return path.basename(sessionDir) === 'global' ? 'global' : 'workspace';
 }

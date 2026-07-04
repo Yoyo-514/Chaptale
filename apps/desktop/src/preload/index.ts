@@ -42,6 +42,8 @@ const desktopApi: ChaptaleDesktopApi = {
     getMessages: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.getMessages, sessionId),
     rename: (sessionId: string, name: string) => ipcRenderer.invoke(IPC_CHANNELS.session.rename, { sessionId, name }),
     delete: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.delete, { sessionId }) as Promise<void>,
+    deleteMany: (sessionIds: string[]) =>
+      ipcRenderer.invoke(IPC_CHANNELS.session.deleteMany, { sessionIds }) as Promise<void>,
     setLeaf: (sessionId: string, leafId: string | null) =>
       ipcRenderer.invoke(IPC_CHANNELS.session.setLeaf, { sessionId, leafId }) as Promise<void>,
     getStorageDebugInfo: () => ipcRenderer.invoke(IPC_CHANNELS.session.getStorageDebugInfo),
