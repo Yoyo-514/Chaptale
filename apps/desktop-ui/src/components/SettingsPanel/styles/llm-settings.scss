@@ -218,10 +218,14 @@
   }
 
   .settings-scrollbar-thumb {
-    @apply relative flex-1;
+    @apply relative flex-1 transition-colors duration-150;
 
-    background: var(--border);
+    background: var(--scrollbar-thumb);
     border-radius: calc(var(--radius) * 0.5);
+  }
+
+  .settings-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
   }
 
   .settings-provider-list,

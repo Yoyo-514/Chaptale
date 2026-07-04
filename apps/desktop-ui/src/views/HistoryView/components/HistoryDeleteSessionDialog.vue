@@ -78,7 +78,7 @@ const emit = defineEmits<{
 :global(.history-delete-overlay) {
   @apply fixed inset-0 z-50;
 
-  background: rgb(8 36 49 / 0.28);
+  background: var(--overlay-scrim);
   backdrop-filter: var(--blur-acrylic-subtle);
 }
 

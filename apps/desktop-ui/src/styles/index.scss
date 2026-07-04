@@ -1,5 +1,6 @@
 /* stylelint-disable at-rule-no-unknown */
 @use './markdown';
+@use './scrollbar';
 
 // 全局样式文件 - Design Tokens & 基础样式
 
@@ -19,9 +20,9 @@
   --palette-tianyi-800: #006b98;
   --palette-tianyi-900: #102f3d;
 
-  --palette-cream-50: #fffdf8;
-  --palette-cream-100: #fffaf2;
-  --palette-cream-200: #f8efe1;
+  --palette-cream-50: #fdf9ee;
+  --palette-cream-100: #f8f3e7;
+  --palette-cream-200: #efe7d3;
 
   --palette-lavender-100: #f4f0ff;
   --palette-lavender-200: #eae4ff;
@@ -41,12 +42,14 @@
   --palette-danger-600: #d83b3b;
   --palette-danger-900: #5c1f1f;
 
-  // 语义色彩 - 浅色主题
+  // 语义色彩 - 浅色主题（护眼纸色底）
+  // 正文对比度刻意从 ~12.7:1 降到 ~9.1:1：仍远超 WCAG AAA(7:1)，
+  // 但避免过高对比带来的长时间阅读疲劳（写作场景优先）。
   --background: var(--palette-cream-100);
-  --foreground: var(--palette-tianyi-900);
-  --card: rgb(255 255 255 / 0.82);
+  --foreground: #2b4552;
+  --card: rgb(253 250 242 / 0.85);
   --card-foreground: var(--foreground);
-  --popover: rgb(255 255 255 / 0.9);
+  --popover: rgb(253 250 242 / 0.92);
   --popover-foreground: var(--foreground);
 
   // 主色调系统 - 天依色略浅，文字对比符合 WCAG 2.1 AA
@@ -61,8 +64,8 @@
   // 辅色系统 - 低饱和二次元点缀
   --secondary: var(--palette-tianyi-100);
   --secondary-foreground: #124359;
-  --muted: #f4f9fb;
-  --muted-foreground: #607987;
+  --muted: #f1ebdc;
+  --muted-foreground: #536d7c;
   --accent: var(--palette-lavender-200);
   --accent-foreground: var(--palette-lavender-900);
   --accent-sakura: var(--palette-sakura-200);
@@ -70,53 +73,61 @@
   --accent-mint: var(--palette-mint-200);
   --accent-mint-foreground: var(--palette-mint-900);
 
-  // Fluent Surface / Acrylic
+  // Fluent Surface / Acrylic（暖纸色基底，不用纯白/冷白，降低亮度落差与蓝光感）
   --surface: var(--palette-cream-50);
-  --surface-elevated: #ffffff;
-  --surface-muted: #f7fbfd;
-  --surface-acrylic: rgb(255 255 255 / 0.68);
-  --surface-acrylic-strong: rgb(255 255 255 / 0.78);
-  --surface-acrylic-subtle: rgb(255 255 255 / 0.52);
+  --surface-elevated: #fbf7ec;
+  --surface-muted: #f3ecdb;
+  --surface-acrylic: rgb(253 250 242 / 0.68);
+  --surface-acrylic-strong: rgb(253 250 242 / 0.78);
+  --surface-acrylic-subtle: rgb(253 250 242 / 0.52);
   --mica-background: var(--palette-cream-100);
-  --mica-tint: rgb(243 251 255 / 0.72);
+  --mica-tint: rgb(248 243 231 / 0.72);
 
-  // 功能色彩
+  // 功能色彩（边框降饱和、偏灰青，避免大面积蓝色线条常驻视野）
   --destructive: var(--palette-danger-600);
   --destructive-foreground: #ffffff;
   --destructive-background: var(--palette-danger-100);
   --destructive-background-foreground: var(--palette-danger-900);
-  --border: #d7edf7;
-  --border-subtle: #e9f6fb;
-  --border-strong: #aadff2;
+  --border: #dde2d8;
+  --border-subtle: #e9ecdf;
+  --border-strong: #b9cbd2;
   --ring: var(--palette-tianyi-500);
 
   // 输入控件
-  --input: rgb(255 255 255 / 0.72);
+  --input: rgb(253 250 242 / 0.72);
   --input-background: var(--input);
-  --input-border: #c6e8f5;
+  --input-border: #d3ddd8;
   --input-foreground: var(--foreground);
-  --input-placeholder: #6c8793;
+  --input-placeholder: #587585;
   --input-focus-border: var(--palette-tianyi-500);
-  --input-focus-shadow: 0 0 0 3px rgb(102 204 255 / 0.28);
+  --input-focus-shadow: 0 0 0 3px rgb(102 204 255 / 0.18);
 
-  // Electron 标题栏
-  --titlebar: var(--palette-tianyi-50);
+  // 滚动条（常态低存在感，hover 时再加强，避免高饱和色常驻抢视觉注意）
+  --scrollbar-size: 10px;
+  --scrollbar-thumb: rgb(from var(--primary) r g b / 0.35);
+  --scrollbar-thumb-hover: rgb(from var(--primary) r g b / 0.6);
+
+  // Electron 标题栏（与纸色底同系，保留淡蓝点缀在 hover）
+  --titlebar: var(--palette-cream-50);
   --titlebar-border: var(--border);
   --titlebar-foreground: #2b5f73;
-  --titlebar-control-hover: rgb(102 204 255 / 0.16);
+  --titlebar-control-hover: rgb(102 204 255 / 0.14);
 
   // 交互动作
   --action-background: var(--palette-tianyi-400);
   --action-background-hover: var(--palette-tianyi-300);
   --action-foreground: var(--primary-foreground);
-  --action-shadow: 0 8px 20px rgb(102 204 255 / 0.32);
+  --action-shadow: 0 8px 20px rgb(102 204 255 / 0.2);
 
-  // 阴影与玻璃效果
-  --shadow-soft: 0 12px 32px rgb(56 125 153 / 0.12);
-  --shadow-float: 0 18px 48px rgb(56 125 153 / 0.18);
+  // 阴影与玻璃效果（降低彩色阴影存在感，避免边缘“发光”）
+  --shadow-soft: 0 12px 32px rgb(56 125 153 / 0.09);
+  --shadow-float: 0 18px 48px rgb(56 125 153 / 0.14);
   --shadow-inset-highlight: inset 0 1px 0 rgb(255 255 255 / 0.72);
   --blur-acrylic: blur(18px) saturate(1.35);
   --blur-acrylic-subtle: blur(12px) saturate(1.2);
+
+  // 模态遮罩（随主题切换：浅色用前景色淡入，暗色加深保证层级）
+  --overlay-scrim: rgb(43 69 82 / 0.24);
 
   // 图表色彩 - 天依蓝为主，薰衣草紫 / 樱粉 / 薄荷青为辅
   --chart-1: var(--palette-tianyi-500);
@@ -125,8 +136,8 @@
   --chart-4: var(--palette-sakura-700);
   --chart-5: #38b89f;
 
-  // 侧边栏
-  --sidebar: rgb(255 255 255 / 0.72);
+  // 侧边栏（与卡片同系暖纸色，避免残留冷白）
+  --sidebar: rgb(253 250 242 / 0.72);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
@@ -139,11 +150,13 @@
 // 暗色主题
 .dark {
   // 语义色彩
-  --background: #0d1f29;
-  --foreground: #e7f7ff;
-  --card: rgb(18 48 62 / 0.78);
+  // 前景压低亮度与冷色饱和度（对比 ~11.6:1，仍达 AAA）：
+  // 满亮冷白文字在深色背景上长时间阅读最容易疲劳
+  --background: #0f1e26;
+  --foreground: #c9d9e2;
+  --card: rgb(21 45 57 / 0.8);
   --card-foreground: var(--foreground);
-  --popover: rgb(18 48 62 / 0.92);
+  --popover: rgb(21 45 57 / 0.92);
   --popover-foreground: var(--foreground);
 
   // 主色调系统
@@ -156,10 +169,10 @@
   --primary-solid-foreground: #082431;
 
   // 辅色系统
-  --secondary: rgb(102 204 255 / 0.18);
-  --secondary-foreground: #d8f2ff;
-  --muted: rgb(216 242 255 / 0.12);
-  --muted-foreground: #a9c6d3;
+  --secondary: rgb(102 204 255 / 0.14);
+  --secondary-foreground: #bcd6e4;
+  --muted: rgb(216 242 255 / 0.1);
+  --muted-foreground: #93aebc;
   --accent: rgb(234 228 255 / 0.18);
   --accent-foreground: #f4f0ff;
   --accent-sakura: rgb(255 217 237 / 0.18);
@@ -168,45 +181,45 @@
   --accent-mint-foreground: #effdf8;
 
   // Fluent Surface / Acrylic
-  --surface: #122f3d;
-  --surface-elevated: #183a4a;
-  --surface-muted: #102a36;
-  --surface-acrylic: rgb(18 48 62 / 0.66);
-  --surface-acrylic-strong: rgb(18 48 62 / 0.78);
-  --surface-acrylic-subtle: rgb(18 48 62 / 0.48);
-  --mica-background: #0d1f29;
-  --mica-tint: rgb(16 47 61 / 0.72);
+  --surface: #142c38;
+  --surface-elevated: #1a3644;
+  --surface-muted: #112631;
+  --surface-acrylic: rgb(21 45 57 / 0.66);
+  --surface-acrylic-strong: rgb(21 45 57 / 0.78);
+  --surface-acrylic-subtle: rgb(21 45 57 / 0.48);
+  --mica-background: #0f1e26;
+  --mica-tint: rgb(20 44 56 / 0.72);
 
   // 功能色彩
   --destructive: #ff8a8a;
   --destructive-foreground: #2d0d0d;
   --destructive-background: rgb(255 138 138 / 0.14);
   --destructive-background-foreground: #ffd6d6;
-  --border: rgb(184 236 255 / 0.22);
-  --border-subtle: rgb(184 236 255 / 0.14);
-  --border-strong: rgb(184 236 255 / 0.34);
+  --border: rgb(184 236 255 / 0.16);
+  --border-subtle: rgb(184 236 255 / 0.1);
+  --border-strong: rgb(184 236 255 / 0.28);
   --ring: var(--palette-tianyi-400);
 
   // 输入控件
-  --input: rgb(13 31 41 / 0.72);
+  --input: rgb(15 30 38 / 0.72);
   --input-background: var(--input);
-  --input-border: rgb(184 236 255 / 0.28);
+  --input-border: rgb(184 236 255 / 0.22);
   --input-foreground: var(--foreground);
-  --input-placeholder: #92b2c0;
+  --input-placeholder: #8aa8b6;
   --input-focus-border: var(--palette-tianyi-400);
-  --input-focus-shadow: 0 0 0 3px rgb(143 220 255 / 0.24);
+  --input-focus-shadow: 0 0 0 3px rgb(143 220 255 / 0.16);
 
   // Electron 标题栏
-  --titlebar: #102f3d;
-  --titlebar-border: rgb(184 236 255 / 0.18);
-  --titlebar-foreground: #d8f2ff;
-  --titlebar-control-hover: rgb(143 220 255 / 0.18);
+  --titlebar: #12252f;
+  --titlebar-border: rgb(184 236 255 / 0.14);
+  --titlebar-foreground: #bcd6e4;
+  --titlebar-control-hover: rgb(143 220 255 / 0.16);
 
   // 交互动作
   --action-background: var(--palette-tianyi-500);
   --action-background-hover: var(--palette-tianyi-300);
   --action-foreground: #082431;
-  --action-shadow: 0 8px 24px rgb(102 204 255 / 0.24);
+  --action-shadow: 0 8px 24px rgb(102 204 255 / 0.16);
 
   // 阴影与玻璃效果
   --shadow-soft: 0 12px 32px rgb(0 0 0 / 0.24);
@@ -215,6 +228,9 @@
   --blur-acrylic: blur(18px) saturate(1.28);
   --blur-acrylic-subtle: blur(12px) saturate(1.14);
 
+  // 模态遮罩
+  --overlay-scrim: rgb(4 12 17 / 0.5);
+
   // 图表色彩
   --chart-1: var(--palette-tianyi-400);
   --chart-2: var(--palette-tianyi-500);
@@ -222,8 +238,8 @@
   --chart-4: #ffadd8;
   --chart-5: #7ce2ce;
 
-  // 侧边栏
-  --sidebar: rgb(18 48 62 / 0.7);
+  // 侧边栏（与新 surface 色系一致）
+  --sidebar: rgb(20 44 56 / 0.7);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);

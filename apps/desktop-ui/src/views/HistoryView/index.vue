@@ -66,7 +66,7 @@ async function handleDeleteSession(sessionId: string) {
 
 <style scoped lang="scss">
 .history-main {
-  @apply flex-1 overflow-y-auto px-4 pt-16 pb-8;
+  @apply flex-1 overflow-y-auto px-4 pb-8;
 }
 
 .history-panel {

@@ -2,8 +2,8 @@
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
 import { cn } from '../../../utils';
-import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 import { formatSessionTime, getSessionTitle } from '../../../utils/session-display';
+import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 
 const props = defineProps<{
   session: ChaptaleSessionListItem;
