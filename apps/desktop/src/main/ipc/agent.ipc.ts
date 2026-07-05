@@ -53,6 +53,7 @@ export function registerAgentIpc(agentService: PiAgentService) {
       for await (const message of agentService.stream({
         query: payload.query,
         sessionId: payload.sessionId,
+        branchFromEntryId: payload.branchFromEntryId,
         signal: abortController.signal
       })) {
         webContents.send(IPC_CHANNELS.agent.message, {

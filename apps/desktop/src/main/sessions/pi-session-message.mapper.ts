@@ -15,9 +15,15 @@ type MinimalPiToolCall = {
   arguments: Record<string, any>;
 };
 
+type MinimalPiThinkingContent = {
+  type: 'thinking';
+  thinking: string;
+  thinkingSignature?: string;
+};
+
 type MinimalPiAssistantMessage = {
   role: 'assistant';
-  content: (MinimalPiTextContent | MinimalPiToolCall)[];
+  content: (MinimalPiTextContent | MinimalPiToolCall | MinimalPiThinkingContent)[];
   api: string;
   provider: string;
   model: string;
@@ -65,6 +71,28 @@ function createZeroUsage(): MinimalPiAssistantMessage['usage'] {
   };
 }
 
+export function getReasoningFromPiContent(content: unknown) {
+  if (!Array.isArray(content)) {
+    return '';
+  }
+
+  return content
+    .map(item => {
+      if (!item || typeof item !== 'object') {
+        return '';
+      }
+
+      const block = item as Record<string, unknown>;
+      if (block.type === 'thinking' && typeof block.thinking === 'string') {
+        return block.thinking;
+      }
+
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
 export function getTextFromPiContent(content: unknown) {
   if (typeof content === 'string') {
     return content;
@@ -109,7 +137,18 @@ export function toPiMessage(message: ChatMessage): PiMessage {
   if (message.type === 'assistant') {
     return {
       role: 'assistant',
-      content: [{ type: 'text', text: message.payload.content }],
+      content: [
+        ...(message.payload.reasoning
+          ? [
+              {
+                type: 'thinking' as const,
+                thinking: message.payload.reasoning,
+                thinkingSignature: 'reasoning_content'
+              }
+            ]
+          : []),
+        { type: 'text', text: message.payload.content }
+      ],
       api: 'chaptale',
       provider: 'chaptale',
       model: 'chaptale-current',
@@ -193,10 +232,26 @@ export function fromPiMessage(message: unknown): ChatMessage | undefined {
       };
     }
 
+    const text = getTextFromPiContent(content);
+    const reasoning = getReasoningFromPiContent(content);
+
+    if (!text && !reasoning) {
+      if (record.stopReason === 'error' && typeof record.errorMessage === 'string' && record.errorMessage) {
+        return {
+          type: 'system',
+          payload: { content: record.errorMessage }
+        };
+      }
+
+      return undefined;
+    }
+
     return {
       type: 'assistant',
       payload: {
-        content: getTextFromPiContent(content)
+        content: text,
+        reasoning: reasoning || undefined,
+        reasoningStatus: reasoning ? 'done' : undefined
       }
     };
   }

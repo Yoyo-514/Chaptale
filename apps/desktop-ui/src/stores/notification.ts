@@ -33,7 +33,7 @@ export const useNotificationStore = defineStore('notification', {
   }),
   getters: {
     unreadCount: state => state.items.length,
-    recentItems: state => [...state.items].toReversed().slice(0, 3)
+    recentItems: state => [...state.items].reverse().slice(0, 3)
   },
   actions: {
     push(kind: NotificationKind, title: string, description?: string) {

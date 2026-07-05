@@ -1,5 +1,5 @@
 import type { ChatMessage } from '@chaptale/shared';
-import type { AgentRunResult, StreamAgentHandlers } from './agent';
+import type { AgentRunResult, StreamAgentHandlers, StreamAgentOptions } from './agent';
 import type { AppPlatformResult } from './app';
 import type {
   AddCustomModelPayload,
@@ -67,7 +67,12 @@ export type ChaptaleDesktopApi = {
   };
   agent: {
     getHistory: (sessionId?: string) => Promise<ChatMessage[]>;
-    stream: (query: string, handlers: StreamAgentHandlers, sessionId?: string) => Promise<AgentRunResult>;
+    stream: (
+      query: string,
+      handlers: StreamAgentHandlers,
+      sessionId?: string,
+      options?: StreamAgentOptions
+    ) => Promise<AgentRunResult>;
     cancel: (runId: string) => Promise<AgentRunResult>;
   };
 };

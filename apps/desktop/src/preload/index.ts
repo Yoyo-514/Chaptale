@@ -83,7 +83,7 @@ const desktopApi: ChaptaleDesktopApi = {
   },
   agent: {
     getHistory: (sessionId?: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.getHistory, { sessionId }),
-    stream: async (query, handlers, sessionId) => {
+    stream: async (query, handlers, sessionId, options) => {
       const runId = crypto.randomUUID();
 
       const cleanup = () => {
@@ -120,7 +120,12 @@ const desktopApi: ChaptaleDesktopApi = {
       ipcRenderer.on(IPC_CHANNELS.agent.done, handleDone);
       ipcRenderer.on(IPC_CHANNELS.agent.error, handleError);
 
-      await ipcRenderer.invoke(IPC_CHANNELS.agent.start, { runId, query, sessionId } satisfies AgentStartPayload);
+      await ipcRenderer.invoke(IPC_CHANNELS.agent.start, {
+        runId,
+        query,
+        sessionId,
+        branchFromEntryId: options?.branchFromEntryId
+      } satisfies AgentStartPayload);
       return { runId };
     },
     cancel: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.cancel, runId) as Promise<AgentRunResult>

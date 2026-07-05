@@ -4,6 +4,8 @@ export type AgentStartPayload = {
   runId: string;
   query: string;
   sessionId?: string;
+  /** 从指定 pi session entry 开始新分支。 */
+  branchFromEntryId?: string | null;
 };
 
 export type AgentHistoryPayload = {
@@ -24,6 +26,10 @@ export type AgentDoneEvent = AgentRunResult;
 export type AgentErrorEvent = {
   runId: string;
   message: string;
+};
+
+export type StreamAgentOptions = {
+  branchFromEntryId?: string | null;
 };
 
 export type StreamAgentHandlers = {

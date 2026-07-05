@@ -4,6 +4,7 @@ import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-
 
 import { stringifyToolResult, toChatMessages } from '../agent/pi-agent-message.mapper';
 import { PiAgentSessionFactory } from '../agent/pi-agent-session.factory';
+import { flushSessionFile } from '../sessions/pi-session-file';
 import type { PiModelService } from './pi-model.service';
 import type { SettingsService } from './settings.service';
 
@@ -75,6 +76,16 @@ export class PiAgentService implements AgentRuntime {
       throw new Error('尚未配置可用模型：请在设置面板 LLM Provider 中配置凭据并选择默认模型');
     }
 
+    if (options.branchFromEntryId !== undefined) {
+      if (options.branchFromEntryId) {
+        session.sessionManager.branch(options.branchFromEntryId);
+      } else {
+        session.sessionManager.resetLeaf();
+      }
+
+      session.agent.state.messages = session.sessionManager.buildSessionContext().messages;
+    }
+
     // AgentSession 事件是回调风格，这里桥接为 AsyncGenerator 供 IPC 层消费
     const queue: ChatMessage[] = [];
     let done = false;
@@ -92,6 +103,33 @@ export class PiAgentService implements AgentRuntime {
           type: 'assistant',
           partial: true,
           payload: { content: event.assistantMessageEvent.delta }
+        });
+        return;
+      }
+
+      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_start') {
+        push({
+          type: 'assistant',
+          partial: true,
+          payload: { content: '', reasoningStatus: 'streaming' }
+        });
+        return;
+      }
+
+      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_delta') {
+        push({
+          type: 'assistant',
+          partial: true,
+          payload: { content: '', reasoning: event.assistantMessageEvent.delta, reasoningStatus: 'streaming' }
+        });
+        return;
+      }
+
+      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_end') {
+        push({
+          type: 'assistant',
+          partial: true,
+          payload: { content: '', reasoningStatus: 'done' }
         });
         return;
       }
@@ -167,6 +205,7 @@ export class PiAgentService implements AgentRuntime {
       }
 
       await promptPromise;
+      flushSessionFile(session.sessionManager);
 
       if (failure && !signal.aborted) {
         throw failure;

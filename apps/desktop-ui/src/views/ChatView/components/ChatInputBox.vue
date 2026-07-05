@@ -36,7 +36,7 @@ function handleSubmit() {
 </script>
 
 <template>
-  <section class="chat-input-section chat-input-section-fixed">
+  <section class="chat-input-section">
     <div class="chat-input-container">
       <input
         ref="inputRef"
@@ -72,11 +72,7 @@ function handleSubmit() {
 
 <style scoped lang="scss">
 .chat-input-section {
-  @apply mx-auto w-full p-4 pt-0 md:w-3xl;
-}
-
-.chat-input-section-fixed {
-  @apply sticky bottom-0 z-10;
+  @apply mx-auto w-full md:w-3xl z-10 shrink-0;
 }
 
 .chat-input-container {

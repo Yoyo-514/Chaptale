@@ -32,7 +32,7 @@ export function createProviderViews(models: ChaptaleModelInfo[], providers: Chap
         modelCount
       } satisfies ProviderView;
     })
-    .toSorted((left, right) => {
+    .sort((left, right) => {
       if (left.authConfigured !== right.authConfigured) {
         return left.authConfigured ? -1 : 1;
       }

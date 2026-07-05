@@ -14,6 +14,8 @@ export type ChatMessage =
       partial?: boolean;
       payload: {
         content: string;
+        reasoning?: string;
+        reasoningStatus?: 'streaming' | 'done';
       };
     }
   | {

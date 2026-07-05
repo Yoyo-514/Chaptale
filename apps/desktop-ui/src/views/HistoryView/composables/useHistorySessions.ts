@@ -20,7 +20,8 @@ export function useHistorySessions(options: {
     return options.sessions.value
       .filter(session => options.scopeFilter.value === 'all' || session.scope === options.scopeFilter.value)
       .filter(session => matchesSearch(session, query))
-      .toSorted((left, right) => compareSessions(left, right, options.sortMode.value));
+      .slice()
+      .sort((left, right) => compareSessions(left, right, options.sortMode.value));
   });
 
   const resultCountText = computed(() => {

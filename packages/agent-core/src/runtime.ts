@@ -4,6 +4,8 @@ export type AgentRunOptions = {
   query: string;
   sessionId: string;
   signal: AbortSignal;
+  /** 从指定 pi session entry 开始新分支；下一条用户消息会成为该 entry 的子节点。 */
+  branchFromEntryId?: string | null;
 };
 
 export type AgentRunResult = {

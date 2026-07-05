@@ -86,7 +86,7 @@ export class PiSessionRepository {
       })
     );
 
-    return sessions.flat().toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    return sessions.flat().sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
   async getMetadata(sessionId: string): Promise<ChaptaleSessionMetadata> {

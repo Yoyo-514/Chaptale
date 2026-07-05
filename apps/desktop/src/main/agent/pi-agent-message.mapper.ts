@@ -49,6 +49,17 @@ export function toChatMessages(message: unknown): ChatMessage[] {
   if (record.role === 'assistant') {
     const content = Array.isArray(record.content) ? record.content : [];
     const messages: ChatMessage[] = [];
+    const reasoning = content
+      .map(item => {
+        if (!item || typeof item !== 'object') {
+          return '';
+        }
+
+        const block = item as Record<string, unknown>;
+        return block.type === 'thinking' && typeof block.thinking === 'string' ? block.thinking : '';
+      })
+      .filter(Boolean)
+      .join('\n');
 
     for (const item of content) {
       if (!item || typeof item !== 'object') {
@@ -58,7 +69,14 @@ export function toChatMessages(message: unknown): ChatMessage[] {
       const block = item as Record<string, unknown>;
 
       if (block.type === 'text' && typeof block.text === 'string' && block.text) {
-        messages.push({ type: 'assistant', payload: { content: block.text } });
+        messages.push({
+          type: 'assistant',
+          payload: {
+            content: block.text,
+            reasoning: reasoning || undefined,
+            reasoningStatus: reasoning ? 'done' : undefined
+          }
+        });
       }
 
       if (block.type === 'toolCall') {
@@ -71,6 +89,14 @@ export function toChatMessages(message: unknown): ChatMessage[] {
           }
         });
       }
+    }
+
+    if (messages.length === 0 && reasoning) {
+      messages.push({ type: 'assistant', payload: { content: '', reasoning, reasoningStatus: 'done' } });
+    }
+
+    if (messages.length === 0 && record.stopReason === 'error' && typeof record.errorMessage === 'string') {
+      messages.push({ type: 'system', payload: { content: record.errorMessage } });
     }
 
     return messages;

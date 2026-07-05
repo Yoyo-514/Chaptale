@@ -2,6 +2,7 @@ import type { ChatMessage } from '@chaptale/shared';
 import type {
   ChaptaleSessionListItem,
   ChaptaleSessionStorageDebugInfo,
+  ChaptaleSessionTreeEntry,
   CreateSessionOptions
 } from '@chaptale/ipc-contract';
 import { defineStore } from 'pinia';
@@ -124,6 +125,17 @@ export const useSessionStore = defineStore('session', {
     async getCurrentMessages(): Promise<ChatMessage[]> {
       const sessionId = await this.ensureActiveSession();
       return getDesktopApi().agent.getHistory(sessionId);
+    },
+
+    async getCurrentEntries(): Promise<ChaptaleSessionTreeEntry[]> {
+      const sessionId = await this.ensureActiveSession();
+      return getDesktopApi().session.getEntries(sessionId);
+    },
+
+    async setCurrentLeaf(leafId: string | null) {
+      const sessionId = await this.ensureActiveSession();
+      await getDesktopApi().session.setLeaf(sessionId, leafId);
+      await this.loadSessions();
     }
   }
 });

@@ -39,6 +39,8 @@
         "allowWithDecorator": true
       }
     ],
-    "unicorn/require-module-specifiers": "allow"
+    "unicorn/require-module-specifiers": "allow",
+    "unicorn/no-array-reverse": "off",
+    "unicorn/no-array-sort": "off"
   }
 }

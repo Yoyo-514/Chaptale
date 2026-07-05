@@ -98,7 +98,7 @@ export class PiModelService {
 
     return {
       models,
-      providers: [...providerMap.values()].toSorted((left, right) => {
+      providers: [...providerMap.values()].sort((left, right) => {
         if (left.authConfigured !== right.authConfigured) {
           return left.authConfigured ? -1 : 1;
         }
