@@ -12,19 +12,17 @@ export function buildDisplayMessagesFromEntries(entries: ChaptaleSessionTreeEntr
     );
 
   return messageEntries
-    .map(entry => {
-      const variant = entry.message.type === 'system' && entry.message.payload.content.trim() ? 'error' : undefined;
-
-      return {
-        id: entry.id,
-        entryId: entry.id,
-        parentEntryId: entry.parentId,
-        message: entry.message,
-        variant,
-        branch: entry.message.type === 'user' ? getUserBranchControl(entries, entry) : undefined
-      } satisfies ChatDisplayMessage;
-    })
-    .filter(displayMessage => hasRenderableMessage(displayMessage.message, displayMessage.variant));
+    .map(
+      entry =>
+        ({
+          id: entry.id,
+          entryId: entry.id,
+          parentEntryId: entry.parentId,
+          message: entry.message,
+          branch: entry.message.role === 'user' ? getUserBranchControl(entries, entry) : undefined
+        }) satisfies ChatDisplayMessage
+    )
+    .filter(displayMessage => hasRenderableMessage(displayMessage.message));
 }
 
 function getBranchEntryIds(entryMap: Map<string, ChaptaleSessionTreeEntry>, leafId: string | null) {
@@ -56,7 +54,7 @@ function getUserBranchControl(
       Boolean(
         (candidate.type === 'message' || candidate.type === 'custom_message') &&
         candidate.parentId === entry.parentId &&
-        candidate.message.type === 'user'
+        candidate.message.role === 'user'
       )
     )
     .sort((left, right) => left.timestamp.localeCompare(right.timestamp));

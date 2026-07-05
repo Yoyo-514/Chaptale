@@ -23,12 +23,12 @@ describe('buildDisplayMessagesFromEntries', () => {
   it('filters empty assistant messages that have no rendered content', () => {
     const entries: ChaptaleSessionTreeEntry[] = [
       messageEntry('user-a', null, '2026-07-01T00:00:01.000Z', {
-        type: 'user',
-        payload: { content: '问题' }
+        role: 'user',
+        content: '问题'
       }),
       messageEntry('assistant-empty', 'user-a', '2026-07-01T00:00:02.000Z', {
-        type: 'assistant',
-        payload: { content: '' }
+        role: 'assistant',
+        content: []
       })
     ];
 
@@ -47,20 +47,20 @@ describe('buildDisplayMessagesFromEntries', () => {
         name: '默认会话'
       },
       messageEntry('user-a', 'root', '2026-07-01T00:00:01.000Z', {
-        type: 'user',
-        payload: { content: '原问题' }
+        role: 'user',
+        content: '原问题'
       }),
       messageEntry('assistant-a', 'user-a', '2026-07-01T00:00:02.000Z', {
-        type: 'assistant',
-        payload: { content: '原回答' }
+        role: 'assistant',
+        content: [{ type: 'text', text: '原回答' }]
       }),
       messageEntry('user-b', 'root', '2026-07-01T00:00:03.000Z', {
-        type: 'user',
-        payload: { content: '编辑后的问题' }
+        role: 'user',
+        content: '编辑后的问题'
       }),
       messageEntry('assistant-b', 'user-b', '2026-07-01T00:00:04.000Z', {
-        type: 'assistant',
-        payload: { content: '新回答' }
+        role: 'assistant',
+        content: [{ type: 'text', text: '新回答' }]
       })
     ];
 

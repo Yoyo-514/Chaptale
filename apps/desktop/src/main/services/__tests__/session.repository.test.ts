@@ -50,8 +50,8 @@ describe('PiSessionRepository', () => {
 
     const session = await repository.create({ name: '列表会话' });
     await repository.appendMessage(session.id, {
-      type: 'user',
-      payload: { content: '你好' }
+      role: 'user',
+      content: '你好'
     });
 
     await expect(repository.list()).resolves.toEqual([
@@ -71,28 +71,31 @@ describe('PiSessionRepository', () => {
     const session = await repository.create();
 
     const root = await repository.appendMessage(session.id, {
-      type: 'user',
-      payload: { content: '起点' }
+      role: 'user',
+      content: '起点'
     });
     await repository.appendMessage(session.id, {
-      type: 'assistant',
-      payload: { content: '原分支' }
+      role: 'assistant',
+      content: [{ type: 'text', text: '原分支' }]
     });
     await repository.setLeafId(session.id, root.id);
     await repository.appendMessage(session.id, {
-      type: 'assistant',
-      payload: { content: '新分支' }
+      role: 'assistant',
+      content: [{ type: 'text', text: '新分支' }]
     });
 
     await expect(repository.getMessages(session.id)).resolves.toEqual([
       {
-        type: 'user',
-        payload: { content: '起点' }
+        role: 'user',
+        content: '起点',
+        timestamp: expect.any(Number)
       },
-      {
-        type: 'assistant',
-        payload: { content: '新分支' }
-      }
+      expect.objectContaining({
+        role: 'assistant',
+        content: [expect.objectContaining({ type: 'text', text: '新分支' })],
+        stopReason: 'stop',
+        timestamp: expect.any(Number)
+      })
     ]);
   });
 

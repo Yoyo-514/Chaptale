@@ -1,11 +1,19 @@
-import type { ChatMessage } from '@chaptale/shared';
+import type { ChatContentBlock, ChatImageContent, ChatMessage, ChatTextContent } from '@chaptale/shared';
 import type { SessionManager } from '@earendil-works/pi-coding-agent';
+
+import { toChatMessages } from '../agent/pi-agent-message.mapper';
 
 type PiMessage = Parameters<SessionManager['appendMessage']>[0];
 
 type MinimalPiTextContent = {
   type: 'text';
   text: string;
+};
+
+type MinimalPiImageContent = {
+  type: 'image';
+  data: string;
+  mimeType: string;
 };
 
 type MinimalPiToolCall = {
@@ -23,7 +31,7 @@ type MinimalPiThinkingContent = {
 
 type MinimalPiAssistantMessage = {
   role: 'assistant';
-  content: (MinimalPiTextContent | MinimalPiToolCall | MinimalPiThinkingContent)[];
+  content: (MinimalPiTextContent | MinimalPiImageContent | MinimalPiToolCall | MinimalPiThinkingContent)[];
   api: string;
   provider: string;
   model: string;
@@ -42,6 +50,7 @@ type MinimalPiAssistantMessage = {
     };
   };
   stopReason: 'stop' | 'length' | 'toolUse' | 'error' | 'aborted';
+  errorMessage?: string;
   timestamp: number;
 };
 
@@ -49,7 +58,7 @@ type MinimalPiToolResultMessage = {
   role: 'toolResult';
   toolCallId: string;
   toolName: string;
-  content: MinimalPiTextContent[];
+  content: (MinimalPiTextContent | MinimalPiImageContent)[];
   isError: boolean;
   timestamp: number;
 };
@@ -71,201 +80,100 @@ function createZeroUsage(): MinimalPiAssistantMessage['usage'] {
   };
 }
 
-export function getReasoningFromPiContent(content: unknown) {
-  if (!Array.isArray(content)) {
-    return '';
-  }
-
+function toPiContentBlocks(content: ChatContentBlock[]) {
   return content
-    .map(item => {
-      if (!item || typeof item !== 'object') {
-        return '';
+    .map(block => {
+      if (block.type === 'text') {
+        return { type: 'text' as const, text: block.text };
       }
 
-      const block = item as Record<string, unknown>;
-      if (block.type === 'thinking' && typeof block.thinking === 'string') {
-        return block.thinking;
+      if (block.type === 'thinking') {
+        return {
+          type: 'thinking' as const,
+          thinking: block.thinking,
+          thinkingSignature: block.thinkingSignature
+        };
       }
 
-      return '';
+      if (block.type === 'toolCall') {
+        return {
+          type: 'toolCall' as const,
+          id: block.id,
+          name: block.name,
+          arguments: block.arguments
+        };
+      }
+
+      if (block.type === 'image') {
+        return { type: 'image' as const, data: block.data, mimeType: block.mimeType };
+      }
+
+      return undefined;
     })
-    .filter(Boolean)
-    .join('\n');
+    .filter(
+      (block): block is MinimalPiTextContent | MinimalPiImageContent | MinimalPiToolCall | MinimalPiThinkingContent =>
+        Boolean(block)
+    );
 }
 
-export function getTextFromPiContent(content: unknown) {
+function isTextOrImageBlock(block: ChatContentBlock): block is ChatTextContent | ChatImageContent {
+  return block.type === 'text' || block.type === 'image';
+}
+
+function getTextFromUserContent(content: Extract<ChatMessage, { role: 'user' }>['content']) {
   if (typeof content === 'string') {
     return content;
   }
 
-  if (!Array.isArray(content)) {
-    return '';
-  }
-
   return content
-    .map(item => {
-      if (!item || typeof item !== 'object') {
-        return '';
-      }
-
-      const block = item as Record<string, unknown>;
-      if (block.type === 'text' && typeof block.text === 'string') {
-        return block.text;
-      }
-
-      if (block.type === 'toolCall' && typeof block.name === 'string') {
-        return `调用工具：${block.name}`;
-      }
-
-      return '';
-    })
-    .filter(Boolean)
+    .filter(block => block.type === 'text')
+    .map(block => block.text)
     .join('\n');
 }
 
 export function toPiMessage(message: ChatMessage): PiMessage {
   const timestamp = Date.now();
 
-  if (message.type === 'user') {
+  if (message.role === 'user') {
     return {
       role: 'user',
-      content: message.payload.content,
+      content: getTextFromUserContent(message.content),
       timestamp
     } as PiMessage;
   }
 
-  if (message.type === 'assistant') {
+  if (message.role === 'assistant') {
     return {
       role: 'assistant',
-      content: [
-        ...(message.payload.reasoning
-          ? [
-              {
-                type: 'thinking' as const,
-                thinking: message.payload.reasoning,
-                thinkingSignature: 'reasoning_content'
-              }
-            ]
-          : []),
-        { type: 'text', text: message.payload.content }
-      ],
-      api: 'chaptale',
-      provider: 'chaptale',
-      model: 'chaptale-current',
+      content: toPiContentBlocks(message.content),
+      api: message.api ?? 'chaptale',
+      provider: message.provider ?? 'chaptale',
+      model: message.model ?? 'chaptale-current',
       usage: createZeroUsage(),
-      stopReason: 'stop',
+      stopReason: message.stopReason ?? (message.content.some(block => block.type === 'toolCall') ? 'toolUse' : 'stop'),
+      errorMessage: message.errorMessage,
       timestamp
     } satisfies MinimalPiAssistantMessage as PiMessage;
   }
 
-  if (message.type === 'tool_call') {
-    return {
-      role: 'assistant',
-      content: [
-        {
-          type: 'toolCall',
-          id: message.payload.id,
-          name: message.payload.name,
-          arguments: message.payload.args
-        }
-      ],
-      api: 'chaptale',
-      provider: 'chaptale',
-      model: 'chaptale-current',
-      usage: createZeroUsage(),
-      stopReason: 'toolUse',
-      timestamp
-    } satisfies MinimalPiAssistantMessage as PiMessage;
-  }
-
-  if (message.type === 'tool_result') {
+  if (message.role === 'toolResult') {
     return {
       role: 'toolResult',
-      toolCallId: message.payload.tool_call_id,
-      toolName: message.payload.name,
-      content: [{ type: 'text', text: message.payload.content }],
-      isError: false,
+      toolCallId: message.toolCallId,
+      toolName: message.toolName,
+      content: message.content.filter(isTextOrImageBlock),
+      isError: Boolean(message.isError),
       timestamp
     } satisfies MinimalPiToolResultMessage as PiMessage;
   }
 
   return {
     role: 'user',
-    content: message.payload.content,
+    content: '',
     timestamp
   } as PiMessage;
 }
 
 export function fromPiMessage(message: unknown): ChatMessage | undefined {
-  if (!message || typeof message !== 'object') {
-    return undefined;
-  }
-
-  const record = message as Record<string, unknown>;
-
-  if (record.role === 'user') {
-    return {
-      type: 'user',
-      payload: {
-        content: getTextFromPiContent(record.content)
-      }
-    };
-  }
-
-  if (record.role === 'assistant') {
-    const content = Array.isArray(record.content) ? record.content : [];
-    const toolCall = content.find(item =>
-      Boolean(item && typeof item === 'object' && (item as Record<string, unknown>).type === 'toolCall')
-    ) as Record<string, unknown> | undefined;
-
-    if (toolCall) {
-      return {
-        type: 'tool_call',
-        payload: {
-          id: typeof toolCall.id === 'string' ? toolCall.id : '',
-          name: typeof toolCall.name === 'string' ? toolCall.name : 'tool',
-          args:
-            typeof toolCall.arguments === 'object' && toolCall.arguments !== null
-              ? (toolCall.arguments as Record<string, any>)
-              : {}
-        }
-      };
-    }
-
-    const text = getTextFromPiContent(content);
-    const reasoning = getReasoningFromPiContent(content);
-
-    if (!text && !reasoning) {
-      if (record.stopReason === 'error' && typeof record.errorMessage === 'string' && record.errorMessage) {
-        return {
-          type: 'system',
-          payload: { content: record.errorMessage }
-        };
-      }
-
-      return undefined;
-    }
-
-    return {
-      type: 'assistant',
-      payload: {
-        content: text,
-        reasoning: reasoning || undefined,
-        reasoningStatus: reasoning ? 'done' : undefined
-      }
-    };
-  }
-
-  if (record.role === 'toolResult') {
-    return {
-      type: 'tool_result',
-      payload: {
-        tool_call_id: typeof record.toolCallId === 'string' ? record.toolCallId : '',
-        name: typeof record.toolName === 'string' ? record.toolName : 'tool',
-        content: getTextFromPiContent(record.content)
-      }
-    };
-  }
-
-  return undefined;
+  return toChatMessages(message)[0];
 }

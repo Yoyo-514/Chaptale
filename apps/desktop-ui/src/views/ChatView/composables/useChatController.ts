@@ -5,7 +5,12 @@ import { useNotificationStore } from '../../../stores/notification';
 import { useSessionStore } from '../../../stores/session';
 import type { ChatDisplayMessage } from '../types';
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
-import { hasRenderableMessage } from '../utils/message/message-content';
+import {
+  getAssistantReasoning,
+  getAssistantText,
+  getUserText,
+  hasRenderableMessage
+} from '../utils/message/message-content';
 import { useStreamingMessageBuffer } from './useStreamingMessageBuffer';
 
 type ChatState = {
@@ -20,22 +25,31 @@ type ChatState = {
 
 let messageSequence = 0;
 
-function createDisplayMessage(
-  message: ChatMessage,
-  prefix = 'message',
-  options: Pick<ChatDisplayMessage, 'variant'> = {}
-): ChatDisplayMessage {
+function createDisplayMessage(message: ChatMessage, prefix = 'message'): ChatDisplayMessage {
   messageSequence += 1;
 
   return {
     id: `${prefix}-${Date.now()}-${messageSequence}`,
-    message,
-    ...options
+    message
   };
 }
 
-function hasTextPayload(message: ChatMessage): message is Extract<ChatMessage, { payload: { content: string } }> {
-  return 'content' in message.payload;
+function createUserMessage(content: string): ChatMessage {
+  return {
+    role: 'user',
+    content,
+    timestamp: Date.now()
+  };
+}
+
+function createAssistantErrorMessage(message: string): ChatMessage {
+  return {
+    role: 'assistant',
+    content: [],
+    stopReason: 'error',
+    errorMessage: message,
+    timestamp: Date.now()
+  };
 }
 
 function markUserMessageAsOptimisticBranch(displayMessage: ChatDisplayMessage) {
@@ -138,71 +152,71 @@ export function useChatController() {
     streamingTextBuffer.reset();
   }
 
-  function updateAssistantReasoningStatus(status: 'streaming' | 'done') {
+  function getStreamingAssistant() {
     const lastMessage = state.messages.at(-1)?.message;
 
-    if (lastMessage?.type === 'assistant' && lastMessage.partial && hasTextPayload(lastMessage)) {
-      lastMessage.payload.reasoningStatus = status;
-      return;
+    return lastMessage?.role === 'assistant' && lastMessage.partial ? lastMessage : undefined;
+  }
+
+  function ensureStreamingAssistant() {
+    const streamingAssistant = getStreamingAssistant();
+
+    if (streamingAssistant) {
+      return streamingAssistant;
     }
 
-    state.messages.push(
-      createDisplayMessage({
-        type: 'assistant',
-        partial: true,
-        payload: { content: '', reasoningStatus: status }
-      })
-    );
+    const message: ChatMessage = {
+      role: 'assistant',
+      partial: true,
+      content: [],
+      timestamp: Date.now()
+    };
+    state.messages.push(createDisplayMessage(message));
+    return message;
+  }
+
+  function updateAssistantReasoningStatus(status: 'streaming' | 'done') {
+    const message = ensureStreamingAssistant();
+
+    if (status === 'done') {
+      message.partial = false;
+    }
   }
 
   function appendAssistantDelta(delta: string, target: 'content' | 'reasoning') {
-    const lastMessage = state.messages.at(-1)?.message;
+    const message = ensureStreamingAssistant();
 
-    if (lastMessage?.type === 'assistant' && lastMessage.partial && hasTextPayload(lastMessage)) {
-      if (target === 'reasoning') {
-        lastMessage.payload.reasoning = `${lastMessage.payload.reasoning ?? ''}${delta}`;
-        lastMessage.payload.reasoningStatus = 'streaming';
+    if (target === 'reasoning') {
+      const lastBlock = message.content.at(-1);
+
+      if (lastBlock?.type === 'thinking') {
+        lastBlock.thinking += delta;
       } else {
-        lastMessage.payload.content += delta;
+        message.content.push({ type: 'thinking', thinking: delta, thinkingSignature: 'reasoning_content' });
       }
 
       return;
     }
 
-    state.messages.push(
-      createDisplayMessage({
-        type: 'assistant',
-        partial: true,
-        payload:
-          target === 'reasoning' ? { content: '', reasoning: delta, reasoningStatus: 'streaming' } : { content: delta }
-      })
-    );
+    const lastBlock = message.content.at(-1);
+
+    if (lastBlock?.type === 'text') {
+      lastBlock.text += delta;
+    } else {
+      message.content.push({ type: 'text', text: delta });
+    }
   }
 
   function markStreamingAssistantComplete() {
-    const lastMessage = state.messages.at(-1)?.message;
+    const lastMessage = getStreamingAssistant();
 
-    if (lastMessage?.type === 'assistant' && lastMessage.partial) {
-      if (lastMessage.payload.reasoningStatus === 'streaming') {
-        lastMessage.payload.reasoningStatus = 'done';
-      }
-
+    if (lastMessage) {
       lastMessage.partial = false;
     }
   }
 
   function appendErrorMessage(message: string) {
-    state.messages = [
-      ...state.messages,
-      createDisplayMessage(
-        {
-          type: 'system',
-          payload: { content: message }
-        },
-        'error',
-        { variant: 'error' }
-      )
-    ];
+    state.messages.push(createDisplayMessage(createAssistantErrorMessage(message), 'error'));
   }
 
   async function runQuery(query: string, options: { appendUser: boolean; branchFromEntryId?: string | null }) {
@@ -216,14 +230,7 @@ export function useChatController() {
       const sessionId = await sessionStore.ensureActiveSession();
 
       if (options.appendUser) {
-        state.messages.push(
-          createDisplayMessage({
-            type: 'user',
-            payload: {
-              content: query
-            }
-          })
-        );
+        state.messages.push(createDisplayMessage(createUserMessage(query)));
       }
 
       state.input = '';
@@ -234,17 +241,20 @@ export function useChatController() {
         query,
         {
           onMessage: message => {
-            if (message.type === 'assistant' && message.partial) {
-              if (message.payload.reasoningStatus && !message.payload.reasoning && !message.payload.content) {
+            if (message.role === 'assistant' && message.partial) {
+              if (message.content.length === 0 && getAssistantReasoning(message)) {
                 flushStreamingBuffers();
-                updateAssistantReasoningStatus(message.payload.reasoningStatus);
+                updateAssistantReasoningStatus('streaming');
                 return;
               }
 
-              if (message.payload.reasoning && !message.payload.content) {
-                streamingReasoningBuffer.push(message.payload.reasoning);
-              } else {
-                streamingTextBuffer.push(message.payload.content);
+              const reasoning = getAssistantReasoning(message);
+              const content = getAssistantText(message);
+
+              if (reasoning && !content) {
+                streamingReasoningBuffer.push(reasoning);
+              } else if (content) {
+                streamingTextBuffer.push(content);
               }
 
               return;
@@ -332,11 +342,11 @@ export function useChatController() {
     const messageIndex = state.messages.findIndex(displayMessage => displayMessage.id === messageId);
     const displayMessage = state.messages[messageIndex];
 
-    if (!displayMessage || displayMessage.message.type !== 'user') {
+    if (!displayMessage || displayMessage.message.role !== 'user') {
       return;
     }
 
-    displayMessage.message.payload.content = content;
+    displayMessage.message.content = content;
     markUserMessageAsOptimisticBranch(displayMessage);
     state.messages.splice(messageIndex + 1);
     await runQuery(content, { appendUser: false, branchFromEntryId: displayMessage.parentEntryId ?? null });
@@ -366,9 +376,9 @@ export function useChatController() {
     const userMessage = [...state.messages]
       .slice(0, assistantIndex)
       .reverse()
-      .find(displayMessage => displayMessage.message.type === 'user');
+      .find(displayMessage => displayMessage.message.role === 'user');
 
-    if (!userMessage || userMessage.message.type !== 'user') {
+    if (!userMessage || userMessage.message.role !== 'user') {
       return;
     }
 
@@ -379,7 +389,7 @@ export function useChatController() {
     }
 
     state.messages.splice(userIndex + 1);
-    await runQuery(userMessage.message.payload.content, {
+    await runQuery(getUserText(userMessage.message), {
       appendUser: false,
       branchFromEntryId: userMessage.parentEntryId ?? null
     });

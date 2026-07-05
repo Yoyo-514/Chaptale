@@ -21,8 +21,8 @@ export function toSessionTreeEntry(entry: SessionEntry): ChaptaleSessionTreeEntr
       parentId: entry.parentId,
       timestamp: entry.timestamp,
       message: fromPiMessage(entry.message) ?? {
-        type: 'assistant',
-        payload: { content: '' }
+        role: 'assistant',
+        content: []
       }
     };
   }

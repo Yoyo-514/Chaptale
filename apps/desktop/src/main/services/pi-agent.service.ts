@@ -100,60 +100,109 @@ export class PiAgentService implements AgentRuntime {
     const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
       if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
         push({
-          type: 'assistant',
+          role: 'assistant',
           partial: true,
-          payload: { content: event.assistantMessageEvent.delta }
+          content: [{ type: 'text', text: event.assistantMessageEvent.delta }],
+          timestamp: Date.now()
         });
         return;
       }
 
       if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_start') {
         push({
-          type: 'assistant',
+          role: 'assistant',
           partial: true,
-          payload: { content: '', reasoningStatus: 'streaming' }
+          content: [],
+          timestamp: Date.now()
         });
         return;
       }
 
       if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_delta') {
         push({
-          type: 'assistant',
+          role: 'assistant',
           partial: true,
-          payload: { content: '', reasoning: event.assistantMessageEvent.delta, reasoningStatus: 'streaming' }
+          content: [
+            {
+              type: 'thinking',
+              thinking: event.assistantMessageEvent.delta,
+              thinkingSignature: 'reasoning_content'
+            }
+          ],
+          timestamp: Date.now()
         });
         return;
       }
 
       if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_end') {
         push({
-          type: 'assistant',
-          partial: true,
-          payload: { content: '', reasoningStatus: 'done' }
+          role: 'assistant',
+          partial: false,
+          content: [],
+          timestamp: Date.now()
         });
         return;
       }
 
       if (event.type === 'tool_execution_start') {
         push({
-          type: 'tool_call',
-          payload: {
-            id: event.toolCallId,
-            name: event.toolName,
-            args: (event.args ?? {}) as Record<string, any>
-          }
+          role: 'assistant',
+          content: [
+            {
+              type: 'toolCall',
+              id: event.toolCallId,
+              name: event.toolName,
+              arguments: (event.args ?? {}) as Record<string, any>
+            }
+          ],
+          stopReason: 'toolUse',
+          timestamp: Date.now()
         });
         return;
       }
 
       if (event.type === 'tool_execution_end') {
         push({
-          type: 'tool_result',
-          payload: {
-            tool_call_id: event.toolCallId,
-            name: event.toolName,
-            content: stringifyToolResult(event.result)
-          }
+          role: 'toolResult',
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          content: [{ type: 'text', text: stringifyToolResult(event.result) }],
+          timestamp: Date.now()
+        });
+        return;
+      }
+
+      if (event.type === 'auto_retry_start') {
+        push({
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage: event.errorMessage,
+          retry: {
+            status: 'retrying',
+            attempt: event.attempt,
+            maxAttempts: event.maxAttempts,
+            delayMs: event.delayMs,
+            errorMessage: event.errorMessage
+          },
+          timestamp: Date.now()
+        });
+        return;
+      }
+
+      if (event.type === 'auto_retry_end' && !event.success) {
+        push({
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage: event.finalError ?? '模型请求失败',
+          retry: {
+            status: 'failed',
+            attempt: event.attempt,
+            maxAttempts: event.attempt,
+            finalError: event.finalError
+          },
+          timestamp: Date.now()
         });
         return;
       }
@@ -167,7 +216,13 @@ export class PiAgentService implements AgentRuntime {
               : undefined;
 
           if (errorMessage && !signal.aborted) {
-            failure = new Error(errorMessage);
+            push({
+              role: 'assistant',
+              content: [],
+              stopReason: 'error',
+              errorMessage,
+              timestamp: Date.now()
+            });
           }
 
           done = true;
