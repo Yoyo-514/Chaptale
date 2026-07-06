@@ -17,6 +17,12 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
     icon: 'i-mingcute-ai-line'
   },
   {
+    id: 'webAccess',
+    title: '联网',
+    description: '搜索、提取与 API Key',
+    icon: 'i-mingcute-earth-line'
+  },
+  {
     id: 'files',
     title: '配置文件',
     description: '应用与模型配置路径',

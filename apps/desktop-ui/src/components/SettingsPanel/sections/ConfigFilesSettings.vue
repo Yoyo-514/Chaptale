@@ -36,6 +36,10 @@ const paths = computed(() => settingsStore.state?.paths);
         <span class="settings-path-label">内置模型凭据配置文件</span>
         <code class="settings-path-value">{{ paths?.piAuthPath || '读取中...' }}</code>
       </div>
+      <div class="settings-path-card">
+        <span class="settings-path-label">联网能力配置文件</span>
+        <code class="settings-path-value">{{ paths?.piWebAccessConfigPath || '读取中...' }}</code>
+      </div>
     </div>
   </section>
 </template>
@@ -48,7 +52,7 @@ const paths = computed(() => settingsStore.state?.paths);
 }
 
 .settings-section-heading {
-  @apply flex items-start justify-between gap-3;
+  @apply flex items-center justify-between gap-3;
 }
 
 .settings-section-title {

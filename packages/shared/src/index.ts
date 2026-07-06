@@ -65,9 +65,3 @@ export type ChatMessage =
       isError?: boolean;
       timestamp?: number;
     };
-
-export type WebsearchResult = {
-  title: string;
-  link: string;
-  description?: string;
-}[];

@@ -5,7 +5,7 @@ import type {
   UpdateChaptaleSettingsPayload
 } from '@chaptale/ipc-contract';
 
-export type SettingsSection = 'workspace' | 'llm' | 'files';
+export type SettingsSection = 'workspace' | 'llm' | 'webAccess' | 'files';
 
 export type SettingsStoreState = {
   state: ChaptaleSettingsState | undefined;

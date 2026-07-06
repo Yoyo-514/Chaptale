@@ -104,8 +104,14 @@ export function getMessagePlainText(message: ChatMessage) {
 }
 
 export function formatToolName(name: string) {
-  if (name === 'websearch') {
-    return '联网搜索';
+  const labels: Record<string, string> = {
+    web_search: '联网搜索',
+    fetch_content: '读取网页',
+    get_search_content: '取回搜索内容'
+  };
+
+  if (labels[name]) {
+    return labels[name];
   }
 
   return name

@@ -74,7 +74,7 @@ function save() {
 }
 
 .user-message-edit {
-  @apply flex w-full max-w-[80%] flex-col gap-2 rounded-2xl border border-primary bg-surface-acrylic p-2 shadow-inset-highlight;
+  @apply flex w-full max-w-[88%] flex-col gap-2 rounded-2xl border border-primary bg-surface-acrylic p-2 shadow-inset-highlight;
 }
 
 .user-message-editor {

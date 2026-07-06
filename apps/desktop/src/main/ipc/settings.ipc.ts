@@ -8,7 +8,7 @@ export function registerSettingsIpc(settingsService: SettingsService, onStorageC
   ipcMain.handle(IPC_CHANNELS.settings.update, async (_event, payload: UpdateChaptaleSettingsPayload) => {
     const state = await settingsService.update(payload);
 
-    if (payload.storage) {
+    if (payload.storage || payload.webAccess) {
       onStorageChanged?.();
     }
 

@@ -73,7 +73,7 @@ async function selectWorkspaceDir() {
 }
 
 .settings-section-heading {
-  @apply flex items-start justify-between gap-3;
+  @apply flex items-center justify-between gap-3;
 }
 
 .settings-section-title {
