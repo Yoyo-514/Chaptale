@@ -1,21 +1,25 @@
-import MarkdownIt from 'markdown-it';
+import { marked, Renderer } from 'marked';
 
-export const markdown = new MarkdownIt({
-  html: false,
-  linkify: true,
-  breaks: true
-});
+import { escapeHtml } from './escape';
 
-markdown.renderer.rules.table_open = (tokens, idx, options, _env, self) => {
-  return `<div class="markdown-table-wrapper">${self.renderToken(tokens, idx, options)}`;
-};
+const renderer = new Renderer();
 
-markdown.renderer.rules.table_close = (tokens, idx, options, _env, self) => {
-  return `${self.renderToken(tokens, idx, options)}</div>`;
-};
+renderer.html = token => escapeHtml(token.raw);
+
+const renderTable = renderer.table.bind(renderer);
+renderer.table = token => `<div class="markdown-table-wrapper">${renderTable(token)}</div>`;
+
+type MarkedParseResult = string | Promise<string>;
 
 const markdownCache = new Map<string, string>();
 const MAX_CACHE_SIZE = 300;
+
+marked.setOptions({
+  async: false,
+  breaks: true,
+  gfm: true,
+  renderer
+});
 
 export function renderMarkdown(content: string) {
   const cached = markdownCache.get(content);
@@ -24,7 +28,7 @@ export function renderMarkdown(content: string) {
     return cached;
   }
 
-  const html = markdown.render(content);
+  const html = renderMarked(content);
   markdownCache.set(content, html);
 
   if (markdownCache.size > MAX_CACHE_SIZE) {
@@ -33,4 +37,8 @@ export function renderMarkdown(content: string) {
   }
 
   return html;
+}
+
+export function renderMarked(content: string) {
+  return marked.parse(content) as Exclude<MarkedParseResult, Promise<string>>;
 }

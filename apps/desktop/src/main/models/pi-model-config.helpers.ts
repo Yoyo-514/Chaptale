@@ -1,3 +1,5 @@
+import { unique } from 'radash';
+
 import type { ChaptaleCustomProviderApi } from '@chaptale/ipc-contract';
 
 export function normalizeCustomProviderApi(api: string): ChaptaleCustomProviderApi {
@@ -24,7 +26,7 @@ export function normalizeModelInput(input: unknown): ('text' | 'image')[] {
     normalized.unshift('text');
   }
 
-  return [...new Set(normalized)];
+  return unique(normalized);
 }
 
 export function normalizeProviderId(provider: string) {

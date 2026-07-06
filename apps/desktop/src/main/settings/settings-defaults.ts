@@ -1,3 +1,5 @@
+import { klona } from 'klona';
+
 import type { ChaptaleSettings, PiWebAccessSettings, UpdatePiWebAccessSettingsPayload } from '@chaptale/ipc-contract';
 
 export const SETTINGS_VERSION = 1;
@@ -37,7 +39,7 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
 };
 
 export function cloneDefaultSettings(): ChaptaleSettings {
-  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as ChaptaleSettings;
+  return klona(DEFAULT_SETTINGS);
 }
 
 export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): ChaptaleSettings {

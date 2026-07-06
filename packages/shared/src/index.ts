@@ -1,3 +1,5 @@
+export * from './utils';
+
 export type ChatTextContent = {
   type: 'text';
   text: string;

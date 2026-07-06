@@ -1,4 +1,5 @@
 import type { ChaptaleCustomProviderApi, FetchCustomProviderModelsResult } from '@chaptale/ipc-contract';
+import { isRecord, readString, stripTrailingSlashes } from '@chaptale/shared';
 
 export type FetchModelsSource = {
   baseUrl: string;
@@ -41,7 +42,7 @@ export async function fetchProviderModels(source: FetchModelsSource): Promise<Fe
 }
 
 export function createModelsUrl(baseUrl: string, api: ChaptaleCustomProviderApi, apiKey?: string) {
-  const url = new URL(`${baseUrl.replace(/\/+$/, '')}/models`);
+  const url = new URL(`${stripTrailingSlashes(baseUrl)}/models`);
 
   // Google Generative AI 的公开列表接口常见用法是 key query；同时服务层也会带 x-goog-api-key header。
   if (api === 'google-generative-ai' && apiKey) {
@@ -52,24 +53,20 @@ export function createModelsUrl(baseUrl: string, api: ChaptaleCustomProviderApi,
 }
 
 export function parseFetchedModels(data: unknown, api: ChaptaleCustomProviderApi) {
-  const record = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const record = isRecord(data) ? data : {};
   const rawModels = Array.isArray(record.data) ? record.data : Array.isArray(record.models) ? record.models : [];
 
   return rawModels
     .map(item => {
-      if (!item || typeof item !== 'object') {
+      if (!isRecord(item)) {
         return undefined;
       }
 
-      const model = item as Record<string, unknown>;
-      const rawId = typeof model.id === 'string' ? model.id : typeof model.name === 'string' ? model.name : '';
+      const rawName = readString(item.name);
+      const displayName = readString(item.displayName);
+      const rawId = readString(item.id) ?? rawName ?? '';
       const id = api === 'google-generative-ai' ? rawId.replace(/^models\//, '') : rawId;
-      const name =
-        typeof model.name === 'string' && model.name !== rawId
-          ? model.name
-          : typeof model.displayName === 'string'
-            ? model.displayName
-            : id;
+      const name = rawName && rawName !== rawId ? rawName : (displayName ?? id);
 
       return id ? { id, name } : undefined;
     })

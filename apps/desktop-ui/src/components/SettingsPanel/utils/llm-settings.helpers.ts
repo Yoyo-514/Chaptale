@@ -1,3 +1,5 @@
+import { alphabetical, counting } from 'radash';
+
 import type {
   ChaptaleModelInfo,
   ChaptaleProviderInfo,
@@ -15,30 +17,28 @@ export function filterModelsByGroup(models: ChaptaleModelInfo[], group: ModelGro
 
 export function createProviderViews(models: ChaptaleModelInfo[], providers: ChaptaleProviderInfo[]): ProviderView[] {
   const providerMap = new Map(providers.map(provider => [provider.provider, provider]));
-  const countMap = new Map<string, number>();
+  const modelCountsByProvider = counting(models, model => model.provider);
+  const providerViews = Object.entries(modelCountsByProvider).map(([provider, modelCount]) => {
+    const baseProvider = providerMap.get(provider);
+    return {
+      provider,
+      providerName: baseProvider?.providerName ?? provider,
+      authConfigured: Boolean(baseProvider?.authConfigured),
+      authSource: baseProvider?.authSource,
+      modelCount
+    } satisfies ProviderView;
+  });
 
-  for (const model of models) {
-    countMap.set(model.provider, (countMap.get(model.provider) ?? 0) + 1);
-  }
-
-  return [...countMap.entries()]
-    .map(([provider, modelCount]) => {
-      const baseProvider = providerMap.get(provider);
-      return {
-        provider,
-        providerName: baseProvider?.providerName ?? provider,
-        authConfigured: Boolean(baseProvider?.authConfigured),
-        authSource: baseProvider?.authSource,
-        modelCount
-      } satisfies ProviderView;
-    })
-    .sort((left, right) => {
-      if (left.authConfigured !== right.authConfigured) {
-        return left.authConfigured ? -1 : 1;
-      }
-
-      return left.providerName.localeCompare(right.providerName);
-    });
+  return [
+    ...alphabetical(
+      providerViews.filter(provider => provider.authConfigured),
+      provider => provider.providerName
+    ),
+    ...alphabetical(
+      providerViews.filter(provider => !provider.authConfigured),
+      provider => provider.providerName
+    )
+  ];
 }
 
 export function getSelectedProvider(providerViews: ProviderView[], selectedProviderId: string) {
@@ -58,9 +58,11 @@ export function getAddableFetchedModels(
 }
 
 export function countModelsByGroup(models: ChaptaleModelInfo[]) {
+  const counts = counting(models, model => (model.isCustom ? 'custom' : 'builtin'));
+
   return {
-    builtin: models.filter(model => !model.isCustom).length,
-    custom: models.filter(model => model.isCustom).length
+    builtin: counts.builtin ?? 0,
+    custom: counts.custom ?? 0
   };
 }
 

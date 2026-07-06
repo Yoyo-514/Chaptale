@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PiWebAccessProvider, PiWebAccessSettings, PiWebAccessWorkflow } from '@chaptale/ipc-contract';
+import { klona } from 'klona';
 import {
   CheckboxIndicator,
   CheckboxRoot,
@@ -81,7 +82,7 @@ function selectWorkflow(workflow: PiWebAccessWorkflow) {
 }
 
 async function save() {
-  await settingsStore.update({ webAccess: cloneSettings(draft) });
+  await settingsStore.update({ webAccess: klona(draft) });
   notificationStore.success('联网能力设置已保存');
 }
 
@@ -142,10 +143,6 @@ function createFallbackSettings(): PiWebAccessSettings {
       allowRanges: []
     }
   };
-}
-
-function cloneSettings(value: PiWebAccessSettings): PiWebAccessSettings {
-  return JSON.parse(JSON.stringify(value)) as PiWebAccessSettings;
 }
 </script>
 

@@ -6,6 +6,7 @@ import type {
   UpdateChaptaleSettingsPayload,
   UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
+import { blankToUndefined, isRecord, readFiniteNumber, readString, stripUndefined } from '@chaptale/shared';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -229,11 +230,11 @@ function fromPiWebAccessConfig(config: Record<string, unknown>): UpdatePiWebAcce
     chromeProfile: readString(config.chromeProfile),
     searchModel: readString(config.searchModel),
     summaryModel: readString(config.summaryModel),
-    curatorTimeoutSeconds: readNumber(config.curatorTimeoutSeconds),
+    curatorTimeoutSeconds: readFiniteNumber(config.curatorTimeoutSeconds),
     githubClone: {
       enabled: typeof githubClone.enabled === 'boolean' ? githubClone.enabled : undefined,
-      maxRepoSizeMB: readNumber(githubClone.maxRepoSizeMB),
-      cloneTimeoutSeconds: readNumber(githubClone.cloneTimeoutSeconds),
+      maxRepoSizeMB: readFiniteNumber(githubClone.maxRepoSizeMB),
+      cloneTimeoutSeconds: readFiniteNumber(githubClone.cloneTimeoutSeconds),
       clonePath: readString(githubClone.clonePath)
     },
     youtube: {
@@ -243,7 +244,7 @@ function fromPiWebAccessConfig(config: Record<string, unknown>): UpdatePiWebAcce
     video: {
       enabled: typeof video.enabled === 'boolean' ? video.enabled : undefined,
       preferredModel: readString(video.preferredModel),
-      maxSizeMB: readNumber(video.maxSizeMB)
+      maxSizeMB: readFiniteNumber(video.maxSizeMB)
     },
     ssrf: {
       allowRanges: Array.isArray(ssrf.allowRanges)
@@ -295,39 +296,6 @@ function toPiWebAccessConfig(settings: PiWebAccessSettings): Record<string, unkn
         }
       : undefined
   });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function readString(value: unknown) {
-  return typeof value === 'string' ? value : undefined;
-}
-
-function readNumber(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function blankToUndefined(value: string | undefined) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function stripUndefined<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map(item => stripUndefined(item)) as T;
-  }
-
-  if (!isRecord(value)) {
-    return value;
-  }
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([, item]) => item !== undefined)
-      .map(([key, item]) => [key, stripUndefined(item)])
-  ) as T;
 }
 
 function isMissingFileError(error: unknown) {

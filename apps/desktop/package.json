@@ -28,15 +28,15 @@
     "@unocss/reset": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
-    "markdown-it": "catalog:",
+    "klona": "catalog:",
     "pi-web-access": "catalog:",
+    "radash": "catalog:",
     "reka-ui": "catalog:",
     "typebox": "catalog:",
     "vue": "catalog:"
   },
   "devDependencies": {
     "@iconify-json/mingcute": "catalog:",
-    "@types/markdown-it": "catalog:",
     "@types/node": "catalog:",
     "@unocss/preset-icons": "catalog:",
     "@vitejs/plugin-vue": "catalog:",

@@ -10,6 +10,8 @@ import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
+import { unique } from 'radash';
+
 import { chaptaleSystemPrompt, systemPrompt } from '../prompt';
 import type { PiModelService } from '../services/pi-model.service';
 import type { SettingsService } from '../services/settings.service';
@@ -110,5 +112,5 @@ async function getKnownSessionDirs(settingsService: SettingsService) {
     .filter(entry => entry.isDirectory())
     .map(entry => path.join(settingsService.sessionsRootDir, entry.name));
 
-  return [...new Set([currentSessionDir, ...dirs])];
+  return unique([currentSessionDir, ...dirs]);
 }
