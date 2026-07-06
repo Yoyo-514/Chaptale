@@ -3,11 +3,13 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { ChatMessage } from '@chaptale/shared';
 import { useNotificationStore } from '../../../stores/notification';
 import { useSessionStore } from '../../../stores/session';
+import { useSettingsStore } from '../../../stores/settings';
 import type { ChatDisplayMessage } from '../types';
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
 import {
   getAssistantReasoning,
   getAssistantText,
+  getPrimaryToolCall,
   getUserText,
   hasRenderableMessage
 } from '../utils/message/message-content';
@@ -63,8 +65,19 @@ function markUserMessageAsOptimisticBranch(displayMessage: ChatDisplayMessage) {
   };
 }
 
+function hasAssistantPayload(message: Extract<ChatMessage, { role: 'assistant' }>) {
+  return Boolean(
+    message.errorMessage?.trim() ||
+    message.retry ||
+    getAssistantText(message).trim() ||
+    getAssistantReasoning(message).trim() ||
+    getPrimaryToolCall(message)
+  );
+}
+
 export function useChatController() {
   const sessionStore = useSessionStore();
+  const settingsStore = useSettingsStore();
   const notificationStore = useNotificationStore();
   const state = reactive<ChatState>({
     messages: [],
@@ -128,7 +141,31 @@ export function useChatController() {
     }
   }
 
-  onMounted(loadCurrentSessionMessages);
+  async function loadWebAccessSettings() {
+    if (!settingsStore.state) {
+      await settingsStore.load();
+    }
+
+    const webSearchEnabled = settingsStore.state?.settings.webAccess.webSearchEnabled;
+
+    if (typeof webSearchEnabled === 'boolean') {
+      state.isEnabledWebSearch = webSearchEnabled;
+    }
+  }
+
+  onMounted(() => {
+    void loadCurrentSessionMessages();
+    void loadWebAccessSettings();
+  });
+
+  watch(
+    () => settingsStore.state?.settings.webAccess.webSearchEnabled,
+    webSearchEnabled => {
+      if (typeof webSearchEnabled === 'boolean') {
+        state.isEnabledWebSearch = webSearchEnabled;
+      }
+    }
+  );
 
   watch(
     () => sessionStore.currentSessionId,
@@ -215,19 +252,49 @@ export function useChatController() {
     }
   }
 
+  function removeEmptyStreamingAssistant() {
+    const lastDisplayMessage = state.messages.at(-1);
+    const lastMessage = lastDisplayMessage?.message;
+
+    if (lastMessage?.role === 'assistant' && lastMessage.partial && !hasAssistantPayload(lastMessage)) {
+      state.messages.pop();
+    }
+  }
+
+  function appendOrReplaceAssistantMessage(message: ChatMessage) {
+    if (message.role !== 'assistant') {
+      state.messages.push(createDisplayMessage(message));
+      return;
+    }
+
+    const lastDisplayMessage = state.messages.at(-1);
+    const lastMessage = lastDisplayMessage?.message;
+
+    if (lastMessage?.role === 'assistant' && lastMessage.partial) {
+      state.messages.splice(state.messages.length - 1, 1, createDisplayMessage(message));
+      return;
+    }
+
+    state.messages.push(createDisplayMessage(message));
+  }
+
   function appendErrorMessage(message: string) {
+    removeEmptyStreamingAssistant();
     state.messages.push(createDisplayMessage(createAssistantErrorMessage(message), 'error'));
+  }
+
+  function finishRun() {
+    flushStreamingBuffers();
+    removeEmptyStreamingAssistant();
+    markStreamingAssistantComplete();
+    activeRunId.value = '';
+    state.isReplying = false;
+    state.isConnecting = false;
   }
 
   async function runQuery(query: string, options: { appendUser: boolean; branchFromEntryId?: string | null }) {
     try {
       state.isConnecting = true;
-
-      if (!window.chaptaleDesktop) {
-        throw new Error('当前界面需要在 Chaptale 桌面端中运行');
-      }
-
-      const sessionId = await sessionStore.ensureActiveSession();
 
       if (options.appendUser) {
         state.messages.push(createDisplayMessage(createUserMessage(query)));
@@ -236,6 +303,13 @@ export function useChatController() {
       state.input = '';
       state.editingMessageId = '';
       state.isReplying = true;
+      ensureStreamingAssistant();
+
+      if (!window.chaptaleDesktop) {
+        throw new Error('当前界面需要在 Chaptale 桌面端中运行');
+      }
+
+      const sessionId = await sessionStore.ensureActiveSession();
 
       const { runId } = await window.chaptaleDesktop.agent.stream(
         query,
@@ -263,26 +337,18 @@ export function useChatController() {
             flushStreamingBuffers();
 
             if (hasRenderableMessage(message)) {
-              state.messages.push(createDisplayMessage(message));
+              appendOrReplaceAssistantMessage(message);
             }
           },
           onDone: () => {
-            flushStreamingBuffers();
-            markStreamingAssistantComplete();
-            activeRunId.value = '';
+            finishRun();
             currentLeafId.value = null;
-            state.isReplying = false;
-            state.isConnecting = false;
             void sessionStore.loadSessions().then(loadCurrentSessionMessages);
           },
           onError: message => {
-            flushStreamingBuffers();
-            markStreamingAssistantComplete();
-            activeRunId.value = '';
+            finishRun();
             appendErrorMessage(message);
             notificationStore.error('AI 回复失败', message);
-            state.isReplying = false;
-            state.isConnecting = false;
           }
         },
         sessionId,
@@ -293,25 +359,26 @@ export function useChatController() {
       state.isConnecting = false;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      flushStreamingBuffers();
-      markStreamingAssistantComplete();
+      finishRun();
       appendErrorMessage(message);
       notificationStore.error('发送失败', message);
-      state.isReplying = false;
-      state.isConnecting = false;
     }
   }
 
   async function handleSend() {
-    if (state.isConnecting) return;
-
-    // 正在回复时再次点击按钮则中断流
+    // 正在回复时再次点击按钮则中断流。必须优先于 isConnecting 判断，
+    // 因为模型重试等待期间可能同时处于 connecting/replying 状态。
     if (state.isReplying) {
-      if (activeRunId.value) {
-        await window.chaptaleDesktop?.agent.cancel(activeRunId.value);
+      const runId = activeRunId.value;
+      finishRun();
+
+      if (runId) {
+        await window.chaptaleDesktop?.agent.cancel(runId);
       }
       return;
     }
+
+    if (state.isConnecting) return;
 
     const query = state.input.trim();
 
@@ -350,6 +417,22 @@ export function useChatController() {
     markUserMessageAsOptimisticBranch(displayMessage);
     state.messages.splice(messageIndex + 1);
     await runQuery(content, { appendUser: false, branchFromEntryId: displayMessage.parentEntryId ?? null });
+  }
+
+  async function handleToggleWebSearch() {
+    const previousValue = state.isEnabledWebSearch;
+    const nextValue = !previousValue;
+    state.isEnabledWebSearch = nextValue;
+
+    if (!settingsStore.state) {
+      await settingsStore.load();
+    }
+
+    await settingsStore.update({ webAccess: { webSearchEnabled: nextValue } });
+
+    if (settingsStore.error) {
+      state.isEnabledWebSearch = previousValue;
+    }
   }
 
   async function handleSwitchBranch(leafId: string) {
@@ -405,6 +488,7 @@ export function useChatController() {
     handleSaveUserMessage,
     handleCancelEdit,
     handleRegenerateAssistantMessage,
+    handleToggleWebSearch,
     handleSwitchBranch
   };
 }

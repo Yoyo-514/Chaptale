@@ -13,6 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string];
   submit: [];
+  toggleWebSearch: [];
 }>();
 
 const inputRef = ref<HTMLInputElement | null>(null);
@@ -22,11 +23,16 @@ function handleInput(event: Event) {
 }
 
 function handleSubmit() {
+  if (props.isReplying) {
+    emit('submit');
+    return;
+  }
+
   if (props.isConnecting) {
     return;
   }
 
-  if (!props.isReplying && props.modelValue.trim() === '') {
+  if (props.modelValue.trim() === '') {
     inputRef.value?.focus();
     return;
   }
@@ -50,14 +56,21 @@ function handleSubmit() {
       />
 
       <div class="chat-bottom-toolbar">
-        <div :class="cn('chat-websearch-button', props.isEnabledWebSearch && 'chat-websearch-button-active')">
+        <button
+          :class="cn('chat-websearch-button', props.isEnabledWebSearch && 'chat-websearch-button-active')"
+          type="button"
+          :aria-pressed="props.isEnabledWebSearch"
+          :title="props.isEnabledWebSearch ? '关闭联网搜索' : '开启联网搜索'"
+          @click="emit('toggleWebSearch')"
+        >
           <span class="i-mingcute-earth-line" aria-hidden="true" />
-        </div>
+          <span>{{ props.isEnabledWebSearch ? '联网' : '离线' }}</span>
+        </button>
       </div>
 
       <div class="chat-send-button-wrapper">
         <button
-          :class="cn('chat-send-button', props.isConnecting && 'chat-send-button-disabled')"
+          :class="cn('chat-send-button', props.isConnecting && !props.isReplying && 'chat-send-button-disabled')"
           type="button"
           @click="handleSubmit"
         >
@@ -103,13 +116,19 @@ function handleSubmit() {
 }
 
 .chat-websearch-button {
-  @apply flex cursor-not-allowed items-center gap-1 rounded-md p-1 px-2 text-sm transition-colors duration-200;
+  @apply flex cursor-pointer items-center gap-1 rounded-md border-0 p-1 px-2 text-sm outline-none transition-colors duration-200;
 
+  background: transparent;
   color: var(--muted-foreground);
 }
 
 .chat-websearch-button:hover {
   background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.chat-websearch-button:focus-visible {
+  box-shadow: var(--input-focus-shadow);
 }
 
 .chat-websearch-button-active {

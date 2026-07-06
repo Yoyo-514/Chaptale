@@ -64,6 +64,7 @@ async function handleSwitchBranch(leafId: string) {
       :is-replying="chat.state.isReplying"
       :is-enabled-web-search="chat.state.isEnabledWebSearch"
       @submit="handleSend"
+      @toggle-web-search="chat.handleToggleWebSearch"
     />
   </main>
 </template>
