@@ -37,4 +37,37 @@ AC 自动机常用于多模式字符串匹配。
 
     expect(result.citations).toEqual([{ title: 'Example', link: 'https://example.com/path' }]);
   });
+
+  it('parses legacy JSON result arrays for backward compatibility', () => {
+    const result = parseSearchResult(
+      JSON.stringify([
+        { title: 'Legacy', link: 'https://legacy.example', snippet: 'old result' },
+        { title: 'Duplicate', url: 'https://legacy.example' }
+      ])
+    );
+
+    expect(result.summary).toBe('');
+    expect(result.citations).toEqual([{ title: 'Legacy', link: 'https://legacy.example', description: 'old result' }]);
+  });
+
+  it('parses full-result headings and background fetch status notes', () => {
+    const result = parseSearchResult(`## Results for: "docs"
+
+### Project Docs
+https://docs.example.com/path),
+
+---
+Content fetching in background [fetch-1]. Will notify when ready.`);
+
+    expect(result.queries).toEqual(['docs']);
+    expect(result.citations).toEqual([{ title: 'Project Docs', link: 'https://docs.example.com/path' }]);
+    expect(result.statusNotes).toEqual(['Content fetching in background [fetch-1]. Will notify when ready']);
+  });
+
+  it('ignores malformed JSON and empty source lists without throwing', () => {
+    const result = parseSearchResult('{not json');
+
+    expect(result.queries).toEqual([]);
+    expect(result.citations).toEqual([]);
+  });
 });

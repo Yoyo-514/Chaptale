@@ -19,6 +19,8 @@ catalog:
   pi-web-access: ^0.13.0
   "@iconify-json/mingcute": ^1.2.7
   "@types/node": ^26.1.0
+  "@playwright/test": ^1.57.0
+  "@vitest/coverage-v8": ^4.1.9
   "@vue/test-utils": ^2.4.11
   "@unocss/preset-icons": ^66.7.4
   "@unocss/reset": ^66.7.4

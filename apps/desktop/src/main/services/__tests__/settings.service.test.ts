@@ -43,6 +43,61 @@ describe('SettingsService', () => {
     expect(config.workflow).toBe('none');
   });
 
+  it('reads existing web-search config as the effective web access state', async () => {
+    const service = new SettingsService({ rootDir });
+
+    await service.getState();
+    await writeFile(
+      service.piWebAccessConfigPath,
+      JSON.stringify(
+        {
+          provider: 'tavily',
+          webSearch: { enabled: false },
+          workflow: 'auto-summary',
+          tavilyApiKey: 'tvly-test',
+          githubClone: { enabled: false, maxRepoSizeMB: 20 },
+          youtube: { enabled: false },
+          video: { enabled: true, maxSizeMB: 12 },
+          ssrf: { allowRanges: ['127.0.0.1/32', 123] }
+        },
+        null,
+        2
+      )
+    );
+
+    const state = await service.getState();
+
+    expect(state.settings.webAccess.webSearchEnabled).toBe(false);
+    expect(state.settings.webAccess.provider).toBe('tavily');
+    expect(state.settings.webAccess.tavilyApiKey).toBe('tvly-test');
+    expect(state.settings.webAccess.githubClone.enabled).toBe(false);
+    expect(state.settings.webAccess.githubClone.maxRepoSizeMB).toBe(20);
+    expect(state.settings.webAccess.youtube.enabled).toBe(false);
+    expect(state.settings.webAccess.video.maxSizeMB).toBe(12);
+    expect(state.settings.webAccess.ssrf?.allowRanges).toEqual(['127.0.0.1/32']);
+  });
+
+  it('falls back to global storage when workspace mode has no workspace path', async () => {
+    const service = new SettingsService({ rootDir });
+
+    const state = await service.update({ storage: { mode: 'workspace', workspacePath: undefined } });
+
+    expect(state.settings.storage.mode).toBe('global');
+    expect(state.paths.effectiveSessionDir).toBe(path.join(service.sessionsRootDir, 'global'));
+  });
+
+  it('resolves workspace cwd, storage context, and session directory from user settings', async () => {
+    const service = new SettingsService({ rootDir });
+    const workspacePath = path.join(rootDir, 'Story Workspace');
+
+    const state = await service.update({ storage: { mode: 'workspace', workspacePath } });
+
+    expect(await service.getCurrentCwd()).toBe(workspacePath);
+    expect(await service.getStorageContext()).toEqual({ storageMode: 'workspace', workspacePath });
+    expect(await service.getCurrentSessionDir()).toBe(state.paths.effectiveSessionDir);
+    expect(state.paths.effectiveSessionDir).toContain('Story Workspace-');
+  });
+
   it('writes web-search config when web access settings are updated', async () => {
     const service = new SettingsService({ rootDir });
 
