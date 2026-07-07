@@ -1,14 +1,21 @@
+@use './controls';
+
 .llm-settings {
   &.settings-section {
-    @apply p-2;
+    @apply flex h-full min-h-0 flex-col overflow-hidden p-2;
 
     background: var(--surface-acrylic-subtle);
   }
 
   .settings-section-heading,
   .settings-provider-head,
-  .settings-collapsible-trigger {
+  .settings-collapsible-trigger,
+  .settings-heading-actions {
     @apply flex items-center justify-between gap-3;
+  }
+
+  .settings-heading-actions {
+    @apply shrink-0 justify-end;
   }
 
   .settings-section-title,
@@ -20,15 +27,6 @@
     @apply mt-1 mb-3 text-xs leading-5;
 
     color: var(--muted-foreground);
-  }
-
-  .settings-section-description code,
-  .settings-checkbox-field code,
-  .settings-model-copy code {
-    @apply break-all text-xs;
-
-    color: var(--foreground);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   }
 
   .settings-pill,
@@ -50,15 +48,6 @@
 
   .settings-summary-card {
     @apply mb-3 flex items-center justify-between gap-3 px-3 py-2 text-xs;
-  }
-
-  .settings-path-label,
-  .settings-provider-meta,
-  .settings-model-copy span,
-  .settings-collapsible-trigger small {
-    @apply text-xs leading-4;
-
-    color: var(--muted-foreground);
   }
 
   .settings-custom-provider {
@@ -106,70 +95,6 @@
     @apply grid grid-cols-2 gap-2;
   }
 
-  .settings-field {
-    @apply flex min-w-0 flex-col gap-1 text-xs;
-
-    color: var(--muted-foreground);
-  }
-
-  .settings-field.is-wide,
-  .settings-checkbox-field.is-wide {
-    @apply col-span-2;
-  }
-
-  .settings-dropdown-trigger {
-    @apply flex w-full min-w-0 items-center justify-between gap-2 border px-3 py-1.5 text-left text-xs outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
-
-    background: var(--input);
-    border-color: var(--input-border);
-    border-radius: calc(var(--radius) * 0.5);
-    color: var(--foreground);
-  }
-
-  :global(.settings-dropdown-content) {
-    @apply z-50 flex max-h-[16rem] min-w-64 flex-col gap-1 overflow-y-auto border p-1 shadow-float;
-
-    width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 24rem));
-    background: var(--popover);
-    border-color: var(--border-subtle);
-    border-radius: calc(var(--radius) * 0.5);
-    color: var(--popover-foreground);
-  }
-
-  :global(.settings-dropdown-item) {
-    @apply flex cursor-pointer flex-col gap-0.5 px-2 py-1.5 text-xs outline-none;
-
-    border-radius: calc(var(--radius) * 0.4);
-  }
-
-  :global(.settings-dropdown-item[data-highlighted]) {
-    background: var(--surface-muted);
-  }
-
-  :global(.settings-dropdown-item code) {
-    @apply break-all text-[0.68rem];
-
-    color: var(--muted-foreground);
-  }
-
-  .settings-checkbox-field {
-    @apply flex items-start gap-2 text-xs leading-5;
-
-    color: var(--foreground);
-  }
-
-  .settings-checkbox-field input {
-    @apply mt-1 size-3.5 shrink-0;
-
-    accent-color: var(--primary-solid);
-  }
-
-  .settings-checkbox-field small {
-    @apply mt-0.5 block leading-4;
-
-    color: var(--muted-foreground);
-  }
-
   .settings-group-tabs {
     @apply mb-3 grid grid-cols-2 gap-2;
   }
@@ -193,22 +118,16 @@
     color: var(--secondary-foreground);
   }
 
-  .settings-empty-card {
-    @apply px-3 py-2 text-xs leading-5;
-
-    color: var(--muted-foreground);
-  }
-
   .settings-model-layout {
-    @apply grid min-h-[18rem] max-h-[24rem] grid-cols-[13rem_minmax(0,1fr)] gap-3 overflow-hidden;
+    @apply grid min-h-[14rem] flex-1 basis-0 grid-cols-[13rem_minmax(0,1fr)] gap-3 overflow-hidden;
   }
 
   .settings-scroll-root {
-    @apply min-h-0 max-h-[24rem] overflow-hidden;
+    @apply h-full min-h-0 overflow-hidden;
   }
 
   .settings-scroll-viewport {
-    @apply h-full max-h-[24rem] pr-2;
+    @apply h-full min-h-0 pr-2;
   }
 
   .settings-scrollbar {
@@ -232,7 +151,7 @@
   .settings-provider-detail,
   .settings-model-list,
   .settings-model-copy {
-    @apply flex min-w-0 max-h-[24rem] flex-col gap-2;
+    @apply flex min-h-0 min-w-0 flex-col gap-2;
   }
 
   .settings-model-actions {
@@ -254,8 +173,7 @@
     border-color: var(--border-subtle);
   }
 
-  .settings-provider-name,
-  .settings-model-copy strong {
+  .settings-provider-name {
     @apply text-xs font-semibold;
   }
 
@@ -283,82 +201,16 @@
     @apply p-2;
   }
 
-  .settings-key-field {
-    @apply flex min-w-0 flex-col gap-1 text-xs;
-
-    color: var(--muted-foreground);
-  }
-
   .settings-auth-actions {
     @apply flex flex-wrap justify-end gap-2;
-  }
-
-  .settings-input {
-    @apply min-w-0 border px-3 py-1.5 text-xs outline-none transition-colors duration-150;
-
-    background: var(--input);
-    border-color: var(--input-border);
-    border-radius: calc(var(--radius) * 0.5);
-    color: var(--foreground);
-  }
-
-  .settings-input::placeholder {
-    color: var(--muted-foreground);
   }
 
   .settings-actions {
     @apply mt-3 flex flex-wrap justify-end gap-2;
   }
 
-  .settings-primary-button,
-  .settings-secondary-button,
-  .settings-danger-button,
-  .settings-danger-icon-button {
-    @apply border px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
-
-    border-radius: calc(var(--radius) * 0.5);
-  }
-
-  .settings-primary-button {
-    background: var(--primary-solid);
-    border-color: var(--primary-solid);
-    color: var(--primary-solid-foreground);
-  }
-
-  .settings-primary-button:hover:not(:disabled) {
-    background: var(--primary-solid-hover);
-  }
-
-  .settings-secondary-button {
-    background: var(--surface-muted);
-    border-color: var(--border-subtle);
-    color: var(--foreground);
-  }
-
-  .settings-secondary-button:hover:not(:disabled),
-  .settings-secondary-button.is-selected {
-    background: var(--secondary);
-    color: var(--secondary-foreground);
-  }
-
-  .settings-danger-button {
-    background: var(--destructive-background);
-    border-color: var(--destructive);
-    color: var(--destructive-background-foreground);
-  }
-
-  .settings-danger-button:hover:not(:disabled),
-  .settings-danger-icon-button:hover:not(:disabled) {
-    background: var(--destructive);
-    color: var(--destructive-foreground);
-  }
-
-  .settings-danger-icon-button {
-    @apply flex-center size-7 p-0;
-
-    background: var(--destructive-background);
-    border-color: var(--destructive);
-    color: var(--destructive-background-foreground);
+  .settings-actions.compact {
+    @apply mt-0;
   }
 
   .settings-model-list {
@@ -392,15 +244,10 @@
     accent-color: var(--primary-solid);
   }
 
-  .settings-primary-button:focus-visible,
-  .settings-secondary-button:focus-visible,
   .settings-provider-card:focus-visible,
-  .settings-input:focus-visible,
   .settings-group-tab:focus-visible,
   .settings-collapsible-trigger:focus-visible,
-  .settings-model-row:focus-visible,
-  .settings-danger-button:focus-visible,
-  .settings-danger-icon-button:focus-visible {
+  .settings-model-row:focus-visible {
     box-shadow: var(--input-focus-shadow);
   }
 }

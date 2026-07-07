@@ -151,8 +151,7 @@ describe('settings store', () => {
         providerName: 'Custom',
         baseUrl: 'https://api.example.com',
         api: 'openai-responses',
-        modelId: 'm',
-        input: ['text']
+        models: [{ modelId: 'm', input: ['text'] }]
       })
     ).resolves.toBe(true);
     await expect(store.addCustomModel({ provider: 'custom', modelId: 'm2', input: ['text'] })).resolves.toBe(true);

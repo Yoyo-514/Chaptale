@@ -1,7 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
-const ChatView = () => import('../views/ChatView/index.vue');
-const HistoryView = () => import('../views/HistoryView/index.vue');
+const ChatView = () => import('../modules/ChatView/index.vue');
+const HistoryView = () => import('../modules/HistoryView/index.vue');
 
 export const router = createRouter({
   history: createWebHashHistory(),

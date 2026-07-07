@@ -138,7 +138,7 @@ onMounted(() => {
 }
 
 .settings-panel-content {
-  @apply min-h-0 overflow-y-auto p-2;
+  @apply min-h-0 overflow-hidden p-2;
 }
 
 .settings-panel-resize-handle {

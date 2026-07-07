@@ -129,7 +129,10 @@ describe('LLM settings composables', () => {
     forms.providerModelDraft.contextWindow = '4096';
     forms.providerModelDraft.supportsImageInput = true;
 
-    expect(forms.addableFetchedModels.value).toEqual([{ id: 'new-model', name: 'New Model' }]);
+    expect(forms.fetchedModelOptions.value).toEqual([
+      { id: 'custom-model', name: 'Already Added', isAdded: true },
+      { id: 'new-model', name: 'New Model', isAdded: false }
+    ]);
     await forms.fetchCustomModels();
     expect(store.fetchCustomProviderModels).toHaveBeenCalledWith({
       baseUrl: 'https://api.example.com',
@@ -153,14 +156,20 @@ describe('LLM settings composables', () => {
     });
     expect(notification.success).toHaveBeenCalledWith('模型已添加');
 
+    forms.stageProviderModel();
+    forms.providerModelDraft.modelId = 'model-c';
+    forms.providerModelDraft.modelName = 'Model C';
+    forms.stageProviderModel();
+
     await forms.submitCustomProvider();
     expect(store.addCustomProvider).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: ' custom ',
         providerName: 'Custom',
-        modelId: 'model-a',
-        input: ['text', 'image'],
-        contextWindow: 4096
+        models: [
+          { modelId: 'model-a', modelName: undefined, input: ['text', 'image'], contextWindow: 4096 },
+          { modelId: 'model-c', modelName: 'Model C', input: ['text'], contextWindow: 128000 }
+        ]
       })
     );
     expect(activeModelGroup.value).toBe('custom');

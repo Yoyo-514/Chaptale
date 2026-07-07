@@ -49,12 +49,16 @@ export function getProviderModels(models: ChaptaleModelInfo[], provider?: Provid
   return provider ? models.filter(model => model.provider === provider.provider) : [];
 }
 
-export function getAddableFetchedModels(
+export type FetchedCustomProviderModelView = FetchedCustomProviderModel & {
+  isAdded: boolean;
+};
+
+export function getFetchedModelOptions(
   fetchedModels: FetchedCustomProviderModel[],
   selectedProviderModels: ChaptaleModelInfo[]
-) {
+): FetchedCustomProviderModelView[] {
   const existingIds = new Set(selectedProviderModels.map(model => model.id));
-  return fetchedModels.filter(model => !existingIds.has(model.id));
+  return fetchedModels.map(model => ({ ...model, isAdded: existingIds.has(model.id) }));
 }
 
 export function countModelsByGroup(models: ChaptaleModelInfo[]) {

@@ -1,0 +1,26 @@
+:global(.history-dropdown-content) {
+  @apply z-50 min-w-32 border p-1 shadow-float;
+
+  width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 10rem));
+  background: var(--popover);
+  border-color: var(--border-subtle);
+  border-radius: calc(var(--radius) * 0.5);
+  color: var(--popover-foreground);
+}
+
+:global(.history-dropdown-item) {
+  @apply cursor-pointer px-2.5 py-1.5 text-sm outline-none transition-colors duration-150;
+
+  border-radius: calc(var(--radius) * 0.375);
+  color: var(--foreground);
+}
+
+:global(.history-dropdown-item[data-highlighted]),
+:global(.history-dropdown-item:hover) {
+  background: var(--surface-muted);
+}
+
+:global(.history-dropdown-item[data-active='true']) {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}

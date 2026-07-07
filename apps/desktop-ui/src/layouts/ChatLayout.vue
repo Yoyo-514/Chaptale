@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router';
 
-import ChatToolbar from '../views/ChatView/components/ChatToolbar.vue';
+import ChatToolbar from '../modules/ChatView/components/ChatToolbar.vue';
 </script>
 
 <template>

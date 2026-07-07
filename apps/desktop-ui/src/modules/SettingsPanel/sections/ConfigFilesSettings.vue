@@ -45,8 +45,10 @@ const paths = computed(() => settingsStore.state?.paths);
 </template>
 
 <style scoped lang="scss">
+@use '../styles/controls';
+
 .settings-section {
-  @apply p-2;
+  @apply h-full min-h-0 overflow-y-auto p-2;
 
   background: var(--surface-acrylic-subtle);
 }
@@ -88,22 +90,5 @@ const paths = computed(() => settingsStore.state?.paths);
 
   color: var(--foreground);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-}
-
-.settings-secondary-button {
-  @apply border px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-150;
-
-  background: var(--surface-muted);
-  border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
-  color: var(--foreground);
-}
-
-.settings-secondary-button:hover {
-  background: var(--secondary);
-}
-
-.settings-secondary-button:focus-visible {
-  box-shadow: var(--input-focus-shadow);
 }
 </style>

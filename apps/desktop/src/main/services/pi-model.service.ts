@@ -78,7 +78,12 @@ export class PiModelService {
     const settingsManager = await this.createSettingsManager();
     const defaultProvider = settingsManager.getDefaultProvider();
     const defaultModelId = settingsManager.getDefaultModel();
-    const customModelKeys = await this.modelConfigRepository.getCustomModelKeys();
+    const customConfig = await this.modelConfigRepository.read().catch(() => ({ providers: {} }));
+    const customModelKeys = new Set(
+      Object.entries(customConfig.providers).flatMap(([provider, providerConfig]) =>
+        (providerConfig.models ?? []).map(model => getModelKey(provider, model.id))
+      )
+    );
 
     const models: ChaptaleModelInfo[] = this.modelRegistry.getAll().map(model => ({
       provider: model.provider,
@@ -94,6 +99,20 @@ export class PiModelService {
     }));
 
     const providerMap = this.createProviderMap(models);
+
+    for (const [provider, providerConfig] of Object.entries(customConfig.providers)) {
+      if (providerMap.has(provider)) {
+        continue;
+      }
+
+      providerMap.set(provider, {
+        provider,
+        providerName: providerConfig.name || provider,
+        authConfigured: Boolean(providerConfig.apiKey),
+        authSource: providerConfig.apiKey ? 'models.json' : undefined,
+        modelCount: providerConfig.models?.length ?? 0
+      });
+    }
     const defaultModelExists = models.some(model => model.provider === defaultProvider && model.id === defaultModelId);
 
     return {

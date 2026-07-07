@@ -5,7 +5,7 @@ import {
   countModelsByGroup,
   createProviderViews,
   filterModelsByGroup,
-  getAddableFetchedModels,
+  getFetchedModelOptions,
   getDefaultModelLabel,
   getProviderModels,
   getSelectedProvider
@@ -84,11 +84,14 @@ describe('llm-settings helpers', () => {
     expect(getProviderModels(models, undefined)).toEqual([]);
   });
 
-  it('filters fetched models that already exist in selected provider', () => {
+  it('marks fetched models that already exist in selected provider', () => {
     const fetchedModels: FetchedCustomProviderModel[] = [{ id: 'exists' }, { id: 'new-model' }];
     const selectedProviderModels = [createModel({ id: 'exists' })];
 
-    expect(getAddableFetchedModels(fetchedModels, selectedProviderModels)).toEqual([{ id: 'new-model' }]);
+    expect(getFetchedModelOptions(fetchedModels, selectedProviderModels)).toEqual([
+      { id: 'exists', isAdded: true },
+      { id: 'new-model', isAdded: false }
+    ]);
   });
 
   it('formats default model label with fallback', () => {

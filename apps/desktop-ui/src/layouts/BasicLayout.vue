@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ActivityBar from '../components/ActivityBar/ActivityBar.vue';
 import ChatLayout from './ChatLayout.vue';
-import SettingsPanel from '../components/SettingsPanel/SettingsPanel.vue';
+import SettingsPanel from '../modules/SettingsPanel/SettingsPanel.vue';
 import StatusBar from '../components/StatusBar/StatusBar.vue';
 import TitleBar from '../components/TitleBar/TitleBar.vue';
 </script>

@@ -29,7 +29,7 @@ export default defineConfig({
 
         // Type-only contract packages are validated by TypeScript and package consumers.
         'packages/ipc-contract/src/**',
-        'apps/desktop-ui/src/views/HistoryView/**',
+        'apps/desktop-ui/src/modules/HistoryView/**',
 
         'packages/agent-core/src/**'
       ],

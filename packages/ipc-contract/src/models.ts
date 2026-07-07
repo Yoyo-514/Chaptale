@@ -62,16 +62,20 @@ export type FetchCustomProviderModelsResult = {
   models: FetchedCustomProviderModel[];
 };
 
+export type AddCustomProviderModelPayload = {
+  modelId: string;
+  modelName?: string;
+  input: ChaptaleModelInput[];
+  contextWindow?: number;
+};
+
 export type AddCustomProviderPayload = {
   provider: string;
   providerName: string;
   baseUrl: string;
   api: ChaptaleCustomProviderApi;
-  modelId: string;
-  modelName?: string;
   apiKey?: string;
-  input: ChaptaleModelInput[];
-  contextWindow?: number;
+  models: AddCustomProviderModelPayload[];
 };
 
 export type AddCustomModelPayload = {

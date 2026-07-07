@@ -97,6 +97,8 @@ function handleConfirm() {
 </template>
 
 <style scoped lang="scss">
+@use '../styles/dialog';
+
 .history-delete-trigger {
   @apply outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
 }
@@ -134,32 +136,6 @@ function handleConfirm() {
   background: var(--destructive-background);
   border-color: var(--destructive);
   color: var(--destructive-background-foreground);
-}
-
-:global(.history-delete-overlay) {
-  @apply fixed inset-0 z-50;
-
-  background: var(--overlay-scrim);
-  backdrop-filter: var(--blur-acrylic-subtle);
-}
-
-:global(.history-delete-dialog) {
-  @apply fixed left-1/2 top-1/2 z-50 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 border p-5 shadow-float;
-
-  background: var(--popover);
-  border-color: var(--border);
-  border-radius: calc(var(--radius) * 0.75);
-  color: var(--popover-foreground);
-}
-
-:global(.history-delete-title) {
-  @apply m-0 text-base font-semibold;
-}
-
-:global(.history-delete-description) {
-  @apply mt-2 mb-0 text-sm leading-6;
-
-  color: var(--muted-foreground);
 }
 
 .history-delete-actions {

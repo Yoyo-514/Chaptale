@@ -17,7 +17,7 @@ import { computed, reactive, watch } from 'vue';
 
 import { useNotificationStore } from '../../../stores/notification';
 import { useSettingsStore } from '../../../stores/settings';
-import NumberInput from '../../NumberInput/NumberInput.vue';
+import NumberInput from '../../../components/NumberInput/NumberInput.vue';
 
 const settingsStore = useSettingsStore();
 const notificationStore = useNotificationStore();
@@ -175,10 +175,10 @@ function createFallbackSettings(): PiWebAccessSettings {
         </span>
       </label>
 
-      <div class="settings-field">
+      <div class="settings-web-field">
         <span>默认搜索 Provider</span>
         <DropdownMenuRoot>
-          <DropdownMenuTrigger class="settings-dropdown-trigger plain-trigger">
+          <DropdownMenuTrigger class="settings-select-trigger plain-trigger">
             <span>{{ activeProvider?.label }}</span>
             <small>{{ activeProvider?.note }}</small>
           </DropdownMenuTrigger>
@@ -198,10 +198,10 @@ function createFallbackSettings(): PiWebAccessSettings {
         </DropdownMenuRoot>
       </div>
 
-      <div class="settings-field">
+      <div class="settings-web-field">
         <span>搜索工作流</span>
         <DropdownMenuRoot>
-          <DropdownMenuTrigger class="settings-dropdown-trigger plain-trigger">
+          <DropdownMenuTrigger class="settings-select-trigger plain-trigger">
             <span>{{ activeWorkflow?.label }}</span>
             <small>{{ activeWorkflow?.note }}</small>
           </DropdownMenuTrigger>
@@ -221,7 +221,7 @@ function createFallbackSettings(): PiWebAccessSettings {
         </DropdownMenuRoot>
       </div>
 
-      <label v-if="showCuratorOptions" class="settings-field">
+      <label v-if="showCuratorOptions" class="settings-web-field">
         <span>浏览器筛选超时（秒）</span>
         <NumberInput v-model="draft.curatorTimeoutSeconds" :min="1" :max="600" aria-label="浏览器筛选超时秒数" />
       </label>
@@ -250,28 +250,28 @@ function createFallbackSettings(): PiWebAccessSettings {
       </CollapsibleTrigger>
       <CollapsibleContent class="settings-reka-content">
         <div class="settings-form-grid">
-          <label v-if="visibleKeyProviders.some(provider => provider.value === 'openai')" class="settings-field"
+          <label v-if="visibleKeyProviders.some(provider => provider.value === 'openai')" class="settings-web-field"
             ><span>OpenAI API Key</span><input v-model="draft.openaiApiKey" type="password" autocomplete="off"
           /></label>
-          <label v-if="visibleKeyProviders.some(provider => provider.value === 'brave')" class="settings-field"
+          <label v-if="visibleKeyProviders.some(provider => provider.value === 'brave')" class="settings-web-field"
             ><span>Brave API Key</span><input v-model="draft.braveApiKey" type="password" autocomplete="off"
           /></label>
-          <label v-if="visibleKeyProviders.some(provider => provider.value === 'exa')" class="settings-field"
+          <label v-if="visibleKeyProviders.some(provider => provider.value === 'exa')" class="settings-web-field"
             ><span>Exa API Key</span><input v-model="draft.exaApiKey" type="password" autocomplete="off"
           /></label>
-          <label v-if="visibleKeyProviders.some(provider => provider.value === 'parallel')" class="settings-field"
+          <label v-if="visibleKeyProviders.some(provider => provider.value === 'parallel')" class="settings-web-field"
             ><span>Parallel API Key</span><input v-model="draft.parallelApiKey" type="password" autocomplete="off"
           /></label>
-          <label v-if="visibleKeyProviders.some(provider => provider.value === 'tavily')" class="settings-field"
+          <label v-if="visibleKeyProviders.some(provider => provider.value === 'tavily')" class="settings-web-field"
             ><span>Tavily API Key</span><input v-model="draft.tavilyApiKey" type="password" autocomplete="off"
           /></label>
-          <label v-if="visibleKeyProviders.some(provider => provider.value === 'perplexity')" class="settings-field"
+          <label v-if="visibleKeyProviders.some(provider => provider.value === 'perplexity')" class="settings-web-field"
             ><span>Perplexity API Key</span><input v-model="draft.perplexityApiKey" type="password" autocomplete="off"
           /></label>
-          <label v-if="visibleKeyProviders.some(provider => provider.value === 'gemini')" class="settings-field"
+          <label v-if="visibleKeyProviders.some(provider => provider.value === 'gemini')" class="settings-web-field"
             ><span>Gemini API Key</span><input v-model="draft.geminiApiKey" type="password" autocomplete="off"
           /></label>
-          <label v-if="usesGeminiFeatures" class="settings-field"
+          <label v-if="usesGeminiFeatures" class="settings-web-field"
             ><span>Cloudflare AI Gateway Key</span
             ><input v-model="draft.cloudflareApiKey" type="password" autocomplete="off"
           /></label>
@@ -292,7 +292,7 @@ function createFallbackSettings(): PiWebAccessSettings {
       </CollapsibleTrigger>
       <CollapsibleContent class="settings-reka-content">
         <div class="settings-form-grid">
-          <label class="settings-field wide"
+          <label class="settings-web-field wide"
             ><span>Gemini Base URL</span
             ><input v-model="draft.geminiBaseUrl" placeholder="https://my-gateway.example.com/gemini"
           /></label>
@@ -313,7 +313,7 @@ function createFallbackSettings(): PiWebAccessSettings {
               </span>
             </label>
             <div v-if="draft.allowBrowserCookies" class="settings-nested-fields single">
-              <label class="settings-field"
+              <label class="settings-web-field"
                 ><span>Chrome Profile</span><input v-model="draft.chromeProfile" placeholder="Profile 2"
               /></label>
             </div>
@@ -335,10 +335,10 @@ function createFallbackSettings(): PiWebAccessSettings {
       </CollapsibleTrigger>
       <CollapsibleContent class="settings-reka-content">
         <div class="settings-form-grid">
-          <label v-if="draft.provider === 'gemini'" class="settings-field"
+          <label v-if="draft.provider === 'gemini'" class="settings-web-field"
             ><span>Search Model</span><input v-model="draft.searchModel" placeholder="gemini-2.5-flash"
           /></label>
-          <label v-if="showSummaryOptions" class="settings-field"
+          <label v-if="showSummaryOptions" class="settings-web-field"
             ><span>Summary Model</span><input v-model="draft.summaryModel" placeholder="anthropic/claude-haiku-4-5"
           /></label>
 
@@ -356,15 +356,15 @@ function createFallbackSettings(): PiWebAccessSettings {
               <span><strong>GitHub 克隆</strong><small>GitHub 仓库 URL 会克隆后读取真实文件。</small></span>
             </label>
             <div v-if="draft.githubClone.enabled" class="settings-nested-fields">
-              <label class="settings-field"
+              <label class="settings-web-field"
                 ><span>最大仓库大小（MB）</span
                 ><NumberInput v-model="draft.githubClone.maxRepoSizeMB" :min="1" aria-label="最大仓库大小 MB"
               /></label>
-              <label class="settings-field"
+              <label class="settings-web-field"
                 ><span>克隆超时（秒）</span
                 ><NumberInput v-model="draft.githubClone.cloneTimeoutSeconds" :min="1" aria-label="克隆超时秒数"
               /></label>
-              <label class="settings-field wide"
+              <label class="settings-web-field wide"
                 ><span>克隆目录</span
                 ><input
                   v-model="draft.githubClone.clonePath"
@@ -387,7 +387,7 @@ function createFallbackSettings(): PiWebAccessSettings {
               <span><strong>YouTube 理解</strong><small>用于视频转录和视觉描述；逐帧提取只作为可选增强。</small></span>
             </label>
             <div v-if="draft.youtube.enabled" class="settings-nested-fields single">
-              <label class="settings-field"
+              <label class="settings-web-field"
                 ><span>YouTube Preferred Model</span
                 ><input v-model="draft.youtube.preferredModel" placeholder="gemini-3-flash-preview"
               /></label>
@@ -408,11 +408,11 @@ function createFallbackSettings(): PiWebAccessSettings {
               <span><strong>本地视频理解</strong><small>启用本地视频分析入口，不默认要求安装额外二进制。</small></span>
             </label>
             <div v-if="draft.video.enabled" class="settings-nested-fields">
-              <label class="settings-field"
+              <label class="settings-web-field"
                 ><span>Video Preferred Model</span
                 ><input v-model="draft.video.preferredModel" placeholder="gemini-3-flash-preview"
               /></label>
-              <label class="settings-field"
+              <label class="settings-web-field"
                 ><span>视频最大大小（MB）</span
                 ><NumberInput v-model="draft.video.maxSizeMB" :min="1" aria-label="视频最大大小 MB"
               /></label>
@@ -439,8 +439,10 @@ function createFallbackSettings(): PiWebAccessSettings {
 </template>
 
 <style scoped lang="scss">
+@use '../styles/controls';
+
 .settings-section {
-  @apply p-2;
+  @apply h-full min-h-0 overflow-y-auto p-2;
 
   background: var(--surface-acrylic-subtle);
 }
@@ -534,16 +536,16 @@ function createFallbackSettings(): PiWebAccessSettings {
   @apply rotate-180;
 }
 
-.settings-field,
+.settings-web-field,
 .settings-switch-row {
   @apply flex min-w-0 gap-2;
 }
 
-.settings-field {
+.settings-web-field {
   @apply flex-col;
 }
 
-.settings-field.wide,
+.settings-web-field.wide,
 .settings-toggle-group.wide {
   grid-column: 1 / -1;
 }
@@ -572,7 +574,7 @@ function createFallbackSettings(): PiWebAccessSettings {
 }
 
 .settings-switch-row small,
-.settings-field > span {
+.settings-web-field > span {
   @apply text-xs;
 
   color: var(--muted-foreground);
@@ -600,7 +602,7 @@ function createFallbackSettings(): PiWebAccessSettings {
   @apply flex-center text-xs;
 }
 
-.settings-field input {
+.settings-web-field input {
   @apply min-w-0 border px-2 py-1.5 text-xs outline-none;
 
   background: var(--surface-muted);
@@ -609,11 +611,11 @@ function createFallbackSettings(): PiWebAccessSettings {
   color: var(--foreground);
 }
 
-.settings-field input:focus {
+.settings-web-field input:focus {
   box-shadow: var(--input-focus-shadow);
 }
 
-.settings-dropdown-trigger {
+.settings-select-trigger {
   @apply flex min-w-0 flex-col gap-0.5 border px-2 py-1.5 text-left text-xs outline-none transition-colors duration-150;
 
   background: var(--surface-muted);
@@ -622,79 +624,21 @@ function createFallbackSettings(): PiWebAccessSettings {
   color: var(--foreground);
 }
 
-.settings-dropdown-trigger:hover {
+.settings-select-trigger:hover {
   background: var(--secondary);
 }
 
-.settings-dropdown-trigger:focus-visible {
+.settings-select-trigger:focus-visible {
   box-shadow: var(--input-focus-shadow);
 }
 
-.settings-dropdown-trigger small {
+.settings-select-trigger small {
   @apply truncate text-[0.68rem];
-
-  color: var(--muted-foreground);
-}
-
-:global(.settings-dropdown-content) {
-  @apply z-50 flex max-h-[16rem] min-w-64 flex-col gap-1 overflow-y-auto border p-1 shadow-float;
-
-  width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 24rem));
-  background: var(--popover);
-  border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
-  color: var(--popover-foreground);
-}
-
-:global(.settings-dropdown-item) {
-  @apply flex cursor-pointer flex-col gap-0.5 px-2 py-1.5 text-xs outline-none;
-
-  border-radius: calc(var(--radius) * 0.4);
-}
-
-:global(.settings-dropdown-item[data-highlighted]) {
-  background: var(--surface-muted);
-}
-
-:global(.settings-dropdown-item code) {
-  @apply break-all text-[0.68rem];
 
   color: var(--muted-foreground);
 }
 
 .settings-actions {
   @apply mt-3 flex flex-wrap justify-end gap-2;
-}
-
-.settings-primary-button,
-.settings-secondary-button {
-  @apply border px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
-
-  border-radius: calc(var(--radius) * 0.5);
-}
-
-.settings-primary-button {
-  background: var(--primary-solid);
-  border-color: var(--primary-solid);
-  color: var(--primary-solid-foreground);
-}
-
-.settings-primary-button:hover:not(:disabled) {
-  background: var(--primary-solid-hover);
-}
-
-.settings-secondary-button {
-  background: var(--surface-muted);
-  border-color: var(--border-subtle);
-  color: var(--foreground);
-}
-
-.settings-secondary-button:hover:not(:disabled) {
-  background: var(--secondary);
-}
-
-.settings-primary-button:focus-visible,
-.settings-secondary-button:focus-visible {
-  box-shadow: var(--input-focus-shadow);
 }
 </style>

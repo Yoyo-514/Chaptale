@@ -57,10 +57,6 @@ export class PiCustomModelConfigService {
     const provider = normalizeProviderId(payload.provider);
     const providerName = payload.providerName.trim();
     const baseUrl = payload.baseUrl.trim();
-    const modelId = payload.modelId.trim();
-    const modelName = payload.modelName?.trim() || modelId;
-    const contextWindow = payload.contextWindow;
-    const input = normalizeModelInput(payload.input);
     const apiKey = payload.apiKey?.trim();
 
     if (!providerName) {
@@ -71,23 +67,37 @@ export class PiCustomModelConfigService {
       throw new Error('Base URL 不能为空');
     }
 
-    if (!modelId) {
-      throw new Error('模型 ID 不能为空');
-    }
-
-    validateContextWindow(contextWindow);
-
     const config = await this.repository.read();
     const previousProvider = config.providers[provider];
     const previousModels = previousProvider?.models ?? [];
-    const nextModels = previousModels.filter(model => model.id !== modelId);
+    const nextModels = [...previousModels];
 
-    nextModels.push({
-      id: modelId,
-      name: modelName,
-      input,
-      contextWindow: toOptionalContextWindow(contextWindow)
-    });
+    for (const model of payload.models) {
+      const modelId = model.modelId.trim();
+      const modelName = model.modelName?.trim() || modelId;
+      const contextWindow = model.contextWindow;
+      const input = normalizeModelInput(model.input);
+
+      if (!modelId) {
+        throw new Error('模型 ID 不能为空');
+      }
+
+      validateContextWindow(contextWindow);
+
+      const existingIndex = nextModels.findIndex(item => item.id === modelId);
+      const nextModel = {
+        id: modelId,
+        name: modelName,
+        input,
+        contextWindow: toOptionalContextWindow(contextWindow)
+      };
+
+      if (existingIndex >= 0) {
+        nextModels[existingIndex] = nextModel;
+      } else {
+        nextModels.push(nextModel);
+      }
+    }
 
     config.providers[provider] = {
       ...previousProvider,
@@ -147,7 +157,7 @@ export class PiCustomModelConfigService {
     const config = await this.repository.read();
     const providerConfig = config.providers[provider];
 
-    if (!providerConfig?.models?.length) {
+    if (!providerConfig) {
       throw new Error(`未找到自定义供应商：${provider}`);
     }
 
@@ -160,7 +170,7 @@ export class PiCustomModelConfigService {
     const config = await this.repository.read();
     const providerConfig = config.providers[provider];
 
-    if (!providerConfig?.models?.length) {
+    if (!providerConfig) {
       throw new Error(`未找到自定义供应商：${provider}`);
     }
 

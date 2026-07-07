@@ -1,0 +1,207 @@
+:where(.settings-panel-content .settings-section, .llm-settings, .settings-dialog-content, .model-draft-fields) {
+  .settings-field,
+  .settings-key-field {
+    @apply flex min-w-0 flex-col gap-1 text-xs;
+
+    color: var(--muted-foreground);
+  }
+
+  .settings-field.is-wide,
+  .settings-checkbox-field.is-wide {
+    @apply col-span-2;
+  }
+
+  .settings-input {
+    @apply min-w-0 border px-3 py-1.5 text-xs outline-none transition-colors duration-150;
+
+    background: var(--input);
+    border-color: var(--input-border);
+    border-radius: calc(var(--radius) * 0.5);
+    color: var(--foreground);
+  }
+
+  .settings-input::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .settings-primary-button,
+  .settings-secondary-button,
+  .settings-danger-button,
+  .settings-icon-button,
+  .settings-danger-icon-button {
+    @apply border px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
+
+    border-radius: calc(var(--radius) * 0.5);
+  }
+
+  .settings-primary-button {
+    background: var(--primary-solid);
+    border-color: var(--primary-solid);
+    color: var(--primary-solid-foreground);
+  }
+
+  .settings-primary-button:hover:not(:disabled) {
+    background: var(--primary-solid-hover);
+  }
+
+  .settings-secondary-button {
+    background: var(--surface-muted);
+    border-color: var(--border-subtle);
+    color: var(--foreground);
+  }
+
+  .settings-secondary-button:hover:not(:disabled),
+  .settings-secondary-button.is-selected {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+  }
+
+  .settings-danger-button {
+    background: var(--destructive-background);
+    border-color: var(--destructive);
+    color: var(--destructive-background-foreground);
+  }
+
+  .settings-danger-button:hover:not(:disabled),
+  .settings-danger-icon-button:hover:not(:disabled) {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+  }
+
+  .settings-icon-button,
+  .settings-danger-icon-button {
+    @apply flex-center size-7 p-0;
+  }
+
+  .settings-icon-button {
+    background: var(--surface-muted);
+    border-color: var(--border-subtle);
+    color: var(--muted-foreground);
+  }
+
+  .settings-icon-button:hover:not(:disabled) {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+  }
+
+  .settings-danger-icon-button {
+    background: var(--destructive-background);
+    border-color: var(--destructive);
+    color: var(--destructive-background-foreground);
+  }
+
+  .settings-checkbox-field {
+    @apply flex items-start gap-2 text-xs leading-5;
+
+    color: var(--foreground);
+  }
+
+  .settings-checkbox-field input {
+    @apply mt-1 size-3.5 shrink-0;
+
+    accent-color: var(--primary-solid);
+  }
+
+  .settings-checkbox-field small {
+    @apply mt-0.5 block leading-4;
+
+    color: var(--muted-foreground);
+  }
+
+  .settings-dropdown-trigger {
+    @apply flex w-full min-w-0 items-center justify-between gap-2 border px-3 py-1.5 text-left text-xs outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
+
+    background: var(--input);
+    border-color: var(--input-border);
+    border-radius: calc(var(--radius) * 0.5);
+    color: var(--foreground);
+  }
+
+  .settings-empty-card {
+    @apply border px-3 py-2 text-xs leading-5;
+
+    background: var(--surface-acrylic-strong);
+    border-color: var(--border-subtle);
+    border-radius: calc(var(--radius) * 0.5);
+    color: var(--muted-foreground);
+  }
+
+  .settings-model-copy {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+
+  .settings-model-copy strong {
+    @apply text-xs font-semibold;
+  }
+
+  .settings-model-copy span,
+  .settings-path-label,
+  .settings-provider-meta,
+  .settings-collapsible-trigger small {
+    @apply text-xs leading-4;
+
+    color: var(--muted-foreground);
+  }
+
+  .settings-model-copy code,
+  .settings-section-description code,
+  .settings-checkbox-field code {
+    @apply break-all text-xs;
+
+    color: var(--foreground);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  }
+
+  .settings-primary-button:focus-visible,
+  .settings-secondary-button:focus-visible,
+  .settings-danger-button:focus-visible,
+  .settings-icon-button:focus-visible,
+  .settings-danger-icon-button:focus-visible,
+  .settings-input:focus-visible,
+  .settings-dropdown-trigger:focus-visible {
+    box-shadow: var(--input-focus-shadow);
+  }
+}
+
+:where(.settings-dropdown-content) {
+  @apply z-50 flex max-h-[16rem] min-w-64 flex-col gap-1 overflow-y-auto border p-1 shadow-float;
+
+  width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 24rem));
+  background: var(--popover);
+  border-color: var(--border-subtle);
+  border-radius: calc(var(--radius) * 0.5);
+  color: var(--popover-foreground);
+}
+
+:where(.settings-dropdown-item) {
+  @apply flex cursor-pointer flex-col gap-0.5 px-2 py-1.5 text-xs outline-none;
+
+  border-radius: calc(var(--radius) * 0.4);
+}
+
+:where(.settings-dropdown-item[data-highlighted]) {
+  background: var(--surface-muted);
+}
+
+:where(.settings-dropdown-item code) {
+  @apply break-all text-[0.68rem];
+
+  color: var(--muted-foreground);
+}
+
+:where(.settings-dropdown-item-title) {
+  @apply flex items-center justify-between gap-2;
+}
+
+:where(.settings-dropdown-item-badge) {
+  @apply shrink-0 border px-1.5 py-0.5 text-[0.65rem] leading-none;
+
+  background: var(--secondary);
+  border-color: var(--border-subtle);
+  border-radius: calc(var(--radius) * 0.4);
+  color: var(--secondary-foreground);
+}
+
+:where(.settings-dropdown-item.is-added) {
+  @apply cursor-not-allowed opacity-65;
+}

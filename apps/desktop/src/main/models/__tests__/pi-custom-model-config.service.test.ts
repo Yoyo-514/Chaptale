@@ -86,10 +86,14 @@ describe('PiCustomModelConfigService', () => {
       baseUrl: ' https://new.example.com ',
       api: 'openai-responses',
       apiKey: ' ',
-      modelId: ' new-model ',
-      modelName: ' ',
-      input: ['image'],
-      contextWindow: 4096.8
+      models: [
+        {
+          modelId: ' new-model ',
+          modelName: ' ',
+          input: ['image'],
+          contextWindow: 4096.8
+        }
+      ]
     });
 
     expect(getConfig().providers.custom).toEqual({
@@ -113,16 +117,17 @@ describe('PiCustomModelConfigService', () => {
       providerName: 'Custom',
       baseUrl: 'https://api.example.com',
       api: 'openai-responses' as const,
-      modelId: 'model-a',
-      input: ['text' as const]
+      models: [{ modelId: 'model-a', input: ['text' as const] }]
     };
 
     await expect(service.addProvider({ ...basePayload, providerName: ' ' })).rejects.toThrow('供应商名称不能为空');
     await expect(service.addProvider({ ...basePayload, baseUrl: ' ' })).rejects.toThrow('Base URL 不能为空');
-    await expect(service.addProvider({ ...basePayload, modelId: ' ' })).rejects.toThrow('模型 ID 不能为空');
-    await expect(service.addProvider({ ...basePayload, contextWindow: 0 })).rejects.toThrow(
-      'Context Window 必须是大于 0 的数字'
+    await expect(service.addProvider({ ...basePayload, models: [{ modelId: ' ', input: ['text'] }] })).rejects.toThrow(
+      '模型 ID 不能为空'
     );
+    await expect(
+      service.addProvider({ ...basePayload, models: [{ modelId: 'model-a', input: ['text'], contextWindow: 0 }] })
+    ).rejects.toThrow('Context Window 必须是大于 0 的数字');
   });
 
   it('adds models, updates input capabilities, and manages provider api keys', async () => {

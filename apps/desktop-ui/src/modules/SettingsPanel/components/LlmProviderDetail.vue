@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import type { ChaptaleModelInfo, FetchedCustomProviderModel } from '@chaptale/ipc-contract';
+import type { ChaptaleModelInfo } from '@chaptale/ipc-contract';
 import { ScrollAreaRoot, ScrollAreaScrollbar, ScrollAreaThumb, ScrollAreaViewport } from 'reka-ui';
 
-import LlmAddCustomModelPanel from './LlmAddCustomModelPanel.vue';
 import LlmModelList from './LlmModelList.vue';
 import LlmProviderAuthPanel from './LlmProviderAuthPanel.vue';
-import type { CustomModelDraft } from '../utils/custom-model-draft';
 import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
 
 const props = defineProps<{
@@ -14,10 +12,6 @@ const props = defineProps<{
   apiKey?: string;
   isKeySaving: boolean;
   keyPlaceholder: string;
-  customModelDraft: CustomModelDraft;
-  addableFetchedModels: FetchedCustomProviderModel[];
-  pendingModelProvider: string;
-  isFetchingCustomModels: boolean;
   isModelsLoading: boolean;
   models: ChaptaleModelInfo[];
 }>();
@@ -26,8 +20,8 @@ const emit = defineEmits<{
   updateApiKey: [value: string];
   submitApiKey: [];
   removeProviderAuth: [];
-  fetchCustomModels: [provider: string];
-  submitCustomModel: [provider: string];
+  openCustomModelDialog: [];
+  editCustomModel: [model: ChaptaleModelInfo];
   setDefault: [provider: string, modelId: string];
   toggleImageInput: [model: ChaptaleModelInfo, checked: boolean];
   removeCustomModel: [provider: string, modelId: string];
@@ -59,20 +53,14 @@ const emit = defineEmits<{
           @remove="emit('removeProviderAuth')"
         />
 
-        <LlmAddCustomModelPanel
-          v-if="props.activeModelGroup === 'custom'"
-          :draft="props.customModelDraft"
-          :fetched-models="props.addableFetchedModels"
-          :is-fetching="props.pendingModelProvider === props.provider.provider"
-          :can-fetch="props.provider.authConfigured && !props.isFetchingCustomModels"
-          :can-submit="Boolean(props.customModelDraft.modelId)"
-          @fetch="emit('fetchCustomModels', props.provider.provider)"
-          @submit="emit('submitCustomModel', props.provider.provider)"
-        />
+        <div v-if="props.activeModelGroup === 'custom'" class="settings-actions compact">
+          <button class="settings-primary-button" type="button" @click="emit('openCustomModelDialog')">添加模型</button>
+        </div>
 
         <LlmModelList
           :models="props.models"
           :is-loading="props.isModelsLoading"
+          @edit-custom-model="emit('editCustomModel', $event)"
           @set-default="(provider, modelId) => emit('setDefault', provider, modelId)"
           @toggle-image-input="(model, checked) => emit('toggleImageInput', model, checked)"
           @remove-custom-model="(provider, modelId) => emit('removeCustomModel', provider, modelId)"

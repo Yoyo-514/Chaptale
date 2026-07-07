@@ -66,8 +66,10 @@ async function selectWorkspaceDir() {
 </template>
 
 <style scoped lang="scss">
+@use '../styles/controls';
+
 .settings-section {
-  @apply p-2;
+  @apply h-full min-h-0 overflow-y-auto p-2;
 
   background: var(--surface-acrylic-subtle);
 }
@@ -122,37 +124,5 @@ async function selectWorkspaceDir() {
 
 .settings-actions {
   @apply mt-3 flex flex-wrap justify-end gap-2;
-}
-
-.settings-primary-button,
-.settings-secondary-button {
-  @apply border px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
-
-  border-radius: calc(var(--radius) * 0.5);
-}
-
-.settings-primary-button {
-  background: var(--primary-solid);
-  border-color: var(--primary-solid);
-  color: var(--primary-solid-foreground);
-}
-
-.settings-primary-button:hover:not(:disabled) {
-  background: var(--primary-solid-hover);
-}
-
-.settings-secondary-button {
-  background: var(--surface-muted);
-  border-color: var(--border-subtle);
-  color: var(--foreground);
-}
-
-.settings-secondary-button:hover:not(:disabled) {
-  background: var(--secondary);
-}
-
-.settings-primary-button:focus-visible,
-.settings-secondary-button:focus-visible {
-  box-shadow: var(--input-focus-shadow);
 }
 </style>

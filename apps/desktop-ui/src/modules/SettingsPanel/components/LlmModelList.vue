@@ -7,6 +7,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  editCustomModel: [model: ChaptaleModelInfo];
   setDefault: [provider: string, modelId: string];
   toggleImageInput: [model: ChaptaleModelInfo, checked: boolean];
   removeCustomModel: [provider: string, modelId: string];
@@ -43,6 +44,16 @@ function emitToggleImageInput(model: ChaptaleModelInfo, event: Event) {
         </span>
       </div>
       <div class="settings-model-actions" @click.stop>
+        <button
+          v-if="model.isCustom"
+          class="settings-icon-button"
+          type="button"
+          :disabled="props.isLoading"
+          aria-label="编辑自定义模型"
+          @click="emit('editCustomModel', model)"
+        >
+          <span class="i-mingcute-edit-2-line size-4" aria-hidden="true" />
+        </button>
         <label v-if="model.isCustom" class="settings-inline-check">
           <input
             type="checkbox"
