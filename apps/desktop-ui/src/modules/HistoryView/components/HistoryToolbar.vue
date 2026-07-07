@@ -1,12 +1,6 @@
 <script setup lang="ts">
-import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuTrigger
-} from 'reka-ui';
-
+import AppDropdownMenu from '../../../components/AppDropdownMenu/AppDropdownMenu.vue';
+import AppDropdownMenuItem from '../../../components/AppDropdownMenu/AppDropdownMenuItem.vue';
 import type { HistoryScopeFilter, HistorySortMode } from '../composables/useHistorySessions';
 
 const props = defineProps<{
@@ -87,54 +81,48 @@ function getSortLabel(value: HistorySortMode) {
     </label>
 
     <div class="history-controls" aria-label="历史记录筛选与排序">
-      <DropdownMenuRoot>
-        <DropdownMenuTrigger class="history-control">
-          <span class="history-control-label">工作区</span>
-          <span class="history-control-value">{{ getScopeLabel(scopeFilter) }}</span>
-          <span class="i-mingcute-down-line history-control-icon" aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuContent class="history-dropdown-content" :side-offset="4" align="start">
-            <DropdownMenuItem
-              v-for="option in scopeOptions"
-              :key="option.value"
-              class="history-dropdown-item"
-              :data-active="option.value === scopeFilter"
-              @select="scopeFilter = option.value"
-            >
-              {{ option.label }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
-      </DropdownMenuRoot>
+      <AppDropdownMenu trigger-class="history-control" content-size="sm" :side-offset="4">
+        <template #trigger="{ triggerClass, disabled, dataDisabled }">
+          <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
+            <span class="history-control-label">工作区</span>
+            <span class="history-control-value">{{ getScopeLabel(scopeFilter) }}</span>
+            <span class="i-mingcute-down-line history-control-icon" aria-hidden="true" />
+          </button>
+        </template>
+        <AppDropdownMenuItem
+          v-for="option in scopeOptions"
+          :key="option.value"
+          density="sm"
+          :active="option.value === scopeFilter"
+          @select="scopeFilter = option.value"
+        >
+          {{ option.label }}
+        </AppDropdownMenuItem>
+      </AppDropdownMenu>
 
-      <DropdownMenuRoot>
-        <DropdownMenuTrigger class="history-control">
-          <span class="history-control-label">排序</span>
-          <span class="history-control-value">{{ getSortLabel(sortMode) }}</span>
-          <span class="i-mingcute-down-line history-control-icon" aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuContent class="history-dropdown-content" :side-offset="4" align="start">
-            <DropdownMenuItem
-              v-for="option in sortOptions"
-              :key="option.value"
-              class="history-dropdown-item"
-              :data-active="option.value === sortMode"
-              @select="sortMode = option.value"
-            >
-              {{ option.label }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
-      </DropdownMenuRoot>
+      <AppDropdownMenu trigger-class="history-control" content-size="sm" :side-offset="4">
+        <template #trigger="{ triggerClass, disabled, dataDisabled }">
+          <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
+            <span class="history-control-label">排序</span>
+            <span class="history-control-value">{{ getSortLabel(sortMode) }}</span>
+            <span class="i-mingcute-down-line history-control-icon" aria-hidden="true" />
+          </button>
+        </template>
+        <AppDropdownMenuItem
+          v-for="option in sortOptions"
+          :key="option.value"
+          density="sm"
+          :active="option.value === sortMode"
+          @select="sortMode = option.value"
+        >
+          {{ option.label }}
+        </AppDropdownMenuItem>
+      </AppDropdownMenu>
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-@use '../styles/dropdown';
-
 .history-toolbar {
   @apply mx-auto flex w-full max-w-4xl flex-col gap-3;
 }
@@ -226,11 +214,10 @@ function getSortLabel(value: HistorySortMode) {
 }
 
 .history-control {
-  @apply flex w-full min-w-0 cursor-pointer items-center justify-between gap-3 border px-3 py-2 text-left text-sm outline-none transition-colors duration-150;
+  @apply gap-3 px-3 py-2 text-sm;
 
   background: var(--surface-acrylic-subtle);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
   color: var(--foreground);
 }
 
@@ -240,7 +227,6 @@ function getSortLabel(value: HistorySortMode) {
 
 .history-control:focus-visible {
   border-color: var(--input-focus-border);
-  box-shadow: var(--input-focus-shadow);
 }
 
 .history-control-label {

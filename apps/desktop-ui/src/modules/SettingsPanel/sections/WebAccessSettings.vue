@@ -1,23 +1,14 @@
 <script setup lang="ts">
 import type { PiWebAccessProvider, PiWebAccessSettings, PiWebAccessWorkflow } from '@chaptale/ipc-contract';
 import { klona } from 'klona';
-import {
-  CheckboxIndicator,
-  CheckboxRoot,
-  CollapsibleContent,
-  CollapsibleRoot,
-  CollapsibleTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuTrigger
-} from 'reka-ui';
+import { CheckboxIndicator, CheckboxRoot, CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { computed, reactive, watch } from 'vue';
 
+import AppDropdownMenu from '../../../components/AppDropdownMenu/AppDropdownMenu.vue';
+import AppDropdownMenuItem from '../../../components/AppDropdownMenu/AppDropdownMenuItem.vue';
+import NumberInput from '../../../components/NumberInput/NumberInput.vue';
 import { useNotificationStore } from '../../../stores/notification';
 import { useSettingsStore } from '../../../stores/settings';
-import NumberInput from '../../../components/NumberInput/NumberInput.vue';
 import {
   createDefaultWebAccessSettings,
   normalizeWebAccessSettings,
@@ -114,48 +105,42 @@ function resetToSafeDefaults() {
 
       <div class="settings-web-field">
         <span>默认搜索 Provider</span>
-        <DropdownMenuRoot>
-          <DropdownMenuTrigger class="settings-select-trigger plain-trigger">
-            <span>{{ activeProvider?.label }}</span>
-            <small>{{ activeProvider?.note }}</small>
-          </DropdownMenuTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuContent class="settings-dropdown-content" :side-offset="6" align="start">
-              <DropdownMenuItem
-                v-for="provider in providers"
-                :key="provider.value"
-                class="settings-dropdown-item"
-                @select="selectProvider(provider.value)"
-              >
-                <span>{{ provider.label }}</span>
-                <code>{{ provider.note }}</code>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenuPortal>
-        </DropdownMenuRoot>
+        <AppDropdownMenu trigger-class="settings-select-trigger plain-trigger">
+          <template #trigger="{ triggerClass, disabled, dataDisabled }">
+            <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
+              <span>{{ activeProvider?.label }}</span>
+              <span class="settings-select-note">{{ activeProvider?.note }}</span>
+            </button>
+          </template>
+          <AppDropdownMenuItem
+            v-for="provider in providers"
+            :key="provider.value"
+            @select="selectProvider(provider.value)"
+          >
+            <span>{{ provider.label }}</span>
+            <span class="settings-dropdown-item-note">{{ provider.note }}</span>
+          </AppDropdownMenuItem>
+        </AppDropdownMenu>
       </div>
 
       <div class="settings-web-field">
         <span>搜索工作流</span>
-        <DropdownMenuRoot>
-          <DropdownMenuTrigger class="settings-select-trigger plain-trigger">
-            <span>{{ activeWorkflow?.label }}</span>
-            <small>{{ activeWorkflow?.note }}</small>
-          </DropdownMenuTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuContent class="settings-dropdown-content" :side-offset="6" align="start">
-              <DropdownMenuItem
-                v-for="workflow in workflows"
-                :key="workflow.value"
-                class="settings-dropdown-item"
-                @select="selectWorkflow(workflow.value)"
-              >
-                <span>{{ workflow.label }}</span>
-                <code>{{ workflow.note }}</code>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenuPortal>
-        </DropdownMenuRoot>
+        <AppDropdownMenu trigger-class="settings-select-trigger plain-trigger">
+          <template #trigger="{ triggerClass, disabled, dataDisabled }">
+            <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
+              <span>{{ activeWorkflow?.label }}</span>
+              <span class="settings-select-note">{{ activeWorkflow?.note }}</span>
+            </button>
+          </template>
+          <AppDropdownMenuItem
+            v-for="workflow in workflows"
+            :key="workflow.value"
+            @select="selectWorkflow(workflow.value)"
+          >
+            <span>{{ workflow.label }}</span>
+            <span class="settings-dropdown-item-note">{{ workflow.note }}</span>
+          </AppDropdownMenuItem>
+        </AppDropdownMenu>
       </div>
 
       <label v-if="showCuratorOptions" class="settings-web-field">
@@ -553,7 +538,7 @@ function resetToSafeDefaults() {
 }
 
 .settings-select-trigger {
-  @apply flex min-w-0 flex-col gap-0.5 border px-2 py-1.5 text-left text-xs outline-none transition-colors duration-150;
+  @apply flex min-w-0 flex-col items-start gap-0.5 border px-2 py-1.5 text-left text-xs outline-none transition-colors duration-150;
 
   background: var(--surface-muted);
   border-color: var(--border-subtle);
@@ -569,8 +554,8 @@ function resetToSafeDefaults() {
   box-shadow: var(--input-focus-shadow);
 }
 
-.settings-select-trigger small {
-  @apply truncate text-[0.68rem];
+.settings-select-note {
+  @apply max-w-full truncate text-[0.68rem] leading-4;
 
   color: var(--muted-foreground);
 }

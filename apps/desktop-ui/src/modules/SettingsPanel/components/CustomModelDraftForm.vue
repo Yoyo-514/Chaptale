@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import type { FetchedCustomProviderModel } from '@chaptale/ipc-contract';
-import {
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuRoot,
-  DropdownMenuTrigger
-} from 'reka-ui';
 
+import AppDropdownMenu from '../../../components/AppDropdownMenu/AppDropdownMenu.vue';
+import AppDropdownMenuItem from '../../../components/AppDropdownMenu/AppDropdownMenuItem.vue';
 import type { CustomModelDraft } from '../utils/custom-model-draft';
 
 /**
@@ -54,29 +49,25 @@ function selectModel(model: FetchedModelOption) {
       >
         {{ isFetching ? '拉取中...' : '拉取模型' }}
       </button>
-      <DropdownMenuRoot>
-        <DropdownMenuTrigger class="settings-dropdown-trigger" :disabled="fetchedModels.length === 0">
-          {{ fetchedModels.length ? '选择拉取到的模型' : '未拉取到模型，可手动输入' }}
-        </DropdownMenuTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuContent class="settings-dropdown-content" :side-offset="6" align="start">
-            <DropdownMenuItem
-              v-for="model in fetchedModels"
-              :key="model.id"
-              class="settings-dropdown-item"
-              :class="{ 'is-added': model.isAdded }"
-              :disabled="model.isAdded"
-              @select="selectModel(model)"
-            >
-              <span class="settings-dropdown-item-title">
-                <span>{{ model.name || model.id }}</span>
-                <small v-if="model.isAdded" class="settings-dropdown-item-badge">已添加</small>
-              </span>
-              <code>{{ model.id }}</code>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
-      </DropdownMenuRoot>
+      <AppDropdownMenu trigger-class="settings-dropdown-trigger" :disabled="fetchedModels.length === 0">
+        <template #trigger="{ triggerClass, disabled, dataDisabled }">
+          <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
+            {{ fetchedModels.length ? '选择拉取到的模型' : '未拉取到模型，可手动输入' }}
+          </button>
+        </template>
+        <AppDropdownMenuItem
+          v-for="model in fetchedModels"
+          :key="model.id"
+          :disabled="model.isAdded"
+          @select="selectModel(model)"
+        >
+          <span class="settings-dropdown-item-title">
+            <span>{{ model.name || model.id }}</span>
+            <small v-if="model.isAdded" class="settings-dropdown-item-badge">已添加</small>
+          </span>
+          <code class="settings-dropdown-item-code">{{ model.id }}</code>
+        </AppDropdownMenuItem>
+      </AppDropdownMenu>
     </div>
 
     <div class="model-draft-grid">

@@ -163,34 +163,16 @@
   }
 }
 
-:where(.settings-dropdown-content) {
-  @apply z-50 flex max-h-[16rem] min-w-64 flex-col gap-1 overflow-y-auto border p-1 shadow-float;
-
-  width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 24rem));
-  background: var(--popover);
-  border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
-  color: var(--popover-foreground);
-}
-
-:where(.settings-dropdown-item) {
-  @apply flex cursor-pointer flex-col gap-0.5 px-2 py-1.5 text-xs outline-none;
-
-  border-radius: calc(var(--radius) * 0.4);
-}
-
-:where(.settings-dropdown-item[data-highlighted]) {
-  background: var(--surface-muted);
-}
-
-:where(.settings-dropdown-item code) {
-  @apply break-all text-[0.68rem];
-
-  color: var(--muted-foreground);
-}
-
 :where(.settings-dropdown-item-title) {
   @apply flex items-center justify-between gap-2;
+}
+
+:where(.settings-dropdown-item-note),
+:where(.settings-dropdown-item-code) {
+  @apply break-all text-[0.68rem] leading-4;
+
+  color: var(--muted-foreground);
+  font-family: inherit;
 }
 
 :where(.settings-dropdown-item-badge) {
@@ -202,6 +184,9 @@
   color: var(--secondary-foreground);
 }
 
-:where(.settings-dropdown-item.is-added) {
-  @apply cursor-not-allowed opacity-65;
+:where(.app-dropdown-item[data-active='true'] .settings-dropdown-item-note),
+:where(.app-dropdown-item[data-active='true'] .settings-dropdown-item-code) {
+  color: var(--secondary-foreground);
+  opacity: 0.78;
 }
+
