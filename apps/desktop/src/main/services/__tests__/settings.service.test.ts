@@ -24,8 +24,7 @@ describe('SettingsService', () => {
       JSON.stringify(
         {
           version: 1,
-          storage: { mode: 'global' },
-          llm: {}
+          storage: { mode: 'global' }
         },
         null,
         2
@@ -67,14 +66,14 @@ describe('SettingsService', () => {
 
     const state = await service.getState();
 
-    expect(state.settings.webAccess.webSearchEnabled).toBe(false);
-    expect(state.settings.webAccess.provider).toBe('tavily');
-    expect(state.settings.webAccess.tavilyApiKey).toBe('tvly-test');
-    expect(state.settings.webAccess.githubClone.enabled).toBe(false);
-    expect(state.settings.webAccess.githubClone.maxRepoSizeMB).toBe(20);
-    expect(state.settings.webAccess.youtube.enabled).toBe(false);
-    expect(state.settings.webAccess.video.maxSizeMB).toBe(12);
-    expect(state.settings.webAccess.ssrf?.allowRanges).toEqual(['127.0.0.1/32']);
+    expect(state.webAccess.webSearchEnabled).toBe(false);
+    expect(state.webAccess.provider).toBe('tavily');
+    expect(state.webAccess.tavilyApiKey).toBe('tvly-test');
+    expect(state.webAccess.githubClone.enabled).toBe(false);
+    expect(state.webAccess.githubClone.maxRepoSizeMB).toBe(20);
+    expect(state.webAccess.youtube.enabled).toBe(false);
+    expect(state.webAccess.video.maxSizeMB).toBe(12);
+    expect(state.webAccess.ssrf?.allowRanges).toEqual(['127.0.0.1/32']);
   });
 
   it('falls back to global storage when workspace mode has no workspace path', async () => {
@@ -102,14 +101,12 @@ describe('SettingsService', () => {
     const service = new SettingsService({ rootDir });
 
     await service.getState();
-    await service.update({
-      webAccess: {
-        webSearchEnabled: false,
-        provider: 'brave',
-        braveApiKey: 'BSA_test',
-        workflow: 'auto-summary',
-        youtube: { enabled: false }
-      }
+    await service.updateWebAccess({
+      webSearchEnabled: false,
+      provider: 'brave',
+      braveApiKey: 'BSA_test',
+      workflow: 'auto-summary',
+      youtube: { enabled: false }
     });
 
     const config = JSON.parse(await readFile(service.piWebAccessConfigPath, 'utf8')) as {
@@ -125,5 +122,8 @@ describe('SettingsService', () => {
     expect(config.braveApiKey).toBe('BSA_test');
     expect(config.workflow).toBe('auto-summary');
     expect(config.youtube?.enabled).toBe(false);
+
+    const settings = JSON.parse(await readFile(service.settingsPath, 'utf8')) as Record<string, unknown>;
+    expect(settings).toEqual({ version: 1, storage: { mode: 'global' } });
   });
 });

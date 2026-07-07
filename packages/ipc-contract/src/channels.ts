@@ -23,6 +23,7 @@ export const IPC_CHANNELS = {
   settings: {
     getState: 'settings:get-state',
     update: 'settings:update',
+    updateWebAccess: 'settings:update-web-access',
     selectWorkspaceDir: 'settings:select-workspace-dir',
     openConfigDir: 'settings:open-config-dir'
   },
@@ -40,7 +41,8 @@ export const IPC_CHANNELS = {
     removeProviderAuth: 'models:remove-provider-auth'
   },
   agent: {
-    getHistory: 'agent:get-history',
+    selectContextFiles: 'agent:select-context-files',
+    inspectContextFiles: 'agent:inspect-context-files',
     start: 'agent:start',
     cancel: 'agent:cancel',
     message: 'agent:message',

@@ -11,6 +11,7 @@ import type {
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { unique } from 'radash';
 
 import { toSessionListItem, toSessionTreeEntry } from '../sessions/pi-session-entry.mapper';
 import { flushSessionFile } from '../sessions/pi-session-file';
@@ -68,7 +69,7 @@ export class PiSessionRepository {
 
   async ensureDefaultSession(): Promise<ChaptaleSessionMetadata> {
     const sessions = await this.list();
-    return sessions[0] ?? this.create({ name: '默认会话' });
+    return sessions[0] ?? this.create({ name: '新会话' });
   }
 
   async list(): Promise<ChaptaleSessionListItem[]> {
@@ -167,7 +168,7 @@ export class PiSessionRepository {
   }
 
   async deleteMany(sessionIds: string[]): Promise<void> {
-    const uniqueSessionIds = [...new Set(sessionIds)];
+    const uniqueSessionIds = unique(sessionIds);
 
     if (uniqueSessionIds.length === 0) {
       return;
@@ -254,7 +255,7 @@ export class PiSessionRepository {
     const entries = await fs.readdir(sessionsRootDir, { withFileTypes: true });
     const dirs = entries.filter(entry => entry.isDirectory()).map(entry => path.join(sessionsRootDir, entry.name));
 
-    return [...new Set([currentSessionDir, ...dirs])];
+    return unique([currentSessionDir, ...dirs]);
   }
 
   private async resolveSessionsRootDir() {

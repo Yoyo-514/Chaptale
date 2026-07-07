@@ -1,31 +1,41 @@
 import { describe, expect, it } from 'vitest';
 
-import { cloneDefaultSettings, DEFAULT_SETTINGS, mergeSettings, mergeWebAccessSettings } from '../settings-defaults';
+import {
+  cloneDefaultSettings,
+  DEFAULT_WEB_ACCESS_SETTINGS,
+  mergeSettings,
+  mergeWebAccessSettings
+} from '../settings-defaults';
 
 describe('settings defaults', () => {
   it('returns isolated default settings clones for mutation-safe callers', () => {
     const first = cloneDefaultSettings();
     const second = cloneDefaultSettings();
 
-    first.webAccess.githubClone.enabled = false;
-    first.webAccess.ssrf?.allowRanges.push('127.0.0.1/32');
+    first.storage.mode = 'workspace';
+    first.storage.workspacePath = 'E:/Stories';
 
-    expect(second.webAccess.githubClone.enabled).toBe(DEFAULT_SETTINGS.webAccess.githubClone.enabled);
-    expect(second.webAccess.ssrf?.allowRanges).toEqual([]);
+    expect(second.storage).toEqual({ mode: 'global' });
   });
 
-  it('merges top-level settings while preserving nested defaults', () => {
+  it('merges app settings without carrying web access fields', () => {
     const settings = mergeSettings({
-      storage: { mode: 'workspace', workspacePath: 'E:/Stories' },
-      webAccess: mergeWebAccessSettings({ provider: 'brave', githubClone: { enabled: false } })
+      storage: { mode: 'workspace', workspacePath: 'E:/Stories' }
     });
 
-    expect(settings.version).toBe(1);
-    expect(settings.storage).toEqual({ mode: 'workspace', workspacePath: 'E:/Stories' });
-    expect(settings.webAccess.provider).toBe('brave');
-    expect(settings.webAccess.githubClone.enabled).toBe(false);
-    expect(settings.webAccess.githubClone.maxRepoSizeMB).toBe(DEFAULT_SETTINGS.webAccess.githubClone.maxRepoSizeMB);
-    expect(settings.webAccess.youtube.enabled).toBe(true);
+    expect(settings).toEqual({
+      version: 1,
+      storage: { mode: 'workspace', workspacePath: 'E:/Stories' }
+    });
+  });
+
+  it('merges web access settings while preserving nested defaults', () => {
+    const settings = mergeWebAccessSettings({ provider: 'brave', githubClone: { enabled: false } });
+
+    expect(settings.provider).toBe('brave');
+    expect(settings.githubClone.enabled).toBe(false);
+    expect(settings.githubClone.maxRepoSizeMB).toBe(DEFAULT_WEB_ACCESS_SETTINGS.githubClone.maxRepoSizeMB);
+    expect(settings.youtube.enabled).toBe(true);
   });
 
   it('keeps explicit falsey web access values instead of replacing them with defaults', () => {

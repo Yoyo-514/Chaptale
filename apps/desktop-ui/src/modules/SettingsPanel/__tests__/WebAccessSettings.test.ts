@@ -11,20 +11,19 @@ function createSettingsState(overrides: Record<string, unknown> = {}) {
   return {
     settings: {
       version: 1,
-      storage: { mode: 'global' },
-      llm: {},
-      webAccess: {
-        webSearchEnabled: true,
-        provider: 'auto',
-        workflow: 'none',
-        allowBrowserCookies: false,
-        curatorTimeoutSeconds: 20,
-        githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
-        youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
-        video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
-        ssrf: { allowRanges: 'invalid' as unknown as string[] },
-        ...overrides
-      }
+      storage: { mode: 'global' }
+    },
+    webAccess: {
+      webSearchEnabled: true,
+      provider: 'auto',
+      workflow: 'none',
+      allowBrowserCookies: false,
+      curatorTimeoutSeconds: 20,
+      githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
+      youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
+      video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
+      ssrf: { allowRanges: 'invalid' as unknown as string[] },
+      ...overrides
     },
     paths: {
       rootDir: 'root',
@@ -130,7 +129,7 @@ describe('WebAccessSettings', () => {
   it('updates draft values through controls and saves a cloned web access payload', async () => {
     const settingsStore = useSettingsStore();
     settingsStore.state = createSettingsState() as any;
-    const update = vi.spyOn(settingsStore, 'update').mockResolvedValue(undefined as never);
+    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(undefined as never);
     const notificationStore = useNotificationStore();
 
     const wrapper = mountSection();
@@ -147,14 +146,14 @@ describe('WebAccessSettings', () => {
     await braveInput?.setValue('BSA_test');
     await wrapper.find('button.settings-primary-button').trigger('click');
 
-    expect(update).toHaveBeenCalledWith({
-      webAccess: expect.objectContaining({
+    expect(updateWebAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
         webSearchEnabled: false,
         provider: 'brave',
         workflow: 'auto-summary',
         braveApiKey: 'BSA_test'
       })
-    });
+    );
     expect(notificationStore.items.at(-1)).toMatchObject({ kind: 'success', title: '联网能力设置已保存' });
   });
 
@@ -165,15 +164,15 @@ describe('WebAccessSettings', () => {
       workflow: 'summary-review',
       webSearchEnabled: false
     }) as any;
-    const update = vi.spyOn(settingsStore, 'update').mockResolvedValue(undefined as never);
+    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(undefined as never);
 
     const wrapper = mountSection();
     await wrapper.find('button.settings-secondary-button').trigger('click');
     await wrapper.find('button.settings-primary-button').trigger('click');
 
-    expect(settingsStore.state?.settings.webAccess.provider).toBe('tavily');
-    expect(update).toHaveBeenCalledWith({
-      webAccess: expect.objectContaining({ provider: 'auto', workflow: 'none', webSearchEnabled: true })
-    });
+    expect(settingsStore.state?.webAccess.provider).toBe('tavily');
+    expect(updateWebAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'auto', workflow: 'none', webSearchEnabled: true })
+    );
   });
 });

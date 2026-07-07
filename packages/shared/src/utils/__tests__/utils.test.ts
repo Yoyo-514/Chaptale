@@ -6,8 +6,10 @@ import {
   collapseWhitespace,
   getHostname,
   isRecord,
+  readBoolean,
   readFiniteNumber,
   readString,
+  readStringArray,
   stripTrailingSlashes,
   stripUndefined
 } from '..';
@@ -22,6 +24,10 @@ describe('shared utils', () => {
   it('reads primitive values only when their type is valid', () => {
     expect(readString('value')).toBe('value');
     expect(readString(1)).toBeUndefined();
+    expect(readBoolean(false)).toBe(false);
+    expect(readBoolean('false')).toBeUndefined();
+    expect(readStringArray(['a', 1, 'b'])).toEqual(['a', 'b']);
+    expect(readStringArray('a')).toBeUndefined();
     expect(readFiniteNumber(42)).toBe(42);
     expect(readFiniteNumber(Number.POSITIVE_INFINITY)).toBeUndefined();
     expect(readFiniteNumber('42')).toBeUndefined();

@@ -1,5 +1,5 @@
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import type {
   AddCustomModelPayload,
@@ -23,6 +23,7 @@ import type {
   SetProviderApiKeyPayload,
   UpdateChaptaleSettingsPayload,
   UpdateCustomModelInputPayload,
+  UpdatePiWebAccessSettingsPayload,
   WindowStateResult
 } from '@chaptale/ipc-contract';
 import type { IpcRendererEvent } from 'electron';
@@ -52,6 +53,8 @@ const desktopApi: ChaptaleDesktopApi = {
   settings: {
     getState: () => ipcRenderer.invoke(IPC_CHANNELS.settings.getState),
     update: (payload: UpdateChaptaleSettingsPayload) => ipcRenderer.invoke(IPC_CHANNELS.settings.update, payload),
+    updateWebAccess: (payload: UpdatePiWebAccessSettingsPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.settings.updateWebAccess, payload),
     selectWorkspaceDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.selectWorkspaceDir),
     openConfigDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.openConfigDir) as Promise<void>
   },
@@ -82,7 +85,10 @@ const desktopApi: ChaptaleDesktopApi = {
       ipcRenderer.invoke(IPC_CHANNELS.models.removeProviderAuth, payload) as Promise<ListModelsResult>
   },
   agent: {
-    getHistory: (sessionId?: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.getHistory, { sessionId }),
+    selectContextFiles: () => ipcRenderer.invoke(IPC_CHANNELS.agent.selectContextFiles),
+    inspectContextFiles: (paths: string[]) => ipcRenderer.invoke(IPC_CHANNELS.agent.inspectContextFiles, paths),
+    // 拖拽场景：沙盒 renderer 拿不到 File.path，必须由 preload 的 webUtils 转换。
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
     stream: async (query, handlers, sessionId, options) => {
       const runId = crypto.randomUUID();
 
@@ -124,7 +130,8 @@ const desktopApi: ChaptaleDesktopApi = {
         runId,
         query,
         sessionId,
-        branchFromEntryId: options?.branchFromEntryId
+        branchFromEntryId: options?.branchFromEntryId,
+        contextFilePaths: options?.contextFilePaths
       } satisfies AgentStartPayload);
       return { runId };
     },

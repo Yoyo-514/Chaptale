@@ -1,4 +1,4 @@
-import type { UpdateChaptaleSettingsPayload } from '@chaptale/ipc-contract';
+import type { UpdateChaptaleSettingsPayload, UpdatePiWebAccessSettingsPayload } from '@chaptale/ipc-contract';
 
 import { getDesktopApi } from '../utils/desktop-api';
 import type { SettingsStoreContext } from './types';
@@ -22,6 +22,19 @@ export const workspaceSettingsActions = {
 
     try {
       const state = await this.runAction('更新设置失败', () => getDesktopApi().settings.update(payload));
+      if (state) {
+        this.state = state;
+      }
+    } finally {
+      this.isLoading = false;
+    }
+  },
+
+  async updateWebAccess(this: SettingsStoreContext, payload: UpdatePiWebAccessSettingsPayload) {
+    this.isLoading = true;
+
+    try {
+      const state = await this.runAction('更新联网设置失败', () => getDesktopApi().settings.updateWebAccess(payload));
       if (state) {
         this.state = state;
       }

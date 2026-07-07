@@ -5,11 +5,6 @@ export type ChaptaleStorageSettings = {
   workspacePath?: string;
 };
 
-export type ChaptaleLlmSettings = {
-  providerId?: string;
-  modelId?: string;
-};
-
 export type PiWebAccessProvider = 'auto' | 'openai' | 'brave' | 'parallel' | 'tavily' | 'exa' | 'perplexity' | 'gemini';
 
 export type PiWebAccessWorkflow = 'none' | 'auto-summary' | 'summary-review';
@@ -55,8 +50,6 @@ export type PiWebAccessSettings = {
 export type ChaptaleSettings = {
   version: 1;
   storage: ChaptaleStorageSettings;
-  llm: ChaptaleLlmSettings;
-  webAccess: PiWebAccessSettings;
 };
 
 export type ChaptaleSettingsPaths = {
@@ -72,7 +65,10 @@ export type ChaptaleSettingsPaths = {
 };
 
 export type ChaptaleSettingsState = {
+  /** Chaptale 应用自身设置，持久化到 settings.json。 */
   settings: ChaptaleSettings;
+  /** pi-web-access 设置，持久化到 web-search.json。 */
+  webAccess: PiWebAccessSettings;
   paths: ChaptaleSettingsPaths;
 };
 
@@ -87,8 +83,6 @@ export type UpdatePiWebAccessSettingsPayload = Partial<
 
 export type UpdateChaptaleSettingsPayload = {
   storage?: Partial<ChaptaleStorageSettings>;
-  llm?: Partial<ChaptaleLlmSettings>;
-  webAccess?: UpdatePiWebAccessSettingsPayload;
 };
 
 export type SelectWorkspaceDirResult = {

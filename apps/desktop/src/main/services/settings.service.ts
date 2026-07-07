@@ -6,13 +6,17 @@ import type {
   UpdateChaptaleSettingsPayload,
   UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
-import { blankToUndefined, isRecord, readFiniteNumber, readString, stripUndefined } from '@chaptale/shared';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 import { readJsonFile, writeJsonFile } from '../settings/json-file';
-import { cloneDefaultSettings, mergeSettings, mergeWebAccessSettings } from '../settings/settings-defaults';
+import {
+  fromPiWebAccessConfig,
+  mergeWebAccessUpdate,
+  toPiWebAccessConfig
+} from '../settings/pi-web-access-config.mapper';
+import { DEFAULT_WEB_ACCESS_SETTINGS, mergeSettings, mergeWebAccessSettings } from '../settings/settings-defaults';
 import { toWorkspaceSessionDirName } from '../settings/workspace-session-dir';
 
 export type SettingsServiceOptions = {
@@ -47,39 +51,18 @@ export class SettingsService {
     const settings = await this.readSettings();
     await this.ensureBaseDirs(settings);
 
-    return {
-      settings,
-      paths: {
-        rootDir: this.rootDir,
-        agentDir: this.agentDir,
-        settingsPath: this.settingsPath,
-        piSettingsPath: this.piSettingsPath,
-        piModelsPath: this.piModelsPath,
-        piAuthPath: this.piAuthPath,
-        piWebAccessConfigPath: this.piWebAccessConfigPath,
-        sessionsRootDir: this.sessionsRootDir,
-        effectiveSessionDir: this.getSessionDir(settings.storage)
-      }
-    };
+    return this.createState(settings, await this.readWebAccessSettings());
   }
 
   async update(payload: UpdateChaptaleSettingsPayload): Promise<ChaptaleSettingsState> {
     await this.enqueue(async () => {
       const current = await this.readSettingsUnsafe();
       const next: ChaptaleSettings = {
-        ...current,
+        version: current.version,
         storage: {
           ...current.storage,
           ...payload.storage
-        },
-        llm: {
-          ...current.llm,
-          ...payload.llm
-        },
-        webAccess: mergeWebAccessSettings({
-          ...current.webAccess,
-          ...payload.webAccess
-        })
+        }
       };
 
       if (next.storage.mode === 'workspace' && !next.storage.workspacePath) {
@@ -87,7 +70,15 @@ export class SettingsService {
       }
 
       await writeJsonFile(this.settingsPath, next);
-      await this.writeWebAccessConfig(next.webAccess);
+    });
+
+    return this.getState();
+  }
+
+  async updateWebAccess(payload: UpdatePiWebAccessSettingsPayload): Promise<ChaptaleSettingsState> {
+    await this.enqueue(async () => {
+      const current = await this.readWebAccessSettingsUnsafe();
+      await this.writeWebAccessConfig(mergeWebAccessUpdate(current, payload));
     });
 
     return this.getState();
@@ -111,19 +102,13 @@ export class SettingsService {
   }
 
   async ensureSettingsFile(settings?: ChaptaleSettings) {
-    // 只在文件缺失时创建默认设置；读路径绝不重写文件，
-    // 避免启动时多个 IPC handler 并发触发 “读到半截断文件” 的竞态。
-    let webAccessSettings = settings?.webAccess;
+    const rawSettings = await this.readRawSettingsFile();
 
-    try {
-      await fs.access(this.settingsPath);
-    } catch {
-      const defaults = cloneDefaultSettings();
-      await writeJsonFile(this.settingsPath, defaults);
-      webAccessSettings = defaults.webAccess;
+    if (!rawSettings) {
+      await writeJsonFile(this.settingsPath, settings ?? mergeSettings(undefined));
     }
 
-    await this.ensureWebAccessConfigFile(webAccessSettings ?? cloneDefaultSettings().webAccess);
+    await this.ensureWebAccessConfigFile(DEFAULT_WEB_ACCESS_SETTINGS);
   }
 
   async getCurrentSessionDir() {
@@ -159,13 +144,36 @@ export class SettingsService {
   }
 
   private async readSettingsUnsafe(): Promise<ChaptaleSettings> {
-    const settings = mergeSettings(await readJsonFile<Partial<ChaptaleSettings>>(this.settingsPath));
+    return mergeSettings(await this.readRawSettingsFile());
+  }
+
+  private async readRawSettingsFile(): Promise<Partial<ChaptaleSettings> | undefined> {
+    return readJsonFile<Partial<ChaptaleSettings>>(this.settingsPath);
+  }
+
+  private async readWebAccessSettings(): Promise<PiWebAccessSettings> {
+    return this.enqueue(() => this.readWebAccessSettingsUnsafe());
+  }
+
+  private async readWebAccessSettingsUnsafe(): Promise<PiWebAccessSettings> {
+    return mergeWebAccessSettings(await this.readWebAccessConfig());
+  }
+
+  private createState(settings: ChaptaleSettings, webAccess: PiWebAccessSettings): ChaptaleSettingsState {
     return {
-      ...settings,
-      webAccess: mergeWebAccessSettings({
-        ...settings.webAccess,
-        ...(await this.readWebAccessConfig())
-      })
+      settings,
+      webAccess,
+      paths: {
+        rootDir: this.rootDir,
+        agentDir: this.agentDir,
+        settingsPath: this.settingsPath,
+        piSettingsPath: this.piSettingsPath,
+        piModelsPath: this.piModelsPath,
+        piAuthPath: this.piAuthPath,
+        piWebAccessConfigPath: this.piWebAccessConfigPath,
+        sessionsRootDir: this.sessionsRootDir,
+        effectiveSessionDir: this.getSessionDir(settings.storage)
+      }
     };
   }
 
@@ -204,98 +212,6 @@ export class SettingsService {
     this.settingsQueue = run.catch(() => undefined);
     return run;
   }
-}
-
-function fromPiWebAccessConfig(config: Record<string, unknown>): UpdatePiWebAccessSettingsPayload {
-  const webSearch = isRecord(config.webSearch) ? config.webSearch : {};
-  const githubClone = isRecord(config.githubClone) ? config.githubClone : {};
-  const youtube = isRecord(config.youtube) ? config.youtube : {};
-  const video = isRecord(config.video) ? config.video : {};
-  const ssrf = isRecord(config.ssrf) ? config.ssrf : {};
-
-  return {
-    webSearchEnabled: typeof webSearch.enabled === 'boolean' ? webSearch.enabled : undefined,
-    provider: readString(config.provider) as PiWebAccessSettings['provider'] | undefined,
-    workflow: readString(config.workflow) as PiWebAccessSettings['workflow'] | undefined,
-    openaiApiKey: readString(config.openaiApiKey),
-    braveApiKey: readString(config.braveApiKey),
-    exaApiKey: readString(config.exaApiKey),
-    parallelApiKey: readString(config.parallelApiKey),
-    tavilyApiKey: readString(config.tavilyApiKey),
-    perplexityApiKey: readString(config.perplexityApiKey),
-    geminiApiKey: readString(config.geminiApiKey),
-    geminiBaseUrl: readString(config.geminiBaseUrl),
-    cloudflareApiKey: readString(config.cloudflareApiKey),
-    allowBrowserCookies: typeof config.allowBrowserCookies === 'boolean' ? config.allowBrowserCookies : undefined,
-    chromeProfile: readString(config.chromeProfile),
-    searchModel: readString(config.searchModel),
-    summaryModel: readString(config.summaryModel),
-    curatorTimeoutSeconds: readFiniteNumber(config.curatorTimeoutSeconds),
-    githubClone: {
-      enabled: typeof githubClone.enabled === 'boolean' ? githubClone.enabled : undefined,
-      maxRepoSizeMB: readFiniteNumber(githubClone.maxRepoSizeMB),
-      cloneTimeoutSeconds: readFiniteNumber(githubClone.cloneTimeoutSeconds),
-      clonePath: readString(githubClone.clonePath)
-    },
-    youtube: {
-      enabled: typeof youtube.enabled === 'boolean' ? youtube.enabled : undefined,
-      preferredModel: readString(youtube.preferredModel)
-    },
-    video: {
-      enabled: typeof video.enabled === 'boolean' ? video.enabled : undefined,
-      preferredModel: readString(video.preferredModel),
-      maxSizeMB: readFiniteNumber(video.maxSizeMB)
-    },
-    ssrf: {
-      allowRanges: Array.isArray(ssrf.allowRanges)
-        ? ssrf.allowRanges.filter((item): item is string => typeof item === 'string')
-        : undefined
-    }
-  };
-}
-
-function toPiWebAccessConfig(settings: PiWebAccessSettings): Record<string, unknown> {
-  return stripUndefined({
-    openaiApiKey: blankToUndefined(settings.openaiApiKey),
-    braveApiKey: blankToUndefined(settings.braveApiKey),
-    exaApiKey: blankToUndefined(settings.exaApiKey),
-    parallelApiKey: blankToUndefined(settings.parallelApiKey),
-    tavilyApiKey: blankToUndefined(settings.tavilyApiKey),
-    perplexityApiKey: blankToUndefined(settings.perplexityApiKey),
-    geminiApiKey: blankToUndefined(settings.geminiApiKey),
-    geminiBaseUrl: blankToUndefined(settings.geminiBaseUrl),
-    cloudflareApiKey: blankToUndefined(settings.cloudflareApiKey),
-    provider: settings.provider,
-    webSearch: {
-      enabled: settings.webSearchEnabled
-    },
-    chromeProfile: blankToUndefined(settings.chromeProfile),
-    allowBrowserCookies: settings.allowBrowserCookies,
-    searchModel: blankToUndefined(settings.searchModel),
-    summaryModel: blankToUndefined(settings.summaryModel),
-    workflow: settings.workflow,
-    curatorTimeoutSeconds: settings.curatorTimeoutSeconds,
-    githubClone: {
-      enabled: settings.githubClone.enabled,
-      maxRepoSizeMB: settings.githubClone.maxRepoSizeMB,
-      cloneTimeoutSeconds: settings.githubClone.cloneTimeoutSeconds,
-      clonePath: blankToUndefined(settings.githubClone.clonePath)
-    },
-    youtube: {
-      enabled: settings.youtube.enabled,
-      preferredModel: blankToUndefined(settings.youtube.preferredModel)
-    },
-    video: {
-      enabled: settings.video.enabled,
-      preferredModel: blankToUndefined(settings.video.preferredModel),
-      maxSizeMB: settings.video.maxSizeMB
-    },
-    ssrf: settings.ssrf
-      ? {
-          allowRanges: settings.ssrf.allowRanges
-        }
-      : undefined
-  });
 }
 
 function isMissingFileError(error: unknown) {

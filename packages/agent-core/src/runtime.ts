@@ -6,6 +6,8 @@ export type AgentRunOptions = {
   signal: AbortSignal;
   /** 从指定 pi session entry 开始新分支；下一条用户消息会成为该 entry 的子节点。 */
   branchFromEntryId?: string | null;
+  /** 本轮随用户消息附加的本地上下文文件路径。 */
+  contextFilePaths?: string[];
 };
 
 export type AgentRunResult = {
@@ -21,7 +23,6 @@ export type AgentRunResult = {
  * 这里不包含 Electron、Node fs 或 pi SDK 类型，确保 packages/agent-core 可跨运行时复用。
  */
 export interface AgentRuntime {
-  getHistory(sessionId: string): Promise<ChatMessage[]>;
   stream(options: AgentRunOptions): AsyncGenerator<ChatMessage>;
 }
 

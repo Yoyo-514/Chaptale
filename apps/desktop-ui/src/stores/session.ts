@@ -1,4 +1,3 @@
-import type { ChatMessage } from '@chaptale/shared';
 import type {
   ChaptaleSessionListItem,
   ChaptaleSessionStorageDebugInfo,
@@ -6,6 +5,7 @@ import type {
   CreateSessionOptions
 } from '@chaptale/ipc-contract';
 import { defineStore } from 'pinia';
+import { unique } from 'radash';
 
 import { getDesktopApi, toErrorMessage } from './utils/desktop-api';
 
@@ -46,7 +46,7 @@ export const useSessionStore = defineStore('session', {
         return this.currentSessionId;
       }
 
-      const session = await this.createSession({ name: '默认会话' });
+      const session = await this.createSession({ name: '新会话' });
       return session.id;
     },
 
@@ -78,7 +78,7 @@ export const useSessionStore = defineStore('session', {
 
     async deleteSessions(sessionIds: string[]) {
       this.error = '';
-      const ids = [...new Set(sessionIds)];
+      const ids = unique(sessionIds);
 
       if (ids.length === 0) {
         return;
@@ -120,11 +120,6 @@ export const useSessionStore = defineStore('session', {
       } catch (error) {
         this.error = toErrorMessage(error);
       }
-    },
-
-    async getCurrentMessages(): Promise<ChatMessage[]> {
-      const sessionId = await this.ensureActiveSession();
-      return getDesktopApi().agent.getHistory(sessionId);
     },
 
     async getCurrentEntries(): Promise<ChaptaleSessionTreeEntry[]> {

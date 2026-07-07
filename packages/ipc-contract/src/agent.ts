@@ -1,15 +1,23 @@
 import type { ChatMessage } from '@chaptale/shared';
 
+export type SelectedContextFile = {
+  path: string;
+  name: string;
+  size: number;
+  kind: 'text' | 'image' | 'unsupported';
+  mimeType?: string;
+  /** 小图预览（仅限体积较小的图片，data URL）。 */
+  previewDataUrl?: string;
+};
+
 export type AgentStartPayload = {
   runId: string;
   query: string;
   sessionId?: string;
   /** 从指定 pi session entry 开始新分支。 */
   branchFromEntryId?: string | null;
-};
-
-export type AgentHistoryPayload = {
-  sessionId?: string;
+  /** 本轮随用户消息附加的本地上下文文件路径。 */
+  contextFilePaths?: string[];
 };
 
 export type AgentRunResult = {
@@ -30,6 +38,7 @@ export type AgentErrorEvent = {
 
 export type StreamAgentOptions = {
   branchFromEntryId?: string | null;
+  contextFilePaths?: string[];
 };
 
 export type StreamAgentHandlers = {

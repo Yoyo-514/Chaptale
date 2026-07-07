@@ -63,8 +63,15 @@ async function handleSwitchBranch(leafId: string) {
       :is-connecting="chat.state.isConnecting"
       :is-replying="chat.state.isReplying"
       :is-enabled-web-search="chat.state.isEnabledWebSearch"
+      :context-files="chat.state.contextFiles"
+      :model-label="chat.currentModelLabel.value"
+      :workspace-label="chat.workspaceLabel.value"
       @submit="handleSend"
       @toggle-web-search="chat.handleToggleWebSearch"
+      @add-context-files="chat.handleAddContextFiles"
+      @drop-context-files="chat.handleDropContextFiles"
+      @remove-context-file="chat.handleRemoveContextFile"
+      @open-settings="chat.handleOpenSettings"
     />
   </main>
 </template>

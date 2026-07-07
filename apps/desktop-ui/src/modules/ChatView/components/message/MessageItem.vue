@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import { errorToMessage } from '@chaptale/shared';
 import { useNotificationStore } from '@/stores/notification';
 import { cn } from '@/utils';
 import type { ChatDisplayMessage } from '../../types';
@@ -104,7 +105,7 @@ async function copyRawText() {
     await navigator.clipboard.writeText(content);
     notificationStore.success('已复制消息原文');
   } catch (error) {
-    notificationStore.error('复制失败', error instanceof Error ? error.message : String(error));
+    notificationStore.error('复制失败', errorToMessage(error));
   }
 }
 </script>

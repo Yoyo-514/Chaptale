@@ -26,25 +26,20 @@ function installDesktopApi(overrides: Record<string, any> = {}) {
       create: vi.fn().mockResolvedValue(createSession('created')),
       delete: vi.fn().mockResolvedValue(undefined),
       deleteMany: vi.fn().mockResolvedValue(undefined),
-      getEntries: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            type: 'message',
-            id: 'entry-1',
-            parentId: null,
-            timestamp: '2026-07-06T00:00:00.000Z',
-            message: { role: 'user', content: 'hi' }
-          }
-        ]),
+      getEntries: vi.fn().mockResolvedValue([
+        {
+          type: 'message',
+          id: 'entry-1',
+          parentId: null,
+          timestamp: '2026-07-06T00:00:00.000Z',
+          message: { role: 'user', content: 'hi' }
+        }
+      ]),
       getStorageDebugInfo: vi
         .fn()
         .mockResolvedValue({ rootDir: 'root', sessionDir: 'sessions', cwd: 'cwd', storageMode: 'global' }),
       openStorageDir: vi.fn().mockResolvedValue(undefined),
       setLeaf: vi.fn().mockResolvedValue(undefined)
-    },
-    agent: {
-      getHistory: vi.fn().mockResolvedValue([{ role: 'user', content: 'hi' }])
     },
     ...overrides
   };
@@ -85,7 +80,7 @@ describe('session store', () => {
 
     const sessionId = await store.ensureActiveSession();
 
-    expect(api.session.create).toHaveBeenCalledWith({ name: '默认会话' });
+    expect(api.session.create).toHaveBeenCalledWith({ name: '新会话' });
     expect(sessionId).toBe('created');
   });
 
@@ -109,12 +104,11 @@ describe('session store', () => {
     expect(store.currentSessionId).toBe('session-3');
   });
 
-  it('reads storage debug info, messages, entries, and updates the current leaf', async () => {
+  it('reads storage debug info, entries, and updates the current leaf', async () => {
     const api = installDesktopApi();
     const store = useSessionStore();
 
     await store.loadStorageDebugInfo();
-    await expect(store.getCurrentMessages()).resolves.toEqual([{ role: 'user', content: 'hi' }]);
     await expect(store.getCurrentEntries()).resolves.toHaveLength(1);
     await store.setCurrentLeaf('entry-1');
     await store.openStorageDir();

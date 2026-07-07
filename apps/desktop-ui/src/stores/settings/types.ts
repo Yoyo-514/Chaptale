@@ -2,7 +2,8 @@ import type {
   ChaptaleSettingsState,
   FetchedCustomProviderModel,
   ListModelsResult,
-  UpdateChaptaleSettingsPayload
+  UpdateChaptaleSettingsPayload,
+  UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
 
 export type SettingsSection = 'workspace' | 'llm' | 'webAccess' | 'files';
@@ -25,4 +26,5 @@ export type SettingsStoreContext = SettingsStoreState & {
   load(): Promise<void>;
   loadModels(): Promise<void>;
   update(payload: UpdateChaptaleSettingsPayload): Promise<void>;
+  updateWebAccess(payload: UpdatePiWebAccessSettingsPayload): Promise<void>;
 };

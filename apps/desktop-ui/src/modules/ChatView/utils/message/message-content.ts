@@ -5,6 +5,7 @@ import type {
   ChatThinkingContent,
   ChatToolCallContent
 } from '@chaptale/shared';
+import { sift } from 'radash';
 
 export function getTextBlocks(content: readonly { type: string }[]): ChatTextContent[] {
   return content.filter((block): block is ChatTextContent => block.type === 'text');
@@ -114,9 +115,7 @@ export function formatToolName(name: string) {
     return labels[name];
   }
 
-  return name
-    .split(/[-_\s]+/)
-    .filter(Boolean)
+  return sift(name.split(/[-_\s]+/))
     .map(part => part[0]?.toUpperCase() + part.slice(1))
     .join(' ');
 }

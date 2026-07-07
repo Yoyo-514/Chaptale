@@ -1,10 +1,12 @@
 import type { AgentRunOptions, AgentRuntime } from '@chaptale/agent-core';
 import type { ChatMessage } from '@chaptale/shared';
+import { errorToMessage } from '@chaptale/shared';
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
-import { stringifyToolResult, toChatMessages } from '../agent/pi-agent-message.mapper';
+import { mapAgentStreamEvent } from '../agent/pi-agent-event.mapper';
 import { PiAgentSessionFactory } from '../agent/pi-agent-session.factory';
 import { flushSessionFile } from '../sessions/pi-session-file';
+import { ContextFileService } from './context-file.service';
 import type { PiModelService } from './pi-model.service';
 import type { SettingsService } from './settings.service';
 
@@ -20,6 +22,7 @@ function noop() {}
  */
 export class PiAgentService implements AgentRuntime {
   private sessions = new Map<string, Promise<AgentSession>>();
+  private readonly contextFileService = new ContextFileService();
   private readonly sessionFactory: PiAgentSessionFactory;
 
   constructor(
@@ -53,11 +56,6 @@ export class PiAgentService implements AgentRuntime {
 
   private createSession(sessionId: string): Promise<AgentSession> {
     return this.sessionFactory.create(sessionId);
-  }
-
-  async getHistory(sessionId: string): Promise<ChatMessage[]> {
-    const session = await this.getOrCreateSession(sessionId);
-    return session.messages.flatMap(message => toChatMessages(message));
   }
 
   async *stream(options: StreamOptions): AsyncGenerator<ChatMessage> {
@@ -98,136 +96,15 @@ export class PiAgentService implements AgentRuntime {
     };
 
     const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
-      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
-        push({
-          role: 'assistant',
-          partial: true,
-          content: [{ type: 'text', text: event.assistantMessageEvent.delta }],
-          timestamp: Date.now()
-        });
-        return;
+      const mapping = mapAgentStreamEvent(event, { aborted: signal.aborted });
+
+      if (mapping.message) {
+        push(mapping.message);
       }
 
-      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_start') {
-        push({
-          role: 'assistant',
-          partial: true,
-          content: [],
-          timestamp: Date.now()
-        });
-        return;
-      }
-
-      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_delta') {
-        push({
-          role: 'assistant',
-          partial: true,
-          content: [
-            {
-              type: 'thinking',
-              thinking: event.assistantMessageEvent.delta,
-              thinkingSignature: 'reasoning_content'
-            }
-          ],
-          timestamp: Date.now()
-        });
-        return;
-      }
-
-      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'thinking_end') {
-        push({
-          role: 'assistant',
-          partial: false,
-          content: [],
-          timestamp: Date.now()
-        });
-        return;
-      }
-
-      if (event.type === 'tool_execution_start') {
-        push({
-          role: 'assistant',
-          content: [
-            {
-              type: 'toolCall',
-              id: event.toolCallId,
-              name: event.toolName,
-              arguments: (event.args ?? {}) as Record<string, any>
-            }
-          ],
-          stopReason: 'toolUse',
-          timestamp: Date.now()
-        });
-        return;
-      }
-
-      if (event.type === 'tool_execution_end') {
-        push({
-          role: 'toolResult',
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          content: [{ type: 'text', text: stringifyToolResult(event.result) }],
-          timestamp: Date.now()
-        });
-        return;
-      }
-
-      if (event.type === 'auto_retry_start') {
-        push({
-          role: 'assistant',
-          content: [],
-          stopReason: 'error',
-          errorMessage: event.errorMessage,
-          retry: {
-            status: 'retrying',
-            attempt: event.attempt,
-            maxAttempts: event.maxAttempts,
-            delayMs: event.delayMs,
-            errorMessage: event.errorMessage
-          },
-          timestamp: Date.now()
-        });
-        return;
-      }
-
-      if (event.type === 'auto_retry_end' && !event.success) {
-        push({
-          role: 'assistant',
-          content: [],
-          stopReason: 'error',
-          errorMessage: event.finalError ?? '模型请求失败',
-          retry: {
-            status: 'failed',
-            attempt: event.attempt,
-            maxAttempts: event.attempt,
-            finalError: event.finalError
-          },
-          timestamp: Date.now()
-        });
-        return;
-      }
-
-      if (event.type === 'agent_end') {
-        if (!event.willRetry) {
-          const lastMessage = event.messages.at(-1);
-          const errorMessage =
-            lastMessage && 'stopReason' in lastMessage && lastMessage.stopReason === 'error'
-              ? ((lastMessage as { errorMessage?: string }).errorMessage ?? '模型请求失败')
-              : undefined;
-
-          if (errorMessage && !signal.aborted) {
-            push({
-              role: 'assistant',
-              content: [],
-              stopReason: 'error',
-              errorMessage,
-              timestamp: Date.now()
-            });
-          }
-
-          done = true;
-          wake();
-        }
+      if (mapping.done) {
+        done = true;
+        wake();
       }
     });
 
@@ -237,11 +114,15 @@ export class PiAgentService implements AgentRuntime {
     signal.addEventListener('abort', onAbort, { once: true });
 
     try {
-      const promptPromise = session.prompt(query).catch((error: unknown) => {
-        failure = error instanceof Error ? error : new Error(String(error));
-        done = true;
-        wake();
-      });
+      const resolvedContextFiles = await this.contextFileService.resolve(options.contextFilePaths);
+      const promptText = `${resolvedContextFiles.promptPrefix}${query}`;
+      const promptPromise = session
+        .prompt(promptText, { images: resolvedContextFiles.images })
+        .catch((error: unknown) => {
+          failure = error instanceof Error ? error : new Error(errorToMessage(error));
+          done = true;
+          wake();
+        });
 
       while (true) {
         if (queue.length > 0) {

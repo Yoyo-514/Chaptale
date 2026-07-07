@@ -10,6 +10,9 @@ function mountInput(props?: Partial<InstanceType<typeof ChatInputBox>['$props']>
       isConnecting: false,
       isReplying: false,
       isEnabledWebSearch: true,
+      contextFiles: [],
+      modelLabel: 'openai / gpt-4.1',
+      workspaceLabel: '全局会话',
       ...props
     }
   });
@@ -45,7 +48,7 @@ describe('ChatInputBox', () => {
 
   it('toggles web search from the toolbar and exposes pressed state', async () => {
     const wrapper = mountInput({ isEnabledWebSearch: false });
-    const toggle = wrapper.find('.chat-websearch-button');
+    const toggle = wrapper.find('.chat-tool-button');
 
     expect(toggle.attributes('aria-pressed')).toBe('false');
     expect(toggle.text()).toContain('离线');
@@ -53,5 +56,61 @@ describe('ChatInputBox', () => {
     await toggle.trigger('click');
 
     expect(wrapper.emitted('toggleWebSearch')).toHaveLength(1);
+  });
+
+  it('renders the status bar below the input container and opens settings sections', async () => {
+    const wrapper = mountInput();
+    const statusItems = wrapper.findAll('.chat-status-item');
+
+    expect(wrapper.find('.chat-input-container + .chat-status-bar').exists()).toBe(true);
+    expect(statusItems[0]?.text()).toContain('openai / gpt-4.1');
+    expect(statusItems[1]?.text()).toContain('全局会话');
+
+    await statusItems[0]?.trigger('click');
+    await statusItems[1]?.trigger('click');
+
+    expect(wrapper.emitted('openSettings')).toEqual([['llm'], ['workspace']]);
+  });
+
+  it('shows context file previews and emits removals', async () => {
+    const wrapper = mountInput({
+      contextFiles: [
+        {
+          path: 'C:/novel/outline.md',
+          name: 'outline.md',
+          size: 2048,
+          kind: 'text'
+        },
+        {
+          path: 'C:/novel/cover.png',
+          name: 'cover.png',
+          size: 4096,
+          kind: 'image',
+          mimeType: 'image/png',
+          previewDataUrl: 'data:image/png;base64,abc'
+        }
+      ]
+    });
+
+    const cards = wrapper.findAll('.chat-context-file-card');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.text()).toContain('outline.md');
+    expect(cards[0]?.text()).toContain('2 KB');
+    expect(cards[1]?.find('img.chat-context-file-thumb').attributes('src')).toBe('data:image/png;base64,abc');
+
+    await cards[0]?.find('.chat-context-file-remove').trigger('click');
+
+    expect(wrapper.emitted('removeContextFile')).toEqual([['C:/novel/outline.md']]);
+  });
+
+  it('emits dropped files when a file payload is dropped onto the input', async () => {
+    const wrapper = mountInput();
+    const droppedFile = new File(['大纲'], 'outline.md', { type: 'text/markdown' });
+
+    await wrapper.find('.chat-input-container').trigger('drop', {
+      dataTransfer: { types: ['Files'], files: [droppedFile] }
+    });
+
+    expect(wrapper.emitted('dropContextFiles')).toEqual([[[droppedFile]]]);
   });
 });

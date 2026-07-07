@@ -33,9 +33,7 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
   version: SETTINGS_VERSION,
   storage: {
     mode: 'global'
-  },
-  llm: {},
-  webAccess: DEFAULT_WEB_ACCESS_SETTINGS
+  }
 };
 
 export function cloneDefaultSettings(): ChaptaleSettings {
@@ -44,18 +42,11 @@ export function cloneDefaultSettings(): ChaptaleSettings {
 
 export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): ChaptaleSettings {
   return {
-    ...cloneDefaultSettings(),
-    ...value,
     version: SETTINGS_VERSION,
     storage: {
       ...DEFAULT_SETTINGS.storage,
       ...value?.storage
-    },
-    llm: {
-      ...DEFAULT_SETTINGS.llm,
-      ...value?.llm
-    },
-    webAccess: mergeWebAccessSettings(value?.webAccess)
+    }
   };
 }
 

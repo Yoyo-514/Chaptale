@@ -1,4 +1,8 @@
-import { IPC_CHANNELS, type UpdateChaptaleSettingsPayload } from '@chaptale/ipc-contract';
+import {
+  IPC_CHANNELS,
+  type UpdateChaptaleSettingsPayload,
+  type UpdatePiWebAccessSettingsPayload
+} from '@chaptale/ipc-contract';
 import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron';
 import { SettingsService } from '../services/settings.service';
 
@@ -8,9 +12,15 @@ export function registerSettingsIpc(settingsService: SettingsService, onStorageC
   ipcMain.handle(IPC_CHANNELS.settings.update, async (_event, payload: UpdateChaptaleSettingsPayload) => {
     const state = await settingsService.update(payload);
 
-    if (payload.storage || payload.webAccess) {
+    if (payload.storage) {
       onStorageChanged?.();
     }
+
+    return state;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.settings.updateWebAccess, async (_event, payload: UpdatePiWebAccessSettingsPayload) => {
+    const state = await settingsService.updateWebAccess(payload);
 
     return state;
   });

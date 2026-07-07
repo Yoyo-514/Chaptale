@@ -1,4 +1,5 @@
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
+import { sift } from 'radash';
 import { computed, type Ref } from 'vue';
 
 import { getSessionTitle } from '../../../utils/session-display';
@@ -43,8 +44,13 @@ function matchesSearch(session: ChaptaleSessionListItem, query: string) {
     return true;
   }
 
-  const searchableText = [getSessionTitle(session), session.lastMessagePreview, session.cwd, session.path, session.id]
-    .filter(Boolean)
+  const searchableText = sift([
+    getSessionTitle(session),
+    session.lastMessagePreview,
+    session.cwd,
+    session.path,
+    session.id
+  ])
     .join('\n')
     .toLowerCase();
 

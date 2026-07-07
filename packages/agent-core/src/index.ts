@@ -6,5 +6,5 @@ export type {
   AgentRunMessageEvent,
   AgentStreamHandlers
 } from './events';
-export { AgentRuntimeError, toAgentErrorMessage } from './errors';
+export { AgentRuntimeError } from './errors';
 export type { AgentRunOptions, AgentRunResult, AgentRuntime, CancellableAgentRuntime } from './runtime';

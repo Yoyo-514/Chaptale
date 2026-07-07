@@ -1,19 +1,22 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
+import type { SelectedContextFile } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
+import { errorToMessage } from '@chaptale/shared';
 import { useNotificationStore } from '../../../stores/notification';
 import { useSessionStore } from '../../../stores/session';
 import { useSettingsStore } from '../../../stores/settings';
+import { getDesktopApi } from '../../../stores/utils/desktop-api';
 import type { ChatDisplayMessage } from '../types';
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
 import {
   getAssistantReasoning,
   getAssistantText,
-  getPrimaryToolCall,
   getUserText,
   hasRenderableMessage
 } from '../utils/message/message-content';
-import { useStreamingMessageBuffer } from './useStreamingMessageBuffer';
+import { getDroppedContextFilePaths, mergeSelectedContextFiles } from '../utils/context-files';
+import { useAssistantStreamingMessages } from './useAssistantStreamingMessages';
 
 type ChatState = {
   messages: ChatDisplayMessage[];
@@ -23,6 +26,7 @@ type ChatState = {
   isReplying: boolean;
   isEnabledWebSearch: boolean;
   isLoadingMessages: boolean;
+  contextFiles: SelectedContextFile[];
 };
 
 let messageSequence = 0;
@@ -44,16 +48,6 @@ function createUserMessage(content: string): ChatMessage {
   };
 }
 
-function createAssistantErrorMessage(message: string): ChatMessage {
-  return {
-    role: 'assistant',
-    content: [],
-    stopReason: 'error',
-    errorMessage: message,
-    timestamp: Date.now()
-  };
-}
-
 function markUserMessageAsOptimisticBranch(displayMessage: ChatDisplayMessage) {
   const total = (displayMessage.branch?.total ?? 1) + 1;
 
@@ -63,16 +57,6 @@ function markUserMessageAsOptimisticBranch(displayMessage: ChatDisplayMessage) {
     previousLeafId: displayMessage.branch?.previousLeafId,
     nextLeafId: undefined
   };
-}
-
-function hasAssistantPayload(message: Extract<ChatMessage, { role: 'assistant' }>) {
-  return Boolean(
-    message.errorMessage?.trim() ||
-    message.retry ||
-    getAssistantText(message).trim() ||
-    getAssistantReasoning(message).trim() ||
-    getPrimaryToolCall(message)
-  );
 }
 
 export function useChatController() {
@@ -86,13 +70,37 @@ export function useChatController() {
     isConnecting: false,
     isReplying: false,
     isEnabledWebSearch: true,
-    isLoadingMessages: true
+    isLoadingMessages: true,
+    contextFiles: []
   });
 
   const activeRunId = ref<string>('');
   const currentLeafId = ref<string | null>(null);
   let loadMessagesSequence = 0;
   const isWelcome = computed(() => !state.isLoadingMessages && state.messages.length === 0);
+  const currentModelLabel = computed(() => {
+    // 默认模型持久化在 pi settingsManager（models.setDefault），所以这里必须读 models 列表的 defaultModel。
+    const defaultModel = settingsStore.models?.defaultModel;
+
+    if (defaultModel) {
+      return `${defaultModel.provider} / ${defaultModel.modelId}`;
+    }
+
+    return settingsStore.isModelsLoading ? '读取模型中' : '未选择模型';
+  });
+  const workspaceLabel = computed(() => {
+    const storage = settingsStore.state?.settings.storage;
+
+    if (!storage) {
+      return '读取工作区中';
+    }
+
+    if (storage.mode === 'workspace') {
+      return storage.workspacePath ? `工作区：${storage.workspacePath}` : '未选择工作区';
+    }
+
+    return '全局会话';
+  });
   const recentSessions = computed(() =>
     sessionStore.sessions
       .filter(session => session.id !== sessionStore.currentSessionId)
@@ -100,11 +108,9 @@ export function useChatController() {
       .slice(0, 2)
   );
 
-  const streamingTextBuffer = useStreamingMessageBuffer(delta => {
-    appendAssistantDelta(delta, 'content');
-  });
-  const streamingReasoningBuffer = useStreamingMessageBuffer(delta => {
-    appendAssistantDelta(delta, 'reasoning');
+  const assistantStreaming = useAssistantStreamingMessages({
+    getMessages: () => state.messages,
+    createDisplayMessage
   });
 
   async function handleSelectRecentSession(sessionId: string) {
@@ -115,16 +121,15 @@ export function useChatController() {
   async function loadCurrentSessionMessages() {
     const sequence = (loadMessagesSequence += 1);
     state.isLoadingMessages = true;
-    resetStreamingBuffers();
+    assistantStreaming.reset();
 
     try {
-      if (!window.chaptaleDesktop) {
-        notificationStore.error('当前界面需要在 Chaptale 桌面端中运行');
+      if (!getDesktopApiOrNotify()) {
         return;
       }
 
       const entries = await sessionStore.getCurrentEntries().catch(error => {
-        notificationStore.error('读取会话消息失败', error instanceof Error ? error.message : String(error));
+        notificationStore.error('读取会话消息失败', errorToMessage(error));
         return [];
       });
 
@@ -146,7 +151,7 @@ export function useChatController() {
       await settingsStore.load();
     }
 
-    const webSearchEnabled = settingsStore.state?.settings.webAccess.webSearchEnabled;
+    const webSearchEnabled = settingsStore.state?.webAccess.webSearchEnabled;
 
     if (typeof webSearchEnabled === 'boolean') {
       state.isEnabledWebSearch = webSearchEnabled;
@@ -156,10 +161,15 @@ export function useChatController() {
   onMounted(() => {
     void loadCurrentSessionMessages();
     void loadWebAccessSettings();
+
+    // 状态条需要默认模型信息；若设置面板未打开过，models 尚未加载。
+    if (!settingsStore.models) {
+      void settingsStore.loadModels();
+    }
   });
 
   watch(
-    () => settingsStore.state?.settings.webAccess.webSearchEnabled,
+    () => settingsStore.state?.webAccess.webSearchEnabled,
     webSearchEnabled => {
       if (typeof webSearchEnabled === 'boolean') {
         state.isEnabledWebSearch = webSearchEnabled;
@@ -179,114 +189,17 @@ export function useChatController() {
     }
   );
 
-  function flushStreamingBuffers() {
-    streamingReasoningBuffer.flushNow();
-    streamingTextBuffer.flushNow();
-  }
-
-  function resetStreamingBuffers() {
-    streamingReasoningBuffer.reset();
-    streamingTextBuffer.reset();
-  }
-
-  function getStreamingAssistant() {
-    const lastMessage = state.messages.at(-1)?.message;
-
-    return lastMessage?.role === 'assistant' && lastMessage.partial ? lastMessage : undefined;
-  }
-
-  function ensureStreamingAssistant() {
-    const streamingAssistant = getStreamingAssistant();
-
-    if (streamingAssistant) {
-      return streamingAssistant;
+  function getDesktopApiOrNotify() {
+    try {
+      return getDesktopApi();
+    } catch {
+      notificationStore.error('当前界面需要在 Chaptale 桌面端中运行');
+      return undefined;
     }
-
-    const message: ChatMessage = {
-      role: 'assistant',
-      partial: true,
-      content: [],
-      timestamp: Date.now()
-    };
-    state.messages.push(createDisplayMessage(message));
-    return message;
-  }
-
-  function updateAssistantReasoningStatus(status: 'streaming' | 'done') {
-    const message = ensureStreamingAssistant();
-
-    if (status === 'done') {
-      message.partial = false;
-    }
-  }
-
-  function appendAssistantDelta(delta: string, target: 'content' | 'reasoning') {
-    const message = ensureStreamingAssistant();
-
-    if (target === 'reasoning') {
-      const lastBlock = message.content.at(-1);
-
-      if (lastBlock?.type === 'thinking') {
-        lastBlock.thinking += delta;
-      } else {
-        message.content.push({ type: 'thinking', thinking: delta, thinkingSignature: 'reasoning_content' });
-      }
-
-      return;
-    }
-
-    const lastBlock = message.content.at(-1);
-
-    if (lastBlock?.type === 'text') {
-      lastBlock.text += delta;
-    } else {
-      message.content.push({ type: 'text', text: delta });
-    }
-  }
-
-  function markStreamingAssistantComplete() {
-    const lastMessage = getStreamingAssistant();
-
-    if (lastMessage) {
-      lastMessage.partial = false;
-    }
-  }
-
-  function removeEmptyStreamingAssistant() {
-    const lastDisplayMessage = state.messages.at(-1);
-    const lastMessage = lastDisplayMessage?.message;
-
-    if (lastMessage?.role === 'assistant' && lastMessage.partial && !hasAssistantPayload(lastMessage)) {
-      state.messages.pop();
-    }
-  }
-
-  function appendOrReplaceAssistantMessage(message: ChatMessage) {
-    if (message.role !== 'assistant') {
-      state.messages.push(createDisplayMessage(message));
-      return;
-    }
-
-    const lastDisplayMessage = state.messages.at(-1);
-    const lastMessage = lastDisplayMessage?.message;
-
-    if (lastMessage?.role === 'assistant' && lastMessage.partial) {
-      state.messages.splice(state.messages.length - 1, 1, createDisplayMessage(message));
-      return;
-    }
-
-    state.messages.push(createDisplayMessage(message));
-  }
-
-  function appendErrorMessage(message: string) {
-    removeEmptyStreamingAssistant();
-    state.messages.push(createDisplayMessage(createAssistantErrorMessage(message), 'error'));
   }
 
   function finishRun() {
-    flushStreamingBuffers();
-    removeEmptyStreamingAssistant();
-    markStreamingAssistantComplete();
+    assistantStreaming.finishMessages();
     activeRunId.value = '';
     state.isReplying = false;
     state.isConnecting = false;
@@ -295,6 +208,7 @@ export function useChatController() {
   async function runQuery(query: string, options: { appendUser: boolean; branchFromEntryId?: string | null }) {
     try {
       state.isConnecting = true;
+      const contextFilePaths = state.contextFiles.map(file => file.path);
 
       if (options.appendUser) {
         state.messages.push(createDisplayMessage(createUserMessage(query)));
@@ -302,23 +216,21 @@ export function useChatController() {
 
       state.input = '';
       state.editingMessageId = '';
+      state.contextFiles = [];
       state.isReplying = true;
-      ensureStreamingAssistant();
+      assistantStreaming.ensureStreamingAssistant();
 
-      if (!window.chaptaleDesktop) {
-        throw new Error('当前界面需要在 Chaptale 桌面端中运行');
-      }
-
+      const desktopApi = getDesktopApi();
       const sessionId = await sessionStore.ensureActiveSession();
 
-      const { runId } = await window.chaptaleDesktop.agent.stream(
+      const { runId } = await desktopApi.agent.stream(
         query,
         {
           onMessage: message => {
             if (message.role === 'assistant' && message.partial) {
               if (message.content.length === 0 && getAssistantReasoning(message)) {
-                flushStreamingBuffers();
-                updateAssistantReasoningStatus('streaming');
+                assistantStreaming.flush();
+                assistantStreaming.updateReasoningStatus('streaming');
                 return;
               }
 
@@ -326,18 +238,18 @@ export function useChatController() {
               const content = getAssistantText(message);
 
               if (reasoning && !content) {
-                streamingReasoningBuffer.push(reasoning);
+                assistantStreaming.pushReasoning(reasoning);
               } else if (content) {
-                streamingTextBuffer.push(content);
+                assistantStreaming.pushText(content);
               }
 
               return;
             }
 
-            flushStreamingBuffers();
+            assistantStreaming.flush();
 
             if (hasRenderableMessage(message)) {
-              appendOrReplaceAssistantMessage(message);
+              assistantStreaming.appendOrReplaceAssistantMessage(message);
             }
           },
           onDone: () => {
@@ -347,20 +259,20 @@ export function useChatController() {
           },
           onError: message => {
             finishRun();
-            appendErrorMessage(message);
+            assistantStreaming.appendErrorMessage(message);
             notificationStore.error('AI 回复失败', message);
           }
         },
         sessionId,
-        { branchFromEntryId: options.branchFromEntryId }
+        { branchFromEntryId: options.branchFromEntryId, contextFilePaths }
       );
 
       activeRunId.value = runId;
       state.isConnecting = false;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorToMessage(error);
       finishRun();
-      appendErrorMessage(message);
+      assistantStreaming.appendErrorMessage(message);
       notificationStore.error('发送失败', message);
     }
   }
@@ -419,6 +331,63 @@ export function useChatController() {
     await runQuery(content, { appendUser: false, branchFromEntryId: displayMessage.parentEntryId ?? null });
   }
 
+  async function handleAddContextFiles() {
+    if (state.isConnecting || state.isReplying) {
+      return;
+    }
+
+    const desktopApi = getDesktopApiOrNotify();
+    if (!desktopApi) {
+      return;
+    }
+
+    const files = await desktopApi.agent.selectContextFiles();
+    mergeContextFiles(files);
+  }
+
+  function mergeContextFiles(files: SelectedContextFile[]) {
+    state.contextFiles = mergeSelectedContextFiles(state.contextFiles, files);
+  }
+
+  async function handleDropContextFiles(droppedFiles: File[]) {
+    if (state.isConnecting || state.isReplying) {
+      return;
+    }
+
+    const desktopApi = getDesktopApiOrNotify();
+    if (!desktopApi) {
+      return;
+    }
+
+    // 沙盒 renderer 拿不到 File.path，由 preload 的 webUtils 转换后再交给主进程校验。
+    const paths = getDroppedContextFilePaths(droppedFiles, file => desktopApi.agent.getPathForFile(file));
+
+    if (paths.length === 0) {
+      return;
+    }
+
+    const inspected = await desktopApi.agent.inspectContextFiles(paths);
+
+    if (inspected.length === 0) {
+      notificationStore.error('拖入的文件类型暂不支持', '目前支持常见文本/代码文件与 png/jpg/webp/gif 图片');
+      return;
+    }
+
+    if (inspected.length < paths.length) {
+      notificationStore.info('部分文件未添加', '不支持的文件类型已自动跳过');
+    }
+
+    mergeContextFiles(inspected);
+  }
+
+  function handleRemoveContextFile(path: string) {
+    state.contextFiles = state.contextFiles.filter(file => file.path !== path);
+  }
+
+  function handleOpenSettings(section: 'workspace' | 'llm' = 'workspace') {
+    settingsStore.openPanel(section);
+  }
+
   async function handleToggleWebSearch() {
     const previousValue = state.isEnabledWebSearch;
     const nextValue = !previousValue;
@@ -428,7 +397,7 @@ export function useChatController() {
       await settingsStore.load();
     }
 
-    await settingsStore.update({ webAccess: { webSearchEnabled: nextValue } });
+    await settingsStore.updateWebAccess({ webSearchEnabled: nextValue });
 
     if (settingsStore.error) {
       state.isEnabledWebSearch = previousValue;
@@ -481,6 +450,8 @@ export function useChatController() {
   return {
     state,
     isWelcome,
+    currentModelLabel,
+    workspaceLabel,
     recentSessions,
     handleSelectRecentSession,
     handleSend,
@@ -488,6 +459,10 @@ export function useChatController() {
     handleSaveUserMessage,
     handleCancelEdit,
     handleRegenerateAssistantMessage,
+    handleAddContextFiles,
+    handleDropContextFiles,
+    handleRemoveContextFile,
+    handleOpenSettings,
     handleToggleWebSearch,
     handleSwitchBranch
   };

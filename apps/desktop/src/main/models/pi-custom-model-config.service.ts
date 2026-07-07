@@ -7,6 +7,7 @@ import type {
   SetCustomProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
+import { replaceOrAppend } from 'radash';
 
 import {
   normalizeCustomProviderApi,
@@ -15,6 +16,7 @@ import {
   toOptionalContextWindow,
   validateContextWindow
 } from './pi-model-config.helpers';
+import type { PiModelDefinition, PiModelsConfig, PiProviderConfig } from './pi-model-config.types';
 import type { PiModelConfigRepository } from './pi-model-config.repository';
 import type { FetchModelsSource } from './provider-model-fetcher';
 
@@ -69,35 +71,6 @@ export class PiCustomModelConfigService {
 
     const config = await this.repository.read();
     const previousProvider = config.providers[provider];
-    const previousModels = previousProvider?.models ?? [];
-    const nextModels = [...previousModels];
-
-    for (const model of payload.models) {
-      const modelId = model.modelId.trim();
-      const modelName = model.modelName?.trim() || modelId;
-      const contextWindow = model.contextWindow;
-      const input = normalizeModelInput(model.input);
-
-      if (!modelId) {
-        throw new Error('模型 ID 不能为空');
-      }
-
-      validateContextWindow(contextWindow);
-
-      const existingIndex = nextModels.findIndex(item => item.id === modelId);
-      const nextModel = {
-        id: modelId,
-        name: modelName,
-        input,
-        contextWindow: toOptionalContextWindow(contextWindow)
-      };
-
-      if (existingIndex >= 0) {
-        nextModels[existingIndex] = nextModel;
-      } else {
-        nextModels.push(nextModel);
-      }
-    }
 
     config.providers[provider] = {
       ...previousProvider,
@@ -107,7 +80,7 @@ export class PiCustomModelConfigService {
       baseUrl,
       // 部分中转网关按 UA 拦截 openai SDK 默认标识，统一用应用 UA
       headers: previousProvider?.headers ?? { 'User-Agent': 'Chaptale/1.5.0' },
-      models: nextModels
+      models: upsertCustomModels(previousProvider?.models ?? [], payload.models)
     };
 
     await this.repository.write(config);
@@ -115,33 +88,10 @@ export class PiCustomModelConfigService {
 
   async addModel(payload: AddCustomModelPayload) {
     const provider = normalizeProviderId(payload.provider);
-    const modelId = payload.modelId.trim();
-    const modelName = payload.modelName?.trim() || modelId;
-    const contextWindow = payload.contextWindow;
-    const input = normalizeModelInput(payload.input);
-
-    if (!modelId) {
-      throw new Error('模型 ID 不能为空');
-    }
-
-    validateContextWindow(contextWindow);
-
     const config = await this.repository.read();
-    const providerConfig = config.providers[provider];
+    const providerConfig = getProviderWithModelsOrThrow(config, provider);
 
-    if (!providerConfig?.models) {
-      throw new Error(`未找到自定义供应商：${provider}`);
-    }
-
-    providerConfig.models = [
-      ...providerConfig.models.filter(model => model.id !== modelId),
-      {
-        id: modelId,
-        name: modelName,
-        input,
-        contextWindow: toOptionalContextWindow(contextWindow)
-      }
-    ];
+    providerConfig.models = upsertCustomModel(providerConfig.models, toCustomModelDefinition(payload));
 
     await this.repository.write(config);
   }
@@ -155,37 +105,22 @@ export class PiCustomModelConfigService {
     }
 
     const config = await this.repository.read();
-    const providerConfig = config.providers[provider];
-
-    if (!providerConfig) {
-      throw new Error(`未找到自定义供应商：${provider}`);
-    }
-
-    providerConfig.apiKey = apiKey;
+    getProviderOrThrow(config, provider).apiKey = apiKey;
     await this.repository.write(config);
   }
 
   async removeProviderApiKey(payload: RemoveCustomProviderApiKeyPayload) {
     const provider = normalizeProviderId(payload.provider);
     const config = await this.repository.read();
-    const providerConfig = config.providers[provider];
 
-    if (!providerConfig) {
-      throw new Error(`未找到自定义供应商：${provider}`);
-    }
-
-    delete providerConfig.apiKey;
+    delete getProviderOrThrow(config, provider).apiKey;
     await this.repository.write(config);
   }
 
   async updateModelInput(payload: UpdateCustomModelInputPayload) {
     const provider = normalizeProviderId(payload.provider);
-    const modelId = payload.modelId.trim();
+    const modelId = readModelId(payload.modelId);
     const input = normalizeModelInput(payload.input);
-
-    if (!modelId) {
-      throw new Error('模型 ID 不能为空');
-    }
 
     const config = await this.repository.read();
     const model = this.repository.findCustomModel(config, provider, modelId);
@@ -196,19 +131,10 @@ export class PiCustomModelConfigService {
 
   async removeModel(payload: RemoveCustomModelPayload) {
     const provider = normalizeProviderId(payload.provider);
-    const modelId = payload.modelId.trim();
-
-    if (!modelId) {
-      throw new Error('模型 ID 不能为空');
-    }
+    const modelId = readModelId(payload.modelId);
 
     const config = await this.repository.read();
-    const providerConfig = config.providers[provider];
-
-    if (!providerConfig?.models?.length) {
-      throw new Error(`未找到自定义供应商：${provider}`);
-    }
-
+    const providerConfig = getProviderWithModelsOrThrow(config, provider);
     const nextModels = providerConfig.models.filter(model => model.id !== modelId);
 
     if (nextModels.length === providerConfig.models.length) {
@@ -223,4 +149,62 @@ export class PiCustomModelConfigService {
 
     await this.repository.write(config);
   }
+}
+
+type CustomModelPayload = Pick<AddCustomModelPayload, 'modelId' | 'modelName' | 'input' | 'contextWindow'>;
+type ProviderWithModels = PiProviderConfig & { models: PiModelDefinition[] };
+
+function upsertCustomModels(models: PiModelDefinition[], payloads: CustomModelPayload[]) {
+  return payloads.reduce(
+    (nextModels, payload) => upsertCustomModel(nextModels, toCustomModelDefinition(payload)),
+    models
+  );
+}
+
+function upsertCustomModel(models: PiModelDefinition[], model: PiModelDefinition) {
+  return replaceOrAppend(models, model, item => item.id === model.id);
+}
+
+function toCustomModelDefinition(payload: CustomModelPayload): PiModelDefinition {
+  const modelId = readModelId(payload.modelId);
+  const contextWindow = payload.contextWindow;
+
+  validateContextWindow(contextWindow);
+
+  return {
+    id: modelId,
+    name: payload.modelName?.trim() || modelId,
+    input: normalizeModelInput(payload.input),
+    contextWindow: toOptionalContextWindow(contextWindow)
+  };
+}
+
+function getProviderOrThrow(config: PiModelsConfig, provider: string) {
+  const providerConfig = config.providers[provider];
+
+  if (!providerConfig) {
+    throw new Error(`未找到自定义供应商：${provider}`);
+  }
+
+  return providerConfig;
+}
+
+function getProviderWithModelsOrThrow(config: PiModelsConfig, provider: string): ProviderWithModels {
+  const providerConfig = getProviderOrThrow(config, provider);
+
+  if (!providerConfig.models?.length) {
+    throw new Error(`未找到自定义供应商：${provider}`);
+  }
+
+  return providerConfig as ProviderWithModels;
+}
+
+function readModelId(value: string) {
+  const modelId = value.trim();
+
+  if (!modelId) {
+    throw new Error('模型 ID 不能为空');
+  }
+
+  return modelId;
 }

@@ -11,19 +11,18 @@ function createSettingsState(webSearchEnabled = true) {
   return {
     settings: {
       version: 1,
-      storage: { mode: 'global' },
-      llm: {},
-      webAccess: {
-        webSearchEnabled,
-        provider: 'auto',
-        workflow: 'none',
-        allowBrowserCookies: false,
-        curatorTimeoutSeconds: 20,
-        githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
-        youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
-        video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
-        ssrf: { allowRanges: [] }
-      }
+      storage: { mode: 'global' }
+    },
+    webAccess: {
+      webSearchEnabled,
+      provider: 'auto',
+      workflow: 'none',
+      allowBrowserCookies: false,
+      curatorTimeoutSeconds: 20,
+      githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
+      youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
+      video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
+      ssrf: { allowRanges: [] }
     },
     paths: {
       rootDir: 'C:/Users/Test/.chaptale',
@@ -75,9 +74,10 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
     },
     settings: {
       getState: vi.fn().mockResolvedValue(state),
-      update: vi.fn().mockImplementation(async payload => {
-        if (typeof payload.webAccess?.webSearchEnabled === 'boolean') {
-          state.settings.webAccess.webSearchEnabled = payload.webAccess.webSearchEnabled;
+      update: vi.fn().mockResolvedValue(state),
+      updateWebAccess: vi.fn().mockImplementation(async payload => {
+        if (typeof payload.webSearchEnabled === 'boolean') {
+          state.webAccess.webSearchEnabled = payload.webSearchEnabled;
         }
         return state;
       }),
@@ -98,7 +98,9 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
       removeProviderAuth: vi.fn()
     },
     agent: {
-      getHistory: vi.fn().mockResolvedValue([]),
+      selectContextFiles: vi.fn().mockResolvedValue([]),
+      inspectContextFiles: vi.fn().mockResolvedValue([]),
+      getPathForFile: vi.fn().mockReturnValue(''),
       stream: vi.fn().mockImplementation(async (_query, handlers) => {
         handlers.onMessage({
           role: 'assistant',
@@ -161,7 +163,8 @@ describe('useChatController', () => {
     await nextTick();
 
     expect(api.agent.stream).toHaveBeenCalledWith('写一个开场', expect.any(Object), 'session-1', {
-      branchFromEntryId: undefined
+      branchFromEntryId: undefined,
+      contextFilePaths: []
     });
     expect(controller.state.messages.map(item => item.message.role)).toEqual(['user', 'assistant']);
     expect(controller.state.messages[1]?.message).toMatchObject({
@@ -175,7 +178,6 @@ describe('useChatController', () => {
     let streamHandlers: any;
     const api = installDesktopMock({
       agent: {
-        getHistory: vi.fn().mockResolvedValue([]),
         stream: vi.fn().mockImplementation(async (_query, handlers) => {
           streamHandlers = handlers;
           return { runId: 'run-cancel' };
@@ -199,7 +201,6 @@ describe('useChatController', () => {
   it('shows an assistant error and notification when stream fails', async () => {
     installDesktopMock({
       agent: {
-        getHistory: vi.fn().mockResolvedValue([]),
         stream: vi.fn().mockImplementation(async (_query, handlers) => {
           handlers.onError('模型不可用');
           return { runId: 'run-error' };
@@ -225,7 +226,7 @@ describe('useChatController', () => {
     installDesktopMock();
     const controller = await mountController();
     const settingsStore = useSettingsStore();
-    vi.spyOn(settingsStore, 'update').mockImplementation(async () => {
+    vi.spyOn(settingsStore, 'updateWebAccess').mockImplementation(async () => {
       settingsStore.error = '保存失败';
     });
 
@@ -256,13 +257,15 @@ describe('useChatController', () => {
 
     await controller.handleSaveUserMessage('user-display', '新内容');
     expect(api.agent.stream).toHaveBeenLastCalledWith('新内容', expect.any(Object), 'session-1', {
-      branchFromEntryId: 'entry-user'
+      branchFromEntryId: 'entry-user',
+      contextFilePaths: []
     });
     expect(controller.state.messages[0]?.branch).toMatchObject({ current: 2, total: 2 });
 
     await controller.handleRegenerateAssistantMessage('assistant-display');
     expect(api.agent.stream).toHaveBeenLastCalledWith('新内容', expect.any(Object), 'session-1', {
-      branchFromEntryId: 'entry-user'
+      branchFromEntryId: 'entry-user',
+      contextFilePaths: []
     });
   });
 });

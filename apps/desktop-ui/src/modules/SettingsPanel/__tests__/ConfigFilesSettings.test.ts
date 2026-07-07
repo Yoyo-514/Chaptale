@@ -13,7 +13,8 @@ describe('ConfigFilesSettings', () => {
   it('renders config paths and opens the config directory', async () => {
     const settingsStore = useSettingsStore();
     settingsStore.state = {
-      settings: { version: 1, storage: { mode: 'global' }, llm: {}, webAccess: {} as any },
+      settings: { version: 1, storage: { mode: 'global' } },
+      webAccess: {} as any,
       paths: {
         rootDir: 'root',
         agentDir: 'agent',

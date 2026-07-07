@@ -1,6 +1,6 @@
 import { cleanUrlToken, collapseWhitespace, getHostname } from '@chaptale/shared';
 import { lexer } from 'marked';
-import { unique } from 'radash';
+import { sift, unique } from 'radash';
 
 export { getHostname };
 
@@ -144,10 +144,7 @@ function parseListSourceTokens(content: string): SearchCitation[] {
 }
 
 function parseSourceText(text: string): SearchCitation | undefined {
-  const lines = text
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean);
+  const lines = sift(text.split('\n').map(line => line.trim()));
   const urlIndex = lines.findIndex(line => /^https?:\/\//.test(line));
 
   if (urlIndex === -1) {

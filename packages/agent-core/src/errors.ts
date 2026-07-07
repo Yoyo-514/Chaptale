@@ -7,7 +7,3 @@ export class AgentRuntimeError extends Error {
     this.code = code;
   }
 }
-
-export function toAgentErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}

@@ -1,5 +1,5 @@
 import type { ChatMessage } from '@chaptale/shared';
-import type { AgentRunResult, StreamAgentHandlers, StreamAgentOptions } from './agent';
+import type { AgentRunResult, SelectedContextFile, StreamAgentHandlers, StreamAgentOptions } from './agent';
 import type { AppPlatformResult } from './app';
 import type {
   AddCustomModelPayload,
@@ -23,7 +23,12 @@ import type {
   ChaptaleSessionTreeEntry,
   CreateSessionOptions
 } from './session';
-import type { ChaptaleSettingsState, SelectWorkspaceDirResult, UpdateChaptaleSettingsPayload } from './settings';
+import type {
+  ChaptaleSettingsState,
+  SelectWorkspaceDirResult,
+  UpdateChaptaleSettingsPayload,
+  UpdatePiWebAccessSettingsPayload
+} from './settings';
 import type { WindowStateResult } from './window';
 
 export type ChaptaleDesktopApi = {
@@ -49,6 +54,7 @@ export type ChaptaleDesktopApi = {
   settings: {
     getState: () => Promise<ChaptaleSettingsState>;
     update: (payload: UpdateChaptaleSettingsPayload) => Promise<ChaptaleSettingsState>;
+    updateWebAccess: (payload: UpdatePiWebAccessSettingsPayload) => Promise<ChaptaleSettingsState>;
     selectWorkspaceDir: () => Promise<SelectWorkspaceDirResult>;
     openConfigDir: () => Promise<void>;
   };
@@ -66,7 +72,11 @@ export type ChaptaleDesktopApi = {
     removeProviderAuth: (payload: RemoveProviderAuthPayload) => Promise<ListModelsResult>;
   };
   agent: {
-    getHistory: (sessionId?: string) => Promise<ChatMessage[]>;
+    selectContextFiles: () => Promise<SelectedContextFile[]>;
+    /** 校验拖拽进来的本地路径，返回可用的上下文文件描述（含预览）。 */
+    inspectContextFiles: (paths: string[]) => Promise<SelectedContextFile[]>;
+    /** 拖拽场景：把 renderer 的 File 对象转换为本地绝对路径（preload 内调用 webUtils）。 */
+    getPathForFile: (file: File) => string;
     stream: (
       query: string,
       handlers: StreamAgentHandlers,

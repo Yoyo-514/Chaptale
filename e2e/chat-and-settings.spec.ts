@@ -14,19 +14,18 @@ async function installDesktopMock(page: Page) {
       return {
         settings: {
           version: 1,
-          storage: { mode: 'global' },
-          llm: {},
-          webAccess: {
-            webSearchEnabled,
-            provider: 'auto',
-            workflow: 'none',
-            allowBrowserCookies: false,
-            curatorTimeoutSeconds: 20,
-            githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
-            youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
-            video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
-            ssrf: { allowRanges: [] }
-          }
+          storage: { mode: 'global' }
+        },
+        webAccess: {
+          webSearchEnabled,
+          provider: 'auto',
+          workflow: 'none',
+          allowBrowserCookies: false,
+          curatorTimeoutSeconds: 20,
+          githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
+          youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
+          video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
+          ssrf: { allowRanges: [] }
         },
         paths: {
           rootDir: 'C:/Users/Test/.chaptale',
@@ -94,8 +93,12 @@ async function installDesktopMock(page: Page) {
         getState: async () => settingsState(),
         update: async (payload: any) => {
           calls.settingsUpdates.push(payload);
-          if (typeof payload.webAccess?.webSearchEnabled === 'boolean') {
-            webSearchEnabled = payload.webAccess.webSearchEnabled;
+          return settingsState();
+        },
+        updateWebAccess: async (payload: any) => {
+          calls.settingsUpdates.push(payload);
+          if (typeof payload.webSearchEnabled === 'boolean') {
+            webSearchEnabled = payload.webSearchEnabled;
           }
           return settingsState();
         },
@@ -116,7 +119,6 @@ async function installDesktopMock(page: Page) {
         removeProviderAuth: async () => ({ providers: [], models: [], defaultModel: undefined })
       },
       agent: {
-        getHistory: async () => entries.map(entry => entry.message),
         stream: async (query: string, handlers: any) => {
           const userEntry = {
             type: 'message',
@@ -181,7 +183,7 @@ test('web search toggle updates settings and stays in sync with the settings pan
 
   await expect
     .poll(() => page.evaluate(() => (window as any).__chaptaleE2E.settingsUpdates.at(-1)))
-    .toEqual({ webAccess: { webSearchEnabled: false } });
+    .toEqual({ webSearchEnabled: false });
 
   await page.getByLabel('打开设置').click();
   await page.getByRole('button', { name: /联网/ }).click();

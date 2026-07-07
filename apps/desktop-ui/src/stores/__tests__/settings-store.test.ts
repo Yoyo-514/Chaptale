@@ -8,19 +8,18 @@ function createSettingsState(webSearchEnabled = true) {
   return {
     settings: {
       version: 1,
-      storage: { mode: 'global' },
-      llm: {},
-      webAccess: {
-        webSearchEnabled,
-        provider: 'auto',
-        workflow: 'none',
-        allowBrowserCookies: false,
-        curatorTimeoutSeconds: 20,
-        githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
-        youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
-        video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
-        ssrf: { allowRanges: [] }
-      }
+      storage: { mode: 'global' }
+    },
+    webAccess: {
+      webSearchEnabled,
+      provider: 'auto',
+      workflow: 'none',
+      allowBrowserCookies: false,
+      curatorTimeoutSeconds: 20,
+      githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
+      youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
+      video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
+      ssrf: { allowRanges: [] }
     },
     paths: {
       rootDir: 'root',
@@ -62,6 +61,7 @@ function installDesktopApi() {
     settings: {
       getState: vi.fn().mockResolvedValue(settingsState),
       update: vi.fn().mockResolvedValue(settingsState),
+      updateWebAccess: vi.fn().mockResolvedValue(settingsState),
       selectWorkspaceDir: vi.fn().mockResolvedValue({ canceled: false, state: createSettingsState(false) }),
       openConfigDir: vi.fn().mockResolvedValue(undefined)
     },
@@ -127,12 +127,12 @@ describe('settings store', () => {
     const api = installDesktopApi();
     const store = useSettingsStore();
 
-    await store.update({ webAccess: { webSearchEnabled: false } });
+    await store.updateWebAccess({ webSearchEnabled: false });
     await store.selectWorkspaceDir();
     await store.useGlobalStorage();
     await store.openConfigDir();
 
-    expect(api.settings.update).toHaveBeenCalledWith({ webAccess: { webSearchEnabled: false } });
+    expect(api.settings.updateWebAccess).toHaveBeenCalledWith({ webSearchEnabled: false });
     expect(api.settings.selectWorkspaceDir).toHaveBeenCalled();
     expect(api.settings.update).toHaveBeenCalledWith({ storage: { mode: 'global' } });
     expect(api.settings.openConfigDir).toHaveBeenCalled();
