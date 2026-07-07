@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppTooltip from '../AppTooltip/AppTooltip.vue';
 import { useSettingsStore } from '../../stores/settings';
 
 const settingsStore = useSettingsStore();
@@ -7,9 +8,11 @@ const settingsStore = useSettingsStore();
 <template>
   <aside class="activity-bar" aria-label="应用活动栏">
     <div class="activity-bar-spacer" />
-    <button class="activity-bar-button" type="button" aria-label="打开设置" @click="settingsStore.openPanel()">
-      <span class="i-mingcute-settings-3-line size-6" aria-hidden="true" />
-    </button>
+    <AppTooltip text="设置" side="right" :side-offset="6" with-arrow>
+      <button class="activity-bar-button" type="button" aria-label="打开设置" @click="settingsStore.openPanel()">
+        <span class="i-mingcute-settings-3-line size-6" aria-hidden="true" />
+      </button>
+    </AppTooltip>
   </aside>
 </template>
 

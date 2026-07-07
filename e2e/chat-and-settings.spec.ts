@@ -58,7 +58,7 @@ async function installDesktopMock(page: Page) {
       ];
     }
 
-    (window as any).__chaptaleE2E = calls;
+    (window as any).chaptaleE2E = calls;
     (window as any).chaptaleDesktop = {
       getPlatform: async () => ({ platform: 'win32', versions: {} }),
       windowControl: {
@@ -128,6 +128,14 @@ async function installDesktopMock(page: Page) {
             message: { role: 'user', content: query, timestamp: Date.now() }
           };
           entries.push(userEntry);
+
+          if (query.includes('失败')) {
+            setTimeout(() => {
+              handlers.onError(`模拟失败：${query}`);
+            }, 80);
+            return { runId: `run-${entries.length}` };
+          }
+
           setTimeout(() => {
             handlers.onMessage({
               role: 'assistant',
@@ -175,14 +183,14 @@ test('sending a prompt shows immediate generation feedback and then the assistan
 test('web search toggle updates settings and stays in sync with the settings panel', async ({ page }) => {
   await page.goto('/');
 
-  const webSearchButton = page.locator('.chat-websearch-button');
+  const webSearchButton = page.getByRole('button', { name: /联网|离线/ });
   await expect(webSearchButton).toHaveAttribute('aria-pressed', 'true');
   await webSearchButton.click();
   await expect(webSearchButton).toHaveAttribute('aria-pressed', 'false');
   await expect(webSearchButton).toContainText('离线');
 
   await expect
-    .poll(() => page.evaluate(() => (window as any).__chaptaleE2E.settingsUpdates.at(-1)))
+    .poll(() => page.evaluate(() => (window as any).chaptaleE2E.settingsUpdates.at(-1)))
     .toEqual({ webSearchEnabled: false });
 
   await page.getByLabel('打开设置').click();
@@ -190,4 +198,30 @@ test('web search toggle updates settings and stays in sync with the settings pan
 
   await expect(page.getByRole('heading', { name: '联网与内容提取' })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: /启用联网搜索/ })).toHaveAttribute('aria-checked', 'false');
+});
+
+test('auto notification popup only shows unseen notifications after the center is opened', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByPlaceholder('描述你的创作需求...').fill('第一次失败');
+  await page.locator('.chat-send-button').click();
+
+  const notificationCenter = page.locator('.notification-center');
+  await expect(notificationCenter).toContainText('模拟失败：第一次失败');
+
+  // 用户主动点开通知中心后，现有通知都视为已看过。
+  await page.getByLabel('打开通知中心').click();
+  await expect(page.locator('.notification-count')).toHaveCount(0);
+
+  // 关闭手动面板，后续由新通知触发自动弹出。
+  await page.getByLabel('打开通知中心').click();
+  await expect(notificationCenter).toBeHidden();
+
+  await page.getByPlaceholder('描述你的创作需求...').fill('第二次失败');
+  await page.locator('.chat-send-button').click();
+
+  await expect(notificationCenter).toBeVisible();
+  await expect(notificationCenter).toContainText('模拟失败：第二次失败');
+  await expect(notificationCenter).not.toContainText('模拟失败：第一次失败');
+  await expect(page.locator('.notification-count')).toHaveText('1');
 });

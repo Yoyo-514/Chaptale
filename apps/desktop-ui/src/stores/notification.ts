@@ -31,12 +31,20 @@ export const useNotificationStore = defineStore('notification', {
   state: () => ({
     items: [] as NotificationItem[],
     isPanelOpen: false,
-    panelMode: 'auto' as NotificationPanelMode
+    panelMode: 'auto' as NotificationPanelMode,
+    // 用户最后一次“点开看过”时的最大通知 id，之后的才算新通知。
+    seenThroughId: 0
   }),
   getters: {
     unreadCount: state => state.items.length,
-    recentItems: state => [...state.items].reverse().slice(0, 3),
-    allItems: state => [...state.items].reverse()
+    unseenCount: state => state.items.filter(item => item.id > state.seenThroughId).length,
+    /** 自动弹出面板只展示未看过的新通知，看过的不再重复打扰。 */
+    recentUnseenItems: state =>
+      state.items
+        .filter(item => item.id > state.seenThroughId)
+        .toReversed()
+        .slice(0, 3),
+    allItems: state => state.items.toReversed()
   },
   actions: {
     push(kind: NotificationKind, title: string, description?: string) {
@@ -71,6 +79,15 @@ export const useNotificationStore = defineStore('notification', {
       clearPanelAutoHideTimer();
       this.panelMode = 'manual';
       this.isPanelOpen = true;
+      this.markAllSeen();
+    },
+
+    markAllSeen() {
+      const lastItem = this.items.at(-1);
+
+      if (lastItem) {
+        this.seenThroughId = Math.max(this.seenThroughId, lastItem.id);
+      }
     },
 
     closePanel() {

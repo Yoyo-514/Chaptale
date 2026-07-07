@@ -80,6 +80,7 @@ describe('PiAgentService', () => {
       }),
       expect.objectContaining({ role: 'toolResult', toolCallId: 'tool-1', toolName: 'web_search' })
     ]);
+    // eslint-disable-next-line no-underscore-dangle
     expect(sessionManager._rewriteFile).toHaveBeenCalled();
   });
 

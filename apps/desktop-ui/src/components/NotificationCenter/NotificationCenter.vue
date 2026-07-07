@@ -9,14 +9,18 @@ const notificationStore = useNotificationStore();
 const isManualPanel = computed(() => notificationStore.panelMode === 'manual');
 const panelTitle = computed(() => (notificationStore.items.length === 0 ? '无新通知' : '通知'));
 const visibleNotifications = computed(() =>
-  isManualPanel.value ? notificationStore.allItems : notificationStore.recentItems
+  isManualPanel.value ? notificationStore.allItems : notificationStore.recentUnseenItems
+);
+// 自动弹出模式下若没有未看过的新通知（如刚被逐条移除），不展示空面板。
+const isPanelVisible = computed(
+  () => notificationStore.isPanelOpen && (isManualPanel.value || visibleNotifications.value.length > 0)
 );
 </script>
 
 <template>
   <Transition name="notification-center-fade">
     <section
-      v-if="notificationStore.isPanelOpen"
+      v-if="isPanelVisible"
       class="notification-center"
       :class="{ 'is-manual': isManualPanel, 'is-auto': !isManualPanel }"
       aria-label="通知中心"

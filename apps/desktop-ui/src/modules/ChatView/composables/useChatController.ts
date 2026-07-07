@@ -8,6 +8,7 @@ import { useSessionStore } from '../../../stores/session';
 import { useSettingsStore } from '../../../stores/settings';
 import { getDesktopApi } from '../../../stores/utils/desktop-api';
 import type { ChatDisplayMessage } from '../types';
+import { getDroppedContextFilePaths, mergeSelectedContextFiles } from '../utils/context-files';
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
 import {
   getAssistantReasoning,
@@ -15,7 +16,6 @@ import {
   getUserText,
   hasRenderableMessage
 } from '../utils/message/message-content';
-import { getDroppedContextFilePaths, mergeSelectedContextFiles } from '../utils/context-files';
 import { useAssistantStreamingMessages } from './useAssistantStreamingMessages';
 
 type ChatState = {
@@ -425,10 +425,9 @@ export function useChatController() {
       return;
     }
 
-    const userMessage = [...state.messages]
+    const userMessage = state.messages
       .slice(0, assistantIndex)
-      .reverse()
-      .find(displayMessage => displayMessage.message.role === 'user');
+      .findLast(displayMessage => displayMessage.message.role === 'user');
 
     if (!userMessage || userMessage.message.role !== 'user') {
       return;

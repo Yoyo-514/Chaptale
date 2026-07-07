@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 
 import type { SelectedContextFile } from '@chaptale/ipc-contract';
+import AppTooltip from '../../../components/AppTooltip/AppTooltip.vue';
 import { cn, formatFileSize } from '../../../utils';
 
 const props = defineProps<{
@@ -142,25 +143,23 @@ function handleDrop(event: DragEvent) {
       />
 
       <div class="chat-bottom-toolbar">
-        <button
-          :class="cn('chat-tool-button', props.isEnabledWebSearch && 'chat-tool-button-active')"
-          type="button"
-          :aria-pressed="props.isEnabledWebSearch"
-          :title="props.isEnabledWebSearch ? '关闭联网搜索' : '开启联网搜索'"
-          @click="emit('toggleWebSearch')"
-        >
-          <span class="i-mingcute-earth-line" aria-hidden="true" />
-          <span>{{ props.isEnabledWebSearch ? '联网' : '离线' }}</span>
-        </button>
-        <button
-          class="chat-tool-button"
-          type="button"
-          title="添加本轮上下文文件（也可直接拖入）"
-          @click="emit('addContextFiles')"
-        >
-          <span class="i-mingcute-attachment-line" aria-hidden="true" />
-          <span>{{ props.contextFiles.length > 0 ? `${props.contextFiles.length} 个文件` : '添加文件' }}</span>
-        </button>
+        <AppTooltip :text="props.isEnabledWebSearch ? '关闭联网搜索' : '开启联网搜索'" side="bottom">
+          <button
+            :class="cn('chat-tool-button', props.isEnabledWebSearch && 'chat-tool-button-active')"
+            type="button"
+            :aria-pressed="props.isEnabledWebSearch"
+            @click="emit('toggleWebSearch')"
+          >
+            <span class="i-mingcute-earth-line" aria-hidden="true" />
+            <span>{{ props.isEnabledWebSearch ? '联网' : '离线' }}</span>
+          </button>
+        </AppTooltip>
+        <AppTooltip text="添加本轮上下文文件（也可直接拖入）" side="bottom">
+          <button class="chat-tool-button" type="button" @click="emit('addContextFiles')">
+            <span class="i-mingcute-attachment-line" aria-hidden="true" />
+            <span>{{ props.contextFiles.length > 0 ? `${props.contextFiles.length} 个文件` : '添加文件' }}</span>
+          </button>
+        </AppTooltip>
       </div>
 
       <div class="chat-send-button-wrapper">
@@ -182,15 +181,24 @@ function handleDrop(event: DragEvent) {
     </div>
 
     <div class="chat-status-bar">
-      <button class="chat-status-item" type="button" title="打开模型设置" @click="emit('openSettings', 'llm')">
-        <span class="i-mingcute-ai-line" aria-hidden="true" />
-        <span class="chat-status-text">{{ props.modelLabel }}</span>
-      </button>
+      <AppTooltip text="打开模型设置" side="bottom">
+        <button class="chat-status-item" type="button" aria-label="打开模型设置" @click="emit('openSettings', 'llm')">
+          <span class="i-mingcute-ai-line" aria-hidden="true" />
+          <span class="chat-status-text">{{ props.modelLabel }}</span>
+        </button>
+      </AppTooltip>
       <span class="chat-status-divider" aria-hidden="true" />
-      <button class="chat-status-item" type="button" title="打开工作区设置" @click="emit('openSettings', 'workspace')">
-        <span class="i-mingcute-folder-line" aria-hidden="true" />
-        <span class="chat-status-text">{{ props.workspaceLabel }}</span>
-      </button>
+      <AppTooltip text="打开工作区设置" side="bottom">
+        <button
+          class="chat-status-item"
+          type="button"
+          aria-label="打开工作区设置"
+          @click="emit('openSettings', 'workspace')"
+        >
+          <span class="i-mingcute-folder-line" aria-hidden="true" />
+          <span class="chat-status-text">{{ props.workspaceLabel }}</span>
+        </button>
+      </AppTooltip>
     </div>
   </section>
 </template>

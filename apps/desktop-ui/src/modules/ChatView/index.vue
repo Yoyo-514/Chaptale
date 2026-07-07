@@ -78,7 +78,7 @@ async function handleSwitchBranch(leafId: string) {
 
 <style scoped lang="scss">
 .chat-main {
-  @apply flex min-h-0 flex-1 flex-col overflow-hidden pt-3 pb-6;
+  @apply flex min-h-0 flex-1 flex-col overflow-hidden pt-3 pb-5;
 }
 
 .chat-main-welcome {

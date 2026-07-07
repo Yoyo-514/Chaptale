@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import AppTooltip from '../AppTooltip/AppTooltip.vue';
 import { useNotificationStore } from '../../stores/notification';
 
 const notificationStore = useNotificationStore();
 
 const hasError = computed(() => notificationStore.items.some(item => item.kind === 'error'));
 const notificationCountLabel = computed(() =>
-  notificationStore.unreadCount > 99 ? '99+' : String(notificationStore.unreadCount)
+  notificationStore.unseenCount > 99 ? '99+' : String(notificationStore.unseenCount)
+);
+const notificationTooltip = computed(() =>
+  notificationStore.unseenCount > 0 ? `${notificationStore.unseenCount} 条新通知` : '没有通知'
 );
 </script>
 
@@ -15,17 +19,19 @@ const notificationCountLabel = computed(() =>
   <footer class="status-bar" aria-label="状态栏">
     <div class="status-bar-spacer" />
 
-    <button
-      class="status-notification-button"
-      :class="{ 'has-error': hasError }"
-      type="button"
-      :aria-expanded="notificationStore.isPanelOpen"
-      aria-label="打开通知中心"
-      @click="notificationStore.togglePanel()"
-    >
-      <span class="i-mingcute-notification-line status-notification-icon" aria-hidden="true" />
-      <span v-if="notificationStore.unreadCount > 0" class="notification-count">{{ notificationCountLabel }}</span>
-    </button>
+    <AppTooltip :text="notificationTooltip" side="top" :side-offset="6">
+      <button
+        class="status-notification-button"
+        :class="{ 'has-error': hasError }"
+        type="button"
+        :aria-expanded="notificationStore.isPanelOpen"
+        aria-label="打开通知中心"
+        @click="notificationStore.togglePanel()"
+      >
+        <span class="i-mingcute-notification-line status-notification-icon" aria-hidden="true" />
+        <span v-if="notificationStore.unseenCount > 0" class="notification-count">{{ notificationCountLabel }}</span>
+      </button>
+    </AppTooltip>
   </footer>
 </template>
 

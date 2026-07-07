@@ -1,4 +1,3 @@
-import type { ChatMessage } from '@chaptale/shared';
 import type {
   ChaptaleSessionInfoEntry,
   ChaptaleSessionListItem,
@@ -8,6 +7,7 @@ import type {
   ChaptaleSessionTreeEntry,
   CreateSessionOptions
 } from '@chaptale/ipc-contract';
+import type { ChatMessage } from '@chaptale/shared';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -87,7 +87,7 @@ export class PiSessionRepository {
       })
     );
 
-    return sessions.flat().sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    return sessions.flat().toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
   async getMetadata(sessionId: string): Promise<ChaptaleSessionMetadata> {

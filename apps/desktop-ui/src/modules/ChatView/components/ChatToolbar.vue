@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { TooltipContent, TooltipPortal, TooltipProvider, TooltipRoot, TooltipTrigger } from 'reka-ui';
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
+import AppTooltip from '../../../components/AppTooltip/AppTooltip.vue';
 import { useSessionStore } from '../../../stores/session';
 
 const router = useRouter();
@@ -30,42 +30,26 @@ async function handleOpenHistory() {
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="120">
-    <div class="chat-toolbar" aria-label="聊天工具栏">
-      <div class="chat-toolbar-title" :title="sessionTitle">
-        <span class="i-mingcute-chat-3-line chat-toolbar-title-icon" aria-hidden="true" />
-        <span class="chat-toolbar-title-text">{{ sessionTitle }}</span>
-      </div>
-
-      <div class="chat-toolbar-actions">
-        <TooltipRoot>
-          <TooltipTrigger as-child>
-            <button class="chat-toolbar-button" type="button" aria-label="新建会话" @click="handleCreateSession">
-              <span class="i-mingcute-add-line" aria-hidden="true" />
-            </button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent class="chat-toolbar-tooltip" side="bottom" align="center" :side-offset="3">
-              新建会话
-            </TooltipContent>
-          </TooltipPortal>
-        </TooltipRoot>
-
-        <TooltipRoot>
-          <TooltipTrigger as-child>
-            <button class="chat-toolbar-button" type="button" aria-label="历史记录" @click="handleOpenHistory">
-              <span class="i-mingcute-history-line" aria-hidden="true" />
-            </button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent class="chat-toolbar-tooltip" side="bottom" align="center" :side-offset="3">
-              历史记录
-            </TooltipContent>
-          </TooltipPortal>
-        </TooltipRoot>
-      </div>
+  <div class="chat-toolbar" aria-label="聊天工具栏">
+    <div class="chat-toolbar-title" :title="sessionTitle">
+      <span class="i-mingcute-chat-3-line chat-toolbar-title-icon" aria-hidden="true" />
+      <span class="chat-toolbar-title-text">{{ sessionTitle }}</span>
     </div>
-  </TooltipProvider>
+
+    <div class="chat-toolbar-actions">
+      <AppTooltip text="新建会话" side="bottom" :side-offset="3">
+        <button class="chat-toolbar-button" type="button" aria-label="新建会话" @click="handleCreateSession">
+          <span class="i-mingcute-add-line" aria-hidden="true" />
+        </button>
+      </AppTooltip>
+
+      <AppTooltip text="历史记录" side="bottom" :side-offset="3">
+        <button class="chat-toolbar-button" type="button" aria-label="历史记录" @click="handleOpenHistory">
+          <span class="i-mingcute-history-line" aria-hidden="true" />
+        </button>
+      </AppTooltip>
+    </div>
+  </div>
 </template>
 
 <style scoped lang="scss">
@@ -108,14 +92,5 @@ async function handleOpenHistory() {
 
 .chat-toolbar-button:focus-visible {
   box-shadow: var(--input-focus-shadow);
-}
-
-:global(.chat-toolbar-tooltip) {
-  @apply z-50 border px-2 py-1 text-xs shadow-soft;
-
-  background: var(--popover);
-  border-color: var(--border);
-  color: var(--popover-foreground);
-  backdrop-filter: var(--blur-acrylic-subtle);
 }
 </style>

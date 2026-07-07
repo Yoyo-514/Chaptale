@@ -42,7 +42,7 @@ function getBranchEntryIds(entryMap: Map<string, ChaptaleSessionTreeEntry>, leaf
     currentId = entry.parentId;
   }
 
-  return ids.reverse();
+  return ids.toReversed();
 }
 
 function getUserBranchControl(
@@ -57,7 +57,7 @@ function getUserBranchControl(
         candidate.message.role === 'user'
       )
     )
-    .sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+    .toSorted((left, right) => left.timestamp.localeCompare(right.timestamp));
 
   if (siblingUsers.length <= 1) {
     return undefined;
@@ -97,7 +97,7 @@ function getDeepestLeafId(entries: ChaptaleSessionTreeEntry[], rootId?: string) 
   let leafId = rootId;
 
   while (true) {
-    const children = [...(childrenByParent.get(leafId) ?? [])].sort((left, right) =>
+    const children = (childrenByParent.get(leafId) ?? []).toSorted((left, right) =>
       left.timestamp.localeCompare(right.timestamp)
     );
 
