@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 
 export type NotificationKind = 'error' | 'success' | 'info';
+export type NotificationPanelMode = 'auto' | 'manual';
 
 export type NotificationItem = {
   id: number;
@@ -29,11 +30,13 @@ function clearPanelAutoHideTimer() {
 export const useNotificationStore = defineStore('notification', {
   state: () => ({
     items: [] as NotificationItem[],
-    isPanelOpen: false
+    isPanelOpen: false,
+    panelMode: 'auto' as NotificationPanelMode
   }),
   getters: {
     unreadCount: state => state.items.length,
-    recentItems: state => [...state.items].reverse().slice(0, 3)
+    recentItems: state => [...state.items].reverse().slice(0, 3),
+    allItems: state => [...state.items].reverse()
   },
   actions: {
     push(kind: NotificationKind, title: string, description?: string) {
@@ -50,6 +53,7 @@ export const useNotificationStore = defineStore('notification', {
         this.items.splice(0, this.items.length - 30);
       }
 
+      this.panelMode = 'auto';
       this.isPanelOpen = true;
       this.schedulePanelAutoHide();
     },
@@ -65,6 +69,7 @@ export const useNotificationStore = defineStore('notification', {
 
     openPanel() {
       clearPanelAutoHideTimer();
+      this.panelMode = 'manual';
       this.isPanelOpen = true;
     },
 
@@ -74,8 +79,12 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     togglePanel() {
-      clearPanelAutoHideTimer();
-      this.isPanelOpen = !this.isPanelOpen;
+      if (this.isPanelOpen && this.panelMode === 'manual') {
+        this.closePanel();
+        return;
+      }
+
+      this.openPanel();
     },
 
     schedulePanelAutoHide() {

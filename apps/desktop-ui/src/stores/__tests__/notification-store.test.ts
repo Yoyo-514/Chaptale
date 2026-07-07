@@ -20,7 +20,9 @@ describe('notification store', () => {
     expect(store.items[0]?.title).toBe('消息 3');
     expect(store.unreadCount).toBe(30);
     expect(store.recentItems.map(item => item.title)).toEqual(['消息 32', '消息 31', '消息 30']);
+    expect(store.allItems.map(item => item.title).slice(0, 4)).toEqual(['消息 32', '消息 31', '消息 30', '消息 29']);
     expect(store.isPanelOpen).toBe(true);
+    expect(store.panelMode).toBe('auto');
   });
 
   it('dismisses, clears, opens, closes, toggles, and auto-hides the panel', () => {
@@ -37,11 +39,13 @@ describe('notification store', () => {
 
     store.openPanel();
     expect(store.isPanelOpen).toBe(true);
+    expect(store.panelMode).toBe('manual');
 
     store.togglePanel();
     expect(store.isPanelOpen).toBe(false);
     store.togglePanel();
     expect(store.isPanelOpen).toBe(true);
+    expect(store.panelMode).toBe('manual');
 
     store.schedulePanelAutoHide();
     vi.advanceTimersByTime(5000);

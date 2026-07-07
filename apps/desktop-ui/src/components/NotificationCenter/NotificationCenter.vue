@@ -6,13 +6,22 @@ import NotificationCenterItem from './NotificationCenterItem.vue';
 
 const notificationStore = useNotificationStore();
 
+const isManualPanel = computed(() => notificationStore.panelMode === 'manual');
 const panelTitle = computed(() => (notificationStore.items.length === 0 ? '无新通知' : '通知'));
+const visibleNotifications = computed(() =>
+  isManualPanel.value ? notificationStore.allItems : notificationStore.recentItems
+);
 </script>
 
 <template>
   <Transition name="notification-center-fade">
-    <section v-if="notificationStore.isPanelOpen" class="notification-center" aria-label="通知中心">
-      <header class="notification-center-header">
+    <section
+      v-if="notificationStore.isPanelOpen"
+      class="notification-center"
+      :class="{ 'is-manual': isManualPanel, 'is-auto': !isManualPanel }"
+      aria-label="通知中心"
+    >
+      <header v-if="isManualPanel" class="notification-center-header">
         <h2 class="notification-center-title">{{ panelTitle }}</h2>
         <div class="notification-center-actions">
           <button
@@ -28,18 +37,6 @@ const panelTitle = computed(() => (notificationStore.items.length === 0 ? '无�
           <button
             class="notification-action-button"
             type="button"
-            :disabled="notificationStore.items.length === 0"
-            aria-label="静音通知"
-            title="静音通知"
-          >
-            <span class="i-mingcute-notification-off-line" aria-hidden="true" />
-          </button>
-          <button class="notification-action-button" type="button" aria-label="切换通知排序" title="切换通知排序">
-            <span class="i-mingcute-transfer-3-line" aria-hidden="true" />
-          </button>
-          <button
-            class="notification-action-button"
-            type="button"
             aria-label="隐藏通知中心"
             title="隐藏通知中心"
             @click="notificationStore.closePanel()"
@@ -49,14 +46,15 @@ const panelTitle = computed(() => (notificationStore.items.length === 0 ? '无�
         </div>
       </header>
 
-      <ul v-if="notificationStore.items.length > 0" class="notification-list">
+      <ul v-if="visibleNotifications.length > 0" class="notification-list">
         <NotificationCenterItem
-          v-for="notification in notificationStore.recentItems"
+          v-for="notification in visibleNotifications"
           :key="notification.id"
           :notification="notification"
           @dismiss="notificationStore.dismiss"
         />
       </ul>
+      <div v-else-if="isManualPanel" class="notification-empty">暂无通知</div>
     </section>
   </Transition>
 </template>
@@ -78,15 +76,24 @@ const panelTitle = computed(() => (notificationStore.items.length === 0 ? '无�
 .notification-center {
   @apply fixed bottom-7 right-3 z-[80] flex w-[28rem] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden border shadow-float;
 
-  max-height: min(20rem, calc(100vh - 5rem));
   background: var(--popover);
   border-color: var(--border-subtle);
   border-radius: calc(var(--radius) * 0.35);
   color: var(--popover-foreground);
 }
 
+.notification-center.is-auto {
+  max-height: min(18rem, calc(100vh - 5rem));
+}
+
+.notification-center.is-manual {
+  max-height: min(28rem, calc((100vh - 5rem) / 2));
+}
+
 .notification-center-header {
-  @apply flex min-h-9 items-center justify-between gap-3 px-2.5 py-1.5;
+  @apply flex min-h-9 items-center justify-between gap-3 border-b px-2.5 py-1.5;
+
+  border-color: var(--border-subtle);
 }
 
 .notification-center-title {
@@ -100,14 +107,10 @@ const panelTitle = computed(() => (notificationStore.items.length === 0 ? '无�
 }
 
 .notification-action-button {
-  @apply flex-center shrink-0 border-0 outline-none transition-colors duration-150;
+  @apply flex-center size-6 shrink-0 rounded border-0 text-base outline-none transition-colors duration-150;
 
   background: transparent;
   color: var(--muted-foreground);
-}
-
-.notification-action-button {
-  @apply size-6 rounded text-base;
 }
 
 .notification-action-button:hover {
@@ -124,8 +127,12 @@ const panelTitle = computed(() => (notificationStore.items.length === 0 ? '无�
 }
 
 .notification-list {
-  @apply m-0 flex list-none flex-col overflow-y-auto border-t p-0;
+  @apply m-0 flex min-h-0 list-none flex-col overflow-y-auto p-0;
+}
 
-  border-color: var(--border-subtle);
+.notification-empty {
+  @apply px-3 py-4 text-center text-xs;
+
+  color: var(--muted-foreground);
 }
 </style>
