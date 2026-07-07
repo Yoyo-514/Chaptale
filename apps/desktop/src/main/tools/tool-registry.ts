@@ -12,6 +12,14 @@ import { toPiToolDefinition } from './pi/pi-tool-adapter';
 export const chaptaleTools: ChaptaleToolDefinition[] = [];
 
 /**
+ * 来自 pi SDK 的内置工具。
+ *
+ * read/grep/find/ls/write/edit 是 Chaptale 后续工作区与文件处理能力的基础；
+ * bash 暂不启用，避免在非代码软件里默认暴露任意命令执行能力。
+ */
+export const piBuiltinToolNames = ['read', 'grep', 'find', 'ls', 'write', 'edit'] as const;
+
+/**
  * 来自显式加载的 pi package extension 的工具。
  *
  * 注意：这些工具不是 Chaptale 自有工具，因此不放进 customTools；
@@ -20,7 +28,7 @@ export const chaptaleTools: ChaptaleToolDefinition[] = [];
 export const piPackageToolNames = ['web_search', 'fetch_content', 'get_search_content'] as const;
 
 export function getEnabledToolNames() {
-  return [...piPackageToolNames, ...chaptaleTools.map(tool => tool.name)];
+  return [...piBuiltinToolNames, ...piPackageToolNames, ...chaptaleTools.map(tool => tool.name)];
 }
 
 export function getPiCustomTools(): ToolDefinition[] {

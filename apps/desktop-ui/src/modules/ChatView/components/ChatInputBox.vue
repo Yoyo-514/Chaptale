@@ -2,8 +2,9 @@
 import { ref } from 'vue';
 
 import type { SelectedContextFile } from '@chaptale/ipc-contract';
+import { formatFileSize } from '@chaptale/shared';
 import AppTooltip from '../../../components/AppTooltip/AppTooltip.vue';
-import { cn, formatFileSize } from '../../../utils';
+import { cn } from '../../../utils';
 
 const props = defineProps<{
   modelValue: string;

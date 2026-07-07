@@ -4,7 +4,7 @@ export type SelectedContextFile = {
   path: string;
   name: string;
   size: number;
-  kind: 'text' | 'image' | 'unsupported';
+  kind: 'text' | 'document' | 'image' | 'unsupported';
   mimeType?: string;
   /** 小图预览（仅限体积较小的图片，data URL）。 */
   previewDataUrl?: string;

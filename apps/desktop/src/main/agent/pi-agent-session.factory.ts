@@ -75,7 +75,7 @@ export class PiAgentSessionFactory {
       sessionManager,
       settingsManager,
       resourceLoader,
-      // 创作场景：只允许显式注册的白名单工具，避免暴露 read/bash/edit/write 等 coding 工具。
+      // 创作场景：启用显式白名单工具。read/grep/find/ls/write/edit 用于工作区与文件能力；bash 暂不开放。
       tools: getEnabledToolNames(),
       customTools: getPiCustomTools()
     });

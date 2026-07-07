@@ -4,6 +4,9 @@ import {
   blankToUndefined,
   cleanUrlToken,
   collapseWhitespace,
+  escapeXmlAttribute,
+  escapeXmlText,
+  formatFileSize,
   getHostname,
   isRecord,
   readBoolean,
@@ -56,5 +59,18 @@ describe('shared utils', () => {
     expect(getHostname('https://www.example.com/path')).toBe('example.com');
     expect(getHostname('not a url')).toBe('not a url');
     expect(cleanUrlToken('https://example.com/path),')).toBe('https://example.com/path');
+  });
+
+  it('formats file sizes consistently across main and renderer code', () => {
+    expect(formatFileSize(12)).toBe('12 B');
+    expect(formatFileSize(1024)).toBe('1 KB');
+    expect(formatFileSize(1536)).toBe('2 KB');
+    expect(formatFileSize(1024 * 1024)).toBe('1.0 MB');
+    expect(formatFileSize(1536 * 1024)).toBe('1.5 MB');
+  });
+
+  it('escapes XML text and attributes for prompt envelopes', () => {
+    expect(escapeXmlText('<tag>&value')).toBe('&lt;tag>&amp;value');
+    expect(escapeXmlAttribute('"<tag>&value>')).toBe('&quot;&lt;tag>&amp;value&gt;');
   });
 });

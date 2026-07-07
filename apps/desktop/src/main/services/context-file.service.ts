@@ -3,99 +3,37 @@ import type { ImageContent } from '@earendil-works/pi-ai/compat';
 
 import { dialog, type BrowserWindow, type OpenDialogOptions } from 'electron';
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { unique } from 'radash';
+
+import {
+  DOCUMENT_MIME_TYPES,
+  IMAGE_MIME_TYPES,
+  MAX_CONTEXT_FILE_BYTES,
+  MAX_DIRECT_FILE_INPUT_BYTES,
+  MAX_DIRECT_FILE_INPUT_TOTAL_BYTES,
+  MAX_PROMPT_IMAGE_BYTES,
+  TEXT_EXTENSIONS
+} from './context-files/constants';
+import { buildDocumentFileInputBlock, buildTextFileInputBlock } from './context-files/file-input';
+import { getDocumentMimeType, getFileKind, getImageMimeType } from './context-files/file-kind';
+import {
+  buildFileSearchPlaceholderBlock,
+  buildOversizedFileBlock,
+  buildOversizedImageBlock
+} from './context-files/file-search';
+import { toSelectedContextFile } from './context-files/selected-context-file';
 
 export type ResolvedContextFiles = {
   promptPrefix: string;
   images: ImageContent[];
 };
 
-const TEXT_EXTENSIONS = new Set([
-  '.txt',
-  '.md',
-  '.markdown',
-  '.json',
-  '.jsonl',
-  '.yaml',
-  '.yml',
-  '.toml',
-  '.csv',
-  '.log',
-  '.xml',
-  '.html',
-  '.css',
-  '.scss',
-  '.js',
-  '.jsx',
-  '.ts',
-  '.tsx',
-  '.vue',
-  '.py',
-  '.java',
-  '.go',
-  '.rs',
-  '.c',
-  '.cpp',
-  '.h',
-  '.hpp',
-  '.cs',
-  '.php',
-  '.rb',
-  '.sh',
-  '.ps1'
-]);
+function getContextFileExtensions() {
+  const textExtensions = Array.from(TEXT_EXTENSIONS, extension => extension.slice(1));
+  const documentExtensions = Object.keys(DOCUMENT_MIME_TYPES).map(extension => extension.slice(1));
+  const imageExtensions = Object.keys(IMAGE_MIME_TYPES).map(extension => extension.slice(1));
 
-const IMAGE_MIME_TYPES: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif'
-};
-
-const MAX_TEXT_FILE_BYTES = 1024 * 1024;
-const MAX_CONTEXT_FILES = 8;
-/** 超过此体积的图片不生成内联预览，避免 IPC 携带大 payload。 */
-const MAX_PREVIEW_IMAGE_BYTES = 5 * 1024 * 1024;
-
-function getFileKind(filePath: string): SelectedContextFile['kind'] {
-  const extension = path.extname(filePath).toLowerCase();
-
-  if (IMAGE_MIME_TYPES[extension]) {
-    return 'image';
-  }
-
-  if (TEXT_EXTENSIONS.has(extension)) {
-    return 'text';
-  }
-
-  return 'unsupported';
-}
-
-function getImageMimeType(filePath: string) {
-  return IMAGE_MIME_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
-}
-
-async function toSelectedContextFile(filePath: string): Promise<SelectedContextFile> {
-  const stats = await fs.stat(filePath);
-  const kind = getFileKind(filePath);
-  const mimeType = kind === 'image' ? getImageMimeType(filePath) : undefined;
-  let previewDataUrl: string | undefined;
-
-  if (kind === 'image' && mimeType && stats.size <= MAX_PREVIEW_IMAGE_BYTES) {
-    const data = await fs.readFile(filePath, 'base64');
-    previewDataUrl = `data:${mimeType};base64,${data}`;
-  }
-
-  return {
-    path: filePath,
-    name: path.basename(filePath),
-    size: stats.size,
-    kind,
-    mimeType,
-    previewDataUrl
-  };
+  return unique([...textExtensions, ...documentExtensions, ...imageExtensions]);
 }
 
 export class ContextFileService {
@@ -106,26 +44,7 @@ export class ContextFileService {
       filters: [
         {
           name: '支持的上下文文件',
-          extensions: [
-            'txt',
-            'md',
-            'json',
-            'yaml',
-            'yml',
-            'csv',
-            'log',
-            'ts',
-            'tsx',
-            'js',
-            'jsx',
-            'vue',
-            'py',
-            'png',
-            'jpg',
-            'jpeg',
-            'webp',
-            'gif'
-          ]
+          extensions: getContextFileExtensions()
         },
         { name: '所有文件', extensions: ['*'] }
       ]
@@ -138,13 +57,13 @@ export class ContextFileService {
       return [];
     }
 
-    const selected = await Promise.all(result.filePaths.slice(0, MAX_CONTEXT_FILES).map(toSelectedContextFile));
+    const selected = await Promise.all(result.filePaths.map(toSelectedContextFile));
     return selected.filter(file => file.kind !== 'unsupported');
   }
 
   /** 校验拖拽传入的本地路径，不存在/不支持的文件会被过滤掉。 */
   async inspectFiles(filePaths: string[] = []): Promise<SelectedContextFile[]> {
-    const uniquePaths = unique(filePaths).slice(0, MAX_CONTEXT_FILES);
+    const uniquePaths = unique(filePaths);
     const inspected = await Promise.all(
       uniquePaths.map(filePath => toSelectedContextFile(filePath).catch(() => undefined))
     );
@@ -153,26 +72,48 @@ export class ContextFileService {
   }
 
   async resolve(filePaths: string[] = []): Promise<ResolvedContextFiles> {
-    const uniquePaths = unique(filePaths).slice(0, MAX_CONTEXT_FILES);
+    const uniquePaths = unique(filePaths);
     const textBlocks: string[] = [];
     const images: ImageContent[] = [];
+    let remainingDirectFileInputBytes = MAX_DIRECT_FILE_INPUT_TOTAL_BYTES;
 
     for (const filePath of uniquePaths) {
       const kind = getFileKind(filePath);
+
+      if (kind === 'unsupported') {
+        continue;
+      }
+
       const stats = await fs.stat(filePath);
 
+      if (stats.size > MAX_CONTEXT_FILE_BYTES) {
+        textBlocks.push(buildOversizedFileBlock(filePath, stats));
+        continue;
+      }
+
       if (kind === 'text') {
-        if (stats.size > MAX_TEXT_FILE_BYTES) {
-          textBlocks.push(`<file path="${filePath}" skipped="true">文件超过 1MB，已跳过全文注入。</file>`);
+        if (stats.size <= MAX_DIRECT_FILE_INPUT_BYTES && stats.size <= remainingDirectFileInputBytes) {
+          const text = await fs.readFile(filePath, 'utf8');
+          remainingDirectFileInputBytes -= stats.size;
+          textBlocks.push(buildTextFileInputBlock(filePath, stats, text));
           continue;
         }
 
-        const text = await fs.readFile(filePath, 'utf8');
-        textBlocks.push(`<file path="${filePath}">\n${text}\n</file>`);
+        textBlocks.push(buildFileSearchPlaceholderBlock(filePath, stats));
+        continue;
+      }
+
+      if (kind === 'document') {
+        textBlocks.push(buildDocumentFileInputBlock(filePath, stats, getDocumentMimeType(filePath)));
         continue;
       }
 
       if (kind === 'image') {
+        if (stats.size > MAX_PROMPT_IMAGE_BYTES) {
+          textBlocks.push(buildOversizedImageBlock(filePath, stats, MAX_PROMPT_IMAGE_BYTES));
+          continue;
+        }
+
         const data = await fs.readFile(filePath, 'base64');
         images.push({ type: 'image', data, mimeType: getImageMimeType(filePath) });
       }
