@@ -1,6 +1,6 @@
 import type { ChaptaleModelInfo } from '@chaptale/ipc-contract';
 
-import type { useSettingsStore } from '../../../stores/settings';
+import type { useSettingsStore } from '@/stores/settings';
 
 type SettingsStore = ReturnType<typeof useSettingsStore>;
 

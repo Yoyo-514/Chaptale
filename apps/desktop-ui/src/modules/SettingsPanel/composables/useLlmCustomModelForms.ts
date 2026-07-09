@@ -1,8 +1,8 @@
 import type { ChaptaleCustomProviderApi, ChaptaleModelInfo } from '@chaptale/ipc-contract';
 import { computed, reactive, ref, watch, type Ref } from 'vue';
 
-import type { useNotificationStore } from '../../../stores/notification';
-import type { useSettingsStore } from '../../../stores/settings';
+import type { useNotificationStore } from '@/stores/notification';
+import type { useSettingsStore } from '@/stores/settings';
 import {
   createCustomModelDraft,
   draftToInput,

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { ChaptaleModelInfo } from '@chaptale/ipc-contract';
 
+import AppButton from '@/components/AppButton/AppButton.vue';
+import AppCheckbox from '@/components/AppCheckbox/AppCheckbox.vue';
+
 const props = defineProps<{
   models: ChaptaleModelInfo[];
   isLoading: boolean;
@@ -12,10 +15,6 @@ const emit = defineEmits<{
   toggleImageInput: [model: ChaptaleModelInfo, checked: boolean];
   removeCustomModel: [provider: string, modelId: string];
 }>();
-
-function emitToggleImageInput(model: ChaptaleModelInfo, event: Event) {
-  emit('toggleImageInput', model, (event.target as HTMLInputElement).checked);
-}
 </script>
 
 <template>
@@ -44,35 +43,37 @@ function emitToggleImageInput(model: ChaptaleModelInfo, event: Event) {
         </span>
       </div>
       <div class="settings-model-actions" @click.stop>
-        <button
+        <AppButton
           v-if="model.isCustom"
-          class="settings-icon-button"
+          icon
+          variant="secondary"
           type="button"
           :disabled="props.isLoading"
           aria-label="编辑自定义模型"
           @click="emit('editCustomModel', model)"
         >
           <span class="i-mingcute-edit-2-line size-4" aria-hidden="true" />
-        </button>
+        </AppButton>
         <label v-if="model.isCustom" class="settings-inline-check">
-          <input
-            type="checkbox"
-            :checked="model.input.includes('image')"
+          <AppCheckbox
+            :model-value="model.input.includes('image')"
             :disabled="props.isLoading"
-            @change="emitToggleImageInput(model, $event)"
+            aria-label="切换图像输入支持"
+            @update:model-value="emit('toggleImageInput', model, $event === true)"
           />
           <span>图像</span>
         </label>
-        <button
+        <AppButton
           v-if="model.isCustom"
-          class="settings-danger-icon-button"
+          icon
+          variant="danger"
           type="button"
           :disabled="props.isLoading"
           aria-label="删除自定义模型"
           @click="emit('removeCustomModel', model.provider, model.id)"
         >
           <span class="i-mingcute-delete-2-line size-4" aria-hidden="true" />
-        </button>
+        </AppButton>
       </div>
     </article>
   </div>

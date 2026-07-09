@@ -1,94 +1,39 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { useSettingsStore } from '../../../stores/settings';
+import AppButton from '@/components/AppButton/AppButton.vue';
+import { useSettingsStore } from '@/stores/settings';
+import SettingsPathCard from '../components/SettingsPathCard.vue';
+import SettingsSection from '../components/SettingsSection.vue';
 
 const settingsStore = useSettingsStore();
 const paths = computed(() => settingsStore.state?.paths);
 </script>
 
 <template>
-  <section class="settings-section" aria-labelledby="settings-files-title">
-    <div class="settings-section-heading">
-      <h3 id="settings-files-title" class="settings-section-title">配置文件</h3>
-      <button class="settings-secondary-button" type="button" @click="settingsStore.openConfigDir()">
-        打开配置目录
-      </button>
-    </div>
-    <p class="settings-section-description">
-      这里用于排查本机配置路径。通常无需手动编辑，除非需要备份、迁移或排查模型配置问题。
-    </p>
+  <SettingsSection
+    title="配置文件"
+    title-id="settings-files-title"
+    description="这里用于排查本机配置路径。通常无需手动编辑，除非需要备份、迁移或排查模型配置问题。"
+  >
+    <template #actions>
+      <AppButton type="button" @click="settingsStore.openConfigDir()">打开配置目录</AppButton>
+    </template>
 
     <div class="settings-path-grid">
-      <div class="settings-path-card">
-        <span class="settings-path-label">应用设置文件</span>
-        <code class="settings-path-value">{{ paths?.settingsPath || '读取中...' }}</code>
-      </div>
-      <div class="settings-path-card">
-        <span class="settings-path-label">agent 设置文件</span>
-        <code class="settings-path-value">{{ paths?.piSettingsPath || '读取中...' }}</code>
-      </div>
-      <div class="settings-path-card">
-        <span class="settings-path-label">第三方模型配置文件</span>
-        <code class="settings-path-value">{{ paths?.piModelsPath || '读取中...' }}</code>
-      </div>
-      <div class="settings-path-card">
-        <span class="settings-path-label">内置模型凭据配置文件</span>
-        <code class="settings-path-value">{{ paths?.piAuthPath || '读取中...' }}</code>
-      </div>
-      <div class="settings-path-card">
-        <span class="settings-path-label">联网能力配置文件</span>
-        <code class="settings-path-value">{{ paths?.piWebAccessConfigPath || '读取中...' }}</code>
-      </div>
+      <SettingsPathCard label="应用设置文件" :value="paths?.settingsPath" />
+      <SettingsPathCard label="agent 设置文件" :value="paths?.piSettingsPath" />
+      <SettingsPathCard label="第三方模型配置文件" :value="paths?.piModelsPath" />
+      <SettingsPathCard label="内置模型凭据配置文件" :value="paths?.piAuthPath" />
+      <SettingsPathCard label="联网能力配置文件" :value="paths?.piWebAccessConfigPath" />
     </div>
-  </section>
+  </SettingsSection>
 </template>
 
 <style scoped lang="scss">
 @use '../styles/controls';
 
-.settings-section {
-  @apply h-full min-h-0 overflow-y-auto p-2;
-
-  background: var(--surface-acrylic-subtle);
-}
-
-.settings-section-heading {
-  @apply flex items-center justify-between gap-3;
-}
-
-.settings-section-title {
-  @apply m-0 text-sm font-semibold;
-}
-
-.settings-section-description {
-  @apply mt-1 mb-3 text-xs leading-5;
-
-  color: var(--muted-foreground);
-}
-
 .settings-path-grid {
   @apply grid gap-2;
-}
-
-.settings-path-card {
-  @apply flex min-w-0 flex-col gap-1 border px-3 py-2;
-
-  background: var(--surface-acrylic-strong);
-  border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
-}
-
-.settings-path-label {
-  @apply text-xs;
-
-  color: var(--muted-foreground);
-}
-
-.settings-path-value {
-  @apply break-all text-xs;
-
-  color: var(--foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 }
 </style>

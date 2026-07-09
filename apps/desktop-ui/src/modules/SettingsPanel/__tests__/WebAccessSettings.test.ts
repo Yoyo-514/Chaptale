@@ -1,10 +1,11 @@
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { defineComponent, h } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { defineComponent, h } from 'vue';
 
-import { useNotificationStore } from '../../../stores/notification';
-import { useSettingsStore } from '../../../stores/settings';
+import AppSelect from '@/components/AppSelect/AppSelect.vue';
+import { useNotificationStore } from '@/stores/notification';
+import { useSettingsStore } from '@/stores/settings';
 import WebAccessSettings from '../sections/WebAccessSettings.vue';
 
 function createSettingsState(overrides: Record<string, unknown> = {}) {
@@ -62,13 +63,6 @@ const checkboxStub = defineComponent({
   }
 });
 
-const dropdownItemStub = defineComponent({
-  emits: ['select'],
-  setup(_, { emit, slots }) {
-    return () => h('button', { class: 'dropdown-item-stub', onClick: () => emit('select') }, slots.default?.());
-  }
-});
-
 const numberInputStub = defineComponent({
   props: { modelValue: Number, ariaLabel: String },
   emits: ['update:modelValue'],
@@ -92,11 +86,6 @@ function mountSection() {
         CollapsibleRoot: passthrough,
         CollapsibleContent: passthrough,
         CollapsibleTrigger: passthrough,
-        DropdownMenuRoot: passthrough,
-        DropdownMenuTrigger: passthrough,
-        DropdownMenuPortal: passthrough,
-        DropdownMenuContent: passthrough,
-        DropdownMenuItem: dropdownItemStub,
         NumberInput: numberInputStub
       }
     }
@@ -134,17 +123,15 @@ describe('WebAccessSettings', () => {
 
     const wrapper = mountSection();
     await wrapper.findAll('.checkbox-stub')[0]!.trigger('click');
-    await wrapper
-      .findAll('.dropdown-item-stub')
-      .find(item => item.text().includes('Brave'))!
-      .trigger('click');
-    await wrapper
-      .findAll('.dropdown-item-stub')
-      .find(item => item.text().includes('自动总结'))!
-      .trigger('click');
+    const selects = wrapper.findAllComponents(AppSelect);
+    await selects[0]!.vm.$emit('update:modelValue', 'brave');
+    await selects[1]!.vm.$emit('update:modelValue', 'auto-summary');
     const braveInput = wrapper.findAll('input').find(input => input.element.getAttribute('type') === 'password');
     await braveInput?.setValue('BSA_test');
-    await wrapper.find('button.settings-primary-button').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('保存联网设置'))!
+      .trigger('click');
 
     expect(updateWebAccess).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -167,8 +154,14 @@ describe('WebAccessSettings', () => {
     const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(undefined as never);
 
     const wrapper = mountSection();
-    await wrapper.find('button.settings-secondary-button').trigger('click');
-    await wrapper.find('button.settings-primary-button').trigger('click');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('恢复安全默认值'))!
+      .trigger('click');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('保存联网设置'))!
+      .trigger('click');
 
     expect(settingsStore.state?.webAccess.provider).toBe('tavily');
     expect(updateWebAccess).toHaveBeenCalledWith(

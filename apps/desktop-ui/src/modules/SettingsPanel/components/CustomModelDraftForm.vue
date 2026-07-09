@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { FetchedCustomProviderModel } from '@chaptale/ipc-contract';
 
-import AppDropdownMenu from '../../../components/AppDropdownMenu/AppDropdownMenu.vue';
-import AppDropdownMenuItem from '../../../components/AppDropdownMenu/AppDropdownMenuItem.vue';
+import AppButton from '@/components/AppButton/AppButton.vue';
+import AppCheckbox from '@/components/AppCheckbox/AppCheckbox.vue';
+import AppSelect from '@/components/AppSelect/AppSelect.vue';
+import AppSelectItem from '@/components/AppSelect/AppSelectItem.vue';
 import type { CustomModelDraft } from '../utils/custom-model-draft';
 
 /**
@@ -35,39 +37,48 @@ function selectModel(model: FetchedModelOption) {
   props.draft.modelId = model.id;
   props.draft.modelName = model.name || model.id;
 }
+
+function selectFetchedModel(modelId: string) {
+  const model = props.fetchedModels.find(item => item.id === modelId);
+
+  if (!model) {
+    return;
+  }
+
+  selectModel(model);
+}
 </script>
 
 <template>
   <div class="model-draft-fields">
     <div class="model-draft-fetch-row">
-      <button
-        class="settings-secondary-button"
+      <AppButton
         type="button"
         :disabled="isFetching || !canFetch"
         :title="!canFetch ? fetchDisabledReason : undefined"
         @click="emit('fetch')"
       >
         {{ isFetching ? '拉取中...' : '拉取模型' }}
-      </button>
-      <AppDropdownMenu trigger-class="settings-dropdown-trigger" :disabled="fetchedModels.length === 0">
+      </AppButton>
+      <AppSelect
+        :model-value="draft.modelId"
+        trigger-class="settings-dropdown-trigger"
+        :disabled="fetchedModels.length === 0"
+        @update:model-value="selectFetchedModel"
+      >
         <template #trigger="{ triggerClass, disabled, dataDisabled }">
           <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
             {{ fetchedModels.length ? '选择拉取到的模型' : '未拉取到模型，可手动输入' }}
           </button>
         </template>
-        <AppDropdownMenuItem
-          v-for="model in fetchedModels"
-          :key="model.id"
-          :disabled="model.isAdded"
-          @select="selectModel(model)"
-        >
+        <AppSelectItem v-for="model in fetchedModels" :key="model.id" :value="model.id" :disabled="model.isAdded">
           <span class="settings-dropdown-item-title">
             <span>{{ model.name || model.id }}</span>
             <small v-if="model.isAdded" class="settings-dropdown-item-badge">已添加</small>
           </span>
           <code class="settings-dropdown-item-code">{{ model.id }}</code>
-        </AppDropdownMenuItem>
-      </AppDropdownMenu>
+        </AppSelectItem>
+      </AppSelect>
     </div>
 
     <div class="model-draft-grid">
@@ -95,7 +106,10 @@ function selectModel(model: FetchedModelOption) {
         />
       </label>
       <label class="settings-checkbox-field model-draft-check">
-        <input v-model="draft.supportsImageInput" type="checkbox" />
+        <AppCheckbox
+          :model-value="draft.supportsImageInput"
+          @update:model-value="draft.supportsImageInput = $event === true"
+        />
         <span>支持图像输入</span>
       </label>
     </div>

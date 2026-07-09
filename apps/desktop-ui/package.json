@@ -15,7 +15,6 @@
     "@chaptale/shared": "workspace:*",
     "@tanstack/vue-virtual": "catalog:",
     "@unocss/reset": "catalog:",
-    "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "klona": "catalog:",
     "marked": "catalog:",

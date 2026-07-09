@@ -1,15 +1,17 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton/AppButton.vue';
+import { useNotificationStore } from '@/stores/notification';
+import { useSettingsStore } from '@/stores/settings';
 import LlmAddCustomModelPanel from '../components/LlmAddCustomModelPanel.vue';
 import LlmCustomProviderForm from '../components/LlmCustomProviderForm.vue';
 import LlmModelGroupTabs from '../components/LlmModelGroupTabs.vue';
 import LlmProviderDetail from '../components/LlmProviderDetail.vue';
 import LlmProviderList from '../components/LlmProviderList.vue';
+import SettingsSection from '../components/SettingsSection.vue';
 import { useLlmCustomModelForms } from '../composables/useLlmCustomModelForms';
 import { useLlmModelActions } from '../composables/useLlmModelActions';
 import { useLlmProviderAuth } from '../composables/useLlmProviderAuth';
 import { useLlmSettingsState } from '../composables/useLlmSettingsState';
-import { useNotificationStore } from '../../../stores/notification';
-import { useSettingsStore } from '../../../stores/settings';
 
 const notificationStore = useNotificationStore();
 const settingsStore = useSettingsStore();
@@ -58,25 +60,21 @@ const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActi
 </script>
 
 <template>
-  <section class="llm-settings settings-section" aria-labelledby="settings-provider-title">
-    <div class="settings-section-heading">
-      <h3 id="settings-provider-title" class="settings-section-title">模型服务</h3>
+  <SettingsSection
+    class="llm-settings"
+    title="模型服务"
+    title-id="settings-provider-title"
+    description="管理内置模型与自定义模型。自定义模型的服务地址、模型 ID 与模型 Key 会保存在模型配置中；内置模型的 Key 会保存在凭据配置中。"
+    :scrollable="false"
+  >
+    <template #actions>
       <div class="settings-heading-actions">
-        <button class="settings-secondary-button" type="button" @click="isCustomFormOpen = true">添加供应商</button>
-        <button
-          class="settings-secondary-button"
-          type="button"
-          :disabled="settingsStore.isModelsLoading"
-          @click="settingsStore.loadModels()"
-        >
+        <AppButton type="button" @click="isCustomFormOpen = true">添加供应商</AppButton>
+        <AppButton type="button" :disabled="settingsStore.isModelsLoading" @click="settingsStore.loadModels()">
           刷新模型
-        </button>
+        </AppButton>
       </div>
-    </div>
-    <p class="settings-section-description">
-      管理内置模型与自定义模型。自定义模型的服务地址、模型 ID 与模型 Key 会保存在模型配置中；内置模型的 Key
-      会保存在凭据配置中。
-    </p>
+    </template>
 
     <div class="settings-summary-card">
       <span class="settings-path-label">当前默认模型</span>
@@ -155,7 +153,7 @@ const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActi
       @fetch="fetchCustomModelsForProvider(selectedProvider.provider)"
       @submit="submitCustomModelToProvider(selectedProvider.provider)"
     />
-  </section>
+  </SettingsSection>
 </template>
 
 <style lang="scss">

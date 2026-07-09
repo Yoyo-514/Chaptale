@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import ActivityBar from '../components/ActivityBar/ActivityBar.vue';
-import ChatLayout from './ChatLayout.vue';
-import SettingsPanel from '../modules/SettingsPanel/SettingsPanel.vue';
-import StatusBar from '../components/StatusBar/StatusBar.vue';
-import TitleBar from '../components/TitleBar/TitleBar.vue';
+import ActivityBar from '../modules/ActivityBar/index.vue';
+import AgentPanel from '../modules/AgentPanel/index.vue';
+import SettingsPanel from '../modules/SettingsPanel/index.vue';
+import StatusBar from '../modules/StatusBar/index.vue';
+import TitleBar from '../modules/TitleBar/index.vue';
 </script>
 
 <template>
@@ -11,7 +11,7 @@ import TitleBar from '../components/TitleBar/TitleBar.vue';
     <TitleBar />
     <div class="basic-layout-body">
       <ActivityBar />
-      <ChatLayout />
+      <AgentPanel />
     </div>
     <StatusBar />
     <SettingsPanel />

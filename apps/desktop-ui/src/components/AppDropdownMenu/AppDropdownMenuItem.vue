@@ -2,7 +2,7 @@
 import { DropdownMenuItem } from 'reka-ui';
 import { computed } from 'vue';
 
-import { cn } from '../../utils';
+import { cn } from '@/utils';
 
 const props = withDefaults(
   defineProps<{

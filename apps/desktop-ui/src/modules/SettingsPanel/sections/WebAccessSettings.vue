@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import type { PiWebAccessProvider, PiWebAccessSettings, PiWebAccessWorkflow } from '@chaptale/ipc-contract';
 import { klona } from 'klona';
-import { CheckboxIndicator, CheckboxRoot, CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { computed, reactive, watch } from 'vue';
 
-import AppDropdownMenu from '../../../components/AppDropdownMenu/AppDropdownMenu.vue';
-import AppDropdownMenuItem from '../../../components/AppDropdownMenu/AppDropdownMenuItem.vue';
-import NumberInput from '../../../components/NumberInput/NumberInput.vue';
-import { useNotificationStore } from '../../../stores/notification';
-import { useSettingsStore } from '../../../stores/settings';
+import AppButton from '@/components/AppButton/AppButton.vue';
+import AppCheckbox from '@/components/AppCheckbox/AppCheckbox.vue';
+import AppSelect from '@/components/AppSelect/AppSelect.vue';
+import AppSelectItem from '@/components/AppSelect/AppSelectItem.vue';
+import NumberInput from '@/components/NumberInput/NumberInput.vue';
+import { useNotificationStore } from '@/stores/notification';
+import { useSettingsStore } from '@/stores/settings';
+import SettingsSection from '../components/SettingsSection.vue';
 import {
   createDefaultWebAccessSettings,
   normalizeWebAccessSettings,
@@ -75,28 +78,18 @@ function resetToSafeDefaults() {
 </script>
 
 <template>
-  <section class="settings-section" aria-labelledby="settings-web-access-title">
-    <div class="settings-section-heading">
-      <div>
-        <h3 id="settings-web-access-title" class="settings-section-title">联网与内容提取</h3>
-        <p class="settings-section-description">
-          配置联网搜索、网页内容提取、GitHub 仓库读取，以及可选的视频内容理解能力。 API Key
-          会保存在本机配置文件中，仅供桌面端运行时使用。
-        </p>
-      </div>
-    </div>
-
+  <SettingsSection
+    title="联网与内容提取"
+    title-id="settings-web-access-title"
+    description="配置联网搜索、网页内容提取、GitHub 仓库读取，以及可选的视频内容理解能力。 API Key 会保存在本机配置文件中，仅供桌面端运行时使用。"
+  >
     <div class="settings-card-grid">
       <label class="settings-switch-row">
-        <CheckboxRoot
-          class="settings-checkbox"
+        <AppCheckbox
+          class="settings-switch-checkbox"
           :model-value="draft.webSearchEnabled"
           @update:model-value="draft.webSearchEnabled = $event === true"
-        >
-          <CheckboxIndicator class="settings-checkbox-indicator">
-            <span class="i-mingcute-check-line" aria-hidden="true" />
-          </CheckboxIndicator>
-        </CheckboxRoot>
+        />
         <span>
           <strong>启用联网搜索</strong>
           <small>关闭后仍保留网页内容读取与已保存内容取回能力。</small>
@@ -105,42 +98,42 @@ function resetToSafeDefaults() {
 
       <div class="settings-web-field">
         <span>默认搜索 Provider</span>
-        <AppDropdownMenu trigger-class="settings-select-trigger plain-trigger">
+        <AppSelect
+          :model-value="draft.provider"
+          trigger-class="settings-select-trigger plain-trigger"
+          @update:model-value="selectProvider($event as PiWebAccessProvider)"
+        >
           <template #trigger="{ triggerClass, disabled, dataDisabled }">
             <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
               <span>{{ activeProvider?.label }}</span>
               <span class="settings-select-note">{{ activeProvider?.note }}</span>
             </button>
           </template>
-          <AppDropdownMenuItem
-            v-for="provider in providers"
-            :key="provider.value"
-            @select="selectProvider(provider.value)"
-          >
+          <AppSelectItem v-for="provider in providers" :key="provider.value" :value="provider.value">
             <span>{{ provider.label }}</span>
             <span class="settings-dropdown-item-note">{{ provider.note }}</span>
-          </AppDropdownMenuItem>
-        </AppDropdownMenu>
+          </AppSelectItem>
+        </AppSelect>
       </div>
 
       <div class="settings-web-field">
         <span>搜索工作流</span>
-        <AppDropdownMenu trigger-class="settings-select-trigger plain-trigger">
+        <AppSelect
+          :model-value="draft.workflow"
+          trigger-class="settings-select-trigger plain-trigger"
+          @update:model-value="selectWorkflow($event as PiWebAccessWorkflow)"
+        >
           <template #trigger="{ triggerClass, disabled, dataDisabled }">
             <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
               <span>{{ activeWorkflow?.label }}</span>
               <span class="settings-select-note">{{ activeWorkflow?.note }}</span>
             </button>
           </template>
-          <AppDropdownMenuItem
-            v-for="workflow in workflows"
-            :key="workflow.value"
-            @select="selectWorkflow(workflow.value)"
-          >
+          <AppSelectItem v-for="workflow in workflows" :key="workflow.value" :value="workflow.value">
             <span>{{ workflow.label }}</span>
             <span class="settings-dropdown-item-note">{{ workflow.note }}</span>
-          </AppDropdownMenuItem>
-        </AppDropdownMenu>
+          </AppSelectItem>
+        </AppSelect>
       </div>
 
       <label v-if="showCuratorOptions" class="settings-web-field">
@@ -220,15 +213,11 @@ function resetToSafeDefaults() {
           /></label>
           <div v-if="showBrowserCookieOptions" class="settings-toggle-group wide">
             <label class="settings-switch-row">
-              <CheckboxRoot
-                class="settings-checkbox"
+              <AppCheckbox
+                class="settings-switch-checkbox"
                 :model-value="draft.allowBrowserCookies"
                 @update:model-value="draft.allowBrowserCookies = $event === true"
-              >
-                <CheckboxIndicator class="settings-checkbox-indicator">
-                  <span class="i-mingcute-check-line" aria-hidden="true" />
-                </CheckboxIndicator>
-              </CheckboxRoot>
+              />
               <span>
                 <strong>允许读取浏览器 Cookie</strong>
                 <small>用于 Gemini Web；可能触发系统钥匙串/凭据提示。</small>
@@ -266,15 +255,11 @@ function resetToSafeDefaults() {
 
           <div class="settings-toggle-group wide">
             <label class="settings-switch-row">
-              <CheckboxRoot
-                class="settings-checkbox"
+              <AppCheckbox
+                class="settings-switch-checkbox"
                 :model-value="draft.githubClone.enabled"
                 @update:model-value="draft.githubClone.enabled = $event === true"
-              >
-                <CheckboxIndicator class="settings-checkbox-indicator">
-                  <span class="i-mingcute-check-line" aria-hidden="true" />
-                </CheckboxIndicator>
-              </CheckboxRoot>
+              />
               <span><strong>GitHub 克隆</strong><small>GitHub 仓库 URL 会克隆后读取真实文件。</small></span>
             </label>
             <div v-if="draft.githubClone.enabled" class="settings-nested-fields">
@@ -297,15 +282,11 @@ function resetToSafeDefaults() {
 
           <div class="settings-toggle-group wide">
             <label class="settings-switch-row">
-              <CheckboxRoot
-                class="settings-checkbox"
+              <AppCheckbox
+                class="settings-switch-checkbox"
                 :model-value="draft.youtube.enabled"
                 @update:model-value="draft.youtube.enabled = $event === true"
-              >
-                <CheckboxIndicator class="settings-checkbox-indicator">
-                  <span class="i-mingcute-check-line" aria-hidden="true" />
-                </CheckboxIndicator>
-              </CheckboxRoot>
+              />
               <span><strong>YouTube 理解</strong><small>用于视频转录和视觉描述；逐帧提取只作为可选增强。</small></span>
             </label>
             <div v-if="draft.youtube.enabled" class="settings-nested-fields single">
@@ -318,15 +299,11 @@ function resetToSafeDefaults() {
 
           <div class="settings-toggle-group wide">
             <label class="settings-switch-row">
-              <CheckboxRoot
-                class="settings-checkbox"
+              <AppCheckbox
+                class="settings-switch-checkbox"
                 :model-value="draft.video.enabled"
                 @update:model-value="draft.video.enabled = $event === true"
-              >
-                <CheckboxIndicator class="settings-checkbox-indicator">
-                  <span class="i-mingcute-check-line" aria-hidden="true" />
-                </CheckboxIndicator>
-              </CheckboxRoot>
+              />
               <span><strong>本地视频理解</strong><small>启用本地视频分析入口，不默认要求安装额外二进制。</small></span>
             </label>
             <div v-if="draft.video.enabled" class="settings-nested-fields">
@@ -345,43 +322,18 @@ function resetToSafeDefaults() {
     </CollapsibleRoot>
 
     <div class="settings-actions">
-      <button
-        class="settings-secondary-button"
-        type="button"
-        :disabled="settingsStore.isLoading"
-        @click="resetToSafeDefaults"
-      >
+      <AppButton type="button" :disabled="settingsStore.isLoading" @click="resetToSafeDefaults">
         恢复安全默认值
-      </button>
-      <button class="settings-primary-button" type="button" :disabled="settingsStore.isLoading" @click="save">
+      </AppButton>
+      <AppButton variant="primary" type="button" :disabled="settingsStore.isLoading" @click="save">
         保存联网设置
-      </button>
+      </AppButton>
     </div>
-  </section>
+  </SettingsSection>
 </template>
 
 <style scoped lang="scss">
 @use '../styles/controls';
-
-.settings-section {
-  @apply h-full min-h-0 overflow-y-auto p-2;
-
-  background: var(--surface-acrylic-subtle);
-}
-
-.settings-section-heading {
-  @apply flex items-center justify-between gap-3;
-}
-
-.settings-section-title {
-  @apply m-0 text-sm font-semibold;
-}
-
-.settings-section-description {
-  @apply mt-1 mb-3 text-xs leading-5;
-
-  color: var(--muted-foreground);
-}
 
 .settings-warning-card,
 .settings-card-grid,
@@ -502,26 +454,8 @@ function resetToSafeDefaults() {
   color: var(--muted-foreground);
 }
 
-.settings-checkbox {
-  @apply flex-center mt-0.5 size-4 shrink-0 border outline-none transition-colors duration-150;
-
-  background: var(--input);
-  border-color: var(--input-border);
-  border-radius: calc(var(--radius) * 0.25);
-}
-
-.settings-checkbox[data-state='checked'] {
-  background: var(--primary-solid);
-  border-color: var(--primary-solid);
-  color: var(--primary-solid-foreground);
-}
-
-.settings-checkbox:focus-visible {
-  box-shadow: var(--input-focus-shadow);
-}
-
-.settings-checkbox-indicator {
-  @apply flex-center text-xs;
+.settings-switch-checkbox {
+  @apply mt-0.5;
 }
 
 .settings-web-field input {

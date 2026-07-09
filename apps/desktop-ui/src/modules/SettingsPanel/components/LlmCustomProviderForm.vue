@@ -1,17 +1,13 @@
 <script setup lang="ts">
 import type { ChaptaleCustomProviderApi, FetchedCustomProviderModel } from '@chaptale/ipc-contract';
-import {
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle
-} from 'reka-ui';
 
-import CustomModelDraftForm from './CustomModelDraftForm.vue';
+import AppButton from '@/components/AppButton/AppButton.vue';
+import AppDialog from '@/components/AppDialog/AppDialog.vue';
+import AppScrollArea from '@/components/AppScrollArea/AppScrollArea.vue';
+import AppSelect from '@/components/AppSelect/AppSelect.vue';
+import AppSelectItem from '@/components/AppSelect/AppSelectItem.vue';
 import type { CustomModelDraft } from '../utils/custom-model-draft';
+import CustomModelDraftForm from './CustomModelDraftForm.vue';
 
 export type CustomProviderFormState = {
   provider: string;
@@ -48,27 +44,31 @@ const emit = defineEmits<{
   removeStagedModel: [modelId: string];
   submit: [];
 }>();
+
+const apiOptions: Array<{ value: ChaptaleCustomProviderApi; label: string }> = [
+  { value: 'openai-completions', label: 'OpenAI Chat Completions' },
+  { value: 'openai-responses', label: 'OpenAI Responses' },
+  { value: 'anthropic-messages', label: 'Anthropic Messages' },
+  { value: 'google-generative-ai', label: 'Google Generative AI' }
+];
+
+function getApiLabel(api: ChaptaleCustomProviderApi) {
+  return apiOptions.find(option => option.value === api)?.label ?? api;
+}
 </script>
 
 <template>
-  <DialogRoot :open="props.open" @update:open="emit('update:open', $event)">
-    <DialogPortal>
-      <DialogOverlay class="settings-dialog-overlay" />
-      <DialogContent class="settings-dialog-content settings-provider-dialog">
-        <div class="settings-dialog-header">
-          <div>
-            <DialogTitle class="settings-dialog-title">添加自定义供应商</DialogTitle>
-            <DialogDescription class="settings-dialog-description">
-              配置兼容 OpenAI、Anthropic、Google 或本地网关的模型服务，并可一次添加多个模型。
-            </DialogDescription>
-          </div>
-          <DialogClose class="settings-dialog-close" aria-label="关闭">
-            <span class="i-mingcute-close-line" aria-hidden="true" />
-          </DialogClose>
-        </div>
-
-        <form class="settings-dialog-body" @submit.prevent="emit('submit')">
-          <section class="settings-dialog-section">
+  <AppDialog
+    :open="props.open"
+    title="添加自定义供应商"
+    description="配置兼容 OpenAI、Anthropic、Google 或本地网关的模型服务，并可一次添加多个模型。"
+    content-size="lg"
+    @update:open="emit('update:open', $event)"
+  >
+    <template #default="{ close }">
+      <AppScrollArea class="settings-dialog-form-scroll">
+        <form class="settings-dialog-form" @submit.prevent="emit('submit')">
+          <section class="settings-dialog-form-section">
             <h4 class="settings-subtitle">供应商信息</h4>
             <div class="settings-form-grid">
               <label class="settings-field">
@@ -91,12 +91,22 @@ const emit = defineEmits<{
               </label>
               <label class="settings-field">
                 <span>API 类型</span>
-                <select v-model="props.provider.api" class="settings-input">
-                  <option value="openai-completions">OpenAI Chat Completions</option>
-                  <option value="openai-responses">OpenAI Responses</option>
-                  <option value="anthropic-messages">Anthropic Messages</option>
-                  <option value="google-generative-ai">Google Generative AI</option>
-                </select>
+                <AppSelect
+                  :model-value="props.provider.api"
+                  trigger-class="settings-dropdown-trigger"
+                  content-size="md"
+                  @update:model-value="props.provider.api = $event as ChaptaleCustomProviderApi"
+                >
+                  <template #trigger="{ triggerClass, disabled, dataDisabled }">
+                    <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
+                      <span>{{ getApiLabel(props.provider.api) }}</span>
+                      <span class="i-mingcute-down-line settings-select-icon" aria-hidden="true" />
+                    </button>
+                  </template>
+                  <AppSelectItem v-for="option in apiOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </AppSelectItem>
+                </AppSelect>
               </label>
               <label class="settings-field">
                 <span>模型 Key</span>
@@ -120,7 +130,7 @@ const emit = defineEmits<{
             </div>
           </section>
 
-          <section class="settings-dialog-section">
+          <section class="settings-dialog-form-section">
             <div class="settings-provider-head">
               <h4 class="settings-subtitle">模型列表</h4>
               <span class="settings-path-label">可先拉取模型，也可手动输入后加入待添加列表</span>
@@ -134,14 +144,9 @@ const emit = defineEmits<{
               @fetch="emit('fetch')"
             />
             <div class="settings-actions compact">
-              <button
-                class="settings-secondary-button"
-                type="button"
-                :disabled="!props.canStageModel"
-                @click="emit('stageModel')"
-              >
+              <AppButton type="button" :disabled="!props.canStageModel" @click="emit('stageModel')">
                 加入待添加列表
-              </button>
+              </AppButton>
             </div>
 
             <div v-if="props.stagedModels.length" class="settings-staged-model-list">
@@ -154,29 +159,30 @@ const emit = defineEmits<{
                     {{ model.contextWindow?.toLocaleString() ?? '默认' }} tokens</span
                   >
                 </div>
-                <button
-                  class="settings-danger-icon-button"
+                <AppButton
+                  icon
+                  variant="danger"
                   type="button"
                   aria-label="移除待添加模型"
                   @click="emit('removeStagedModel', model.modelId)"
                 >
                   <span class="i-mingcute-delete-2-line size-4" aria-hidden="true" />
-                </button>
+                </AppButton>
               </article>
             </div>
             <div v-else class="settings-empty-card">还没有待添加模型；可以稍后在供应商详情中继续添加。</div>
           </section>
 
-          <div class="settings-dialog-actions">
-            <DialogClose class="settings-secondary-button" type="button">取消</DialogClose>
-            <button class="settings-primary-button" type="submit" :disabled="props.isLoading || !props.canSubmit">
+          <div class="settings-dialog-form-actions">
+            <AppButton type="button" @click="close">取消</AppButton>
+            <AppButton variant="primary" type="submit" :disabled="props.isLoading || !props.canSubmit">
               添加供应商
-            </button>
+            </AppButton>
           </div>
         </form>
-      </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
+      </AppScrollArea>
+    </template>
+  </AppDialog>
 </template>
 
 <style scoped lang="scss">

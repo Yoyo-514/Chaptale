@@ -2,12 +2,9 @@
 
 .llm-settings {
   &.settings-section {
-    @apply flex h-full min-h-0 flex-col overflow-hidden p-2;
-
-    background: var(--surface-acrylic-subtle);
+    @apply flex flex-col overflow-hidden;
   }
 
-  .settings-section-heading,
   .settings-provider-head,
   .settings-collapsible-trigger,
   .settings-heading-actions {
@@ -18,7 +15,6 @@
     @apply shrink-0 justify-end;
   }
 
-  .settings-section-title,
   .settings-subtitle {
     @apply m-0 text-sm font-semibold;
   }
@@ -122,29 +118,8 @@
     @apply grid min-h-[14rem] flex-1 basis-0 grid-cols-[13rem_minmax(0,1fr)] gap-3 overflow-hidden;
   }
 
-  .settings-scroll-root {
-    @apply h-full min-h-0 overflow-hidden;
-  }
-
-  .settings-scroll-viewport {
-    @apply h-full min-h-0 pr-2;
-  }
-
-  .settings-scrollbar {
-    @apply flex w-2 touch-none select-none p-0.5;
-
-    background: transparent;
-  }
-
-  .settings-scrollbar-thumb {
-    @apply relative flex-1 transition-colors duration-150;
-
-    background: var(--scrollbar-thumb);
-    border-radius: calc(var(--radius) * 0.5);
-  }
-
-  .settings-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover);
+  .settings-model-scroll {
+    @apply h-full;
   }
 
   .settings-provider-list,
@@ -236,12 +211,6 @@
     @apply flex items-center gap-1.5 text-xs;
 
     color: var(--foreground);
-  }
-
-  .settings-inline-check input {
-    @apply size-3.5;
-
-    accent-color: var(--primary-solid);
   }
 
   .settings-provider-card:focus-visible,

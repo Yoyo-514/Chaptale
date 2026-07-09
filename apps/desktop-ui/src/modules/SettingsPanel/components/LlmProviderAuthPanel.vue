@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton/AppButton.vue';
 import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
 
 const props = defineProps<{
@@ -36,17 +37,16 @@ function updateApiKey(event: Event) {
       />
     </label>
     <div class="settings-auth-actions">
-      <button class="settings-primary-button" type="button" :disabled="props.isSaving" @click="emit('submit')">
+      <AppButton variant="primary" type="button" :disabled="props.isSaving" @click="emit('submit')">
         {{ props.isSaving ? '保存中...' : props.activeModelGroup === 'custom' ? '保存模型 Key' : '保存凭据' }}
-      </button>
-      <button
-        class="settings-secondary-button"
+      </AppButton>
+      <AppButton
         type="button"
         :disabled="props.isSaving || (props.activeModelGroup !== 'custom' && !props.provider.authConfigured)"
         @click="emit('remove')"
       >
         {{ props.activeModelGroup === 'custom' ? '移除模型 Key' : '移除凭据' }}
-      </button>
+      </AppButton>
     </div>
   </div>
 </template>

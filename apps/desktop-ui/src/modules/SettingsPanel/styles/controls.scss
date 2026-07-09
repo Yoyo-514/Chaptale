@@ -1,4 +1,4 @@
-:where(.settings-panel-content .settings-section, .llm-settings, .settings-dialog-content, .model-draft-fields) {
+:where(.settings-panel-content .settings-section, .llm-settings, .settings-dialog-form, .model-draft-fields) {
   .settings-field,
   .settings-key-field {
     @apply flex min-w-0 flex-col gap-1 text-xs;
@@ -24,82 +24,10 @@
     color: var(--muted-foreground);
   }
 
-  .settings-primary-button,
-  .settings-secondary-button,
-  .settings-danger-button,
-  .settings-icon-button,
-  .settings-danger-icon-button {
-    @apply border px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
-
-    border-radius: calc(var(--radius) * 0.5);
-  }
-
-  .settings-primary-button {
-    background: var(--primary-solid);
-    border-color: var(--primary-solid);
-    color: var(--primary-solid-foreground);
-  }
-
-  .settings-primary-button:hover:not(:disabled) {
-    background: var(--primary-solid-hover);
-  }
-
-  .settings-secondary-button {
-    background: var(--surface-muted);
-    border-color: var(--border-subtle);
-    color: var(--foreground);
-  }
-
-  .settings-secondary-button:hover:not(:disabled),
-  .settings-secondary-button.is-selected {
-    background: var(--secondary);
-    color: var(--secondary-foreground);
-  }
-
-  .settings-danger-button {
-    background: var(--destructive-background);
-    border-color: var(--destructive);
-    color: var(--destructive-background-foreground);
-  }
-
-  .settings-danger-button:hover:not(:disabled),
-  .settings-danger-icon-button:hover:not(:disabled) {
-    background: var(--destructive);
-    color: var(--destructive-foreground);
-  }
-
-  .settings-icon-button,
-  .settings-danger-icon-button {
-    @apply flex-center size-7 p-0;
-  }
-
-  .settings-icon-button {
-    background: var(--surface-muted);
-    border-color: var(--border-subtle);
-    color: var(--muted-foreground);
-  }
-
-  .settings-icon-button:hover:not(:disabled) {
-    background: var(--secondary);
-    color: var(--secondary-foreground);
-  }
-
-  .settings-danger-icon-button {
-    background: var(--destructive-background);
-    border-color: var(--destructive);
-    color: var(--destructive-background-foreground);
-  }
-
   .settings-checkbox-field {
-    @apply flex items-start gap-2 text-xs leading-5;
+    @apply flex items-center gap-2 text-xs leading-5;
 
     color: var(--foreground);
-  }
-
-  .settings-checkbox-field input {
-    @apply mt-1 size-3.5 shrink-0;
-
-    accent-color: var(--primary-solid);
   }
 
   .settings-checkbox-field small {
@@ -152,11 +80,6 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   }
 
-  .settings-primary-button:focus-visible,
-  .settings-secondary-button:focus-visible,
-  .settings-danger-button:focus-visible,
-  .settings-icon-button:focus-visible,
-  .settings-danger-icon-button:focus-visible,
   .settings-input:focus-visible,
   .settings-dropdown-trigger:focus-visible {
     box-shadow: var(--input-focus-shadow);
@@ -185,8 +108,21 @@
 }
 
 :where(.app-dropdown-item[data-active='true'] .settings-dropdown-item-note),
-:where(.app-dropdown-item[data-active='true'] .settings-dropdown-item-code) {
+:where(.app-dropdown-item[data-active='true'] .settings-dropdown-item-code),
+:where(.app-select-item[data-state='checked'] .settings-dropdown-item-note),
+:where(.app-select-item[data-state='checked'] .settings-dropdown-item-code),
+:where(.app-select-item[data-highlighted] .settings-dropdown-item-note),
+:where(.app-select-item[data-highlighted] .settings-dropdown-item-code) {
   color: var(--secondary-foreground);
   opacity: 0.78;
 }
 
+.settings-select-icon {
+  @apply shrink-0 text-base transition-transform duration-150;
+
+  color: var(--muted-foreground);
+}
+
+.settings-dropdown-trigger[data-state='open'] .settings-select-icon {
+  transform: rotate(180deg);
+}

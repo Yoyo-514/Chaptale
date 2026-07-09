@@ -35,5 +35,7 @@ temp/
 # AI memory
 .serena
 guide-docs
+design-docs
 .playwright-mcp
 .pi-subagents
+.spec-workflow

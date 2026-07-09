@@ -2,7 +2,7 @@
 import { DropdownMenuContent, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui';
 import { computed } from 'vue';
 
-import { cn } from '../../utils';
+import { cn } from '@/utils';
 
 const props = withDefaults(
   defineProps<{
@@ -63,7 +63,7 @@ const contentClassName = computed(() =>
 }
 
 .app-dropdown-content {
-  @apply z-50 border p-1 shadow-float;
+  @apply z-50 flex flex-col gap-1 border p-1 shadow-float;
 
   width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 16rem));
   background: var(--popover);
@@ -79,7 +79,7 @@ const contentClassName = computed(() =>
 }
 
 .app-dropdown-content-md {
-  @apply flex max-h-[16rem] min-w-64 flex-col gap-1 overflow-y-auto;
+  @apply min-w-64;
 
   width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 24rem));
 }
