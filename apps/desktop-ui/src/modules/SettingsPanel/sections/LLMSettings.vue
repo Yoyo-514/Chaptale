@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AppButton from '@/components/AppButton/AppButton.vue';
+import { AppButton } from '@/components/AppButton';
 import { useNotificationStore } from '@/stores/notification';
 import { useSettingsStore } from '@/stores/settings';
 import LlmAddCustomModelPanel from '../components/LlmAddCustomModelPanel.vue';
@@ -27,7 +27,7 @@ const {
   setModelGroup,
   selectProvider
 } = useLlmSettingsState(settingsStore);
-const { providerApiKeys, getKeyPlaceholder, isKeySaving, submitProviderApiKey, removeProviderAuth } =
+const { providerApiKeys, getApiKeyPlaceholder, isApiKeySaving, submitProviderApiKey, removeProviderApiKey } =
   useLlmProviderAuth(settingsStore, notificationStore, activeModelGroup);
 const {
   isCustomFormOpen,
@@ -64,7 +64,7 @@ const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActi
     class="llm-settings"
     title="模型服务"
     title-id="settings-provider-title"
-    description="管理内置模型与自定义模型。自定义模型的服务地址、模型 ID 与模型 Key 会保存在模型配置中；内置模型的 Key 会保存在凭据配置中。"
+    description="管理内置模型与自定义模型。自定义模型的服务地址、模型 ID 与 API Key 会保存在模型配置中；内置模型的 API Key 会保存在 API Key 配置中。"
     :scrollable="false"
   >
     <template #actions>
@@ -106,13 +106,13 @@ const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActi
         :provider="selectedProvider"
         :active-model-group="activeModelGroup"
         :api-key="providerApiKeys[selectedProvider.provider]"
-        :is-key-saving="isKeySaving(selectedProvider.provider)"
-        :key-placeholder="getKeyPlaceholder(selectedProvider)"
+        :is-api-key-saving="isApiKeySaving(selectedProvider.provider)"
+        :api-key-placeholder="getApiKeyPlaceholder(selectedProvider)"
         :is-models-loading="settingsStore.isModelsLoading"
         :models="selectedProviderModels"
         @update-api-key="providerApiKeys[selectedProvider.provider] = $event"
         @submit-api-key="submitProviderApiKey(selectedProvider.provider)"
-        @remove-provider-auth="removeProviderAuth(selectedProvider.provider)"
+        @remove-api-key="removeProviderApiKey(selectedProvider.provider)"
         @open-custom-model-dialog="openAddCustomModelDialog"
         @edit-custom-model="openEditCustomModelDialog"
         @set-default="setDefaultModel"

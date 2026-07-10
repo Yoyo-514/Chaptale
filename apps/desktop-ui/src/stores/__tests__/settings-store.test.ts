@@ -159,7 +159,7 @@ describe('settings store', () => {
     await expect(store.removeCustomProviderApiKey('custom')).resolves.toBe(true);
     await expect(store.updateCustomModelInput('custom', 'm2', ['text', 'image'])).resolves.toBe(true);
     await expect(store.removeCustomModel('custom', 'm2')).resolves.toBe(true);
-    await expect(store.removeProviderAuth('openai')).resolves.toBe(true);
+    await expect(store.removeProviderApiKey('openai')).resolves.toBe(true);
 
     expect(api.models.setDefault).toHaveBeenCalledWith({ provider: 'openai', modelId: 'gpt-4.1' });
     expect(api.models.setProviderApiKey).toHaveBeenCalledWith({ provider: 'openai', apiKey: 'sk-test' });

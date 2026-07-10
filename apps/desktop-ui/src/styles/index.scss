@@ -272,6 +272,7 @@ body,
   overflow: hidden;
 }
 
+// input 类型为 search 时，去除默认清空按钮
 input[type="search"]::-webkit-search-decoration,
 input[type="search"]::-webkit-search-cancel-button,
 input[type="search"]::-webkit-search-results-button,

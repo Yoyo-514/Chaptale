@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppForm, AppFormActions } from '@/components/AppForm';
+import { AppTextarea } from '@/components/AppTextarea';
+
+import type { AppTextareaExpose } from '@/components/AppTextarea';
 
 const props = defineProps<{
   content: string;
@@ -14,7 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const draft = ref(props.content);
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const textareaRef = ref<AppTextareaExpose | null>(null);
 
 watch(
   () => props.content,
@@ -50,19 +54,21 @@ function save() {
 </script>
 
 <template>
-  <form v-if="editing" class="user-message-edit" @submit.prevent="save">
-    <textarea
+  <AppForm v-if="editing" class="user-message-edit" @submit="save">
+    <AppTextarea
       ref="textareaRef"
       v-model="draft"
       class="user-message-editor"
-      rows="3"
+      :rows="3"
+      size="md"
+      resize="vertical"
       @keydown.escape.prevent="emit('cancel')"
     />
-    <div class="user-message-edit-actions">
+    <AppFormActions>
       <AppButton type="button" @click="emit('cancel')">取消</AppButton>
       <AppButton variant="primary" type="submit">保存并重试</AppButton>
-    </div>
-  </form>
+    </AppFormActions>
+  </AppForm>
 
   <p v-else class="user-message">{{ content }}</p>
 </template>
@@ -80,15 +86,13 @@ function save() {
 }
 
 .user-message-editor {
-  @apply min-h-10 resize-y rounded-xl border border-border-subtle bg-background px-3 py-2 text-foreground outline-none transition-colors duration-150;
+  @apply min-h-10 rounded-xl;
+
+  background: var(--background);
+  border-color: var(--border-subtle);
 }
 
 .user-message-editor:focus {
   border-color: var(--input-focus-border);
-  box-shadow: var(--input-focus-shadow);
-}
-
-.user-message-edit-actions {
-  @apply flex justify-end gap-2;
 }
 </style>

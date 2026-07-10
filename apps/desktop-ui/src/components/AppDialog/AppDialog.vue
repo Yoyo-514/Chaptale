@@ -8,9 +8,13 @@ import {
   DialogRoot,
   DialogTitle
 } from 'reka-ui';
-import { computed, useSlots } from 'vue';
+import { computed, useAttrs, useSlots } from 'vue';
 
 import { cn } from '@/utils';
+
+defineOptions({
+  inheritAttrs: false
+});
 
 const props = withDefaults(
   defineProps<{
@@ -38,11 +42,16 @@ const emit = defineEmits<{
 }>();
 
 const slots = useSlots();
+const attrs = useAttrs();
 const hasDescription = computed(() => Boolean(props.description || slots.description));
 const overlayClassName = computed(() => cn('app-dialog-overlay', props.overlayClass));
 const contentClassName = computed(() =>
-  cn('app-dialog-content', `app-dialog-content-${props.contentSize}`, props.contentClass)
+  cn('app-dialog-content', `app-dialog-content-${props.contentSize}`, props.contentClass, attrs.class)
 );
+const contentAttrs = computed(() => {
+  const { class: _class, ...rest } = attrs;
+  return rest;
+});
 
 function closeDialog() {
   emit('update:open', false);
@@ -52,18 +61,23 @@ function closeDialog() {
 <template>
   <DialogRoot :open="props.open" @update:open="emit('update:open', $event)">
     <DialogPortal>
-      <DialogOverlay :class="overlayClassName" />
-      <DialogContent :class="contentClassName">
-        <div class="app-dialog-header">
-          <div class="app-dialog-heading">
-            <DialogTitle class="app-dialog-title">
+      <DialogOverlay :class="overlayClassName" data-slot="app-dialog-overlay" />
+      <DialogContent v-bind="contentAttrs" :class="contentClassName" data-slot="app-dialog-content">
+        <div class="app-dialog-header" data-slot="app-dialog-header">
+          <div class="app-dialog-heading" data-slot="app-dialog-heading">
+            <DialogTitle class="app-dialog-title" data-slot="app-dialog-title">
               <slot name="title">{{ props.title }}</slot>
             </DialogTitle>
-            <DialogDescription v-if="hasDescription" class="app-dialog-description">
+            <DialogDescription v-if="hasDescription" class="app-dialog-description" data-slot="app-dialog-description">
               <slot name="description">{{ props.description }}</slot>
             </DialogDescription>
           </div>
-          <DialogClose v-if="props.showClose" class="app-dialog-close" :aria-label="props.closeLabel">
+          <DialogClose
+            v-if="props.showClose"
+            class="app-dialog-close"
+            :aria-label="props.closeLabel"
+            data-slot="app-dialog-close"
+          >
             <span class="i-mingcute-close-line" aria-hidden="true" />
           </DialogClose>
         </div>

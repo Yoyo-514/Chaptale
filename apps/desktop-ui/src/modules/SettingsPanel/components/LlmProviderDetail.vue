@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ChaptaleModelInfo } from '@chaptale/ipc-contract';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppScrollArea from '@/components/AppScrollArea/AppScrollArea.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppScrollArea } from '@/components/AppScrollArea';
 import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
 import LlmModelList from './LlmModelList.vue';
 import LlmProviderAuthPanel from './LlmProviderAuthPanel.vue';
@@ -11,8 +11,8 @@ const props = defineProps<{
   provider: ProviderView;
   activeModelGroup: ModelGroup;
   apiKey?: string;
-  isKeySaving: boolean;
-  keyPlaceholder: string;
+  isApiKeySaving: boolean;
+  apiKeyPlaceholder: string;
   isModelsLoading: boolean;
   models: ChaptaleModelInfo[];
 }>();
@@ -20,7 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   updateApiKey: [value: string];
   submitApiKey: [];
-  removeProviderAuth: [];
+  removeApiKey: [];
   openCustomModelDialog: [];
   editCustomModel: [model: ChaptaleModelInfo];
   setDefault: [provider: string, modelId: string];
@@ -39,18 +39,17 @@ const emit = defineEmits<{
             供应商 ID：<code>{{ props.provider.provider }}</code>
           </p>
         </div>
-        <span class="settings-pill">{{ props.provider.authConfigured ? '已配置 Key' : '未配置 Key' }}</span>
+        <span class="settings-pill">{{ props.provider.authConfigured ? '已配置 API Key' : '未配置 API Key' }}</span>
       </div>
 
       <LlmProviderAuthPanel
-        :provider="props.provider"
-        :active-model-group="props.activeModelGroup"
         :api-key="props.apiKey"
-        :is-saving="props.isKeySaving"
-        :placeholder="props.keyPlaceholder"
+        :is-saving="props.isApiKeySaving"
+        :can-remove="props.provider.authConfigured"
+        :placeholder="props.apiKeyPlaceholder"
         @update:api-key="emit('updateApiKey', $event)"
         @submit="emit('submitApiKey')"
-        @remove="emit('removeProviderAuth')"
+        @remove="emit('removeApiKey')"
       />
 
       <div v-if="props.activeModelGroup === 'custom'" class="settings-actions compact">

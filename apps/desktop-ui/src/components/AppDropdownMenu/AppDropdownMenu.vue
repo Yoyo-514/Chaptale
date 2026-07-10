@@ -31,7 +31,7 @@ const contentClassName = computed(() =>
 
 <template>
   <DropdownMenuRoot>
-    <DropdownMenuTrigger as-child :disabled="props.disabled">
+    <DropdownMenuTrigger as-child :disabled="props.disabled" data-slot="app-dropdown-menu-trigger">
       <slot
         name="trigger"
         :trigger-class="triggerClassName"
@@ -40,7 +40,12 @@ const contentClassName = computed(() =>
       />
     </DropdownMenuTrigger>
     <DropdownMenuPortal>
-      <DropdownMenuContent :class="contentClassName" :side-offset="props.sideOffset" :align="props.align">
+      <DropdownMenuContent
+        :class="contentClassName"
+        :side-offset="props.sideOffset"
+        :align="props.align"
+        data-slot="app-dropdown-menu-content"
+      >
         <slot />
       </DropdownMenuContent>
     </DropdownMenuPortal>

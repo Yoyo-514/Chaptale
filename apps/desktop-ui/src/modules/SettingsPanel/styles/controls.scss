@@ -1,50 +1,4 @@
-:where(.settings-panel-content .settings-section, .llm-settings, .settings-dialog-form, .model-draft-fields) {
-  .settings-field,
-  .settings-key-field {
-    @apply flex min-w-0 flex-col gap-1 text-xs;
-
-    color: var(--muted-foreground);
-  }
-
-  .settings-field.is-wide,
-  .settings-checkbox-field.is-wide {
-    @apply col-span-2;
-  }
-
-  .settings-input {
-    @apply min-w-0 border px-3 py-1.5 text-xs outline-none transition-colors duration-150;
-
-    background: var(--input);
-    border-color: var(--input-border);
-    border-radius: calc(var(--radius) * 0.5);
-    color: var(--foreground);
-  }
-
-  .settings-input::placeholder {
-    color: var(--muted-foreground);
-  }
-
-  .settings-checkbox-field {
-    @apply flex items-center gap-2 text-xs leading-5;
-
-    color: var(--foreground);
-  }
-
-  .settings-checkbox-field small {
-    @apply mt-0.5 block leading-4;
-
-    color: var(--muted-foreground);
-  }
-
-  .settings-dropdown-trigger {
-    @apply flex w-full min-w-0 items-center justify-between gap-2 border px-3 py-1.5 text-left text-xs outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
-
-    background: var(--input);
-    border-color: var(--input-border);
-    border-radius: calc(var(--radius) * 0.5);
-    color: var(--foreground);
-  }
-
+:where(.settings-panel-content .settings-section, .llm-settings, .llm-provider-form, .model-draft-fields) {
   .settings-empty-card {
     @apply border px-3 py-2 text-xs leading-5;
 
@@ -64,25 +18,18 @@
 
   .settings-model-copy span,
   .settings-path-label,
-  .settings-provider-meta,
-  .settings-collapsible-trigger small {
+  .settings-provider-meta {
     @apply text-xs leading-4;
 
     color: var(--muted-foreground);
   }
 
   .settings-model-copy code,
-  .settings-section-description code,
-  .settings-checkbox-field code {
+  .settings-section-description code {
     @apply break-all text-xs;
 
     color: var(--foreground);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  }
-
-  .settings-input:focus-visible,
-  .settings-dropdown-trigger:focus-visible {
-    box-shadow: var(--input-focus-shadow);
   }
 }
 
@@ -90,7 +37,6 @@
   @apply flex items-center justify-between gap-2;
 }
 
-:where(.settings-dropdown-item-note),
 :where(.settings-dropdown-item-code) {
   @apply break-all text-[0.68rem] leading-4;
 
@@ -107,22 +53,8 @@
   color: var(--secondary-foreground);
 }
 
-:where(.app-dropdown-item[data-active='true'] .settings-dropdown-item-note),
-:where(.app-dropdown-item[data-active='true'] .settings-dropdown-item-code),
-:where(.app-select-item[data-state='checked'] .settings-dropdown-item-note),
 :where(.app-select-item[data-state='checked'] .settings-dropdown-item-code),
-:where(.app-select-item[data-highlighted] .settings-dropdown-item-note),
 :where(.app-select-item[data-highlighted] .settings-dropdown-item-code) {
   color: var(--secondary-foreground);
   opacity: 0.78;
-}
-
-.settings-select-icon {
-  @apply shrink-0 text-base transition-transform duration-150;
-
-  color: var(--muted-foreground);
-}
-
-.settings-dropdown-trigger[data-state='open'] .settings-select-icon {
-  transform: rotate(180deg);
 }

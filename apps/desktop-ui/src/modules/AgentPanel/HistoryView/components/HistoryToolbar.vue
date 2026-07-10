@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppSelect from '@/components/AppSelect/AppSelect.vue';
-import AppSelectItem from '@/components/AppSelect/AppSelectItem.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppInput } from '@/components/AppInput';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import type { HistoryScopeFilter, HistorySortMode } from '../composables/useHistorySessions';
 
 const props = defineProps<{
@@ -94,22 +94,32 @@ function selectSortMode(value: string) {
       </AppButton>
     </div>
 
-    <label class="history-search" aria-label="搜索历史记录">
-      <span class="i-mingcute-search-line size-4" aria-hidden="true" />
-      <input v-model="searchQuery" type="search" placeholder="模糊搜索历史记录..." />
-      <AppButton
-        v-if="searchQuery"
-        icon
-        variant="ghost"
-        size="xs"
-        class="history-search-clear"
-        type="button"
-        aria-label="清空搜索"
-        @click="clearSearch"
-      >
-        <span class="i-mingcute-close-line size-4" aria-hidden="true" />
-      </AppButton>
-    </label>
+    <AppInput
+      v-model="searchQuery"
+      class="history-search"
+      type="search"
+      size="md"
+      variant="muted"
+      aria-label="搜索历史记录"
+      placeholder="模糊搜索历史记录..."
+    >
+      <template #prefix>
+        <span class="i-mingcute-search-line size-4" aria-hidden="true" />
+      </template>
+      <template v-if="searchQuery" #suffix>
+        <AppButton
+          icon
+          variant="ghost"
+          size="xs"
+          class="history-search-clear"
+          type="button"
+          aria-label="清空搜索"
+          @click="clearSearch"
+        >
+          <span class="i-mingcute-close-line size-4" aria-hidden="true" />
+        </AppButton>
+      </template>
+    </AppInput>
 
     <div class="history-controls" aria-label="历史记录筛选与排序">
       <AppSelect
@@ -180,26 +190,14 @@ function selectSortMode(value: string) {
 }
 
 .history-search {
-  @apply flex items-center gap-2 border px-3 py-2 text-sm;
-
-  background: var(--surface-muted);
-  border-color: var(--border-subtle);
   border-radius: calc(var(--radius) * 0.5);
-  color: var(--muted-foreground);
 }
 
 .history-search:focus-within {
   border-color: var(--input-focus-border);
-  box-shadow: var(--input-focus-shadow);
 }
 
-.history-search input {
-  @apply min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none;
-
-  color: var(--foreground);
-}
-
-.history-search input::placeholder {
+.history-search :deep(.app-input-control::placeholder) {
   color: var(--input-placeholder);
 }
 

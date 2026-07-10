@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import AppCheckbox from '@/components/AppCheckbox/AppCheckbox.vue';
+import { AppCheckbox } from '@/components/AppCheckbox';
 
 const props = defineProps<{
   selectedCount: number;

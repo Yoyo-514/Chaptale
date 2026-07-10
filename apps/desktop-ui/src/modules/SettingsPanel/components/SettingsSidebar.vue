@@ -13,7 +13,7 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
   {
     id: 'llm',
     title: '模型',
-    description: '供应商、凭据与默认模型',
+    description: '供应商、API Key 与默认模型',
     icon: 'i-mingcute-ai-line'
   },
   {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
+import { AppButton } from '@/components/AppButton';
 import { useSettingsStore } from '@/stores/settings';
 import SettingsPathCard from '../components/SettingsPathCard.vue';
 import SettingsSection from '../components/SettingsSection.vue';
@@ -24,7 +24,7 @@ const paths = computed(() => settingsStore.state?.paths);
       <SettingsPathCard label="应用设置文件" :value="paths?.settingsPath" />
       <SettingsPathCard label="agent 设置文件" :value="paths?.piSettingsPath" />
       <SettingsPathCard label="第三方模型配置文件" :value="paths?.piModelsPath" />
-      <SettingsPathCard label="内置模型凭据配置文件" :value="paths?.piAuthPath" />
+      <SettingsPathCard label="内置模型 API Key 配置文件" :value="paths?.piAuthPath" />
       <SettingsPathCard label="联网能力配置文件" :value="paths?.piWebAccessConfigPath" />
     </div>
   </SettingsSection>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
+import { AppButton } from '@/components/AppButton';
 import { getHostname, parseSearchResult } from '../../utils/message/websearch-results';
 
 const props = defineProps<{

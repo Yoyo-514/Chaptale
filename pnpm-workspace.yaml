@@ -14,8 +14,8 @@ allowBuilds:
 catalog:
   "@capacitor/cli": ^8.4.1
   "@capacitor/core": ^8.4.1
-  "@earendil-works/pi-coding-agent": ^0.80.3
-  "@earendil-works/pi-ai": ^0.80.3
+  "@earendil-works/pi-coding-agent": ^0.80.6
+  "@earendil-works/pi-ai": ^0.80.6
   pi-web-access: ^0.13.0
   "@iconify-json/mingcute": ^1.2.7
   "@types/node": ^26.1.1
@@ -44,7 +44,7 @@ catalog:
   sass: ^1.101.0
   turbo: ^2.10.4
   typebox: ^1.3.6
-  typescript: ^6.0.2
+  typescript: ^6.0.3
   unocss: ^66.7.5
   pinia: ^3.0.4
   vite: ^8.1.3
@@ -92,7 +92,7 @@ minimumReleaseAgeExclude:
   - "@oxlint/binding-win32-arm64-msvc@1.72.0"
   - "@oxlint/binding-win32-ia32-msvc@1.72.0"
   - "@oxlint/binding-win32-x64-msvc@1.72.0"
-  - '@vue/language-core@3.3.6 || 3.3.7'
+  - "@vue/language-core@3.3.6 || 3.3.7"
   - oxfmt@0.57.0
   - oxlint@1.72.0
   - vite@8.1.2
@@ -105,5 +105,9 @@ minimumReleaseAgeExclude:
   - "@turbo/windows-arm64@2.10.2"
   - turbo@2.10.2
   - electron@43.0.0
-  - '@types/node@26.1.1'
+  - "@types/node@26.1.1"
   - typebox@1.3.6
+  - '@earendil-works/pi-agent-core@0.80.6'
+  - '@earendil-works/pi-ai@0.80.6'
+  - '@earendil-works/pi-coding-agent@0.80.6'
+  - '@earendil-works/pi-tui@0.80.6'

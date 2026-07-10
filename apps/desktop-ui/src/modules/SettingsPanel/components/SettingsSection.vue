@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, useSlots } from 'vue';
 
-import AppScrollArea from '@/components/AppScrollArea/AppScrollArea.vue';
+import { AppScrollArea } from '@/components/AppScrollArea';
 
 const props = withDefaults(
   defineProps<{

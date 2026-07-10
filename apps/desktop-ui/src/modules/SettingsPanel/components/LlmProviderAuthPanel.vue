@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import AppButton from '@/components/AppButton/AppButton.vue';
-import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
+import { AppButton } from '@/components/AppButton';
+import { AppForm, AppFormActions, AppFormField } from '@/components/AppForm';
+import { AppInput } from '@/components/AppInput';
 
 const props = defineProps<{
-  provider: ProviderView;
-  activeModelGroup: ModelGroup;
   apiKey?: string;
   isSaving: boolean;
+  canRemove: boolean;
   placeholder: string;
 }>();
 
@@ -15,38 +15,30 @@ const emit = defineEmits<{
   submit: [];
   remove: [];
 }>();
-
-function updateApiKey(event: Event) {
-  emit('update:apiKey', (event.target as HTMLInputElement).value);
-}
 </script>
 
 <template>
-  <div class="settings-auth-panel">
-    <label class="settings-key-field">
-      <span>{{ props.activeModelGroup === 'custom' ? '模型 Key' : 'API Key' }}</span>
-      <input
-        :value="props.apiKey"
-        class="settings-input"
-        type="password"
-        autocomplete="off"
-        :placeholder="props.placeholder"
-        :disabled="props.isSaving"
-        @input="updateApiKey"
-        @keydown.enter.prevent="emit('submit')"
-      />
-    </label>
-    <div class="settings-auth-actions">
-      <AppButton variant="primary" type="button" :disabled="props.isSaving" @click="emit('submit')">
-        {{ props.isSaving ? '保存中...' : props.activeModelGroup === 'custom' ? '保存模型 Key' : '保存凭据' }}
+  <AppForm class="settings-auth-panel" :disabled="props.isSaving" @submit="emit('submit')">
+    <AppFormField label="API Key">
+      <template #default="{ controlAttrs }">
+        <AppInput
+          v-bind="controlAttrs"
+          :model-value="props.apiKey"
+          type="password"
+          autocomplete="off"
+          :placeholder="props.placeholder"
+          @update:model-value="emit('update:apiKey', $event)"
+        />
+      </template>
+    </AppFormField>
+
+    <AppFormActions>
+      <AppButton variant="primary" type="submit" :disabled="props.isSaving">
+        {{ props.isSaving ? '保存中...' : '保存 API Key' }}
       </AppButton>
-      <AppButton
-        type="button"
-        :disabled="props.isSaving || (props.activeModelGroup !== 'custom' && !props.provider.authConfigured)"
-        @click="emit('remove')"
-      >
-        {{ props.activeModelGroup === 'custom' ? '移除模型 Key' : '移除凭据' }}
+      <AppButton type="button" :disabled="props.isSaving || !props.canRemove" @click="emit('remove')">
+        移除 API Key
       </AppButton>
-    </div>
-  </div>
+    </AppFormActions>
+  </AppForm>
 </template>

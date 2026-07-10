@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { FetchedCustomProviderModel } from '@chaptale/ipc-contract';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppDialog from '@/components/AppDialog/AppDialog.vue';
-import AppScrollArea from '@/components/AppScrollArea/AppScrollArea.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppDialog } from '@/components/AppDialog';
+import { AppForm, AppFormActions } from '@/components/AppForm';
+import { AppScrollArea } from '@/components/AppScrollArea';
 import type { CustomModelDraft } from '../utils/custom-model-draft';
 import CustomModelDraftForm from './CustomModelDraftForm.vue';
 
@@ -34,22 +35,22 @@ const emit = defineEmits<{
   >
     <template #default="{ close }">
       <AppScrollArea class="settings-dialog-form-scroll">
-        <form class="settings-dialog-form" @submit.prevent="emit('submit')">
+        <AppForm class="llm-model-dialog-form" @submit="emit('submit')">
           <CustomModelDraftForm
             :draft="props.draft"
             :fetched-models="props.fetchedModels"
             :is-fetching="props.isFetching"
             :can-fetch="props.canFetch"
-            fetch-disabled-reason="需要先保存模型 Key 才能拉取模型"
+            fetch-disabled-reason="需要先保存 API Key 才能拉取模型"
             @fetch="emit('fetch')"
           />
-          <div class="settings-dialog-form-actions">
+          <AppFormActions>
             <AppButton type="button" @click="close">取消</AppButton>
             <AppButton variant="primary" type="submit" :disabled="!props.canSubmit">
               {{ props.submitLabel }}
             </AppButton>
-          </div>
-        </form>
+          </AppFormActions>
+        </AppForm>
       </AppScrollArea>
     </template>
   </AppDialog>
@@ -57,5 +58,8 @@ const emit = defineEmits<{
 
 <style scoped lang="scss">
 @use '../styles/dialog';
-@use '../styles/controls';
+
+.llm-model-dialog-form {
+  @apply flex flex-col gap-4;
+}
 </style>

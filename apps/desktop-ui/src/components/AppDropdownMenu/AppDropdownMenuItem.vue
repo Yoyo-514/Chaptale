@@ -29,6 +29,7 @@ const itemClassName = computed(() => cn('app-dropdown-item', `app-dropdown-item-
     :data-disabled="props.disabled ? 'true' : undefined"
     :aria-disabled="props.disabled"
     :disabled="props.disabled"
+    data-slot="app-dropdown-menu-item"
   >
     <slot />
   </DropdownMenuItem>

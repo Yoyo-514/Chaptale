@@ -35,12 +35,12 @@ const thumbClassName = computed(() => cn('app-scroll-area-thumb', props.thumbCla
 </script>
 
 <template>
-  <ScrollAreaRoot v-bind="rootAttrs" :class="rootClassName" :type="props.type">
-    <ScrollAreaViewport :class="viewportClassName">
+  <ScrollAreaRoot v-bind="rootAttrs" :class="rootClassName" :type="props.type" data-slot="app-scroll-area">
+    <ScrollAreaViewport :class="viewportClassName" data-slot="app-scroll-area-viewport">
       <slot />
     </ScrollAreaViewport>
-    <ScrollAreaScrollbar :class="scrollbarClassName" orientation="vertical">
-      <ScrollAreaThumb :class="thumbClassName" />
+    <ScrollAreaScrollbar :class="scrollbarClassName" orientation="vertical" data-slot="app-scroll-area-scrollbar">
+      <ScrollAreaThumb :class="thumbClassName" data-slot="app-scroll-area-thumb" />
     </ScrollAreaScrollbar>
   </ScrollAreaRoot>
 </template>

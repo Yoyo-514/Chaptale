@@ -2,8 +2,8 @@
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 import { computed } from 'vue';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppAlertDialog from '@/components/AppDialog/AppAlertDialog.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppAlertDialog } from '@/components/AppDialog';
 import { getSessionTitle } from '@/utils/session-display';
 
 const props = withDefaults(

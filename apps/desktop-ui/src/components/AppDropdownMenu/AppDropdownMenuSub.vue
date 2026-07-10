@@ -40,6 +40,7 @@ const contentClassName = computed(() =>
       :disabled="props.disabled"
       :data-disabled="props.disabled ? 'true' : undefined"
       :aria-disabled="props.disabled"
+      data-slot="app-dropdown-menu-sub-trigger"
     >
       <span class="app-dropdown-sub-trigger-copy">
         <slot name="trigger" />
@@ -51,6 +52,7 @@ const contentClassName = computed(() =>
         :class="contentClassName"
         :side-offset="props.sideOffset"
         :align-offset="props.alignOffset"
+        data-slot="app-dropdown-menu-sub-content"
       >
         <slot />
       </DropdownMenuSubContent>

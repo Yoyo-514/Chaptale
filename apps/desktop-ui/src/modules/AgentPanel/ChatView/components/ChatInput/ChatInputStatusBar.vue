@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppTooltip from '@/components/AppTooltip/AppTooltip.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 
 const props = defineProps<{
   modelLabel: string;

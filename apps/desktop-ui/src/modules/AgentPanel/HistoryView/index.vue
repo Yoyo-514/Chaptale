@@ -3,13 +3,15 @@ import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
-import AppScrollArea from '@/components/AppScrollArea/AppScrollArea.vue';
+import { AppScrollArea } from '@/components/AppScrollArea';
 import { useSessionStore } from '@/stores/session';
 import HistorySelectionBar from './components/HistorySelectionBar.vue';
 import HistorySelectionToolbar from './components/HistorySelectionToolbar.vue';
 import HistorySessionList from './components/HistorySessionList.vue';
 import HistoryToolbar from './components/HistoryToolbar.vue';
-import { useHistorySessions, type HistoryScopeFilter, type HistorySortMode } from './composables/useHistorySessions';
+import { useHistorySessions } from './composables/useHistorySessions';
+
+import type { HistoryScopeFilter, HistorySortMode } from './composables/useHistorySessions';
 
 const router = useRouter();
 const sessionStore = useSessionStore();

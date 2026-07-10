@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
+import { AppButton } from '@/components/AppButton';
 import { useSessionStore } from '@/stores/session';
 import { useSettingsStore } from '@/stores/settings';
 import SettingsPathCard from '../components/SettingsPathCard.vue';

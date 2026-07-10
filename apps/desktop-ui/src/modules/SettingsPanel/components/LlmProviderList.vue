@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AppScrollArea from '@/components/AppScrollArea/AppScrollArea.vue';
+import { AppScrollArea } from '@/components/AppScrollArea';
 import type { ProviderView } from '../utils/llm-settings.helpers';
 
 const props = defineProps<{
@@ -25,7 +25,7 @@ const emit = defineEmits<{
       >
         <span class="settings-provider-name">{{ provider.providerName }}</span>
         <span class="settings-provider-meta">
-          {{ provider.modelCount }} 个模型 · {{ provider.authConfigured ? '已配置凭据' : '未配置凭据' }}
+          {{ provider.modelCount }} 个模型 · {{ provider.authConfigured ? '已配置 API Key' : '未配置 API Key' }}
         </span>
       </button>
     </aside>

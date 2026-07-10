@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
-import AppCheckbox from '@/components/AppCheckbox/AppCheckbox.vue';
+import { AppCheckbox } from '@/components/AppCheckbox';
 import { cn } from '@/utils';
 import {
   formatSessionCost,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { AppButton } from '@/components/AppButton';
 import type { NotificationItem } from '@/stores/notification';
-import AppButton from '@/components/AppButton/AppButton.vue';
 import { formatNotificationTime, getNotificationIcon } from '../utils/notification-display';
 
 const props = defineProps<{

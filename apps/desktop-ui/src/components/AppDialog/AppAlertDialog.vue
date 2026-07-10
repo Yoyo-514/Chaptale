@@ -10,9 +10,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from 'reka-ui';
-import { computed, useSlots } from 'vue';
+import { computed, useAttrs, useSlots } from 'vue';
 
 import { cn } from '@/utils';
+
+defineOptions({
+  inheritAttrs: false
+});
 
 const props = withDefaults(
   defineProps<{
@@ -36,29 +40,44 @@ const emit = defineEmits<{
 }>();
 
 const slots = useSlots();
+const attrs = useAttrs();
 const hasDescription = computed(() => Boolean(props.description || slots.description));
 const overlayClassName = computed(() => cn('app-alert-dialog-overlay', props.overlayClass));
-const contentClassName = computed(() => cn('app-alert-dialog-content', props.contentClass));
+const contentClassName = computed(() => cn('app-alert-dialog-content', props.contentClass, attrs.class));
+const contentAttrs = computed(() => {
+  const { class: _class, ...rest } = attrs;
+  return rest;
+});
 </script>
 
 <template>
   <AlertDialogRoot>
-    <AlertDialogTrigger as-child>
+    <AlertDialogTrigger as-child data-slot="app-alert-dialog-trigger">
       <slot name="trigger" />
     </AlertDialogTrigger>
     <AlertDialogPortal>
-      <AlertDialogOverlay :class="overlayClassName" />
-      <AlertDialogContent :class="contentClassName">
-        <AlertDialogTitle class="app-alert-dialog-title">
+      <AlertDialogOverlay :class="overlayClassName" data-slot="app-alert-dialog-overlay" />
+      <AlertDialogContent v-bind="contentAttrs" :class="contentClassName" data-slot="app-alert-dialog-content">
+        <AlertDialogTitle class="app-alert-dialog-title" data-slot="app-alert-dialog-title">
           <slot name="title">{{ props.title }}</slot>
         </AlertDialogTitle>
-        <AlertDialogDescription v-if="hasDescription" class="app-alert-dialog-description">
+        <AlertDialogDescription
+          v-if="hasDescription"
+          class="app-alert-dialog-description"
+          data-slot="app-alert-dialog-description"
+        >
           <slot name="description">{{ props.description }}</slot>
         </AlertDialogDescription>
         <slot />
-        <div class="app-alert-dialog-actions">
-          <AlertDialogCancel class="app-alert-dialog-cancel">{{ props.cancelLabel }}</AlertDialogCancel>
-          <AlertDialogAction class="app-alert-dialog-confirm" @click="emit('confirm')">
+        <div class="app-alert-dialog-actions" data-slot="app-alert-dialog-actions">
+          <AlertDialogCancel class="app-alert-dialog-cancel" data-slot="app-alert-dialog-cancel">
+            {{ props.cancelLabel }}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            class="app-alert-dialog-confirm"
+            data-slot="app-alert-dialog-confirm"
+            @click="emit('confirm')"
+          >
             {{ props.confirmLabel }}
           </AlertDialogAction>
         </div>

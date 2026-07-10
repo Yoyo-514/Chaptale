@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { ref } from 'vue';
 
+import type { AppTextareaExpose } from '@/components/AppTextarea';
+import { AppTextarea } from '@/components/AppTextarea';
+import { useAutosizeTextarea } from '@/composables';
 import { cn } from '@/utils';
 
 const props = defineProps<{
@@ -14,47 +17,16 @@ const emit = defineEmits<{
   submit: [];
 }>();
 
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
-const maxVisibleRows = 5;
-
-function getMaxTextareaHeight(textarea: HTMLTextAreaElement) {
-  const styles = window.getComputedStyle(textarea);
-  const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
-  const paddingTop = Number.parseFloat(styles.paddingTop) || 0;
-  const paddingBottom = Number.parseFloat(styles.paddingBottom) || 0;
-
-  return lineHeight * maxVisibleRows + paddingTop + paddingBottom;
-}
-
-function resizeTextarea() {
-  const textarea = textareaRef.value;
-
-  if (!textarea) {
-    return;
-  }
-
-  const maxHeight = getMaxTextareaHeight(textarea);
-  textarea.style.height = 'auto';
-  textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-  textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
-}
-
-function handleInput(event: Event) {
-  emit('update:modelValue', (event.target as HTMLTextAreaElement).value);
-  resizeTextarea();
-}
-
-watch(
-  () => props.modelValue,
-  async () => {
-    await nextTick();
-    resizeTextarea();
-  }
-);
-
-onMounted(() => {
-  resizeTextarea();
+const textareaRef = ref<AppTextareaExpose | null>(null);
+const { resize: resizeTextarea } = useAutosizeTextarea(() => textareaRef.value?.getElement(), {
+  maxRows: 5,
+  value: () => props.modelValue
 });
+
+function handleInput(value: string) {
+  emit('update:modelValue', value);
+  resizeTextarea();
+}
 
 function handleSubmit() {
   if (props.isReplying) {
@@ -85,14 +57,17 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <textarea
+  <AppTextarea
     ref="textareaRef"
-    :value="props.modelValue"
+    :model-value="props.modelValue"
     class="chat-input-field"
-    rows="1"
+    :rows="1"
+    size="lg"
+    resize="none"
+    variant="plain"
     placeholder="描述你的创作需求..."
     :disabled="props.isConnecting"
-    @input="handleInput"
+    @update:model-value="handleInput"
     @keydown="handleKeydown"
   />
 
@@ -111,7 +86,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 <style scoped lang="scss">
 .chat-input-field {
-  @apply min-h-11 max-h-32 resize-none overflow-y-hidden bg-transparent px-4 py-3 leading-5 outline-none;
+  @apply min-h-11 max-h-32 overflow-y-hidden;
 
   box-sizing: border-box;
 

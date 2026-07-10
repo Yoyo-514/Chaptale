@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { appButtonSizes, appButtonVariants } from '../app-button.variants';
+import { appButtonSizes, appButtonVariants } from '../constants';
 
 describe('app-button variants metadata', () => {
   it('lists supported semantic variants', () => {

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ChaptaleModelInfo } from '@chaptale/ipc-contract';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppCheckbox from '@/components/AppCheckbox/AppCheckbox.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppCheckbox } from '@/components/AppCheckbox';
 
 const props = defineProps<{
   models: ChaptaleModelInfo[];

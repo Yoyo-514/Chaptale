@@ -1,7 +1,6 @@
 /* stylelint-disable at-rule-no-unknown */
 // 通用 Markdown 渲染样式。
 // 该文件由 styles/index.scss 统一导出，组件只需要使用 .markdown-body 容器类。
-
 .markdown-body {
   @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic px-4 py-3 text-foreground shadow-inset-highlight;
 

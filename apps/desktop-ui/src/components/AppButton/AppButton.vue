@@ -2,9 +2,7 @@
 import { computed, useAttrs } from 'vue';
 
 import { cn } from '@/utils';
-
-export type AppButtonVariant = 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'link';
-export type AppButtonSize = 'xs' | 'sm' | 'md' | 'lg';
+import type { AppButtonSize, AppButtonVariant } from './types';
 
 defineOptions({
   inheritAttrs: false

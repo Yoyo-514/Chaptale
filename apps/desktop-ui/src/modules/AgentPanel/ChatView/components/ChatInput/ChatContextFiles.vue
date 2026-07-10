@@ -2,7 +2,7 @@
 import type { SelectedContextFile } from '@chaptale/ipc-contract';
 import { formatFileSize } from '@chaptale/shared';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
+import { AppButton } from '@/components/AppButton';
 import { cn } from '@/utils';
 
 const props = defineProps<{

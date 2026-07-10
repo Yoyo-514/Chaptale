@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { ChaptaleCustomProviderApi, FetchedCustomProviderModel } from '@chaptale/ipc-contract';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppDialog from '@/components/AppDialog/AppDialog.vue';
-import AppScrollArea from '@/components/AppScrollArea/AppScrollArea.vue';
-import AppSelect from '@/components/AppSelect/AppSelect.vue';
-import AppSelectItem from '@/components/AppSelect/AppSelectItem.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppDialog } from '@/components/AppDialog';
+import { AppForm, AppFormActions, AppFormField, AppFormGrid, AppFormSection } from '@/components/AppForm';
+import { AppInput } from '@/components/AppInput';
+import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import type { CustomModelDraft } from '../utils/custom-model-draft';
 import CustomModelDraftForm from './CustomModelDraftForm.vue';
 
@@ -67,87 +68,99 @@ function getApiLabel(api: ChaptaleCustomProviderApi) {
   >
     <template #default="{ close }">
       <AppScrollArea class="settings-dialog-form-scroll">
-        <form class="settings-dialog-form" @submit.prevent="emit('submit')">
-          <section class="settings-dialog-form-section">
-            <h4 class="settings-subtitle">供应商信息</h4>
-            <div class="settings-form-grid">
-              <label class="settings-field">
-                <span>供应商 ID</span>
-                <input
-                  v-model="props.provider.provider"
-                  class="settings-input"
-                  placeholder="deepseek-custom"
-                  autocomplete="off"
-                />
-              </label>
-              <label class="settings-field">
-                <span>显示名称</span>
-                <input
-                  v-model="props.provider.providerName"
-                  class="settings-input"
-                  placeholder="DeepSeek Custom"
-                  autocomplete="off"
-                />
-              </label>
-              <label class="settings-field">
-                <span>API 类型</span>
-                <AppSelect
-                  :model-value="props.provider.api"
-                  trigger-class="settings-dropdown-trigger"
-                  content-size="md"
-                  @update:model-value="props.provider.api = $event as ChaptaleCustomProviderApi"
-                >
-                  <template #trigger="{ triggerClass, disabled, dataDisabled }">
-                    <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
-                      <span>{{ getApiLabel(props.provider.api) }}</span>
-                      <span class="i-mingcute-down-line settings-select-icon" aria-hidden="true" />
-                    </button>
-                  </template>
-                  <AppSelectItem v-for="option in apiOptions" :key="option.value" :value="option.value">
-                    {{ option.label }}
-                  </AppSelectItem>
-                </AppSelect>
-              </label>
-              <label class="settings-field">
-                <span>模型 Key</span>
-                <input
-                  v-model="props.provider.apiKey"
-                  class="settings-input"
-                  type="password"
-                  placeholder="可选；拉取模型时需要"
-                  autocomplete="off"
-                />
-              </label>
-              <label class="settings-field is-wide">
-                <span>Base URL</span>
-                <input
-                  v-model="props.provider.baseUrl"
-                  class="settings-input"
-                  placeholder="https://api.example.com/v1"
-                  autocomplete="off"
-                />
-              </label>
-            </div>
-          </section>
+        <AppForm class="llm-provider-form" @submit="emit('submit')">
+          <AppFormSection title="供应商信息">
+            <AppFormGrid :columns="2">
+              <AppFormField label="供应商 ID">
+                <template #default="{ controlAttrs }">
+                  <AppInput
+                    v-bind="controlAttrs"
+                    v-model="props.provider.provider"
+                    name="provider"
+                    placeholder="deepseek-custom"
+                    autocomplete="off"
+                  />
+                </template>
+              </AppFormField>
 
-          <section class="settings-dialog-form-section">
-            <div class="settings-provider-head">
-              <h4 class="settings-subtitle">模型列表</h4>
-              <span class="settings-path-label">可先拉取模型，也可手动输入后加入待添加列表</span>
-            </div>
+              <AppFormField label="显示名称">
+                <template #default="{ controlAttrs }">
+                  <AppInput
+                    v-bind="controlAttrs"
+                    v-model="props.provider.providerName"
+                    name="providerName"
+                    placeholder="DeepSeek Custom"
+                    autocomplete="off"
+                  />
+                </template>
+              </AppFormField>
+
+              <AppFormField label="API 类型">
+                <template #default="{ controlAttrs }">
+                  <AppSelect
+                    v-bind="controlAttrs"
+                    :model-value="props.provider.api"
+                    name="api"
+                    size="sm"
+                    variant="default"
+                    content-size="md"
+                    @update:model-value="props.provider.api = $event as ChaptaleCustomProviderApi"
+                  >
+                    <template #trigger="{ triggerClass, disabled, dataDisabled }">
+                      <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
+                        <span>{{ getApiLabel(props.provider.api) }}</span>
+                        <span class="i-mingcute-down-line settings-select-icon" aria-hidden="true" />
+                      </button>
+                    </template>
+                    <AppSelectItem v-for="option in apiOptions" :key="option.value" :value="option.value">
+                      {{ option.label }}
+                    </AppSelectItem>
+                  </AppSelect>
+                </template>
+              </AppFormField>
+
+              <AppFormField label="API Key">
+                <template #default="{ controlAttrs }">
+                  <AppInput
+                    v-bind="controlAttrs"
+                    v-model="props.provider.apiKey"
+                    name="apiKey"
+                    type="password"
+                    placeholder="可选；拉取模型时需要"
+                    autocomplete="off"
+                  />
+                </template>
+              </AppFormField>
+
+              <AppFormField label="Base URL" span="full">
+                <template #default="{ controlAttrs }">
+                  <AppInput
+                    v-bind="controlAttrs"
+                    v-model="props.provider.baseUrl"
+                    name="baseUrl"
+                    placeholder="https://api.example.com/v1"
+                    autocomplete="off"
+                  />
+                </template>
+              </AppFormField>
+            </AppFormGrid>
+          </AppFormSection>
+
+          <AppFormSection title="模型列表" description="可先拉取模型，也可手动输入后加入待添加列表">
             <CustomModelDraftForm
               :draft="props.draft"
               :fetched-models="props.fetchedModels"
               :is-fetching="props.isFetching"
               :can-fetch="props.canFetch"
-              fetch-disabled-reason="需要先填写 Base URL 和模型 Key（Anthropic 不支持拉取）"
+              fetch-disabled-reason="需要先填写 Base URL 和 API Key（Anthropic 不支持拉取）"
               @fetch="emit('fetch')"
             />
-            <div class="settings-actions compact">
+
+            <AppFormActions compact>
               <AppButton type="button" :disabled="!props.canStageModel" @click="emit('stageModel')">
                 加入待添加列表
               </AppButton>
-            </div>
+            </AppFormActions>
 
             <div v-if="props.stagedModels.length" class="settings-staged-model-list">
               <article v-for="model in props.stagedModels" :key="model.modelId" class="settings-staged-model-row">
@@ -171,15 +184,15 @@ function getApiLabel(api: ChaptaleCustomProviderApi) {
               </article>
             </div>
             <div v-else class="settings-empty-card">还没有待添加模型；可以稍后在供应商详情中继续添加。</div>
-          </section>
+          </AppFormSection>
 
-          <div class="settings-dialog-form-actions">
+          <AppFormActions>
             <AppButton type="button" @click="close">取消</AppButton>
             <AppButton variant="primary" type="submit" :disabled="props.isLoading || !props.canSubmit">
               添加供应商
             </AppButton>
-          </div>
-        </form>
+          </AppFormActions>
+        </AppForm>
       </AppScrollArea>
     </template>
   </AppDialog>
@@ -187,5 +200,18 @@ function getApiLabel(api: ChaptaleCustomProviderApi) {
 
 <style scoped lang="scss">
 @use '../styles/dialog';
-@use '../styles/controls';
+
+.llm-provider-form {
+  @apply flex flex-col gap-4;
+}
+
+.settings-select-icon {
+  @apply shrink-0 text-base transition-transform duration-150;
+
+  color: var(--muted-foreground);
+}
+
+.app-select-trigger[data-state='open'] .settings-select-icon {
+  transform: rotate(180deg);
+}
 </style>

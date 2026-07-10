@@ -2,8 +2,8 @@
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppTooltip from '@/components/AppTooltip/AppTooltip.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useSessionStore } from '@/stores/session';
 
 const router = useRouter();

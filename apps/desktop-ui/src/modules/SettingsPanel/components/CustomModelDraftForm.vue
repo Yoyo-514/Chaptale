@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { FetchedCustomProviderModel } from '@chaptale/ipc-contract';
 
-import AppButton from '@/components/AppButton/AppButton.vue';
-import AppCheckbox from '@/components/AppCheckbox/AppCheckbox.vue';
-import AppSelect from '@/components/AppSelect/AppSelect.vue';
-import AppSelectItem from '@/components/AppSelect/AppSelectItem.vue';
+import { AppButton } from '@/components/AppButton';
+import { AppCheckbox } from '@/components/AppCheckbox';
+import { AppFormField, AppFormGrid } from '@/components/AppForm';
+import { AppInput } from '@/components/AppInput';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import type { CustomModelDraft } from '../utils/custom-model-draft';
 
 /**
@@ -54,24 +55,25 @@ function selectFetchedModel(modelId: string) {
     <div class="model-draft-fetch-row">
       <AppButton
         type="button"
-        :disabled="isFetching || !canFetch"
-        :title="!canFetch ? fetchDisabledReason : undefined"
+        :disabled="props.isFetching || !props.canFetch"
+        :title="!props.canFetch ? props.fetchDisabledReason : undefined"
         @click="emit('fetch')"
       >
-        {{ isFetching ? '拉取中...' : '拉取模型' }}
+        {{ props.isFetching ? '拉取中...' : '拉取模型' }}
       </AppButton>
       <AppSelect
-        :model-value="draft.modelId"
-        trigger-class="settings-dropdown-trigger"
-        :disabled="fetchedModels.length === 0"
+        :model-value="props.draft.modelId"
+        size="sm"
+        variant="default"
+        :disabled="props.fetchedModels.length === 0"
         @update:model-value="selectFetchedModel"
       >
         <template #trigger="{ triggerClass, disabled, dataDisabled }">
           <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
-            {{ fetchedModels.length ? '选择拉取到的模型' : '未拉取到模型，可手动输入' }}
+            {{ props.fetchedModels.length ? '选择拉取到的模型' : '未拉取到模型，可手动输入' }}
           </button>
         </template>
-        <AppSelectItem v-for="model in fetchedModels" :key="model.id" :value="model.id" :disabled="model.isAdded">
+        <AppSelectItem v-for="model in props.fetchedModels" :key="model.id" :value="model.id" :disabled="model.isAdded">
           <span class="settings-dropdown-item-title">
             <span>{{ model.name || model.id }}</span>
             <small v-if="model.isAdded" class="settings-dropdown-item-badge">已添加</small>
@@ -81,45 +83,58 @@ function selectFetchedModel(modelId: string) {
       </AppSelect>
     </div>
 
-    <div class="model-draft-grid">
-      <label class="settings-field">
-        <span>模型 ID</span>
-        <input
-          v-model="draft.modelId"
-          class="settings-input"
-          placeholder="可手动输入，或从上方选择"
-          autocomplete="off"
-        />
-      </label>
-      <label class="settings-field">
-        <span>模型名称</span>
-        <input v-model="draft.modelName" class="settings-input" placeholder="可选，默认同模型 ID" autocomplete="off" />
-      </label>
-      <label class="settings-field">
-        <span>Context Window</span>
-        <input
-          v-model="draft.contextWindow"
-          class="settings-input"
-          inputmode="numeric"
-          placeholder="128000"
-          autocomplete="off"
-        />
-      </label>
-      <label class="settings-checkbox-field model-draft-check">
-        <AppCheckbox
-          :model-value="draft.supportsImageInput"
-          @update:model-value="draft.supportsImageInput = $event === true"
-        />
-        <span>支持图像输入</span>
-      </label>
-    </div>
+    <AppFormGrid :columns="2">
+      <AppFormField label="模型 ID">
+        <template #default="{ controlAttrs }">
+          <AppInput
+            v-bind="controlAttrs"
+            v-model="props.draft.modelId"
+            placeholder="可手动输入，或从上方选择"
+            autocomplete="off"
+          />
+        </template>
+      </AppFormField>
+
+      <AppFormField label="模型名称">
+        <template #default="{ controlAttrs }">
+          <AppInput
+            v-bind="controlAttrs"
+            v-model="props.draft.modelName"
+            placeholder="可选，默认同模型 ID"
+            autocomplete="off"
+          />
+        </template>
+      </AppFormField>
+
+      <AppFormField label="Context Window">
+        <template #default="{ controlAttrs }">
+          <AppInput
+            v-bind="controlAttrs"
+            v-model="props.draft.contextWindow"
+            inputmode="numeric"
+            placeholder="128000"
+            autocomplete="off"
+          />
+        </template>
+      </AppFormField>
+
+      <AppFormField class="model-draft-check">
+        <template #default="{ controlAttrs }">
+          <label :for="controlAttrs.id" class="model-draft-check-label">
+            <AppCheckbox
+              v-bind="controlAttrs"
+              :model-value="props.draft.supportsImageInput"
+              @update:model-value="props.draft.supportsImageInput = $event === true"
+            />
+            <span>支持图像输入</span>
+          </label>
+        </template>
+      </AppFormField>
+    </AppFormGrid>
   </div>
 </template>
 
 <style lang="scss">
-@use '../styles/controls';
-
-/* 非 scoped：样式全部限定在 .model-draft-fields 前缀下，不影响外部。 */
 .model-draft-fields {
   @apply flex flex-col gap-2;
 }
@@ -128,11 +143,13 @@ function selectFetchedModel(modelId: string) {
   @apply grid grid-cols-[auto_minmax(0,1fr)] gap-2;
 }
 
-.model-draft-grid {
-  @apply grid grid-cols-2 gap-2;
-}
-
 .model-draft-check {
   @apply self-end pb-1.5;
+}
+
+.model-draft-check-label {
+  @apply flex items-center gap-2 text-xs leading-5;
+
+  color: var(--foreground);
 }
 </style>

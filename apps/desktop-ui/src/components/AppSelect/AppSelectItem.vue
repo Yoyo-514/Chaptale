@@ -22,13 +22,13 @@ const itemClassName = computed(() => cn('app-select-item', `app-select-item-${pr
 </script>
 
 <template>
-  <SelectItem :class="itemClassName" :value="props.value" :disabled="props.disabled">
-    <span class="app-select-item-copy">
-      <SelectItemText class="app-select-item-text">
+  <SelectItem :class="itemClassName" :value="props.value" :disabled="props.disabled" data-slot="app-select-item">
+    <span class="app-select-item-copy" data-slot="app-select-item-copy">
+      <SelectItemText class="app-select-item-text" data-slot="app-select-item-text">
         <slot />
       </SelectItemText>
     </span>
-    <SelectItemIndicator class="app-select-item-indicator">
+    <SelectItemIndicator class="app-select-item-indicator" data-slot="app-select-item-indicator">
       <span class="i-mingcute-check-line" aria-hidden="true" />
     </SelectItemIndicator>
   </SelectItem>

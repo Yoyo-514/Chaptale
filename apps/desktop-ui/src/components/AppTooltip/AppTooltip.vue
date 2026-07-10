@@ -8,9 +8,13 @@ import {
   TooltipRoot,
   TooltipTrigger
 } from 'reka-ui';
-import { defineComponent } from 'vue';
+import { defineComponent, useAttrs } from 'vue';
 
-import { TOOLTIP_DELAY_DURATION_MS, TOOLTIP_SKIP_DELAY_DURATION_MS } from './tooltip-config';
+import { TOOLTIP_DELAY_DURATION_MS, TOOLTIP_SKIP_DELAY_DURATION_MS } from './constants';
+
+defineOptions({
+  inheritAttrs: false
+});
 
 withDefaults(
   defineProps<{
@@ -27,6 +31,8 @@ withDefaults(
     withArrow: false
   }
 );
+
+const attrs = useAttrs();
 
 const PassThrough = defineComponent({
   name: 'AppTooltipPassThrough',
@@ -47,13 +53,25 @@ const providerProps = hasSharedProvider
 <template>
   <component :is="ProviderComponent" v-bind="providerProps">
     <TooltipRoot>
-      <TooltipTrigger as-child>
+      <TooltipTrigger v-bind="attrs" as-child data-slot="app-tooltip-trigger">
         <slot />
       </TooltipTrigger>
       <TooltipPortal>
-        <TooltipContent class="app-tooltip" :side="side" :align="align" :side-offset="sideOffset">
+        <TooltipContent
+          class="app-tooltip"
+          :side="side"
+          :align="align"
+          :side-offset="sideOffset"
+          data-slot="app-tooltip-content"
+        >
           {{ text }}
-          <TooltipArrow v-if="withArrow" class="app-tooltip-arrow" :width="10" :height="5" />
+          <TooltipArrow
+            v-if="withArrow"
+            class="app-tooltip-arrow"
+            :width="10"
+            :height="5"
+            data-slot="app-tooltip-arrow"
+          />
         </TooltipContent>
       </TooltipPortal>
     </TooltipRoot>

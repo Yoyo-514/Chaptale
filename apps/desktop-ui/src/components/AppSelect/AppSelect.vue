@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { SelectContent, SelectPortal, SelectRoot, SelectTrigger, SelectValue } from 'reka-ui';
-import { computed, useSlots } from 'vue';
+import { computed, inject, useAttrs, useSlots } from 'vue';
 
 import { cn } from '@/utils';
+import { appFormContextKey } from '../AppForm/context.ts';
 import AppScrollArea from '../AppScrollArea/AppScrollArea.vue';
+
+defineOptions({
+  inheritAttrs: false
+});
 
 const props = withDefaults(
   defineProps<{
@@ -12,9 +17,15 @@ const props = withDefaults(
     triggerClass?: string;
     contentClass?: string;
     contentSize?: 'sm' | 'md';
+    size?: 'sm' | 'md';
+    variant?: 'default' | 'muted';
     sideOffset?: number;
     align?: 'start' | 'center' | 'end';
     disabled?: boolean;
+    invalid?: boolean;
+    name?: string;
+    required?: boolean;
+    autocomplete?: string;
   }>(),
   {
     modelValue: undefined,
@@ -22,9 +33,15 @@ const props = withDefaults(
     triggerClass: undefined,
     contentClass: undefined,
     contentSize: 'md',
+    size: undefined,
+    variant: undefined,
     sideOffset: 6,
     align: 'start',
-    disabled: false
+    disabled: false,
+    invalid: false,
+    name: undefined,
+    required: false,
+    autocomplete: undefined
   }
 );
 
@@ -33,8 +50,24 @@ const emit = defineEmits<{
 }>();
 
 const slots = useSlots();
+const attrs = useAttrs();
+const formContext = inject(appFormContextKey, undefined);
+const isDisabled = computed(() => props.disabled || formContext?.disabled.value === true);
+const isInvalid = computed(() => props.invalid || attrs['aria-invalid'] === 'true');
 const hasCustomTrigger = computed(() => Boolean(slots.trigger));
-const triggerClassName = computed(() => cn('app-select-trigger', props.triggerClass));
+const triggerAttrs = computed(() => {
+  const { class: _class, ...rest } = attrs;
+  return rest;
+});
+const triggerClassName = computed(() =>
+  cn(
+    'app-select-trigger',
+    props.size && `app-select-trigger-${props.size}`,
+    props.variant && `app-select-trigger-${props.variant}`,
+    props.triggerClass,
+    attrs.class
+  )
+);
 const contentClassName = computed(() =>
   cn('app-select-content', `app-select-content-${props.contentSize}`, props.contentClass)
 );
@@ -43,19 +76,41 @@ const contentClassName = computed(() =>
 <template>
   <SelectRoot
     :model-value="props.modelValue"
-    :disabled="props.disabled"
+    :disabled="isDisabled"
+    :name="props.name"
+    :required="props.required"
+    :autocomplete="props.autocomplete"
     @update:model-value="emit('update:modelValue', String($event))"
   >
-    <SelectTrigger v-if="hasCustomTrigger" as-child :disabled="props.disabled">
+    <SelectTrigger
+      v-if="hasCustomTrigger"
+      v-bind="triggerAttrs"
+      as-child
+      :disabled="isDisabled"
+      :aria-invalid="isInvalid ? 'true' : undefined"
+      :data-disabled="isDisabled || undefined"
+      :data-invalid="isInvalid || undefined"
+      data-slot="app-select"
+    >
       <slot
         name="trigger"
         :value="props.modelValue"
         :trigger-class="triggerClassName"
-        :disabled="props.disabled"
-        :data-disabled="props.disabled ? 'true' : undefined"
+        :disabled="isDisabled"
+        :data-disabled="isDisabled ? 'true' : undefined"
+        :invalid="isInvalid"
       />
     </SelectTrigger>
-    <SelectTrigger v-else :class="triggerClassName" :data-disabled="props.disabled ? 'true' : undefined">
+    <SelectTrigger
+      v-else
+      v-bind="triggerAttrs"
+      :class="triggerClassName"
+      :disabled="isDisabled"
+      :aria-invalid="isInvalid ? 'true' : undefined"
+      :data-disabled="isDisabled || undefined"
+      :data-invalid="isInvalid || undefined"
+      data-slot="app-select"
+    >
       <SelectValue :placeholder="props.placeholder" />
       <slot name="triggerIcon">
         <span class="i-mingcute-down-line app-select-trigger-icon" aria-hidden="true" />
@@ -80,12 +135,37 @@ const contentClassName = computed(() =>
   border-radius: calc(var(--radius) * 0.5);
 }
 
+.app-select-trigger-sm {
+  @apply px-3 py-1.5 text-xs;
+}
+
+.app-select-trigger-md {
+  @apply px-3 py-2 text-sm;
+}
+
+.app-select-trigger-default {
+  background: var(--input);
+  border-color: var(--input-border);
+  color: var(--foreground);
+}
+
+.app-select-trigger-muted {
+  background: var(--surface-muted);
+  border-color: var(--border-subtle);
+  border-radius: calc(var(--radius) * 0.4);
+  color: var(--foreground);
+}
+
 .app-select-trigger[data-disabled='true'] {
   @apply cursor-not-allowed opacity-60;
 }
 
 .app-select-trigger:focus-visible {
   box-shadow: var(--input-focus-shadow);
+}
+
+.app-select-trigger[data-invalid='true'] {
+  border-color: var(--destructive);
 }
 
 .app-select-trigger-icon {

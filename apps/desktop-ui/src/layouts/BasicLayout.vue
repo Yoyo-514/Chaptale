@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import ActivityBar from '../modules/ActivityBar/index.vue';
-import AgentPanel from '../modules/AgentPanel/index.vue';
-import SettingsPanel from '../modules/SettingsPanel/index.vue';
-import StatusBar from '../modules/StatusBar/index.vue';
-import TitleBar from '../modules/TitleBar/index.vue';
+import ActivityBar from '../modules/ActivityBar/ActivityBar.vue';
+import AgentPanel from '../modules/AgentPanel/AgentPanel.vue';
+import SettingsPanel from '../modules/SettingsPanel/SettingsPanel.vue';
+import StatusBar from '../modules/StatusBar/StatusBar.vue';
+import TitleBar from '../modules/TitleBar/TitleBar.vue';
 </script>
 
 <template>

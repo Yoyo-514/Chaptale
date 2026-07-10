@@ -39,7 +39,9 @@ export const modelSettingsActions = {
   },
 
   setProviderApiKey(this: SettingsStoreContext, provider: string, apiKey: string) {
-    return this.runModelsAction('保存凭据失败', () => getDesktopApi().models.setProviderApiKey({ provider, apiKey }));
+    return this.runModelsAction('保存 API Key 失败', () =>
+      getDesktopApi().models.setProviderApiKey({ provider, apiKey })
+    );
   },
 
   async fetchCustomProviderModels(this: SettingsStoreContext, payload: FetchCustomProviderModelsPayload) {
@@ -75,13 +77,13 @@ export const modelSettingsActions = {
   },
 
   setCustomProviderApiKey(this: SettingsStoreContext, provider: string, apiKey: string) {
-    return this.runModelsAction('保存模型 Key 失败', () =>
+    return this.runModelsAction('保存 API Key 失败', () =>
       getDesktopApi().models.setCustomProviderApiKey({ provider, apiKey })
     );
   },
 
   removeCustomProviderApiKey(this: SettingsStoreContext, provider: string) {
-    return this.runModelsAction('移除模型 Key 失败', () =>
+    return this.runModelsAction('移除 API Key 失败', () =>
       getDesktopApi().models.removeCustomProviderApiKey({ provider })
     );
   },
@@ -104,7 +106,7 @@ export const modelSettingsActions = {
     }
   },
 
-  removeProviderAuth(this: SettingsStoreContext, provider: string) {
-    return this.runModelsAction('移除凭据失败', () => getDesktopApi().models.removeProviderAuth({ provider }));
+  removeProviderApiKey(this: SettingsStoreContext, provider: string) {
+    return this.runModelsAction('移除 API Key 失败', () => getDesktopApi().models.removeProviderAuth({ provider }));
   }
 };

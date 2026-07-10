@@ -4,29 +4,12 @@
   max-height: min(34rem, calc(100vh - 10rem));
 }
 
-.settings-dialog-form {
-  @apply flex flex-col gap-4;
-}
-
-.settings-dialog-form-section {
-  @apply flex flex-col gap-2;
-}
-
-.settings-dialog-form-actions,
 .settings-provider-head {
   @apply flex items-center justify-between gap-3;
 }
 
-.settings-dialog-form-actions {
-  @apply mt-1 justify-end;
-}
-
 .settings-subtitle {
   @apply m-0 text-sm font-semibold;
-}
-
-.settings-form-grid {
-  @apply grid grid-cols-2 gap-2;
 }
 
 .settings-staged-model-list {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { TooltipProvider } from 'reka-ui';
 
-import { TOOLTIP_DELAY_DURATION_MS, TOOLTIP_SKIP_DELAY_DURATION_MS } from './tooltip-config';
+import { TOOLTIP_DELAY_DURATION_MS, TOOLTIP_SKIP_DELAY_DURATION_MS } from './constants';
 </script>
 
 <template>

@@ -6,7 +6,6 @@
   }
 
   .settings-provider-head,
-  .settings-collapsible-trigger,
   .settings-heading-actions {
     @apply flex items-center justify-between gap-3;
   }
@@ -28,9 +27,7 @@
   .settings-pill,
   .settings-summary-card,
   .settings-empty-card,
-  .settings-model-row,
-  .settings-custom-provider,
-  .settings-add-model-panel {
+  .settings-model-row {
     @apply relative border;
 
     background: var(--surface-acrylic-strong);
@@ -44,51 +41,6 @@
 
   .settings-summary-card {
     @apply mb-3 flex items-center justify-between gap-3 px-3 py-2 text-xs;
-  }
-
-  .settings-custom-provider {
-    @apply mb-3 overflow-hidden;
-  }
-
-  .settings-collapsible-trigger {
-    @apply w-full border-0 px-3 py-2 text-left outline-none transition-colors duration-150;
-
-    background: transparent;
-    color: var(--foreground);
-  }
-
-  .settings-collapsible-trigger:hover {
-    background: var(--surface-muted);
-  }
-
-  .settings-collapsible-trigger strong,
-  .settings-collapsible-trigger small {
-    @apply block;
-  }
-
-  .settings-trigger-icon {
-    @apply mt-0.5 shrink-0 transition-transform duration-150;
-  }
-
-  .settings-trigger-icon.is-open {
-    transform: rotate(180deg);
-  }
-
-  .settings-form {
-    @apply flex flex-col gap-2 border-t p-3;
-
-    border-color: var(--border-subtle);
-  }
-
-  .settings-form-divider {
-    @apply mt-1 border-t pt-2 text-xs font-medium;
-
-    border-color: var(--border-subtle);
-    color: var(--muted-foreground);
-  }
-
-  .settings-form-grid {
-    @apply grid grid-cols-2 gap-2;
   }
 
   .settings-group-tabs {
@@ -165,19 +117,10 @@
     color: var(--secondary-foreground);
   }
 
-  .settings-auth-panel,
-  .settings-add-model-panel {
+  .settings-auth-panel {
     @apply mb-3 flex flex-col gap-2 p-1;
 
     background: var(--surface-acrylic-strong);
-  }
-
-  .settings-add-model-panel {
-    @apply p-2;
-  }
-
-  .settings-auth-actions {
-    @apply flex flex-wrap justify-end gap-2;
   }
 
   .settings-actions {
@@ -215,7 +158,6 @@
 
   .settings-provider-card:focus-visible,
   .settings-group-tab:focus-visible,
-  .settings-collapsible-trigger:focus-visible,
   .settings-model-row:focus-visible {
     box-shadow: var(--input-focus-shadow);
   }

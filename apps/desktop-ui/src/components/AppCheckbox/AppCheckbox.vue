@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { CheckboxIndicator, CheckboxRoot } from 'reka-ui';
-import { computed, useAttrs } from 'vue';
+import { computed, inject, useAttrs } from 'vue';
 
 import { cn } from '@/utils';
+import { appFormContextKey } from '../AppForm/context';
+import type { CheckboxValue } from './types';
 
 defineOptions({
   inheritAttrs: false
 });
 
-type CheckboxValue = boolean | 'indeterminate';
-
 const props = withDefaults(
   defineProps<{
     modelValue?: CheckboxValue;
     disabled?: boolean;
+    invalid?: boolean;
     ariaLabel?: string;
     size?: 'sm' | 'md';
     asChild?: boolean;
@@ -21,6 +22,7 @@ const props = withDefaults(
   {
     modelValue: false,
     disabled: false,
+    invalid: false,
     ariaLabel: undefined,
     size: 'sm',
     asChild: false
@@ -32,11 +34,23 @@ const emit = defineEmits<{
 }>();
 
 const attrs = useAttrs();
+const formContext = inject(appFormContextKey, undefined);
+const isDisabled = computed(() => props.disabled || formContext?.disabled.value === true);
+const isInvalid = computed(() => props.invalid || attrs['aria-invalid'] === 'true');
+const resolvedAriaLabel = computed(() => props.ariaLabel ?? (attrs['aria-label'] as string | undefined));
 const rootAttrs = computed(() => {
-  const { class: _class, ...rest } = attrs;
+  const { class: _class, 'aria-label': _ariaLabel, ...rest } = attrs;
   return rest;
 });
-const rootClassName = computed(() => cn('app-checkbox', `app-checkbox-${props.size}`, attrs.class));
+const rootClassName = computed(() =>
+  cn(
+    'app-checkbox',
+    `app-checkbox-${props.size}`,
+    isDisabled.value && 'is-disabled',
+    isInvalid.value && 'is-invalid',
+    attrs.class
+  )
+);
 const iconClass = computed(() =>
   props.modelValue === 'indeterminate' ? 'i-mingcute-minimize-line' : 'i-mingcute-check-line'
 );
@@ -48,8 +62,12 @@ const iconClass = computed(() =>
     v-bind="rootAttrs"
     :class="rootClassName"
     :model-value="props.modelValue"
-    :disabled="props.disabled"
-    :aria-label="props.ariaLabel"
+    :disabled="isDisabled"
+    :aria-label="resolvedAriaLabel"
+    :aria-invalid="isInvalid ? 'true' : undefined"
+    :data-disabled="isDisabled || undefined"
+    :data-invalid="isInvalid || undefined"
+    data-slot="app-checkbox"
     as-child
     @update:model-value="emit('update:modelValue', $event)"
   >
@@ -65,8 +83,12 @@ const iconClass = computed(() =>
     v-bind="rootAttrs"
     :class="rootClassName"
     :model-value="props.modelValue"
-    :disabled="props.disabled"
-    :aria-label="props.ariaLabel"
+    :disabled="isDisabled"
+    :aria-label="resolvedAriaLabel"
+    :aria-invalid="isInvalid ? 'true' : undefined"
+    :data-disabled="isDisabled || undefined"
+    :data-invalid="isInvalid || undefined"
+    data-slot="app-checkbox"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <CheckboxIndicator class="app-checkbox-indicator">
@@ -103,6 +125,10 @@ const iconClass = computed(() =>
 
 .app-checkbox:focus-visible {
   box-shadow: var(--input-focus-shadow);
+}
+
+.app-checkbox.is-invalid {
+  border-color: var(--destructive);
 }
 
 .app-checkbox-indicator {

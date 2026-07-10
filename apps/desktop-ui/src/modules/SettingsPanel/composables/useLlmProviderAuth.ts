@@ -12,19 +12,19 @@ export function useLlmProviderAuth(
   notificationStore: NotificationStore,
   activeModelGroup: Ref<ModelGroup>
 ) {
-  const pendingKeyProvider = ref('');
+  const pendingApiKeyProvider = ref('');
   const providerApiKeys = reactive<Record<string, string>>({});
 
-  function getKeyPlaceholder(provider?: ProviderView) {
+  function getApiKeyPlaceholder(provider?: ProviderView) {
     if (provider?.authConfigured) {
       return '••••••••••••';
     }
 
-    return activeModelGroup.value === 'custom' ? '输入模型 Key' : '输入 API Key';
+    return '输入 API Key';
   }
 
-  function isKeySaving(provider?: string) {
-    return pendingKeyProvider.value === provider;
+  function isApiKeySaving(provider?: string) {
+    return pendingApiKeyProvider.value === provider;
   }
 
   async function submitProviderApiKey(provider: string) {
@@ -35,7 +35,7 @@ export function useLlmProviderAuth(
       return;
     }
 
-    pendingKeyProvider.value = provider;
+    pendingApiKeyProvider.value = provider;
 
     try {
       const succeeded =
@@ -47,12 +47,12 @@ export function useLlmProviderAuth(
         providerApiKeys[provider] = '';
       }
     } finally {
-      pendingKeyProvider.value = '';
+      pendingApiKeyProvider.value = '';
     }
   }
 
-  async function removeProviderAuth(provider: string) {
-    pendingKeyProvider.value = provider;
+  async function removeProviderApiKey(provider: string) {
+    pendingApiKeyProvider.value = provider;
 
     try {
       if (activeModelGroup.value === 'custom') {
@@ -60,18 +60,18 @@ export function useLlmProviderAuth(
         return;
       }
 
-      await settingsStore.removeProviderAuth(provider);
+      await settingsStore.removeProviderApiKey(provider);
     } finally {
-      pendingKeyProvider.value = '';
+      pendingApiKeyProvider.value = '';
     }
   }
 
   return {
     providerApiKeys,
-    pendingKeyProvider,
-    getKeyPlaceholder,
-    isKeySaving,
+    pendingApiKeyProvider,
+    getApiKeyPlaceholder,
+    isApiKeySaving,
     submitProviderApiKey,
-    removeProviderAuth
+    removeProviderApiKey
   };
 }
