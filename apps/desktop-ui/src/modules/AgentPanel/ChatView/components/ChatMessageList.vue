@@ -9,6 +9,7 @@ const props = defineProps<{
   messages: ChatDisplayMessage[];
   editingMessageId?: string;
   isBusy?: boolean;
+  searchHitId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -61,6 +62,14 @@ async function scrollToBottom() {
   scheduleScrollToBottom();
 }
 
+async function scrollToIndex(index: number) {
+  await nextTick();
+
+  if (index >= 0 && index < props.messages.length) {
+    virtualizer.value.scrollToIndex(index, { align: 'center' });
+  }
+}
+
 function measureElement(element: unknown) {
   virtualizer.value.measureElement(element instanceof Element ? element : null);
 }
@@ -84,7 +93,7 @@ watch(
   { flush: 'post' }
 );
 
-defineExpose({ scrollToBottom });
+defineExpose({ scrollToBottom, scrollToIndex });
 </script>
 
 <template>
@@ -102,6 +111,7 @@ defineExpose({ scrollToBottom });
           :display-message="props.messages[virtualItem.index]"
           :is-editing="props.editingMessageId === props.messages[virtualItem.index].id"
           :is-busy="props.isBusy"
+          :is-search-hit="Boolean(props.searchHitId) && props.searchHitId === props.messages[virtualItem.index].id"
           @edit-user="emit('editUser', $event)"
           @save-user="(messageId, content) => emit('saveUser', messageId, content)"
           @cancel-edit="emit('cancelEdit')"

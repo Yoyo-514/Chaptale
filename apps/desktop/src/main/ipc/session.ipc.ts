@@ -1,11 +1,14 @@
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
-import { ipcMain, shell } from 'electron';
+import { dialog, ipcMain, shell } from 'electron';
+import { promises as fs } from 'node:fs';
 import { PiSessionRepository } from '../services/session.repository';
 
 import type {
   CreateSessionOptions,
   DeleteSessionPayload,
   DeleteSessionsPayload,
+  ExportSessionPayload,
+  ReadSessionImagePayload,
   RenameSessionPayload,
   SetSessionLeafPayload
 } from '@chaptale/ipc-contract';
@@ -25,9 +28,32 @@ export function registerSessionIpc(sessionRepository: PiSessionRepository) {
     sessionRepository.getMessages(sessionId)
   );
 
+  ipcMain.handle(IPC_CHANNELS.session.readImage, (_event, payload: ReadSessionImagePayload) =>
+    sessionRepository.readImage(payload)
+  );
+
   ipcMain.handle(IPC_CHANNELS.session.rename, (_event, payload: RenameSessionPayload) =>
     sessionRepository.appendSessionInfo(payload.sessionId, payload.name)
   );
+
+  ipcMain.handle(IPC_CHANNELS.session.exportMarkdown, async (_event, payload: ExportSessionPayload) => {
+    const { markdown, suggestedFileName } = await sessionRepository.exportMarkdown(payload.sessionId);
+    const result = await dialog.showSaveDialog({
+      title: '导出会话为 Markdown',
+      defaultPath: suggestedFileName,
+      filters: [
+        { name: 'Markdown', extensions: ['md'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    await fs.writeFile(result.filePath, markdown, 'utf8');
+    return result.filePath;
+  });
 
   ipcMain.handle(IPC_CHANNELS.session.delete, (_event, payload: DeleteSessionPayload) =>
     sessionRepository.delete(payload.sessionId)

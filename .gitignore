@@ -31,6 +31,7 @@ test-results
 
 # temp
 temp/
+backup/
 
 # AI memory
 .serena

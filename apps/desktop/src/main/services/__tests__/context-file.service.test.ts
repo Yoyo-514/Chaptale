@@ -7,6 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('electron', () => ({
   dialog: {
     showOpenDialog: vi.fn()
+  },
+  nativeImage: {
+    createFromBuffer: vi.fn(() => ({
+      isEmpty: () => false,
+      getSize: () => ({ width: 1920, height: 1080 }),
+      resize: () => ({ toDataURL: () => 'data:image/png;base64,dGh1bWI=' }),
+      toDataURL: () => 'data:image/png;base64,dGh1bWI='
+    }))
   }
 }));
 
@@ -71,18 +79,69 @@ describe('ContextFileService', () => {
     expect(inspected).toHaveLength(12);
   });
 
-  it('accepts PDF and common document files as document inputs', async () => {
+  it.each([
+    ['paper.pdf', 'application/pdf'],
+    ['draft.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    ['slides.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    ['sheet.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+  ])('treats %s as metadata-only document input', async (fileName, mimeType) => {
     const { ContextFileService } = await import('../context-file.service');
-    const filePath = path.join(tempDir, 'paper.pdf');
-    await writeFile(filePath, Buffer.from('%PDF-1.7\n% mock pdf'));
+    const filePath = path.join(tempDir, fileName);
+    await writeFile(filePath, Buffer.from('mock document body'));
 
     const [inspected] = await new ContextFileService().inspectFiles([filePath]);
     const result = await new ContextFileService().resolve([filePath]);
 
-    expect(inspected).toMatchObject({ kind: 'document', mimeType: 'application/pdf' });
+    expect(inspected).toMatchObject({ kind: 'document', mimeType });
     expect(result.promptPrefix).toContain('handling="document-file-input"');
-    expect(result.promptPrefix).toContain('application/pdf');
+    expect(result.promptPrefix).toContain(mimeType);
     expect(result.promptPrefix).toContain('当前消息包含文件元数据与本地路径');
+    expect(result.promptPrefix).not.toContain('<content');
+    expect(result.promptPrefix).not.toContain('mock document body');
+  });
+
+  it('sends supported images as native pi image blocks without a file envelope', async () => {
+    const { ContextFileService } = await import('../context-file.service');
+    const filePath = path.join(tempDir, 'cover.png');
+    await writeFile(filePath, Buffer.from('image-data'));
+
+    const result = await new ContextFileService().resolve([filePath]);
+
+    expect(result.images).toEqual([{ type: 'image', data: 'aW1hZ2UtZGF0YQ==', mimeType: 'image/png' }]);
+    expect(result.imagePaths).toEqual([filePath]);
+    expect(result.promptPrefix).toBe('');
+  });
+
+  it('does not cap the number or cumulative size of individually valid images', async () => {
+    const { ContextFileService } = await import('../context-file.service');
+    const filePaths = await Promise.all(
+      Array.from({ length: 21 }, async (_, index) => {
+        const filePath = path.join(tempDir, `image-${index}.png`);
+        await writeFile(filePath, Buffer.from(`image-${index}`));
+        return filePath;
+      })
+    );
+
+    const result = await new ContextFileService().resolve(filePaths);
+
+    expect(result.images).toHaveLength(21);
+    expect(result.imagePaths).toEqual(filePaths);
+  });
+
+  it('returns a generated thumbnail instead of the original image data during inspection', async () => {
+    const { ContextFileService } = await import('../context-file.service');
+    const filePath = path.join(tempDir, 'preview.png');
+    await writeFile(filePath, Buffer.from('image-data'));
+
+    const [file] = await new ContextFileService().inspectFiles([filePath]);
+
+    expect(file).toMatchObject({
+      kind: 'image',
+      previewDataUrl: 'data:image/png;base64,dGh1bWI=',
+      imageWidth: 1920,
+      imageHeight: 1080
+    });
+    expect(file?.previewDataUrl).not.toContain('aW1hZ2UtZGF0YQ==');
   });
 
   it('creates a file search placeholder when direct text input budget is exceeded', async () => {

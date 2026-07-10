@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@chaptale/shared';
+import type { ChatImageSource, ChatMessage } from '@chaptale/shared';
 
 export type ChaptaleSessionEntry = {
   type: 'session';
@@ -106,6 +106,10 @@ export type RenameSessionPayload = {
   name: string;
 };
 
+export type ExportSessionPayload = {
+  sessionId: string;
+};
+
 export type DeleteSessionPayload = {
   sessionId: string;
 };
@@ -117,6 +121,13 @@ export type DeleteSessionsPayload = {
 export type SetSessionLeafPayload = {
   sessionId: string;
   leafId: string | null;
+};
+
+export type ReadSessionImagePayload = ChatImageSource;
+
+export type ReadSessionImageResult = {
+  data: Uint8Array;
+  mimeType: string;
 };
 
 export type ChaptaleSessionStorageDebugInfo = {

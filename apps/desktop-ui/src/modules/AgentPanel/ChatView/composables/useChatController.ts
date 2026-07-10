@@ -5,7 +5,7 @@ import { useSessionStore } from '@/stores/session';
 import { useSettingsStore } from '@/stores/settings';
 import { getDesktopApi } from '@/stores/utils/desktop-api';
 import type { SelectedContextFile } from '@chaptale/ipc-contract';
-import type { ChatMessage } from '@chaptale/shared';
+import type { ChatImageAttachment, ChatMessage } from '@chaptale/shared';
 import { errorToMessage } from '@chaptale/shared';
 import type { ChatDisplayMessage } from '../types';
 import { getDroppedContextFilePaths, mergeSelectedContextFiles } from '../utils/context-files';
@@ -13,8 +13,10 @@ import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
 import {
   getAssistantReasoning,
   getAssistantText,
+  getUserImages,
   getUserText,
-  hasRenderableMessage
+  hasRenderableMessage,
+  hasUserAttachments
 } from '../utils/message/message-content';
 import { useAssistantStreamingMessages } from './useAssistantStreamingMessages';
 
@@ -40,10 +42,41 @@ function createDisplayMessage(message: ChatMessage, prefix = 'message'): ChatDis
   };
 }
 
-function createUserMessage(content: string): ChatMessage {
+function getPreviewImage(file: SelectedContextFile): ChatImageAttachment | undefined {
+  if (file.kind !== 'image' || !file.previewDataUrl || !file.mimeType) {
+    return undefined;
+  }
+
+  return {
+    type: 'imageAttachment',
+    id: `selected:${file.path}`,
+    mimeType: file.mimeType,
+    originalBytes: file.size,
+    width: file.imageWidth ?? 0,
+    height: file.imageHeight ?? 0,
+    thumbnailDataUrl: file.previewDataUrl,
+    source: { type: 'context-file', path: file.path }
+  };
+}
+
+function createUserMessage(content: string, contextFiles: SelectedContextFile[] = []): ChatMessage {
+  const images: ChatImageAttachment[] = [];
+  const displayFiles: SelectedContextFile[] = [];
+
+  for (const file of contextFiles) {
+    const image = getPreviewImage(file);
+
+    if (image) {
+      images.push(image);
+    } else {
+      displayFiles.push(file);
+    }
+  }
+
   return {
     role: 'user',
-    content,
+    content: images.length > 0 ? [{ type: 'text', text: content }, ...images] : content,
+    ...(displayFiles.length > 0 ? { contextFiles: displayFiles } : {}),
     timestamp: Date.now()
   };
 }
@@ -205,13 +238,17 @@ export function useChatController() {
     state.isConnecting = false;
   }
 
-  async function runQuery(query: string, options: { appendUser: boolean; branchFromEntryId?: string | null }) {
+  async function runQuery(
+    query: string,
+    options: { appendUser: boolean; branchFromEntryId?: string | null; reuseUserEntryId?: string }
+  ) {
     try {
       state.isConnecting = true;
-      const contextFilePaths = state.contextFiles.map(file => file.path);
+      const submittedContextFiles = options.appendUser ? state.contextFiles.map(file => ({ ...file })) : [];
+      const contextFilePaths = submittedContextFiles.map(file => file.path);
 
       if (options.appendUser) {
-        state.messages.push(createDisplayMessage(createUserMessage(query)));
+        state.messages.push(createDisplayMessage(createUserMessage(query, submittedContextFiles)));
       }
 
       state.input = '';
@@ -227,6 +264,15 @@ export function useChatController() {
         query,
         {
           onMessage: message => {
+            if (message.role === 'user') {
+              const userMessage = state.messages.findLast(item => item.message.role === 'user');
+
+              if (userMessage) {
+                userMessage.message = message;
+              }
+              return;
+            }
+
             if (message.role === 'assistant' && message.partial) {
               if (message.content.length === 0 && getAssistantReasoning(message)) {
                 assistantStreaming.flush();
@@ -264,7 +310,11 @@ export function useChatController() {
           }
         },
         sessionId,
-        { branchFromEntryId: options.branchFromEntryId, contextFilePaths }
+        {
+          branchFromEntryId: options.branchFromEntryId,
+          contextFilePaths,
+          reuseUserEntryId: options.reuseUserEntryId
+        }
       );
 
       activeRunId.value = runId;
@@ -306,6 +356,17 @@ export function useChatController() {
       return;
     }
 
+    const displayMessage = state.messages.find(item => item.id === messageId);
+
+    if (
+      displayMessage?.message.role === 'user' &&
+      hasUserAttachments(displayMessage.message) &&
+      !displayMessage.entryId
+    ) {
+      notificationStore.info('附件仍在持久化', '请等待当前回复结束后再编辑');
+      return;
+    }
+
     state.editingMessageId = messageId;
   }
 
@@ -325,10 +386,22 @@ export function useChatController() {
       return;
     }
 
-    displayMessage.message.content = content;
+    const hasAttachments = hasUserAttachments(displayMessage.message);
+
+    if (hasAttachments && !displayMessage.entryId) {
+      notificationStore.info('附件仍在持久化', '请等待当前回复结束后再编辑');
+      return;
+    }
+
+    const images = getUserImages(displayMessage.message);
+    displayMessage.message.content = images.length > 0 ? [{ type: 'text', text: content }, ...images] : content;
     markUserMessageAsOptimisticBranch(displayMessage);
     state.messages.splice(messageIndex + 1);
-    await runQuery(content, { appendUser: false, branchFromEntryId: displayMessage.parentEntryId ?? null });
+    await runQuery(content, {
+      appendUser: false,
+      branchFromEntryId: displayMessage.parentEntryId ?? null,
+      reuseUserEntryId: hasAttachments ? displayMessage.entryId : undefined
+    });
   }
 
   async function handleAddContextFiles() {
@@ -433,6 +506,13 @@ export function useChatController() {
       return;
     }
 
+    const hasAttachments = hasUserAttachments(userMessage.message);
+
+    if (hasAttachments && !userMessage.entryId) {
+      notificationStore.info('附件仍在持久化', '请等待当前回复结束后再重新生成');
+      return;
+    }
+
     const userIndex = state.messages.findIndex(displayMessage => displayMessage.id === userMessage.id);
 
     if (userIndex === -1) {
@@ -442,7 +522,8 @@ export function useChatController() {
     state.messages.splice(userIndex + 1);
     await runQuery(getUserText(userMessage.message), {
       appendUser: false,
-      branchFromEntryId: userMessage.parentEntryId ?? null
+      branchFromEntryId: userMessage.parentEntryId ?? null,
+      reuseUserEntryId: hasAttachments ? userMessage.entryId : undefined
     });
   }
 

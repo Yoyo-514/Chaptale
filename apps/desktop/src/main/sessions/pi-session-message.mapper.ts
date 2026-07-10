@@ -1,7 +1,7 @@
 import type { ChatContentBlock, ChatImageContent, ChatMessage, ChatTextContent } from '@chaptale/shared';
 import type { SessionManager } from '@earendil-works/pi-coding-agent';
 
-import { toChatMessages } from '../agent/pi-agent-message.mapper';
+import { toChatMessages, type PiMessageMappingOptions } from '../agent/pi-agent-message.mapper';
 
 type PiMessage = Parameters<SessionManager['appendMessage']>[0];
 
@@ -174,6 +174,6 @@ export function toPiMessage(message: ChatMessage): PiMessage {
   } as PiMessage;
 }
 
-export function fromPiMessage(message: unknown): ChatMessage | undefined {
-  return toChatMessages(message)[0];
+export function fromPiMessage(message: unknown, options?: PiMessageMappingOptions): ChatMessage | undefined {
+  return toChatMessages(message, options)[0];
 }

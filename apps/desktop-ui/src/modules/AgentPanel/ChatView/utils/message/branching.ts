@@ -5,24 +5,41 @@ import { hasRenderableMessage } from './message-content';
 export function buildDisplayMessagesFromEntries(entries: ChaptaleSessionTreeEntry[], leafId: string | null) {
   const entryMap = new Map(entries.map(entry => [entry.id, entry]));
   const branchEntryIds = getBranchEntryIds(entryMap, leafId ?? entries.at(-1)?.id ?? null);
-  const messageEntries = branchEntryIds
-    .map(id => entryMap.get(id))
-    .filter((entry): entry is Extract<ChaptaleSessionTreeEntry, { type: 'message' | 'custom_message' }> =>
-      Boolean(entry && (entry.type === 'message' || entry.type === 'custom_message'))
-    );
+  const displayMessages: ChatDisplayMessage[] = [];
+  let pendingCompaction: ChatDisplayMessage['compactionBefore'];
 
-  return messageEntries
-    .map(
-      entry =>
-        ({
-          id: entry.id,
-          entryId: entry.id,
-          parentEntryId: entry.parentId,
-          message: entry.message,
-          branch: entry.message.role === 'user' ? getUserBranchControl(entries, entry) : undefined
-        }) satisfies ChatDisplayMessage
-    )
-    .filter(displayMessage => hasRenderableMessage(displayMessage.message));
+  for (const id of branchEntryIds) {
+    const entry = entryMap.get(id);
+
+    if (!entry) {
+      continue;
+    }
+
+    if (entry.type === 'compaction') {
+      pendingCompaction = { summary: entry.summary, tokensBefore: entry.tokensBefore };
+      continue;
+    }
+
+    if (entry.type !== 'message' && entry.type !== 'custom_message') {
+      continue;
+    }
+
+    if (!hasRenderableMessage(entry.message)) {
+      continue;
+    }
+
+    displayMessages.push({
+      id: entry.id,
+      entryId: entry.id,
+      parentEntryId: entry.parentId,
+      message: entry.message,
+      branch: entry.message.role === 'user' ? getUserBranchControl(entries, entry) : undefined,
+      compactionBefore: pendingCompaction
+    } satisfies ChatDisplayMessage);
+    pendingCompaction = undefined;
+  }
+
+  return displayMessages;
 }
 
 function getBranchEntryIds(entryMap: Map<string, ChaptaleSessionTreeEntry>, leafId: string | null) {

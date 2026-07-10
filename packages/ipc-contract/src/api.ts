@@ -21,7 +21,9 @@ import type {
   ChaptaleSessionMetadata,
   ChaptaleSessionStorageDebugInfo,
   ChaptaleSessionTreeEntry,
-  CreateSessionOptions
+  CreateSessionOptions,
+  ReadSessionImagePayload,
+  ReadSessionImageResult
 } from './session';
 import type {
   ChaptaleSettingsState,
@@ -44,7 +46,10 @@ export type ChaptaleDesktopApi = {
     create: (options?: CreateSessionOptions) => Promise<ChaptaleSessionMetadata>;
     getEntries: (sessionId: string) => Promise<ChaptaleSessionTreeEntry[]>;
     getMessages: (sessionId: string) => Promise<ChatMessage[]>;
+    readImage: (payload: ReadSessionImagePayload) => Promise<ReadSessionImageResult>;
     rename: (sessionId: string, name: string) => Promise<ChaptaleSessionInfoEntry>;
+    /** 弹出保存对话框导出当前分支为 Markdown，返回保存路径；取消时返回 null。 */
+    exportMarkdown: (sessionId: string) => Promise<string | null>;
     delete: (sessionId: string) => Promise<void>;
     deleteMany: (sessionIds: string[]) => Promise<void>;
     setLeaf: (sessionId: string, leafId: string | null) => Promise<void>;

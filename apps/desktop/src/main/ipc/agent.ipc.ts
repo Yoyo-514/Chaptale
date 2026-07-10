@@ -52,6 +52,7 @@ export function registerAgentIpc(agentService: PiAgentService) {
         sessionId: payload.sessionId,
         branchFromEntryId: payload.branchFromEntryId,
         contextFilePaths: payload.contextFilePaths,
+        reuseUserEntryId: payload.reuseUserEntryId,
         signal: abortController.signal
       })) {
         webContents.send(IPC_CHANNELS.agent.message, {

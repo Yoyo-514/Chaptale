@@ -96,10 +96,10 @@ describe('ChatInputBox', () => {
     });
 
     const cards = wrapper.findAll('.chat-context-file-card');
-    expect(cards).toHaveLength(2);
+    expect(cards).toHaveLength(1);
     expect(cards[0]?.text()).toContain('outline.md');
     expect(cards[0]?.text()).toContain('2 KB');
-    expect(cards[1]?.find('img.chat-context-file-thumb').attributes('src')).toBe('data:image/png;base64,abc');
+    expect(wrapper.find('.app-image-thumbnail-image').attributes('src')).toBe('data:image/png;base64,abc');
 
     await cards[0]?.find('button[aria-label="移除"]').trigger('click');
 

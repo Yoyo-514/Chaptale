@@ -5,6 +5,7 @@ import { PiAgentService } from '../pi-agent.service';
 function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<void> | void) {
   let subscriber: ((event: any) => void) | undefined;
   const sessionManager = {
+    getEntry: vi.fn(),
     branch: vi.fn(),
     resetLeaf: vi.fn(),
     buildSessionContext: vi.fn(() => ({ messages: ['context-message'] })),
@@ -32,8 +33,33 @@ function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<
   return { session, sessionManager };
 }
 
-function createService(session: any, defaultModel: any = { provider: 'new-provider', id: 'new-model' }) {
-  const service = new PiAgentService({} as any, { getDefaultPiModel: vi.fn(async () => defaultModel) } as any);
+function createImageAttachmentService() {
+  return {
+    createPresentation: vi.fn((images: any[], sourceFactory?: (blockIndex: number) => any) => ({
+      attachments: images.map(image => ({
+        type: 'imageAttachment',
+        id: `image-${image.blockIndex}`,
+        mimeType: image.mimeType,
+        originalBytes: 3,
+        width: 100,
+        height: 80,
+        thumbnailDataUrl: 'data:image/png;base64,dGh1bWI=',
+        source: sourceFactory?.(image.blockIndex)
+      }))
+    }))
+  };
+}
+
+function createService(
+  session: any,
+  defaultModel: any = { provider: 'new-provider', id: 'new-model' },
+  imageAttachmentService = createImageAttachmentService()
+) {
+  const service = new PiAgentService(
+    {} as any,
+    { getDefaultPiModel: vi.fn(async () => defaultModel) } as any,
+    imageAttachmentService as any
+  );
   (service as any).sessionFactory = { create: vi.fn(async () => session) };
   return service;
 }
@@ -65,6 +91,7 @@ describe('PiAgentService', () => {
 
     expect(session.setModel).toHaveBeenCalledWith({ provider: 'new-provider', id: 'new-model' });
     expect(messages).toEqual([
+      expect.objectContaining({ role: 'user', content: 'hi' }),
       expect.objectContaining({ role: 'assistant', partial: true, content: [] }),
       expect.objectContaining({
         role: 'assistant',
@@ -82,6 +109,89 @@ describe('PiAgentService', () => {
     ]);
     // eslint-disable-next-line no-underscore-dangle
     expect(sessionManager._rewriteFile).toHaveBeenCalled();
+  });
+
+  it('resolves context files and forwards the prompt prefix and images to the agent session', async () => {
+    const { session } = createFakeSession(async emit => {
+      emit({ type: 'agent_end', willRetry: false, messages: [] });
+    });
+    const service = createService(session);
+    const image = { type: 'image', data: 'base64-data', mimeType: 'image/png' };
+    const contextFileService = {
+      resolve: vi.fn().mockResolvedValue({
+        promptPrefix: '<attached_context_files>文件内容</attached_context_files>\n\n',
+        images: [image],
+        imagePaths: ['C:/novel/cover.png']
+      })
+    };
+    (service as any).contextFileService = contextFileService;
+
+    await collect(
+      service.stream({
+        sessionId: 'session-1',
+        query: '请分析附件',
+        contextFilePaths: ['C:/novel/outline.md', 'C:/novel/cover.png'],
+        signal: new AbortController().signal
+      })
+    );
+
+    expect(contextFileService.resolve).toHaveBeenCalledWith(['C:/novel/outline.md', 'C:/novel/cover.png']);
+    expect(session.prompt).toHaveBeenCalledWith(
+      '<attached_context_files>文件内容</attached_context_files>\n\n请分析附件',
+      { images: [image] }
+    );
+  });
+
+  it('reuses the persisted Pi user entry snapshot without reading local files again', async () => {
+    const { session, sessionManager } = createFakeSession(async emit => {
+      emit({ type: 'agent_end', willRetry: false, messages: [] });
+    });
+    sessionManager.getEntry.mockReturnValue({
+      type: 'message',
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: '<attached_context_files>\n<file path="C:/novel/outline.md" handling="file-input-text" size="2 KB">正文</file>\n</attached_context_files>\n\n旧问题'
+          },
+          { type: 'image', data: 'YWJj', mimeType: 'image/png' }
+        ]
+      }
+    });
+    const imageAttachmentService = createImageAttachmentService();
+    const service = createService(session, { provider: 'new-provider', id: 'new-model' }, imageAttachmentService);
+    const contextFileService = { resolve: vi.fn() };
+    (service as any).contextFileService = contextFileService;
+
+    const messages = await collect(
+      service.stream({
+        sessionId: 'session-1',
+        query: '新问题',
+        branchFromEntryId: 'entry-parent',
+        reuseUserEntryId: 'entry-user',
+        signal: new AbortController().signal
+      })
+    );
+
+    expect(contextFileService.resolve).not.toHaveBeenCalled();
+    expect(sessionManager.getEntry).toHaveBeenCalledWith('entry-user');
+    expect(sessionManager.branch).toHaveBeenCalledWith('entry-parent');
+    expect(session.prompt).toHaveBeenCalledWith(
+      '<attached_context_files>\n<file path="C:/novel/outline.md" handling="file-input-text" size="2 KB">正文</file>\n</attached_context_files>\n\n新问题',
+      { images: [{ type: 'image', data: 'YWJj', mimeType: 'image/png' }] }
+    );
+    expect(messages[0]).toMatchObject({
+      role: 'user',
+      contextFiles: [{ name: 'outline.md', kind: 'text' }],
+      content: [
+        { type: 'text', text: '新问题' },
+        {
+          type: 'imageAttachment',
+          source: { type: 'session-entry', sessionId: 'session-1', entryId: 'entry-user', blockIndex: 1 }
+        }
+      ]
+    });
   });
 
   it('branches or resets the session context before prompting', async () => {
@@ -129,6 +239,7 @@ describe('PiAgentService', () => {
     );
 
     expect(messages).toEqual([
+      expect.objectContaining({ role: 'user', content: 'retry' }),
       expect.objectContaining({
         role: 'assistant',
         errorMessage: '429',

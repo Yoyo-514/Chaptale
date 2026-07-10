@@ -8,6 +8,8 @@ export type AgentRunOptions = {
   branchFromEntryId?: string | null;
   /** 本轮随用户消息附加的本地上下文文件路径。 */
   contextFilePaths?: string[];
+  /** 复用指定 Pi user entry 中已经持久化的附件快照。 */
+  reuseUserEntryId?: string;
 };
 
 export type AgentRunResult = {

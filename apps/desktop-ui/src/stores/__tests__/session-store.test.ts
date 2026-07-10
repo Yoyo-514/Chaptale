@@ -39,7 +39,11 @@ function installDesktopApi(overrides: Record<string, any> = {}) {
         .fn()
         .mockResolvedValue({ rootDir: 'root', sessionDir: 'sessions', cwd: 'cwd', storageMode: 'global' }),
       openStorageDir: vi.fn().mockResolvedValue(undefined),
-      setLeaf: vi.fn().mockResolvedValue(undefined)
+      setLeaf: vi.fn().mockResolvedValue(undefined),
+      rename: vi
+        .fn()
+        .mockResolvedValue({ type: 'session_info', id: 'info-1', parentId: null, timestamp: '', name: '新名字' }),
+      exportMarkdown: vi.fn().mockResolvedValue('C:/exports/会话.md')
     },
     ...overrides
   };
@@ -102,6 +106,41 @@ describe('session store', () => {
 
     expect(api.session.deleteMany).toHaveBeenCalledWith(['session-2']);
     expect(store.currentSessionId).toBe('session-3');
+  });
+
+  it('renames a session, ignoring empty names, and reloads the list', async () => {
+    const api = installDesktopApi();
+    const store = useSessionStore();
+    api.session.list.mockResolvedValue([createSession('session-1', { name: '新名字' }), createSession('session-2')]);
+
+    await store.renameSession('session-1', '  新名字  ');
+
+    expect(api.session.rename).toHaveBeenCalledWith('session-1', '新名字');
+    expect(store.sessions[0]?.name).toBe('新名字');
+
+    api.session.rename.mockClear();
+    await store.renameSession('session-1', '   ');
+    expect(api.session.rename).not.toHaveBeenCalled();
+
+    api.session.rename.mockRejectedValue(new Error('rename failed'));
+    await store.renameSession('session-1', '另一个名字');
+    expect(store.error).toBe('rename failed');
+  });
+
+  it('exports the current branch as markdown and surfaces failures', async () => {
+    const api = installDesktopApi();
+    const store = useSessionStore();
+
+    await expect(store.exportSessionMarkdown('session-1')).resolves.toBe('C:/exports/会话.md');
+    expect(api.session.exportMarkdown).toHaveBeenCalledWith('session-1');
+
+    api.session.exportMarkdown.mockResolvedValue(null);
+    await expect(store.exportSessionMarkdown('session-1')).resolves.toBeNull();
+    expect(store.error).toBe('');
+
+    api.session.exportMarkdown.mockRejectedValue(new Error('export failed'));
+    await expect(store.exportSessionMarkdown('session-1')).resolves.toBeNull();
+    expect(store.error).toBe('export failed');
   });
 
   it('reads storage debug info, entries, and updates the current leaf', async () => {

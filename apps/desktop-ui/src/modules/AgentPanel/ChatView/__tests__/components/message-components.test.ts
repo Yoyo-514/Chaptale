@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
+import ChatContextFiles from '../../components/ChatInput/ChatContextFiles.vue';
 import AssistantMessage from '../../components/message/AssistantMessage.vue';
 import MessageWebsearchResults from '../../components/message/MessageWebsearchResults.vue';
 import ToolCallMessage from '../../components/message/ToolCallMessage.vue';
@@ -28,6 +29,63 @@ describe('chat message components', () => {
 
     expect(wrapper.emitted('save')).toEqual([['新内容']]);
     expect(wrapper.emitted('cancel')).toHaveLength(1);
+  });
+
+  it('renders files and image previews on user messages without exposing removal controls', () => {
+    const wrapper = mount(UserMessage, {
+      props: {
+        content: '检查附件',
+        contextFiles: [{ path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' }],
+        images: [
+          {
+            type: 'imageAttachment',
+            id: 'image-1',
+            mimeType: 'image/png',
+            originalBytes: 3,
+            width: 100,
+            height: 80,
+            thumbnailDataUrl: 'data:image/png;base64,YWJj'
+          }
+        ]
+      }
+    });
+
+    const cards = wrapper.findAll('.chat-context-file-card');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.text()).toContain('outline.md');
+    expect(cards[0]?.attributes('title')).toBe('outline.md');
+    expect(wrapper.find('.app-image-thumbnail-image').attributes()).toMatchObject({
+      src: 'data:image/png;base64,YWJj',
+      loading: 'lazy',
+      decoding: 'async'
+    });
+    expect(wrapper.find('[aria-label="移除"]').exists()).toBe(false);
+    expect(wrapper.find('.app-image-thumbnail-remove').exists()).toBe(false);
+  });
+
+  it('renders image attachments as compact tiles while file cards remain in a normal wrapping list', () => {
+    const images = Array.from({ length: 9 }, (_, index) => ({
+      path: `C:/novel/image-${index}.png`,
+      name: `image-${index}.png`,
+      size: 1024,
+      kind: 'image' as const,
+      mimeType: 'image/png',
+      previewDataUrl: `data:image/png;base64,thumb-${index}`
+    }));
+    const wrapper = mount(ChatContextFiles, {
+      props: {
+        files: [
+          ...images,
+          { path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' },
+          { path: 'C:/novel/reference.pdf', name: 'reference.pdf', size: 4096, kind: 'document' }
+        ]
+      }
+    });
+
+    expect(wrapper.find('.app-image-thumbnail-grid').exists()).toBe(true);
+    expect(wrapper.findAll('.app-image-thumbnail-item')).toHaveLength(9);
+    expect(wrapper.findAll('.chat-context-file-card')).toHaveLength(2);
+    expect(wrapper.find('.app-image-thumbnail-grid .chat-context-file-card').exists()).toBe(false);
   });
 
   it('renders assistant reasoning, answer markdown, and streaming indicator', async () => {

@@ -164,7 +164,8 @@ describe('useChatController', () => {
 
     expect(api.agent.stream).toHaveBeenCalledWith('写一个开场', expect.any(Object), 'session-1', {
       branchFromEntryId: undefined,
-      contextFilePaths: []
+      contextFilePaths: [],
+      reuseUserEntryId: undefined
     });
     expect(controller.state.messages.map(item => item.message.role)).toEqual(['user', 'assistant']);
     expect(controller.state.messages[1]?.message).toMatchObject({
@@ -172,6 +173,83 @@ describe('useChatController', () => {
       content: [{ type: 'text', text: '最终回复' }]
     });
     expect(controller.state.isReplying).toBe(false);
+  });
+
+  it('selects context files, sends their paths, and clears the selection after submission', async () => {
+    const selectedFile = {
+      path: 'C:/novel/outline.md',
+      name: 'outline.md',
+      size: 2048,
+      kind: 'text'
+    };
+    const selectedImage = {
+      path: 'C:/novel/cover.png',
+      name: 'cover.png',
+      size: 3,
+      kind: 'image',
+      mimeType: 'image/png',
+      previewDataUrl: 'data:image/png;base64,YWJj',
+      imageWidth: 100,
+      imageHeight: 80
+    };
+    const api = installDesktopMock();
+    api.agent.selectContextFiles.mockResolvedValue([selectedFile, selectedImage]);
+    const controller = await mountController();
+
+    await controller.handleAddContextFiles();
+
+    expect(controller.state.contextFiles).toEqual([selectedFile, selectedImage]);
+
+    controller.state.input = '检查大纲';
+    await controller.handleSend();
+
+    expect(api.agent.stream).toHaveBeenCalledWith('检查大纲', expect.any(Object), 'session-1', {
+      branchFromEntryId: undefined,
+      contextFilePaths: ['C:/novel/outline.md', 'C:/novel/cover.png'],
+      reuseUserEntryId: undefined
+    });
+    expect(controller.state.messages[0]?.message).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'text', text: '检查大纲' },
+        {
+          type: 'imageAttachment',
+          id: 'selected:C:/novel/cover.png',
+          mimeType: 'image/png',
+          originalBytes: 3,
+          width: 100,
+          height: 80,
+          thumbnailDataUrl: 'data:image/png;base64,YWJj'
+        }
+      ],
+      contextFiles: [selectedFile]
+    });
+    expect(controller.state.contextFiles).toEqual([]);
+  });
+
+  it('inspects dropped files, keeps supported entries, and reports partial rejection', async () => {
+    const supportedFile = new File(['大纲'], 'outline.md', { type: 'text/markdown' });
+    const unsupportedFile = new File(['binary'], 'archive.bin', { type: 'application/octet-stream' });
+    const inspectedFile = {
+      path: 'C:/drop/outline.md',
+      name: 'outline.md',
+      size: 6,
+      kind: 'text'
+    };
+    const api = installDesktopMock();
+    api.agent.getPathForFile.mockImplementation((file: File) => `C:/drop/${file.name}`);
+    api.agent.inspectContextFiles.mockResolvedValue([inspectedFile]);
+    const controller = await mountController();
+    const notificationStore = useNotificationStore();
+
+    await controller.handleDropContextFiles([supportedFile, unsupportedFile]);
+
+    expect(api.agent.inspectContextFiles).toHaveBeenCalledWith(['C:/drop/outline.md', 'C:/drop/archive.bin']);
+    expect(controller.state.contextFiles).toEqual([inspectedFile]);
+    expect(notificationStore.items.at(-1)).toMatchObject({
+      kind: 'info',
+      title: '部分文件未添加'
+    });
   });
 
   it('cancels the active run when send is clicked while replying', async () => {
@@ -235,37 +313,117 @@ describe('useChatController', () => {
     expect(controller.state.isEnabledWebSearch).toBe(true);
   });
 
-  it('edits and regenerates from the selected user branch', async () => {
+  it('edits and regenerates text-only messages from the selected user branch', async () => {
     const api = installDesktopMock();
     const controller = await mountController();
-    controller.state.messages = [
-      {
-        id: 'user-display',
-        parentEntryId: 'entry-user',
-        message: { role: 'user', content: '旧内容', timestamp: Date.now() }
-      },
-      {
-        id: 'assistant-display',
-        message: { role: 'assistant', content: [{ type: 'text', text: '旧回复' }], timestamp: Date.now() }
+    const userMessage = {
+      id: 'user-display',
+      parentEntryId: 'entry-parent',
+      message: { role: 'user' as const, content: '旧内容', timestamp: Date.now() }
+    };
+    const assistantMessage = {
+      id: 'assistant-display',
+      message: {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '旧回复' }],
+        timestamp: Date.now()
       }
-    ];
+    };
+    controller.state.messages = [userMessage, assistantMessage];
 
     controller.handleEditUserMessage('user-display');
     expect(controller.state.editingMessageId).toBe('user-display');
     controller.handleCancelEdit();
-    expect(controller.state.editingMessageId).toBe('');
 
     await controller.handleSaveUserMessage('user-display', '新内容');
     expect(api.agent.stream).toHaveBeenLastCalledWith('新内容', expect.any(Object), 'session-1', {
-      branchFromEntryId: 'entry-user',
-      contextFilePaths: []
+      branchFromEntryId: 'entry-parent',
+      contextFilePaths: [],
+      reuseUserEntryId: undefined
     });
-    expect(controller.state.messages[0]?.branch).toMatchObject({ current: 2, total: 2 });
 
+    controller.state.messages = [controller.state.messages[0]!, assistantMessage];
     await controller.handleRegenerateAssistantMessage('assistant-display');
     expect(api.agent.stream).toHaveBeenLastCalledWith('新内容', expect.any(Object), 'session-1', {
-      branchFromEntryId: 'entry-user',
-      contextFilePaths: []
+      branchFromEntryId: 'entry-parent',
+      contextFilePaths: [],
+      reuseUserEntryId: undefined
     });
+  });
+
+  it('reuses the persisted Pi user entry when editing and regenerating attachment messages', async () => {
+    const api = installDesktopMock();
+    const controller = await mountController();
+    const userMessage = {
+      id: 'user-display',
+      entryId: 'entry-user',
+      parentEntryId: 'entry-parent',
+      message: {
+        role: 'user' as const,
+        content: [
+          { type: 'text' as const, text: '检查附件' },
+          {
+            type: 'imageAttachment' as const,
+            id: 'image-1',
+            mimeType: 'image/png',
+            originalBytes: 3,
+            width: 100,
+            height: 80,
+            thumbnailDataUrl: 'data:image/png;base64,YWJj',
+            source: { type: 'session-entry' as const, sessionId: 'session-1', entryId: 'entry-user', blockIndex: 1 }
+          }
+        ],
+        contextFiles: [{ path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' as const }]
+      }
+    };
+    const assistantMessage = {
+      id: 'assistant-display',
+      message: {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: '旧回复' }],
+        timestamp: Date.now()
+      }
+    };
+    controller.state.messages = [userMessage, assistantMessage];
+
+    controller.handleEditUserMessage('user-display');
+    expect(controller.state.editingMessageId).toBe('user-display');
+    await controller.handleSaveUserMessage('user-display', '新内容');
+    expect(api.agent.stream).toHaveBeenLastCalledWith('新内容', expect.any(Object), 'session-1', {
+      branchFromEntryId: 'entry-parent',
+      contextFilePaths: [],
+      reuseUserEntryId: 'entry-user'
+    });
+
+    controller.state.messages = [controller.state.messages[0]!, assistantMessage];
+    await controller.handleRegenerateAssistantMessage('assistant-display');
+    expect(api.agent.stream).toHaveBeenLastCalledWith('新内容', expect.any(Object), 'session-1', {
+      branchFromEntryId: 'entry-parent',
+      contextFilePaths: [],
+      reuseUserEntryId: 'entry-user'
+    });
+  });
+
+  it('waits for attachment messages to receive a persisted entry id before editing', async () => {
+    const api = installDesktopMock();
+    const controller = await mountController();
+    const notificationStore = useNotificationStore();
+    controller.state.messages = [
+      {
+        id: 'user-display',
+        message: {
+          role: 'user',
+          content: '检查附件',
+          contextFiles: [{ path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' }]
+        }
+      }
+    ];
+
+    controller.handleEditUserMessage('user-display');
+    await controller.handleSaveUserMessage('user-display', '新内容');
+
+    expect(controller.state.editingMessageId).toBe('');
+    expect(api.agent.stream).not.toHaveBeenCalled();
+    expect(notificationStore.items.at(-1)).toMatchObject({ title: '附件仍在持久化' });
   });
 });

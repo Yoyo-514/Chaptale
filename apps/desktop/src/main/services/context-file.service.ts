@@ -26,6 +26,7 @@ import { toSelectedContextFile } from './context-files/selected-context-file';
 export type ResolvedContextFiles = {
   promptPrefix: string;
   images: ImageContent[];
+  imagePaths: string[];
 };
 
 function getContextFileExtensions() {
@@ -57,24 +58,39 @@ export class ContextFileService {
       return [];
     }
 
-    const selected = await Promise.all(result.filePaths.map(toSelectedContextFile));
-    return selected.filter(file => file.kind !== 'unsupported');
+    const selected: SelectedContextFile[] = [];
+
+    for (const filePath of result.filePaths) {
+      const file = await toSelectedContextFile(filePath);
+
+      if (file.kind !== 'unsupported') {
+        selected.push(file);
+      }
+    }
+
+    return selected;
   }
 
   /** 校验拖拽传入的本地路径，不存在/不支持的文件会被过滤掉。 */
   async inspectFiles(filePaths: string[] = []): Promise<SelectedContextFile[]> {
-    const uniquePaths = unique(filePaths);
-    const inspected = await Promise.all(
-      uniquePaths.map(filePath => toSelectedContextFile(filePath).catch(() => undefined))
-    );
+    const inspected: SelectedContextFile[] = [];
 
-    return inspected.filter((file): file is SelectedContextFile => file !== undefined && file.kind !== 'unsupported');
+    for (const filePath of unique(filePaths)) {
+      const file = await toSelectedContextFile(filePath).catch(() => undefined);
+
+      if (file && file.kind !== 'unsupported') {
+        inspected.push(file);
+      }
+    }
+
+    return inspected;
   }
 
   async resolve(filePaths: string[] = []): Promise<ResolvedContextFiles> {
     const uniquePaths = unique(filePaths);
     const textBlocks: string[] = [];
     const images: ImageContent[] = [];
+    const imagePaths: string[] = [];
     let remainingDirectFileInputBytes = MAX_DIRECT_FILE_INPUT_TOTAL_BYTES;
 
     for (const filePath of uniquePaths) {
@@ -85,6 +101,11 @@ export class ContextFileService {
       }
 
       const stats = await fs.stat(filePath);
+
+      if (kind === 'image' && stats.size > MAX_PROMPT_IMAGE_BYTES) {
+        textBlocks.push(buildOversizedImageBlock(filePath, stats, MAX_PROMPT_IMAGE_BYTES));
+        continue;
+      }
 
       if (stats.size > MAX_CONTEXT_FILE_BYTES) {
         textBlocks.push(buildOversizedFileBlock(filePath, stats));
@@ -109,13 +130,9 @@ export class ContextFileService {
       }
 
       if (kind === 'image') {
-        if (stats.size > MAX_PROMPT_IMAGE_BYTES) {
-          textBlocks.push(buildOversizedImageBlock(filePath, stats, MAX_PROMPT_IMAGE_BYTES));
-          continue;
-        }
-
         const data = await fs.readFile(filePath, 'base64');
         images.push({ type: 'image', data, mimeType: getImageMimeType(filePath) });
+        imagePaths.push(filePath);
       }
     }
 
@@ -124,7 +141,8 @@ export class ContextFileService {
         textBlocks.length > 0
           ? `<attached_context_files>\n${textBlocks.join('\n\n')}\n</attached_context_files>\n\n`
           : '',
-      images
+      images,
+      imagePaths
     };
   }
 }

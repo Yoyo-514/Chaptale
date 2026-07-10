@@ -20,7 +20,15 @@ describe('message-content', () => {
       role: 'user',
       content: [
         { type: 'text', text: '第一段' },
-        { type: 'image', data: 'x', mimeType: 'image/png' },
+        {
+          type: 'imageAttachment',
+          id: 'image-1',
+          mimeType: 'image/png',
+          originalBytes: 1,
+          width: 100,
+          height: 80,
+          thumbnailDataUrl: 'data:image/png;base64,eA=='
+        },
         { type: 'text', text: '第二段' }
       ]
     };

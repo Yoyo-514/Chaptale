@@ -1,3 +1,5 @@
+import { MAX_CHAT_IMAGE_BYTES } from '@chaptale/shared';
+
 export const BYTES_PER_KIB = 1024;
 export const BYTES_PER_MIB = BYTES_PER_KIB * 1024;
 
@@ -8,10 +10,8 @@ export const MAX_TEXT_DOCUMENT_TOKENS = 2_000_000;
 /** 参考 OpenAI Responses File inputs：单次请求所有文件合计 50 MB，单文件也需低于该量级。 */
 export const MAX_DIRECT_FILE_INPUT_BYTES = 50 * BYTES_PER_MIB;
 export const MAX_DIRECT_FILE_INPUT_TOTAL_BYTES = 50 * BYTES_PER_MIB;
-/** 超过此体积的图片不生成内联预览，避免 IPC 携带大 payload。 */
-export const MAX_PREVIEW_IMAGE_BYTES = 5 * BYTES_PER_MIB;
 /** 参考 ChatGPT 图片上传限制：单张图片 20 MB。 */
-export const MAX_PROMPT_IMAGE_BYTES = 20 * BYTES_PER_MIB;
+export const MAX_PROMPT_IMAGE_BYTES = MAX_CHAT_IMAGE_BYTES;
 
 /** OpenAI File inputs 支持的常见文本/代码类文件；当前可直接按 UTF-8 文本注入。 */
 export const TEXT_EXTENSIONS = new Set([

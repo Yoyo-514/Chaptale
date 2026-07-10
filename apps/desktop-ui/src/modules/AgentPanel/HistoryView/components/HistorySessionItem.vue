@@ -11,6 +11,7 @@ import {
   getSessionTitle
 } from '@/utils/session-display';
 import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
+import SessionRenameDialog from '../../components/SessionRenameDialog.vue';
 
 const props = defineProps<{
   session: ChaptaleSessionListItem;
@@ -22,6 +23,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [session: ChaptaleSessionListItem];
   delete: [sessionId: string];
+  rename: [sessionId: string, name: string];
   toggleSelect: [sessionId: string];
 }>();
 
@@ -71,6 +73,13 @@ function handleMainClick() {
 
       <span v-if="!props.isSelectionMode" class="i-mingcute-right-line history-item-arrow" aria-hidden="true" />
     </button>
+
+    <SessionRenameDialog
+      v-if="!props.isSelectionMode"
+      :session="props.session"
+      trigger-class="history-rename-button"
+      @rename="(sessionId, name) => emit('rename', sessionId, name)"
+    />
 
     <HistoryDeleteSessionDialog
       v-if="!props.isSelectionMode"
@@ -169,8 +178,18 @@ function handleMainClick() {
   transform: translateX(0) scale(1);
 }
 
+.history-item :deep(.history-rename-button) {
+  @apply absolute bottom-1.5 right-9 opacity-0 transition-all duration-200 ease-out;
+
+  background: var(--surface-acrylic-strong);
+  pointer-events: none;
+  transform: translate(0.25rem, 0.25rem) scale(0.92);
+}
+
 .history-item:hover :deep(.history-delete-button),
-.history-item:focus-within :deep(.history-delete-button) {
+.history-item:focus-within :deep(.history-delete-button),
+.history-item:hover :deep(.history-rename-button),
+.history-item:focus-within :deep(.history-rename-button) {
   opacity: 1;
   pointer-events: auto;
   transform: translate(0, 0) scale(1);

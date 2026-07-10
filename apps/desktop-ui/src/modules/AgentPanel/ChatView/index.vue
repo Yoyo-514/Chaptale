@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 import { cn } from '@/utils';
 import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
+import ChatSearchBar from './components/ChatSearchBar.vue';
 import { useChatController } from './composables/useChatController';
+import { useChatSearch } from './composables/useChatSearch';
 
 const chat = useChatController();
 const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
+const search = useChatSearch(() => chat.state.messages);
+const searchHitId = computed(() => (search.isOpen.value ? search.activeMatch.value?.id : undefined));
 
 async function scrollMessagesToBottom() {
   await nextTick();
@@ -33,6 +39,25 @@ async function handleRegenerateAssistantMessage(messageId: string) {
 async function handleSwitchBranch(leafId: string) {
   await chat.handleSwitchBranch(leafId);
 }
+
+watch(
+  () => search.activeMatch.value,
+  async match => {
+    if (match) {
+      await messageListRef.value?.scrollToIndex(match.index);
+    }
+  }
+);
+
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    search.open();
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', handleGlobalKeydown));
+onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown));
 </script>
 
 <template>
@@ -44,18 +69,44 @@ async function handleSwitchBranch(leafId: string) {
         @select-session="chat.handleSelectRecentSession"
       />
 
-      <ChatMessageList
-        v-else
-        ref="messageListRef"
-        :messages="chat.state.messages"
-        :editing-message-id="chat.state.editingMessageId"
-        :is-busy="chat.state.isConnecting || chat.state.isReplying"
-        @edit-user="chat.handleEditUserMessage"
-        @save-user="handleSaveUserMessage"
-        @cancel-edit="chat.handleCancelEdit"
-        @regenerate-assistant="handleRegenerateAssistantMessage"
-        @switch-branch="handleSwitchBranch"
-      />
+      <template v-else>
+        <ChatSearchBar
+          v-model:query="search.query.value"
+          :open="search.isOpen.value"
+          :match-count="search.matches.value.length"
+          :active-match-index="search.activeMatchIndex.value"
+          @close="search.close"
+          @next="search.goToNext"
+          @previous="search.goToPrevious"
+        />
+
+        <AppTooltip v-if="!search.isOpen.value" text="搜索会话内容（Ctrl+F）" side="left" :side-offset="3">
+          <AppButton
+            icon
+            class="chat-search-trigger"
+            variant="ghost"
+            size="sm"
+            type="button"
+            aria-label="搜索会话内容"
+            @click="search.open"
+          >
+            <span class="i-mingcute-search-line size-4" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
+
+        <ChatMessageList
+          ref="messageListRef"
+          :messages="chat.state.messages"
+          :editing-message-id="chat.state.editingMessageId"
+          :is-busy="chat.state.isConnecting || chat.state.isReplying"
+          :search-hit-id="searchHitId"
+          @edit-user="chat.handleEditUserMessage"
+          @save-user="handleSaveUserMessage"
+          @cancel-edit="chat.handleCancelEdit"
+          @regenerate-assistant="handleRegenerateAssistantMessage"
+          @switch-branch="handleSwitchBranch"
+        />
+      </template>
     </section>
 
     <ChatInputBox
@@ -86,10 +137,16 @@ async function handleSwitchBranch(leafId: string) {
 }
 
 .chat-messages-section {
-  @apply flex min-h-0 w-full flex-1 flex-col justify-between leading-relaxed;
+  @apply relative flex min-h-0 w-full flex-1 flex-col justify-between leading-relaxed;
 }
 
 .chat-messages-section-welcome {
   @apply mx-auto justify-center gap-8 px-4 pb-6 md:w-3xl;
+}
+
+.chat-search-trigger {
+  @apply absolute right-4 top-0 z-10;
+
+  background: var(--surface-acrylic-strong);
 }
 </style>

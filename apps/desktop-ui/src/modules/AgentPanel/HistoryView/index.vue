@@ -53,6 +53,10 @@ async function handleDeleteSession(sessionId: string) {
   await sessionStore.deleteSession(sessionId);
 }
 
+async function handleRenameSession(sessionId: string, name: string) {
+  await sessionStore.renameSession(sessionId, name);
+}
+
 function toggleSelectionMode() {
   isSelectionMode.value = !isSelectionMode.value;
 
@@ -131,6 +135,7 @@ async function deleteSelectedSessions() {
         :selected-ids="selectedIds"
         @select="handleSelectSession"
         @delete="handleDeleteSession"
+        @rename="handleRenameSession"
         @toggle-select="toggleSessionSelection"
       />
     </AppScrollArea>

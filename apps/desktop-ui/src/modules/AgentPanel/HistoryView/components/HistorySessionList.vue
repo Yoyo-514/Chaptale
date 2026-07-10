@@ -16,6 +16,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [session: ChaptaleSessionListItem];
   delete: [sessionId: string];
+  rename: [sessionId: string, name: string];
   toggleSelect: [sessionId: string];
 }>();
 </script>
@@ -50,6 +51,7 @@ const emit = defineEmits<{
       :is-selected="props.selectedIds.has(session.id)"
       @select="emit('select', $event)"
       @delete="emit('delete', $event)"
+      @rename="(sessionId, name) => emit('rename', sessionId, name)"
       @toggle-select="emit('toggleSelect', $event)"
     />
   </div>

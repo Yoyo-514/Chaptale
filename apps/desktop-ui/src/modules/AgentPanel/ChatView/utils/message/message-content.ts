@@ -1,5 +1,7 @@
 import type {
   ChatContentBlock,
+  ChatImageAttachment,
+  ChatImageContent,
   ChatMessage,
   ChatTextContent,
   ChatThinkingContent,
@@ -9,6 +11,10 @@ import { sift } from 'radash';
 
 export function getTextBlocks(content: readonly { type: string }[]): ChatTextContent[] {
   return content.filter((block): block is ChatTextContent => block.type === 'text');
+}
+
+export function getImageBlocks(content: readonly { type: string }[]): ChatImageContent[] {
+  return content.filter((block): block is ChatImageContent => block.type === 'image');
 }
 
 export function getThinkingBlocks(content: ChatContentBlock[]) {
@@ -27,6 +33,22 @@ export function getUserText(message: Extract<ChatMessage, { role: 'user' }>) {
   return getTextBlocks(message.content)
     .map(block => block.text)
     .join('\n');
+}
+
+export function getUserContextFiles(message: Extract<ChatMessage, { role: 'user' }>) {
+  return message.contextFiles ?? [];
+}
+
+export function getUserImages(message: Extract<ChatMessage, { role: 'user' }>) {
+  if (typeof message.content === 'string') {
+    return [];
+  }
+
+  return message.content.filter((block): block is ChatImageAttachment => block.type === 'imageAttachment');
+}
+
+export function hasUserAttachments(message: Extract<ChatMessage, { role: 'user' }>) {
+  return getUserContextFiles(message).length > 0 || getUserImages(message).length > 0;
 }
 
 export function getAssistantText(message: Extract<ChatMessage, { role: 'assistant' }>) {
@@ -57,6 +79,18 @@ export function getPrimaryToolCall(message: Extract<ChatMessage, { role: 'assist
   return getToolCallBlocks(message.content)[0];
 }
 
+export function getAssistantToolCalls(message: Extract<ChatMessage, { role: 'assistant' }>) {
+  return getToolCallBlocks(message.content);
+}
+
+export function getAssistantImages(message: Extract<ChatMessage, { role: 'assistant' }>) {
+  return getImageBlocks(message.content);
+}
+
+export function getToolResultImages(message: Extract<ChatMessage, { role: 'toolResult' }>) {
+  return getImageBlocks(message.content);
+}
+
 export function hasRenderableMessage(message: ChatMessage) {
   if (message.role === 'assistant') {
     return Boolean(
@@ -65,16 +99,21 @@ export function hasRenderableMessage(message: ChatMessage) {
       message.retry ||
       getAssistantText(message).trim() ||
       getAssistantReasoning(message).trim() ||
-      getPrimaryToolCall(message)
+      getPrimaryToolCall(message) ||
+      getAssistantImages(message).length > 0
     );
   }
 
   if (message.role === 'user') {
-    return getUserText(message).trim().length > 0;
+    return (
+      getUserText(message).trim().length > 0 ||
+      getUserContextFiles(message).length > 0 ||
+      getUserImages(message).length > 0
+    );
   }
 
   if (message.role === 'toolResult') {
-    return getTextBlocks(message.content).some(block => block.text.trim());
+    return getTextBlocks(message.content).some(block => block.text.trim()) || getToolResultImages(message).length > 0;
   }
 
   return true;

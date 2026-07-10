@@ -5,9 +5,11 @@ async function installDesktopMock(page: Page) {
     const now = new Date('2026-07-06T00:00:00Z').toISOString();
     let webSearchEnabled = true;
     let entries: any[] = [];
-    const calls: { settingsUpdates: any[]; cancelledRuns: string[] } = {
+    const calls: { settingsUpdates: any[]; cancelledRuns: string[]; streamOptions: any[]; imageReads: any[] } = {
       settingsUpdates: [],
-      cancelledRuns: []
+      cancelledRuns: [],
+      streamOptions: [],
+      imageReads: []
     };
 
     function settingsState() {
@@ -77,6 +79,10 @@ async function installDesktopMock(page: Page) {
         }),
         getEntries: async () => entries,
         getMessages: async () => entries.map(entry => entry.message),
+        readImage: async (payload: any) => {
+          calls.imageReads.push(payload);
+          return { data: new Uint8Array([97, 98, 99]), mimeType: 'image/png' };
+        },
         rename: async () => ({ type: 'session_info', id: 'info-1', parentId: null, timestamp: now, name: 'Renamed' }),
         delete: async () => undefined,
         deleteMany: async () => undefined,
@@ -119,15 +125,68 @@ async function installDesktopMock(page: Page) {
         removeProviderAuth: async () => ({ providers: [], models: [], defaultModel: undefined })
       },
       agent: {
-        stream: async (query: string, handlers: any) => {
+        selectContextFiles: async () => [
+          {
+            path: 'C:/novel/outline.md',
+            name: 'outline.md',
+            size: 2048,
+            kind: 'text'
+          },
+          ...Array.from({ length: 9 }, (_, index) => ({
+            path: `C:/novel/cover-${index}.png`,
+            name: `cover-${index}.png`,
+            size: 3,
+            kind: 'image',
+            mimeType: 'image/png',
+            previewDataUrl: 'data:image/png;base64,YWJj',
+            imageWidth: 100,
+            imageHeight: 80
+          }))
+        ],
+        inspectContextFiles: async () => [],
+        getPathForFile: () => '',
+        stream: async (query: string, handlers: any, _sessionId: string, options: any) => {
+          calls.streamOptions.push(options);
+          const contextFilePaths = options?.contextFilePaths ?? [];
+          const imagePaths = contextFilePaths.filter((filePath: string) => filePath.endsWith('.png'));
+          const contextFiles = contextFilePaths
+            .filter((filePath: string) => !filePath.endsWith('.png'))
+            .map((filePath: string) => ({
+              path: filePath,
+              name: filePath.split(/[\\/]/).at(-1) ?? filePath,
+              size: 2048,
+              kind: 'text'
+            }));
+          const userId = `user-${entries.length + 1}`;
+          const userContent = imagePaths.length
+            ? [
+                { type: 'text', text: query },
+                ...imagePaths.map((_filePath: string, index: number) => ({
+                  type: 'imageAttachment',
+                  id: `${userId}:${index + 1}`,
+                  mimeType: 'image/png',
+                  originalBytes: 3,
+                  width: 100,
+                  height: 80,
+                  thumbnailDataUrl: 'data:image/png;base64,YWJj',
+                  source: {
+                    type: 'session-entry',
+                    sessionId: 'session-1',
+                    entryId: userId,
+                    blockIndex: index + 1
+                  }
+                }))
+              ]
+            : query;
           const userEntry = {
             type: 'message',
-            id: `user-${entries.length + 1}`,
+            id: userId,
             parentId: entries.at(-1)?.id ?? null,
             timestamp: now,
-            message: { role: 'user', content: query, timestamp: Date.now() }
+            message: { role: 'user', content: userContent, contextFiles, timestamp: Date.now() }
           };
           entries.push(userEntry);
+          handlers.onMessage(userEntry.message);
 
           if (query.includes('失败')) {
             setTimeout(() => {
@@ -143,7 +202,7 @@ async function installDesktopMock(page: Page) {
               content: [{ type: 'text', text: `收到：${query}` }],
               timestamp: Date.now()
             });
-          }, 80);
+          }, 300);
           setTimeout(() => {
             entries.push({
               type: 'message',
@@ -153,7 +212,7 @@ async function installDesktopMock(page: Page) {
               message: { role: 'assistant', content: [{ type: 'text', text: `收到：${query}` }], timestamp: Date.now() }
             });
             handlers.onDone();
-          }, 140);
+          }, 700);
           return { runId: 'run-1' };
         },
         cancel: async (runId: string) => {
@@ -175,9 +234,36 @@ test('sending a prompt shows immediate generation feedback and then the assistan
   await page.getByPlaceholder('描述你的创作需求...').fill('写一段开场');
   await page.locator('.chat-send-button').click();
 
-  await expect(page.getByText('写一段开场')).toBeVisible();
+  await expect(page.getByText('写一段开场', { exact: true })).toBeVisible();
   await expect(page.locator('.assistant-streaming-indicator')).toBeVisible();
   await expect(page.getByText('收到：写一段开场')).toBeVisible();
+});
+
+test('mixed attachments keep file cards separate while images show compact tiles and preview on demand', async ({
+  page
+}) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: '添加文件' }).click();
+  await expect(page.getByText('outline.md')).toBeVisible();
+  await expect(page.locator('.chat-context-attachments-input .app-image-thumbnail-grid')).toBeVisible();
+  await expect(page.locator('.chat-context-attachments-input .app-image-thumbnail-item')).toHaveCount(9);
+  await expect(page.locator('.chat-context-attachments-input .chat-context-file-card')).toHaveCount(1);
+
+  await page.getByPlaceholder('描述你的创作需求...').fill('检查附件');
+  await page.locator('.chat-send-button').click();
+
+  await expect
+    .poll(() => page.evaluate(() => (window as any).chaptaleE2E.streamOptions.at(-1)?.contextFilePaths))
+    .toEqual(['C:/novel/outline.md', ...Array.from({ length: 9 }, (_, index) => `C:/novel/cover-${index}.png`)]);
+  await expect(page.locator('.message-container-user .chat-context-file-card')).toContainText('outline.md');
+  await expect(page.locator('.message-container-user .app-image-thumbnail-grid')).toBeVisible();
+  await expect(page.locator('.message-container-user .app-image-thumbnail-item')).toHaveCount(9);
+  const thumbnail = page.locator('.message-container-user .app-image-thumbnail-image').first();
+  await expect(thumbnail).toHaveAttribute('src', 'data:image/png;base64,YWJj');
+  await page.getByRole('button', { name: '预览 用户上传的图片 1' }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).chaptaleE2E.imageReads.length)).toBe(1);
+  await expect(page.getByText('1 / 9')).toBeVisible();
 });
 
 test('web search toggle updates settings and stays in sync with the settings panel', async ({ page }) => {

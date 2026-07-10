@@ -5,7 +5,9 @@ import type {
   ChaptaleSessionScope,
   ChaptaleSessionStorageDebugInfo,
   ChaptaleSessionTreeEntry,
-  CreateSessionOptions
+  CreateSessionOptions,
+  ReadSessionImagePayload,
+  ReadSessionImageResult
 } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
@@ -14,8 +16,10 @@ import path from 'node:path';
 import { unique } from 'radash';
 
 import { toSessionListItem, toSessionTreeEntry } from '../sessions/pi-session-entry.mapper';
+import { ImageAttachmentService } from './image-attachment.service';
 import { flushSessionFile } from '../sessions/pi-session-file';
 import { fromPiMessage, toPiMessage } from '../sessions/pi-session-message.mapper';
+import { buildSessionMarkdown, toSafeFileName } from '../sessions/session-markdown';
 import { readSessionUsage } from '../sessions/pi-session-usage';
 
 export type PiSessionRepositoryOptions = {
@@ -31,7 +35,10 @@ export type PiSessionRepositoryOptions = {
 export class PiSessionRepository {
   private readonly leafOverrides = new Map<string, string | null>();
 
-  constructor(private readonly options: PiSessionRepositoryOptions) {}
+  constructor(
+    private readonly options: PiSessionRepositoryOptions,
+    private readonly imageAttachmentService = new ImageAttachmentService()
+  ) {}
 
   async getStorageDebugInfo(): Promise<ChaptaleSessionStorageDebugInfo> {
     const context = (await this.options.getStorageContext?.()) ?? {};
@@ -99,18 +106,54 @@ export class PiSessionRepository {
     const manager = await this.openSession(sessionId);
     return manager
       .buildSessionContext()
-      .messages.map(fromPiMessage)
+      .messages.map(message =>
+        fromPiMessage(message, {
+          // buildSessionContext 拿不到 entryId，无法构造 session-entry source；
+          // 前端在缺 source 时会退化为直接展示缩略图。UI 主链路走 getEntries（带 source）。
+          presentUserImages: images => this.imageAttachmentService.createPresentation(images)
+        })
+      )
       .filter((message): message is ChatMessage => message !== undefined);
   }
 
   async getEntries(sessionId: string): Promise<ChaptaleSessionTreeEntry[]> {
     const manager = await this.openSession(sessionId);
-    return manager.getEntries().map(toSessionTreeEntry);
+    return manager
+      .getEntries()
+      .map(entry => toSessionTreeEntry(entry, { sessionId, imageAttachmentService: this.imageAttachmentService }));
   }
 
   async getPathToRoot(sessionId: string): Promise<ChaptaleSessionTreeEntry[]> {
     const manager = await this.openSession(sessionId);
-    return manager.getBranch().map(toSessionTreeEntry);
+    return manager
+      .getBranch()
+      .map(entry => toSessionTreeEntry(entry, { sessionId, imageAttachmentService: this.imageAttachmentService }));
+  }
+
+  /** 导出当前分支为 Markdown 文本；文件写入由 IPC 层负责。 */
+  async exportMarkdown(sessionId: string): Promise<{ markdown: string; suggestedFileName: string }> {
+    const [session, entries] = await Promise.all([this.findSessionInfo(sessionId), this.getPathToRoot(sessionId)]);
+    const name = session.name || session.lastMessagePreview || '未命名会话';
+
+    return {
+      markdown: buildSessionMarkdown({ name, entries }),
+      suggestedFileName: `${toSafeFileName(name)}.md`
+    };
+  }
+
+  async readImage(payload: ReadSessionImagePayload): Promise<ReadSessionImageResult> {
+    if (payload.type === 'context-file') {
+      return this.imageAttachmentService.readContextFile(payload.path);
+    }
+
+    const manager = await this.openSession(payload.sessionId);
+    const entry = manager.getEntry(payload.entryId);
+
+    if (!entry || entry.type !== 'message') {
+      throw new Error('找不到图片所属的会话消息');
+    }
+
+    return this.imageAttachmentService.readOriginal(entry.message, payload.blockIndex);
   }
 
   async appendMessage(sessionId: string, message: ChatMessage) {
@@ -118,7 +161,10 @@ export class PiSessionRepository {
     const id = manager.appendMessage(toPiMessage(message));
     this.leafOverrides.set(sessionId, id);
     flushSessionFile(manager);
-    return toSessionTreeEntry(manager.getEntry(id)!);
+    return toSessionTreeEntry(manager.getEntry(id)!, {
+      sessionId,
+      imageAttachmentService: this.imageAttachmentService
+    });
   }
 
   async appendCompaction(
@@ -132,7 +178,10 @@ export class PiSessionRepository {
     const id = manager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details);
     this.leafOverrides.set(sessionId, id);
     flushSessionFile(manager);
-    return toSessionTreeEntry(manager.getEntry(id)!);
+    return toSessionTreeEntry(manager.getEntry(id)!, {
+      sessionId,
+      imageAttachmentService: this.imageAttachmentService
+    });
   }
 
   async appendSessionInfo(sessionId: string, name: string): Promise<ChaptaleSessionInfoEntry> {
@@ -140,7 +189,10 @@ export class PiSessionRepository {
     const id = manager.appendSessionInfo(name);
     this.leafOverrides.set(sessionId, id);
     flushSessionFile(manager);
-    const entry = toSessionTreeEntry(manager.getEntry(id)!);
+    const entry = toSessionTreeEntry(manager.getEntry(id)!, {
+      sessionId,
+      imageAttachmentService: this.imageAttachmentService
+    });
 
     if (entry.type !== 'session_info') {
       throw new Error('Failed to append session info');

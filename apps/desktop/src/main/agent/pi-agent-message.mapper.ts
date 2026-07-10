@@ -1,4 +1,16 @@
-import type { ChatContentBlock, ChatMessage, ChatStopReason } from '@chaptale/shared';
+import type { ChatContentBlock, ChatMessage, ChatMessageUsage, ChatStopReason } from '@chaptale/shared';
+
+import { decodeContextMessage } from '../services/context-files/context-message-codec';
+import {
+  decodeImageBase64,
+  getPiUserImageBlocks,
+  type ImageAttachmentPresentation,
+  type PiImageBlock
+} from '../services/image-attachment.service';
+
+export type PiMessageMappingOptions = {
+  presentUserImages?: (images: readonly PiImageBlock[]) => ImageAttachmentPresentation;
+};
 
 export function stringifyToolResult(result: unknown): string {
   if (result && typeof result === 'object' && 'content' in result) {
@@ -62,7 +74,12 @@ function toContentBlocks(content: unknown): ChatContentBlock[] {
         };
       }
 
-      if (block.type === 'image' && typeof block.data === 'string' && typeof block.mimeType === 'string') {
+      if (
+        block.type === 'image' &&
+        typeof block.data === 'string' &&
+        typeof block.mimeType === 'string' &&
+        decodeImageBase64({ data: block.data, mimeType: block.mimeType })
+      ) {
         return { type: 'image', data: block.data, mimeType: block.mimeType };
       }
 
@@ -77,8 +94,25 @@ function toStopReason(value: unknown): ChatStopReason | undefined {
     : undefined;
 }
 
+function toMessageUsage(value: unknown): ChatMessageUsage | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const cost = record.cost as Record<string, unknown> | undefined;
+  const usage: ChatMessageUsage = {
+    inputTokens: typeof record.input === 'number' ? record.input : 0,
+    outputTokens: typeof record.output === 'number' ? record.output : 0,
+    totalTokens: typeof record.totalTokens === 'number' ? record.totalTokens : 0,
+    cost: cost && typeof cost === 'object' && typeof cost.total === 'number' ? cost.total : 0
+  };
+
+  return usage.totalTokens > 0 || usage.cost > 0 ? usage : undefined;
+}
+
 /** 将 pi AgentMessage 转换为前端 ChatMessage（用于历史回放）。 */
-export function toChatMessages(message: unknown): ChatMessage[] {
+export function toChatMessages(message: unknown, options: PiMessageMappingOptions = {}): ChatMessage[] {
   if (!message || typeof message !== 'object') {
     return [];
   }
@@ -86,22 +120,31 @@ export function toChatMessages(message: unknown): ChatMessage[] {
   const record = message as Record<string, unknown>;
 
   if (record.role === 'user') {
-    if (typeof record.content === 'string') {
-      return record.content
-        ? [
-            {
-              role: 'user',
-              content: record.content,
-              timestamp: typeof record.timestamp === 'number' ? record.timestamp : undefined
-            }
-          ]
-        : [];
-    }
+    const timestamp = typeof record.timestamp === 'number' ? record.timestamp : undefined;
+    const text =
+      typeof record.content === 'string'
+        ? record.content
+        : toContentBlocks(record.content)
+            .filter(block => block.type === 'text')
+            .map(block => block.text)
+            .join('\n');
+    const decoded = decodeContextMessage(text);
+    const rawImages = getPiUserImageBlocks(record);
+    const presentation = options.presentUserImages?.(rawImages) ?? { attachments: [] };
+    const content =
+      presentation.attachments.length > 0
+        ? [...(decoded.text ? [{ type: 'text' as const, text: decoded.text }] : []), ...presentation.attachments]
+        : decoded.text;
 
-    const content = toContentBlocks(record.content).filter(block => block.type === 'text' || block.type === 'image');
-
-    return content.length > 0
-      ? [{ role: 'user', content, timestamp: typeof record.timestamp === 'number' ? record.timestamp : undefined }]
+    return decoded.text || decoded.contextFiles.length > 0 || presentation.attachments.length > 0
+      ? [
+          {
+            role: 'user',
+            content,
+            ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {}),
+            timestamp
+          }
+        ]
       : [];
   }
 
@@ -116,6 +159,7 @@ export function toChatMessages(message: unknown): ChatMessage[] {
         provider: typeof record.provider === 'string' ? record.provider : undefined,
         model: typeof record.model === 'string' ? record.model : undefined,
         responseId: typeof record.responseId === 'string' ? record.responseId : undefined,
+        usage: toMessageUsage(record.usage),
         timestamp: typeof record.timestamp === 'number' ? record.timestamp : undefined
       }
     ];

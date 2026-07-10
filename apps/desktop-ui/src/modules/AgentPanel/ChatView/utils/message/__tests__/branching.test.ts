@@ -74,4 +74,35 @@ describe('buildDisplayMessagesFromEntries', () => {
       nextLeafId: undefined
     });
   });
+
+  it('attaches the pending compaction to the next renderable message', () => {
+    const entries: ChaptaleSessionTreeEntry[] = [
+      messageEntry('user-a', null, '2026-07-11T00:00:01.000Z', { role: 'user', content: '第一个问题' }),
+      messageEntry('assistant-a', 'user-a', '2026-07-11T00:00:02.000Z', {
+        role: 'assistant',
+        content: [{ type: 'text', text: '第一个回答' }]
+      }),
+      {
+        type: 'compaction',
+        id: 'compaction-1',
+        parentId: 'assistant-a',
+        timestamp: '2026-07-11T00:00:03.000Z',
+        summary: '早期讨论摘要',
+        firstKeptEntryId: 'assistant-a',
+        tokensBefore: 12000
+      },
+      messageEntry('assistant-empty', 'compaction-1', '2026-07-11T00:00:04.000Z', {
+        role: 'assistant',
+        content: []
+      }),
+      messageEntry('user-b', 'assistant-empty', '2026-07-11T00:00:05.000Z', { role: 'user', content: '继续' })
+    ];
+
+    const messages = buildDisplayMessagesFromEntries(entries, 'user-b');
+
+    expect(messages.map(message => message.entryId)).toEqual(['user-a', 'assistant-a', 'user-b']);
+    expect(messages[0].compactionBefore).toBeUndefined();
+    expect(messages[1].compactionBefore).toBeUndefined();
+    expect(messages[2].compactionBefore).toEqual({ summary: '早期讨论摘要', tokensBefore: 12000 });
+  });
 });

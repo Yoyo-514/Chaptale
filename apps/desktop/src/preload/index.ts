@@ -18,6 +18,8 @@ import type {
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
   RemoveProviderAuthPayload,
+  ReadSessionImagePayload,
+  ReadSessionImageResult,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
   SetProviderApiKeyPayload,
@@ -41,7 +43,11 @@ const desktopApi: ChaptaleDesktopApi = {
     create: (options?: CreateSessionOptions) => ipcRenderer.invoke(IPC_CHANNELS.session.create, options),
     getEntries: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.getEntries, sessionId),
     getMessages: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.getMessages, sessionId),
+    readImage: (payload: ReadSessionImagePayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.session.readImage, payload) as Promise<ReadSessionImageResult>,
     rename: (sessionId: string, name: string) => ipcRenderer.invoke(IPC_CHANNELS.session.rename, { sessionId, name }),
+    exportMarkdown: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.session.exportMarkdown, { sessionId }) as Promise<string | null>,
     delete: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.delete, { sessionId }) as Promise<void>,
     deleteMany: (sessionIds: string[]) =>
       ipcRenderer.invoke(IPC_CHANNELS.session.deleteMany, { sessionIds }) as Promise<void>,
@@ -131,7 +137,8 @@ const desktopApi: ChaptaleDesktopApi = {
         query,
         sessionId,
         branchFromEntryId: options?.branchFromEntryId,
-        contextFilePaths: options?.contextFilePaths
+        contextFilePaths: options?.contextFilePaths,
+        reuseUserEntryId: options?.reuseUserEntryId
       } satisfies AgentStartPayload);
       return { runId };
     },

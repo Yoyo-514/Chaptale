@@ -102,6 +102,34 @@ export const useSessionStore = defineStore('session', {
       this.currentSessionId = sessionId;
     },
 
+    async renameSession(sessionId: string, name: string) {
+      this.error = '';
+      const trimmed = name.trim();
+
+      if (!trimmed) {
+        return;
+      }
+
+      try {
+        await getDesktopApi().session.rename(sessionId, trimmed);
+        await this.loadSessions();
+      } catch (error) {
+        this.error = toErrorMessage(error);
+      }
+    },
+
+    /** 返回导出文件路径；用户取消或失败时返回 null。 */
+    async exportSessionMarkdown(sessionId: string) {
+      this.error = '';
+
+      try {
+        return await getDesktopApi().session.exportMarkdown(sessionId);
+      } catch (error) {
+        this.error = toErrorMessage(error);
+        return null;
+      }
+    },
+
     async loadStorageDebugInfo() {
       this.error = '';
 

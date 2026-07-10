@@ -70,7 +70,7 @@ describe('shared utils', () => {
   });
 
   it('escapes XML text and attributes for prompt envelopes', () => {
-    expect(escapeXmlText('<tag>&value')).toBe('&lt;tag>&amp;value');
-    expect(escapeXmlAttribute('"<tag>&value>')).toBe('&quot;&lt;tag>&amp;value&gt;');
+    expect(escapeXmlText('<tag>&value')).toBe('&lt;tag&gt;&amp;value');
+    expect(escapeXmlAttribute('"<tag>&value>')).toBe('&quot;&lt;tag&gt;&amp;value&gt;');
   });
 });

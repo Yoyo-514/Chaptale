@@ -14,4 +14,9 @@ export type ChatDisplayMessage = {
   entryId?: string;
   parentEntryId?: string | null;
   branch?: MessageBranchControl;
+  /** 该消息之前发生过上下文压缩，渲染时在消息上方插入压缩提示。 */
+  compactionBefore?: {
+    summary: string;
+    tokensBefore: number;
+  };
 };

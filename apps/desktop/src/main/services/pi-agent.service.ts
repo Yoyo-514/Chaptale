@@ -6,7 +6,10 @@ import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-
 import { mapAgentStreamEvent } from '../agent/pi-agent-event.mapper';
 import { PiAgentSessionFactory } from '../agent/pi-agent-session.factory';
 import { flushSessionFile } from '../sessions/pi-session-file';
+import { getPiUserEntrySnapshot } from '../sessions/pi-user-entry-snapshot';
 import { ContextFileService } from './context-file.service';
+import { decodeContextMessage } from './context-files/context-message-codec';
+import { ImageAttachmentService } from './image-attachment.service';
 import type { PiModelService } from './pi-model.service';
 import type { SettingsService } from './settings.service';
 
@@ -27,7 +30,8 @@ export class PiAgentService implements AgentRuntime {
 
   constructor(
     settingsService: SettingsService,
-    private readonly modelService: PiModelService
+    private readonly modelService: PiModelService,
+    private readonly imageAttachmentService = new ImageAttachmentService()
   ) {
     this.sessionFactory = new PiAgentSessionFactory({ settingsService, modelService });
   }
@@ -74,6 +78,10 @@ export class PiAgentService implements AgentRuntime {
       throw new Error('尚未配置可用模型：请在设置面板 LLM Provider 中配置凭据并选择默认模型');
     }
 
+    const reusedContext = options.reuseUserEntryId
+      ? getPiUserEntrySnapshot(session.sessionManager, options.reuseUserEntryId)
+      : undefined;
+
     if (options.branchFromEntryId !== undefined) {
       if (options.branchFromEntryId) {
         session.sessionManager.branch(options.branchFromEntryId);
@@ -114,15 +122,58 @@ export class PiAgentService implements AgentRuntime {
     signal.addEventListener('abort', onAbort, { once: true });
 
     try {
-      const resolvedContextFiles = await this.contextFileService.resolve(options.contextFilePaths);
-      const promptText = `${resolvedContextFiles.promptPrefix}${query}`;
-      const promptPromise = session
-        .prompt(promptText, { images: resolvedContextFiles.images })
-        .catch((error: unknown) => {
-          failure = error instanceof Error ? error : new Error(errorToMessage(error));
-          done = true;
-          wake();
-        });
+      const resolvedContext = reusedContext
+        ? undefined
+        : await this.contextFileService.resolve(options.contextFilePaths);
+      const promptPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
+      const decodedContext = decodeContextMessage(promptPrefix);
+      // 复用历史消息时保留原始 content 下标，保证 session-entry source 与 readOriginal 对齐；
+      // 新发送时 pi 会把消息持久化为 [text, ...images]，图片真实下标从 1 开始。
+      const imageBlocks = reusedContext
+        ? reusedContext.imageBlocks
+        : (resolvedContext?.images ?? []).map((image, index) => ({
+            type: image.type,
+            data: image.data,
+            mimeType: image.mimeType,
+            blockIndex: index + 1
+          }));
+      const promptImages = imageBlocks.map(image => ({
+        type: image.type,
+        data: image.data,
+        mimeType: image.mimeType
+      }));
+      const imagePaths = resolvedContext?.imagePaths ?? [];
+      const presentation = this.imageAttachmentService.createPresentation(imageBlocks, blockIndex => {
+        if (options.reuseUserEntryId) {
+          return {
+            type: 'session-entry',
+            sessionId,
+            entryId: options.reuseUserEntryId,
+            blockIndex
+          };
+        }
+
+        const imagePath = imagePaths[blockIndex - 1];
+        return imagePath ? { type: 'context-file', path: imagePath } : undefined;
+      });
+      const userContent =
+        presentation.attachments.length > 0
+          ? [{ type: 'text' as const, text: query }, ...presentation.attachments]
+          : query;
+
+      yield {
+        role: 'user',
+        content: userContent,
+        ...(decodedContext.contextFiles.length > 0 ? { contextFiles: decodedContext.contextFiles } : {}),
+        timestamp: Date.now()
+      };
+
+      const promptText = `${promptPrefix}${query}`;
+      const promptPromise = session.prompt(promptText, { images: promptImages }).catch((error: unknown) => {
+        failure = error instanceof Error ? error : new Error(errorToMessage(error));
+        done = true;
+        wake();
+      });
 
       while (true) {
         if (queue.length > 0) {

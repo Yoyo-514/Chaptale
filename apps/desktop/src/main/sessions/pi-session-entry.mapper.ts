@@ -1,9 +1,15 @@
 import type { ChaptaleSessionListItem, ChaptaleSessionScope, ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
 import type { SessionEntry, SessionInfo } from '@earendil-works/pi-coding-agent';
 
+import type { ImageAttachmentService } from '../services/image-attachment.service';
 import { fromPiMessage } from './pi-session-message.mapper';
 
-export function toSessionTreeEntry(entry: SessionEntry): ChaptaleSessionTreeEntry {
+export type SessionEntryMapperOptions = {
+  sessionId: string;
+  imageAttachmentService: ImageAttachmentService;
+};
+
+export function toSessionTreeEntry(entry: SessionEntry, options?: SessionEntryMapperOptions): ChaptaleSessionTreeEntry {
   if (entry.type === 'session_info') {
     return {
       type: 'session_info',
@@ -20,10 +26,22 @@ export function toSessionTreeEntry(entry: SessionEntry): ChaptaleSessionTreeEntr
       id: entry.id,
       parentId: entry.parentId,
       timestamp: entry.timestamp,
-      message: fromPiMessage(entry.message) ?? {
-        role: 'assistant',
-        content: []
-      }
+      message:
+        fromPiMessage(entry.message, {
+          presentUserImages: images =>
+            options
+              ? options.imageAttachmentService.createPresentation(images, blockIndex => ({
+                  type: 'session-entry',
+                  sessionId: options.sessionId,
+                  entryId: entry.id,
+                  blockIndex
+                }))
+              : { attachments: [] }
+        }) ??
+        ({
+          role: 'assistant',
+          content: []
+        } as const)
     };
   }
 

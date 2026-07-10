@@ -1,14 +1,6 @@
-import type { ChatMessage } from '@chaptale/shared';
+import type { ChatContextFile, ChatMessage } from '@chaptale/shared';
 
-export type SelectedContextFile = {
-  path: string;
-  name: string;
-  size: number;
-  kind: 'text' | 'document' | 'image' | 'unsupported';
-  mimeType?: string;
-  /** 小图预览（仅限体积较小的图片，data URL）。 */
-  previewDataUrl?: string;
-};
+export type SelectedContextFile = ChatContextFile;
 
 export type AgentStartPayload = {
   runId: string;
@@ -18,6 +10,8 @@ export type AgentStartPayload = {
   branchFromEntryId?: string | null;
   /** 本轮随用户消息附加的本地上下文文件路径。 */
   contextFilePaths?: string[];
+  /** 复用指定 Pi user entry 中已持久化的文件信封与原生图片块。 */
+  reuseUserEntryId?: string;
 };
 
 export type AgentRunResult = {
@@ -39,6 +33,7 @@ export type AgentErrorEvent = {
 export type StreamAgentOptions = {
   branchFromEntryId?: string | null;
   contextFilePaths?: string[];
+  reuseUserEntryId?: string;
 };
 
 export type StreamAgentHandlers = {
