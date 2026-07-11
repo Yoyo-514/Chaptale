@@ -53,7 +53,8 @@ const previewItems = computed<AppImagePreviewItem[]>(() =>
 function getSkippedLabel(file: ChatContextFile) {
   const labels: Record<NonNullable<ChatContextFile['skippedReason']>, string> = {
     'file-too-large': '文件过大，未发送',
-    'image-too-large': '图片超过 20 MB，未发送'
+    'image-too-large': '图片超过 20 MB，未发送',
+    'file-unavailable': '文件无法读取，未发送'
   };
 
   return file.skippedReason ? labels[file.skippedReason] : '';

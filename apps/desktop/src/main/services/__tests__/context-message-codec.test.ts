@@ -49,6 +49,21 @@ describe('context message codec', () => {
     });
   });
 
+  it('preserves unavailable attachment metadata for message rendering', () => {
+    const prompt = `<attached_context_files>\n<file path="C:/novel/missing.txt" kind="text" skipped="true" reason="file-unavailable">无法读取</file>\n</attached_context_files>\n\n继续处理`;
+
+    expect(decodeContextMessage(prompt).contextFiles).toEqual([
+      {
+        path: 'C:/novel/missing.txt',
+        name: 'missing.txt',
+        size: 0,
+        kind: 'text',
+        mimeType: undefined,
+        skippedReason: 'file-unavailable'
+      }
+    ]);
+  });
+
   it('leaves ordinary and malformed messages untouched', () => {
     expect(decodeContextMessage('普通消息')).toEqual({ text: '普通消息', promptPrefix: '', contextFiles: [] });
     expect(decodeContextMessage('<attached_context_files>未闭合')).toEqual({

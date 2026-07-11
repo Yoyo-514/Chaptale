@@ -20,7 +20,8 @@ import { getDocumentMimeType, getFileKind, getImageMimeType } from './context-fi
 import {
   buildFileSearchPlaceholderBlock,
   buildOversizedFileBlock,
-  buildOversizedImageBlock
+  buildOversizedImageBlock,
+  buildUnavailableFileBlock
 } from './context-files/file-search';
 import { toSelectedContextFile } from './context-files/selected-context-file';
 import { isTextWithinTokenLimit } from './context-files/token-counter';
@@ -102,7 +103,12 @@ export class ContextFileService {
         continue;
       }
 
-      const stats = await fs.stat(filePath);
+      const stats = await fs.stat(filePath).catch(() => undefined);
+
+      if (!stats?.isFile()) {
+        textBlocks.push(buildUnavailableFileBlock(filePath, kind));
+        continue;
+      }
 
       if (kind === 'image' && stats.size > MAX_PROMPT_IMAGE_BYTES) {
         textBlocks.push(buildOversizedImageBlock(filePath, stats, MAX_PROMPT_IMAGE_BYTES));
@@ -116,11 +122,16 @@ export class ContextFileService {
 
       if (kind === 'text') {
         if (stats.size <= MAX_DIRECT_FILE_INPUT_BYTES && stats.size <= remainingDirectFileInputBytes) {
-          const text = await fs.readFile(filePath, 'utf8');
+          const text = await fs.readFile(filePath, 'utf8').catch(() => undefined);
+
+          if (text === undefined) {
+            textBlocks.push(buildUnavailableFileBlock(filePath, kind));
+            continue;
+          }
 
           if (isTextWithinTokenLimit(text, MAX_TEXT_DOCUMENT_TOKENS)) {
-            remainingDirectFileInputBytes -= stats.size;
             textBlocks.push(buildTextFileInputBlock(filePath, stats, text));
+            remainingDirectFileInputBytes -= stats.size;
             continue;
           }
         }
@@ -134,11 +145,15 @@ export class ContextFileService {
         continue;
       }
 
-      if (kind === 'image') {
-        const data = await fs.readFile(filePath, 'base64');
-        images.push({ type: 'image', data, mimeType: getImageMimeType(filePath) });
-        imagePaths.push(filePath);
+      const data = await fs.readFile(filePath, 'base64').catch(() => undefined);
+
+      if (data === undefined) {
+        textBlocks.push(buildUnavailableFileBlock(filePath, kind));
+        continue;
       }
+
+      images.push({ type: 'image', data, mimeType: getImageMimeType(filePath) });
+      imagePaths.push(filePath);
     }
 
     return {

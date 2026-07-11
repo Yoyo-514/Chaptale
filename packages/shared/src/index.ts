@@ -83,7 +83,7 @@ export type ChatContextFile = {
   previewDataUrl?: string;
   imageWidth?: number;
   imageHeight?: number;
-  skippedReason?: 'file-too-large' | 'image-too-large';
+  skippedReason?: 'file-too-large' | 'image-too-large' | 'file-unavailable';
 };
 
 export type ChatMessage =

@@ -7,6 +7,10 @@ import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
 type NotificationStore = ReturnType<typeof useNotificationStore>;
 type SettingsStore = ReturnType<typeof useSettingsStore>;
 
+function getApiKeyPlaceholder(provider?: ProviderView) {
+  return provider?.authConfigured ? '••••••••••••' : '输入 API Key';
+}
+
 export function useLlmProviderAuth(
   settingsStore: SettingsStore,
   notificationStore: NotificationStore,
@@ -14,14 +18,6 @@ export function useLlmProviderAuth(
 ) {
   const pendingApiKeyProvider = ref('');
   const providerApiKeys = reactive<Record<string, string>>({});
-
-  function getApiKeyPlaceholder(provider?: ProviderView) {
-    if (provider?.authConfigured) {
-      return '••••••••••••';
-    }
-
-    return '输入 API Key';
-  }
 
   function isApiKeySaving(provider?: string) {
     return pendingApiKeyProvider.value === provider;

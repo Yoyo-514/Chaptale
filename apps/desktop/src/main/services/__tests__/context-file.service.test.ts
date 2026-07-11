@@ -1,4 +1,4 @@
-import { mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -156,6 +156,73 @@ describe('ContextFileService', () => {
     expect(result.promptPrefix).toContain('read/grep/find/ls');
     expect(result.promptPrefix).not.toContain('TODO:');
     expect(result.promptPrefix).toContain('2,000,000 tokens');
+  });
+
+  it('keeps valid attachments when another file disappears before resolution', async () => {
+    const { ContextFileService } = await import('../context-file.service');
+    const missingPath = path.join(tempDir, 'missing.txt');
+    const validPath = path.join(tempDir, 'valid.txt');
+    await writeFile(validPath, '仍然可用的正文', 'utf8');
+
+    const result = await new ContextFileService().resolve([missingPath, validPath]);
+
+    expect(result.promptPrefix).toContain(`path="${missingPath}"`);
+    expect(result.promptPrefix).toContain('reason="file-unavailable"');
+    expect(result.promptPrefix).toContain('仍然可用的正文');
+  });
+
+  it('rejects a directory even when its name uses a supported extension', async () => {
+    const { ContextFileService } = await import('../context-file.service');
+    const directoryPath = path.join(tempDir, 'folder.txt');
+    await mkdir(directoryPath);
+
+    const result = await new ContextFileService().resolve([directoryPath]);
+
+    expect(result.promptPrefix).toContain('reason="file-unavailable"');
+    expect(result.promptPrefix).toContain('文件可能已被移动、删除或占用');
+  });
+
+  it('accepts exactly 2M estimated tokens and uses the placeholder when one token over', async () => {
+    const { ContextFileService } = await import('../context-file.service');
+    const filePath = path.join(tempDir, 'token-heavy.txt');
+    await writeFile(filePath, 'abcd'.repeat(2_000_000), 'utf8');
+
+    const boundaryResult = await new ContextFileService().resolve([filePath]);
+
+    expect(boundaryResult.promptPrefix).toContain('handling="file-input-text"');
+
+    await writeFile(filePath, 'abcd'.repeat(2_000_001), 'utf8');
+    const overLimitResult = await new ContextFileService().resolve([filePath]);
+
+    expect(overLimitResult.promptPrefix).toContain('handling="file-search-placeholder"');
+    expect(overLimitResult.promptPrefix).not.toContain('<content encoding="utf-8">');
+  });
+
+  it('accepts an image exactly at the 20 MB boundary', async () => {
+    const { ContextFileService } = await import('../context-file.service');
+    const filePath = path.join(tempDir, 'boundary.png');
+    await writeFile(filePath, '');
+    await truncate(filePath, 20 * 1024 * 1024);
+
+    const result = await new ContextFileService().resolve([filePath]);
+
+    expect(result.images).toHaveLength(1);
+    expect(result.promptPrefix).toBe('');
+  });
+
+  it('accepts a document exactly at 512 MB and skips one byte over the boundary', async () => {
+    const { ContextFileService } = await import('../context-file.service');
+    const boundaryPath = path.join(tempDir, 'boundary.pdf');
+    const oversizedPath = path.join(tempDir, 'oversized.pdf');
+    await writeFile(boundaryPath, '');
+    await writeFile(oversizedPath, '');
+    await truncate(boundaryPath, 512 * 1024 * 1024);
+    await truncate(oversizedPath, 512 * 1024 * 1024 + 1);
+
+    const result = await new ContextFileService().resolve([boundaryPath, oversizedPath]);
+
+    expect(result.promptPrefix).toContain(`path="${boundaryPath}" handling="document-file-input"`);
+    expect(result.promptPrefix).toContain(`path="${oversizedPath}" skipped="true" reason="file-too-large"`);
   });
 
   it('skips oversized prompt images with an explicit context note', async () => {
