@@ -12,6 +12,7 @@ import {
   MAX_DIRECT_FILE_INPUT_BYTES,
   MAX_DIRECT_FILE_INPUT_TOTAL_BYTES,
   MAX_PROMPT_IMAGE_BYTES,
+  MAX_TEXT_DOCUMENT_TOKENS,
   TEXT_EXTENSIONS
 } from './context-files/constants';
 import { buildDocumentFileInputBlock, buildTextFileInputBlock } from './context-files/file-input';
@@ -22,6 +23,7 @@ import {
   buildOversizedImageBlock
 } from './context-files/file-search';
 import { toSelectedContextFile } from './context-files/selected-context-file';
+import { isTextWithinTokenLimit } from './context-files/token-counter';
 
 export type ResolvedContextFiles = {
   promptPrefix: string;
@@ -115,9 +117,12 @@ export class ContextFileService {
       if (kind === 'text') {
         if (stats.size <= MAX_DIRECT_FILE_INPUT_BYTES && stats.size <= remainingDirectFileInputBytes) {
           const text = await fs.readFile(filePath, 'utf8');
-          remainingDirectFileInputBytes -= stats.size;
-          textBlocks.push(buildTextFileInputBlock(filePath, stats, text));
-          continue;
+
+          if (isTextWithinTokenLimit(text, MAX_TEXT_DOCUMENT_TOKENS)) {
+            remainingDirectFileInputBytes -= stats.size;
+            textBlocks.push(buildTextFileInputBlock(filePath, stats, text));
+            continue;
+          }
         }
 
         textBlocks.push(buildFileSearchPlaceholderBlock(filePath, stats));

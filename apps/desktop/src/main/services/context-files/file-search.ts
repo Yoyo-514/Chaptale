@@ -5,7 +5,7 @@ import path from 'node:path';
 import { MAX_CONTEXT_FILE_BYTES, MAX_DIRECT_FILE_INPUT_TOTAL_BYTES, MAX_TEXT_DOCUMENT_TOKENS } from './constants';
 
 export function buildFileSearchPlaceholderBlock(filePath: string, stats: { size: number }) {
-  // TODO: 实现 OpenAI File Search 风格的最小索引流程：解析文本 -> 分块 -> 关键词/语义检索 -> rerank -> 仅把相关片段注入上下文；接入 tokenizer 后精确执行 MAX_TEXT_DOCUMENT_TOKENS 文本文档上限。
+  // TODO: 实现 OpenAI File Search 风格的最小索引流程：解析文本 -> 分块 -> 关键词/语义检索 -> rerank -> 仅把相关片段注入上下文。
   return `<file path="${escapeXmlAttribute(filePath)}" handling="file-search-placeholder" size="${escapeXmlAttribute(formatFileSize(stats.size))}">
 <summary>
 该文本未作为基础 File input 全文注入：文件大小或本次上传总量已超出 ${formatFileSize(MAX_DIRECT_FILE_INPUT_TOTAL_BYTES)} 的直接输入预算。当前版本尚未建立向量索引，agent 应使用 read/grep/find/ls 等文件工具按需读取原文件，不能声称已完整逐字阅读全文。
