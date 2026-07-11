@@ -1,5 +1,6 @@
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { IPC_CHANNELS, type WindowStateResult } from '@chaptale/ipc-contract';
+import { handleTrustedIpc } from '../security/trusted-ipc';
 
 function getWindowFromEvent(event: IpcMainInvokeEvent) {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -18,13 +19,13 @@ function getWindowState(window: BrowserWindow): WindowStateResult {
 }
 
 export function registerWindowIpc() {
-  ipcMain.handle(IPC_CHANNELS.window.minimize, event => {
+  handleTrustedIpc(IPC_CHANNELS.window.minimize, event => {
     const window = getWindowFromEvent(event);
     window.minimize();
     return getWindowState(window);
   });
 
-  ipcMain.handle(IPC_CHANNELS.window.toggleMaximize, event => {
+  handleTrustedIpc(IPC_CHANNELS.window.toggleMaximize, event => {
     const window = getWindowFromEvent(event);
 
     if (window.isMaximized()) {
@@ -36,9 +37,9 @@ export function registerWindowIpc() {
     return getWindowState(window);
   });
 
-  ipcMain.handle(IPC_CHANNELS.window.close, event => {
+  handleTrustedIpc(IPC_CHANNELS.window.close, event => {
     getWindowFromEvent(event).close();
   });
 
-  ipcMain.handle(IPC_CHANNELS.window.isMaximized, event => getWindowState(getWindowFromEvent(event)));
+  handleTrustedIpc(IPC_CHANNELS.window.isMaximized, event => getWindowState(getWindowFromEvent(event)));
 }

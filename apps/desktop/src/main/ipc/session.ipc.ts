@@ -1,6 +1,7 @@
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
-import { dialog, ipcMain, shell } from 'electron';
+import { dialog, shell } from 'electron';
 import { promises as fs } from 'node:fs';
+import { handleTrustedIpc } from '../security/trusted-ipc';
 import { PiSessionRepository } from '../services/session.repository';
 
 import type {
@@ -14,29 +15,29 @@ import type {
 } from '@chaptale/ipc-contract';
 
 export function registerSessionIpc(sessionRepository: PiSessionRepository) {
-  ipcMain.handle(IPC_CHANNELS.session.list, () => sessionRepository.list());
+  handleTrustedIpc(IPC_CHANNELS.session.list, () => sessionRepository.list());
 
-  ipcMain.handle(IPC_CHANNELS.session.create, (_event, options?: CreateSessionOptions) =>
+  handleTrustedIpc(IPC_CHANNELS.session.create, (_event, options?: CreateSessionOptions) =>
     sessionRepository.create(options)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.getEntries, (_event, sessionId: string) =>
+  handleTrustedIpc(IPC_CHANNELS.session.getEntries, (_event, sessionId: string) =>
     sessionRepository.getEntries(sessionId)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.getMessages, (_event, sessionId: string) =>
+  handleTrustedIpc(IPC_CHANNELS.session.getMessages, (_event, sessionId: string) =>
     sessionRepository.getMessages(sessionId)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.readImage, (_event, payload: ReadSessionImagePayload) =>
+  handleTrustedIpc(IPC_CHANNELS.session.readImage, (_event, payload: ReadSessionImagePayload) =>
     sessionRepository.readImage(payload)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.rename, (_event, payload: RenameSessionPayload) =>
+  handleTrustedIpc(IPC_CHANNELS.session.rename, (_event, payload: RenameSessionPayload) =>
     sessionRepository.appendSessionInfo(payload.sessionId, payload.name)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.exportHtml, async (_event, payload: ExportSessionPayload) => {
+  handleTrustedIpc(IPC_CHANNELS.session.exportHtml, async (_event, payload: ExportSessionPayload) => {
     const { html, suggestedFileName } = await sessionRepository.exportHtml(payload.sessionId);
     const result = await dialog.showSaveDialog({
       title: '导出会话为 HTML',
@@ -55,21 +56,21 @@ export function registerSessionIpc(sessionRepository: PiSessionRepository) {
     return result.filePath;
   });
 
-  ipcMain.handle(IPC_CHANNELS.session.delete, (_event, payload: DeleteSessionPayload) =>
+  handleTrustedIpc(IPC_CHANNELS.session.delete, (_event, payload: DeleteSessionPayload) =>
     sessionRepository.delete(payload.sessionId)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.deleteMany, (_event, payload: DeleteSessionsPayload) =>
+  handleTrustedIpc(IPC_CHANNELS.session.deleteMany, (_event, payload: DeleteSessionsPayload) =>
     sessionRepository.deleteMany(payload.sessionIds)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.setLeaf, (_event, payload: SetSessionLeafPayload) =>
+  handleTrustedIpc(IPC_CHANNELS.session.setLeaf, (_event, payload: SetSessionLeafPayload) =>
     sessionRepository.setLeafId(payload.sessionId, payload.leafId)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.getStorageDebugInfo, () => sessionRepository.getStorageDebugInfo());
+  handleTrustedIpc(IPC_CHANNELS.session.getStorageDebugInfo, () => sessionRepository.getStorageDebugInfo());
 
-  ipcMain.handle(IPC_CHANNELS.session.openStorageDir, async () => {
+  handleTrustedIpc(IPC_CHANNELS.session.openStorageDir, async () => {
     const sessionDir = await sessionRepository.ensureSessionDir();
     const errorMessage = await shell.openPath(sessionDir);
 

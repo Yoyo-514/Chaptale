@@ -4,6 +4,7 @@ const localBrowserChannel = process.env.PLAYWRIGHT_CHANNEL ?? (process.env.CI ? 
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: ['electron/**'],
   timeout: 30_000,
   expect: {
     timeout: 8_000

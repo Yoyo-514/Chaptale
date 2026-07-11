@@ -3,13 +3,14 @@ import {
   type UpdateChaptaleSettingsPayload,
   type UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
-import { BrowserWindow, dialog, ipcMain, shell, type OpenDialogOptions } from 'electron';
+import { BrowserWindow, dialog, shell, type OpenDialogOptions } from 'electron';
+import { handleTrustedIpc } from '../security/trusted-ipc';
 import { SettingsService } from '../services/settings.service';
 
 export function registerSettingsIpc(settingsService: SettingsService, onStorageChanged?: () => void) {
-  ipcMain.handle(IPC_CHANNELS.settings.getState, () => settingsService.getState());
+  handleTrustedIpc(IPC_CHANNELS.settings.getState, () => settingsService.getState());
 
-  ipcMain.handle(IPC_CHANNELS.settings.update, async (_event, payload: UpdateChaptaleSettingsPayload) => {
+  handleTrustedIpc(IPC_CHANNELS.settings.update, async (_event, payload: UpdateChaptaleSettingsPayload) => {
     const state = await settingsService.update(payload);
 
     if (payload.storage) {
@@ -19,13 +20,13 @@ export function registerSettingsIpc(settingsService: SettingsService, onStorageC
     return state;
   });
 
-  ipcMain.handle(IPC_CHANNELS.settings.updateWebAccess, async (_event, payload: UpdatePiWebAccessSettingsPayload) => {
+  handleTrustedIpc(IPC_CHANNELS.settings.updateWebAccess, async (_event, payload: UpdatePiWebAccessSettingsPayload) => {
     const state = await settingsService.updateWebAccess(payload);
 
     return state;
   });
 
-  ipcMain.handle(IPC_CHANNELS.settings.selectWorkspaceDir, async event => {
+  handleTrustedIpc(IPC_CHANNELS.settings.selectWorkspaceDir, async event => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: OpenDialogOptions = {
       title: '选择 Chaptale 工作区',
@@ -53,7 +54,7 @@ export function registerSettingsIpc(settingsService: SettingsService, onStorageC
     };
   });
 
-  ipcMain.handle(IPC_CHANNELS.settings.openConfigDir, async () => {
+  handleTrustedIpc(IPC_CHANNELS.settings.openConfigDir, async () => {
     await settingsService.ensureBaseDirs();
     const errorMessage = await shell.openPath(settingsService.rootDir);
 

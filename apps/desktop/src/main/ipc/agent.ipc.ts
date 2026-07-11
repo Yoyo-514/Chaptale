@@ -1,6 +1,7 @@
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import { errorToMessage } from '@chaptale/shared';
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow } from 'electron';
+import { handleTrustedIpc } from '../security/trusted-ipc';
 import { ContextFileService } from '../services/context-file.service';
 import { PiAgentService } from '../services/pi-agent.service';
 
@@ -11,15 +12,15 @@ export function registerAgentIpc(agentService: PiAgentService) {
   const controllers = new Map<string, AbortController>();
   const contextFileService = new ContextFileService();
 
-  ipcMain.handle(IPC_CHANNELS.agent.selectContextFiles, event => {
+  handleTrustedIpc(IPC_CHANNELS.agent.selectContextFiles, event => {
     return contextFileService.selectFiles(BrowserWindow.fromWebContents(event.sender));
   });
 
-  ipcMain.handle(IPC_CHANNELS.agent.inspectContextFiles, (_event, paths: string[]) => {
+  handleTrustedIpc(IPC_CHANNELS.agent.inspectContextFiles, (_event, paths: string[]) => {
     return contextFileService.inspectFiles(Array.isArray(paths) ? paths : []);
   });
 
-  ipcMain.handle(IPC_CHANNELS.agent.start, (event, payload: AgentStartPayload) => {
+  handleTrustedIpc(IPC_CHANNELS.agent.start, (event, payload: AgentStartPayload) => {
     const abortController = new AbortController();
     controllers.set(payload.runId, abortController);
 
@@ -31,7 +32,7 @@ export function registerAgentIpc(agentService: PiAgentService) {
     return { runId: payload.runId };
   });
 
-  ipcMain.handle(IPC_CHANNELS.agent.cancel, (_event, runId: string) => {
+  handleTrustedIpc(IPC_CHANNELS.agent.cancel, (_event, runId: string) => {
     controllers.get(runId)?.abort();
     controllers.delete(runId);
     return { runId };
