@@ -2,9 +2,9 @@
 import { onMounted } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { useDraggablePanel, type ResizeDirection } from '@/composables';
 import { useSettingsStore } from '@/stores/settings';
 import SettingsSidebar from './components/SettingsSidebar.vue';
-import { useDraggablePanel, type ResizeDirection } from '@/composables';
 import ConfigFilesSettings from './sections/ConfigFilesSettings.vue';
 import LLMSettings from './sections/LLMSettings.vue';
 import WebAccessSettings from './sections/WebAccessSettings.vue';

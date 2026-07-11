@@ -54,7 +54,7 @@ describe('chat message components', () => {
     expect(cards).toHaveLength(1);
     expect(cards[0]?.text()).toContain('outline.md');
     expect(cards[0]?.attributes('title')).toBe('outline.md');
-    expect(wrapper.find('.app-image-thumbnail-image').attributes()).toMatchObject({
+    expect(wrapper.find('.app-image-gallery-image').attributes()).toMatchObject({
       src: 'data:image/png;base64,YWJj',
       loading: 'lazy',
       decoding: 'async'
@@ -124,14 +124,15 @@ describe('chat message components', () => {
     );
   });
 
-  it('renders tool results including web search result cards and empty outputs', async () => {
+  it('renders tool results including plain web search results and empty outputs', async () => {
     const webSearch = mount(ToolResultMessage, {
       props: {
         name: 'web_search',
         content: '## Results for: "agent"\n\n### Agent Docs\nhttps://example.com/docs\n\nSummary text'
       }
     });
-    expect(webSearch.text()).toContain('联网搜索完成');
+    expect(webSearch.text()).toContain('结果 · 联网搜索');
+    expect(webSearch.find('.websearch-card').exists()).toBe(false);
     expect(webSearch.text()).toContain('Agent Docs');
 
     const fetchContent = mount(ToolResultMessage, { props: { name: 'fetch_content', content: '{"title":"Doc"}' } });
@@ -153,7 +154,8 @@ describe('chat message components', () => {
     ].join('\n');
     const wrapper = mount(MessageWebsearchResults, { props: { content } });
 
-    expect(wrapper.text()).toContain('1 次查询 · 6 个来源');
+    expect(wrapper.find('.websearch-card').exists()).toBe(false);
+    expect(wrapper.text()).toContain('查询：agent · 6 个来源');
     expect(wrapper.findAll('.websearch-citation')).toHaveLength(5);
     await wrapper.find('.websearch-citations-toggle').trigger('click');
     expect(wrapper.findAll('.websearch-citation')).toHaveLength(6);

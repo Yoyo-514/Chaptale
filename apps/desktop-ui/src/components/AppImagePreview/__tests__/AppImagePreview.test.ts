@@ -27,9 +27,9 @@ const rekaStubs = {
   VisuallyHidden: { template: '<div><slot /></div>' }
 };
 
-function mountPreview(items: AppImagePreviewItem[], removable = false) {
+function mountPreview(items: AppImagePreviewItem[], removable = false, variant: 'thumbnail' | 'large' = 'thumbnail') {
   return mount(AppImagePreview, {
-    props: { items, removable },
+    props: { items, removable, variant },
     global: {
       stubs: rekaStubs
     }
@@ -174,5 +174,39 @@ describe('AppImagePreview', () => {
 
     expect(wrapper.emitted('remove')).toEqual([['image-0']]);
     expect(wrapper.find('.dialog-root-stub').exists()).toBe(false);
+  });
+
+  it('renders the large gallery instead of thumbnails and opens the lightbox from it', async () => {
+    const items = createItems(3);
+    const wrapper = mountPreview(items, false, 'large');
+
+    expect(wrapper.find('.app-image-thumbnail-grid').exists()).toBe(false);
+    expect(wrapper.find('.app-image-gallery-stacked').exists()).toBe(false);
+    expect(wrapper.findAll('.app-image-gallery-item')).toHaveLength(3);
+
+    await wrapper.findAll('.app-image-gallery-item')[1]!.trigger('click');
+    await flushPromises();
+
+    expect(items[1]!.loadOriginal).toHaveBeenCalledTimes(1);
+    expect(wrapper.find('.app-image-lightbox-counter').text()).toBe('2 / 3');
+  });
+
+  it('stacks more than eight large images and expands on hover', async () => {
+    const items = createItems(9);
+    const wrapper = mountPreview(items, false, 'large');
+    const gallery = wrapper.get('.app-image-gallery');
+
+    expect(gallery.classes()).toContain('app-image-gallery-stacked');
+    expect(wrapper.get('.app-image-gallery-count').text()).toBe('共 9 张');
+    expect(wrapper.findAll('.app-image-gallery-item')).toHaveLength(9);
+    expect(wrapper.findAll('.app-image-gallery-item-buried')).toHaveLength(6);
+
+    await gallery.trigger('mouseenter');
+    expect(gallery.classes()).not.toContain('app-image-gallery-stacked');
+    expect(wrapper.find('.app-image-gallery-count').exists()).toBe(false);
+    expect(wrapper.findAll('.app-image-gallery-item-buried')).toHaveLength(0);
+
+    await gallery.trigger('mouseleave');
+    expect(gallery.classes()).toContain('app-image-gallery-stacked');
   });
 });

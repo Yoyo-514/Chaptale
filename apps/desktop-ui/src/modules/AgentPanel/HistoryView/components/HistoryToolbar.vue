@@ -1,12 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 import { AppButton } from '@/components/AppButton';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import type { HistoryScopeFilter, HistorySortMode } from '../composables/useHistorySessions';
 
-const props = defineProps<{
-  isSelectionMode: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    isSelectionMode: boolean;
+    currentWorkspacePath?: string;
+  }>(),
+  { currentWorkspacePath: '' }
+);
 
 const emit = defineEmits<{
   toggleSelectionMode: [];
@@ -16,11 +22,11 @@ const searchQuery = defineModel<string>('searchQuery', { required: true });
 const scopeFilter = defineModel<HistoryScopeFilter>('scopeFilter', { required: true });
 const sortMode = defineModel<HistorySortMode>('sortMode', { required: true });
 
-const scopeOptions: { value: HistoryScopeFilter; label: string }[] = [
+const scopeOptions = computed<{ value: HistoryScopeFilter; label: string }[]>(() => [
   { value: 'all', label: '全部' },
-  { value: 'workspace', label: '工作区' },
+  { value: 'workspace', label: props.currentWorkspacePath || '未选择工作区' },
   { value: 'global', label: '全局' }
-];
+]);
 
 const sortOptions: { value: HistorySortMode; label: string }[] = [
   { value: 'latest', label: '最新' },
@@ -50,7 +56,7 @@ function clearSearch() {
 }
 
 function getScopeLabel(value: HistoryScopeFilter) {
-  return scopeOptions.find(option => option.value === value)?.label ?? '全部';
+  return scopeOptions.value.find(option => option.value === value)?.label ?? '全部';
 }
 
 function getSortLabel(value: HistorySortMode) {

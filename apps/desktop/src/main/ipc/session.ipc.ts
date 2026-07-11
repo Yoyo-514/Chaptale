@@ -36,13 +36,13 @@ export function registerSessionIpc(sessionRepository: PiSessionRepository) {
     sessionRepository.appendSessionInfo(payload.sessionId, payload.name)
   );
 
-  ipcMain.handle(IPC_CHANNELS.session.exportMarkdown, async (_event, payload: ExportSessionPayload) => {
-    const { markdown, suggestedFileName } = await sessionRepository.exportMarkdown(payload.sessionId);
+  ipcMain.handle(IPC_CHANNELS.session.exportHtml, async (_event, payload: ExportSessionPayload) => {
+    const { html, suggestedFileName } = await sessionRepository.exportHtml(payload.sessionId);
     const result = await dialog.showSaveDialog({
-      title: '导出会话为 Markdown',
+      title: '导出会话为 HTML',
       defaultPath: suggestedFileName,
       filters: [
-        { name: 'Markdown', extensions: ['md'] },
+        { name: 'HTML', extensions: ['html'] },
         { name: '所有文件', extensions: ['*'] }
       ]
     });
@@ -51,7 +51,7 @@ export function registerSessionIpc(sessionRepository: PiSessionRepository) {
       return null;
     }
 
-    await fs.writeFile(result.filePath, markdown, 'utf8');
+    await fs.writeFile(result.filePath, html, 'utf8');
     return result.filePath;
   });
 

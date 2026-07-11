@@ -46,7 +46,8 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
     storage: {
       ...DEFAULT_SETTINGS.storage,
       ...value?.storage
-    }
+    },
+    ...(value?.lastSessionId ? { lastSessionId: value.lastSessionId } : {})
   };
 }
 

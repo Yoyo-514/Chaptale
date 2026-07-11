@@ -10,8 +10,8 @@ import {
   formatTokenCount,
   getSessionTitle
 } from '@/utils/session-display';
-import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 import SessionRenameDialog from '../../components/SessionRenameDialog.vue';
+import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 
 const props = defineProps<{
   session: ChaptaleSessionListItem;
@@ -62,6 +62,10 @@ function handleMainClick() {
         </span>
         <span class="history-item-preview">
           {{ props.session.lastMessagePreview || '暂无消息' }}
+        </span>
+        <span v-if="props.session.scope === 'workspace'" class="history-item-workspace" :title="props.session.cwd">
+          <span class="i-mingcute-folder-line" aria-hidden="true" />
+          <span>{{ props.session.cwd }}</span>
         </span>
         <span class="history-item-stats" aria-label="会话统计">
           <span>{{ formatSessionScope(props.session.scope) }}</span>
@@ -152,6 +156,16 @@ function handleMainClick() {
   color: var(--muted-foreground);
 }
 
+.history-item-workspace {
+  @apply flex min-w-0 items-center gap-1 text-[0.7rem];
+
+  color: var(--muted-foreground);
+}
+
+.history-item-workspace > span:last-child {
+  @apply truncate;
+}
+
 .history-item-stats {
   @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.7rem];
 
@@ -184,6 +198,11 @@ function handleMainClick() {
   background: var(--surface-acrylic-strong);
   pointer-events: none;
   transform: translate(0.25rem, 0.25rem) scale(0.92);
+}
+
+.history-item :deep(.history-rename-button:hover),
+.history-item :deep(.history-rename-button:focus-visible) {
+  background: var(--primary-hover);
 }
 
 .history-item:hover :deep(.history-delete-button),

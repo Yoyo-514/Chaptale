@@ -54,6 +54,47 @@ describe('useChatSearch', () => {
     expect(search.matches.value).toHaveLength(0);
   });
 
+  it('identifies tool call and result matches with their execution section', async () => {
+    const search = useChatSearch(() => [
+      {
+        id: 'assistant-tools',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: '准备修改文件' },
+            { type: 'toolCall', id: 'call-1', name: 'edit', arguments: { path: 'src/example.ts' } },
+            { type: 'toolCall', id: 'call-2', name: 'read', arguments: { path: 'package.json' } }
+          ]
+        }
+      },
+      {
+        id: 'result-1',
+        message: {
+          role: 'toolResult',
+          toolCallId: 'call-1',
+          toolName: 'edit',
+          content: [{ type: 'text', text: 'Successfully replaced content' }]
+        }
+      }
+    ]);
+
+    search.query.value = 'example.ts';
+    await nextTick();
+    expect(search.matches.value).toEqual([
+      { id: 'assistant-tools', index: 0, toolTarget: { callId: 'call-1', section: 'call' } }
+    ]);
+
+    search.query.value = 'successfully';
+    await nextTick();
+    expect(search.matches.value).toEqual([
+      { id: 'result-1', index: 1, toolTarget: { callId: 'call-1', section: 'result' } }
+    ]);
+
+    search.query.value = '准备修改';
+    await nextTick();
+    expect(search.matches.value).toEqual([{ id: 'assistant-tools', index: 0 }]);
+  });
+
   it('returns no matches for blank queries', async () => {
     const search = useChatSearch(createMessages);
 

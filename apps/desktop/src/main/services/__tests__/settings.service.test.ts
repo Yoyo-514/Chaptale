@@ -97,6 +97,23 @@ describe('SettingsService', () => {
     expect(state.paths.effectiveSessionDir).toContain('Story Workspace-');
   });
 
+  it('persists and clears the last opened session without changing storage settings', async () => {
+    const service = new SettingsService({ rootDir });
+    const workspacePath = path.join(rootDir, 'Story Workspace');
+
+    await service.update({ storage: { mode: 'workspace', workspacePath } });
+    const persisted = await service.update({ lastSessionId: 'session-2' });
+
+    expect(persisted.settings).toEqual({
+      version: 1,
+      storage: { mode: 'workspace', workspacePath },
+      lastSessionId: 'session-2'
+    });
+
+    const cleared = await service.update({ lastSessionId: null });
+    expect(cleared.settings).toEqual({ version: 1, storage: { mode: 'workspace', workspacePath } });
+  });
+
   it('writes web-search config when web access settings are updated', async () => {
     const service = new SettingsService({ rootDir });
 

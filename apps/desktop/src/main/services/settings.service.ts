@@ -57,12 +57,15 @@ export class SettingsService {
   async update(payload: UpdateChaptaleSettingsPayload): Promise<ChaptaleSettingsState> {
     await this.enqueue(async () => {
       const current = await this.readSettingsUnsafe();
+      const lastSessionId =
+        payload.lastSessionId === null ? undefined : (payload.lastSessionId ?? current.lastSessionId);
       const next: ChaptaleSettings = {
         version: current.version,
         storage: {
           ...current.storage,
           ...payload.storage
-        }
+        },
+        ...(lastSessionId ? { lastSessionId } : {})
       };
 
       if (next.storage.mode === 'workspace' && !next.storage.workspacePath) {

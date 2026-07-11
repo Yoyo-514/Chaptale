@@ -50,6 +50,8 @@ export type PiWebAccessSettings = {
 export type ChaptaleSettings = {
   version: 1;
   storage: ChaptaleStorageSettings;
+  /** 应用关闭前最后打开的会话；不存在或已删除时由 Renderer 回退。 */
+  lastSessionId?: string;
 };
 
 export type ChaptaleSettingsPaths = {
@@ -83,6 +85,8 @@ export type UpdatePiWebAccessSettingsPayload = Partial<
 
 export type UpdateChaptaleSettingsPayload = {
   storage?: Partial<ChaptaleStorageSettings>;
+  /** 传 null 表示清除已记忆的会话。 */
+  lastSessionId?: string | null;
 };
 
 export type SelectWorkspaceDirResult = {

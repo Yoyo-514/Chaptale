@@ -12,6 +12,7 @@ export function useHistorySessions(options: {
   searchQuery: Ref<string>;
   scopeFilter: Ref<HistoryScopeFilter>;
   sortMode: Ref<HistorySortMode>;
+  currentWorkspacePath: Ref<string>;
 }) {
   const normalizedSearchQuery = computed(() => options.searchQuery.value.trim().toLowerCase());
 
@@ -19,7 +20,7 @@ export function useHistorySessions(options: {
     const query = normalizedSearchQuery.value;
 
     return options.sessions.value
-      .filter(session => options.scopeFilter.value === 'all' || session.scope === options.scopeFilter.value)
+      .filter(session => matchesScope(session, options.scopeFilter.value, options.currentWorkspacePath.value))
       .filter(session => matchesSearch(session, query))
       .toSorted((left, right) => compareSessions(left, right, options.sortMode.value));
   });
@@ -36,6 +37,26 @@ export function useHistorySessions(options: {
     filteredSessions,
     resultCountText
   };
+}
+
+function normalizePath(value: string) {
+  return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function matchesScope(session: ChaptaleSessionListItem, scope: HistoryScopeFilter, currentWorkspacePath: string) {
+  if (scope === 'all') {
+    return true;
+  }
+
+  if (scope === 'global') {
+    return session.scope === 'global';
+  }
+
+  return (
+    session.scope === 'workspace' &&
+    Boolean(currentWorkspacePath) &&
+    normalizePath(session.cwd) === normalizePath(currentWorkspacePath)
+  );
 }
 
 function matchesSearch(session: ChaptaleSessionListItem, query: string) {

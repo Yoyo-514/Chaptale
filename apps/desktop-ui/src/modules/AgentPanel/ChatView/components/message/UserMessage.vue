@@ -93,7 +93,7 @@ function save() {
 
 <template>
   <div v-if="imagePreviewItems.length" class="user-message-images">
-    <AppImagePreview :items="imagePreviewItems" />
+    <AppImagePreview variant="large" :items="imagePreviewItems" />
   </div>
 
   <AppForm v-if="editing" class="user-message-edit" @submit="save">
@@ -121,10 +121,10 @@ function save() {
 
 <style scoped lang="scss">
 .user-message-images {
-  @apply w-full;
+  @apply flex w-full justify-end;
 }
 
-.user-message-images :deep(.app-image-thumbnail-grid) {
+.user-message-images :deep(.app-image-gallery) {
   @apply justify-end;
 }
 

@@ -15,7 +15,7 @@ export const IPC_CHANNELS = {
     getMessages: 'session:get-messages',
     readImage: 'session:read-image',
     rename: 'session:rename',
-    exportMarkdown: 'session:export-markdown',
+    exportHtml: 'session:export-html',
     delete: 'session:delete',
     deleteMany: 'session:delete-many',
     setLeaf: 'session:set-leaf',

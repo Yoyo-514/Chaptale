@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { errorToMessage } from '@chaptale/shared';
 import { AppImagePreview } from '@/components/AppImagePreview';
 import { useNotificationStore } from '@/stores/notification';
 import { cn } from '@/utils';
 import { formatMessageCost, formatMessageTime, formatTokenCount } from '@/utils/session-display';
+import { errorToMessage } from '@chaptale/shared';
 import type { ChatDisplayMessage } from '../../types';
 import { toInlineImageItems } from '../../utils/message/inline-images';
 import {
@@ -223,7 +223,7 @@ async function copyRawText() {
         />
 
         <div v-if="assistantImageItems.length" class="message-inline-images">
-          <AppImagePreview :items="assistantImageItems" />
+          <AppImagePreview variant="large" :items="assistantImageItems" />
         </div>
 
         <p v-if="stopNotice" class="message-stop-notice">
@@ -235,7 +235,7 @@ async function copyRawText() {
       <template v-else-if="message.role === 'toolResult'">
         <ToolResultMessage :name="message.toolName" :content="toolResultContent" />
         <div v-if="toolResultImageItems.length" class="message-inline-images">
-          <AppImagePreview :items="toolResultImageItems" />
+          <AppImagePreview variant="large" :items="toolResultImageItems" />
         </div>
       </template>
 
@@ -270,7 +270,7 @@ async function copyRawText() {
 }
 
 .message-container-search-hit {
-  @apply rounded-2xl;
+  @apply rounded;
 
   outline: 2px solid var(--primary);
   outline-offset: 2px;
@@ -292,7 +292,7 @@ async function copyRawText() {
 }
 
 .message-footer {
-  @apply flex items-center gap-2;
+  @apply flex items-center gap-1;
 }
 
 .message-content-stack-user .message-footer {
@@ -300,7 +300,7 @@ async function copyRawText() {
 }
 
 .message-meta {
-  @apply text-[11px] opacity-0 transition-opacity duration-150;
+  @apply px-1 text-[11px] tabular-nums opacity-0 transition-opacity duration-150;
 
   color: var(--muted-foreground);
 }

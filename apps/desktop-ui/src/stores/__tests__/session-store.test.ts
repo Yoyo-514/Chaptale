@@ -43,7 +43,11 @@ function installDesktopApi(overrides: Record<string, any> = {}) {
       rename: vi
         .fn()
         .mockResolvedValue({ type: 'session_info', id: 'info-1', parentId: null, timestamp: '', name: '新名字' }),
-      exportMarkdown: vi.fn().mockResolvedValue('C:/exports/会话.md')
+      exportHtml: vi.fn().mockResolvedValue('C:/exports/会话.html')
+    },
+    settings: {
+      getState: vi.fn().mockResolvedValue({ settings: { version: 1, storage: { mode: 'global' } } }),
+      update: vi.fn().mockResolvedValue({ settings: { version: 1, storage: { mode: 'global' } } })
     },
     ...overrides
   };
@@ -68,6 +72,44 @@ describe('session store', () => {
     expect(store.currentSessionId).toBe('session-1');
     expect(store.currentSession?.id).toBe('session-1');
     expect(store.isLoading).toBe(false);
+  });
+
+  it('restores the last opened session when it still exists', async () => {
+    const api = installDesktopApi();
+    api.settings.getState.mockResolvedValue({
+      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-2' }
+    });
+    const store = useSessionStore();
+
+    await store.loadSessions();
+
+    expect(store.currentSessionId).toBe('session-2');
+    expect(api.settings.update).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the newest session when the remembered session no longer exists', async () => {
+    const api = installDesktopApi();
+    api.settings.getState.mockResolvedValue({
+      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'deleted-session' }
+    });
+    const store = useSessionStore();
+
+    await store.loadSessions();
+
+    expect(store.currentSessionId).toBe('session-1');
+    expect(api.settings.update).toHaveBeenCalledWith({ lastSessionId: 'session-1' });
+  });
+
+  it('persists explicit session selection', async () => {
+    const api = installDesktopApi();
+    const store = useSessionStore();
+    await store.loadSessions();
+    api.settings.update.mockClear();
+
+    await store.selectSession('session-2');
+
+    expect(store.currentSessionId).toBe('session-2');
+    expect(api.settings.update).toHaveBeenCalledWith({ lastSessionId: 'session-2' });
   });
 
   it('creates a fallback session when no active session exists', async () => {
@@ -127,19 +169,19 @@ describe('session store', () => {
     expect(store.error).toBe('rename failed');
   });
 
-  it('exports the current branch as markdown and surfaces failures', async () => {
+  it('exports the current branch as html and surfaces failures', async () => {
     const api = installDesktopApi();
     const store = useSessionStore();
 
-    await expect(store.exportSessionMarkdown('session-1')).resolves.toBe('C:/exports/会话.md');
-    expect(api.session.exportMarkdown).toHaveBeenCalledWith('session-1');
+    await expect(store.exportSessionHtml('session-1')).resolves.toBe('C:/exports/会话.html');
+    expect(api.session.exportHtml).toHaveBeenCalledWith('session-1');
 
-    api.session.exportMarkdown.mockResolvedValue(null);
-    await expect(store.exportSessionMarkdown('session-1')).resolves.toBeNull();
+    api.session.exportHtml.mockResolvedValue(null);
+    await expect(store.exportSessionHtml('session-1')).resolves.toBeNull();
     expect(store.error).toBe('');
 
-    api.session.exportMarkdown.mockRejectedValue(new Error('export failed'));
-    await expect(store.exportSessionMarkdown('session-1')).resolves.toBeNull();
+    api.session.exportHtml.mockRejectedValue(new Error('export failed'));
+    await expect(store.exportSessionHtml('session-1')).resolves.toBeNull();
     expect(store.error).toBe('export failed');
   });
 

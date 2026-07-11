@@ -22,11 +22,13 @@ const sortMode = ref<HistorySortMode>('latest');
 const isSelectionMode = ref(false);
 const selectedIds = ref(new Set<string>());
 const sessions = computed(() => sessionStore.sessions);
+const currentWorkspacePath = computed(() => sessionStore.storageDebugInfo?.workspacePath ?? '');
 const { filteredSessions } = useHistorySessions({
   sessions,
   searchQuery,
   scopeFilter,
-  sortMode
+  sortMode,
+  currentWorkspacePath
 });
 const selectedCount = computed(() => selectedIds.value.size);
 
@@ -114,6 +116,7 @@ async function deleteSelectedSessions() {
         v-model:scope-filter="scopeFilter"
         v-model:sort-mode="sortMode"
         :is-selection-mode="isSelectionMode"
+        :current-workspace-path="currentWorkspacePath"
         @toggle-selection-mode="toggleSelectionMode"
       />
       <HistorySelectionToolbar

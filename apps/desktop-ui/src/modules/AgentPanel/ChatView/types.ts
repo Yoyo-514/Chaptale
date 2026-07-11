@@ -7,6 +7,15 @@ export type MessageBranchControl = {
   nextLeafId?: string;
 };
 
+export type ChatSearchMatch = {
+  id: string;
+  index: number;
+  toolTarget?: {
+    callId: string;
+    section: 'call' | 'result';
+  };
+};
+
 export type ChatDisplayMessage = {
   id: string;
   message: ChatMessage;

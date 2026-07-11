@@ -48,8 +48,8 @@ export type ChaptaleDesktopApi = {
     getMessages: (sessionId: string) => Promise<ChatMessage[]>;
     readImage: (payload: ReadSessionImagePayload) => Promise<ReadSessionImageResult>;
     rename: (sessionId: string, name: string) => Promise<ChaptaleSessionInfoEntry>;
-    /** 弹出保存对话框导出当前分支为 Markdown，返回保存路径；取消时返回 null。 */
-    exportMarkdown: (sessionId: string) => Promise<string | null>;
+    /** 弹出保存对话框导出当前分支为单文件 HTML，返回保存路径；取消时返回 null。 */
+    exportHtml: (sessionId: string) => Promise<string | null>;
     delete: (sessionId: string) => Promise<void>;
     deleteMany: (sessionIds: string[]) => Promise<void>;
     setLeaf: (sessionId: string, leafId: string | null) => Promise<void>;

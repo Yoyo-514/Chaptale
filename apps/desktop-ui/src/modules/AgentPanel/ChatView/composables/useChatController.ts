@@ -13,6 +13,7 @@ import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
 import {
   getAssistantReasoning,
   getAssistantText,
+  getAssistantToolCalls,
   getUserImages,
   getUserText,
   hasRenderableMessage,
@@ -274,6 +275,16 @@ export function useChatController() {
             }
 
             if (message.role === 'assistant' && message.partial) {
+              if (getAssistantToolCalls(message).length > 0) {
+                assistantStreaming.flush();
+                assistantStreaming.appendOrReplaceAssistantMessage({
+                  ...message,
+                  partial: false,
+                  stopReason: message.stopReason ?? 'toolUse'
+                });
+                return;
+              }
+
               if (message.content.length === 0 && getAssistantReasoning(message)) {
                 assistantStreaming.flush();
                 assistantStreaming.updateReasoningStatus('streaming');

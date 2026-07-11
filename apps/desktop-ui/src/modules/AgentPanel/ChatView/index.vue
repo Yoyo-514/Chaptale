@@ -14,7 +14,7 @@ import { useChatSearch } from './composables/useChatSearch';
 const chat = useChatController();
 const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
 const search = useChatSearch(() => chat.state.messages);
-const searchHitId = computed(() => (search.isOpen.value ? search.activeMatch.value?.id : undefined));
+const searchHit = computed(() => (search.isOpen.value ? search.activeMatch.value : undefined));
 
 async function scrollMessagesToBottom() {
   await nextTick();
@@ -99,7 +99,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
           :messages="chat.state.messages"
           :editing-message-id="chat.state.editingMessageId"
           :is-busy="chat.state.isConnecting || chat.state.isReplying"
-          :search-hit-id="searchHitId"
+          :search-hit="searchHit"
           @edit-user="chat.handleEditUserMessage"
           @save-user="handleSaveUserMessage"
           @cancel-edit="chat.handleCancelEdit"

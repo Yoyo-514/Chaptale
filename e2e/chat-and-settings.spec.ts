@@ -239,7 +239,7 @@ test('sending a prompt shows immediate generation feedback and then the assistan
   await expect(page.getByText('收到：写一段开场')).toBeVisible();
 });
 
-test('mixed attachments keep file cards separate while images show compact tiles and preview on demand', async ({
+test('mixed attachments keep compact tiles in the input while sent images render as a large gallery', async ({
   page
 }) => {
   await page.goto('/');
@@ -257,10 +257,11 @@ test('mixed attachments keep file cards separate while images show compact tiles
     .poll(() => page.evaluate(() => (window as any).chaptaleE2E.streamOptions.at(-1)?.contextFilePaths))
     .toEqual(['C:/novel/outline.md', ...Array.from({ length: 9 }, (_, index) => `C:/novel/cover-${index}.png`)]);
   await expect(page.locator('.message-container-user .chat-context-file-card')).toContainText('outline.md');
-  await expect(page.locator('.message-container-user .app-image-thumbnail-grid')).toBeVisible();
-  await expect(page.locator('.message-container-user .app-image-thumbnail-item')).toHaveCount(9);
-  const thumbnail = page.locator('.message-container-user .app-image-thumbnail-image').first();
-  await expect(thumbnail).toHaveAttribute('src', 'data:image/png;base64,YWJj');
+  await expect(page.locator('.message-container-user .app-image-gallery')).toBeVisible();
+  await expect(page.locator('.message-container-user .app-image-gallery-item')).toHaveCount(9);
+  await expect(page.locator('.message-container-user .app-image-gallery-count')).toHaveText('共 9 张');
+  const galleryImage = page.locator('.message-container-user .app-image-gallery-image').first();
+  await expect(galleryImage).toHaveAttribute('src', 'data:image/png;base64,YWJj');
   await page.getByRole('button', { name: '预览 用户上传的图片 1' }).click();
   await expect.poll(() => page.evaluate(() => (window as any).chaptaleE2E.imageReads.length)).toBe(1);
   await expect(page.getByText('1 / 9')).toBeVisible();

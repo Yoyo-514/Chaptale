@@ -2,11 +2,12 @@
 import { computed } from 'vue';
 
 import { formatToolName, formatUnknownToolPayload } from '../../utils/message/message-content';
-import ToolMessageCard from './ToolMessageCard.vue';
+import ToolMessageSection from './ToolMessageSection.vue';
 
 const props = defineProps<{
   name: string;
   args: Record<string, unknown>;
+  searchOpen?: boolean;
 }>();
 
 const summary = computed(() => {
@@ -61,5 +62,11 @@ function formatUrlTarget(args: Record<string, unknown>) {
 </script>
 
 <template>
-  <ToolMessageCard :title="formatToolName(name)" :summary="summary" :details="details" :icon="icon" status="running" />
+  <ToolMessageSection
+    :title="`调用 · ${formatToolName(name)}`"
+    :summary="summary"
+    :details="details"
+    :icon="icon"
+    :search-open="props.searchOpen"
+  />
 </template>

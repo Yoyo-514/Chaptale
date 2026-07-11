@@ -72,7 +72,7 @@ const hasHeadingExtra = computed(() => Boolean(slots.badge || slots.actions || s
 }
 
 .settings-section-scroll {
-  @apply min-h-0 flex-1;
+  @apply min-h-0 flex-1 -m-2 p-2;
 }
 
 .settings-section-scroll :deep(.settings-section-scroll-viewport) {

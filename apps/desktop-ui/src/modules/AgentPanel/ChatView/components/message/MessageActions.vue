@@ -18,37 +18,37 @@ const emit = defineEmits<{
     <AppButton
       icon
       variant="ghost"
-      size="sm"
+      size="xs"
       class="message-action-button"
       type="button"
       title="复制原文"
       @click="emit('copy')"
     >
-      <span class="i-mingcute-copy-2-line size-4" aria-hidden="true" />
+      <span class="i-mingcute-copy-2-line size-3.5" aria-hidden="true" />
     </AppButton>
     <AppButton
       v-if="canEdit"
       icon
       variant="ghost"
-      size="sm"
+      size="xs"
       class="message-action-button"
       type="button"
       title="编辑并重试"
       @click="emit('edit')"
     >
-      <span class="i-mingcute-edit-2-line size-4" aria-hidden="true" />
+      <span class="i-mingcute-edit-2-line size-3.5" aria-hidden="true" />
     </AppButton>
     <AppButton
       v-if="canRegenerate"
       icon
       variant="ghost"
-      size="sm"
+      size="xs"
       class="message-action-button"
       type="button"
       title="重新生成"
       @click="emit('regenerate')"
     >
-      <span class="i-mingcute-refresh-2-line size-4" aria-hidden="true" />
+      <span class="i-mingcute-refresh-2-line size-3.5" aria-hidden="true" />
     </AppButton>
   </div>
 </template>

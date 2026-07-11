@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { AppButton } from '@/components/AppButton';
 import { getHostname, parseSearchResult } from '../../utils/message/websearch-results';
 
 const props = defineProps<{
@@ -13,180 +12,121 @@ const parsedResult = computed(() => parseSearchResult(props.content));
 const citations = computed(() => parsedResult.value.citations);
 const displayedResults = computed(() => (showAll.value ? citations.value : citations.value.slice(0, 5)));
 const hasMore = computed(() => citations.value.length > displayedResults.value.length || showAll.value);
-const queryLabel = computed(() => {
-  const count = parsedResult.value.queries.length;
-  return count > 0 ? `${count} 次查询` : '联网搜索';
+const metaLine = computed(() => {
+  const parts: string[] = [];
+
+  if (parsedResult.value.queries.length) {
+    parts.push(`查询：${parsedResult.value.queries.join('、')}`);
+  }
+
+  parts.push(`${citations.value.length} 个来源`);
+  return parts.join(' · ');
 });
 </script>
 
 <template>
-  <div class="websearch-card">
-    <header class="websearch-header">
-      <span class="websearch-icon i-mingcute-earth-line" aria-hidden="true" />
-      <span class="websearch-heading">
-        <strong>联网搜索完成</strong>
-        <small>{{ queryLabel }} · {{ citations.length }} 个来源</small>
-      </span>
-    </header>
-
-    <div v-if="parsedResult.queries.length" class="websearch-query-list" aria-label="搜索查询">
-      <span v-for="query in parsedResult.queries.slice(0, 3)" :key="query" class="websearch-query-chip">
-        {{ query }}
-      </span>
-      <span v-if="parsedResult.queries.length > 3" class="websearch-query-chip is-muted">
-        +{{ parsedResult.queries.length - 3 }}
-      </span>
-    </div>
+  <div class="websearch-results">
+    <p class="websearch-meta">{{ metaLine }}</p>
 
     <p v-if="parsedResult.summary" class="websearch-summary">{{ parsedResult.summary }}</p>
 
-    <div v-if="parsedResult.statusNotes.length" class="websearch-status-list">
-      <p v-for="note in parsedResult.statusNotes" :key="note" class="websearch-status-note">{{ note }}</p>
-    </div>
+    <p v-for="note in parsedResult.statusNotes" :key="note" class="websearch-status-note">{{ note }}</p>
 
-    <div v-if="citations.length" class="websearch-citation-list">
-      <a
-        v-for="(result, index) in displayedResults"
-        :key="`${result.link}-${index}`"
-        class="websearch-citation"
-        :href="result.link"
-        target="_blank"
-        rel="noreferrer"
-        :title="result.description || result.title"
-      >
-        <span class="websearch-citation-index">{{ index + 1 }}</span>
-        <span class="websearch-citation-content">
-          <span class="websearch-citation-title">{{ result.title }}</span>
-          <span class="websearch-citation-source">{{ getHostname(result.link) }}</span>
-          <span v-if="showAll && result.description" class="websearch-citation-description">
-            {{ result.description }}
-          </span>
-        </span>
-        <span class="i-mingcute-external-link-line websearch-citation-link" aria-hidden="true" />
-      </a>
-    </div>
+    <ol v-if="citations.length" class="websearch-citation-list">
+      <li v-for="(result, index) in displayedResults" :key="`${result.link}-${index}`" class="websearch-citation-item">
+        <a
+          class="websearch-citation"
+          :href="result.link"
+          target="_blank"
+          rel="noreferrer"
+          :title="result.description || result.title"
+        >
+          {{ result.title }}
+        </a>
+        <span class="websearch-citation-source">{{ getHostname(result.link) }}</span>
+        <p v-if="showAll && result.description" class="websearch-citation-description">
+          {{ result.description }}
+        </p>
+      </li>
+    </ol>
 
     <p v-else class="websearch-empty">搜索完成，但结果中没有可解析的来源链接。</p>
 
-    <AppButton
-      v-if="hasMore"
-      variant="ghost"
-      size="xs"
-      class="websearch-citations-toggle"
-      type="button"
-      @click="showAll = !showAll"
-    >
+    <button v-if="hasMore" class="websearch-citations-toggle" type="button" @click="showAll = !showAll">
       {{ showAll ? '收起来源' : `查看全部 ${citations.length} 个来源` }}
-    </AppButton>
+    </button>
   </div>
 </template>
 
 <style scoped lang="scss">
-.websearch-card {
-  @apply flex max-w-full flex-col gap-2 rounded-xl border p-3 text-foreground shadow-inset-highlight;
-
-  background: color-mix(in srgb, var(--surface-acrylic) 92%, var(--background));
-  border-color: var(--border-subtle);
+.websearch-results {
+  @apply flex max-w-full flex-col gap-1.5 py-1 text-xs leading-5;
 }
 
-.websearch-header {
-  @apply flex items-center gap-2;
-}
-
-.websearch-icon {
-  @apply flex-center size-5 shrink-0 rounded-full text-xs;
-
-  background: var(--primary-solid);
-  color: var(--secondary-foreground);
-}
-
-.websearch-heading {
-  @apply flex min-w-0 flex-col gap-0.5;
-}
-
-.websearch-heading strong {
-  @apply text-sm font-semibold;
-}
-
-.websearch-heading small,
+.websearch-meta,
 .websearch-summary,
 .websearch-empty,
-.websearch-status-note {
-  @apply text-xs leading-5;
+.websearch-status-note,
+.websearch-citation-description {
+  @apply m-0;
 
   color: var(--muted-foreground);
-}
-
-.websearch-query-list {
-  @apply flex flex-wrap gap-1;
-}
-
-.websearch-query-chip {
-  @apply max-w-full truncate rounded-full border px-2 py-0.5 text-xs;
-
-  background: var(--surface-muted);
-  border-color: var(--border-subtle);
-  color: var(--muted-foreground);
-}
-
-.websearch-query-chip.is-muted {
-  @apply shrink-0;
 }
 
 .websearch-summary {
-  @apply m-0 rounded-lg border px-2.5 py-2;
+  @apply whitespace-pre-wrap break-words;
 
-  background: var(--surface-muted);
-  border-color: var(--border-subtle);
-}
-
-.websearch-status-list {
-  @apply grid gap-1;
-}
-
-.websearch-status-note {
-  @apply m-0 rounded-md px-2 py-1;
-
-  background: color-mix(in srgb, var(--primary-solid) 8%, transparent);
+  color: var(--secondary-foreground);
 }
 
 .websearch-citation-list {
-  @apply grid gap-1;
+  @apply m-0 flex list-none flex-col gap-1 p-0;
+
+  counter-reset: websearch-citation;
+}
+
+.websearch-citation-item {
+  @apply min-w-0;
+
+  counter-increment: websearch-citation;
+}
+
+.websearch-citation-item::before {
+  @apply mr-1.5 tabular-nums;
+
+  content: counter(websearch-citation) '.';
+  color: var(--muted-foreground);
 }
 
 .websearch-citation {
-  @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-surface-muted;
-}
+  @apply break-all no-underline;
 
-.websearch-citation-index {
-  @apply flex-center mt-0.5 size-5 rounded-full text-xs;
-
-  background: color-mix(in srgb, var(--primary-solid) 14%, transparent);
   color: var(--primary-solid);
 }
 
-.websearch-citation-content {
-  @apply flex min-w-0 flex-col gap-0.5;
+.websearch-citation:hover,
+.websearch-citation:focus-visible {
+  @apply underline;
 }
 
-.websearch-citation-title {
-  @apply truncate text-sm font-medium text-primary-solid;
-}
+.websearch-citation-source {
+  @apply ml-1.5;
 
-.websearch-citation-source,
-.websearch-citation-description {
-  @apply text-xs text-muted-foreground;
+  color: var(--muted-foreground);
 }
 
 .websearch-citation-description {
-  @apply line-clamp-2;
-}
-
-.websearch-citation-link {
-  @apply mt-1 text-muted-foreground;
+  @apply line-clamp-2 pl-4;
 }
 
 .websearch-citations-toggle {
-  @apply self-center;
+  @apply w-fit cursor-pointer border-0 bg-transparent p-0 text-xs outline-none transition-colors duration-150;
+
+  color: var(--muted-foreground);
+}
+
+.websearch-citations-toggle:hover,
+.websearch-citations-toggle:focus-visible {
+  color: var(--foreground);
 }
 </style>

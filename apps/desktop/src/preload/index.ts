@@ -46,8 +46,8 @@ const desktopApi: ChaptaleDesktopApi = {
     readImage: (payload: ReadSessionImagePayload) =>
       ipcRenderer.invoke(IPC_CHANNELS.session.readImage, payload) as Promise<ReadSessionImageResult>,
     rename: (sessionId: string, name: string) => ipcRenderer.invoke(IPC_CHANNELS.session.rename, { sessionId, name }),
-    exportMarkdown: (sessionId: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.session.exportMarkdown, { sessionId }) as Promise<string | null>,
+    exportHtml: (sessionId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.session.exportHtml, { sessionId }) as Promise<string | null>,
     delete: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.session.delete, { sessionId }) as Promise<void>,
     deleteMany: (sessionIds: string[]) =>
       ipcRenderer.invoke(IPC_CHANNELS.session.deleteMany, { sessionIds }) as Promise<void>,

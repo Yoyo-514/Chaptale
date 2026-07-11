@@ -44,7 +44,7 @@ async function handleExportSession() {
     return;
   }
 
-  const savedPath = await sessionStore.exportSessionMarkdown(sessionId);
+  const savedPath = await sessionStore.exportSessionHtml(sessionId);
 
   if (savedPath) {
     notificationStore.success('会话已导出', savedPath);
@@ -68,13 +68,13 @@ async function handleExportSession() {
     </div>
 
     <div class="chat-toolbar-actions">
-      <AppTooltip text="导出会话为 Markdown" side="bottom" :side-offset="3">
+      <AppTooltip text="导出会话为 HTML" side="bottom" :side-offset="3">
         <AppButton
           icon
           variant="ghost"
           size="sm"
           type="button"
-          aria-label="导出会话为 Markdown"
+          aria-label="导出会话为 HTML"
           :disabled="!currentSession"
           @click="handleExportSession"
         >

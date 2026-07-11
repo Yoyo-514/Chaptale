@@ -13,6 +13,7 @@ export const useSessionStore = defineStore('session', {
   state: () => ({
     sessions: [] as ChaptaleSessionListItem[],
     currentSessionId: '',
+    selectionRestored: false,
     storageDebugInfo: undefined as ChaptaleSessionStorageDebugInfo | undefined,
     isLoading: false,
     error: ''
@@ -28,9 +29,26 @@ export const useSessionStore = defineStore('session', {
       this.error = '';
 
       try {
-        this.sessions = await getDesktopApi().session.list();
-        if (!this.currentSessionId && this.sessions[0]) {
-          this.currentSessionId = this.sessions[0].id;
+        const desktopApi = getDesktopApi();
+        this.sessions = await desktopApi.session.list();
+
+        if (!this.selectionRestored) {
+          const persistedSessionId = await desktopApi.settings
+            .getState()
+            .then(state => state.settings.lastSessionId ?? '')
+            .catch(() => '');
+          const candidateId = this.currentSessionId || persistedSessionId;
+          this.currentSessionId = this.sessions.some(session => session.id === candidateId)
+            ? candidateId
+            : (this.sessions[0]?.id ?? '');
+          this.selectionRestored = true;
+
+          if (this.currentSessionId !== persistedSessionId) {
+            await this.persistCurrentSession();
+          }
+        } else if (!this.sessions.some(session => session.id === this.currentSessionId)) {
+          this.currentSessionId = this.sessions[0]?.id ?? '';
+          await this.persistCurrentSession();
         }
       } catch (error) {
         this.error = toErrorMessage(error);
@@ -54,6 +72,7 @@ export const useSessionStore = defineStore('session', {
       this.error = '';
       const session = await getDesktopApi().session.create(options);
       this.currentSessionId = session.id;
+      await this.persistCurrentSession();
       await this.loadSessions();
       return session;
     },
@@ -68,6 +87,7 @@ export const useSessionStore = defineStore('session', {
 
         if (deletedCurrentSession) {
           this.currentSessionId = this.sessions[0]?.id ?? '';
+          await this.persistCurrentSession();
         }
 
         await this.loadSessions();
@@ -90,6 +110,7 @@ export const useSessionStore = defineStore('session', {
 
         if (ids.includes(this.currentSessionId)) {
           this.currentSessionId = this.sessions[0]?.id ?? '';
+          await this.persistCurrentSession();
         }
 
         await this.loadSessions();
@@ -100,6 +121,15 @@ export const useSessionStore = defineStore('session', {
 
     async selectSession(sessionId: string) {
       this.currentSessionId = sessionId;
+      await this.persistCurrentSession();
+    },
+
+    async persistCurrentSession() {
+      try {
+        await getDesktopApi().settings.update({ lastSessionId: this.currentSessionId || null });
+      } catch {
+        // 会话切换本身不应因偏好持久化失败而中断。
+      }
     },
 
     async renameSession(sessionId: string, name: string) {
@@ -119,11 +149,11 @@ export const useSessionStore = defineStore('session', {
     },
 
     /** 返回导出文件路径；用户取消或失败时返回 null。 */
-    async exportSessionMarkdown(sessionId: string) {
+    async exportSessionHtml(sessionId: string) {
       this.error = '';
 
       try {
-        return await getDesktopApi().session.exportMarkdown(sessionId);
+        return await getDesktopApi().session.exportHtml(sessionId);
       } catch (error) {
         this.error = toErrorMessage(error);
         return null;

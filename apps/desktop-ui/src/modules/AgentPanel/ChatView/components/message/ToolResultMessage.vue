@@ -3,22 +3,30 @@ import { computed } from 'vue';
 
 import { formatMaybeJson, formatToolName } from '../../utils/message/message-content';
 import MessageWebsearchResults from './MessageWebsearchResults.vue';
-import ToolMessageCard from './ToolMessageCard.vue';
+import ToolMessageSection from './ToolMessageSection.vue';
 
 const props = defineProps<{
   name: string;
   content: string;
+  imageCount?: number;
+  isError?: boolean;
+  searchOpen?: boolean;
 }>();
 
 const isWebSearch = computed(() => props.name === 'web_search');
 const formattedContent = computed(() => formatMaybeJson(props.content));
 const icon = computed(() => {
+  if (props.isError) return 'i-mingcute-close-circle-line';
   if (props.name === 'fetch_content' || props.name === 'get_search_content') return 'i-mingcute-link-line';
   return 'i-mingcute-check-circle-line';
 });
 const summary = computed(() => {
+  if (props.isError) {
+    return '工具执行失败，展开查看错误信息';
+  }
+
   if (!props.content) {
-    return '工具没有返回内容';
+    return props.imageCount ? `返回了 ${props.imageCount} 张图片，见下方大图` : '工具没有返回内容';
   }
 
   if (props.name === 'fetch_content') {
@@ -34,13 +42,23 @@ const summary = computed(() => {
 </script>
 
 <template>
-  <MessageWebsearchResults v-if="isWebSearch" :content="content" />
-  <ToolMessageCard
+  <ToolMessageSection
+    v-if="isWebSearch && !props.isError"
+    :title="`结果 · ${formatToolName(name)}`"
+    :summary="summary"
+    :icon="icon"
+    :search-open="props.searchOpen"
+    :status="props.isError ? 'error' : 'done'"
+  >
+    <MessageWebsearchResults :content="content" />
+  </ToolMessageSection>
+  <ToolMessageSection
     v-else
-    :title="`${formatToolName(name)} 结果`"
+    :title="`结果 · ${formatToolName(name)}`"
     :summary="summary"
     :details="formattedContent"
     :icon="icon"
-    status="done"
+    :search-open="props.searchOpen"
+    :status="props.isError ? 'error' : 'done'"
   />
 </template>

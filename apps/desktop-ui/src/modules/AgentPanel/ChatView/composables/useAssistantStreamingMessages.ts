@@ -1,7 +1,12 @@
 import type { ChatMessage } from '@chaptale/shared';
 
 import type { ChatDisplayMessage } from '../types';
-import { getAssistantReasoning, getAssistantText, getPrimaryToolCall } from '../utils/message/message-content';
+import {
+  getAssistantReasoning,
+  getAssistantText,
+  getAssistantToolCalls,
+  getPrimaryToolCall
+} from '../utils/message/message-content';
 import { useStreamingMessageBuffer } from './useStreamingMessageBuffer';
 
 type CreateDisplayMessage = (message: ChatMessage, prefix?: string) => ChatDisplayMessage;
@@ -65,16 +70,37 @@ export function useAssistantStreamingMessages(options: {
   function appendOrReplaceAssistantMessage(message: ChatMessage) {
     const currentMessages = messages();
 
+    if (message.role === 'toolResult') {
+      const existingResult = currentMessages.find(
+        item => item.message.role === 'toolResult' && item.message.toolCallId === message.toolCallId
+      );
+
+      if (existingResult) {
+        existingResult.message = message;
+      } else {
+        currentMessages.push(options.createDisplayMessage(message));
+      }
+      return;
+    }
+
     if (message.role !== 'assistant') {
       currentMessages.push(options.createDisplayMessage(message));
       return;
     }
 
+    const incomingToolCalls = getAssistantToolCalls(message);
     const lastDisplayMessage = currentMessages.at(-1);
     const lastMessage = lastDisplayMessage?.message;
 
-    if (lastMessage?.role === 'assistant' && lastMessage.partial) {
-      currentMessages.splice(currentMessages.length - 1, 1, options.createDisplayMessage(message));
+    if (lastDisplayMessage && lastMessage?.role === 'assistant' && lastMessage.partial) {
+      lastDisplayMessage.message =
+        incomingToolCalls.length > 0
+          ? { ...message, content: mergeAssistantContent(lastMessage.content, message.content) }
+          : message;
+      return;
+    }
+
+    if (incomingToolCalls.length > 0 && updateExistingToolCalls(currentMessages, incomingToolCalls)) {
       return;
     }
 
@@ -165,6 +191,54 @@ function createAssistantErrorMessage(message: string): ChatMessage {
     errorMessage: message,
     timestamp: Date.now()
   };
+}
+
+function mergeAssistantContent(
+  previous: AssistantMessage['content'],
+  incoming: AssistantMessage['content']
+): AssistantMessage['content'] {
+  const merged = [...previous];
+
+  for (const block of incoming) {
+    if (block.type !== 'toolCall') {
+      merged.push(block);
+      continue;
+    }
+
+    const existingIndex = merged.findIndex(candidate => candidate.type === 'toolCall' && candidate.id === block.id);
+
+    if (existingIndex >= 0) {
+      merged.splice(existingIndex, 1, block);
+    } else {
+      merged.push(block);
+    }
+  }
+
+  return merged;
+}
+
+function updateExistingToolCalls(
+  messages: ChatDisplayMessage[],
+  incomingToolCalls: ReturnType<typeof getAssistantToolCalls>
+) {
+  let updatedCount = 0;
+
+  for (const incomingCall of incomingToolCalls) {
+    for (const displayMessage of messages) {
+      if (displayMessage.message.role !== 'assistant') continue;
+      const existingIndex = displayMessage.message.content.findIndex(
+        block => block.type === 'toolCall' && block.id === incomingCall.id
+      );
+
+      if (existingIndex >= 0) {
+        displayMessage.message.content.splice(existingIndex, 1, incomingCall);
+        updatedCount += 1;
+        break;
+      }
+    }
+  }
+
+  return updatedCount === incomingToolCalls.length;
 }
 
 function hasAssistantPayload(message: AssistantMessage) {

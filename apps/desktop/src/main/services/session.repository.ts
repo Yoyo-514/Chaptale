@@ -19,7 +19,7 @@ import { toSessionListItem, toSessionTreeEntry } from '../sessions/pi-session-en
 import { ImageAttachmentService } from './image-attachment.service';
 import { flushSessionFile } from '../sessions/pi-session-file';
 import { fromPiMessage, toPiMessage } from '../sessions/pi-session-message.mapper';
-import { buildSessionMarkdown, toSafeFileName } from '../sessions/session-markdown';
+import { buildSessionHtml, toSafeFileName } from '../sessions/session-html';
 import { readSessionUsage } from '../sessions/pi-session-usage';
 
 export type PiSessionRepositoryOptions = {
@@ -130,14 +130,14 @@ export class PiSessionRepository {
       .map(entry => toSessionTreeEntry(entry, { sessionId, imageAttachmentService: this.imageAttachmentService }));
   }
 
-  /** 导出当前分支为 Markdown 文本；文件写入由 IPC 层负责。 */
-  async exportMarkdown(sessionId: string): Promise<{ markdown: string; suggestedFileName: string }> {
+  /** 导出当前分支为单文件 HTML；文件写入由 IPC 层负责。 */
+  async exportHtml(sessionId: string): Promise<{ html: string; suggestedFileName: string }> {
     const [session, entries] = await Promise.all([this.findSessionInfo(sessionId), this.getPathToRoot(sessionId)]);
     const name = session.name || session.lastMessagePreview || '未命名会话';
 
     return {
-      markdown: buildSessionMarkdown({ name, entries }),
-      suggestedFileName: `${toSafeFileName(name)}.md`
+      html: buildSessionHtml({ name, entries }),
+      suggestedFileName: `${toSafeFileName(name)}.html`
     };
   }
 

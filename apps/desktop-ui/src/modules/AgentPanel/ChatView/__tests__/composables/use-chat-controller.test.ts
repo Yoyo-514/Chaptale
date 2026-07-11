@@ -175,6 +175,49 @@ describe('useChatController', () => {
     expect(controller.state.isReplying).toBe(false);
   });
 
+  it('renders a partial tool call without dropping text streamed before it', async () => {
+    installDesktopMock({
+      agent: {
+        selectContextFiles: vi.fn().mockResolvedValue([]),
+        inspectContextFiles: vi.fn().mockResolvedValue([]),
+        getPathForFile: vi.fn().mockReturnValue(''),
+        stream: vi.fn().mockImplementation(async (_query, handlers) => {
+          handlers.onMessage({
+            role: 'assistant',
+            partial: true,
+            content: [{ type: 'text', text: '先修改文件。' }]
+          });
+          handlers.onMessage({
+            role: 'assistant',
+            partial: true,
+            content: [{ type: 'toolCall', id: 'call-1', name: 'edit', arguments: { path: 'src/a.ts' } }]
+          });
+          handlers.onMessage({
+            role: 'toolResult',
+            toolCallId: 'call-1',
+            toolName: 'edit',
+            content: [{ type: 'text', text: 'updated' }]
+          });
+          return { runId: 'run-tools' };
+        }),
+        cancel: vi.fn()
+      }
+    });
+    const controller = await mountController();
+
+    controller.state.input = '修改文件';
+    await controller.handleSend();
+
+    expect(controller.state.messages.map(item => item.message.role)).toEqual(['user', 'assistant', 'toolResult']);
+    expect(controller.state.messages[1]?.message).toMatchObject({
+      role: 'assistant',
+      content: [
+        { type: 'text', text: '先修改文件。' },
+        { type: 'toolCall', id: 'call-1', name: 'edit', arguments: { path: 'src/a.ts' } }
+      ]
+    });
+  });
+
   it('selects context files, sends their paths, and clears the selection after submission', async () => {
     const selectedFile = {
       path: 'C:/novel/outline.md',
