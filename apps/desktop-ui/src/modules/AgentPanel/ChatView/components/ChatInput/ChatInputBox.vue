@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 
 import { cn } from '@/utils';
-import type { SelectedContextFile } from '@chaptale/ipc-contract';
+import type { SelectedContextFile, SlashCommand } from '@chaptale/ipc-contract';
 import ChatContextFiles from './ChatContextFiles.vue';
 import ChatInputStatusBar from './ChatInputStatusBar.vue';
 import ChatInputToolbar from './ChatInputToolbar.vue';
@@ -14,6 +14,7 @@ const props = defineProps<{
   isReplying: boolean;
   isEnabledWebSearch: boolean;
   contextFiles: SelectedContextFile[];
+  slashCommands: SlashCommand[];
   modelLabel: string;
   workspaceLabel: string;
 }>();
@@ -97,6 +98,7 @@ function handleDrop(event: DragEvent) {
         :model-value="props.modelValue"
         :is-connecting="props.isConnecting"
         :is-replying="props.isReplying"
+        :slash-commands="props.slashCommands"
         @update:model-value="emit('update:modelValue', $event)"
         @submit="emit('submit')"
       />

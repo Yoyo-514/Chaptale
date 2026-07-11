@@ -1,6 +1,6 @@
 import type { AgentRunOptions, AgentRuntime } from '@chaptale/agent-core';
 import type { ChatMessage } from '@chaptale/shared';
-import { errorToMessage } from '@chaptale/shared';
+import { errorToMessage, formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
 import { mapAgentStreamEvent } from '../agent/pi-agent-event.mapper';
@@ -9,6 +9,7 @@ import { flushSessionFile } from '../sessions/pi-session-file';
 import { getPiUserEntrySnapshot } from '../sessions/pi-user-entry-snapshot';
 import { ContextFileService } from './context-file.service';
 import { decodeContextMessage } from './context-files/context-message-codec';
+import { SkillsProvider } from '../skills/skills-provider';
 import { ImageAttachmentService } from './image-attachment.service';
 import type { PiModelService } from './pi-model.service';
 import type { SettingsService } from './settings.service';
@@ -27,13 +28,16 @@ export class PiAgentService implements AgentRuntime {
   private sessions = new Map<string, Promise<AgentSession>>();
   private readonly contextFileService = new ContextFileService();
   private readonly sessionFactory: PiAgentSessionFactory;
+  readonly skillsProvider: SkillsProvider;
 
   constructor(
     settingsService: SettingsService,
     private readonly modelService: PiModelService,
-    private readonly imageAttachmentService = new ImageAttachmentService()
+    private readonly imageAttachmentService = new ImageAttachmentService(),
+    skillsProvider = new SkillsProvider(settingsService)
   ) {
-    this.sessionFactory = new PiAgentSessionFactory({ settingsService, modelService });
+    this.skillsProvider = skillsProvider;
+    this.sessionFactory = new PiAgentSessionFactory({ settingsService, modelService, skillsProvider });
   }
 
   /** 会话目录/工作区切换后调用，丢弃缓存的 AgentSession。 */
@@ -65,6 +69,12 @@ export class PiAgentService implements AgentRuntime {
   async *stream(options: StreamOptions): AsyncGenerator<ChatMessage> {
     const { signal, query, sessionId } = options;
     const session = await this.getOrCreateSession(sessionId);
+    const skillInvocation = parseSkillInvocation(query);
+
+    // 显式 skill 命令应读取磁盘上的最新定义，避免命令菜单已刷新但缓存会话仍持有旧 skills。
+    if (skillInvocation) {
+      await session.reload();
+    }
 
     // 默认模型可能在会话创建后被切换（或会话恢复了无凭据的旧模型），
     // 每次执行前同步为当前默认模型，避免拿旧模型/旧凭据请求导致 401/403。
@@ -156,19 +166,27 @@ export class PiAgentService implements AgentRuntime {
         const imagePath = imagePaths[blockIndex - 1];
         return imagePath ? { type: 'context-file', path: imagePath } : undefined;
       });
+      const displayText = skillInvocation?.arguments ?? query;
       const userContent =
         presentation.attachments.length > 0
-          ? [{ type: 'text' as const, text: query }, ...presentation.attachments]
-          : query;
+          ? [...(displayText ? [{ type: 'text' as const, text: displayText }] : []), ...presentation.attachments]
+          : displayText;
 
       yield {
         role: 'user',
         content: userContent,
         ...(decodedContext.contextFiles.length > 0 ? { contextFiles: decodedContext.contextFiles } : {}),
+        ...(skillInvocation ? { skillInvocation } : {}),
         timestamp: Date.now()
       };
 
-      const promptText = `${promptPrefix}${query}`;
+      // pi 只在文本以 /skill: 开头时执行原生展开；附件信封因此作为命令参数注入，而不是放在命令前。
+      const promptText = skillInvocation
+        ? formatSkillInvocation({
+            ...skillInvocation,
+            arguments: `${promptPrefix}${skillInvocation.arguments}`.trim()
+          })
+        : `${promptPrefix}${query}`;
       const promptPromise = session.prompt(promptText, { images: promptImages }).catch((error: unknown) => {
         failure = error instanceof Error ? error : new Error(errorToMessage(error));
         done = true;

@@ -38,6 +38,25 @@ describe('getPiUserEntrySnapshot', () => {
     });
   });
 
+  it('recovers the attachment envelope from a native pi-expanded skill message', () => {
+    const promptPrefix =
+      '<attached_context_files>\n<file path="C:/novel/outline.md" handling="file-input-text" size="2 KB">正文</file>\n</attached_context_files>\n\n';
+    const manager = createManager({
+      type: 'message',
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `<skill name="review" location="C:/skills/review/SKILL.md">\nReferences are relative to C:/skills/review.\n\n技能正文\n</skill>\n\n${promptPrefix}检查第一章`
+          }
+        ]
+      }
+    });
+
+    expect(getPiUserEntrySnapshot(manager, 'entry-user').promptPrefix).toBe(promptPrefix);
+  });
+
   it('rejects missing, non-user, and malformed Pi entries', () => {
     expect(() => getPiUserEntrySnapshot(createManager(undefined), 'missing')).toThrow('找不到');
     expect(() =>

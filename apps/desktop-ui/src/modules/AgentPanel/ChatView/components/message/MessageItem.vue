@@ -18,7 +18,9 @@ import {
   getTextBlocks,
   getToolResultImages,
   getUserContextFiles,
+  getUserDisplayText,
   getUserImages,
+  getUserSkillInvocation,
   getUserText,
   hasRenderableMessage,
   hasUserAttachments
@@ -52,7 +54,11 @@ const message = computed(() => props.displayMessage.message);
 const isUserMessage = computed(() => message.value.role === 'user');
 const isAssistantMessage = computed(() => message.value.role === 'assistant');
 const isRenderable = computed(() => hasRenderableMessage(message.value));
-const userContent = computed(() => (message.value.role === 'user' ? getUserText(message.value) : ''));
+const userContent = computed(() => (message.value.role === 'user' ? getUserDisplayText(message.value) : ''));
+const userEditableContent = computed(() => (message.value.role === 'user' ? getUserText(message.value) : ''));
+const userSkillInvocation = computed(() =>
+  message.value.role === 'user' ? getUserSkillInvocation(message.value) : undefined
+);
 const userContextFiles = computed(() => (message.value.role === 'user' ? getUserContextFiles(message.value) : []));
 const userImages = computed(() => (message.value.role === 'user' ? getUserImages(message.value) : []));
 const assistantContent = computed(() => (message.value.role === 'assistant' ? getAssistantText(message.value) : ''));
@@ -196,6 +202,8 @@ async function copyRawText() {
       <UserMessage
         v-if="message.role === 'user'"
         :content="userContent"
+        :editable-content="userEditableContent"
+        :skill-invocation="userSkillInvocation"
         :context-files="userContextFiles"
         :images="userImages"
         :editing="isEditing"

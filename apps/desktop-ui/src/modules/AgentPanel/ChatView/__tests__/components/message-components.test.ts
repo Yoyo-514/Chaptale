@@ -16,7 +16,7 @@ vi.mock('../../utils/markdown', () => ({
 
 describe('chat message components', () => {
   it('edits user messages and prevents saving empty content', async () => {
-    const wrapper = mount(UserMessage, { props: { content: '旧内容', editing: true } });
+    const wrapper = mount(UserMessage, { props: { content: '旧内容', editableContent: '旧内容', editing: true } });
     const textarea = wrapper.find('textarea');
 
     await textarea.setValue('   ');
@@ -31,10 +31,28 @@ describe('chat message components', () => {
     expect(wrapper.emitted('cancel')).toHaveLength(1);
   });
 
+  it('renders a compact skill badge while editing the reusable slash invocation', async () => {
+    const wrapper = mount(UserMessage, {
+      props: {
+        content: '检查第一章',
+        editableContent: '/skill:review 检查第一章',
+        skillInvocation: { name: 'review', arguments: '检查第一章' },
+        editing: false
+      }
+    });
+
+    expect(wrapper.find('.user-message-skill').text()).toBe('<review>');
+    expect(wrapper.find('.user-message').text()).toContain('检查第一章');
+
+    await wrapper.setProps({ editing: true });
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('/skill:review 检查第一章');
+  });
+
   it('renders files and image previews on user messages without exposing removal controls', () => {
     const wrapper = mount(UserMessage, {
       props: {
         content: '检查附件',
+        editableContent: '检查附件',
         contextFiles: [{ path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' }],
         images: [
           {

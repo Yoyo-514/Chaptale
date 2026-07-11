@@ -6,6 +6,7 @@ import { registerAgentIpc } from './ipc/agent.ipc';
 import { registerModelsIpc } from './ipc/models.ipc';
 import { registerSessionIpc } from './ipc/session.ipc';
 import { registerSettingsIpc } from './ipc/settings.ipc';
+import { registerSlashCommandIpc } from './ipc/slash-command.ipc';
 import { registerWindowIpc } from './ipc/window.ipc';
 import { isExternalUrl, isTrustedRendererUrl } from './security/navigation-security';
 import { configureTrustedRendererUrl, handleTrustedIpc } from './security/trusted-ipc';
@@ -13,6 +14,7 @@ import { PiAgentService } from './services/pi-agent.service';
 import { PiModelService } from './services/pi-model.service';
 import { PiSessionRepository } from './services/session.repository';
 import { SettingsService } from './services/settings.service';
+import { SlashCommandService } from './services/slash-command.service';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
@@ -98,6 +100,7 @@ app.whenReady().then(() => {
   });
   const piModelService = new PiModelService(settingsService);
   const piAgentService = new PiAgentService(settingsService, piModelService);
+  const slashCommandService = new SlashCommandService(settingsService, piAgentService.skillsProvider);
 
   handleTrustedIpc(
     IPC_CHANNELS.app.getPlatform,
@@ -114,6 +117,7 @@ app.whenReady().then(() => {
   registerSettingsIpc(settingsService, () => piAgentService.invalidateSessions());
   registerModelsIpc(piModelService);
   registerAgentIpc(piAgentService);
+  registerSlashCommandIpc(slashCommandService);
   registerWindowIpc();
 
   const mainWindow = createMainWindow(rendererEntryUrl);

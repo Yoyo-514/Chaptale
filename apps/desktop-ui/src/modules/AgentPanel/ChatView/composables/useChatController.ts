@@ -4,12 +4,13 @@ import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
 import { useSettingsStore } from '@/stores/settings';
 import { getDesktopApi } from '@/stores/utils/desktop-api';
-import type { SelectedContextFile } from '@chaptale/ipc-contract';
+import type { SelectedContextFile, SlashCommand } from '@chaptale/ipc-contract';
 import type { ChatImageAttachment, ChatMessage } from '@chaptale/shared';
 import { errorToMessage } from '@chaptale/shared';
 import type { ChatDisplayMessage } from '../types';
 import { getDroppedContextFilePaths, mergeSelectedContextFiles } from '../utils/context-files';
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
+import { findSlashCommand, getSlashCommandName, parseSkillSlashCommand } from '../utils/slash-commands';
 import {
   getAssistantReasoning,
   getAssistantText,
@@ -30,6 +31,7 @@ type ChatState = {
   isEnabledWebSearch: boolean;
   isLoadingMessages: boolean;
   contextFiles: SelectedContextFile[];
+  slashCommands: SlashCommand[];
 };
 
 let messageSequence = 0;
@@ -63,6 +65,8 @@ function getPreviewImage(file: SelectedContextFile): ChatImageAttachment | undef
 function createUserMessage(content: string, contextFiles: SelectedContextFile[] = []): ChatMessage {
   const images: ChatImageAttachment[] = [];
   const displayFiles: SelectedContextFile[] = [];
+  const skillInvocation = parseSkillSlashCommand(content);
+  const displayContent = skillInvocation?.arguments ?? content;
 
   for (const file of contextFiles) {
     const image = getPreviewImage(file);
@@ -76,8 +80,12 @@ function createUserMessage(content: string, contextFiles: SelectedContextFile[] 
 
   return {
     role: 'user',
-    content: images.length > 0 ? [{ type: 'text', text: content }, ...images] : content,
+    content:
+      images.length > 0
+        ? [...(displayContent ? [{ type: 'text' as const, text: displayContent }] : []), ...images]
+        : displayContent,
     ...(displayFiles.length > 0 ? { contextFiles: displayFiles } : {}),
+    ...(skillInvocation ? { skillInvocation } : {}),
     timestamp: Date.now()
   };
 }
@@ -105,7 +113,8 @@ export function useChatController() {
     isReplying: false,
     isEnabledWebSearch: true,
     isLoadingMessages: true,
-    contextFiles: []
+    contextFiles: [],
+    slashCommands: []
   });
 
   const activeRunId = ref<string>('');
@@ -180,6 +189,14 @@ export function useChatController() {
     }
   }
 
+  async function loadSlashCommands() {
+    try {
+      state.slashCommands = await getDesktopApi().slashCommands.list();
+    } catch (error) {
+      notificationStore.error('加载命令失败', errorToMessage(error));
+    }
+  }
+
   async function loadWebAccessSettings() {
     if (!settingsStore.state) {
       await settingsStore.load();
@@ -195,12 +212,22 @@ export function useChatController() {
   onMounted(() => {
     void loadCurrentSessionMessages();
     void loadWebAccessSettings();
+    void loadSlashCommands();
 
     // 状态条需要默认模型信息；若设置面板未打开过，models 尚未加载。
     if (!settingsStore.models) {
       void settingsStore.loadModels();
     }
   });
+
+  watch(
+    () => state.input,
+    (input, previousInput) => {
+      if (input.startsWith('/') && !previousInput.startsWith('/')) {
+        void loadSlashCommands();
+      }
+    }
+  );
 
   watch(
     () => settingsStore.state?.webAccess.webSearchEnabled,
@@ -219,7 +246,7 @@ export function useChatController() {
       }
 
       currentLeafId.value = null;
-      await loadCurrentSessionMessages();
+      await Promise.all([loadCurrentSessionMessages(), loadSlashCommands()]);
     }
   );
 
@@ -359,6 +386,34 @@ export function useChatController() {
       return;
     }
 
+    const slashCommandName = getSlashCommandName(query);
+    let slashCommand = findSlashCommand(query, state.slashCommands);
+
+    // /settings 是应用的基础恢复入口，不依赖异步命令列表成功加载。
+    if (slashCommandName === 'settings') {
+      state.input = '';
+      settingsStore.openPanel();
+      return;
+    }
+
+    if (slashCommandName && !slashCommand) {
+      await loadSlashCommands();
+      slashCommand = findSlashCommand(query, state.slashCommands);
+    }
+
+    if (slashCommandName && !slashCommand) {
+      notificationStore.error(`未知命令：/${slashCommandName}`);
+      return;
+    }
+
+    if (slashCommand?.behavior === 'client-action') {
+      state.input = '';
+
+      // 当前仅有少量本地动作，显式分支比通用路由更直观。
+      // 当命令来源、权限校验、异步状态或跨模块动作明显增多时，应迁移为独立 Command Router。
+      return;
+    }
+
     await runQuery(query, { appendUser: true });
   }
 
@@ -406,6 +461,7 @@ export function useChatController() {
 
     const images = getUserImages(displayMessage.message);
     displayMessage.message.content = images.length > 0 ? [{ type: 'text', text: content }, ...images] : content;
+    delete displayMessage.message.skillInvocation;
     markUserMessageAsOptimisticBranch(displayMessage);
     state.messages.splice(messageIndex + 1);
     await runQuery(content, {

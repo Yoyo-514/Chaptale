@@ -11,7 +11,7 @@ function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<
     buildSessionContext: vi.fn(() => ({ messages: ['context-message'] })),
     _rewriteFile: vi.fn()
   };
-  const session = {
+  const session: any = {
     model: { provider: 'old-provider', id: 'old-model' },
     messages: [],
     agent: { state: { messages: [] as unknown[] } },
@@ -26,6 +26,10 @@ function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<
     prompt: vi.fn(async () => {
       await promptImpl?.(event => subscriber?.(event));
     }),
+    resourceLoader: {
+      getSkills: vi.fn(() => ({ skills: [], diagnostics: [] }))
+    },
+    reload: vi.fn(async () => undefined),
     abort: vi.fn(async () => undefined),
     dispose: vi.fn(async () => undefined)
   };
@@ -109,6 +113,35 @@ describe('PiAgentService', () => {
     ]);
     // eslint-disable-next-line no-underscore-dangle
     expect(sessionManager._rewriteFile).toHaveBeenCalled();
+  });
+
+  it('delegates skill expansion to pi while keeping attachment context in the command arguments', async () => {
+    const { session } = createFakeSession(async emit => {
+      emit({ type: 'agent_end', willRetry: false, messages: [] });
+    });
+    const service = createService(session);
+    const promptPrefix =
+      '<attached_context_files>\n<file path="C:/novel/outline.md" handling="file-input-text" size="2 KB">正文</file>\n</attached_context_files>\n\n';
+    (service as any).contextFileService = {
+      resolve: vi.fn().mockResolvedValue({ promptPrefix, images: [], imagePaths: [] })
+    };
+
+    const messages = await collect(
+      service.stream({
+        sessionId: 'session-1',
+        query: '/skill:review 检查第一章',
+        contextFilePaths: ['C:/novel/outline.md'],
+        signal: new AbortController().signal
+      })
+    );
+
+    expect(session.reload).toHaveBeenCalled();
+    expect(messages[0]).toMatchObject({
+      role: 'user',
+      content: '检查第一章',
+      skillInvocation: { name: 'review', arguments: '检查第一章' }
+    });
+    expect(session.prompt).toHaveBeenCalledWith(`/skill:review ${promptPrefix}检查第一章`, { images: [] });
   });
 
   it('resolves context files and forwards the prompt prefix and images to the agent session', async () => {

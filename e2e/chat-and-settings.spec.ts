@@ -111,6 +111,23 @@ async function installDesktopMock(page: Page) {
         selectWorkspaceDir: async () => ({ canceled: true }),
         openConfigDir: async () => undefined
       },
+      slashCommands: {
+        list: async () => [
+          {
+            name: 'settings',
+            description: '打开 Chaptale 设置',
+            source: 'app',
+            behavior: 'client-action'
+          },
+          {
+            name: 'skill:review',
+            description: '审查正文',
+            argumentHint: '[任务说明]',
+            source: 'skill',
+            behavior: 'agent-prompt'
+          }
+        ]
+      },
       models: {
         list: async () => ({ providers: [], models: [], defaultModel: undefined }),
         setDefault: async () => ({ providers: [], models: [], defaultModel: undefined }),
@@ -158,9 +175,14 @@ async function installDesktopMock(page: Page) {
               kind: 'text'
             }));
           const userId = `user-${entries.length + 1}`;
+          const skillMatch = /^\/skill:([a-z0-9]+(?:-[a-z0-9]+)*)(?:\s+([\s\S]*))?$/.exec(query);
+          const skillInvocation = skillMatch
+            ? { name: skillMatch[1], arguments: skillMatch[2]?.trim() ?? '' }
+            : undefined;
+          const displayQuery = skillInvocation?.arguments ?? query;
           const userContent = imagePaths.length
             ? [
-                { type: 'text', text: query },
+                { type: 'text', text: displayQuery },
                 ...imagePaths.map((_filePath: string, index: number) => ({
                   type: 'imageAttachment',
                   id: `${userId}:${index + 1}`,
@@ -177,13 +199,19 @@ async function installDesktopMock(page: Page) {
                   }
                 }))
               ]
-            : query;
+            : displayQuery;
           const userEntry = {
             type: 'message',
             id: userId,
             parentId: entries.at(-1)?.id ?? null,
             timestamp: now,
-            message: { role: 'user', content: userContent, contextFiles, timestamp: Date.now() }
+            message: {
+              role: 'user',
+              content: userContent,
+              contextFiles,
+              ...(skillInvocation ? { skillInvocation } : {}),
+              timestamp: Date.now()
+            }
           };
           entries.push(userEntry);
           handlers.onMessage(userEntry.message);
@@ -237,6 +265,42 @@ test('sending a prompt shows immediate generation feedback and then the assistan
   await expect(page.getByText('写一段开场', { exact: true })).toBeVisible();
   await expect(page.locator('.assistant-streaming-indicator')).toBeVisible();
   await expect(page.getByText('收到：写一段开场')).toBeVisible();
+});
+
+test('slash settings command opens the settings panel without sending an agent prompt', async ({ page }) => {
+  await page.goto('/');
+
+  const input = page.getByPlaceholder('描述你的创作需求...');
+  await input.fill('/');
+  const settingsOption = page.getByRole('option', { name: /\/settings/ });
+  const skillOption = page.getByRole('option', { name: /\/skill:review/ });
+  await expect(settingsOption).toHaveAttribute('data-selected', 'true');
+  await input.press('ArrowDown');
+  await expect(skillOption).toHaveAttribute('data-selected', 'true');
+  await input.press('ArrowUp');
+  await expect(settingsOption).toHaveAttribute('data-selected', 'true');
+
+  await input.fill('/set');
+  await expect(settingsOption).toBeVisible();
+  await input.press('Enter');
+  await expect(input).toHaveValue('/settings ');
+  await input.press('Enter');
+
+  await expect(page.getByRole('heading', { name: '设置' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).chaptaleE2E.streamOptions.length)).toBe(0);
+});
+
+test('skill commands render as a compact badge instead of expanded instructions', async ({ page }) => {
+  await page.goto('/');
+
+  const input = page.getByPlaceholder('描述你的创作需求...');
+  await input.fill('/skill:review 检查第一章');
+  await page.locator('.chat-send-button').click();
+
+  const userMessage = page.locator('.message-container-user').first();
+  await expect(userMessage.locator('.user-message-skill')).toHaveText('<review>');
+  await expect(userMessage.locator('.user-message')).toContainText('检查第一章');
+  await expect(userMessage).not.toContainText('/skill:review');
 });
 
 test('mixed attachments keep compact tiles in the input while sent images render as a large gallery', async ({

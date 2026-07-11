@@ -7,6 +7,7 @@ import type {
   ChatThinkingContent,
   ChatToolCallContent
 } from '@chaptale/shared';
+import { formatSkillInvocation } from '@chaptale/shared';
 import { sift } from 'radash';
 
 export function getTextBlocks(content: readonly { type: string }[]): ChatTextContent[] {
@@ -25,7 +26,7 @@ export function getToolCallBlocks(content: ChatContentBlock[]) {
   return content.filter((block): block is ChatToolCallContent => block.type === 'toolCall');
 }
 
-export function getUserText(message: Extract<ChatMessage, { role: 'user' }>) {
+export function getUserDisplayText(message: Extract<ChatMessage, { role: 'user' }>) {
   if (typeof message.content === 'string') {
     return message.content;
   }
@@ -33,6 +34,20 @@ export function getUserText(message: Extract<ChatMessage, { role: 'user' }>) {
   return getTextBlocks(message.content)
     .map(block => block.text)
     .join('\n');
+}
+
+export function getUserText(message: Extract<ChatMessage, { role: 'user' }>) {
+  const displayText = getUserDisplayText(message);
+
+  if (!message.skillInvocation) {
+    return displayText;
+  }
+
+  return formatSkillInvocation({ ...message.skillInvocation, arguments: displayText });
+}
+
+export function getUserSkillInvocation(message: Extract<ChatMessage, { role: 'user' }>) {
+  return message.skillInvocation;
 }
 
 export function getUserContextFiles(message: Extract<ChatMessage, { role: 'user' }>) {

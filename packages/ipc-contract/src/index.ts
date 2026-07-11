@@ -5,4 +5,5 @@ export * from './channels';
 export * from './models';
 export * from './session';
 export * from './settings';
+export * from './slash-command';
 export * from './window';

@@ -11,6 +11,7 @@ function mountInput(props?: Partial<InstanceType<typeof ChatInputBox>['$props']>
       isReplying: false,
       isEnabledWebSearch: true,
       contextFiles: [],
+      slashCommands: [],
       modelLabel: 'openai / gpt-4.1',
       workspaceLabel: '全局会话',
       ...props
@@ -30,6 +31,68 @@ describe('ChatInputBox', () => {
 
     expect(wrapper.emitted('update:modelValue')).toEqual([['新的创作需求']]);
     expect(wrapper.emitted('submit')).toHaveLength(1);
+  });
+
+  it('filters and completes slash commands from the keyboard', async () => {
+    const wrapper = mountInput({
+      modelValue: '/set',
+      slashCommands: [
+        {
+          name: 'settings',
+          description: '打开设置',
+          source: 'app',
+          behavior: 'client-action'
+        },
+        {
+          name: 'skill:review',
+          description: '审查正文',
+          source: 'skill',
+          behavior: 'agent-prompt'
+        }
+      ]
+    });
+    const textarea = wrapper.find('textarea');
+
+    expect(wrapper.find('[data-slot="chat-slash-command-menu"]').exists()).toBe(true);
+    expect(wrapper.findAll('.chat-slash-command-item')).toHaveLength(1);
+    expect(wrapper.text()).toContain('/settings');
+
+    await textarea.trigger('keydown', { key: 'Enter' });
+
+    expect(wrapper.emitted('update:modelValue')).toContainEqual(['/settings ']);
+    expect(wrapper.emitted('submit')).toBeUndefined();
+  });
+
+  it('moves the highlighted slash command with arrow keys', async () => {
+    const wrapper = mountInput({
+      modelValue: '/',
+      slashCommands: [
+        {
+          name: 'settings',
+          description: '打开设置',
+          source: 'app',
+          behavior: 'client-action'
+        },
+        {
+          name: 'skill:review',
+          description: '审查正文',
+          source: 'skill',
+          behavior: 'agent-prompt'
+        }
+      ]
+    });
+    const textarea = wrapper.find('textarea');
+    const options = () => wrapper.findAll('.chat-slash-command-item');
+
+    expect(options()[0]?.attributes('data-selected')).toBe('true');
+    expect(options()[1]?.attributes('data-selected')).toBeUndefined();
+
+    await textarea.trigger('keydown', { key: 'ArrowDown' });
+    expect(options()[0]?.attributes('data-selected')).toBeUndefined();
+    expect(options()[1]?.attributes('data-selected')).toBe('true');
+
+    await textarea.trigger('keydown', { key: 'ArrowUp' });
+    expect(options()[0]?.attributes('data-selected')).toBe('true');
   });
 
   it('does not submit empty input when idle', async () => {

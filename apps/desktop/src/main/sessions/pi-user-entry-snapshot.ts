@@ -2,6 +2,7 @@ import type { SessionManager } from '@earendil-works/pi-coding-agent';
 
 import { decodeContextMessage } from '../services/context-files/context-message-codec';
 import { decodeImageBase64, getPiUserImageBlocks, type PiImageBlock } from '../services/image-attachment.service';
+import { decodeSkillMessage } from '../services/skills/skill-message-codec';
 
 export type PiUserEntrySnapshot = {
   promptPrefix: string;
@@ -60,8 +61,10 @@ export function getPiUserEntrySnapshot(sessionManager: SessionManager, entryId: 
     }
   }
 
+  const decodedSkill = decodeSkillMessage(text);
+
   return {
-    promptPrefix: decodeContextMessage(text).promptPrefix,
+    promptPrefix: decodeContextMessage(decodedSkill.text).promptPrefix,
     imageBlocks
   };
 }

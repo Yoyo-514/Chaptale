@@ -52,6 +52,10 @@ function renderUserMessage(message: Extract<ChatMessage, { role: 'user' }>) {
   const images =
     typeof message.content === 'string' ? [] : message.content.filter(block => block.type === 'imageAttachment');
 
+  if (message.skillInvocation) {
+    blocks.push(renderNotice(`Skill：<${message.skillInvocation.name}>`));
+  }
+
   if (text.trim()) {
     blocks.push(renderText(text));
   }

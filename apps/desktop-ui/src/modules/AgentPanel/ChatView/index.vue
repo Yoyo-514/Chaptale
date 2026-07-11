@@ -115,6 +115,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       :is-replying="chat.state.isReplying"
       :is-enabled-web-search="chat.state.isEnabledWebSearch"
       :context-files="chat.state.contextFiles"
+      :slash-commands="chat.state.slashCommands"
       :model-label="chat.currentModelLabel.value"
       :workspace-label="chat.workspaceLabel.value"
       @submit="handleSend"

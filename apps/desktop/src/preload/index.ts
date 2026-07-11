@@ -64,6 +64,9 @@ const desktopApi: ChaptaleDesktopApi = {
     selectWorkspaceDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.selectWorkspaceDir),
     openConfigDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.openConfigDir) as Promise<void>
   },
+  slashCommands: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.slashCommands.list)
+  },
   models: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.models.list) as Promise<ListModelsResult>,
     setDefault: (payload: SetDefaultModelPayload) =>

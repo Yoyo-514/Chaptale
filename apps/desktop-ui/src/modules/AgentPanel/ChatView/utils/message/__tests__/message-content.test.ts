@@ -10,6 +10,7 @@ import {
   getAssistantText,
   getMessagePlainText,
   getPrimaryToolCall,
+  getUserDisplayText,
   getUserText,
   hasRenderableMessage
 } from '../message-content';
@@ -46,6 +47,18 @@ describe('message-content', () => {
     expect(getAssistantReasoning(assistant)).toBe('推理');
     expect(getAssistantReasoningStatus(assistant)).toBe('streaming');
     expect(getAssistantReasoningStatus({ ...assistant, partial: false })).toBe('done');
+  });
+
+  it('keeps skill display text compact while reconstructing the reusable slash command', () => {
+    const user: Extract<ChatMessage, { role: 'user' }> = {
+      role: 'user',
+      content: '检查第一章',
+      skillInvocation: { name: 'review', arguments: '检查第一章' }
+    };
+
+    expect(getUserDisplayText(user)).toBe('检查第一章');
+    expect(getUserText(user)).toBe('/skill:review 检查第一章');
+    expect(getMessagePlainText(user)).toBe('/skill:review 检查第一章');
   });
 
   it('decides renderability from visible user-facing content', () => {

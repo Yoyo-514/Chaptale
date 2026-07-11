@@ -29,6 +29,9 @@ export const IPC_CHANNELS = {
     selectWorkspaceDir: 'settings:select-workspace-dir',
     openConfigDir: 'settings:open-config-dir'
   },
+  slashCommands: {
+    list: 'slash-commands:list'
+  },
   models: {
     list: 'models:list',
     setDefault: 'models:set-default',

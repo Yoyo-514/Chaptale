@@ -49,6 +49,30 @@ describe('pi-session-message.mapper', () => {
     });
   });
 
+  it('restores compact skill invocation metadata without exposing persisted instructions', () => {
+    const prompt = `<skill name="review" location="C:/skills/review/SKILL.md">\nReferences are relative to C:/skills/review.\n\n完整技能说明\n</skill>\n\n<attached_context_files>\n<file path="C:/novel/outline.md" handling="file-input-text" size="2 KB">正文</file>\n</attached_context_files>\n\n检查第一章`;
+
+    expect(fromPiMessage({ role: 'user', content: [{ type: 'text', text: prompt }], timestamp: 321 })).toEqual({
+      role: 'user',
+      content: '检查第一章',
+      contextFiles: [
+        {
+          path: 'C:/novel/outline.md',
+          name: 'outline.md',
+          size: 2048,
+          kind: 'text',
+          mimeType: undefined,
+          skippedReason: undefined
+        }
+      ],
+      skillInvocation: {
+        name: 'review',
+        arguments: '检查第一章'
+      },
+      timestamp: 321
+    });
+  });
+
   it('preserves native pi image blocks on user messages', () => {
     expect(
       fromPiMessage(

@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 import type { AppTextareaExpose } from '@/components/AppTextarea';
 import { AppTextarea } from '@/components/AppTextarea';
 import { useAutosizeTextarea } from '@/composables';
 import { cn } from '@/utils';
+import type { SlashCommand } from '@chaptale/ipc-contract';
+import ChatSlashCommandMenu from './ChatSlashCommandMenu.vue';
 
 const props = defineProps<{
   modelValue: string;
   isConnecting: boolean;
   isReplying: boolean;
+  slashCommands: SlashCommand[];
 }>();
 
 const emit = defineEmits<{
@@ -18,10 +21,41 @@ const emit = defineEmits<{
 }>();
 
 const textareaRef = ref<AppTextareaExpose | null>(null);
+const selectedCommandIndex = ref(0);
+const commandMenuDismissed = ref(false);
+const slashPrefix = computed(() => {
+  if (!props.modelValue.startsWith('/')) {
+    return undefined;
+  }
+
+  const value = props.modelValue.slice(1);
+  return /\s/.test(value) ? undefined : value.toLowerCase();
+});
+const filteredSlashCommands = computed(() => {
+  if (slashPrefix.value === undefined || commandMenuDismissed.value) {
+    return [];
+  }
+
+  return props.slashCommands
+    .filter(command => {
+      const query = slashPrefix.value ?? '';
+      return command.name.toLowerCase().includes(query) || command.description.toLowerCase().includes(query);
+    })
+    .slice(0, 8);
+});
+const isCommandMenuOpen = computed(() => filteredSlashCommands.value.length > 0);
 const { resize: resizeTextarea } = useAutosizeTextarea(() => textareaRef.value?.getElement(), {
   maxRows: 5,
   value: () => props.modelValue
 });
+
+watch(
+  () => props.modelValue,
+  () => {
+    selectedCommandIndex.value = 0;
+    commandMenuDismissed.value = false;
+  }
+);
 
 function handleInput(value: string) {
   emit('update:modelValue', value);
@@ -46,7 +80,40 @@ function handleSubmit() {
   emit('submit');
 }
 
+async function completeCommand(command: SlashCommand) {
+  emit('update:modelValue', `/${command.name} `);
+  await nextTick();
+  resizeTextarea();
+  textareaRef.value?.focus();
+}
+
 function handleKeydown(event: KeyboardEvent) {
+  if (isCommandMenuOpen.value) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      const count = filteredSlashCommands.value.length;
+      selectedCommandIndex.value = (selectedCommandIndex.value + direction + count) % count;
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      commandMenuDismissed.value = true;
+      return;
+    }
+
+    if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey)) {
+      const command = filteredSlashCommands.value[selectedCommandIndex.value];
+
+      if (command) {
+        event.preventDefault();
+        void completeCommand(command);
+      }
+      return;
+    }
+  }
+
   if (event.key !== 'Enter' || event.shiftKey) {
     return;
   }
@@ -57,6 +124,13 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
+  <ChatSlashCommandMenu
+    v-if="isCommandMenuOpen"
+    :commands="filteredSlashCommands"
+    :selected-index="selectedCommandIndex"
+    @select="completeCommand"
+  />
+
   <AppTextarea
     ref="textareaRef"
     :model-value="props.modelValue"

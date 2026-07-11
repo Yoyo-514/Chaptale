@@ -84,6 +84,22 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
       selectWorkspaceDir: vi.fn().mockResolvedValue({ canceled: true }),
       openConfigDir: vi.fn().mockResolvedValue(undefined)
     },
+    slashCommands: {
+      list: vi.fn().mockResolvedValue([
+        {
+          name: 'settings',
+          description: '打开 Chaptale 设置',
+          source: 'app',
+          behavior: 'client-action'
+        },
+        {
+          name: 'skill:review',
+          description: '审查正文',
+          source: 'skill',
+          behavior: 'agent-prompt'
+        }
+      ])
+    },
     models: {
       list: vi.fn().mockResolvedValue({ providers: [], models: [], defaultModel: undefined }),
       setDefault: vi.fn(),
@@ -150,6 +166,7 @@ describe('useChatController', () => {
     expect(api.session.list).toHaveBeenCalled();
     expect(api.session.getEntries).toHaveBeenCalledWith('session-1');
     expect(api.settings.getState).toHaveBeenCalled();
+    await vi.waitFor(() => expect(api.slashCommands.list).toHaveBeenCalledWith());
     expect(controller.state.isEnabledWebSearch).toBe(true);
     expect(controller.recentSessions.value).toHaveLength(1);
   });
@@ -173,6 +190,93 @@ describe('useChatController', () => {
       content: [{ type: 'text', text: '最终回复' }]
     });
     expect(controller.state.isReplying).toBe(false);
+  });
+
+  it('opens settings locally without sending the slash command to the agent', async () => {
+    const api = installDesktopMock();
+    const controller = await mountController();
+    const settingsStore = useSettingsStore();
+
+    await vi.waitFor(() => expect(controller.state.slashCommands.length).toBeGreaterThan(0));
+    controller.state.input = '/settings';
+    await controller.handleSend();
+
+    expect(settingsStore.isOpen).toBe(true);
+    expect(controller.state.input).toBe('');
+    expect(api.agent.stream).not.toHaveBeenCalled();
+  });
+
+  it('keeps /settings available when the command list fails to load', async () => {
+    const api = installDesktopMock({
+      slashCommands: {
+        list: vi.fn().mockRejectedValue(new Error('命令服务不可用'))
+      }
+    });
+    const controller = await mountController();
+    const settingsStore = useSettingsStore();
+
+    controller.state.input = '/settings';
+    await controller.handleSend();
+
+    expect(settingsStore.isOpen).toBe(true);
+    expect(api.agent.stream).not.toHaveBeenCalled();
+  });
+
+  it('submits known skill commands and rejects unknown slash commands', async () => {
+    const api = installDesktopMock();
+    const controller = await mountController();
+    const notificationStore = useNotificationStore();
+
+    await vi.waitFor(() => expect(controller.state.slashCommands.length).toBeGreaterThan(0));
+    controller.state.input = '/skill:review 检查这一段';
+    await controller.handleSend();
+    expect(controller.state.messages[0]?.message).toMatchObject({
+      role: 'user',
+      content: '检查这一段',
+      skillInvocation: { name: 'review', arguments: '检查这一段' }
+    });
+    expect(api.agent.stream).toHaveBeenCalledWith('/skill:review 检查这一段', expect.any(Object), 'session-1', {
+      branchFromEntryId: undefined,
+      contextFilePaths: [],
+      reuseUserEntryId: undefined
+    });
+
+    vi.clearAllMocks();
+    controller.state.input = '/skill:missing';
+    await controller.handleSend();
+
+    expect(api.agent.stream).not.toHaveBeenCalled();
+    expect(notificationStore.items.at(-1)).toMatchObject({
+      kind: 'error',
+      title: '未知命令：/skill:missing'
+    });
+  });
+
+  it('reuses the original skill slash invocation when regenerating', async () => {
+    const api = installDesktopMock();
+    const controller = await mountController();
+    controller.state.messages = [
+      {
+        id: 'skill-user',
+        message: {
+          role: 'user',
+          content: '检查第一章',
+          skillInvocation: { name: 'review', arguments: '检查第一章' }
+        }
+      },
+      {
+        id: 'skill-assistant',
+        message: { role: 'assistant', content: [{ type: 'text', text: '审查结果' }] }
+      }
+    ];
+
+    await controller.handleRegenerateAssistantMessage('skill-assistant');
+
+    expect(api.agent.stream).toHaveBeenCalledWith('/skill:review 检查第一章', expect.any(Object), 'session-1', {
+      branchFromEntryId: null,
+      contextFilePaths: [],
+      reuseUserEntryId: undefined
+    });
   });
 
   it('renders a partial tool call without dropping text streamed before it', async () => {

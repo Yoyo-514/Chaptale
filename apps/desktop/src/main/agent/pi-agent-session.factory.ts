@@ -15,6 +15,7 @@ import { unique } from 'radash';
 import { chaptaleSystemPrompt, systemPrompt } from '../prompt';
 import type { PiModelService } from '../services/pi-model.service';
 import type { SettingsService } from '../services/settings.service';
+import type { SkillsProvider } from '../skills/skills-provider';
 import { getEnabledToolNames, getPiCustomTools } from '../tools/tool-registry';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -22,6 +23,7 @@ const nodeRequire = createRequire(import.meta.url);
 export type PiAgentSessionFactoryOptions = {
   settingsService: SettingsService;
   modelService: PiModelService;
+  skillsProvider: SkillsProvider;
 };
 
 /**
@@ -34,7 +36,7 @@ export class PiAgentSessionFactory {
   constructor(private readonly options: PiAgentSessionFactoryOptions) {}
 
   async create(sessionId: string): Promise<AgentSession> {
-    const { settingsService, modelService } = this.options;
+    const { settingsService, modelService, skillsProvider } = this.options;
     const target = await findSessionById(settingsService, sessionId);
 
     if (!target) {
@@ -42,6 +44,8 @@ export class PiAgentSessionFactory {
     }
 
     const cwd = target.cwd || (await settingsService.getCurrentCwd());
+    // 会话 cwd 保持历史文件语境；Slash 菜单与 skills 明确跟随当前工作区。
+    const skillsCwd = await settingsService.getCurrentCwd();
     const sessionDir = path.dirname(target.path);
     const sessionManager = SessionManager.open(target.path, sessionDir, cwd);
     const settingsManager = SettingsManager.create(cwd, settingsService.agentDir);
@@ -62,7 +66,7 @@ export class PiAgentSessionFactory {
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      skillsOverride: () => ({ skills: [], diagnostics: [] }),
+      skillsOverride: () => skillsProvider.load(skillsCwd),
       systemPrompt: [systemPrompt, chaptaleSystemPrompt].join('\n\n')
     });
     await resourceLoader.reload();

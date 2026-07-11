@@ -1,3 +1,5 @@
+import type { SkillInvocation } from './utils';
+
 export * from './utils';
 
 export type ChatTextContent = {
@@ -73,6 +75,8 @@ export type ChatMessageUsage = {
   cost: number;
 };
 
+export type ChatSkillInvocation = SkillInvocation;
+
 export type ChatContextFile = {
   path: string;
   name: string;
@@ -91,6 +95,7 @@ export type ChatMessage =
       role: 'user';
       content: string | (ChatTextContent | ChatImageAttachment)[];
       contextFiles?: ChatContextFile[];
+      skillInvocation?: ChatSkillInvocation;
       timestamp?: number;
     }
   | {

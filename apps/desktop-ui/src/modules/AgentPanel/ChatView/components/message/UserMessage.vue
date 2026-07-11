@@ -2,16 +2,18 @@
 import { computed, nextTick, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { AppImagePreview, type AppImagePreviewItem } from '@/components/AppImagePreview';
 import { AppForm, AppFormActions } from '@/components/AppForm';
+import { AppImagePreview, type AppImagePreviewItem } from '@/components/AppImagePreview';
 import { AppTextarea } from '@/components/AppTextarea';
-import type { ChatContextFile, ChatImageAttachment, ChatImageSource } from '@chaptale/shared';
+import type { ChatContextFile, ChatImageAttachment, ChatImageSource, ChatSkillInvocation } from '@chaptale/shared';
 
 import type { AppTextareaExpose } from '@/components/AppTextarea';
 import ChatContextFiles from '../ChatInput/ChatContextFiles.vue';
 
 const props = defineProps<{
   content: string;
+  editableContent: string;
+  skillInvocation?: ChatSkillInvocation;
   contextFiles?: ChatContextFile[];
   images?: ChatImageAttachment[];
   editing?: boolean;
@@ -22,7 +24,7 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
-const draft = ref(props.content);
+const draft = ref(props.editableContent);
 const textareaRef = ref<AppTextareaExpose | null>(null);
 const imagePreviewItems = computed<AppImagePreviewItem[]>(() =>
   (props.images ?? []).map((image, index) => ({
@@ -59,7 +61,7 @@ async function loadOriginalImage(image: ChatImageAttachment) {
 }
 
 watch(
-  () => props.content,
+  () => props.editableContent,
   content => {
     draft.value = content;
   }
@@ -69,7 +71,7 @@ watch(
   () => props.editing,
   async editing => {
     if (!editing) {
-      draft.value = props.content;
+      draft.value = props.editableContent;
       return;
     }
 
@@ -115,7 +117,10 @@ function save() {
 
   <div v-else class="user-message-display">
     <ChatContextFiles :files="props.contextFiles ?? []" :removable="false" placement="message" :show-path="false" />
-    <p v-if="content" class="user-message">{{ content }}</p>
+    <p v-if="props.skillInvocation || content" class="user-message">
+      <span v-if="props.skillInvocation" class="user-message-skill">{{ props.skillInvocation.name }}</span>
+      <span v-if="content">{{ content }}</span>
+    </p>
   </div>
 </template>
 
@@ -133,10 +138,17 @@ function save() {
 }
 
 .user-message {
-  @apply w-fit max-w-[80%] rounded-2xl bg-primary px-4 py-2 text-primary-foreground shadow-inset-highlight;
+  @apply flex w-fit max-w-[80%] items-start gap-2 rounded-2xl bg-primary px-4 py-2 text-primary-foreground shadow-inset-highlight;
 
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+
+.user-message-skill {
+  @apply shrink-0 rounded-md px-1.5 py-0.5 font-mono text-xs font-semibold;
+
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .user-message-edit {

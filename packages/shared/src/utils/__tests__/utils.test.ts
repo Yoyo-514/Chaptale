@@ -7,8 +7,10 @@ import {
   escapeXmlAttribute,
   escapeXmlText,
   formatFileSize,
+  formatSkillInvocation,
   getHostname,
   isRecord,
+  parseSkillInvocation,
   readBoolean,
   readFiniteNumber,
   readString,
@@ -67,6 +69,15 @@ describe('shared utils', () => {
     expect(formatFileSize(1536)).toBe('2 KB');
     expect(formatFileSize(1024 * 1024)).toBe('1.0 MB');
     expect(formatFileSize(1536 * 1024)).toBe('1.5 MB');
+  });
+
+  it('parses and formats reusable skill invocations', () => {
+    expect(parseSkillInvocation('/skill:review 检查第一章')).toEqual({
+      name: 'review',
+      arguments: '检查第一章'
+    });
+    expect(parseSkillInvocation('/SKILL:review')).toBeUndefined();
+    expect(formatSkillInvocation({ name: 'review', arguments: '' })).toBe('/skill:review');
   });
 
   it('escapes XML text and attributes for prompt envelopes', () => {

@@ -1,6 +1,7 @@
 import type { ChatContentBlock, ChatMessage, ChatMessageUsage, ChatStopReason } from '@chaptale/shared';
 
 import { decodeContextMessage } from '../services/context-files/context-message-codec';
+import { decodeSkillMessage } from '../services/skills/skill-message-codec';
 import {
   decodeImageBase64,
   getPiUserImageBlocks,
@@ -128,20 +129,31 @@ export function toChatMessages(message: unknown, options: PiMessageMappingOption
             .filter(block => block.type === 'text')
             .map(block => block.text)
             .join('\n');
-    const decoded = decodeContextMessage(text);
+    const decodedSkill = decodeSkillMessage(text);
+    const decodedContext = decodeContextMessage(decodedSkill.text);
+    const skillInvocation = decodedSkill.skillInvocation
+      ? { ...decodedSkill.skillInvocation, arguments: decodedContext.text }
+      : undefined;
     const rawImages = getPiUserImageBlocks(record);
     const presentation = options.presentUserImages?.(rawImages) ?? { attachments: [] };
     const content =
       presentation.attachments.length > 0
-        ? [...(decoded.text ? [{ type: 'text' as const, text: decoded.text }] : []), ...presentation.attachments]
-        : decoded.text;
+        ? [
+            ...(decodedContext.text ? [{ type: 'text' as const, text: decodedContext.text }] : []),
+            ...presentation.attachments
+          ]
+        : decodedContext.text;
 
-    return decoded.text || decoded.contextFiles.length > 0 || presentation.attachments.length > 0
+    return decodedContext.text ||
+      skillInvocation ||
+      decodedContext.contextFiles.length > 0 ||
+      presentation.attachments.length > 0
       ? [
           {
             role: 'user',
             content,
-            ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {}),
+            ...(decodedContext.contextFiles.length > 0 ? { contextFiles: decodedContext.contextFiles } : {}),
+            ...(skillInvocation ? { skillInvocation } : {}),
             timestamp
           }
         ]
