@@ -15,6 +15,7 @@ import type {
   SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from './models';
+import type { PromptSettingsState, UpdatePromptSettingsPayload } from './prompt-settings';
 import type {
   ChaptaleSessionInfoEntry,
   ChaptaleSessionListItem,
@@ -63,6 +64,10 @@ export type ChaptaleDesktopApi = {
     updateWebAccess: (payload: UpdatePiWebAccessSettingsPayload) => Promise<ChaptaleSettingsState>;
     selectWorkspaceDir: () => Promise<SelectWorkspaceDirResult>;
     openConfigDir: () => Promise<void>;
+  };
+  promptSettings: {
+    getState: () => Promise<PromptSettingsState>;
+    update: (payload: UpdatePromptSettingsPayload) => Promise<PromptSettingsState>;
   };
   slashCommands: {
     list: () => Promise<SlashCommand[]>;

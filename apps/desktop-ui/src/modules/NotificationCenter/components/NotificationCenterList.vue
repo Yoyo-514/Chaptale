@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { AppScrollArea } from '@/components/AppScrollArea';
-import type { NotificationItem as Notification } from '@/stores/notification';
+import type { NotificationItem as Notification, NotificationPanelMode } from '@/stores/notification';
 import NotificationCenterItem from './NotificationCenterItem.vue';
 
 const props = defineProps<{
   notifications: Notification[];
+  mode: NotificationPanelMode;
 }>();
 
 const emit = defineEmits<{
@@ -18,6 +19,7 @@ const emit = defineEmits<{
       v-for="notification in props.notifications"
       :key="notification.id"
       :notification="notification"
+      :mode="props.mode"
       @dismiss="emit('dismiss', $event)"
     />
   </AppScrollArea>

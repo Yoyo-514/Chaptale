@@ -3,6 +3,7 @@ export * from './api';
 export * from './app';
 export * from './channels';
 export * from './models';
+export * from './prompt-settings';
 export * from './session';
 export * from './settings';
 export * from './slash-command';

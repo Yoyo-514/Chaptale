@@ -17,6 +17,12 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
     icon: 'i-mingcute-ai-line'
   },
   {
+    id: 'prompt',
+    title: 'Prompt',
+    description: 'System 与追加提示词',
+    icon: 'i-mingcute-edit-3-line'
+  },
+  {
     id: 'webAccess',
     title: '联网',
     description: '搜索、提取与 API Key',

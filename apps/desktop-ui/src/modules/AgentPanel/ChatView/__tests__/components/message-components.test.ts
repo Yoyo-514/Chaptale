@@ -41,7 +41,7 @@ describe('chat message components', () => {
       }
     });
 
-    expect(wrapper.find('.user-message-skill').text()).toBe('<review>');
+    expect(wrapper.find('.user-message-skill').text()).toBe('review');
     expect(wrapper.find('.user-message').text()).toContain('检查第一章');
 
     await wrapper.setProps({ editing: true });

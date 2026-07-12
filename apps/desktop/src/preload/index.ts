@@ -24,6 +24,7 @@ import type {
   SetDefaultModelPayload,
   SetProviderApiKeyPayload,
   UpdateChaptaleSettingsPayload,
+  UpdatePromptSettingsPayload,
   UpdateCustomModelInputPayload,
   UpdatePiWebAccessSettingsPayload,
   WindowStateResult
@@ -63,6 +64,10 @@ const desktopApi: ChaptaleDesktopApi = {
       ipcRenderer.invoke(IPC_CHANNELS.settings.updateWebAccess, payload),
     selectWorkspaceDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.selectWorkspaceDir),
     openConfigDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.openConfigDir) as Promise<void>
+  },
+  promptSettings: {
+    getState: () => ipcRenderer.invoke(IPC_CHANNELS.promptSettings.getState),
+    update: (payload: UpdatePromptSettingsPayload) => ipcRenderer.invoke(IPC_CHANNELS.promptSettings.update, payload)
   },
   slashCommands: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.slashCommands.list)

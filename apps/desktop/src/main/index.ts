@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { registerAgentIpc } from './ipc/agent.ipc';
 import { registerModelsIpc } from './ipc/models.ipc';
+import { registerPromptSettingsIpc } from './ipc/prompt-settings.ipc';
 import { registerSessionIpc } from './ipc/session.ipc';
 import { registerSettingsIpc } from './ipc/settings.ipc';
 import { registerSlashCommandIpc } from './ipc/slash-command.ipc';
@@ -12,6 +13,7 @@ import { isExternalUrl, isTrustedRendererUrl } from './security/navigation-secur
 import { configureTrustedRendererUrl, handleTrustedIpc } from './security/trusted-ipc';
 import { PiAgentService } from './services/pi-agent.service';
 import { PiModelService } from './services/pi-model.service';
+import { PromptFileService } from './services/prompts/prompt-file.service';
 import { PiSessionRepository } from './services/session.repository';
 import { SettingsService } from './services/settings.service';
 import { SlashCommandService } from './services/slash-command.service';
@@ -99,6 +101,7 @@ app.whenReady().then(() => {
     getStorageContext: () => settingsService.getStorageContext()
   });
   const piModelService = new PiModelService(settingsService);
+  const promptFileService = new PromptFileService(settingsService.agentDir);
   const piAgentService = new PiAgentService(settingsService, piModelService);
   const slashCommandService = new SlashCommandService(settingsService, piAgentService.skillsProvider);
 
@@ -115,6 +118,7 @@ app.whenReady().then(() => {
 
   registerSessionIpc(sessionRepository);
   registerSettingsIpc(settingsService, () => piAgentService.invalidateSessions());
+  registerPromptSettingsIpc(promptFileService, () => piAgentService.invalidateSessions());
   registerModelsIpc(piModelService);
   registerAgentIpc(piAgentService);
   registerSlashCommandIpc(slashCommandService);

@@ -29,6 +29,10 @@ export const IPC_CHANNELS = {
     selectWorkspaceDir: 'settings:select-workspace-dir',
     openConfigDir: 'settings:open-config-dir'
   },
+  promptSettings: {
+    getState: 'prompt-settings:get-state',
+    update: 'prompt-settings:update'
+  },
   slashCommands: {
     list: 'slash-commands:list'
   },

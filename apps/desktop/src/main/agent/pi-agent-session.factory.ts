@@ -12,7 +12,7 @@ import path from 'node:path';
 
 import { unique } from 'radash';
 
-import { chaptaleSystemPrompt, systemPrompt } from '../prompt';
+import { resolveSystemPrompt } from '../prompt';
 import type { PiModelService } from '../services/pi-model.service';
 import type { SettingsService } from '../services/settings.service';
 import type { SkillsProvider } from '../skills/skills-provider';
@@ -67,7 +67,8 @@ export class PiAgentSessionFactory {
       noThemes: true,
       noContextFiles: true,
       skillsOverride: () => skillsProvider.load(skillsCwd),
-      systemPrompt: [systemPrompt, chaptaleSystemPrompt].join('\n\n')
+      // 优先沿用 pi 发现的 SYSTEM.md；文件不存在时才使用 Chaptale 内置默认值。
+      systemPromptOverride: resolveSystemPrompt
     });
     await resourceLoader.reload();
 

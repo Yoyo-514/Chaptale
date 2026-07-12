@@ -5,11 +5,25 @@ async function installDesktopMock(page: Page) {
     const now = new Date('2026-07-06T00:00:00Z').toISOString();
     let webSearchEnabled = true;
     let entries: any[] = [];
-    const calls: { settingsUpdates: any[]; cancelledRuns: string[]; streamOptions: any[]; imageReads: any[] } = {
+    const calls: {
+      settingsUpdates: any[];
+      promptUpdates: any[];
+      cancelledRuns: string[];
+      streamOptions: any[];
+      imageReads: any[];
+    } = {
       settingsUpdates: [],
+      promptUpdates: [],
       cancelledRuns: [],
       streamOptions: [],
       imageReads: []
+    };
+    let promptSettings = {
+      systemPrompt: 'Chaptale 默认系统提示',
+      appendSystemPrompt: '',
+      defaultSystemPrompt: 'Chaptale 默认系统提示',
+      systemPromptPath: 'C:/Users/Test/.chaptale/agent/SYSTEM.md',
+      appendSystemPromptPath: 'C:/Users/Test/.chaptale/agent/APPEND_SYSTEM.md'
     };
 
     function settingsState() {
@@ -110,6 +124,14 @@ async function installDesktopMock(page: Page) {
         },
         selectWorkspaceDir: async () => ({ canceled: true }),
         openConfigDir: async () => undefined
+      },
+      promptSettings: {
+        getState: async () => promptSettings,
+        update: async (payload: any) => {
+          calls.promptUpdates.push(payload);
+          promptSettings = { ...promptSettings, ...payload };
+          return promptSettings;
+        }
       },
       slashCommands: {
         list: async () => [
@@ -298,7 +320,7 @@ test('skill commands render as a compact badge instead of expanded instructions'
   await page.locator('.chat-send-button').click();
 
   const userMessage = page.locator('.message-container-user').first();
-  await expect(userMessage.locator('.user-message-skill')).toHaveText('<review>');
+  await expect(userMessage.locator('.user-message-skill')).toHaveText('review');
   await expect(userMessage.locator('.user-message')).toContainText('检查第一章');
   await expect(userMessage).not.toContainText('/skill:review');
 });
@@ -331,6 +353,27 @@ test('mixed attachments keep compact tiles in the input while sent images render
   await expect(page.getByText('1 / 9')).toBeVisible();
 });
 
+test('prompt settings edit pi files and restore the built-in system prompt', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('打开设置').click();
+  await page.getByRole('button', { name: /Prompt/ }).click();
+
+  const systemPrompt = page.getByLabel('System Prompt', { exact: true });
+  const appendSystemPrompt = page.getByLabel('Append System Prompt', { exact: true });
+  await expect(systemPrompt).toHaveValue('Chaptale 默认系统提示');
+
+  await systemPrompt.fill('用户自定义系统提示');
+  await appendSystemPrompt.fill('用户追加提示');
+  await page.getByRole('button', { name: '保存 Prompt 设置' }).click();
+
+  await expect
+    .poll(() => page.evaluate(() => (window as any).chaptaleE2E.promptUpdates.at(-1)))
+    .toEqual({ systemPrompt: '用户自定义系统提示', appendSystemPrompt: '用户追加提示' });
+
+  await page.getByRole('button', { name: '恢复默认 System Prompt' }).click();
+  await expect(systemPrompt).toHaveValue('Chaptale 默认系统提示');
+});
+
 test('web search toggle updates settings and stays in sync with the settings panel', async ({ page }) => {
   await page.goto('/');
 
@@ -358,10 +401,18 @@ test('auto notification popup only shows unseen notifications after the center i
   await page.locator('.chat-send-button').click();
 
   const notificationCenter = page.locator('.notification-center');
+  const firstItem = notificationCenter.locator('.notification-item').first();
+  const firstToolbar = firstItem.locator('.notification-item-toolbar');
   await expect(notificationCenter).toContainText('模拟失败：第一次失败');
+  await page.mouse.move(0, 0);
+  await expect(firstToolbar).toHaveCSS('opacity', '0');
+  await firstItem.hover();
+  await expect(firstToolbar).toHaveCSS('opacity', '1');
 
-  // 用户主动点开通知中心后，现有通知都视为已看过。
+  // 用户主动点开通知中心后，工具栏始终可见，现有通知都视为已看过。
   await page.getByLabel('打开通知中心').click();
+  await expect(notificationCenter).toHaveClass(/is-manual/);
+  await expect(firstToolbar).toHaveCSS('opacity', '1');
   await expect(page.locator('.notification-count')).toHaveCount(0);
 
   // 关闭手动面板，后续由新通知触发自动弹出。
@@ -373,6 +424,8 @@ test('auto notification popup only shows unseen notifications after the center i
 
   await expect(notificationCenter).toBeVisible();
   await expect(notificationCenter).toContainText('模拟失败：第二次失败');
+  await page.mouse.move(0, 0);
+  await expect(notificationCenter.locator('.notification-item-toolbar')).toHaveCSS('opacity', '0');
   await expect(notificationCenter).not.toContainText('模拟失败：第一次失败');
   await expect(page.locator('.notification-count')).toHaveText('1');
 });

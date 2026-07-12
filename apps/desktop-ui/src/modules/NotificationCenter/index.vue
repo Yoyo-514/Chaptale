@@ -37,6 +37,7 @@ const isPanelVisible = computed(
       <NotificationCenterList
         v-if="visibleNotifications.length > 0"
         :notifications="visibleNotifications"
+        :mode="notificationStore.panelMode"
         @dismiss="notificationStore.dismiss"
       />
       <div v-else-if="isManualPanel" class="notification-empty">暂无通知</div>
