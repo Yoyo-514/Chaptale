@@ -7,7 +7,6 @@
     "types": ["node"],
     "lib": ["ES2024", "DOM"],
     "paths": {
-      "@chaptale/agent-core": ["../../packages/agent-core/src/index.ts"],
       "@chaptale/ipc-contract": ["../../packages/ipc-contract/src/index.ts"],
       "@chaptale/shared": ["../../packages/shared/src/index.ts"]
     },
@@ -18,9 +17,6 @@
   "references": [
     {
       "path": "../../packages/shared"
-    },
-    {
-      "path": "../../packages/agent-core"
     },
     {
       "path": "../../packages/ipc-contract"

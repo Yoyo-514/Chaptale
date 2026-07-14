@@ -20,7 +20,6 @@
     "preview": "cross-env NODE_ENV=production electron-vite preview"
   },
   "dependencies": {
-    "@chaptale/agent-core": "workspace:*",
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",

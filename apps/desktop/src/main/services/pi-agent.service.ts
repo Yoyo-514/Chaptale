@@ -1,4 +1,4 @@
-import type { AgentRunOptions, AgentRuntime } from '@chaptale/agent-core';
+import type { AgentRunOptions, AgentRuntime } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 import { errorToMessage, formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';

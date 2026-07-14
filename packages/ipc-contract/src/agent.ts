@@ -30,14 +30,29 @@ export type AgentErrorEvent = {
   message: string;
 };
 
-export type StreamAgentOptions = {
-  branchFromEntryId?: string | null;
-  contextFilePaths?: string[];
-  reuseUserEntryId?: string;
-};
+export type StreamAgentOptions = Pick<AgentStartPayload, 'branchFromEntryId' | 'contextFilePaths' | 'reuseUserEntryId'>;
 
 export type StreamAgentHandlers = {
   onMessage: (message: ChatMessage) => void;
   onDone?: () => void;
   onError?: (message: string) => void;
 };
+
+/**
+ * 主进程 Agent 运行时入参：与 AgentStartPayload 同源派生，
+ * 把 IPC 侧的 runId 换成进程内的 AbortSignal，并要求已解析好的 sessionId。
+ */
+export type AgentRunOptions = Omit<AgentStartPayload, 'runId' | 'sessionId'> & {
+  sessionId: string;
+  signal: AbortSignal;
+};
+
+/**
+ * Agent 运行时抽象（原 @chaptale/agent-core）。
+ *
+ * desktop 由 pi SDK 实现；未来其他端可由 HTTP/WebSocket/native runtime 实现。
+ * 不包含 Electron、Node fs 或 pi SDK 类型。
+ */
+export interface AgentRuntime {
+  stream(options: AgentRunOptions): AsyncGenerator<ChatMessage>;
+}
