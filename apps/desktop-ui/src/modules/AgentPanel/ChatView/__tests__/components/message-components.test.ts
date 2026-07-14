@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import ChatContextFiles from '../../components/ChatInput/ChatContextFiles.vue';
 import AssistantMessage from '../../components/message/AssistantMessage.vue';
 import MessageWebsearchResults from '../../components/message/MessageWebsearchResults.vue';
-import ToolCallMessage from '../../components/message/ToolCallMessage.vue';
-import ToolResultMessage from '../../components/message/ToolResultMessage.vue';
+import ToolCallRequest from '../../components/message/ToolCallRequest.vue';
+import ToolCallResult from '../../components/message/ToolCallResult.vue';
 import UserMessage from '../../components/message/UserMessage.vue';
 
 vi.mock('../../utils/markdown', () => ({
@@ -126,24 +126,24 @@ describe('chat message components', () => {
   });
 
   it('summarizes known tool calls from their arguments', () => {
-    expect(mount(ToolCallMessage, { props: { name: 'web_search', args: { queries: ['A', 'B'] } } }).text()).toContain(
+    expect(mount(ToolCallRequest, { props: { name: 'web_search', args: { queries: ['A', 'B'] } } }).text()).toContain(
       '搜索：A / B'
     );
     expect(
-      mount(ToolCallMessage, {
+      mount(ToolCallRequest, {
         props: { name: 'fetch_content', args: { urls: ['https://a.example', 'https://b.example'] } }
       }).text()
     ).toContain('读取：https://a.example / https://b.example');
     expect(
-      mount(ToolCallMessage, { props: { name: 'get_search_content', args: { responseId: 'resp-1' } } }).text()
+      mount(ToolCallRequest, { props: { name: 'get_search_content', args: { responseId: 'resp-1' } } }).text()
     ).toContain('取回搜索内容：resp-1');
-    expect(mount(ToolCallMessage, { props: { name: 'unknown_tool', args: { ok: true } } }).text()).toContain(
+    expect(mount(ToolCallRequest, { props: { name: 'unknown_tool', args: { ok: true } } }).text()).toContain(
       'Agent 正在调用工具'
     );
   });
 
   it('renders tool results including plain web search results and empty outputs', async () => {
-    const webSearch = mount(ToolResultMessage, {
+    const webSearch = mount(ToolCallResult, {
       props: {
         name: 'web_search',
         content: '## Results for: "agent"\n\n### Agent Docs\nhttps://example.com/docs\n\nSummary text'
@@ -153,10 +153,10 @@ describe('chat message components', () => {
     expect(webSearch.find('.websearch-card').exists()).toBe(false);
     expect(webSearch.text()).toContain('Agent Docs');
 
-    const fetchContent = mount(ToolResultMessage, { props: { name: 'fetch_content', content: '{"title":"Doc"}' } });
+    const fetchContent = mount(ToolCallResult, { props: { name: 'fetch_content', content: '{"title":"Doc"}' } });
     expect(fetchContent.text()).toContain('网页内容已读取');
 
-    const empty = mount(ToolResultMessage, { props: { name: 'other', content: '' } });
+    const empty = mount(ToolCallResult, { props: { name: 'other', content: '' } });
     expect(empty.text()).toContain('工具没有返回内容');
   });
 

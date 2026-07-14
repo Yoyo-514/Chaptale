@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 import { formatToolName, formatUnknownToolPayload } from '../../utils/message/message-content';
-import ToolMessageSection from './ToolMessageSection.vue';
+import ToolCallSection from './ToolCallSection.vue';
 
 const props = defineProps<{
   name: string;
@@ -62,7 +62,7 @@ function formatUrlTarget(args: Record<string, unknown>) {
 </script>
 
 <template>
-  <ToolMessageSection
+  <ToolCallSection
     :title="`调用 · ${formatToolName(name)}`"
     :summary="summary"
     :details="details"

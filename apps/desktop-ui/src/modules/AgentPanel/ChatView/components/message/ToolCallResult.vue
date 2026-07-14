@@ -3,7 +3,7 @@ import { computed } from 'vue';
 
 import { formatMaybeJson, formatToolName } from '../../utils/message/message-content';
 import MessageWebsearchResults from './MessageWebsearchResults.vue';
-import ToolMessageSection from './ToolMessageSection.vue';
+import ToolCallSection from './ToolCallSection.vue';
 
 const props = defineProps<{
   name: string;
@@ -42,7 +42,7 @@ const summary = computed(() => {
 </script>
 
 <template>
-  <ToolMessageSection
+  <ToolCallSection
     v-if="isWebSearch && !props.isError"
     :title="`结果 · ${formatToolName(name)}`"
     :summary="summary"
@@ -51,8 +51,8 @@ const summary = computed(() => {
     :status="props.isError ? 'error' : 'done'"
   >
     <MessageWebsearchResults :content="content" />
-  </ToolMessageSection>
-  <ToolMessageSection
+  </ToolCallSection>
+  <ToolCallSection
     v-else
     :title="`结果 · ${formatToolName(name)}`"
     :summary="summary"

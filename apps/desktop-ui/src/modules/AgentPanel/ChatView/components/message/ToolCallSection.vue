@@ -35,106 +35,106 @@ const statusLabel = computed(() => {
   <AppCollapsible
     v-model="open"
     variant="plain"
-    :class="['tool-message-section', props.searchOpen && 'is-search-hit']"
-    trigger-class="tool-message-section-trigger"
-    content-class="tool-message-section-content"
+    :class="['tool-call-section', props.searchOpen && 'is-search-hit']"
+    trigger-class="tool-call-section-trigger"
+    content-class="tool-call-section-content"
     :unmount-on-hide="false"
   >
     <template #trigger="{ open: isOpen, triggerClass }">
       <button :class="triggerClass" type="button">
-        <span :class="props.icon || 'i-mingcute-tool-line'" class="tool-message-section-icon" aria-hidden="true" />
-        <span class="tool-message-section-heading">
-          <span class="tool-message-section-title">{{ props.title }}</span>
-          <span v-if="props.summary" class="tool-message-section-summary">{{ props.summary }}</span>
+        <span :class="props.icon || 'i-mingcute-tool-line'" class="tool-call-section-icon" aria-hidden="true" />
+        <span class="tool-call-section-heading">
+          <span class="tool-call-section-title">{{ props.title }}</span>
+          <span v-if="props.summary" class="tool-call-section-summary">{{ props.summary }}</span>
         </span>
-        <span v-if="statusLabel" :class="['tool-message-section-status', props.status && `is-${props.status}`]">
+        <span v-if="statusLabel" :class="['tool-call-section-status', props.status && `is-${props.status}`]">
           {{ statusLabel }}
         </span>
-        <span :class="['i-mingcute-down-line tool-message-section-chevron', isOpen && 'is-open']" aria-hidden="true" />
+        <span :class="['i-mingcute-down-line tool-call-section-chevron', isOpen && 'is-open']" aria-hidden="true" />
       </button>
     </template>
 
     <slot>
-      <pre v-if="props.details" class="tool-message-section-details">{{ props.details }}</pre>
-      <p v-else class="tool-message-section-empty">暂无详细内容</p>
+      <pre v-if="props.details" class="tool-call-section-details">{{ props.details }}</pre>
+      <p v-else class="tool-call-section-empty">暂无详细内容</p>
     </slot>
   </AppCollapsible>
 </template>
 
 <style scoped lang="scss">
-.tool-message-section {
+.tool-call-section {
   @apply min-w-0 border-b last:border-b-0;
 
   border-color: var(--border-subtle);
 }
 
-.tool-message-section.is-search-hit {
+.tool-call-section.is-search-hit {
   @apply rounded;
 
   outline: 2px solid var(--primary);
   outline-offset: 1px;
 }
 
-.tool-message-section :deep(.tool-message-section-trigger) {
+.tool-call-section :deep(.tool-call-section-trigger) {
   @apply flex w-full items-center gap-2 px-2 py-2 text-left;
 }
 
-.tool-message-section-icon {
+.tool-call-section-icon {
   @apply shrink-0 text-sm;
 
   color: var(--primary-solid);
 }
 
-.tool-message-section-heading {
+.tool-call-section-heading {
   @apply flex min-w-0 flex-1 flex-col;
 }
 
-.tool-message-section-title {
+.tool-call-section-title {
   @apply truncate text-xs font-medium;
 }
 
-.tool-message-section-summary {
+.tool-call-section-summary {
   @apply line-clamp-1 text-[11px];
 
   color: var(--muted-foreground);
 }
 
-.tool-message-section-status {
+.tool-call-section-status {
   @apply shrink-0 text-[11px];
 
   color: var(--muted-foreground);
 }
 
-.tool-message-section-status.is-running {
+.tool-call-section-status.is-running {
   color: var(--primary-solid);
 }
 
-.tool-message-section-status.is-error {
+.tool-call-section-status.is-error {
   color: var(--destructive);
 }
 
-.tool-message-section-chevron {
+.tool-call-section-chevron {
   @apply shrink-0 text-sm transition-transform duration-150;
 
   color: var(--muted-foreground);
 }
 
-.tool-message-section-chevron.is-open {
+.tool-call-section-chevron.is-open {
   transform: rotate(180deg);
 }
 
-.tool-message-section :deep(.tool-message-section-content) {
+.tool-call-section :deep(.tool-call-section-content) {
   @apply px-2 pb-2;
 }
 
-.tool-message-section-details {
+.tool-call-section-details {
   @apply m-0 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md p-2 text-xs;
 
   background: var(--surface-muted);
   color: var(--secondary-foreground);
 }
 
-.tool-message-section-empty {
+.tool-call-section-empty {
   @apply m-0 text-xs;
 
   color: var(--muted-foreground);

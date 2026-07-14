@@ -9,7 +9,7 @@ import type { ChatDisplayMessage, ChatSearchMatch } from '../../types';
 import { toInlineImageItems } from '../../utils/message/inline-images';
 import { formatToolName, getAssistantToolCalls, getToolResultImages } from '../../utils/message/message-content';
 import MessageCompactionNotice from './MessageCompactionNotice.vue';
-import ToolExecutionItem from './ToolExecutionItem.vue';
+import ToolCallItem from './ToolCallItem.vue';
 
 type ToolExecution = {
   key: string;
@@ -137,27 +137,27 @@ watch(
 </script>
 
 <template>
-  <div class="tool-message-group-wrapper">
+  <div class="tool-call-group-wrapper">
     <MessageCompactionNotice v-if="compaction" :summary="compaction.summary" :tokens-before="compaction.tokensBefore" />
 
     <AppCollapsible
       v-model="open"
-      class="tool-message-group"
-      trigger-class="tool-message-group-trigger"
-      content-class="tool-message-group-content"
+      class="tool-call-group"
+      trigger-class="tool-call-group-trigger"
+      content-class="tool-call-group-content"
       :unmount-on-hide="false"
     >
       <template #trigger="{ open: isOpen, triggerClass }">
         <button :class="triggerClass" type="button">
-          <span class="i-mingcute-tool-line tool-message-group-icon" aria-hidden="true" />
-          <span class="tool-message-group-title" :title="toolActivityTitle">{{ toolActivityTitle }}</span>
-          <span class="tool-message-group-summary">{{ summary }}</span>
-          <span :class="['i-mingcute-down-line tool-message-group-chevron', isOpen && 'is-open']" aria-hidden="true" />
+          <span class="i-mingcute-tool-line tool-call-group-icon" aria-hidden="true" />
+          <span class="tool-call-group-title" :title="toolActivityTitle">{{ toolActivityTitle }}</span>
+          <span class="tool-call-group-summary">{{ summary }}</span>
+          <span :class="['i-mingcute-down-line tool-call-group-chevron', isOpen && 'is-open']" aria-hidden="true" />
         </button>
       </template>
 
-      <div class="tool-message-group-list">
-        <ToolExecutionItem
+      <div class="tool-call-group-list">
+        <ToolCallItem
           v-for="execution in executions"
           :key="execution.key"
           :call="execution.call"
@@ -170,60 +170,60 @@ watch(
       </div>
     </AppCollapsible>
 
-    <div v-if="resultImages.length" class="tool-message-group-images">
+    <div v-if="resultImages.length" class="tool-call-group-images">
       <AppImagePreview variant="large" :items="resultImages" />
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.tool-message-group-wrapper {
+.tool-call-group-wrapper {
   @apply flex w-full flex-col gap-2;
 }
 
-.tool-message-group {
+.tool-call-group {
   @apply w-full;
 }
 
-.tool-message-group-images {
+.tool-call-group-images {
   @apply w-full;
 }
 
-.tool-message-group :deep(.tool-message-group-trigger) {
+.tool-call-group :deep(.tool-call-group-trigger) {
   @apply flex w-full items-center gap-2 px-3 py-2 text-left;
 }
 
-.tool-message-group-icon {
+.tool-call-group-icon {
   @apply shrink-0 text-sm;
 
   color: var(--primary-solid);
 }
 
-.tool-message-group-title {
+.tool-call-group-title {
   @apply min-w-0 flex-1 text-xs font-medium;
 }
 
-.tool-message-group-summary {
+.tool-call-group-summary {
   @apply shrink-0 text-[11px];
 
   color: var(--muted-foreground);
 }
 
-.tool-message-group-chevron {
+.tool-call-group-chevron {
   @apply shrink-0 text-sm transition-transform duration-150;
 
   color: var(--muted-foreground);
 }
 
-.tool-message-group-chevron.is-open {
+.tool-call-group-chevron.is-open {
   transform: rotate(180deg);
 }
 
-.tool-message-group :deep(.tool-message-group-content) {
+.tool-call-group :deep(.tool-call-group-content) {
   @apply p-0;
 }
 
-.tool-message-group-list {
+.tool-call-group-list {
   @apply flex flex-col gap-1 border-t p-2;
 
   border-color: var(--border-subtle);

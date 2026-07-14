@@ -29,8 +29,8 @@ import AssistantMessage from './AssistantMessage.vue';
 import ErrorMessage from './ErrorMessage.vue';
 import MessageActions from './MessageActions.vue';
 import MessageCompactionNotice from './MessageCompactionNotice.vue';
-import ToolCallMessage from './ToolCallMessage.vue';
-import ToolResultMessage from './ToolResultMessage.vue';
+import ToolCallRequest from './ToolCallRequest.vue';
+import ToolCallResult from './ToolCallResult.vue';
 import UserBranchNavigator from './UserBranchNavigator.vue';
 import UserMessage from './UserMessage.vue';
 
@@ -223,7 +223,7 @@ async function copyRawText() {
           :partial="assistantPartial"
         />
 
-        <ToolCallMessage
+        <ToolCallRequest
           v-for="toolCall in assistantToolCalls"
           :key="toolCall.id"
           :name="toolCall.name"
@@ -241,7 +241,7 @@ async function copyRawText() {
       </template>
 
       <template v-else-if="message.role === 'toolResult'">
-        <ToolResultMessage :name="message.toolName" :content="toolResultContent" />
+        <ToolCallResult :name="message.toolName" :content="toolResultContent" />
         <div v-if="toolResultImageItems.length" class="message-inline-images">
           <AppImagePreview variant="large" :items="toolResultImageItems" />
         </div>

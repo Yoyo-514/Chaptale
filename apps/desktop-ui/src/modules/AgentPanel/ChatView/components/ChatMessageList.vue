@@ -5,7 +5,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ChatDisplayMessage, ChatSearchMatch } from '../types';
 import { getAssistantToolCalls } from '../utils/message/message-content';
 import MessageItem from './message/MessageItem.vue';
-import ToolMessageGroup from './message/ToolMessageGroup.vue';
+import ToolCallGroup from './message/ToolCallGroup.vue';
 
 const props = defineProps<{
   messages: ChatDisplayMessage[];
@@ -204,7 +204,7 @@ defineExpose({ scrollToBottom, scrollToIndex });
           @regenerate-assistant="emit('regenerateAssistant', $event)"
           @switch-branch="emit('switchBranch', $event)"
         />
-        <ToolMessageGroup
+        <ToolCallGroup
           v-else-if="getToolGroupRow(virtualItem.index)"
           :messages="getToolGroupRow(virtualItem.index)!.messages"
           :is-busy="props.isBusy"

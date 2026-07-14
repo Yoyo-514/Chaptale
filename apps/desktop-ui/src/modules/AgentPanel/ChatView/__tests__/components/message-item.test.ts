@@ -16,8 +16,8 @@ const stubs = {
     props: ['content', 'reasoning', 'partial'],
     template: '<div class="stub-assistant">{{ content }} {{ reasoning }} {{ partial }}</div>'
   },
-  ToolCallMessage: { props: ['name', 'args'], template: '<div class="stub-tool-call">{{ name }}</div>' },
-  ToolResultMessage: {
+  ToolCallRequest: { props: ['name', 'args'], template: '<div class="stub-tool-call">{{ name }}</div>' },
+  ToolCallResult: {
     props: ['name', 'content'],
     template: '<div class="stub-tool-result">{{ name }} {{ content }}</div>'
   },
