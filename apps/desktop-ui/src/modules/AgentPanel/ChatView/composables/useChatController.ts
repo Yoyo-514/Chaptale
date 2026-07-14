@@ -3,10 +3,9 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
 import { useSettingsStore } from '@/stores/settings';
-import { getDesktopApi } from '@/stores/utils/desktop-api';
+import { getDesktopApi, toErrorMessage } from '@/stores/utils/desktop-api';
 import type { SlashCommand } from '@chaptale/ipc-contract';
 import type { ChatContextFile, ChatImageAttachment, ChatMessage } from '@chaptale/shared';
-import { errorToMessage } from '@chaptale/shared';
 import type { ChatDisplayMessage } from '../types';
 import { getDroppedContextFilePaths, mergeChatContextFiles } from '../utils/context-files';
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
@@ -172,7 +171,7 @@ export function useChatController() {
       }
 
       const entries = await sessionStore.getCurrentEntries().catch(error => {
-        notificationStore.error('读取会话消息失败', errorToMessage(error));
+        notificationStore.error('读取会话消息失败', toErrorMessage(error));
         return [];
       });
 
@@ -193,7 +192,7 @@ export function useChatController() {
     try {
       state.slashCommands = await getDesktopApi().slashCommands.list();
     } catch (error) {
-      notificationStore.error('加载命令失败', errorToMessage(error));
+      notificationStore.error('加载命令失败', toErrorMessage(error));
     }
   }
 
@@ -358,7 +357,7 @@ export function useChatController() {
       activeRunId.value = runId;
       state.isConnecting = false;
     } catch (error) {
-      const message = errorToMessage(error);
+      const message = toErrorMessage(error);
       finishRun();
       assistantStreaming.appendErrorMessage(message);
       notificationStore.error('发送失败', message);

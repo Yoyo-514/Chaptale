@@ -3,9 +3,9 @@ import { computed } from 'vue';
 
 import { AppImagePreview } from '@/components/AppImagePreview';
 import { useNotificationStore } from '@/stores/notification';
+import { toErrorMessage } from '@/stores/utils/desktop-api';
 import { cn } from '@/utils';
 import { formatMessageCost, formatMessageTime, formatTokenCount } from '@/utils/session-display';
-import { errorToMessage } from '@chaptale/shared';
 import type { ChatDisplayMessage } from '../../types';
 import { toInlineImageItems } from '../../utils/message/inline-images';
 import {
@@ -176,7 +176,7 @@ async function copyRawText() {
     await navigator.clipboard.writeText(content);
     notificationStore.success('已复制消息原文');
   } catch (error) {
-    notificationStore.error('复制失败', errorToMessage(error));
+    notificationStore.error('复制失败', toErrorMessage(error));
   }
 }
 </script>
