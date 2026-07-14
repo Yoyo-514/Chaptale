@@ -29,13 +29,8 @@ test-results
 
 *.env
 
-# temp
-temp/
-backup/
-
 # AI memory
 .serena
-guide-docs
 design-docs
 .playwright-mcp
 .pi-subagents
