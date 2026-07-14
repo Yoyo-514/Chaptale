@@ -1,9 +1,12 @@
 import {
   IPC_CHANNELS,
+  type SelectWorkspaceDirResult,
   type UpdateChaptaleSettingsPayload,
   type UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
-import { BrowserWindow, dialog, shell, type OpenDialogOptions } from 'electron';
+import { BrowserWindow } from 'electron';
+import { pickDirectory } from '../infra/dialog-gateway';
+import { openPathOrThrow } from '../infra/shell-gateway';
 import { handleTrustedIpc } from '../security/trusted-ipc';
 import { SettingsService } from '../services/settings.service';
 
@@ -20,46 +23,26 @@ export function registerSettingsIpc(settingsService: SettingsService, onStorageC
     return state;
   });
 
-  handleTrustedIpc(IPC_CHANNELS.settings.updateWebAccess, async (_event, payload: UpdatePiWebAccessSettingsPayload) => {
-    const state = await settingsService.updateWebAccess(payload);
+  handleTrustedIpc(IPC_CHANNELS.settings.updateWebAccess, (_event, payload: UpdatePiWebAccessSettingsPayload) =>
+    settingsService.updateWebAccess(payload)
+  );
 
-    return state;
-  });
-
-  handleTrustedIpc(IPC_CHANNELS.settings.selectWorkspaceDir, async event => {
+  handleTrustedIpc(IPC_CHANNELS.settings.selectWorkspaceDir, async (event): Promise<SelectWorkspaceDirResult> => {
     const owner = BrowserWindow.fromWebContents(event.sender);
-    const options: OpenDialogOptions = {
-      title: '选择 Chaptale 工作区',
-      properties: ['openDirectory', 'createDirectory']
-    };
-    const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+    const workspacePath = await pickDirectory(owner, '选择 Chaptale 工作区');
 
-    if (result.canceled || !result.filePaths[0]) {
+    if (!workspacePath) {
       return { canceled: true };
     }
 
-    const state = await settingsService.update({
-      storage: {
-        mode: 'workspace',
-        workspacePath: result.filePaths[0]
-      }
-    });
-
+    const state = await settingsService.update({ storage: { mode: 'workspace', workspacePath } });
     onStorageChanged?.();
 
-    return {
-      canceled: false,
-      workspacePath: result.filePaths[0],
-      state
-    };
+    return { canceled: false, workspacePath, state };
   });
 
   handleTrustedIpc(IPC_CHANNELS.settings.openConfigDir, async () => {
     await settingsService.ensureBaseDirs();
-    const errorMessage = await shell.openPath(settingsService.rootDir);
-
-    if (errorMessage) {
-      throw new Error(errorMessage);
-    }
+    await openPathOrThrow(settingsService.rootDir);
   });
 }

@@ -26,6 +26,8 @@ export default defineConfig({
         '**/tools/**',
         '**/*.factory.ts',
         '**/services/*model.service.ts',
+        '**/infra/dialog-gateway.ts',
+        '**/infra/shell-gateway.ts',
 
         // Type-only contract packages are validated by TypeScript and package consumers.
         'packages/ipc-contract/src/**',

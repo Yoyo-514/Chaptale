@@ -32,3 +32,21 @@ export async function writeJsonFile(filePath: string, value: unknown) {
   await fs.writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
   await fs.rename(tempPath, filePath);
 }
+
+/** 读取可能不存在的文本文件；ENOENT 返回 undefined，其余错误照抛。 */
+export async function readOptionalTextFile(filePath: string): Promise<string | undefined> {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+export async function writeTextFile(filePath: string, content: string) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, content, 'utf8');
+}

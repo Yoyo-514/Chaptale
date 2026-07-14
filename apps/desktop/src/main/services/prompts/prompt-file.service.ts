@@ -2,22 +2,11 @@ import type { PromptSettingsState, UpdatePromptSettingsPayload } from '@chaptale
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import { readOptionalTextFile } from '../../infra/fs-gateway';
 import { DEFAULT_SYSTEM_PROMPT, resolveSystemPrompt } from '../../prompt';
 
 const SYSTEM_PROMPT_FILE = 'SYSTEM.md';
 const APPEND_SYSTEM_PROMPT_FILE = 'APPEND_SYSTEM.md';
-
-async function readOptionalTextFile(filePath: string) {
-  try {
-    return await fs.readFile(filePath, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return undefined;
-    }
-
-    throw error;
-  }
-}
 
 async function writeOptionalPromptFile(filePath: string, content: string) {
   if (content.trim()) {

@@ -1,10 +1,11 @@
 import type { ChatContextFile } from '@chaptale/shared';
 import type { ImageContent } from '@earendil-works/pi-ai/compat';
 
-import { dialog, type BrowserWindow, type OpenDialogOptions } from 'electron';
+import type { BrowserWindow, OpenDialogOptions } from 'electron';
 import { promises as fs } from 'node:fs';
 import { unique } from 'radash';
 
+import { showOpenDialog } from '../infra/dialog-gateway';
 import {
   DOCUMENT_MIME_TYPES,
   IMAGE_MIME_TYPES,
@@ -53,9 +54,7 @@ export class ContextFileService {
         { name: '所有文件', extensions: ['*'] }
       ]
     };
-    const result = parentWindow
-      ? await dialog.showOpenDialog(parentWindow, options)
-      : await dialog.showOpenDialog(options);
+    const result = await showOpenDialog(parentWindow, options);
 
     if (result.canceled) {
       return [];
