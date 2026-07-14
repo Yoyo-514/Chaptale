@@ -1,8 +1,10 @@
 import type { AgentRunOptions, AgentRuntime } from '@chaptale/ipc-contract';
-import type { ChatMessage } from '@chaptale/shared';
+import type { ChatMessage, SkillInvocation } from '@chaptale/shared';
 import { errorToMessage, formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
+import type { ImageContent } from '@earendil-works/pi-ai/compat';
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
+import { AsyncMessageQueue } from '../agent/async-message-queue';
 import { mapAgentStreamEvent } from '../agent/pi-agent-event.mapper';
 import { PiAgentSessionFactory } from '../agent/pi-agent-session.factory';
 import { flushSessionFile } from '../sessions/pi-session-file';
@@ -16,7 +18,13 @@ import type { SettingsService } from './settings.service';
 
 export type StreamOptions = AgentRunOptions;
 
-function noop() {}
+type ReusedUserEntryContext = ReturnType<typeof getPiUserEntrySnapshot> | undefined;
+
+type AgentRunContext = {
+  userMessage: ChatMessage;
+  promptText: string;
+  promptImages: ImageContent[];
+};
 
 /**
  * 基于 pi SDK AgentSession 的 Agent 服务。
@@ -68,11 +76,65 @@ export class PiAgentService implements AgentRuntime {
 
   async *stream(options: StreamOptions): AsyncGenerator<ChatMessage> {
     const { signal, query, sessionId } = options;
-    const session = await this.getOrCreateSession(sessionId);
     const skillInvocation = parseSkillInvocation(query);
+    const session = await this.prepareSession(sessionId, Boolean(skillInvocation));
+
+    const reusedContext = options.reuseUserEntryId
+      ? getPiUserEntrySnapshot(session.sessionManager, options.reuseUserEntryId)
+      : undefined;
+
+    this.applyBranch(session, options.branchFromEntryId);
+
+    // AgentSession 事件是回调风格，经 AsyncMessageQueue 桥接为 AsyncGenerator 供 IPC 层消费
+    const queue = new AsyncMessageQueue<ChatMessage>();
+    const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
+      const mapping = mapAgentStreamEvent(event, { aborted: signal.aborted });
+
+      if (mapping.message) {
+        queue.push(mapping.message);
+      }
+
+      if (mapping.done) {
+        queue.finish();
+      }
+    });
+
+    const onAbort = () => {
+      void session.abort();
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    try {
+      const runContext = await this.resolveRunContext(options, skillInvocation, reusedContext);
+
+      yield runContext.userMessage;
+
+      const promptPromise = session
+        .prompt(runContext.promptText, { images: runContext.promptImages })
+        .catch((error: unknown) => {
+          queue.finish(error instanceof Error ? error : new Error(errorToMessage(error)));
+        });
+
+      yield* queue.drain();
+
+      await promptPromise;
+      flushSessionFile(session.sessionManager);
+
+      if (queue.failure && !signal.aborted) {
+        throw queue.failure;
+      }
+    } finally {
+      signal.removeEventListener('abort', onAbort);
+      unsubscribe();
+    }
+  }
+
+  /** 取回（或创建）缓存会话，并保证 skills 定义与默认模型和当前设置一致。 */
+  private async prepareSession(sessionId: string, hasSkillInvocation: boolean): Promise<AgentSession> {
+    const session = await this.getOrCreateSession(sessionId);
 
     // 显式 skill 命令应读取磁盘上的最新定义，避免命令菜单已刷新但缓存会话仍持有旧 skills。
-    if (skillInvocation) {
+    if (hasSkillInvocation) {
       await session.reload();
     }
 
@@ -88,136 +150,85 @@ export class PiAgentService implements AgentRuntime {
       throw new Error('尚未配置可用模型：请在设置面板 LLM Provider 中配置凭据并选择默认模型');
     }
 
-    const reusedContext = options.reuseUserEntryId
-      ? getPiUserEntrySnapshot(session.sessionManager, options.reuseUserEntryId)
-      : undefined;
+    return session;
+  }
 
-    if (options.branchFromEntryId !== undefined) {
-      if (options.branchFromEntryId) {
-        session.sessionManager.branch(options.branchFromEntryId);
-      } else {
-        session.sessionManager.resetLeaf();
-      }
-
-      session.agent.state.messages = session.sessionManager.buildSessionContext().messages;
+  private applyBranch(session: AgentSession, branchFromEntryId: string | null | undefined) {
+    if (branchFromEntryId === undefined) {
+      return;
     }
 
-    // AgentSession 事件是回调风格，这里桥接为 AsyncGenerator 供 IPC 层消费
-    const queue: ChatMessage[] = [];
-    let done = false;
-    let failure: Error | undefined;
-    let wake: () => void = noop;
+    if (branchFromEntryId) {
+      session.sessionManager.branch(branchFromEntryId);
+    } else {
+      session.sessionManager.resetLeaf();
+    }
 
-    const push = (message: ChatMessage) => {
-      queue.push(message);
-      wake();
-    };
+    session.agent.state.messages = session.sessionManager.buildSessionContext().messages;
+  }
 
-    const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
-      const mapping = mapAgentStreamEvent(event, { aborted: signal.aborted });
-
-      if (mapping.message) {
-        push(mapping.message);
+  /** 解析上下文文件与图片附件，产出用户消息、最终 prompt 文本与随行图片。 */
+  private async resolveRunContext(
+    options: StreamOptions,
+    skillInvocation: SkillInvocation | undefined,
+    reusedContext: ReusedUserEntryContext
+  ): Promise<AgentRunContext> {
+    const resolvedContext = reusedContext ? undefined : await this.contextFileService.resolve(options.contextFilePaths);
+    const promptPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
+    const decodedContext = decodeContextMessage(promptPrefix);
+    // 复用历史消息时保留原始 content 下标，保证 session-entry source 与 readOriginal 对齐；
+    // 新发送时 pi 会把消息持久化为 [text, ...images]，图片真实下标从 1 开始。
+    const imageBlocks = reusedContext
+      ? reusedContext.imageBlocks
+      : (resolvedContext?.images ?? []).map((image, index) => ({
+          type: image.type,
+          data: image.data,
+          mimeType: image.mimeType,
+          blockIndex: index + 1
+        }));
+    const promptImages = imageBlocks.map(image => ({
+      type: image.type,
+      data: image.data,
+      mimeType: image.mimeType
+    }));
+    const imagePaths = resolvedContext?.imagePaths ?? [];
+    const presentation = this.imageAttachmentService.createPresentation(imageBlocks, blockIndex => {
+      if (options.reuseUserEntryId) {
+        return {
+          type: 'session-entry',
+          sessionId: options.sessionId,
+          entryId: options.reuseUserEntryId,
+          blockIndex
+        };
       }
 
-      if (mapping.done) {
-        done = true;
-        wake();
-      }
+      const imagePath = imagePaths[blockIndex - 1];
+      return imagePath ? { type: 'context-file', path: imagePath } : undefined;
     });
+    const displayText = skillInvocation?.arguments ?? options.query;
+    const userContent =
+      presentation.attachments.length > 0
+        ? [...(displayText ? [{ type: 'text' as const, text: displayText }] : []), ...presentation.attachments]
+        : displayText;
 
-    const onAbort = () => {
-      void session.abort();
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
+    // pi 只在文本以 /skill: 开头时执行原生展开；附件信封因此作为命令参数注入，而不是放在命令前。
+    const promptText = skillInvocation
+      ? formatSkillInvocation({
+          ...skillInvocation,
+          arguments: `${promptPrefix}${skillInvocation.arguments}`.trim()
+        })
+      : `${promptPrefix}${options.query}`;
 
-    try {
-      const resolvedContext = reusedContext
-        ? undefined
-        : await this.contextFileService.resolve(options.contextFilePaths);
-      const promptPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
-      const decodedContext = decodeContextMessage(promptPrefix);
-      // 复用历史消息时保留原始 content 下标，保证 session-entry source 与 readOriginal 对齐；
-      // 新发送时 pi 会把消息持久化为 [text, ...images]，图片真实下标从 1 开始。
-      const imageBlocks = reusedContext
-        ? reusedContext.imageBlocks
-        : (resolvedContext?.images ?? []).map((image, index) => ({
-            type: image.type,
-            data: image.data,
-            mimeType: image.mimeType,
-            blockIndex: index + 1
-          }));
-      const promptImages = imageBlocks.map(image => ({
-        type: image.type,
-        data: image.data,
-        mimeType: image.mimeType
-      }));
-      const imagePaths = resolvedContext?.imagePaths ?? [];
-      const presentation = this.imageAttachmentService.createPresentation(imageBlocks, blockIndex => {
-        if (options.reuseUserEntryId) {
-          return {
-            type: 'session-entry',
-            sessionId,
-            entryId: options.reuseUserEntryId,
-            blockIndex
-          };
-        }
-
-        const imagePath = imagePaths[blockIndex - 1];
-        return imagePath ? { type: 'context-file', path: imagePath } : undefined;
-      });
-      const displayText = skillInvocation?.arguments ?? query;
-      const userContent =
-        presentation.attachments.length > 0
-          ? [...(displayText ? [{ type: 'text' as const, text: displayText }] : []), ...presentation.attachments]
-          : displayText;
-
-      yield {
+    return {
+      userMessage: {
         role: 'user',
         content: userContent,
         ...(decodedContext.contextFiles.length > 0 ? { contextFiles: decodedContext.contextFiles } : {}),
         ...(skillInvocation ? { skillInvocation } : {}),
         timestamp: Date.now()
-      };
-
-      // pi 只在文本以 /skill: 开头时执行原生展开；附件信封因此作为命令参数注入，而不是放在命令前。
-      const promptText = skillInvocation
-        ? formatSkillInvocation({
-            ...skillInvocation,
-            arguments: `${promptPrefix}${skillInvocation.arguments}`.trim()
-          })
-        : `${promptPrefix}${query}`;
-      const promptPromise = session.prompt(promptText, { images: promptImages }).catch((error: unknown) => {
-        failure = error instanceof Error ? error : new Error(errorToMessage(error));
-        done = true;
-        wake();
-      });
-
-      while (true) {
-        if (queue.length > 0) {
-          yield queue.shift()!;
-          continue;
-        }
-
-        if (done) {
-          break;
-        }
-
-        await new Promise<void>(resolve => {
-          wake = resolve;
-        });
-        wake = noop;
-      }
-
-      await promptPromise;
-      flushSessionFile(session.sessionManager);
-
-      if (failure && !signal.aborted) {
-        throw failure;
-      }
-    } finally {
-      signal.removeEventListener('abort', onAbort);
-      unsubscribe();
-    }
+      },
+      promptText,
+      promptImages
+    };
   }
 }
