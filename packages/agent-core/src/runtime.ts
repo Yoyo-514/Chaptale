@@ -12,12 +12,6 @@ export type AgentRunOptions = {
   reuseUserEntryId?: string;
 };
 
-export type AgentRunResult = {
-  runId: string;
-  status: 'running' | 'completed' | 'cancelled' | 'error';
-  error?: string;
-};
-
 /**
  * 跨端 Agent Runtime 抽象。
  *
@@ -26,8 +20,4 @@ export type AgentRunResult = {
  */
 export interface AgentRuntime {
   stream(options: AgentRunOptions): AsyncGenerator<ChatMessage>;
-}
-
-export interface CancellableAgentRuntime extends AgentRuntime {
-  cancel?(runId: string): Promise<AgentRunResult>;
 }
