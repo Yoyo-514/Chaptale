@@ -2,7 +2,6 @@ import type {
   ChaptaleSessionInfoEntry,
   ChaptaleSessionListItem,
   ChaptaleSessionMetadata,
-  ChaptaleSessionScope,
   ChaptaleSessionStorageDebugInfo,
   ChaptaleSessionTreeEntry,
   CreateSessionOptions,
@@ -11,7 +10,6 @@ import type {
 } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
-import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { unique } from 'radash';
 
@@ -20,47 +18,43 @@ import { ImageAttachmentService } from './image-attachment.service';
 import { flushSessionFile } from '../sessions/pi-session-file';
 import { fromPiMessage, toPiMessage } from '../sessions/pi-session-message.mapper';
 import { buildSessionHtml, toSafeFileName } from '../sessions/session-html';
+import { getSessionScope, SessionStorageResolver, type SessionStorageOptions } from '../sessions/session-storage';
 import { readSessionUsage } from '../sessions/pi-session-usage';
 
-export type PiSessionRepositoryOptions = {
-  rootDir: string;
-  cwd: string | (() => string | Promise<string>);
-  sessionDir: string | (() => string | Promise<string>);
-  sessionsRootDir?: string | (() => string | Promise<string>);
-  getStorageContext?: () =>
-    | { storageMode?: 'global' | 'workspace'; workspacePath?: string }
-    | Promise<{ storageMode?: 'global' | 'workspace'; workspacePath?: string }>;
-};
+export type PiSessionRepositoryOptions = SessionStorageOptions;
 
+/** 会话 CRUD、分支/leaf 与消息读取；路径解析与文件删除委托给 SessionStorageResolver。 */
 export class PiSessionRepository {
   private readonly leafOverrides = new Map<string, string | null>();
+  private readonly storage: SessionStorageResolver;
 
   constructor(
-    private readonly options: PiSessionRepositoryOptions,
-    private readonly imageAttachmentService = new ImageAttachmentService()
-  ) {}
+    options: PiSessionRepositoryOptions,
+    private readonly imageAttachmentService = new ImageAttachmentService(),
+    storage = new SessionStorageResolver(options)
+  ) {
+    this.storage = storage;
+  }
 
   async getStorageDebugInfo(): Promise<ChaptaleSessionStorageDebugInfo> {
-    const context = (await this.options.getStorageContext?.()) ?? {};
+    const context = await this.storage.getStorageContext();
 
     return {
-      rootDir: this.options.rootDir,
-      sessionDir: await this.resolveSessionDir(),
-      cwd: await this.resolveCwd(),
+      rootDir: this.storage.rootDir,
+      sessionDir: await this.storage.resolveSessionDir(),
+      cwd: await this.storage.resolveCwd(),
       storageMode: context.storageMode,
       workspacePath: context.workspacePath
     };
   }
 
   async ensureSessionDir() {
-    const sessionDir = await this.resolveSessionDir();
-    await fs.mkdir(sessionDir, { recursive: true });
-    return sessionDir;
+    return this.storage.ensureSessionDir();
   }
 
   async create(options: CreateSessionOptions = {}): Promise<ChaptaleSessionMetadata> {
-    const cwd = options.cwd ?? (await this.resolveCwd());
-    const sessionDir = await this.ensureSessionDir();
+    const cwd = options.cwd ?? (await this.storage.resolveCwd());
+    const sessionDir = await this.storage.ensureSessionDir();
     const manager = SessionManager.create(cwd, sessionDir, {
       id: options.id,
       parentSession: options.parentSessionPath
@@ -80,7 +74,7 @@ export class PiSessionRepository {
   }
 
   async list(): Promise<ChaptaleSessionListItem[]> {
-    const sessionDirs = await this.getKnownSessionDirs();
+    const sessionDirs = await this.storage.getKnownSessionDirs();
     const sessions = await Promise.all(
       sessionDirs.map(async sessionDir => {
         const scope = getSessionScope(sessionDir);
@@ -130,7 +124,7 @@ export class PiSessionRepository {
       .map(entry => toSessionTreeEntry(entry, { sessionId, imageAttachmentService: this.imageAttachmentService }));
   }
 
-  /** 导出当前分支为单文件 HTML；文件写入由 IPC 层负责。 */
+  /** 导出当前分支为单文件 HTML；文件写入由 sessions/session-export 负责。 */
   async exportHtml(sessionId: string): Promise<{ html: string; suggestedFileName: string }> {
     const [session, entries] = await Promise.all([this.findSessionInfo(sessionId), this.getPathToRoot(sessionId)]);
     const name = session.name || session.lastMessagePreview || '未命名会话';
@@ -216,7 +210,7 @@ export class PiSessionRepository {
 
   async delete(sessionId: string): Promise<void> {
     const session = await this.findSessionInfo(sessionId);
-    await this.deleteSessionFile(session);
+    await this.storage.deleteSessionFile(session.path);
   }
 
   async deleteMany(sessionIds: string[]): Promise<void> {
@@ -236,12 +230,12 @@ export class PiSessionRepository {
         throw new Error(`Session not found: ${sessionId}`);
       }
 
-      await this.deleteSessionFile(session);
+      await this.storage.deleteSessionFile(session.path);
     }
   }
 
   private async openSession(sessionId: string) {
-    const [session, fallbackCwd] = await Promise.all([this.findSessionInfo(sessionId), this.resolveCwd()]);
+    const [session, fallbackCwd] = await Promise.all([this.findSessionInfo(sessionId), this.storage.resolveCwd()]);
     const sessionDir = path.dirname(session.path);
     const manager = SessionManager.open(session.path, sessionDir, session.cwd || fallbackCwd);
     const leafOverride = this.leafOverrides.get(sessionId);
@@ -255,18 +249,6 @@ export class PiSessionRepository {
     }
 
     return manager;
-  }
-
-  private async deleteSessionFile(session: ChaptaleSessionListItem) {
-    const sessionsRootDir = await this.resolveSessionsRootDir();
-    const resolvedSessionPath = path.resolve(session.path);
-    const resolvedSessionsRootDir = path.resolve(sessionsRootDir);
-
-    if (!resolvedSessionPath.startsWith(`${resolvedSessionsRootDir}${path.sep}`)) {
-      throw new Error(`Refuse to delete session outside sessions root directory: ${session.path}`);
-    }
-
-    await fs.unlink(resolvedSessionPath);
   }
 
   private async findSessionInfo(sessionId: string) {
@@ -296,39 +278,4 @@ export class PiSessionRepository {
       parentSessionPath: header.parentSession
     };
   }
-
-  private async getKnownSessionDirs() {
-    const [currentSessionDir, sessionsRootDir] = await Promise.all([
-      this.ensureSessionDir(),
-      this.resolveSessionsRootDir()
-    ]);
-    await fs.mkdir(sessionsRootDir, { recursive: true });
-
-    const entries = await fs.readdir(sessionsRootDir, { withFileTypes: true });
-    const dirs = entries.filter(entry => entry.isDirectory()).map(entry => path.join(sessionsRootDir, entry.name));
-
-    return unique([currentSessionDir, ...dirs]);
-  }
-
-  private async resolveSessionsRootDir() {
-    if (this.options.sessionsRootDir) {
-      return typeof this.options.sessionsRootDir === 'function'
-        ? await this.options.sessionsRootDir()
-        : this.options.sessionsRootDir;
-    }
-
-    return path.dirname(await this.resolveSessionDir());
-  }
-
-  private async resolveSessionDir() {
-    return typeof this.options.sessionDir === 'function' ? await this.options.sessionDir() : this.options.sessionDir;
-  }
-
-  private async resolveCwd() {
-    return typeof this.options.cwd === 'function' ? await this.options.cwd() : this.options.cwd;
-  }
-}
-
-function getSessionScope(sessionDir: string): ChaptaleSessionScope {
-  return path.basename(sessionDir) === 'global' ? 'global' : 'workspace';
 }
