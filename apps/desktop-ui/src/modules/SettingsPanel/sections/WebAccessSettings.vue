@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type { PiWebAccessProvider, PiWebAccessSettings, PiWebAccessWorkflow } from '@chaptale/ipc-contract';
-import { klona } from 'klona';
-import { computed, reactive, watch } from 'vue';
+import type { PiWebAccessProvider, PiWebAccessWorkflow } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCollapsible } from '@/components/AppCollapsible';
@@ -9,72 +7,28 @@ import { AppForm, AppFormActions, AppFormField, AppFormGrid } from '@/components
 import { AppInput } from '@/components/AppInput';
 import { AppNumberInput } from '@/components/AppNumberInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
-import { useNotificationStore } from '@/stores/notification';
-import { useSettingsStore } from '@/stores/settings';
 import SettingsSection from '../components/SettingsSection.vue';
 import SettingsToggleField from '../components/SettingsToggleField.vue';
-import {
-  createDefaultWebAccessSettings,
-  normalizeWebAccessSettings,
-  webAccessProviders,
-  webAccessWorkflows
-} from '../utils/web-access-settings';
+import { useWebAccessSettingsState } from '../composables/useWebAccessSettingsState';
 
-const settingsStore = useSettingsStore();
-const notificationStore = useNotificationStore();
-
-const providers = webAccessProviders;
-const workflows = webAccessWorkflows;
-
-const draft = reactive<PiWebAccessSettings>(createDefaultWebAccessSettings());
-const sections = reactive({
-  keys: true,
-  gemini: false,
-  content: true
-});
-
-watch(
-  () => settingsStore.state?.webAccess,
-  value => {
-    Object.assign(draft, normalizeWebAccessSettings(value));
-  },
-  { immediate: true }
-);
-
-const showCuratorOptions = computed(() => draft.workflow === 'summary-review');
-const showSummaryOptions = computed(() => draft.workflow !== 'none');
-const usesGeminiFeatures = computed(() => draft.provider === 'gemini' || draft.youtube.enabled || draft.video.enabled);
-const showBrowserCookieOptions = computed(() => usesGeminiFeatures.value);
-const activeProvider = computed(() => providers.find(provider => provider.value === draft.provider));
-const activeWorkflow = computed(() => workflows.find(workflow => workflow.value === draft.workflow));
-const visibleKeyProviders = computed(() =>
-  providers.filter(provider => provider.value !== 'auto' && isProviderKeyVisible(provider.value))
-);
-
-function isProviderKeyVisible(provider: Exclude<PiWebAccessProvider, 'auto'>) {
-  if (draft.provider === 'auto' || draft.provider === provider) {
-    return true;
-  }
-
-  return provider === 'gemini' && usesGeminiFeatures.value;
-}
-
-function selectProvider(provider: PiWebAccessProvider) {
-  draft.provider = provider;
-}
-
-function selectWorkflow(workflow: PiWebAccessWorkflow) {
-  draft.workflow = workflow;
-}
-
-async function save() {
-  await settingsStore.updateWebAccess(klona(draft));
-  notificationStore.success('联网能力设置已保存');
-}
-
-function resetToSafeDefaults() {
-  Object.assign(draft, createDefaultWebAccessSettings());
-}
+const {
+  providers,
+  workflows,
+  draft,
+  sections,
+  isLoading,
+  showCuratorOptions,
+  showSummaryOptions,
+  usesGeminiFeatures,
+  showBrowserCookieOptions,
+  activeProvider,
+  activeWorkflow,
+  visibleKeyProviders,
+  selectProvider,
+  selectWorkflow,
+  save,
+  resetToSafeDefaults
+} = useWebAccessSettingsState();
 </script>
 
 <template>
@@ -394,10 +348,8 @@ function resetToSafeDefaults() {
       </AppCollapsible>
 
       <AppFormActions>
-        <AppButton type="button" :disabled="settingsStore.isLoading" @click="resetToSafeDefaults">
-          恢复安全默认值
-        </AppButton>
-        <AppButton variant="primary" type="submit" :disabled="settingsStore.isLoading"> 保存联网设置 </AppButton>
+        <AppButton type="button" :disabled="isLoading" @click="resetToSafeDefaults"> 恢复安全默认值 </AppButton>
+        <AppButton variant="primary" type="submit" :disabled="isLoading"> 保存联网设置 </AppButton>
       </AppFormActions>
     </AppForm>
   </SettingsSection>
