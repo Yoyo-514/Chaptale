@@ -373,7 +373,7 @@ export function useChatController() {
       finishRun();
 
       if (runId) {
-        await window.chaptaleDesktop?.agent.cancel(runId);
+        await getDesktopApiOrNotify()?.agent.cancel(runId);
       }
       return;
     }

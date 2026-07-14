@@ -1,48 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { useWindowControls } from './useWindowControls';
 
-const isDesktop = typeof window !== 'undefined' && Boolean(window.chaptaleDesktop);
-const isMaximized = ref(false);
-
-async function refreshWindowState() {
-  const state = await window.chaptaleDesktop?.windowControl.isMaximized().catch(() => undefined);
-  isMaximized.value = state?.isMaximized ?? false;
-}
-
-async function handleMinimize() {
-  await window.chaptaleDesktop?.windowControl.minimize();
-}
-
-async function handleToggleMaximize() {
-  const state = await window.chaptaleDesktop?.windowControl.toggleMaximize();
-  isMaximized.value = state?.isMaximized ?? false;
-}
-
-async function handleClose() {
-  await window.chaptaleDesktop?.windowControl.close();
-}
-
-onMounted(() => {
-  void refreshWindowState();
-});
+const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowControls();
 </script>
 
 <template>
   <header class="titlebar">
-    <div class="titlebar-drag-region" @dblclick="handleToggleMaximize">
+    <div class="titlebar-drag-region" @dblclick="toggleMaximize">
       <div class="titlebar-brand">
         <img class="titlebar-icon" src="/favicon.ico" alt="Chaptale" />
         <span class="titlebar-text">Chaptale</span>
       </div>
 
       <div class="titlebar-controls" aria-label="窗口控制" @dblclick.stop>
-        <button
-          class="titlebar-control"
-          type="button"
-          :disabled="!isDesktop"
-          aria-label="最小化"
-          @click="handleMinimize"
-        >
+        <button class="titlebar-control" type="button" :disabled="!isDesktop" aria-label="最小化" @click="minimize">
           <span class="i-mingcute-minimize-line" aria-hidden="true" />
         </button>
         <button
@@ -50,7 +21,7 @@ onMounted(() => {
           type="button"
           :disabled="!isDesktop"
           :aria-label="isMaximized ? '还原窗口' : '最大化窗口'"
-          @click="handleToggleMaximize"
+          @click="toggleMaximize"
         >
           <span :class="isMaximized ? 'i-mingcute-restore-line' : 'i-mingcute-square-line'" aria-hidden="true" />
         </button>
@@ -59,7 +30,7 @@ onMounted(() => {
           type="button"
           :disabled="!isDesktop"
           aria-label="关闭窗口"
-          @click="handleClose"
+          @click="close"
         >
           <span class="i-mingcute-close-line" aria-hidden="true" />
         </button>

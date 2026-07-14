@@ -5,10 +5,11 @@ import { AppButton } from '@/components/AppButton';
 import { AppForm, AppFormActions } from '@/components/AppForm';
 import { AppImagePreview, type AppImagePreviewItem } from '@/components/AppImagePreview';
 import { AppTextarea } from '@/components/AppTextarea';
-import type { ChatContextFile, ChatImageAttachment, ChatImageSource, ChatSkillInvocation } from '@chaptale/shared';
+import type { ChatContextFile, ChatImageAttachment, ChatSkillInvocation } from '@chaptale/shared';
 
 import type { AppTextareaExpose } from '@/components/AppTextarea';
 import ChatContextFiles from '../ChatInput/ChatContextFiles.vue';
+import { readImageBlob } from '../../utils/image-blob';
 
 const props = defineProps<{
   content: string;
@@ -40,24 +41,7 @@ async function loadOriginalImage(image: ChatImageAttachment) {
     return fetch(image.thumbnailDataUrl).then(response => response.blob());
   }
 
-  // props 里的 source 是 Vue 响应式 Proxy，直接传给 IPC 会因结构化克隆失败
-  // 抛 "An object could not be cloned"，必须先展开成纯对象。
-  const payload: ChatImageSource =
-    image.source.type === 'session-entry'
-      ? {
-          type: 'session-entry',
-          sessionId: image.source.sessionId,
-          entryId: image.source.entryId,
-          blockIndex: image.source.blockIndex
-        }
-      : { type: 'context-file', path: image.source.path };
-  const result = await window.chaptaleDesktop?.session.readImage(payload);
-
-  if (!result) {
-    throw new Error('桌面图片服务不可用');
-  }
-
-  return new Blob([new Uint8Array(result.data)], { type: result.mimeType });
+  return readImageBlob(image.source);
 }
 
 watch(

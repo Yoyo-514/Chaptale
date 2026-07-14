@@ -7,6 +7,7 @@ import { formatFileSize } from '@chaptale/shared';
 import { AppButton } from '@/components/AppButton';
 import { AppImagePreview, type AppImagePreviewItem } from '@/components/AppImagePreview';
 import { cn } from '@/utils';
+import { readImageBlob } from '../../utils/image-blob';
 
 const props = withDefaults(
   defineProps<{
@@ -38,15 +39,7 @@ const previewItems = computed<AppImagePreviewItem[]>(() =>
     id: file.path,
     alt: file.name,
     thumbnailSrc: file.previewDataUrl!,
-    loadOriginal: async () => {
-      const result = await window.chaptaleDesktop?.session.readImage({ type: 'context-file', path: file.path });
-
-      if (!result) {
-        throw new Error('桌面图片服务不可用');
-      }
-
-      return new Blob([new Uint8Array(result.data)], { type: result.mimeType });
-    }
+    loadOriginal: () => readImageBlob({ type: 'context-file', path: file.path })
   }))
 );
 
