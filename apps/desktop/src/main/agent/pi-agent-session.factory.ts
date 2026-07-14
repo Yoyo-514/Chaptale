@@ -16,7 +16,7 @@ import { resolveSystemPrompt } from '../prompt';
 import type { PiModelService } from '../services/pi-model.service';
 import type { SettingsService } from '../services/settings.service';
 import type { SkillsProvider } from '../skills/skills-provider';
-import { getEnabledToolNames, getPiCustomTools } from '../tools/tool-registry';
+import { getEnabledToolNames } from './tool-whitelist';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -81,8 +81,7 @@ export class PiAgentSessionFactory {
       settingsManager,
       resourceLoader,
       // 创作场景：启用显式白名单工具。read/grep/find/ls/write/edit 用于工作区与文件能力；bash 暂不开放。
-      tools: getEnabledToolNames(),
-      customTools: getPiCustomTools()
+      tools: getEnabledToolNames()
     });
 
     return session;

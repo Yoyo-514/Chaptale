@@ -23,7 +23,6 @@ export default defineConfig({
         // Runtime / integration boundaries are covered by typecheck, integration behavior, and E2E.
         '**/ipc/**',
         '**/preload/**',
-        '**/tools/**',
         '**/*.factory.ts',
         '**/services/*model.service.ts',
         '**/infra/dialog-gateway.ts',

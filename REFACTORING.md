@@ -1,7 +1,30 @@
 # Chaptale 重构文档
 
 > 基于 2026-07-14 对全仓（apps/desktop、apps/desktop-ui、apps/mobile*、packages/*、根工程配置）的全量扫描。
-> 本文档只做诊断与规划，不包含已实施的改动。所有行数、路径均为扫描当日快照。
+> 正文（第 1–7 章）为诊断快照，行数、路径均为扫描当日数据，**不随实施更新**；实施结果见下方「实施状态」。
+
+---
+
+## 实施状态（2026-07-14 收工）
+
+A1–A6、B1–B7、C1–C6 已全部实施完毕，每项独立 commit，验收标准为 lint + typecheck + 全部单测（约 360 个）+ 双 e2e 全绿。
+
+| 项 | 结果 | 与原计划的偏差 |
+|---|---|---|
+| A1/A2 | 死脚本已删；根 tsconfig references 补齐 ipc-contract | agent-core 随 B1 删除，不再引用 |
+| A3–A6 | 均完成 | A5 因 B1 删包而自然消解 |
+| B1 | **agent-core 已删除**；`AgentRuntime`/`AgentRunOptions` 并入 ipc-contract/agent.ts，且与 `AgentStartPayload` 用 Pick/Omit 派生；electron.vite external 列表自动派生自 package.json，无需手改 | — |
+| B2 | `unescapeXmlAttribute`/`parseXmlAttributes` 下沉 shared/utils/xml，双 codec 复用；**顺带发现并修复 shared 包缺 test 脚本导致 turbo 从未跑过它的测试** | — |
+| B3 | `ChaptaleSessionScope` 派生自 `ChaptaleStorageMode`；`SelectedContextFile` 别名删除，全仓改用 `ChatContextFile`（连带 `toChatContextFile`/`mergeChatContextFiles` 重命名） | — |
+| B4/B5 | 新增 `main/infra/`（fs-gateway/dialog-gateway/shell-gateway）；exportHtml 落盘移入 `sessions/session-export.ts`；AbortController 生命周期移入 `agent/agent-run-manager.ts` | selectWorkspaceDir 的对话框留在 IPC 边界（经网关），未进 SettingsService——避免给纯 node 服务引入 electron 依赖破坏其测试 |
+| B6 | 生产代码 `window.chaptaleDesktop` 直连清零：TitleBar 抽 `useWindowControls`，readImage→Blob 收敛到 `ChatView/utils/image-blob.ts`，cancel 走统一封装 | readImageBlob 做成无状态 util 而非 store action（避免纯展示组件依赖 Pinia）；oxlint 暂无 no-restricted-syntax，防回潮靠约定 + desktop-api.ts 注释 |
+| B7 | `handleTrustedIpc` 统一 await + 归一化非 Error 抛出物；渲染层统一 `toErrorMessage` 单一出口 | 未引入结构化错误信封（code 字段）——现有错误消费全是"展示文本"，信封收益不足以抵消全 API 面改动，留作未来选项 |
+| C1 | `stream()` 拆为 prepareSession/applyBranch/resolveRunContext + 通用 `AsyncMessageQueue`（含单测） | — |
+| C2 | useChatController 变组合门面：chat-state + 5 个子 composable + display-message 纯函数；组件 API 面不变 | — |
+| C3 | `useWebAccessSettingsState` 抽出，组件只剩模板+样式 | — |
+| C4 | `SessionStorageResolver` 抽出（路径解析/目录枚举/删除安全校验），repository 不再直接 import node:fs | — |
+| C5 | 组件簇统一为 ToolCallGroup > ToolCallItem > {ToolCallRequest, ToolCallResult}，共享外壳 ToolCallSection；CSS 类前缀同步 | — |
+| C6 | `tools/` 死脚手架删除，白名单保留为 `agent/tool-whitelist.ts`（挪到唯一消费者旁） | mobile(-ui) 维持占位不动（真正开工前不补假骨架）；UnoCSS shortcuts 未做（收益不明确，留作可选项）；sandbox:true 评估未做（需真机验证 webUtils 行为） |
 
 ---
 
