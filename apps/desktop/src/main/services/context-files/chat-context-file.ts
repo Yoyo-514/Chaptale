@@ -1,4 +1,4 @@
-import type { SelectedContextFile } from '@chaptale/ipc-contract';
+import type { ChatContextFile } from '@chaptale/shared';
 import { MAX_CHAT_IMAGE_BYTES } from '@chaptale/shared';
 
 import { promises as fs } from 'node:fs';
@@ -9,7 +9,7 @@ import { getDocumentMimeType, getFileKind, getImageMimeType } from './file-kind'
 
 const imageAttachmentService = new ImageAttachmentService();
 
-export async function toSelectedContextFile(filePath: string): Promise<SelectedContextFile> {
+export async function toChatContextFile(filePath: string): Promise<ChatContextFile> {
   const stats = await fs.stat(filePath);
   const kind = getFileKind(filePath);
   const mimeType =

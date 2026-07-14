@@ -1,10 +1,10 @@
-import type { SelectedContextFile } from '@chaptale/ipc-contract';
+import type { ChatContextFile } from '@chaptale/shared';
 import { unique } from 'radash';
 
-export function mergeSelectedContextFiles(
-  currentFiles: SelectedContextFile[],
-  incomingFiles: SelectedContextFile[]
-): SelectedContextFile[] {
+export function mergeChatContextFiles(
+  currentFiles: ChatContextFile[],
+  incomingFiles: ChatContextFile[]
+): ChatContextFile[] {
   return unique([...currentFiles, ...incomingFiles], file => file.path);
 }
 

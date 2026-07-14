@@ -4,11 +4,11 @@ import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
 import { useSettingsStore } from '@/stores/settings';
 import { getDesktopApi } from '@/stores/utils/desktop-api';
-import type { SelectedContextFile, SlashCommand } from '@chaptale/ipc-contract';
-import type { ChatImageAttachment, ChatMessage } from '@chaptale/shared';
+import type { SlashCommand } from '@chaptale/ipc-contract';
+import type { ChatContextFile, ChatImageAttachment, ChatMessage } from '@chaptale/shared';
 import { errorToMessage } from '@chaptale/shared';
 import type { ChatDisplayMessage } from '../types';
-import { getDroppedContextFilePaths, mergeSelectedContextFiles } from '../utils/context-files';
+import { getDroppedContextFilePaths, mergeChatContextFiles } from '../utils/context-files';
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
 import { findSlashCommand, getSlashCommandName, parseSkillSlashCommand } from '../utils/slash-commands';
 import {
@@ -30,7 +30,7 @@ type ChatState = {
   isReplying: boolean;
   isEnabledWebSearch: boolean;
   isLoadingMessages: boolean;
-  contextFiles: SelectedContextFile[];
+  contextFiles: ChatContextFile[];
   slashCommands: SlashCommand[];
 };
 
@@ -45,7 +45,7 @@ function createDisplayMessage(message: ChatMessage, prefix = 'message'): ChatDis
   };
 }
 
-function getPreviewImage(file: SelectedContextFile): ChatImageAttachment | undefined {
+function getPreviewImage(file: ChatContextFile): ChatImageAttachment | undefined {
   if (file.kind !== 'image' || !file.previewDataUrl || !file.mimeType) {
     return undefined;
   }
@@ -62,9 +62,9 @@ function getPreviewImage(file: SelectedContextFile): ChatImageAttachment | undef
   };
 }
 
-function createUserMessage(content: string, contextFiles: SelectedContextFile[] = []): ChatMessage {
+function createUserMessage(content: string, contextFiles: ChatContextFile[] = []): ChatMessage {
   const images: ChatImageAttachment[] = [];
-  const displayFiles: SelectedContextFile[] = [];
+  const displayFiles: ChatContextFile[] = [];
   const skillInvocation = parseSkillSlashCommand(content);
   const displayContent = skillInvocation?.arguments ?? content;
 
@@ -485,8 +485,8 @@ export function useChatController() {
     mergeContextFiles(files);
   }
 
-  function mergeContextFiles(files: SelectedContextFile[]) {
-    state.contextFiles = mergeSelectedContextFiles(state.contextFiles, files);
+  function mergeContextFiles(files: ChatContextFile[]) {
+    state.contextFiles = mergeChatContextFiles(state.contextFiles, files);
   }
 
   async function handleDropContextFiles(droppedFiles: File[]) {

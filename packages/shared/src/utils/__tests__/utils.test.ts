@@ -11,12 +11,14 @@ import {
   getHostname,
   isRecord,
   parseSkillInvocation,
+  parseXmlAttributes,
   readBoolean,
   readFiniteNumber,
   readString,
   readStringArray,
   stripTrailingSlashes,
-  stripUndefined
+  stripUndefined,
+  unescapeXmlAttribute
 } from '..';
 
 describe('shared utils', () => {
@@ -83,5 +85,19 @@ describe('shared utils', () => {
   it('escapes XML text and attributes for prompt envelopes', () => {
     expect(escapeXmlText('<tag>&value')).toBe('&lt;tag&gt;&amp;value');
     expect(escapeXmlAttribute('"<tag>&value>')).toBe('&quot;&lt;tag&gt;&amp;value&gt;');
+  });
+
+  it('round-trips attribute values through escape and unescape', () => {
+    const raw = `"<tag>&'value'`;
+    expect(unescapeXmlAttribute(escapeXmlAttribute(raw))).toBe(raw);
+  });
+
+  it('parses XML attribute strings with unescaped values', () => {
+    expect(parseXmlAttributes('path="a&amp;b.txt" data-kind="text" size="12 KB"')).toEqual({
+      path: 'a&b.txt',
+      'data-kind': 'text',
+      size: '12 KB'
+    });
+    expect(parseXmlAttributes('')).toEqual({});
   });
 });

@@ -1,27 +1,8 @@
 import type { ChatContextFile } from '@chaptale/shared';
+import { parseXmlAttributes } from '@chaptale/shared';
 
 const CONTEXT_ENVELOPE_PATTERN = /^<attached_context_files>\r?\n([\s\S]*?)\r?\n<\/attached_context_files>\r?\n\r?\n?/;
 const FILE_PATTERN = /<file\b([^>]*)>/g;
-const ATTRIBUTE_PATTERN = /([\w:-]+)="([^"]*)"/g;
-
-function decodeXmlAttribute(value: string) {
-  return value
-    .replaceAll('&quot;', '"')
-    .replaceAll('&apos;', "'")
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&amp;', '&');
-}
-
-function parseAttributes(source: string) {
-  const attributes: Record<string, string> = {};
-
-  for (const match of source.matchAll(ATTRIBUTE_PATTERN)) {
-    attributes[match[1]!] = decodeXmlAttribute(match[2]!);
-  }
-
-  return attributes;
-}
 
 function isContextFileKind(value: string | undefined): value is ChatContextFile['kind'] {
   return value === 'text' || value === 'document' || value === 'image' || value === 'unsupported';
@@ -52,7 +33,7 @@ function parseByteSize(value: string | undefined) {
 
 function parseContextFiles(body: string): ChatContextFile[] {
   return Array.from(body.matchAll(FILE_PATTERN), match => {
-    const attributes = parseAttributes(match[1]!);
+    const attributes = parseXmlAttributes(match[1]!);
     const kind = isContextFileKind(attributes.kind)
       ? attributes.kind
       : attributes.handling === 'document-file-input'

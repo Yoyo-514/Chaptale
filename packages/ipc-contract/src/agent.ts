@@ -1,6 +1,4 @@
-import type { ChatContextFile, ChatMessage } from '@chaptale/shared';
-
-export type SelectedContextFile = ChatContextFile;
+import type { ChatMessage } from '@chaptale/shared';
 
 export type AgentStartPayload = {
   runId: string;

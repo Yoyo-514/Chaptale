@@ -1,4 +1,4 @@
-import type { SelectedContextFile } from '@chaptale/ipc-contract';
+import type { ChatContextFile } from '@chaptale/shared';
 import type { ImageContent } from '@earendil-works/pi-ai/compat';
 
 import { dialog, type BrowserWindow, type OpenDialogOptions } from 'electron';
@@ -23,7 +23,7 @@ import {
   buildOversizedImageBlock,
   buildUnavailableFileBlock
 } from './context-files/file-search';
-import { toSelectedContextFile } from './context-files/selected-context-file';
+import { toChatContextFile } from './context-files/chat-context-file';
 import { isTextWithinTokenLimit } from './context-files/token-counter';
 
 export type ResolvedContextFiles = {
@@ -41,7 +41,7 @@ function getContextFileExtensions() {
 }
 
 export class ContextFileService {
-  async selectFiles(parentWindow?: BrowserWindow | null): Promise<SelectedContextFile[]> {
+  async selectFiles(parentWindow?: BrowserWindow | null): Promise<ChatContextFile[]> {
     const options: OpenDialogOptions = {
       title: '添加上下文文件',
       properties: ['openFile', 'multiSelections'],
@@ -61,10 +61,10 @@ export class ContextFileService {
       return [];
     }
 
-    const selected: SelectedContextFile[] = [];
+    const selected: ChatContextFile[] = [];
 
     for (const filePath of result.filePaths) {
-      const file = await toSelectedContextFile(filePath);
+      const file = await toChatContextFile(filePath);
 
       if (file.kind !== 'unsupported') {
         selected.push(file);
@@ -75,11 +75,11 @@ export class ContextFileService {
   }
 
   /** 校验拖拽传入的本地路径，不存在/不支持的文件会被过滤掉。 */
-  async inspectFiles(filePaths: string[] = []): Promise<SelectedContextFile[]> {
-    const inspected: SelectedContextFile[] = [];
+  async inspectFiles(filePaths: string[] = []): Promise<ChatContextFile[]> {
+    const inspected: ChatContextFile[] = [];
 
     for (const filePath of unique(filePaths)) {
-      const file = await toSelectedContextFile(filePath).catch(() => undefined);
+      const file = await toChatContextFile(filePath).catch(() => undefined);
 
       if (file && file.kind !== 'unsupported') {
         inspected.push(file);

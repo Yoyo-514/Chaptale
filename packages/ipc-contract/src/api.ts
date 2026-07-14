@@ -1,5 +1,5 @@
-import type { ChatMessage } from '@chaptale/shared';
-import type { AgentRunResult, SelectedContextFile, StreamAgentHandlers, StreamAgentOptions } from './agent';
+import type { ChatContextFile, ChatMessage } from '@chaptale/shared';
+import type { AgentRunResult, StreamAgentHandlers, StreamAgentOptions } from './agent';
 import type { AppPlatformResult } from './app';
 import type {
   AddCustomModelPayload,
@@ -86,9 +86,9 @@ export type ChaptaleDesktopApi = {
     removeProviderAuth: (payload: RemoveProviderAuthPayload) => Promise<ListModelsResult>;
   };
   agent: {
-    selectContextFiles: () => Promise<SelectedContextFile[]>;
+    selectContextFiles: () => Promise<ChatContextFile[]>;
     /** 校验拖拽进来的本地路径，返回可用的上下文文件描述（含预览）。 */
-    inspectContextFiles: (paths: string[]) => Promise<SelectedContextFile[]>;
+    inspectContextFiles: (paths: string[]) => Promise<ChatContextFile[]>;
     /** 拖拽场景：把 renderer 的 File 对象转换为本地绝对路径（preload 内调用 webUtils）。 */
     getPathForFile: (file: File) => string;
     stream: (

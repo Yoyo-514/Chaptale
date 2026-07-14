@@ -1,10 +1,10 @@
-import type { SelectedContextFile } from '@chaptale/ipc-contract';
+import type { ChatContextFile } from '@chaptale/shared';
 
 import path from 'node:path';
 
 import { DOCUMENT_MIME_TYPES, IMAGE_MIME_TYPES, TEXT_EXTENSIONS } from './constants';
 
-export function getFileKind(filePath: string): SelectedContextFile['kind'] {
+export function getFileKind(filePath: string): ChatContextFile['kind'] {
   const extension = path.extname(filePath).toLowerCase();
 
   if (IMAGE_MIME_TYPES[extension]) {

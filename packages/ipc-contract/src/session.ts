@@ -1,4 +1,5 @@
 import type { ChatImageSource, ChatMessage } from '@chaptale/shared';
+import type { ChaptaleStorageMode } from './settings';
 
 export type ChaptaleSessionEntry = {
   type: 'session';
@@ -78,7 +79,8 @@ export type ChaptaleSessionMetadata = {
   parentSessionPath?: string;
 };
 
-export type ChaptaleSessionScope = 'global' | 'workspace';
+/** 会话存储范围：与设置里的存储模式同源（'global' | 'workspace'）。 */
+export type ChaptaleSessionScope = ChaptaleStorageMode;
 
 export type ChaptaleSessionListItem = ChaptaleSessionMetadata & {
   name?: string;
@@ -134,6 +136,6 @@ export type ChaptaleSessionStorageDebugInfo = {
   rootDir: string;
   sessionDir: string;
   cwd: string;
-  storageMode?: 'global' | 'workspace';
+  storageMode?: ChaptaleStorageMode;
   workspacePath?: string;
 };
