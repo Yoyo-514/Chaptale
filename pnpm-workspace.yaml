@@ -3,8 +3,8 @@ packages:
   - packages/*
 
 allowBuilds:
-  '@google/genai': true
-  '@parcel/watcher': true
+  "@google/genai": true
+  "@parcel/watcher": true
   electron: true
   electron-winstaller: true
   esbuild: true
@@ -12,20 +12,20 @@ allowBuilds:
   vue-demi: true
 
 catalog:
-  '@capacitor/cli': ^8.4.1
-  '@capacitor/core': ^8.4.1
-  '@earendil-works/pi-coding-agent': ^0.80.6
-  '@earendil-works/pi-ai': ^0.80.6
+  "@capacitor/cli": ^8.4.1
+  "@capacitor/core": ^8.4.1
+  "@earendil-works/pi-coding-agent": ^0.80.7
+  "@earendil-works/pi-ai": ^0.80.7
   pi-web-access: ^0.13.0
-  '@iconify-json/mingcute': ^1.2.7
-  '@types/node': ^26.1.1
-  '@playwright/test': ^1.61.1
-  '@vitest/coverage-v8': ^4.1.10
-  '@vue/test-utils': ^2.4.11
-  '@unocss/preset-icons': ^66.7.5
-  '@unocss/reset': ^66.7.5
-  '@vitejs/plugin-vue': ^6.0.7
-  '@tanstack/vue-virtual': ^3.13.31
+  "@iconify-json/mingcute": ^1.2.7
+  "@types/node": ^26.1.1
+  "@playwright/test": ^1.61.1
+  "@vitest/coverage-v8": ^4.1.10
+  "@vue/test-utils": ^2.4.11
+  "@unocss/preset-icons": ^66.7.5
+  "@unocss/reset": ^66.7.5
+  "@vitejs/plugin-vue": ^6.0.7
+  "@tanstack/vue-virtual": ^3.13.32
   clsx: ^2.1.1
   cross-env: ^10.1.0
   electron: ^43.1.0
@@ -35,79 +35,79 @@ catalog:
   husky: ^9.1.7
   lint-staged: ^17.0.8
   klona: ^2.0.6
-  marked: ^18.0.5
+  marked: ^18.0.6
   npm-run-all: ^4.1.5
   oxfmt: ^0.58.0
   oxlint: ^1.73.0
   radash: ^12.1.1
   reka-ui: ^2.10.1
   sass: ^1.101.0
-  turbo: ^2.10.4
+  turbo: ^2.10.5
   typebox: ^1.3.6
   typescript: ^6.0.3
   unocss: ^66.7.5
-  pinia: ^3.0.4
-  vite: ^8.1.3
+  pinia: ^4.0.1
+  vite: ^8.1.4
   vitest: ^4.1.10
   vue: ^3.5.39
   vue-router: ^5.1.0
   vue-tsc: ^3.3.7
 
 minimumReleaseAgeExclude:
-  - '@oxfmt/binding-android-arm-eabi@0.57.0'
-  - '@oxfmt/binding-android-arm64@0.57.0'
-  - '@oxfmt/binding-darwin-arm64@0.57.0'
-  - '@oxfmt/binding-darwin-x64@0.57.0'
-  - '@oxfmt/binding-freebsd-x64@0.57.0'
-  - '@oxfmt/binding-linux-arm-gnueabihf@0.57.0'
-  - '@oxfmt/binding-linux-arm-musleabihf@0.57.0'
-  - '@oxfmt/binding-linux-arm64-gnu@0.57.0'
-  - '@oxfmt/binding-linux-arm64-musl@0.57.0'
-  - '@oxfmt/binding-linux-ppc64-gnu@0.57.0'
-  - '@oxfmt/binding-linux-riscv64-gnu@0.57.0'
-  - '@oxfmt/binding-linux-riscv64-musl@0.57.0'
-  - '@oxfmt/binding-linux-s390x-gnu@0.57.0'
-  - '@oxfmt/binding-linux-x64-gnu@0.57.0'
-  - '@oxfmt/binding-linux-x64-musl@0.57.0'
-  - '@oxfmt/binding-openharmony-arm64@0.57.0'
-  - '@oxfmt/binding-win32-arm64-msvc@0.57.0'
-  - '@oxfmt/binding-win32-ia32-msvc@0.57.0'
-  - '@oxfmt/binding-win32-x64-msvc@0.57.0'
-  - '@oxlint/binding-android-arm-eabi@1.72.0'
-  - '@oxlint/binding-android-arm64@1.72.0'
-  - '@oxlint/binding-darwin-arm64@1.72.0'
-  - '@oxlint/binding-darwin-x64@1.72.0'
-  - '@oxlint/binding-freebsd-x64@1.72.0'
-  - '@oxlint/binding-linux-arm-gnueabihf@1.72.0'
-  - '@oxlint/binding-linux-arm-musleabihf@1.72.0'
-  - '@oxlint/binding-linux-arm64-gnu@1.72.0'
-  - '@oxlint/binding-linux-arm64-musl@1.72.0'
-  - '@oxlint/binding-linux-ppc64-gnu@1.72.0'
-  - '@oxlint/binding-linux-riscv64-gnu@1.72.0'
-  - '@oxlint/binding-linux-riscv64-musl@1.72.0'
-  - '@oxlint/binding-linux-s390x-gnu@1.72.0'
-  - '@oxlint/binding-linux-x64-gnu@1.72.0'
-  - '@oxlint/binding-linux-x64-musl@1.72.0'
-  - '@oxlint/binding-openharmony-arm64@1.72.0'
-  - '@oxlint/binding-win32-arm64-msvc@1.72.0'
-  - '@oxlint/binding-win32-ia32-msvc@1.72.0'
-  - '@oxlint/binding-win32-x64-msvc@1.72.0'
-  - '@vue/language-core@3.3.6 || 3.3.7'
-  - oxfmt@0.57.0
-  - oxlint@1.72.0
-  - vite@8.1.2
-  - vue-tsc@3.3.6 || 3.3.7
-  - '@turbo/darwin-64@2.10.2'
-  - '@turbo/darwin-arm64@2.10.2'
-  - '@turbo/linux-64@2.10.2'
-  - '@turbo/linux-arm64@2.10.2'
-  - '@turbo/windows-64@2.10.2'
-  - '@turbo/windows-arm64@2.10.2'
-  - turbo@2.10.2
-  - electron@43.0.0
-  - '@types/node@26.1.1'
-  - typebox@1.3.6
-  - '@earendil-works/pi-agent-core@0.80.6'
-  - '@earendil-works/pi-ai@0.80.6'
-  - '@earendil-works/pi-coding-agent@0.80.6'
-  - '@earendil-works/pi-tui@0.80.6'
+  - "@oxfmt/binding-android-arm-eabi"
+  - "@oxfmt/binding-android-arm64"
+  - "@oxfmt/binding-darwin-arm64"
+  - "@oxfmt/binding-darwin-x64"
+  - "@oxfmt/binding-freebsd-x64"
+  - "@oxfmt/binding-linux-arm-gnueabihf"
+  - "@oxfmt/binding-linux-arm-musleabihf"
+  - "@oxfmt/binding-linux-arm64-gnu"
+  - "@oxfmt/binding-linux-arm64-musl"
+  - "@oxfmt/binding-linux-ppc64-gnu"
+  - "@oxfmt/binding-linux-riscv64-gnu"
+  - "@oxfmt/binding-linux-riscv64-musl"
+  - "@oxfmt/binding-linux-s390x-gnu"
+  - "@oxfmt/binding-linux-x64-gnu"
+  - "@oxfmt/binding-linux-x64-musl"
+  - "@oxfmt/binding-openharmony-arm64"
+  - "@oxfmt/binding-win32-arm64-msvc"
+  - "@oxfmt/binding-win32-ia32-msvc"
+  - "@oxfmt/binding-win32-x64-msvc"
+  - "@oxlint/binding-android-arm-eabi"
+  - "@oxlint/binding-android-arm64"
+  - "@oxlint/binding-darwin-arm64"
+  - "@oxlint/binding-darwin-x64"
+  - "@oxlint/binding-freebsd-x64"
+  - "@oxlint/binding-linux-arm-gnueabihf"
+  - "@oxlint/binding-linux-arm-musleabihf"
+  - "@oxlint/binding-linux-arm64-gnu"
+  - "@oxlint/binding-linux-arm64-musl"
+  - "@oxlint/binding-linux-ppc64-gnu"
+  - "@oxlint/binding-linux-riscv64-gnu"
+  - "@oxlint/binding-linux-riscv64-musl"
+  - "@oxlint/binding-linux-s390x-gnu"
+  - "@oxlint/binding-linux-x64-gnu"
+  - "@oxlint/binding-linux-x64-musl"
+  - "@oxlint/binding-openharmony-arm64"
+  - "@oxlint/binding-win32-arm64-msvc"
+  - "@oxlint/binding-win32-ia32-msvc"
+  - "@oxlint/binding-win32-x64-msvc"
+  - "@vue/language-core"
+  - oxfmt
+  - oxlint
+  - vite
+  - vue-tsc
+  - "@turbo/darwin-64"
+  - "@turbo/darwin-arm64"
+  - "@turbo/linux-64"
+  - "@turbo/linux-arm64"
+  - "@turbo/windows-64"
+  - "@turbo/windows-arm64"
+  - turbo
+  - "@types/node"
+  - typebox
+  - "@earendil-works/pi-agent-core"
+  - "@earendil-works/pi-ai"
+  - "@earendil-works/pi-coding-agent"
+  - "@earendil-works/pi-tui"
+  - pinia
