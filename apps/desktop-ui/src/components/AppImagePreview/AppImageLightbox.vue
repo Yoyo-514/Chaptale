@@ -184,33 +184,33 @@ watch(
 
 <style lang="scss">
 .app-image-lightbox-overlay {
-  @apply fixed inset-0 z-50;
+  @apply fixed inset-0 z-$z-modal-backdrop;
 
   background: rgb(0 0 0 / 0.82);
 }
 
 .app-image-lightbox {
-  @apply fixed inset-0 z-50 flex flex-col outline-none;
+  @apply fixed inset-0 z-$z-modal flex flex-col outline-none;
 }
 
 .app-image-lightbox-button {
-  @apply flex-center size-10 shrink-0 cursor-pointer rounded-full border-0 p-0 outline-none transition-colors duration-150;
+  @apply flex-center size-10 shrink-0 cursor-pointer rounded-$radius-pill border-0 p-0 outline-none transition-colors duration-150;
 
-  background: rgb(255 255 255 / 0.08);
-  color: rgb(255 255 255 / 0.85);
+  background: var(--media-overlay-control-background);
+  color: var(--media-overlay-control-foreground);
 }
 
 .app-image-lightbox-button:hover {
-  background: rgb(255 255 255 / 0.18);
-  color: rgb(255 255 255 / 1);
+  background: var(--media-overlay-control-background-hover);
+  color: var(--media-overlay-control-foreground-strong);
 }
 
 .app-image-lightbox-button:focus-visible {
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.6);
+  box-shadow: var(--media-overlay-focus-shadow);
 }
 
 .app-image-lightbox-close {
-  @apply absolute right-4 top-4 z-10;
+  @apply absolute right-4 top-4 z-$z-modal-control;
 }
 
 .app-image-lightbox-stage {
@@ -224,7 +224,7 @@ watch(
 .app-image-lightbox-image {
   @apply max-h-full max-w-full object-contain;
 
-  box-shadow: 0 8px 40px rgb(0 0 0 / 0.5);
+  box-shadow: var(--media-overlay-image-shadow);
 }
 
 .app-image-lightbox-image-pannable {
@@ -254,19 +254,19 @@ watch(
 }
 
 .app-image-lightbox-tool {
-  @apply flex-center h-7 min-w-7 cursor-pointer rounded-full border-0 p-0 px-1.5 text-xs outline-none transition-colors duration-150;
+  @apply flex-center h-7 min-w-7 cursor-pointer rounded-$radius-pill border-0 p-0 px-1.5 text-xs outline-none transition-colors duration-150;
 
-  background: rgb(255 255 255 / 0.08);
-  color: rgb(255 255 255 / 0.85);
+  background: var(--media-overlay-control-background);
+  color: var(--media-overlay-control-foreground);
 }
 
 .app-image-lightbox-tool:hover {
-  background: rgb(255 255 255 / 0.18);
-  color: rgb(255 255 255 / 1);
+  background: var(--media-overlay-control-background-hover);
+  color: var(--media-overlay-control-foreground-strong);
 }
 
 .app-image-lightbox-tool:focus-visible {
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.6);
+  box-shadow: var(--media-overlay-focus-shadow);
 }
 
 .app-image-lightbox-zoom-value {
@@ -274,9 +274,9 @@ watch(
 }
 
 .app-image-lightbox-counter {
-  @apply absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-full px-3 py-1.5 text-xs;
+  @apply absolute left-1/2 top-4 z-$z-modal-control -translate-x-1/2 rounded-$radius-pill px-3 py-1.5 text-xs;
 
-  background: rgb(255 255 255 / 0.08);
-  color: rgb(255 255 255 / 0.85);
+  background: var(--media-overlay-control-background);
+  color: var(--media-overlay-control-foreground);
 }
 </style>

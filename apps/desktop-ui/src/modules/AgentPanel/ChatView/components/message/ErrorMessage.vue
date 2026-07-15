@@ -17,7 +17,7 @@ defineProps<{
 
 <style scoped lang="scss">
 .error-message-card {
-  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic px-4 py-3 shadow-inset-highlight;
+  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic px-4 py-3 shadow-$shadow-inset-highlight;
 }
 
 .error-message-header {

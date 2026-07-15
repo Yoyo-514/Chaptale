@@ -92,7 +92,7 @@ function handleInput(event: Event) {
 .app-input {
   @apply flex min-w-0 items-center gap-2 border outline-none transition-colors duration-150;
 
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
   color: var(--foreground);
 }
 
@@ -104,7 +104,7 @@ function handleInput(event: Event) {
 .app-input-muted {
   background: var(--surface-muted);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.4);
+  border-radius: var(--radius-control-sm);
 }
 
 .app-input-sm {

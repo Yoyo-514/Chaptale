@@ -39,7 +39,7 @@ const itemClassName = computed(() => cn('app-dropdown-item', `app-dropdown-item-
 .app-dropdown-item {
   @apply cursor-pointer outline-none transition-colors duration-150;
 
-  border-radius: calc(var(--radius) * 0.4);
+  border-radius: var(--radius-control-sm);
   color: var(--foreground);
 }
 

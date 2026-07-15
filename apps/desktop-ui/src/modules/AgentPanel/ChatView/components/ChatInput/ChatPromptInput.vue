@@ -176,7 +176,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .chat-send-button {
-  @apply flex-center cursor-pointer rounded-full p-1.5 shadow-soft transition-colors duration-200;
+  @apply flex-center cursor-pointer rounded-full p-1.5 shadow-$shadow-soft transition-colors duration-200;
 
   background: var(--action-background);
   color: var(--action-foreground);

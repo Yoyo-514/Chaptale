@@ -19,30 +19,32 @@ const isPanelVisible = computed(
 </script>
 
 <template>
-  <Transition name="notification-center-fade">
-    <section
-      v-if="isPanelVisible"
-      class="notification-center"
-      :class="{ 'is-manual': isManualPanel, 'is-auto': !isManualPanel }"
-      aria-label="通知中心"
-    >
-      <NotificationCenterHeader
-        v-if="isManualPanel"
-        :title="panelTitle"
-        :can-clear="notificationStore.items.length > 0"
-        @clear="notificationStore.clear()"
-        @close="notificationStore.closePanel()"
-      />
+  <Teleport to="body">
+    <Transition name="notification-center-fade">
+      <section
+        v-if="isPanelVisible"
+        class="notification-center"
+        :class="{ 'is-manual': isManualPanel, 'is-auto': !isManualPanel }"
+        aria-label="通知中心"
+      >
+        <NotificationCenterHeader
+          v-if="isManualPanel"
+          :title="panelTitle"
+          :can-clear="notificationStore.items.length > 0"
+          @clear="notificationStore.clear()"
+          @close="notificationStore.closePanel()"
+        />
 
-      <NotificationCenterList
-        v-if="visibleNotifications.length > 0"
-        :notifications="visibleNotifications"
-        :mode="notificationStore.panelMode"
-        @dismiss="notificationStore.dismiss"
-      />
-      <div v-else-if="isManualPanel" class="notification-empty">暂无通知</div>
-    </section>
-  </Transition>
+        <NotificationCenterList
+          v-if="visibleNotifications.length > 0"
+          :notifications="visibleNotifications"
+          :mode="notificationStore.panelMode"
+          @dismiss="notificationStore.dismiss"
+        />
+        <div v-else-if="isManualPanel" class="notification-empty">暂无通知</div>
+      </section>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped lang="scss">
@@ -60,11 +62,11 @@ const isPanelVisible = computed(
 }
 
 .notification-center {
-  @apply fixed bottom-7 right-3 z-[80] flex w-[28rem] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden border shadow-float;
+  @apply fixed bottom-7 right-3 z-$z-notification-center flex w-[28rem] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden border shadow-$shadow-float;
 
   background: var(--popover);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.35);
+  border-radius: var(--radius-badge);
   color: var(--popover-foreground);
 }
 

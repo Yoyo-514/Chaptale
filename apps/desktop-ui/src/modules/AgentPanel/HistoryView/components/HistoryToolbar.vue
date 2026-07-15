@@ -196,7 +196,7 @@ function selectSortMode(value: string) {
 }
 
 .history-search {
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
 }
 
 .history-search:focus-within {

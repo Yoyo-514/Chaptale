@@ -31,7 +31,7 @@ const displayValue = computed(() => props.value || props.placeholder);
 
   background: var(--surface-acrylic-strong);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
 }
 
 .settings-path-card.is-emphasis {

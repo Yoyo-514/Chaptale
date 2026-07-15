@@ -64,7 +64,7 @@ const buttonClassName = computed(() =>
 .app-button {
   @apply inline-flex min-w-0 shrink-0 items-center justify-center gap-2 border font-medium outline-none transition-colors duration-150 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60;
 
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
 }
 
 .app-button-xs {

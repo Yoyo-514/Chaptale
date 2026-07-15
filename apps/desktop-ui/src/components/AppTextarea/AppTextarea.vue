@@ -101,7 +101,7 @@ defineExpose<AppTextareaExpose>({
 .app-textarea {
   @apply block min-w-0 w-full border outline-none transition-colors duration-150;
 
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
   color: var(--foreground);
 }
 
@@ -113,7 +113,7 @@ defineExpose<AppTextareaExpose>({
 .app-textarea-muted {
   background: var(--surface-muted);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.4);
+  border-radius: var(--radius-control-sm);
 }
 
 .app-textarea-plain {

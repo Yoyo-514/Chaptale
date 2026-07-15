@@ -88,18 +88,18 @@ const contentAttrs = computed(() => {
 
 <style lang="scss">
 .app-alert-dialog-overlay {
-  @apply fixed inset-0 z-50;
+  @apply fixed inset-0 z-$z-modal-backdrop;
 
   background: var(--overlay-scrim);
   backdrop-filter: var(--blur-acrylic-subtle);
 }
 
 .app-alert-dialog-content {
-  @apply fixed left-1/2 top-1/2 z-50 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 border p-5 shadow-float;
+  @apply fixed left-1/2 top-1/2 z-$z-modal w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 border p-5 shadow-$shadow-float;
 
   background: var(--popover);
   border-color: var(--border);
-  border-radius: calc(var(--radius) * 0.75);
+  border-radius: var(--radius-overlay);
   color: var(--popover-foreground);
 }
 
@@ -121,7 +121,7 @@ const contentAttrs = computed(() => {
 .app-alert-dialog-confirm {
   @apply px-3 py-2 text-sm font-medium outline-none transition-colors duration-150;
 
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
 }
 
 .app-alert-dialog-cancel {

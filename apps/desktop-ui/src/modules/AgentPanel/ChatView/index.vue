@@ -146,7 +146,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
 }
 
 .chat-search-trigger {
-  @apply absolute right-4 top-0 z-10;
+  @apply absolute right-4 top-0 z-$z-local-overlay;
 
   background: var(--surface-acrylic-strong);
 }

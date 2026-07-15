@@ -67,7 +67,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 <style scoped lang="scss">
 .chat-search-bar {
-  @apply mx-auto mb-2 flex w-full items-center gap-1.5 rounded-xl border p-1.5 pl-3 shadow-float md:w-3xl;
+  @apply mx-auto mb-2 flex w-full items-center gap-1.5 rounded-xl border p-1.5 pl-3 shadow-$shadow-float md:w-3xl;
 
   background: var(--popover);
   border-color: var(--border-subtle);

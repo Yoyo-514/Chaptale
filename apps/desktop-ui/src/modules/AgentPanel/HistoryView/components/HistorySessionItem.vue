@@ -98,7 +98,7 @@ function handleMainClick() {
   @apply relative flex w-full items-center gap-2 overflow-hidden border p-2 transition-all duration-150;
 
   border-color: transparent;
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
   color: var(--foreground);
 }
 
@@ -128,7 +128,7 @@ function handleMainClick() {
   @apply flex-center size-10 shrink-0 border text-lg;
 
   background: var(--surface-muted);
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
   color: var(--primary-solid);
 }
 

@@ -31,6 +31,8 @@ function behindStyle(index: number) {
 
   return {
     transform: `rotate(${index === 1 ? 2.5 : -2}deg) translate(${index * 6}px, ${index * 5}px)`,
+    // 局部堆叠算法：第一张由 z-4 固定在最上层，后两张按距离递减。
+    // 这里不是跨组件层级语义，不抽成全局 z-index token。
     zIndex: String(3 - index)
   };
 }
@@ -108,9 +110,9 @@ function behindStyle(index: number) {
 }
 
 .app-image-gallery-count {
-  @apply pointer-events-none absolute bottom-4 right-5 z-5 rounded-full px-2 py-0.5 text-[11px];
+  @apply pointer-events-none absolute bottom-4 right-5 z-5 rounded-$radius-pill px-2 py-0.5 text-[11px];
 
-  background: rgb(0 0 0 / 0.6);
-  color: rgb(255 255 255 / 0.92);
+  background: var(--media-overlay-badge-background);
+  color: var(--media-overlay-badge-foreground);
 }
 </style>

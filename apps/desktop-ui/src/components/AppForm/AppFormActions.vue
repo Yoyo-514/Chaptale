@@ -74,7 +74,7 @@ const actionsAttrs = computed(() => {
 }
 
 .app-form-actions-sticky {
-  @apply sticky bottom-0 z-10 border-t py-2;
+  @apply sticky bottom-0 z-$z-sticky-surface border-t py-2;
 
   background: color-mix(in srgb, var(--popover) 92%, transparent);
   border-color: var(--border-subtle);

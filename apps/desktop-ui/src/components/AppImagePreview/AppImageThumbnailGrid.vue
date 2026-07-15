@@ -75,15 +75,15 @@ const emit = defineEmits<{
 }
 
 .app-image-thumbnail-remove {
-  @apply flex-center absolute -right-1.5 -top-1.5 size-5 cursor-pointer rounded-full border-0 p-0 outline-none transition-colors duration-150;
+  @apply flex-center absolute -right-1.5 -top-1.5 size-5 cursor-pointer rounded-$radius-pill border-0 p-0 outline-none transition-colors duration-150;
 
-  background: rgb(0 0 0 / 0.55);
-  color: rgb(255 255 255 / 0.9);
+  background: var(--media-overlay-danger-background);
+  color: var(--media-overlay-danger-foreground);
 }
 
 .app-image-thumbnail-remove:hover {
-  background: rgb(0 0 0 / 0.75);
-  color: rgb(255 255 255 / 1);
+  background: var(--media-overlay-danger-background-hover);
+  color: var(--media-overlay-control-foreground-strong);
 }
 
 .app-image-thumbnail-remove:focus-visible {

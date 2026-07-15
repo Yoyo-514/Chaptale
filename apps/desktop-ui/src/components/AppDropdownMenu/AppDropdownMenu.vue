@@ -56,7 +56,7 @@ const contentClassName = computed(() =>
 .app-dropdown-trigger {
   @apply flex w-full min-w-0 cursor-pointer items-center justify-between border text-left outline-none transition-colors duration-150;
 
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
 }
 
 .app-dropdown-trigger[data-disabled='true'] {
@@ -68,12 +68,12 @@ const contentClassName = computed(() =>
 }
 
 .app-dropdown-content {
-  @apply z-50 flex flex-col gap-1 border p-1 shadow-float;
+  @apply z-$z-popover flex flex-col gap-1 border p-1 shadow-$shadow-float;
 
   width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 16rem));
   background: var(--popover);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
   color: var(--popover-foreground);
 }
 

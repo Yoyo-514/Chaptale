@@ -66,7 +66,7 @@ const thumbClassName = computed(() => cn('app-scroll-area-thumb', props.thumbCla
   @apply relative flex-1 transition-colors duration-150;
 
   background: color-mix(in srgb, var(--scrollbar-thumb) 82%, var(--primary) 18%);
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
 }
 
 .app-scroll-area-scrollbar:hover .app-scroll-area-thumb,

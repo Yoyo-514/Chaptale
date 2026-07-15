@@ -103,7 +103,7 @@ const iconClass = computed(() =>
 
   background: var(--input);
   border-color: var(--input-border);
-  border-radius: calc(var(--radius) * 0.25);
+  border-radius: var(--radius-checkbox);
 }
 
 .app-checkbox-sm {
@@ -113,7 +113,7 @@ const iconClass = computed(() =>
 .app-checkbox-md {
   @apply size-5 text-sm;
 
-  border-radius: calc(var(--radius) * 0.3);
+  border-radius: var(--radius-checkbox-active);
 }
 
 .app-checkbox[data-state='checked'],

@@ -102,15 +102,15 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .settings-panel-layer {
-  @apply fixed inset-0 z-40 pointer-events-none;
+  @apply fixed inset-0 z-$z-floating-panel pointer-events-none;
 }
 
 .settings-panel {
-  @apply pointer-events-auto fixed left-0 top-0 flex flex-col overflow-hidden border shadow-float;
+  @apply pointer-events-auto fixed left-0 top-0 flex flex-col overflow-hidden border shadow-$shadow-float;
 
   background: var(--popover);
   border-color: var(--border);
-  border-radius: calc(var(--radius) * 0.75);
+  border-radius: var(--radius-overlay);
   color: var(--popover-foreground);
 }
 
@@ -133,7 +133,7 @@ onMounted(() => {
 }
 
 .settings-panel-resize-handle {
-  @apply absolute z-10 block;
+  @apply absolute z-$z-local-overlay block;
 }
 
 .settings-panel-resize-handle.is-n,

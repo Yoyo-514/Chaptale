@@ -41,7 +41,7 @@ const emit = defineEmits<{
 
 <style scoped lang="scss">
 .user-branch-navigator {
-  @apply mr-1 flex items-center rounded-full bg-surface-acrylic px-1 py-0.5 text-xs text-muted-foreground shadow-inset-highlight;
+  @apply mr-1 flex items-center rounded-full bg-surface-acrylic px-1 py-0.5 text-xs text-muted-foreground shadow-$shadow-inset-highlight;
 }
 
 .user-branch-count {

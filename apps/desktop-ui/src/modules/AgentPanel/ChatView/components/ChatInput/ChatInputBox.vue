@@ -127,11 +127,11 @@ function handleDrop(event: DragEvent) {
 
 <style scoped lang="scss">
 .chat-input-section {
-  @apply mx-auto w-full md:w-3xl z-10 shrink-0;
+  @apply mx-auto w-full md:w-3xl z-$z-content-raised shrink-0;
 }
 
 .chat-input-container {
-  @apply relative flex flex-col gap-2 rounded-xl border-2 pb-10 shadow-inset-highlight transition-colors duration-200;
+  @apply relative flex flex-col gap-2 rounded-xl border-2 pb-10 shadow-$shadow-inset-highlight transition-colors duration-200;
 
   background: var(--input-background);
   border-color: var(--input-border);
@@ -149,7 +149,7 @@ function handleDrop(event: DragEvent) {
 }
 
 .chat-drop-overlay {
-  @apply absolute inset-0 z-10 flex-center gap-2 rounded-xl text-sm font-medium pointer-events-none;
+  @apply absolute inset-0 z-$z-local-overlay flex-center gap-2 rounded-xl text-sm font-medium pointer-events-none;
 
   background: var(--surface-muted);
   color: var(--foreground);

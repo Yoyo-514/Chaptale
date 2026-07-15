@@ -41,7 +41,7 @@ const notificationTooltip = computed(() =>
 
 <style scoped lang="scss">
 .status-bar {
-  @apply relative z-40 flex h-5 shrink-0 items-center border-t px-1 text-xs;
+  @apply relative z-$z-app-chrome flex h-5 shrink-0 items-center border-t px-1 text-xs;
 
   background: var(--surface-acrylic-strong);
   border-color: var(--border-subtle);

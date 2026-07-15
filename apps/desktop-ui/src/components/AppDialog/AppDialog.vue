@@ -90,17 +90,17 @@ function closeDialog() {
 
 <style lang="scss">
 .app-dialog-overlay {
-  @apply fixed inset-0 z-50;
+  @apply fixed inset-0 z-$z-modal-backdrop;
 
   background: rgb(0 0 0 / 0.28);
 }
 
 .app-dialog-content {
-  @apply fixed left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden border p-4 shadow-float outline-none;
+  @apply fixed left-1/2 top-1/2 z-$z-modal flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden border p-4 shadow-$shadow-float outline-none;
 
   background: var(--popover);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.75);
+  border-radius: var(--radius-overlay);
   color: var(--popover-foreground);
 }
 
@@ -137,7 +137,7 @@ function closeDialog() {
 
   background: var(--surface-acrylic-strong);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
   color: var(--muted-foreground);
 }
 

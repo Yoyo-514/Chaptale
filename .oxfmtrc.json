@@ -9,6 +9,7 @@
   "bracketSameLine": false,
   "arrowParens": "avoid",
   "quoteProps": "as-needed",
+  "endOfLine": "lf",
   "ignorePatterns": [
     "dist/**",
     "build/**",

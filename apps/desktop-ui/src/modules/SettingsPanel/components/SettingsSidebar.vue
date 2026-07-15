@@ -69,7 +69,7 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
 
   background: transparent;
   border-color: transparent;
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
   color: var(--foreground);
 }
 

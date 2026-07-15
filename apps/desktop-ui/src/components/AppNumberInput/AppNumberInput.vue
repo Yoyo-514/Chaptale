@@ -182,7 +182,7 @@ function stepBy(direction: -1 | 1) {
 
   background: var(--surface-muted);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.4);
+  border-radius: var(--radius-control-sm);
   color: var(--foreground);
 }
 

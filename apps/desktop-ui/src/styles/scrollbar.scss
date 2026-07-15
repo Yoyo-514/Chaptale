@@ -23,7 +23,7 @@
     background-color: color-mix(in srgb, var(--scrollbar-thumb) 82%, var(--primary) 18%);
     background-clip: padding-box;
     border: 3px solid transparent;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     transition: background-color 0.15s ease-in-out;
   }
 

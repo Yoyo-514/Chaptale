@@ -122,7 +122,7 @@ function save() {
 }
 
 .user-message {
-  @apply flex w-fit max-w-[80%] items-start gap-2 rounded-2xl bg-primary px-4 py-2 text-primary-foreground shadow-inset-highlight;
+  @apply flex w-fit max-w-[80%] items-start gap-2 rounded-2xl bg-primary px-4 py-2 text-primary-foreground shadow-$shadow-inset-highlight;
 
   white-space: pre-wrap;
   overflow-wrap: break-word;
@@ -136,7 +136,7 @@ function save() {
 }
 
 .user-message-edit {
-  @apply flex w-full max-w-[88%] flex-col gap-2 rounded-2xl border border-primary bg-surface-acrylic p-2 shadow-inset-highlight;
+  @apply flex w-full max-w-[88%] flex-col gap-2 rounded-2xl border border-primary bg-surface-acrylic p-2 shadow-$shadow-inset-highlight;
 }
 
 .user-message-editor {

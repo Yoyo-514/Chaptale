@@ -38,7 +38,7 @@ const itemClassName = computed(() => cn('app-select-item', `app-select-item-${pr
 .app-select-item {
   @apply relative cursor-pointer outline-none transition-colors duration-150;
 
-  border-radius: calc(var(--radius) * 0.4);
+  border-radius: var(--radius-control-sm);
   color: var(--foreground);
 }
 

@@ -4,9 +4,63 @@
 
 // 全局样式文件 - Design Tokens & 基础样式
 
+$radius-tokens: (
+  checkbox: calc(var(--radius) * 0.25),
+  checkbox-active: calc(var(--radius) * 0.3),
+  badge: calc(var(--radius) * 0.35),
+  control-sm: calc(var(--radius) * 0.4),
+  control: calc(var(--radius) * 0.5),
+  overlay: calc(var(--radius) * 0.75),
+  pill: 999px
+);
+
+$z-index-tokens: (
+  content-raised: 100,
+  sticky-surface: 200,
+  local-overlay: 250,
+  local-popover: 300,
+  app-chrome: 500,
+  floating-panel: 600,
+  popover: 700,
+  modal-backdrop: 900,
+  modal: 910,
+  modal-control: 920,
+  tooltip: 950,
+  notification-center: 1000
+);
+
+$media-overlay-tokens: (
+  control-background: rgb(255 255 255 / 0.08),
+  control-background-hover: rgb(255 255 255 / 0.18),
+  control-foreground: rgb(255 255 255 / 0.85),
+  control-foreground-strong: rgb(255 255 255 / 1),
+  panel-background: rgb(255 255 255 / 0.06),
+  focus-ring: rgb(255 255 255 / 0.6),
+  focus-shadow: 0 0 0 2px var(--media-overlay-focus-ring),
+  active-ring: rgb(255 255 255 / 0.9),
+  badge-background: rgb(0 0 0 / 0.6),
+  badge-foreground: rgb(255 255 255 / 0.92),
+  danger-background: rgb(0 0 0 / 0.55),
+  danger-background-hover: rgb(0 0 0 / 0.75),
+  danger-foreground: rgb(255 255 255 / 0.9),
+  image-shadow: 0 8px 40px rgb(0 0 0 / 0.5)
+);
+
 // CSS 变量定义 - Design Tokens
 :root {
   --radius: 0.75rem;
+
+  @each $name, $value in $radius-tokens {
+    --radius-#{$name}: #{$value};
+  }
+
+  @each $name, $value in $z-index-tokens {
+    --z-#{$name}: #{$value};
+  }
+
+  @each $name, $value in $media-overlay-tokens {
+    --media-overlay-#{$name}: #{$value};
+  }
 
   // 原子色板 - 天依色略浅 + Fluent 辅色
   --palette-tianyi-50: #f3fbff;

@@ -132,7 +132,7 @@ const contentClassName = computed(() =>
 .app-select-trigger {
   @apply flex w-full min-w-0 cursor-pointer items-center justify-between border text-left outline-none transition-colors duration-150;
 
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
 }
 
 .app-select-trigger-sm {
@@ -152,7 +152,7 @@ const contentClassName = computed(() =>
 .app-select-trigger-muted {
   background: var(--surface-muted);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.4);
+  border-radius: var(--radius-control-sm);
   color: var(--foreground);
 }
 
@@ -173,12 +173,12 @@ const contentClassName = computed(() =>
 }
 
 .app-select-content {
-  @apply z-50 border shadow-float;
+  @apply z-$z-popover border shadow-$shadow-float;
 
   width: var(--reka-select-trigger-width, var(--radix-select-trigger-width, 16rem));
   background: var(--popover);
   border-color: var(--border-subtle);
-  border-radius: calc(var(--radius) * 0.5);
+  border-radius: var(--radius-control);
   color: var(--popover-foreground);
 }
 

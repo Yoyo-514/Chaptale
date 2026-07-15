@@ -58,7 +58,7 @@ onBeforeUnmount(() => {
 }
 
 .assistant-reasoning {
-  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic text-sm text-muted-foreground shadow-inset-highlight;
+  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic text-sm text-muted-foreground shadow-$shadow-inset-highlight;
 }
 
 .assistant-reasoning[open] {

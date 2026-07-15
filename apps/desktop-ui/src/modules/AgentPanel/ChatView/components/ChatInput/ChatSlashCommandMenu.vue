@@ -33,7 +33,7 @@ const emit = defineEmits<{
 
 <style scoped lang="scss">
 .chat-slash-command-menu {
-  @apply absolute bottom-full left-0 z-20 mb-2 flex max-h-64 w-full flex-col overflow-y-auto rounded-lg border p-1 shadow-soft;
+  @apply absolute bottom-full left-0 z-$z-local-popover mb-2 flex max-h-64 w-full flex-col overflow-y-auto rounded-lg border p-1 shadow-$shadow-soft;
 
   background: var(--surface-elevated);
   border-color: var(--border);

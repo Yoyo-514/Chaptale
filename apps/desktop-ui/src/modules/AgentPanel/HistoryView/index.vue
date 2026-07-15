@@ -159,7 +159,7 @@ async function deleteSelectedSessions() {
 }
 
 .history-toolbar-shell {
-  @apply sticky top-0 z-10 shrink-0 border-b px-4 pt-3 pb-4;
+  @apply sticky top-0 z-$z-sticky-surface shrink-0 border-b px-4 pt-3 pb-4;
 
   background: var(--mica-background);
   border-color: var(--border-subtle);

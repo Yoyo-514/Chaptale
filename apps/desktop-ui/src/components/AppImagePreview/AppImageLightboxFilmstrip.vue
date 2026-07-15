@@ -52,7 +52,7 @@ watch(
 .app-image-lightbox-filmstrip {
   @apply flex max-w-full gap-2 overflow-x-auto rounded-xl p-2;
 
-  background: rgb(255 255 255 / 0.06);
+  background: var(--media-overlay-panel-background);
 }
 
 .app-image-lightbox-thumb {
@@ -66,12 +66,12 @@ watch(
 }
 
 .app-image-lightbox-thumb:focus-visible {
-  border-color: rgb(255 255 255 / 0.6);
+  border-color: var(--media-overlay-focus-ring);
   opacity: 1;
 }
 
 .app-image-lightbox-thumb[data-active='true'] {
-  border-color: rgb(255 255 255 / 0.9);
+  border-color: var(--media-overlay-active-ring);
   opacity: 1;
 }
 

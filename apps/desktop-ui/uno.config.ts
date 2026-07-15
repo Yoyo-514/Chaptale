@@ -36,11 +36,6 @@ export default defineConfig({
     'flex-x-end': 'flex items-center justify-end'
   },
   theme: {
-    boxShadow: {
-      soft: 'var(--shadow-soft)',
-      float: 'var(--shadow-float)',
-      'inset-highlight': 'var(--shadow-inset-highlight)'
-    },
     colors: {
       background: 'var(--background)',
       foreground: 'var(--foreground)',

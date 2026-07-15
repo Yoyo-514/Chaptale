@@ -80,7 +80,7 @@ const providerProps = hasSharedProvider
 
 <style lang="scss">
 .app-tooltip {
-  @apply z-50 border px-2 py-1 text-xs shadow-soft;
+  @apply z-$z-tooltip border px-2 py-1 text-xs shadow-$shadow-soft;
 
   background: var(--popover);
   border-color: var(--border);
