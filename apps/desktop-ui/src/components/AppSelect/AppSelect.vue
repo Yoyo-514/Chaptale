@@ -2,6 +2,7 @@
 import { SelectContent, SelectPortal, SelectRoot, SelectTrigger, SelectValue } from 'reka-ui';
 import { computed, inject, useAttrs, useSlots } from 'vue';
 
+import { useOverlayLayer } from '@/composables';
 import { cn } from '@/utils';
 import { appFormContextKey } from '../AppForm/context.ts';
 import AppScrollArea from '../AppScrollArea/AppScrollArea.vue';
@@ -52,6 +53,12 @@ const emit = defineEmits<{
 const slots = useSlots();
 const attrs = useAttrs();
 const formContext = inject(appFormContextKey, undefined);
+/**
+ * SelectContent 会通过 Portal 挂到 body，无法继承 Trigger 的 DOM stacking context。
+ * 这里沿 Vue 组件树读取最近的浮层；其他 Portal 控件遇到同类问题时应复用该上下文，而不是全局抬高 popover。
+ */
+const overlayLayer = useOverlayLayer();
+const contentStyle = computed(() => ({ zIndex: `var(--z-${overlayLayer})` }));
 const isDisabled = computed(() => props.disabled || formContext?.disabled.value === true);
 const isInvalid = computed(() => props.invalid || attrs['aria-invalid'] === 'true');
 const hasCustomTrigger = computed(() => Boolean(slots.trigger));
@@ -117,7 +124,13 @@ const contentClassName = computed(() =>
       </slot>
     </SelectTrigger>
     <SelectPortal>
-      <SelectContent position="popper" :class="contentClassName" :side-offset="props.sideOffset" :align="props.align">
+      <SelectContent
+        position="popper"
+        :class="contentClassName"
+        :style="contentStyle"
+        :side-offset="props.sideOffset"
+        :align="props.align"
+      >
         <AppScrollArea class="app-select-scroll" viewport-class="app-select-scroll-viewport">
           <div class="app-select-items" role="presentation">
             <slot />
@@ -173,7 +186,7 @@ const contentClassName = computed(() =>
 }
 
 .app-select-content {
-  @apply z-$z-popover border shadow-$shadow-float;
+  @apply border shadow-$shadow-float;
 
   width: var(--reka-select-trigger-width, var(--radix-select-trigger-width, 16rem));
   background: var(--popover);

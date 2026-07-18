@@ -10,6 +10,7 @@ import {
 } from 'reka-ui';
 import { computed, useAttrs, useSlots } from 'vue';
 
+import { provideOverlayLayer } from '@/composables';
 import { cn } from '@/utils';
 
 defineOptions({
@@ -43,6 +44,9 @@ const emit = defineEmits<{
 
 const slots = useSlots();
 const attrs = useAttrs();
+
+provideOverlayLayer('modal-control');
+
 const hasDescription = computed(() => Boolean(props.description || slots.description));
 const overlayClassName = computed(() => cn('app-dialog-overlay', props.overlayClass));
 const contentClassName = computed(() =>

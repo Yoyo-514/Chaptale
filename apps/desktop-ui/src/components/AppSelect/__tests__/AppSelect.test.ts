@@ -2,8 +2,25 @@ import { mount } from '@vue/test-utils';
 import { h } from 'vue';
 import { describe, expect, it } from 'vitest';
 
+import AppDialog from '../../AppDialog/AppDialog.vue';
 import AppFormField from '../../AppForm/AppFormField.vue';
 import AppSelect from '../AppSelect.vue';
+
+const overlayPrimitiveStubs = {
+  AppScrollArea: { template: '<div><slot /></div>' },
+  DialogClose: { template: '<button><slot /></button>' },
+  DialogContent: { template: '<div><slot /></div>' },
+  DialogDescription: { template: '<div><slot /></div>' },
+  DialogOverlay: { template: '<div />' },
+  DialogPortal: { template: '<div><slot /></div>' },
+  DialogRoot: { template: '<div><slot /></div>' },
+  DialogTitle: { template: '<div><slot /></div>' },
+  SelectContent: { template: '<div><slot /></div>' },
+  SelectPortal: { template: '<div><slot /></div>' },
+  SelectRoot: { template: '<div><slot /></div>' },
+  SelectTrigger: { template: '<button><slot /></button>' },
+  SelectValue: { template: '<span />' }
+};
 
 describe('AppSelect', () => {
   it('forwards trigger attributes and merges classes', () => {
@@ -66,5 +83,25 @@ describe('AppSelect', () => {
     expect(trigger.element.tagName).toBe('BUTTON');
     expect(trigger.attributes('id')).toBe('custom-select');
     expect(trigger.attributes('aria-describedby')).toBe('custom-select-description');
+  });
+
+  it('uses the popover layer outside an overlay', () => {
+    const wrapper = mount(AppSelect, {
+      global: { stubs: overlayPrimitiveStubs }
+    });
+
+    expect(wrapper.find('.app-select-content').attributes('style')).toContain('z-index: var(--z-popover)');
+  });
+
+  it('uses the modal control layer when its trigger is inside a dialog', () => {
+    const wrapper = mount(AppDialog, {
+      props: { open: true, title: '自定义供应商' },
+      slots: {
+        default: () => h(AppSelect)
+      },
+      global: { stubs: overlayPrimitiveStubs }
+    });
+
+    expect(wrapper.find('.app-select-content').attributes('style')).toContain('z-index: var(--z-modal-control)');
   });
 });
