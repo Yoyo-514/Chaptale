@@ -6,7 +6,7 @@ import UnoCSS from 'unocss/vite';
 
 const appRoot = path.resolve(__dirname, '../desktop-ui');
 const workspaceAliases = {
-  '@chaptale/ipc-contract': path.resolve(__dirname, '../../packages/ipc-contract/src/index.ts'),
+  '@chaptale/ipc-contract': path.resolve(__dirname, '../../packages/ipc/src/index.ts'),
   '@chaptale/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts')
 };
 

@@ -7,7 +7,7 @@
     "types": ["node"],
     "lib": ["ES2024", "DOM"],
     "paths": {
-      "@chaptale/ipc-contract": ["../../packages/ipc-contract/src/index.ts"],
+      "@chaptale/ipc-contract": ["../../packages/ipc/src/index.ts"],
       "@chaptale/shared": ["../../packages/shared/src/index.ts"]
     },
     "noEmit": true,
@@ -19,7 +19,7 @@
       "path": "../../packages/shared"
     },
     {
-      "path": "../../packages/ipc-contract"
+      "path": "../../packages/ipc"
     }
   ]
 }

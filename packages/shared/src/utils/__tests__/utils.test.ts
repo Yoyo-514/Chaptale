@@ -1,5 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
+import type {
+  ChatContentBlock,
+  ChatContextFile,
+  ChatImageAttachment,
+  ChatImageContent,
+  ChatImageSource,
+  ChatMessage,
+  ChatMessageUsage,
+  ChatRetryState,
+  ChatSkillInvocation,
+  ChatStopReason,
+  ChatTextContent,
+  ChatThinkingContent,
+  ChatToolCallContent
+} from '@chaptale/shared';
+import { MAX_CHAT_IMAGE_BYTES } from '@chaptale/shared';
 import {
   blankToUndefined,
   cleanUrlToken,
@@ -20,6 +36,73 @@ import {
   stripUndefined,
   unescapeXmlAttribute
 } from '..';
+
+describe('shared public exports', () => {
+  it('keeps chat domain types and constants available from the package root', () => {
+    const text: ChatTextContent = { type: 'text', text: 'hello', textSignature: 'signature' };
+    const thinking: ChatThinkingContent = {
+      type: 'thinking',
+      thinking: 'reasoning',
+      thinkingSignature: 'signature',
+      redacted: false
+    };
+    const image: ChatImageContent = { type: 'image', data: 'base64', mimeType: 'image/png' };
+    const imageSource: ChatImageSource = {
+      type: 'session-entry',
+      sessionId: 'session-id',
+      entryId: 'entry-id',
+      blockIndex: 0
+    };
+    const attachment: ChatImageAttachment = {
+      type: 'imageAttachment',
+      id: 'attachment-id',
+      mimeType: 'image/png',
+      originalBytes: 1024,
+      width: 320,
+      height: 180,
+      thumbnailDataUrl: 'data:image/png;base64,base64',
+      source: imageSource
+    };
+    const toolCall: ChatToolCallContent = {
+      type: 'toolCall',
+      id: 'tool-call-id',
+      name: 'read',
+      arguments: { path: '/tmp/example.txt' },
+      thoughtSignature: 'signature'
+    };
+    const contentBlocks: ChatContentBlock[] = [text, thinking, image, toolCall];
+    const contextFile: ChatContextFile = {
+      path: '/tmp/example.txt',
+      name: 'example.txt',
+      size: 128,
+      kind: 'text'
+    };
+    const skillInvocation: ChatSkillInvocation = { name: 'review', arguments: 'chapter one' };
+    const usage: ChatMessageUsage = {
+      inputTokens: 10,
+      outputTokens: 20,
+      totalTokens: 30,
+      cost: 0.01
+    };
+    const stopReason: ChatStopReason = 'toolUse';
+    const retry: ChatRetryState = { status: 'retrying', attempt: 1, maxAttempts: 3 };
+    const messages: ChatMessage[] = [
+      {
+        role: 'user',
+        content: [text, attachment],
+        contextFiles: [contextFile],
+        skillInvocation
+      },
+      { role: 'assistant', content: contentBlocks, stopReason, retry, usage },
+      { role: 'toolResult', toolCallId: toolCall.id, toolName: toolCall.name, content: [text, image] }
+    ];
+
+    expectTypeOf(messages).toMatchTypeOf<ChatMessage[]>();
+    expectTypeOf(attachment).toMatchTypeOf<ChatImageAttachment>();
+    expectTypeOf(contextFile).toMatchTypeOf<ChatContextFile>();
+    expect(MAX_CHAT_IMAGE_BYTES).toBe(20 * 1024 * 1024);
+  });
+});
 
 describe('shared utils', () => {
   it('narrows plain records without accepting arrays or null', () => {

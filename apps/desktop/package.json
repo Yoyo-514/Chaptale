@@ -24,14 +24,9 @@
     "@chaptale/shared": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
-    "@unocss/reset": "catalog:",
-    "clsx": "catalog:",
     "klona": "catalog:",
     "pi-web-access": "catalog:",
-    "radash": "catalog:",
-    "reka-ui": "catalog:",
-    "typebox": "catalog:",
-    "vue": "catalog:"
+    "radash": "catalog:"
   },
   "devDependencies": {
     "@iconify-json/mingcute": "catalog:",

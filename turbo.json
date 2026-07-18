@@ -9,6 +9,14 @@
       "dependsOn": ["^typecheck"],
       "outputs": []
     },
+    "@chaptale/shared#typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": ["dist/**"]
+    },
+    "@chaptale/ipc-contract#typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": ["dist/**"]
+    },
     "test": {
       "dependsOn": ["^build"],
       "outputs": []

@@ -1,0 +1,25 @@
+{
+  "name": "@chaptale/ipc-contract",
+  "private": true,
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "test": "cd ../.. && vitest run --config vitest.config.ts --project ipc",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@chaptale/shared": "workspace:*",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

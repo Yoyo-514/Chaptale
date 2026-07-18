@@ -29,7 +29,7 @@ export default defineConfig({
         '**/infra/shell-gateway.ts',
 
         // Type-only contract packages are validated by TypeScript and package consumers.
-        'packages/ipc-contract/src/**',
+        'packages/ipc/src/**',
         'apps/desktop-ui/src/modules/HistoryView/**'
       ],
       thresholds: {
@@ -66,6 +66,14 @@ export default defineConfig({
         test: {
           name: 'shared',
           root: './packages/shared',
+          environment: 'node',
+          include: ['src/**/*.test.ts']
+        }
+      }),
+      defineProject({
+        test: {
+          name: 'ipc',
+          root: './packages/ipc',
           environment: 'node',
           include: ['src/**/*.test.ts']
         }
