@@ -8,7 +8,7 @@ export type TaskPersonaSpec = {
   /** 工具白名单子集；[] = 纯分析零工具（审查类）。 */
   tools: string[];
   /**
-   * 模型偏好：具体 "provider/modelId"；fast/quality 的映射 M2 落地（成本护栏），
+   * 模型偏好：具体 "provider/modelId"；fast/quality 的成本护栏映射尚未实现，
    * 当前除显式 id 外一律跟随全局默认。undefined = 全局默认。
    */
   modelPreference?: string;

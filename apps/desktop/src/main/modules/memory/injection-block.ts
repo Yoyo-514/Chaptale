@@ -1,7 +1,7 @@
 import { estimateTextTokens } from '../context/token-counter';
 import type { MemorySections } from './service';
 
-/** 注入块总预算（tokens）；M3 接 tokenizer 前用 chars/4 保守估算。 */
+/** 注入块总预算（tokens）；接入 tokenizer 前用 chars/4 保守估算。 */
 const DEFAULT_BUDGET_TOKENS = 2000;
 
 type SectionSpec = {
@@ -12,7 +12,7 @@ type SectionSpec = {
 };
 
 /**
- * 注入优先级（05 §3.1，v0 无资产快照节）：② 守则 > ① 偏好 > ④ 近况 > ⑤ notes。
+ * 注入优先级：守则 > 偏好 > 近况 > notes。
  * 超限规则：低优先级整节截断并附一行提示，不做节内裁剪（保持内容完整可信）。
  */
 const SECTION_PRIORITY: SectionSpec[] = [

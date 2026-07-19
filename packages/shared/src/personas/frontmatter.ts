@@ -4,17 +4,17 @@ import { Compile } from 'typebox/compile';
 /** persona 类型：决定它在创作流程中的职责定位。 */
 export const personaTypes = ['chat', 'plan', 'draft', 'review', 'rewrite', 'research', 'custom'] as const;
 
-/** 执行形态：chat 为多轮对话；task 为一次性结构化执行（M1/A2 起支持）。 */
+/** 执行形态：chat 为多轮对话；task 为一次性结构化执行。 */
 export const personaExecutions = ['chat', 'task'] as const;
 
 /** persona 来源层级；优先级 workspace > user > builtin，同 id 覆盖。 */
 export const personaSources = ['builtin', 'user', 'workspace'] as const;
 
 /**
- * persona 定义文件的 frontmatter 契约（01 设计文档 §3.1）。
+ * persona 定义文件的 frontmatter 契约。
  *
- * 扩展点原则：字段只增不改（04 文档 §3）；A0 先落必需子集，
- * model/tools/skills/memory/output 等字段随 A2/B0 里程碑启用但 schema 先行，
+ * 扩展点原则：字段只增不改；先落必需子集，
+ * model/tools/skills/memory/output 等字段随功能启用但 schema 先行，
  * 保证早期用户文件在后续版本零迁移。
  */
 export const PersonaFrontmatterSchema = Type.Object(

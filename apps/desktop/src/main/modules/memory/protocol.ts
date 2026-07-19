@@ -1,12 +1,12 @@
 /**
- * memory 协议 v2（05 设计文档 §4.3，MC0 版）。
+ * memory 协议。
  *
  * 静态规则文本，接入 composeSystemPrompt 的 memoryProtocol 层——
  * 只含"怎么做"的规则，不含任何记忆数据（数据走 user message 前缀注入块），
  * 保证 systemPrompt 会话内不变、prompt cache 稳定命中。
  *
- * MC0 无 memory_save/memory_propose 工具，写入通过 write 工具直落文件；
- * MC1 工具化后本协议同步改写。
+ * 当前无 memory_save/memory_propose 工具，写入通过 write 工具直落文件；
+ * 工具化后本协议同步改写。
  */
 export const MEMORY_PROTOCOL = `## 记忆协议
 

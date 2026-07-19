@@ -69,7 +69,7 @@ export class PiAgentSessionFactory {
     const cwd = target.cwd || (await settingsService.getCurrentCwd());
     // 会话 cwd 保持历史文件语境；Slash 菜单、skills 与 persona 明确跟随当前工作区。
     const skillsCwd = await settingsService.getCurrentCwd();
-    // A0：主对话固定 companion persona；文件缺失/非法时回退内置默认值，不阻塞会话创建。
+    // 主对话固定 companion persona；文件缺失/非法时回退内置默认值，不阻塞会话创建。
     const companion = await this.getPersonaRegistry().get(skillsCwd, 'companion');
     const personaBody = companion?.body ?? builtinCompanionBody;
     const sessionDir = path.dirname(target.path);
@@ -115,7 +115,7 @@ export class PiAgentSessionFactory {
   }
 
   /**
-   * 为 task 型 persona 创建一次性 AgentSession（A2）。
+   * 为 task 型 persona 创建一次性 AgentSession。
    *
    * 与主对话路径的差异：
    * - session 文件落在 taskSessionsDir（不在历史扫描范围）；
@@ -171,7 +171,7 @@ export class PiAgentSessionFactory {
     return session;
   }
 
-  /** 解析 persona 模型偏好："provider/modelId" 显式指定；fast/quality 映射 M2 落地，当前跟随全局默认。 */
+  /** 解析 persona 模型偏好："provider/modelId" 显式指定；fast/quality 映射尚未实现，当前跟随全局默认。 */
   private async resolveTaskModel(preference: string | undefined) {
     const { modelService } = this.options;
 

@@ -16,11 +16,11 @@ export type WorkspaceMemoryPaths = {
   root: string;
   /** agent 观察区（可直写；kind: note + source 追溯）。 */
   notesDir: string;
-  /** 修改提议（MC1 起使用，目录约定先行）。 */
+  /** 修改提议（目录约定先行，提议-确认流实现后启用）。 */
   pendingDir: string;
   summariesDir: string;
   chapterSummariesDir: string;
-  /** 滚动近况（纯代码拼接，MC4 生成；MC0 只读）。 */
+  /** 滚动近况摘要；当前仅读取，自动生成由 Memory Settlement 负责。 */
   recent: string;
   /** 作品级创作守则（作者领地，非 .chaptale 内）。 */
   styleGuide: string;

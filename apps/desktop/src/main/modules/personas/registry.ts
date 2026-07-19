@@ -23,7 +23,7 @@ export type PersonaLoadResult = {
 };
 
 /**
- * persona 注册表（A0 只读版）。
+ * persona 注册表（只读）。
  *
  * 与 SkillsProvider 同范式：每次 load 全量扫描返回快照，不做常驻缓存——
  * persona 变更后下一次会话创建即生效，无失效通知负担。
