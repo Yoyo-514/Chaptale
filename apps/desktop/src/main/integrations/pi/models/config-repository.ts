@@ -7,7 +7,7 @@ import type { PiModelsConfig } from './config-types';
 
 export type PiModelConfigRepositoryOptions = {
   modelsPath: string;
-  onWrite?: () => void;
+  onWrite?: () => void | Promise<void>;
 };
 
 /**
@@ -107,7 +107,7 @@ export class PiModelConfigRepository {
     try {
       await writeFile(tempPath, `${JSON.stringify(config, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
       await rename(tempPath, this.options.modelsPath);
-      this.options.onWrite?.();
+      await this.options.onWrite?.();
     } finally {
       await rm(tempPath, { force: true }).catch(() => undefined);
     }

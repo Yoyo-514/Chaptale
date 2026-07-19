@@ -14,8 +14,8 @@ allowBuilds:
 catalog:
   "@capacitor/cli": ^8.4.1
   "@capacitor/core": ^8.4.1
-  "@earendil-works/pi-coding-agent": ^0.80.7
-  "@earendil-works/pi-ai": ^0.80.7
+  "@earendil-works/pi-coding-agent": ^0.80.10
+  "@earendil-works/pi-ai": ^0.80.10
   pi-web-access: ^0.13.0
   "@iconify-json/mingcute": ^1.2.7
   "@types/node": ^26.1.1
@@ -24,12 +24,12 @@ catalog:
   "@vue/test-utils": ^2.4.11
   "@unocss/preset-icons": ^66.7.5
   "@unocss/reset": ^66.7.5
-  "@vitejs/plugin-vue": ^6.0.7
+  "@vitejs/plugin-vue": ^6.0.8
   "@tanstack/vue-virtual": ^3.13.32
   clsx: ^2.1.1
   cross-env: ^10.1.0
-  electron: ^43.1.0
-  electron-builder: ^26.15.6
+  electron: ^43.1.1
+  electron-builder: ^26.15.7
   electron-vite: ^5.0.0
   happy-dom: ^20.10.6
   husky: ^9.1.7
@@ -37,8 +37,8 @@ catalog:
   klona: ^2.0.6
   marked: ^18.0.6
   npm-run-all: ^4.1.5
-  oxfmt: ^0.58.0
-  oxlint: ^1.73.0
+  oxfmt: ^0.59.0
+  oxlint: ^1.74.0
   radash: ^12.1.1
   reka-ui: ^2.10.1
   sass: ^1.101.0
@@ -47,10 +47,10 @@ catalog:
   typescript: ^6.0.3
   unocss: ^66.7.5
   pinia: ^4.0.2
-  vite: ^8.1.4
+  vite: ^8.1.5
   vitest: ^4.1.10
-  vue: ^3.5.39
-  vue-router: ^5.1.0
+  vue: ^3.5.40
+  vue-router: ^5.2.0
   vue-tsc: ^3.3.7
 
 minimumReleaseAgeExclude:

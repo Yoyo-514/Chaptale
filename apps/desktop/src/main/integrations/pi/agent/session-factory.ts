@@ -75,8 +75,7 @@ export class PiAgentSessionFactory {
     const { session } = await createAgentSession({
       cwd,
       agentDir: settingsService.agentDir,
-      authStorage: modelService.getAuthStorage(),
-      modelRegistry: modelService.getModelRegistry(),
+      modelRuntime: await modelService.getModelRuntime(),
       sessionManager,
       settingsManager,
       resourceLoader,

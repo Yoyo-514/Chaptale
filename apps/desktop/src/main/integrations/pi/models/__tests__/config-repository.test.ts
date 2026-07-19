@@ -70,6 +70,27 @@ describe('PiModelConfigRepository', () => {
     expect(onWrite).toHaveBeenCalled();
   });
 
+  it('waits for the asynchronous model runtime reload hook before resolving a write', async () => {
+    let releaseReload!: () => void;
+    const reloadFinished = new Promise<void>(resolve => {
+      releaseReload = resolve;
+    });
+    const onWrite = vi.fn(() => reloadFinished);
+    const repository = new PiModelConfigRepository({ modelsPath, onWrite });
+    let writeResolved = false;
+
+    const writePromise = repository.write({ providers: { custom: {} } }).then(() => {
+      writeResolved = true;
+    });
+
+    await vi.waitFor(() => expect(onWrite).toHaveBeenCalledOnce());
+    expect(writeResolved).toBe(false);
+
+    releaseReload();
+    await writePromise;
+    expect(writeResolved).toBe(true);
+  });
+
   it('keeps the old file and cleans the temp file when atomic rename fails', async () => {
     const oldContent = '{\n  "providers": { "old": {} }\n}\n';
     await mkdir(path.dirname(modelsPath), { recursive: true });
