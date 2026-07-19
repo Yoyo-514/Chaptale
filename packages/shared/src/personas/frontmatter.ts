@@ -21,8 +21,17 @@ export const PersonaFrontmatterSchema = Type.Object(
   {
     id: Type.String({ pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 64 }),
     name: Type.String({ minLength: 1, maxLength: 64 }),
-    type: Type.Union(personaTypes.map(value => Type.Literal(value))),
-    execution: Type.Union(personaExecutions.map(value => Type.Literal(value))),
+    // 显式元组写法：.map() 产生普通数组会让 Static 丢失字面量联合型型。
+    type: Type.Union([
+      Type.Literal('chat'),
+      Type.Literal('plan'),
+      Type.Literal('draft'),
+      Type.Literal('review'),
+      Type.Literal('rewrite'),
+      Type.Literal('research'),
+      Type.Literal('custom')
+    ]),
+    execution: Type.Union([Type.Literal('chat'), Type.Literal('task')]),
     model: Type.Optional(Type.Object({ preference: Type.String({ minLength: 1 }) }, { additionalProperties: false })),
     tools: Type.Optional(Type.Array(Type.String())),
     skills: Type.Optional(Type.Array(Type.String())),

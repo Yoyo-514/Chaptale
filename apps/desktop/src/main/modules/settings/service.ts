@@ -29,6 +29,8 @@ export class SettingsService {
   readonly piAuthPath: string;
   readonly piWebAccessConfigPath: string;
   readonly sessionsRootDir: string;
+  /** task 型子任务 session 目录；不在 sessionsRootDir 扫描范围，天然不进历史 UI。 */
+  readonly taskSessionsDir: string;
 
   // 串行化设置文件的读写，避免多个 IPC handler 并发读写造成竞态。
   private settingsQueue: Promise<unknown> = Promise.resolve();
@@ -45,6 +47,7 @@ export class SettingsService {
     this.piAuthPath = path.join(this.agentDir, 'auth.json');
     this.piWebAccessConfigPath = path.join(this.agentDir, 'web-search.json');
     this.sessionsRootDir = path.join(this.agentDir, 'sessions');
+    this.taskSessionsDir = path.join(this.agentDir, 'task-sessions');
   }
 
   async getState(): Promise<ChaptaleSettingsState> {

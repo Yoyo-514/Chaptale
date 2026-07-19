@@ -16,6 +16,7 @@ import { unique } from 'radash';
 import { MEMORY_PROTOCOL } from '../../../modules/memory/protocol';
 import { builtinCompanionBody, builtinPersonaSources } from '../../../modules/personas/builtin';
 import { PersonaRegistry } from '../../../modules/personas/registry';
+import type { TaskPersonaSpec } from '../../../modules/personas/task-spec';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
 import type { PiModelService } from '../models/service';
 import type { SettingsService } from '../../../modules/settings/service';
@@ -111,6 +112,81 @@ export class PiAgentSessionFactory {
     });
 
     return session;
+  }
+
+  /**
+   * 为 task 型 persona 创建一次性 AgentSession（A2）。
+   *
+   * 与主对话路径的差异：
+   * - session 文件落在 taskSessionsDir（不在历史扫描范围）；
+   * - 逐次新建不缓存，工具 schema 天然每次重算；
+   * - 系统提示词 = persona 正文 + memory 协议，不受用户 SYSTEM.md/APPEND_SYSTEM.md 与 skills 影响
+   *   （task 行为由 persona 定义，不被全局自定义劫持）；
+   * - 工具为 spec 白名单子集（[] = 纯分析）；模型按 spec 偏好解析，缺省跟随全局默认。
+   */
+  async createTaskSession(spec: TaskPersonaSpec): Promise<AgentSession> {
+    const { settingsService, modelService } = this.options;
+    const cwd = await settingsService.getCurrentCwd();
+    await fs.mkdir(settingsService.taskSessionsDir, { recursive: true });
+    const sessionManager = SessionManager.create(cwd, settingsService.taskSessionsDir);
+    const settingsManager = SettingsManager.create(cwd, settingsService.agentDir);
+
+    const resourceLoader = new DefaultResourceLoader({
+      cwd,
+      agentDir: settingsService.agentDir,
+      settingsManager,
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true,
+      skillsOverride: () => ({ skills: [], diagnostics: [] }),
+      appendSystemPromptOverride: () => [],
+      systemPromptOverride: () =>
+        composeSystemPrompt({ personaBody: spec.systemPrompt, memoryProtocol: MEMORY_PROTOCOL })
+    });
+    await resourceLoader.reload();
+
+    const { session } = await createAgentSession({
+      cwd,
+      agentDir: settingsService.agentDir,
+      modelRuntime: await modelService.getModelRuntime(),
+      sessionManager,
+      settingsManager,
+      resourceLoader,
+      tools: spec.tools,
+      ...(spec.tools.length === 0 ? { noTools: 'all' as const } : {})
+    });
+
+    const model = await this.resolveTaskModel(spec.modelPreference);
+
+    if (model && (session.model?.provider !== model.provider || session.model?.id !== model.id)) {
+      await session.setModel(model);
+    }
+
+    if (!session.model) {
+      throw new Error('尚未配置可用模型：请在设置面板 LLM Provider 中配置凭据并选择默认模型');
+    }
+
+    return session;
+  }
+
+  /** 解析 persona 模型偏好："provider/modelId" 显式指定；fast/quality 映射 M2 落地，当前跟随全局默认。 */
+  private async resolveTaskModel(preference: string | undefined) {
+    const { modelService } = this.options;
+
+    if (preference?.includes('/')) {
+      const separator = preference.indexOf('/');
+      const modelRuntime = await modelService.getModelRuntime();
+      const model = modelRuntime.getModel(preference.slice(0, separator), preference.slice(separator + 1));
+
+      if (model) {
+        return model;
+      }
+      // 指定模型不存在时降级全局默认（而非失败）：persona 文件可能来自分享，模型配置因人而异。
+    }
+
+    return modelService.getDefaultPiModel();
   }
 }
 
