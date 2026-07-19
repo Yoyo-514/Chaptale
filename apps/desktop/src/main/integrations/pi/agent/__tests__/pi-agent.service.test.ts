@@ -63,9 +63,12 @@ function createService(
   imageAttachmentService = createImageAttachmentService()
 ) {
   const service = new PiAgentService(
-    {} as any,
+    { rootDir: '/tmp/chaptale-test', getCurrentCwd: vi.fn(async () => '/tmp/chaptale-test-cwd') } as any,
     { getDefaultPiModel: vi.fn(async () => defaultModel) } as any,
-    imageAttachmentService as any
+    imageAttachmentService as any,
+    undefined,
+    // memory 注入与对话主流程解耦，这里用空实现；注入行为由 memory 专项测试覆盖。
+    { resolvePrefix: vi.fn(async () => ''), reset: vi.fn() } as any
   );
   (service as any).sessionFactory = { create: vi.fn(async () => session) };
   return service;

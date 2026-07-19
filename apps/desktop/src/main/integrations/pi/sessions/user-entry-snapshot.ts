@@ -2,6 +2,7 @@ import type { SessionManager } from '@earendil-works/pi-coding-agent';
 
 import { decodeImageBase64, type ImageBlock } from '../../../modules/attachments/service';
 import { decodeContextMessage } from '../../../modules/context/context-message-codec';
+import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
 import { decodeSkillMessage } from '../../../modules/skills/message-codec';
 import { getPiUserImageBlocks } from './user-image-blocks';
 
@@ -68,9 +69,11 @@ export function getPiUserEntrySnapshot(sessionManager: SessionManager, entryId: 
   }
 
   const decodedSkill = decodeSkillMessage(text);
+  // 复用需逐字重现原 prompt 前缀：包含当时的 memory 注入块与上下文信封。
+  const decodedMemory = decodeMemoryMessage(decodedSkill.text);
 
   return {
-    promptPrefix: decodeContextMessage(decodedSkill.text).promptPrefix,
+    promptPrefix: `${decodedMemory.promptPrefix}${decodeContextMessage(decodedMemory.text).promptPrefix}`,
     imageBlocks
   };
 }

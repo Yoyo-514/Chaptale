@@ -13,6 +13,7 @@ import path from 'node:path';
 
 import { unique } from 'radash';
 
+import { MEMORY_PROTOCOL } from '../../../modules/memory/protocol';
 import { builtinCompanionBody, builtinPersonaSources } from '../../../modules/personas/builtin';
 import { PersonaRegistry } from '../../../modules/personas/registry';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
@@ -93,7 +94,8 @@ export class PiAgentSessionFactory {
       skillsOverride: () => skillsProvider.load(skillsCwd),
       // 分层拼装：SYSTEM.md 仅替换 persona 层，职责/协议层始终保留；
       // 拼装结果在会话生命周期内不变（缓存安全）；APPEND_SYSTEM.md 由 pi 原生追加。
-      systemPromptOverride: discovered => composeSystemPrompt({ personaBody, discoveredSystemMd: discovered })
+      systemPromptOverride: discovered =>
+        composeSystemPrompt({ personaBody, discoveredSystemMd: discovered, memoryProtocol: MEMORY_PROTOCOL })
     });
     await resourceLoader.reload();
 

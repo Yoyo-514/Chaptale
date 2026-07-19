@@ -1,6 +1,7 @@
 import type { ChatContentBlock, ChatMessage, ChatMessageUsage, ChatStopReason } from '@chaptale/shared';
 
 import { decodeContextMessage } from '../../../modules/context/context-message-codec';
+import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
 import { decodeSkillMessage } from '../../../modules/skills/message-codec';
 import {
   decodeImageBase64,
@@ -138,7 +139,9 @@ export function toChatMessages(message: unknown, options: PiMessageMappingOption
             .map(block => block.text)
             .join('\n');
     const decodedSkill = decodeSkillMessage(text);
-    const decodedContext = decodeContextMessage(decodedSkill.text);
+    // 信封嵌套顺序与拼接一致：skill 内层依次为 memory → context → 用户文本；UI 不展示注入块。
+    const decodedMemory = decodeMemoryMessage(decodedSkill.text);
+    const decodedContext = decodeContextMessage(decodedMemory.text);
     const skillInvocation = decodedSkill.skillInvocation
       ? { ...decodedSkill.skillInvocation, arguments: decodedContext.text }
       : undefined;

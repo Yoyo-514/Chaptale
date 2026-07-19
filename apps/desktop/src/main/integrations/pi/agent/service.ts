@@ -13,6 +13,8 @@ import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-
 import { ImageAttachmentService } from '../../../modules/attachments/service';
 import { ContextFileService } from '../../../modules/context/service';
 import { decodeContextMessage } from '../../../modules/context/context-message-codec';
+import { createMemoryInjector, type MemoryInjector } from '../../../modules/memory/injector';
+import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
 import { flushSessionFile } from '../sessions/file';
 import { getPiUserEntrySnapshot } from '../sessions/user-entry-snapshot';
 import type { PiModelService } from '../models/service';
@@ -45,25 +47,29 @@ export class PiAgentService implements AgentRuntime {
   private sessions = new Map<string, Promise<AgentSession>>();
   private readonly contextFileService = new ContextFileService();
   private readonly sessionFactory: PiAgentSessionFactory;
+  private readonly memoryInjector: MemoryInjector;
   readonly skillsProvider: SkillsProvider;
 
   constructor(
-    settingsService: SettingsService,
+    private readonly settingsService: SettingsService,
     private readonly modelService: PiModelService,
     private readonly imageAttachmentService = new ImageAttachmentService(),
-    skillsProvider = new SkillsProvider(settingsService)
+    skillsProvider = new SkillsProvider(settingsService),
+    memoryInjector?: MemoryInjector
   ) {
     this.skillsProvider = skillsProvider;
+    this.memoryInjector = memoryInjector ?? createMemoryInjector(settingsService.rootDir);
     this.sessionFactory = new PiAgentSessionFactory({ settingsService, modelService, skillsProvider });
   }
 
-  /** 会话目录/工作区切换后调用，丢弃缓存的 AgentSession。 */
+  /** 会话目录/工作区切换后调用，丢弃缓存的 AgentSession与记忆注入去重记录。 */
   invalidateSessions() {
     for (const pending of this.sessions.values()) {
       void pending.then(session => session.dispose()).catch(() => undefined);
     }
 
     this.sessions.clear();
+    this.memoryInjector.reset();
   }
 
   /**
@@ -154,7 +160,11 @@ export class PiAgentService implements AgentRuntime {
       });
       signal.throwIfAborted();
 
-      const runContext = await this.resolveRunContext(options, skillInvocation, reusedContext);
+      // 记忆注入仅限新发 prompt：复用历史条目需逐字重现原 prompt，steer 保持轻量（均不注入）。
+      const memoryPrefix = options.reuseUserEntryId
+        ? ''
+        : await this.memoryInjector.resolvePrefix(sessionId, await this.settingsService.getCurrentCwd());
+      const runContext = await this.resolveRunContext(options, skillInvocation, reusedContext, memoryPrefix);
       signal.throwIfAborted();
 
       yield runContext.userMessage;
@@ -267,11 +277,15 @@ export class PiAgentService implements AgentRuntime {
   private async resolveRunContext(
     options: AgentInputOptions,
     skillInvocation: SkillInvocation | undefined,
-    reusedContext: ReusedUserEntryContext
+    reusedContext: ReusedUserEntryContext,
+    memoryPrefix = ''
   ): Promise<AgentRunContext> {
     const resolvedContext = reusedContext ? undefined : await this.contextFileService.resolve(options.contextFilePaths);
-    const promptPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
-    const decodedContext = decodeContextMessage(promptPrefix);
+    // 上下文信封单独解码（其正则锚定行首）；复用的历史前缀可能自带 memory 信封，先剔除再解。
+    const contextPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
+    const decodedContext = decodeContextMessage(decodeMemoryMessage(contextPrefix).text);
+    // 记忆信封排在最前：它是变化频率最低的前缀，有利于 provider 前缀缓存。
+    const promptPrefix = `${memoryPrefix}${contextPrefix}`;
     // 复用历史消息时保留原始 content 下标，保证 session-entry source 与 readOriginal 对齐；
     // 新发送时 pi 会把消息持久化为 [text, ...images]，图片真实下标从 1 开始。
     const imageBlocks = reusedContext
