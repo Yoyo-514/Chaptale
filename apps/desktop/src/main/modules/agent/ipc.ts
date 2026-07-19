@@ -84,6 +84,10 @@ export function registerAgentIpc(agentService: AgentRuntime) {
     return { runId };
   });
 
+  /**
+   * 将单次运行的异步事件流转换为带 runId 的 IPC 事件。
+   * Abort 被视为正常终态并发送 done；发送通道自身失败则向外抛出，由 detached promise 统一回收。
+   */
   async function streamAgentToRenderer(webContents: WebContents, payload: AgentStartPayload, signal: AbortSignal) {
     try {
       if (!payload.sessionId) {

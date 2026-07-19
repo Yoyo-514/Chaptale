@@ -23,6 +23,7 @@ const emit = defineEmits<{
 const textareaRef = ref<AppTextareaExpose | null>(null);
 const selectedCommandIndex = ref(0);
 const commandMenuDismissed = ref(false);
+// 只有尚未出现参数空格的 `/prefix` 才驱动补全，避免输入命令参数时菜单重新弹出。
 const slashPrefix = computed(() => {
   if (!props.modelValue.startsWith('/')) {
     return undefined;
@@ -88,6 +89,7 @@ async function completeCommand(command: SlashCommand) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  // 菜单打开时优先消费方向键、Tab 和 Enter；其余 Enter 才按普通消息发送处理。
   if (isCommandMenuOpen.value) {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();

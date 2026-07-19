@@ -68,6 +68,7 @@ export class SettingsService {
         ...(lastSessionId ? { lastSessionId } : {})
       };
 
+      // workspace 模式必须绑定有效路径；不完整的设置回退到 global，避免生成不可定位的会话目录。
       if (next.storage.mode === 'workspace' && !next.storage.workspacePath) {
         next.storage.mode = 'global';
       }
@@ -104,6 +105,7 @@ export class SettingsService {
     return this.enqueue(() => this.readSettingsUnsafe());
   }
 
+  /** 只补齐缺失的配置文件；已有文件即使内容不完整也交给 merge 逻辑兼容，避免覆盖用户设置。 */
   async ensureSettingsFile(settings?: ChaptaleSettings) {
     const rawSettings = await this.readRawSettingsFile();
 
@@ -138,6 +140,10 @@ export class SettingsService {
     };
   }
 
+  /**
+   * 将存储设置映射为稳定的会话目录。
+   * 工作区路径先转换为安全目录名，避免把绝对路径层级直接拼入应用数据目录。
+   */
   getSessionDir(storage: ChaptaleStorageSettings) {
     if (storage.mode === 'workspace' && storage.workspacePath) {
       return path.join(this.sessionsRootDir, toWorkspaceSessionDirName(storage.workspacePath));
@@ -210,6 +216,7 @@ export class SettingsService {
     await writeJsonFile(this.piWebAccessConfigPath, config);
   }
 
+  /** 串行化设置读写；单次失败只影响调用方，不得阻塞队列中的后续操作。 */
   private enqueue<T>(task: () => Promise<T>): Promise<T> {
     const run = this.settingsQueue.then(task, task);
     this.settingsQueue = run.catch(() => undefined);

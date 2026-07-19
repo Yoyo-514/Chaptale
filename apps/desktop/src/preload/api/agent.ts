@@ -10,6 +10,10 @@ import type {
 import { ipcRenderer, webUtils } from 'electron';
 import type { IpcRendererEvent } from 'electron';
 
+/**
+ * 暴露 Renderer 可用的 Agent API，并在 Preload 内隔离 Electron IPC 与本地文件路径能力。
+ * 每次流式运行按 runId 管理独立监听器，主进程终态或启动失败后立即释放。
+ */
 export function createAgentApi(): ChaptaleDesktopApi['agent'] {
   return {
     selectContextFiles: () => ipcRenderer.invoke(IPC_CHANNELS.agent.selectContextFiles),

@@ -155,6 +155,7 @@ const showAssistantError = computed(() =>
   )
 );
 const showActions = computed(() => isRenderable.value);
+// 带附件的用户消息只有获得持久化 entryId 后才能编辑，否则无法让主进程安全复用原图。
 const canEdit = computed(
   () =>
     !props.isBusy &&

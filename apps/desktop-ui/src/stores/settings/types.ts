@@ -24,6 +24,7 @@ export type SettingsStoreState = {
   error: string;
 };
 
+/** action 分片共享的 this 契约；只列出跨分片调用能力，避免各模块反向依赖具体 Pinia store 类型。 */
 export type SettingsStoreContext = SettingsStoreState & {
   runAction<T>(title: string, action: () => Promise<T>): Promise<T | undefined>;
   runModelsAction(title: string, action: () => Promise<ListModelsResult>): Promise<boolean>;

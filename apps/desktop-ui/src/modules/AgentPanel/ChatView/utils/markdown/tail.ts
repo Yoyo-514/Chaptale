@@ -11,6 +11,11 @@ type OpenFenceInfo = {
   openerLine: string;
 };
 
+/**
+ * 渲染尚不稳定的流式尾部。
+ * 短尾部临时补齐开放代码围栏与奇数个未转义反引号后交给 marked；
+ * 超长开放代码围栏直接按转义后的 `<pre><code>` 输出，避免反复解析整段代码。
+ */
 export function renderStreamingTail(tail: string) {
   if (!tail) {
     return '';
@@ -25,6 +30,7 @@ export function renderStreamingTail(tail: string) {
   return renderMarked(closeOpenMarkdownTail(tail, fenceInfo));
 }
 
+/** 只为本次渲染补齐语法，不修改缓存中的原始 Markdown。 */
 function closeOpenMarkdownTail(tail: string, fenceInfo = getOpenFenceInfo(tail)) {
   let normalizedTail = tail;
 

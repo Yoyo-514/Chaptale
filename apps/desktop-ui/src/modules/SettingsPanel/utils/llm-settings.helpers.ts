@@ -15,6 +15,10 @@ export function filterModelsByGroup(models: ChaptaleModelInfo[], group: ModelGro
   return models.filter(model => model.isCustom === (group === 'custom'));
 }
 
+/**
+ * 以当前分组可见模型重新计算供应商计数，同时复用后端返回的认证来源与展示名称。
+ * 已认证供应商排在前面，组内按名称排序，减少切换分组后的列表跳动。
+ */
 export function createProviderViews(models: ChaptaleModelInfo[], providers: ChaptaleProviderInfo[]): ProviderView[] {
   const providerMap = new Map(providers.map(provider => [provider.provider, provider]));
   const modelCountsByProvider = counting(models, model => model.provider);

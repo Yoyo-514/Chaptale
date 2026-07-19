@@ -13,6 +13,10 @@ export type PiMessageMappingOptions = {
   presentUserImages?: (images: readonly ImageBlock[]) => ImageAttachmentPresentation;
 };
 
+/**
+ * 将 pi 工具结果压缩为聊天协议中的文本块。
+ * 优先提取 SDK 标准 content 文本；其他可 JSON 序列化的结构保留为 JSON。
+ */
 export function stringifyToolResult(result: unknown): string {
   if (result && typeof result === 'object' && 'content' in result) {
     const content = (result as { content: unknown }).content;
@@ -112,7 +116,11 @@ function toMessageUsage(value: unknown): ChatMessageUsage | undefined {
   return usage.totalTokens > 0 || usage.cost > 0 ? usage : undefined;
 }
 
-/** 兼容 pi AgentMessage 的现有块结构，并在防腐层内转换为前端 ChatMessage。 */
+/**
+ * 兼容 pi AgentMessage 的现有块结构，并在防腐层内转换为前端 ChatMessage。
+ *
+ * 用户消息会同时剥离 Skill 与上下文文件信封，并把原始图片转换为轻量附件；无法识别的角色或空用户内容不进入 UI。
+ */
 export function toChatMessages(message: unknown, options: PiMessageMappingOptions = {}): ChatMessage[] {
   if (!message || typeof message !== 'object') {
     return [];

@@ -1,6 +1,7 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+/** Agent IPC 的运行时参数边界；拒绝额外字段，避免 Renderer 绕过公开契约传递内部选项。 */
 export const AgentStartPayloadSchema = Type.Object(
   {
     runId: Type.String(),

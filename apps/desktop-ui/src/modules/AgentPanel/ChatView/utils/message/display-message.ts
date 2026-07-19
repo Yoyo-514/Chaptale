@@ -30,6 +30,10 @@ function getPreviewImage(file: ChatContextFile): ChatImageAttachment | undefined
   };
 }
 
+/**
+ * 创建发送前的乐观用户消息。
+ * 图片使用本地预览附件直接展示，其他上下文文件保留元数据；Skill 命令只显示参数正文，完整命令仍可由 getUserText 恢复。
+ */
 export function createUserMessage(content: string, contextFiles: ChatContextFile[] = []): ChatMessage {
   const images: ChatImageAttachment[] = [];
   const displayFiles: ChatContextFile[] = [];
@@ -58,6 +62,7 @@ export function createUserMessage(content: string, contextFiles: ChatContextFile
   };
 }
 
+/** 在主进程返回新会话树前，先把编辑后的用户消息投影为最后一个兄弟分支。 */
 export function markUserMessageAsOptimisticBranch(displayMessage: ChatDisplayMessage) {
   const total = (displayMessage.branch?.total ?? 1) + 1;
 

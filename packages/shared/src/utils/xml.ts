@@ -1,7 +1,9 @@
+/** 转义双引号属性值中的 XML 保留字符，用于应用生成的上下文文件信封。 */
 export function escapeXmlAttribute(value: string) {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
+/** 转义 XML 文本节点；引号在文本节点中无需替换。 */
 export function escapeXmlText(value: string) {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }

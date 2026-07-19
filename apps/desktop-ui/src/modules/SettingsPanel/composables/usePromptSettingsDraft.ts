@@ -2,6 +2,10 @@ import { computed, reactive, watch } from 'vue';
 
 import { useSettingsStore } from '@/stores/settings';
 
+/**
+ * 在设置快照之外维护 Prompt 编辑草稿，支持放弃、恢复默认值与显式保存。
+ * store 刷新后草稿跟随最新磁盘状态，未提交内容不会提前写入持久化层。
+ */
 export function usePromptSettingsDraft() {
   const settingsStore = useSettingsStore();
   const draft = reactive({

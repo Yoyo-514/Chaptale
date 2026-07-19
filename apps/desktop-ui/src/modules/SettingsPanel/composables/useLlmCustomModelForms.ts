@@ -31,6 +31,10 @@ function toStagedModel(draft: CustomModelDraft): StagedCustomModel {
   };
 }
 
+/**
+ * 管理“新建供应商”和“已有供应商添加/编辑模型”两套表单草稿。
+ * 表单只暂存与校验界面输入，成功提交后由 settings store 返回的完整模型快照刷新事实状态。
+ */
 export function useLlmCustomModelForms(
   settingsStore: SettingsStore,
   notificationStore: NotificationStore,
@@ -99,6 +103,7 @@ export function useLlmCustomModelForms(
     }
 
     const existingIndex = stagedProviderModels.value.findIndex(model => model.modelId === staged.modelId);
+    // 同一供应商内 modelId 唯一；重复暂存视为更新草稿，而不是生成后端必然覆盖的重复项。
     if (existingIndex >= 0) {
       stagedProviderModels.value[existingIndex] = staged;
     } else {
@@ -150,6 +155,7 @@ export function useLlmCustomModelForms(
   }
 
   async function submitCustomProvider() {
+    // 提交前复制 staged input，避免关闭弹窗后的草稿重置影响正在进行的异步请求。
     const providerId = customProvider.provider.trim();
     const models = stagedProviderModels.value.map(model => ({
       modelId: model.modelId,

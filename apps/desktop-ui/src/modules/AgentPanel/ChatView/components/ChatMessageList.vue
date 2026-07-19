@@ -29,6 +29,7 @@ type ChatMessageRow =
 const scrollElementRef = ref<HTMLElement | null>(null);
 let scrollToBottomFrameId = 0;
 
+// 虚拟列表按展示单元分行：连续工具调用及结果合并为一个分组，普通文本仍保持独立消息行。
 const rows = computed<ChatMessageRow[]>(() => {
   const result: ChatMessageRow[] = [];
   let toolMessages: ChatDisplayMessage[] = [];
@@ -109,6 +110,7 @@ const totalSize = computed(() => virtualizer.value.getTotalSize());
 const firstMessageId = computed(() => props.messages[0]?.id ?? '');
 
 function scheduleScrollToBottom() {
+  // 同一帧内的多次流式更新只安排一次滚动，避免反复测量虚拟列表造成抖动。
   if (scrollToBottomFrameId) {
     return;
   }

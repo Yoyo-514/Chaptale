@@ -13,6 +13,12 @@ type CreateDisplayMessage = (message: ChatMessage, prefix?: string) => ChatDispl
 
 type AssistantMessage = Extract<ChatMessage, { role: 'assistant' }>;
 
+/**
+ * 把 Agent 的增量事件归并到 ChatView 消息投影。
+ *
+ * 文本和 reasoning 先经缓冲批量刷新；工具调用及结果按调用 ID 更新，
+ * 最终 assistant 消息则替换末尾的流式占位，减少同一次运行产生的重复展示。
+ */
 export function useAssistantStreamingMessages(options: {
   getMessages: () => ChatDisplayMessage[];
   createDisplayMessage: CreateDisplayMessage;
@@ -67,6 +73,7 @@ export function useAssistantStreamingMessages(options: {
     }
   }
 
+  /** 合并非 delta 消息；工具结果按 toolCallId 幂等更新，最终 assistant 消息替换当前流式占位。 */
   function appendOrReplaceAssistantMessage(message: ChatMessage) {
     const currentMessages = messages();
 
@@ -193,6 +200,7 @@ function createAssistantErrorMessage(message: string): ChatMessage {
   };
 }
 
+/** 保留已流式生成的内容，并按调用 ID 更新工具块，防止同一工具在终态事件中重复追加。 */
 function mergeAssistantContent(
   previous: AssistantMessage['content'],
   incoming: AssistantMessage['content']

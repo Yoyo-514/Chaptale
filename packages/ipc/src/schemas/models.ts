@@ -1,6 +1,7 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+/** 模型设置 IPC 的运行时 schema；业务级非空、范围和资源存在性由主进程服务继续校验。 */
 export const ChaptaleModelInputSchema = Type.Union([Type.Literal('text'), Type.Literal('image')]);
 
 export const ChaptaleCustomProviderApiSchema = Type.Union([

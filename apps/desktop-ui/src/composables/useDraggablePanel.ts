@@ -18,6 +18,10 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
 }
 
+/**
+ * 管理浮动面板的拖拽与八方向缩放，并始终把可操作区域限制在当前视口内。
+ * 窗口尺寸变化时重新钳制位置和大小，防止面板留在屏幕外无法找回。
+ */
 export function useDraggablePanel(options: DraggablePanelOptions) {
   const position = reactive({ x: options.initialX, y: options.initialY });
   const size = reactive({ width: options.initialWidth, height: options.initialHeight });
@@ -56,6 +60,7 @@ export function useDraggablePanel(options: DraggablePanelOptions) {
 
   function handlePointerDown(event: PointerEvent) {
     const target = event.target as HTMLElement;
+    // 交互控件和缩放手柄拥有自己的指针语义，不能被面板拖拽抢占。
     if (target.closest('button, input, select, textarea, a, [data-panel-resize-handle]')) {
       return;
     }
@@ -122,6 +127,7 @@ export function useDraggablePanel(options: DraggablePanelOptions) {
       size.height = clamp(resize.originHeight + deltaY, options.minHeight, maxPanelHeight(resize.originY));
     }
 
+    // 从西/北侧缩放时固定相对边，只移动起点并由原始边界反推尺寸。
     if (direction.includes('w')) {
       const nextX = clamp(resize.originX + deltaX, options.minX, originRight - options.minWidth);
       position.x = nextX;

@@ -56,6 +56,7 @@ export function useChatEditing({ state, runQuery }: UseChatEditingOptions) {
     }
 
     const images = getUserImages(displayMessage.message);
+    // 先把当前投影视为新分支的用户节点并截断其后消息，随后由 runQuery 从原 parent 创建持久化分支。
     displayMessage.message.content = images.length > 0 ? [{ type: 'text', text: content }, ...images] : content;
     delete displayMessage.message.skillInvocation;
     markUserMessageAsOptimisticBranch(displayMessage);
@@ -99,6 +100,7 @@ export function useChatEditing({ state, runQuery }: UseChatEditingOptions) {
       return;
     }
 
+    // 重新生成不是覆盖旧助手消息，而是从最近用户节点的父级创建另一条可切换分支。
     state.messages.splice(userIndex + 1);
     await runQuery(getUserText(userMessage.message), {
       appendUser: false,

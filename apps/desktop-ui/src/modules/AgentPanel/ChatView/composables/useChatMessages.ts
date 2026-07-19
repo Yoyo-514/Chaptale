@@ -19,6 +19,7 @@ export function useChatMessages({ state, assistantStreaming, getDesktopApiOrNoti
   const sessionStore = useSessionStore();
   const notificationStore = useNotificationStore();
   const currentLeafId = ref<string | null>(null);
+  // 会话快速切换会产生并发读取；序号保证迟到的旧响应不能覆盖当前会话。
   let loadMessagesSequence = 0;
 
   async function loadCurrentSessionMessages() {
@@ -40,6 +41,7 @@ export function useChatMessages({ state, assistantStreaming, getDesktopApiOrNoti
         return;
       }
 
+      // 优先保留用户刚选择的分支；首次加载才回退到 store 记录或最新条目。
       currentLeafId.value = currentLeafId.value ?? sessionStore.currentSession?.leafId ?? entries.at(-1)?.id ?? null;
       state.messages = buildDisplayMessagesFromEntries(entries, currentLeafId.value);
     } finally {

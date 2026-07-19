@@ -26,6 +26,7 @@ const props = defineProps<{
 }>();
 
 const open = ref(false);
+// 按 toolCallId 将分散的 assistant 调用与 toolResult 配对；孤立结果仍保留，便于展示损坏或旧会话。
 const executions = computed<ToolExecution[]>(() => {
   const items: ToolExecution[] = [];
   const byCallId = new Map<string, ToolExecution>();

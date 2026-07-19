@@ -21,6 +21,7 @@ const props = defineProps<{
 
 const activeIndex = defineModel<number | null>('activeIndex', { required: true });
 
+// activeIndex 同时承担打开状态和选中项；统一校验可避免列表异步变化后渲染不存在的图片。
 const isOpen = computed(
   () => activeIndex.value !== null && activeIndex.value >= 0 && activeIndex.value < props.items.length
 );
@@ -59,6 +60,7 @@ function move(step: number) {
     return;
   }
 
+  // 取模让键盘和按钮导航在首尾之间循环，不需要为两个方向维护独立边界分支。
   activeIndex.value = (activeIndex.value! + step + props.items.length) % props.items.length;
 }
 

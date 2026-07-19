@@ -1,3 +1,7 @@
+/**
+ * Renderer 与主进程共享的频道唯一来源。
+ * 按业务域分组可让 Preload、handler 注册和契约审查使用同一组不可变字面量。
+ */
 export const IPC_CHANNELS = {
   app: {
     getPlatform: 'app:get-platform'

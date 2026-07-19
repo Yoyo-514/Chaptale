@@ -27,6 +27,7 @@ export type PiSessionRepositoryOptions = SessionStorageOptions;
 
 /** 会话 CRUD、分支/leaf 与消息读取；路径解析与文件删除委托给 SessionStorageResolver。 */
 export class PiSessionRepository implements SessionRepository {
+  // SessionManager 每次打开文件都会恢复持久化叶子；内存覆盖记录用户本次选择，确保后续读取沿用刚切换的分支。
   private readonly leafOverrides = new Map<string, string | null>();
   private readonly storage: SessionStorageResolver;
 
@@ -75,6 +76,7 @@ export class PiSessionRepository implements SessionRepository {
     return sessions[0] ?? this.create({ name: '新会话' });
   }
 
+  /** 聚合 global 与所有 workspace 目录中的会话，并按最后修改时间统一排序。 */
   async list(): Promise<ChaptaleSessionListItem[]> {
     const sessionDirs = await this.storage.getKnownSessionDirs();
     const sessions = await Promise.all(
@@ -197,6 +199,10 @@ export class PiSessionRepository implements SessionRepository {
     return entry;
   }
 
+  /**
+   * 切换当前进程中的会话叶子；null 回到根分支。
+   * 覆盖值由仓储保存并在每次重新打开 SessionManager 时重放，避免后续读取退回旧叶子。
+   */
   async setLeafId(sessionId: string, targetId: string | null): Promise<void> {
     const manager = await this.openSession(sessionId);
 

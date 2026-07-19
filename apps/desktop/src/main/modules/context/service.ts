@@ -95,6 +95,12 @@ export class ContextFileService {
     return inspected;
   }
 
+  /**
+   * 把本地文件解析为模型提示词前缀和图片块。
+   *
+   * 文本受单文件、累计字节及 token 上限约束，超限后降级为文件搜索占位；文档仅注入路径和元数据，
+   * 正文由可用文件工具读取或检索；图片则独立编码，避免把二进制内容混入文本信封。
+   */
   async resolve(filePaths: string[] = []): Promise<ResolvedContextFiles> {
     const uniquePaths = unique(filePaths);
     const textBlocks: string[] = [];
@@ -127,6 +133,7 @@ export class ContextFileService {
       }
 
       if (kind === 'text') {
+        // 累计预算覆盖整次请求，防止多个小文件分别合法但合计后挤爆模型上下文。
         if (stats.size <= MAX_DIRECT_FILE_INPUT_BYTES && stats.size <= remainingDirectFileInputBytes) {
           const text = await fs.readFile(filePath, 'utf8').catch(() => undefined);
 

@@ -8,6 +8,11 @@ const currentDir = path.dirname(currentFilePath);
 const appIconPath = path.join(currentDir, '../../resources/favicon.ico');
 const isDev = process.env.NODE_ENV === 'development';
 
+/**
+ * 创建承载 Renderer 的主窗口，并把导航限制在受信入口。
+ *
+ * 新窗口请求一律交由系统浏览器或拒绝，防止外部页面继承应用窗口的 Electron 能力边界。
+ */
 export function createMainWindow(rendererEntryUrl: string): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
@@ -31,7 +36,7 @@ export function createMainWindow(rendererEntryUrl: string): BrowserWindow {
     window.setIcon(appIconPath);
   }
 
-  // 隐藏默认菜单栏
+  // 应用使用自定义命令与标题栏，移除原生菜单可避免出现未纳入权限设计的默认入口。
   Menu.setApplicationMenu(null);
 
   window.webContents.setWindowOpenHandler(({ url }) => {

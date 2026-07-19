@@ -2,6 +2,10 @@ import type { ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
 import type { ChatDisplayMessage, MessageBranchControl } from '../../types';
 import { hasRenderableMessage } from './message-content';
 
+/**
+ * 从会话树的指定叶子回溯出当前分支，并转换为可展示消息。
+ * compaction 不单独占消息行，而是附着到其后的首条可展示消息；用户节点同时计算兄弟分支导航。
+ */
 export function buildDisplayMessagesFromEntries(entries: ChaptaleSessionTreeEntry[], leafId: string | null) {
   const entryMap = new Map(entries.map(entry => [entry.id, entry]));
   const branchEntryIds = getBranchEntryIds(entryMap, leafId ?? entries.at(-1)?.id ?? null);
@@ -47,6 +51,7 @@ function getBranchEntryIds(entryMap: Map<string, ChaptaleSessionTreeEntry>, leaf
   const visited = new Set<string>();
   let currentId = leafId;
 
+  // visited 同时防御损坏会话中的父链环，避免历史页陷入无限回溯。
   while (currentId && !visited.has(currentId)) {
     const entry = entryMap.get(currentId);
 
@@ -113,6 +118,7 @@ function getDeepestLeafId(entries: ChaptaleSessionTreeEntry[], rootId?: string) 
 
   let leafId = rootId;
 
+  // 分支入口跳转到该子树最新的后代，使切换后直接落在一条完整可读的路径末端。
   while (true) {
     const children = (childrenByParent.get(leafId) ?? []).toSorted((left, right) =>
       left.timestamp.localeCompare(right.timestamp)

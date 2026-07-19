@@ -27,6 +27,10 @@ export class PiWebAccessAdapter implements WebAccessAdapter {
   }
 }
 
+/**
+ * 宽松读取 pi web-search.json，只从已知键提取字符串、布尔值、有限数值和字符串数组。
+ * 此处不校验枚举值或业务范围；缺失及基础类型不匹配的字段由设置默认值层补齐。
+ */
 export function fromPiWebAccessConfig(config: Record<string, unknown>): UpdatePiWebAccessSettingsPayload {
   const webSearch = readObject(config.webSearch);
   const githubClone = readObject(config.githubClone);
@@ -73,6 +77,7 @@ export function fromPiWebAccessConfig(config: Record<string, unknown>): UpdatePi
   };
 }
 
+/** 将应用设置写回 pi 配置结构，并移除空字符串与 undefined，避免生成无效认证和路径项。 */
 export function toPiWebAccessConfig(settings: PiWebAccessSettings): Record<string, unknown> {
   return stripUndefined({
     openaiApiKey: blankToUndefined(settings.openaiApiKey),
@@ -117,6 +122,9 @@ export function toPiWebAccessConfig(settings: PiWebAccessSettings): Record<strin
   });
 }
 
+/**
+ * 合并设置页的部分更新；嵌套 provider 配置必须逐层合并，否则单字段保存会覆盖同组的其余选项。
+ */
 export function mergeWebAccessUpdate(
   current: PiWebAccessSettings,
   payload: UpdatePiWebAccessSettingsPayload

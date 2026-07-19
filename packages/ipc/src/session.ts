@@ -72,6 +72,10 @@ export type ChaptaleCustomMessageEntry<T = unknown> = ChaptaleSessionTreeEntryBa
   data?: T;
 };
 
+/**
+ * Renderer 可识别的会话树节点联合。
+ * custom 节点保留 pi 新增的未知条目，保证协议向前兼容而不丢失原始数据。
+ */
 export type ChaptaleSessionTreeEntry =
   | ChaptaleMessageEntry
   | ChaptaleCompactionEntry
@@ -118,8 +122,10 @@ export type DeleteSessionsPayload = Static<typeof DeleteSessionsPayloadSchema>;
 
 export type SetSessionLeafPayload = Static<typeof SetSessionLeafPayloadSchema>;
 
+/** 图片原图可来自持久化会话块或当前本地上下文文件，两种来源由判别字段隔离。 */
 export type ReadSessionImagePayload = Static<typeof ReadSessionImagePayloadSchema>;
 
+/** 跨 IPC 返回可结构化克隆的字节数组，避免把 Node Buffer 暴露给 Renderer。 */
 export type ReadSessionImageResult = {
   data: Uint8Array;
   mimeType: string;

@@ -14,6 +14,10 @@ import {
 
 type SettingsStore = ReturnType<typeof useSettingsStore>;
 
+/**
+ * 将后端模型快照投影为内置/自定义分组、供应商列表和当前选择。
+ * 当刷新或切组使供应商消失时自动回退到首项，避免界面保留悬空 ID。
+ */
 export function useLlmSettingsState(settingsStore: SettingsStore) {
   const selectedProviderId = ref('');
   const activeModelGroup = ref<ModelGroup>('builtin');

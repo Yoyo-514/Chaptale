@@ -70,6 +70,10 @@ export class PiModelService {
     return this.modelRegistry.find(provider, modelId);
   }
 
+  /**
+   * 汇总 pi 注册表、用户自定义配置、认证状态和默认模型为 Renderer 使用的稳定视图。
+   * 每次读取前刷新 SDK 缓存，使用户在应用外修改 models.json/auth.json 后无需重启。
+   */
   async listModels(): Promise<ListModelsResult> {
     // refresh 让 models.json / auth.json 的外部编辑即时生效
     this.authStorage.reload();
@@ -100,6 +104,7 @@ export class PiModelService {
 
     const providerMap = this.createProviderMap(models);
 
+    // 即使自定义供应商暂时没有可枚举模型，也要保留在设置页，便于继续补 key 或添加模型。
     for (const [provider, providerConfig] of Object.entries(customConfig.providers)) {
       if (providerMap.has(provider)) {
         continue;

@@ -1,6 +1,7 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+/** 会话 IPC 的运行时结构校验；条目存在性、删除路径安全与图片读取约束由对应的主进程处理逻辑分别验证。 */
 export const CreateSessionOptionsSchema = Type.Object(
   {
     id: Type.Optional(Type.String()),

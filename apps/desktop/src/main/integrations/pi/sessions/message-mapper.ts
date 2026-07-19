@@ -131,6 +131,11 @@ function getTextFromUserContent(content: Extract<ChatMessage, { role: 'user' }>[
     .join('\n');
 }
 
+/**
+ * 将应用消息转换为 pi SessionManager 可持久化的最小消息结构。
+ *
+ * UI 专用附件描述不会写入 pi content；用户文本、模型元数据和工具结果只保留 SDK 恢复会话所需字段。
+ */
 export function toPiMessage(message: ChatMessage): PiMessage {
   const timestamp = Date.now();
 
@@ -174,6 +179,7 @@ export function toPiMessage(message: ChatMessage): PiMessage {
   } as PiMessage;
 }
 
+/** 从单条 pi 持久化消息恢复首个应用消息；未知角色或无有效载荷的用户消息返回 undefined。 */
 export function fromPiMessage(message: unknown, options?: PiMessageMappingOptions): ChatMessage | undefined {
   return toChatMessages(message, options)[0];
 }

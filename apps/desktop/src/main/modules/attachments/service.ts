@@ -63,6 +63,11 @@ export function createInlineImageDataUrl(data: Buffer, mimeType: string): string
   return `data:${mimeType};base64,${data.toString('base64')}`;
 }
 
+/**
+ * 校验并解码内部图片块。
+ *
+ * MIME、Base64 结构和解码后体积都必须通过校验，避免把任意 data URL 或超限数据送入缩略图解码器。
+ */
 export function decodeImageBase64(image: Pick<ImageBlock, 'data' | 'mimeType'>) {
   if (!ALLOWED_IMAGE_MIME_TYPES.has(image.mimeType) || !image.data || image.data.length % 4 !== 0) {
     return undefined;
@@ -93,6 +98,7 @@ export class ImageAttachmentService {
     const cached = cacheKey ? this.thumbnailCache.get(cacheKey) : undefined;
 
     if (cached) {
+      // Map 保持插入顺序；重新插入命中项，使淘汰循环具备最近最少使用语义。
       this.thumbnailCache.delete(cacheKey!);
       this.thumbnailCache.set(cacheKey!, cached);
       return cached;
@@ -119,6 +125,11 @@ export class ImageAttachmentService {
     return this.getThumbnail(data);
   }
 
+  /**
+   * 将有效图片块转换为 Renderer 使用的轻量附件描述。
+   *
+   * 单张损坏图片会被跳过或以内联原图兜底，不应阻断同一历史消息中其他内容的展示。
+   */
   createPresentation(
     images: readonly ImageBlock[],
     sourceFactory?: (blockIndex: number) => ChatImageSource | undefined

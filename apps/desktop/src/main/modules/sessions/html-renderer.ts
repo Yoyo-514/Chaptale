@@ -1,6 +1,12 @@
 import type { ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
+/**
+ * 将会话树转换为可独立保存的只读 HTML。
+ *
+ * 主进程先转义所有持久化内容，页面加载后再用 marked 解析 Markdown 并经 DOMPurify 清理；
+ * CDN 不可用时仍保留已经转义的纯文本，因此导出文件不会因增强脚本失败而丢失正文。
+ */
 const MARKED_CDN = 'https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js';
 const DOMPURIFY_CDN = 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js';
 
@@ -208,7 +214,10 @@ const MARKDOWN_BOOTSTRAP = `
 })();
 `;
 
-/** 把当前分支的会话条目渲染为可独立打开的单文件 HTML 文档。 */
+/**
+ * 把当前分支的可展示条目渲染为单文件 HTML，并忽略不属于聊天展示层的内部记录。
+ * 工具结果附着在上下文中但不计入用户/助手消息总数，保持导出统计与界面语义一致。
+ */
 export function buildSessionHtml(options: { name: string; entries: ChaptaleSessionTreeEntry[] }): string {
   const blocks: string[] = [];
   let messageCount = 0;

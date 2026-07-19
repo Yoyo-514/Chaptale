@@ -7,6 +7,7 @@ import type {
 } from '@chaptale/ipc-contract';
 import { ipcRenderer } from 'electron';
 
+/** 为 Renderer 提供会话读写、分支、导出及图片读取的最小 IPC 门面。 */
 export function createSessionApi(): ChaptaleDesktopApi['session'] {
   return {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.session.list),

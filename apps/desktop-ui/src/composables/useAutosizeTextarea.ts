@@ -19,6 +19,10 @@ function parsePixels(value: string) {
   return Number.parseFloat(value) || 0;
 }
 
+/**
+ * 根据内容高度自动调整 textarea，并在超过 maxRows 后切换为内部滚动。
+ * value watcher 使用 post flush，确保测量发生在 Vue 已把最新内容写入 DOM 之后。
+ */
 export function useAutosizeTextarea(source: TextareaElementSource, options: UseAutosizeTextareaOptions = {}) {
   function resize() {
     const textarea = resolveTextarea(source);
@@ -27,6 +31,7 @@ export function useAutosizeTextarea(source: TextareaElementSource, options: UseA
       return;
     }
 
+    // 先清除旧高度，scrollHeight 才会反映内容收缩后的自然高度。
     textarea.style.height = 'auto';
 
     const styles = window.getComputedStyle(textarea);
@@ -38,6 +43,7 @@ export function useAutosizeTextarea(source: TextareaElementSource, options: UseA
     const maxScrollHeight = maxRows === undefined ? Number.POSITIVE_INFINITY : lineHeight * maxRows + paddingHeight;
     const scrollHeight = textarea.scrollHeight;
     const nextHeight = Math.min(scrollHeight, maxScrollHeight);
+    // scrollHeight 不含边框；border-box 高度需要补回边框，避免每次重算都出现轻微滚动条。
     const borderBoxAdjustment = styles.boxSizing === 'border-box' ? borderHeight : 0;
 
     textarea.style.height = `${nextHeight + borderBoxAdjustment}px`;

@@ -9,6 +9,10 @@ import { unique } from 'radash';
 
 import { getDesktopApi, toErrorMessage } from './utils/desktop-api';
 
+/**
+ * Renderer 的会话目录与当前选择事实源。
+ * 消息树仍按需从主进程读取；store 只缓存列表、选择和存储调试信息，避免长期复制完整会话内容。
+ */
 export const useSessionStore = defineStore('session', {
   state: () => ({
     sessions: [] as ChaptaleSessionListItem[],
@@ -33,6 +37,7 @@ export const useSessionStore = defineStore('session', {
         this.sessions = await desktopApi.session.list();
 
         if (!this.selectionRestored) {
+          // 首次加载才读取持久化选择；之后刷新列表必须保留用户在当前运行期刚完成的切换。
           const persistedSessionId = await desktopApi.settings
             .getState()
             .then(state => state.settings.lastSessionId ?? '')
@@ -47,6 +52,7 @@ export const useSessionStore = defineStore('session', {
             await this.persistCurrentSession();
           }
         } else if (!this.sessions.some(session => session.id === this.currentSessionId)) {
+          // 当前会话可能被批量删除或由外部清理，回退到最新会话并同步偏好。
           this.currentSessionId = this.sessions[0]?.id ?? '';
           await this.persistCurrentSession();
         }

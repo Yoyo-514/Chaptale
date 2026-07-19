@@ -10,6 +10,12 @@ export type PiModelConfigRepositoryOptions = {
   onWrite?: () => void;
 };
 
+/**
+ * models.json 的持久化边界。
+ *
+ * 所有 read-modify-write 变更在进程内串行执行，并通过同目录临时文件 rename 替换目标，
+ * 避免并发设置请求互相覆盖或让读取方看到写入一半的 JSON。
+ */
 export class PiModelConfigRepository {
   private mutationQueue = Promise.resolve();
 
@@ -23,6 +29,7 @@ export class PiModelConfigRepository {
     return this.enqueueMutation(() => this.writeImmediately(config));
   }
 
+  /** 在同一个写队列中完成读取、变更与落盘，保证 mutator 基于最新配置执行。 */
   update(mutator: (config: PiModelsConfig) => void | Promise<void>): Promise<void> {
     return this.enqueueMutation(async () => {
       const config = await this.readImmediately();
@@ -31,6 +38,10 @@ export class PiModelConfigRepository {
     });
   }
 
+  /**
+   * 返回显式写入 models.json 的模型键；读取失败时降级为空集合，
+   * 使模型列表仍可展示 pi 内置模型，具体配置错误留给编辑操作报告。
+   */
   async getCustomModelKeys() {
     try {
       const config = await this.read();
@@ -102,6 +113,7 @@ export class PiModelConfigRepository {
     }
   }
 
+  /** 单次写入失败不污染队列状态，后续配置修改仍可继续尝试。 */
   private enqueueMutation(operation: () => Promise<void>): Promise<void> {
     const result = this.mutationQueue.then(operation);
     this.mutationQueue = result.catch(() => undefined);

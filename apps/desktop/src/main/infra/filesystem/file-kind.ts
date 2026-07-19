@@ -102,6 +102,7 @@ export const DOCUMENT_MIME_TYPES: Record<string, string> = {
   '.odp': 'application/vnd.oasis.opendocument.presentation'
 };
 
+/** 应用接受的图片扩展名及标准 MIME 映射；具体解码能力由主进程或 Renderer 各自判断。 */
 export const IMAGE_MIME_TYPES: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -111,6 +112,11 @@ export const IMAGE_MIME_TYPES: Record<string, string> = {
   '.bmp': 'image/bmp'
 };
 
+/**
+ * 根据扩展名把本地文件归入上下文处理通道。
+ *
+ * 此处只判断处理能力，不访问文件系统；文件是否存在及大小是否合法由调用方按具体使用场景校验。
+ */
 export function getFileKind(filePath: string): ChatContextFile['kind'] {
   const extension = path.extname(filePath).toLowerCase();
 

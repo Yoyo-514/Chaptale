@@ -28,7 +28,10 @@ type UseChatStreamingOptions = {
   getDesktopApiOrNotify: () => ChaptaleDesktopApi | undefined;
 };
 
-/** Agent 流式执行：发送、事件消费与取消。 */
+/**
+ * 协调单次 Agent 运行的乐观用户消息、Preload 事件流、终态回载与取消。
+ * 流式消息先更新视图投影，done 后再从持久化会话重载，最终以主进程落盘结果为准。
+ */
 export function useChatStreaming({
   state,
   assistantStreaming,
@@ -60,6 +63,7 @@ export function useChatStreaming({
   async function runQuery(query: string, options: RunQueryOptions) {
     try {
       state.isConnecting = true;
+      // 清空输入状态前先复制本轮附件，确保异步建会话期间用户界面与提交 payload 使用同一快照。
       const submittedContextFiles = options.appendUser ? state.contextFiles.map(file => ({ ...file })) : [];
       const contextFilePaths = submittedContextFiles.map(file => file.path);
 
@@ -126,6 +130,7 @@ export function useChatStreaming({
           },
           onDone: () => {
             finishRun();
+            // 终态后清除乐观叶子并重读磁盘树，补齐 entryId、分支和用量等流式事件不携带的信息。
             currentLeafId.value = null;
             void sessionStore.loadSessions().then(loadCurrentSessionMessages);
           },

@@ -46,6 +46,11 @@ function getUserText(message: unknown) {
   return textBlocks[0].text;
 }
 
+/**
+ * 从历史用户条目恢复可复用的上下文信封与图片块。
+ *
+ * 复用前严格校验条目角色、文本块数量和图片体积，避免编辑/重试流程把损坏的持久化内容重新提交给模型。
+ */
 export function getPiUserEntrySnapshot(sessionManager: SessionManager, entryId: string): PiUserEntrySnapshot {
   const entry = sessionManager.getEntry(entryId);
 

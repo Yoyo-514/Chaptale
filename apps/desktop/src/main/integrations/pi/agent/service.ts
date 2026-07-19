@@ -57,6 +57,10 @@ export class PiAgentService implements AgentRuntime {
     this.sessions.clear();
   }
 
+  /**
+   * 按会话 ID 复用创建中的 Promise，避免并发请求为同一持久化文件构造多个 AgentSession。
+   * 创建失败时移除缓存，使下一次运行可以重试初始化。
+   */
   private getOrCreateSession(sessionId: string): Promise<AgentSession> {
     const cached = this.sessions.get(sessionId);
 
@@ -183,6 +187,10 @@ export class PiAgentService implements AgentRuntime {
     return session;
   }
 
+  /**
+   * 将可选分支指令同步到 SessionManager 与 Agent 内存上下文。
+   * undefined 表示沿用当前叶子，null 表示回到根分支，字符串表示从指定历史条目继续。
+   */
   private applyBranch(session: AgentSession, branchFromEntryId: string | null | undefined) {
     if (branchFromEntryId === undefined) {
       return;

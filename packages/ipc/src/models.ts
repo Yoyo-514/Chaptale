@@ -19,6 +19,7 @@ export type ChaptaleModelInput = Static<typeof ChaptaleModelInputSchema>;
 
 export type ChaptaleCustomProviderApi = Static<typeof ChaptaleCustomProviderApiSchema>;
 
+/** 设置页展示的模型快照，合并了 SDK 元数据、自定义来源、认证状态与默认选择。 */
 export type ChaptaleModelInfo = {
   provider: string;
   providerName: string;
@@ -32,6 +33,7 @@ export type ChaptaleModelInfo = {
   isDefault: boolean;
 };
 
+/** 按供应商聚合的认证与模型数量摘要；无模型的自定义供应商也可能出现。 */
 export type ChaptaleProviderInfo = {
   provider: string;
   providerName: string;
@@ -40,6 +42,7 @@ export type ChaptaleProviderInfo = {
   modelCount: number;
 };
 
+/** Renderer 刷新模型设置所需的完整一致性快照。 */
 export type ListModelsResult = {
   models: ChaptaleModelInfo[];
   providers: ChaptaleProviderInfo[];

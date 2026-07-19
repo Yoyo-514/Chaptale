@@ -7,6 +7,10 @@ import { getSessionTitle } from '@/utils/session-display';
 export type HistoryScopeFilter = 'all' | 'workspace' | 'global';
 export type HistorySortMode = 'latest' | 'oldest' | 'cost' | 'tokens';
 
+/**
+ * 生成历史页的筛选、搜索和排序投影，不修改 store 中的原始会话顺序。
+ * workspace 筛选同时校验存储范围和规范化 cwd，避免把其他工作区会话混入当前项目。
+ */
 export function useHistorySessions(options: {
   sessions: Ref<ChaptaleSessionListItem[]>;
   searchQuery: Ref<string>;
@@ -39,6 +43,7 @@ export function useHistorySessions(options: {
   };
 }
 
+// 历史记录可能由不同平台写入，比较工作区时统一分隔符、尾斜杠和大小写。
 function normalizePath(value: string) {
   return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
 }

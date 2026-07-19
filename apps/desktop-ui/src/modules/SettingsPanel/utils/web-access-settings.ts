@@ -50,6 +50,9 @@ export function createDefaultWebAccessSettings(): PiWebAccessSettings {
   };
 }
 
+/**
+ * 把后端设置快照补齐为可编辑表单对象；嵌套分组逐层合并，兼容旧配置缺少新增字段的情况。
+ */
 export function normalizeWebAccessSettings(value: PiWebAccessSettings | undefined): PiWebAccessSettings {
   const fallback = createDefaultWebAccessSettings();
   const source = value ?? fallback;

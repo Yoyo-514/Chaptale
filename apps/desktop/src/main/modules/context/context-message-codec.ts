@@ -51,6 +51,11 @@ function parseContextFiles(body: string): ChatContextFile[] {
   }).filter(file => file.path && file.name && file.kind !== 'unsupported');
 }
 
+/**
+ * 从用户消息开头拆出应用生成的上下文文件信封，并恢复可展示的文件元数据。
+ *
+ * 只识别完整且位于开头的信封；不完整或不位于开头的标记保持原样。
+ */
 export function decodeContextMessage(text: string) {
   const envelope = CONTEXT_ENVELOPE_PATTERN.exec(text);
 

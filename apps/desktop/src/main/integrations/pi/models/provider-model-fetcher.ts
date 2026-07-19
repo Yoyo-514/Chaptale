@@ -7,6 +7,10 @@ export type FetchModelsSource = {
   apiKey?: string;
 };
 
+/**
+ * 从兼容 OpenAI 或 Google 的供应商端点拉取模型清单。
+ * 不同 API 的认证位置在此统一，Anthropic 因没有通用列表接口而明确拒绝自动发现。
+ */
 export async function fetchProviderModels(source: FetchModelsSource): Promise<FetchCustomProviderModelsResult> {
   const apiKey = source.apiKey?.trim();
 
@@ -52,6 +56,9 @@ export function createModelsUrl(baseUrl: string, api: ChaptaleCustomProviderApi,
   return url;
 }
 
+/**
+ * 兼容 `{ data: [...] }` 与 `{ models: [...] }` 两类响应，并把 Google 的 `models/` 资源前缀移出应用模型 ID。
+ */
 export function parseFetchedModels(data: unknown, api: ChaptaleCustomProviderApi) {
   const record = isRecord(data) ? data : {};
   const rawModels = Array.isArray(record.data) ? record.data : Array.isArray(record.models) ? record.models : [];

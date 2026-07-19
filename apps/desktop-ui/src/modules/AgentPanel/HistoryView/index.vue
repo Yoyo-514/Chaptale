@@ -32,6 +32,7 @@ const { filteredSessions } = useHistorySessions({
 });
 const selectedCount = computed(() => selectedIds.value.size);
 
+// 搜索或范围切换后清理不可见选项，确保批量删除只作用于用户当前能确认的会话。
 watch(filteredSessions, visibleSessions => {
   const visibleIds = new Set(visibleSessions.map(session => session.id));
   const nextSelectedIds = new Set([...selectedIds.value].filter(id => visibleIds.has(id)));
@@ -80,6 +81,7 @@ function toggleSessionSelection(sessionId: string) {
 }
 
 function toggleAllVisibleSessions() {
+  // 全选仅覆盖当前筛选结果，并保留其他可见项的一致切换语义。
   const visibleIds = filteredSessions.value.map(session => session.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.value.has(id));
   const nextSelectedIds = new Set(selectedIds.value);

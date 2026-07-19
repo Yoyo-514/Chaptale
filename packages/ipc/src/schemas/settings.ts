@@ -1,6 +1,7 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+/** 设置更新采用部分 payload；schema 只约束形状，默认值与嵌套合并由主进程设置服务负责。 */
 export const ChaptaleStorageModeSchema = Type.Union([Type.Literal('global'), Type.Literal('workspace')]);
 
 const ChaptaleStorageSettingsUpdateSchema = Type.Object(

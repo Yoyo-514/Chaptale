@@ -36,6 +36,7 @@ const emit = defineEmits<{
 
 const attrs = useAttrs();
 const formContext = inject(appFormContextKey, undefined);
+// 输入中的 `-`、小数点等暂态不是有效 number；独立保存显示文本，失焦后再钳制为规范值。
 const displayValue = ref(formatValue(props.modelValue));
 const isDisabled = computed(() => props.disabled || formContext?.disabled.value === true);
 const isInvalid = computed(() => props.invalid || attrs['aria-invalid'] === 'true');
@@ -117,6 +118,7 @@ function updateValue(value: number | undefined) {
 function handleInput(event: Event) {
   const target = event.target as HTMLInputElement;
   displayValue.value = target.value;
+  // 非空但无法解析的暂态沿用旧值，空输入则发送 undefined；父组件始终不会收到 NaN。
   emit('update:modelValue', parseValue(target.value));
 }
 

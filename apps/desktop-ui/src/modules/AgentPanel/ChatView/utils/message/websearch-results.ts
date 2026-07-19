@@ -17,6 +17,10 @@ export type ParsedSearchResult = {
   statusNotes: string[];
 };
 
+/**
+ * 将 Web Search 工具的多代输出归一化为摘要、查询词和引用。
+ * 旧版 JSON 数组优先解析；新版 Markdown 则同时结合 lexer token 与宽松逐行扫描，兼容不同 provider 的格式差异。
+ */
 export function parseSearchResult(content: string): ParsedSearchResult {
   const legacyResults = parseLegacyJsonResults(content);
 
@@ -83,6 +87,7 @@ function parseQueries(content: string) {
   return unique(queries);
 }
 
+// token 解析覆盖标准列表，逐行扫描补充编号标题、三级标题及下一行 URL 等非标准输出。
 function parseMarkdownSources(content: string): SearchCitation[] {
   const lines = content.split('\n');
   const results: SearchCitation[] = parseListSourceTokens(content);
@@ -176,6 +181,7 @@ function findNextUrl(lines: string[], startIndex: number) {
   return undefined;
 }
 
+/** 引用按清理后的链接去重，保留首次出现的标题和描述顺序。 */
 function dedupeCitations(items: SearchCitation[]) {
   return unique(
     items.filter(item => item.link.trim()),

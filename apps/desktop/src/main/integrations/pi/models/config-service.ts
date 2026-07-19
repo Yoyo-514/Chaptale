@@ -24,6 +24,10 @@ import type { FetchModelsSource } from './provider-model-fetcher';
 export class PiCustomModelConfigService {
   constructor(private readonly repository: PiModelConfigRepository) {}
 
+  /**
+   * 解析“已保存供应商”或“尚未保存的表单草稿”为统一拉取参数。
+   * 已保存模式从仓储补齐 baseUrl/API/key，草稿模式则只信任当前 payload。
+   */
   async resolveFetchModelsSource(payload: FetchCustomProviderModelsPayload): Promise<FetchModelsSource> {
     if (payload.provider) {
       const provider = normalizeProviderId(payload.provider);
@@ -138,6 +142,7 @@ export class PiCustomModelConfigService {
         throw new Error(`未找到自定义模型：${provider}/${modelId}`);
       }
 
+      // 没有模型和 override 的空供应商不再承载配置；仍有 override 时必须保留节点供 pi 合并。
       if (nextModels.length === 0 && !providerConfig.modelOverrides) {
         delete config.providers[provider];
       } else {

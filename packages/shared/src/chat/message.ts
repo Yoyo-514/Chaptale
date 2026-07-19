@@ -21,6 +21,10 @@ export type ChatMessageUsage = {
   cost: number;
 };
 
+/**
+ * 应用内部及 IPC 共用的聊天消息联合。
+ * 用户消息使用轻量附件描述，助手消息保留流式与模型元数据，工具结果通过 toolCallId 与调用配对。
+ */
 export type ChatMessage =
   | {
       role: 'user';

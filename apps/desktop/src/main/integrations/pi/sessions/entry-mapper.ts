@@ -9,6 +9,11 @@ export type SessionEntryMapperOptions = {
   imageAttachmentService: ImageAttachmentService;
 };
 
+/**
+ * 将 pi 的开放式会话条目联合映射为稳定 IPC 树节点。
+ *
+ * 已知条目提取界面所需字段；未知扩展保留为 custom 节点及原始 data，使上游新增条目类型不会让整棵会话树无法读取。
+ */
 export function toSessionTreeEntry(entry: SessionEntry, options?: SessionEntryMapperOptions): ChaptaleSessionTreeEntry {
   if (entry.type === 'session_info') {
     return {
@@ -93,6 +98,7 @@ export function toSessionTreeEntry(entry: SessionEntry, options?: SessionEntryMa
   };
 }
 
+/** 把 pi 的文件级会话摘要与 Chaptale 计算的存储范围、用量合并为历史列表项。 */
 export function toSessionListItem(
   info: SessionInfo,
   extras: { scope: ChaptaleSessionScope; totalTokens: number; totalCost: number }

@@ -71,6 +71,7 @@ export class PromptFileService {
     });
   }
 
+  /** 串行化同一组 Prompt 文件的写入；前一次失败也必须释放队列，允许后续保存继续执行。 */
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const next = this.writeQueue.then(operation, operation);
     this.writeQueue = next.then(

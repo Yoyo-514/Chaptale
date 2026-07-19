@@ -5,10 +5,12 @@ import type { AgentStartPayloadSchema } from './schemas/agent';
 /** Renderer 发起 Agent 流式运行时传入的 IPC payload。 */
 export type AgentStartPayload = Static<typeof AgentStartPayloadSchema>;
 
+/** IPC 调用确认结果；runId 同时用于关联后续流式事件与取消请求。 */
 export type AgentRunResult = {
   runId: string;
 };
 
+/** 主进程推送的增量消息事件，Renderer 必须按 runId 路由到对应运行。 */
 export type AgentMessageEvent = {
   runId: string;
   message: ChatMessage;
@@ -23,6 +25,7 @@ export type AgentErrorEvent = {
 
 export type StreamAgentOptions = Pick<AgentStartPayload, 'branchFromEntryId' | 'contextFilePaths' | 'reuseUserEntryId'>;
 
+/** Preload 为单次流式运行接收的回调集合；done 与 error 都是终态。 */
 export type StreamAgentHandlers = {
   onMessage: (message: ChatMessage) => void;
   onDone?: () => void;

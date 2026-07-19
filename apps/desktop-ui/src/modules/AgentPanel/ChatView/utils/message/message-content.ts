@@ -106,6 +106,10 @@ export function getToolResultImages(message: Extract<ChatMessage, { role: 'toolR
   return getImageBlocks(message.content);
 }
 
+/**
+ * 判断消息是否包含任何界面可见载荷。
+ * 流式 assistant 即使内容尚空也必须保留占位；用户附件和工具图片则可在没有文本时独立展示。
+ */
 export function hasRenderableMessage(message: ChatMessage) {
   if (message.role === 'assistant') {
     return Boolean(
@@ -134,6 +138,7 @@ export function hasRenderableMessage(message: ChatMessage) {
   return true;
 }
 
+/** 提取复制与会话搜索使用的稳定纯文本，不包含缩略图、状态标签等展示数据。 */
 export function getMessagePlainText(message: ChatMessage) {
   if (message.role === 'user') {
     return getUserText(message);

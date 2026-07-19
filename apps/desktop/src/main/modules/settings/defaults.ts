@@ -36,10 +36,15 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
   }
 };
 
+/** 返回隔离的默认配置，避免调用方修改共享常量后污染后续初始化。 */
 export function cloneDefaultSettings(): ChaptaleSettings {
   return klona(DEFAULT_SETTINGS);
 }
 
+/**
+ * 根据磁盘内容重建当前版本的应用设置顶层结构，并为 storage 补齐默认值。
+ * 这样旧配置缺少存储字段时仍可读取，同时统一写出当前 SETTINGS_VERSION。
+ */
 export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): ChaptaleSettings {
   return {
     version: SETTINGS_VERSION,
@@ -51,6 +56,9 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
   };
 }
 
+/**
+ * 按字段合并 Web Access 设置，使新增选项可以在不重写用户密钥和嵌套 provider 配置的情况下获得默认值。
+ */
 export function mergeWebAccessSettings(value: UpdatePiWebAccessSettingsPayload | undefined): PiWebAccessSettings {
   return {
     webSearchEnabled: value?.webSearchEnabled ?? DEFAULT_WEB_ACCESS_SETTINGS.webSearchEnabled,

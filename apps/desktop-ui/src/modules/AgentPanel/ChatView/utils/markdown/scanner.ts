@@ -20,6 +20,10 @@ export function getFullLineEnd(content: string) {
   return lastNewline === -1 ? 0 : lastNewline + 1;
 }
 
+/**
+ * 扫描完整行并返回可以永久提交为 HTML 的偏移量。
+ * 最近两个块继续留在 tail，因为表格、列表和围栏代码可能被后续行重新解释；已提交区域则无需再次交给 marked。
+ */
 export function scanStableOffset(content: string, startOffset: number, endOffset: number) {
   if (endOffset <= startOffset) {
     return startOffset;
@@ -91,6 +95,7 @@ function scanLine(line: string, lineStart: number, lineEnd: number, state: Scann
   state.blockKind = nextBlockKind;
 }
 
+// 围栏内部的空行和 Markdown 标记都属于代码，只有匹配 marker 且长度足够的结束围栏才能形成稳定边界。
 function scanFenceLine(fence: FenceInfo, lineEnd: number, state: ScannerState, blockBoundaries: number[]) {
   if (!state.inFence) {
     state.inFence = true;

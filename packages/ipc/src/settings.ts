@@ -9,6 +9,7 @@ import type {
 
 export type ChaptaleStorageMode = Static<typeof ChaptaleStorageModeSchema>;
 
+/** 会话存储策略；workspacePath 只在 workspace 模式下生效。 */
 export type ChaptaleStorageSettings = {
   mode: ChaptaleStorageMode;
   workspacePath?: string;
@@ -18,6 +19,7 @@ export type PiWebAccessProvider = Static<typeof PiWebAccessProviderSchema>;
 
 export type PiWebAccessWorkflow = Static<typeof PiWebAccessWorkflowSchema>;
 
+/** Chaptale 使用的完整 Web Access 设置快照；更新 payload 则允许只提交部分字段。 */
 export type PiWebAccessSettings = {
   webSearchEnabled: boolean;
   provider: PiWebAccessProvider;
