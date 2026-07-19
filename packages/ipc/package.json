@@ -10,9 +10,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -b tsconfig.json",
+    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc -b tsconfig.json",
     "test": "cd ../.. && vitest run --config vitest.config.ts --project ipc",
-    "typecheck": "tsc -b tsconfig.json"
+    "typecheck": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc -b tsconfig.json"
   },
   "dependencies": {
     "@chaptale/shared": "workspace:*",
