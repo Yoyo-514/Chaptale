@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { DEFAULT_SYSTEM_PROMPT } from '../default-system-prompt';
+import { builtinCompanionBody } from '../../personas/builtin';
 import { PromptFileService } from '../file-service';
 
 describe('PromptFileService', () => {
@@ -21,9 +21,9 @@ describe('PromptFileService', () => {
     const service = new PromptFileService(agentDir);
 
     await expect(service.getState()).resolves.toEqual({
-      systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      systemPrompt: builtinCompanionBody,
       appendSystemPrompt: '',
-      defaultSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+      defaultSystemPrompt: builtinCompanionBody,
       systemPromptPath: path.join(agentDir, 'SYSTEM.md'),
       appendSystemPromptPath: path.join(agentDir, 'APPEND_SYSTEM.md')
     });
@@ -45,7 +45,7 @@ describe('PromptFileService', () => {
     await fs.writeFile(path.join(agentDir, 'SYSTEM.md'), ' \n', 'utf8');
     const service = new PromptFileService(agentDir);
 
-    await expect(service.getState()).resolves.toMatchObject({ systemPrompt: DEFAULT_SYSTEM_PROMPT });
+    await expect(service.getState()).resolves.toMatchObject({ systemPrompt: builtinCompanionBody });
   });
 
   it('writes and reads pi-native prompt files without changing their content', async () => {

@@ -4,8 +4,8 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { DEFAULT_SYSTEM_PROMPT } from '../../../../modules/prompts/default-system-prompt';
-import { resolveSystemPrompt } from '../../../../modules/prompts/resolve-system-prompt';
+import { builtinCompanionBody } from '../../../../modules/personas/builtin';
+import { composeSystemPrompt } from '../../../../modules/prompts/compose-system-prompt';
 
 describe('pi prompt resources', () => {
   let rootDir: string;
@@ -32,7 +32,9 @@ describe('pi prompt resources', () => {
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      systemPromptOverride: resolveSystemPrompt
+      // 与 session-factory 同构：SYSTEM.md 仅替换 persona 层。
+      systemPromptOverride: discovered =>
+        composeSystemPrompt({ personaBody: builtinCompanionBody, discoveredSystemMd: discovered })
     });
     await loader.reload();
     return loader;
@@ -41,7 +43,7 @@ describe('pi prompt resources', () => {
   it('falls back to the Chaptale default when SYSTEM.md is absent', async () => {
     const loader = await load();
 
-    expect(loader.getSystemPrompt()).toBe(DEFAULT_SYSTEM_PROMPT);
+    expect(loader.getSystemPrompt()).toBe(builtinCompanionBody);
     expect(loader.getAppendSystemPrompt()).toEqual([]);
   });
 
@@ -50,7 +52,7 @@ describe('pi prompt resources', () => {
 
     const loader = await load();
 
-    expect(loader.getSystemPrompt()).toBe(DEFAULT_SYSTEM_PROMPT);
+    expect(loader.getSystemPrompt()).toBe(builtinCompanionBody);
   });
 
   it('lets pi discover SYSTEM.md and APPEND_SYSTEM.md natively', async () => {

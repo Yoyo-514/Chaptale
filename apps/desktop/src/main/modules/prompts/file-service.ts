@@ -3,8 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 import { readOptionalTextFile } from '../../infra/filesystem/files';
-import { DEFAULT_SYSTEM_PROMPT } from './default-system-prompt';
-import { resolveSystemPrompt } from './resolve-system-prompt';
+import { builtinCompanionBody } from '../personas/builtin';
 
 const SYSTEM_PROMPT_FILE = 'SYSTEM.md';
 const APPEND_SYSTEM_PROMPT_FILE = 'APPEND_SYSTEM.md';
@@ -53,9 +52,10 @@ export class PromptFileService {
     ]);
 
     return {
-      systemPrompt: resolveSystemPrompt(systemPrompt),
+      // 设置 UI 展示的"当前生效值"：SYSTEM.md 缺失时回退内置 companion 正文。
+      systemPrompt: systemPrompt?.trim() ? systemPrompt : builtinCompanionBody,
       appendSystemPrompt: appendSystemPrompt ?? '',
-      defaultSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+      defaultSystemPrompt: builtinCompanionBody,
       systemPromptPath: this.systemPromptPath,
       appendSystemPromptPath: this.appendSystemPromptPath
     };

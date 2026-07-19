@@ -117,10 +117,12 @@ describe('Pi 依赖边界扫描器', () => {
     ]);
   });
 
-  it('忽略注释、普通字符串和 integrations/pi 目录', async () => {
+  it('忽略注释、普通字符串、integrations/pi 目录与测试文件', async () => {
     const rootDir = await createTemporarySourceTree({
       'safe.ts': ["// import 'pi-web-access';", "const packageName = '@earendil-works/pi-ai';"].join('\n'),
-      'integrations/pi/adapter.ts': "import '@earendil-works/pi-coding-agent';"
+      'integrations/pi/adapter.ts': "import '@earendil-works/pi-coding-agent';",
+      'modules/sample/__tests__/sample.test.ts': "import { parseFrontmatter } from '@earendil-works/pi-coding-agent';",
+      'modules/sample/inline.test.ts': "import '@earendil-works/pi-ai';"
     });
 
     await expect(findDependencyViolations(rootDir)).resolves.toEqual([]);
@@ -220,10 +222,13 @@ async function collectTypeScriptFiles(directory: string, rootDir = directory): P
       const relativePath = toPosixPath(path.relative(rootDir, entryPath));
 
       if (entry.isDirectory()) {
-        return isPiIntegrationPath(relativePath) ? [] : collectTypeScriptFiles(entryPath, rootDir);
+        return isPiIntegrationPath(relativePath) || entry.name === '__tests__'
+          ? []
+          : collectTypeScriptFiles(entryPath, rootDir);
       }
 
-      return entry.isFile() && entry.name.endsWith('.ts') ? [entryPath] : [];
+      // 边界红线只约束源码；测试文件允许直接使用 pi 上游包（mock 与纯函数复用）。
+      return entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [entryPath] : [];
     })
   );
 

@@ -12,7 +12,9 @@ const sdkMocks = vi.hoisted(() => ({
   loaderOptions: undefined as unknown
 }));
 
-vi.mock('@earendil-works/pi-coding-agent', () => ({
+vi.mock('@earendil-works/pi-coding-agent', async importOriginal => ({
+  // parseFrontmatter 是纯函数，PersonaRegistry 真实依赖它解析内置 persona，透传原实现。
+  parseFrontmatter: (await importOriginal<typeof import('@earendil-works/pi-coding-agent')>()).parseFrontmatter,
   createAgentSession: sdkMocks.createAgentSession,
   DefaultResourceLoader: class {
     constructor(options: unknown) {
@@ -61,6 +63,7 @@ describe('PiAgentSessionFactory', () => {
     sdkMocks.createAgentSession.mockResolvedValue({ session });
 
     const settingsService = {
+      rootDir,
       agentDir: path.join(rootDir, 'agent'),
       sessionsRootDir,
       getCurrentSessionDir: vi.fn(async () => sessionDir),

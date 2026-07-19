@@ -1,6 +1,7 @@
 import {
   createAgentSession,
   DefaultResourceLoader,
+  parseFrontmatter,
   SessionManager,
   SettingsManager,
   type AgentSession,
@@ -12,7 +13,9 @@ import path from 'node:path';
 
 import { unique } from 'radash';
 
-import { resolveSystemPrompt } from '../../../modules/prompts/resolve-system-prompt';
+import { builtinCompanionBody, builtinPersonaSources } from '../../../modules/personas/builtin';
+import { PersonaRegistry } from '../../../modules/personas/registry';
+import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
 import type { PiModelService } from '../models/service';
 import type { SettingsService } from '../../../modules/settings/service';
 import type { SkillsProvider } from '../skills/provider';
@@ -24,7 +27,17 @@ export type PiAgentSessionFactoryOptions = {
   settingsService: SettingsService;
   modelService: PiModelService;
   skillsProvider: SkillsProvider;
+  personaRegistry?: PersonaRegistry;
 };
+
+/** desktop 默认 persona 注册表：pi frontmatter 解析 + 构建期内置 persona + 用户级目录。 */
+export function createDefaultPersonaRegistry(settingsService: SettingsService): PersonaRegistry {
+  return new PersonaRegistry({
+    parseFrontmatter,
+    builtinSources: builtinPersonaSources,
+    userPersonasDir: path.join(settingsService.rootDir, 'personas')
+  });
+}
 
 /**
  * 负责把 Chaptale 会话 ID 解析成 pi AgentSession。
@@ -33,7 +46,15 @@ export type PiAgentSessionFactoryOptions = {
  * 让 PiAgentService 只关心 runtime 缓存与事件流桥接。
  */
 export class PiAgentSessionFactory {
+  private personaRegistry?: PersonaRegistry;
+
   constructor(private readonly options: PiAgentSessionFactoryOptions) {}
+
+  /** 懒初始化：构造时不碰 settingsService 路径，保持构造函数零副作用。 */
+  private getPersonaRegistry(): PersonaRegistry {
+    this.personaRegistry ??= this.options.personaRegistry ?? createDefaultPersonaRegistry(this.options.settingsService);
+    return this.personaRegistry;
+  }
 
   async create(sessionId: string): Promise<AgentSession> {
     const { settingsService, modelService, skillsProvider } = this.options;
@@ -44,8 +65,11 @@ export class PiAgentSessionFactory {
     }
 
     const cwd = target.cwd || (await settingsService.getCurrentCwd());
-    // 会话 cwd 保持历史文件语境；Slash 菜单与 skills 明确跟随当前工作区。
+    // 会话 cwd 保持历史文件语境；Slash 菜单、skills 与 persona 明确跟随当前工作区。
     const skillsCwd = await settingsService.getCurrentCwd();
+    // A0：主对话固定 companion persona；文件缺失/非法时回退内置默认值，不阻塞会话创建。
+    const companion = await this.getPersonaRegistry().get(skillsCwd, 'companion');
+    const personaBody = companion?.body ?? builtinCompanionBody;
     const sessionDir = path.dirname(target.path);
     const sessionManager = SessionManager.open(target.path, sessionDir, cwd);
     const settingsManager = SettingsManager.create(cwd, settingsService.agentDir);
@@ -67,8 +91,9 @@ export class PiAgentSessionFactory {
       noThemes: true,
       noContextFiles: true,
       skillsOverride: () => skillsProvider.load(skillsCwd),
-      // 优先沿用 pi 发现的 SYSTEM.md；文件不存在时才使用 Chaptale 内置默认值。
-      systemPromptOverride: resolveSystemPrompt
+      // 分层拼装：SYSTEM.md 仅替换 persona 层，职责/协议层始终保留；
+      // 拼装结果在会话生命周期内不变（缓存安全）；APPEND_SYSTEM.md 由 pi 原生追加。
+      systemPromptOverride: discovered => composeSystemPrompt({ personaBody, discoveredSystemMd: discovered })
     });
     await resourceLoader.reload();
 
