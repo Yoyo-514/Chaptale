@@ -4,7 +4,7 @@ import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
 import { getDesktopApi, toErrorMessage } from '@/stores/utils/desktop-api';
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
-import { createDisplayMessage, createUserMessage } from '../utils/message/display-message';
+import type { ChatContextFile } from '@chaptale/shared';
 import {
   getAssistantReasoning,
   getAssistantText,
@@ -13,13 +13,16 @@ import {
 } from '../utils/message/message-content';
 import type { ChatState } from './chat-state';
 import type { useAssistantStreamingMessages } from './useAssistantStreamingMessages';
+import { usePendingUserMessages } from './usePendingUserMessages';
 
+/** 普通 Agent 运行可选的乐观消息和分支参数。 */
 export type RunQueryOptions = {
   appendUser: boolean;
   branchFromEntryId?: string | null;
   reuseUserEntryId?: string;
 };
 
+/** Chat 流式协调器依赖的视图状态与会话操作。 */
 type UseChatStreamingOptions = {
   state: ChatState;
   assistantStreaming: ReturnType<typeof useAssistantStreamingMessages>;
@@ -28,8 +31,21 @@ type UseChatStreamingOptions = {
   getDesktopApiOrNotify: () => ChaptaleDesktopApi | undefined;
 };
 
+/** 按路径去重上下文文件，并保持第一次出现的顺序。 */
+function dedupeContextFiles(files: ChatContextFile[]): ChatContextFile[] {
+  const seen = new Set<string>();
+  return files.filter(file => {
+    if (seen.has(file.path)) {
+      return false;
+    }
+
+    seen.add(file.path);
+    return true;
+  });
+}
+
 /**
- * 协调单次 Agent 运行的乐观用户消息、Preload 事件流、终态回载与取消。
+ * 协调单次 Agent 运行的乐观用户消息、Preload 事件流、steer 队列、终态回载与取消。
  * 流式消息先更新视图投影，done 后再从持久化会话重载，最终以主进程落盘结果为准。
  */
 export function useChatStreaming({
@@ -42,33 +58,121 @@ export function useChatStreaming({
   const sessionStore = useSessionStore();
   const notificationStore = useNotificationStore();
   const activeRunId = ref<string>('');
+  const pendingUsers = usePendingUserMessages(state);
+  // 运行代次：每次启动新运行递增，终态收束后再递增；旧代次的迟到事件一律丢弃。
+  let runEpoch = 0;
+  // 仍在进行的终态回载；新运行必须等它完成，避免旧回载覆盖新运行的乐观消息。
+  let pendingTerminalReload: Promise<void> | null = null;
 
-  function finishRun() {
+  /** 收束当前运行的流式状态和临时用户消息队列，并作废旧代次的迟到事件。 */
+  function finishRun(): void {
+    runEpoch += 1;
     assistantStreaming.finishMessages();
+    pendingUsers.clear();
     activeRunId.value = '';
     state.isReplying = false;
     state.isConnecting = false;
+    state.isSubmittingSteer = false;
   }
 
-  /** 中断当前流；用于回复中再次点击发送按钮。 */
-  async function cancelActiveRun() {
+  /** 登记终态回载，完成后自动释放，供下一次运行启动前等待。 */
+  function trackTerminalReload(reload: Promise<void>): void {
+    const tracked = reload.finally(() => {
+      if (pendingTerminalReload === tracked) {
+        pendingTerminalReload = null;
+      }
+    });
+    pendingTerminalReload = tracked;
+  }
+
+  /** 终态后重读持久化会话，清除只存在于 Renderer 的乐观投影。 */
+  async function reloadPersistedSession(): Promise<void> {
+    currentLeafId.value = null;
+    await sessionStore.loadSessions();
+    await loadCurrentSessionMessages();
+  }
+
+  /**
+   * 中断当前流；用于回复中空输入再次点击发送按钮。
+   * finishRun 已作废旧代次，主进程回发的 done 会被忽略，因此终态回载由这里自己触发。
+   */
+  async function cancelActiveRun(): Promise<void> {
     const runId = activeRunId.value;
     finishRun();
 
     if (runId) {
       await getDesktopApiOrNotify()?.agent.cancel(runId);
+      trackTerminalReload(reloadPersistedSession().catch(() => undefined));
     }
   }
 
-  async function runQuery(query: string, options: RunQueryOptions) {
+  /** 提交一条 steer；调用失败时保留原草稿并回滚临时消息。 */
+  async function steer(query: string): Promise<void> {
+    const runId = activeRunId.value;
+
+    if (!runId || state.isSubmittingSteer) {
+      return;
+    }
+
+    const contextFiles = state.contextFiles.map(file => ({ ...file }));
+    const pending = pendingUsers.enqueue('steer', query, contextFiles);
+    state.isSubmittingSteer = true;
+
+    try {
+      await getDesktopApi().agent.steer(runId, query, {
+        contextFilePaths: contextFiles.map(file => file.path)
+      });
+      pendingUsers.markQueued(pending.id);
+      state.input = '';
+      state.contextFiles = [];
+    } catch (error) {
+      pendingUsers.rollback(pending.id);
+      notificationStore.error('发送调整失败', toErrorMessage(error));
+    } finally {
+      state.isSubmittingSteer = false;
+    }
+  }
+
+  /** 清空 SDK 队列，并把实际未消费的本地 steer 恢复到编辑器。 */
+  async function restorePendingMessages(): Promise<void> {
+    const runId = activeRunId.value;
+
+    if (!runId || state.isSubmittingSteer) {
+      return;
+    }
+
+    try {
+      const result = await getDesktopApi().agent.clearPendingMessages(runId);
+      const restored = pendingUsers.takeQueuedSteersFromTail(result.queue.steering.length);
+      const localTexts = restored.map(item => item.query);
+      const missingCount = Math.max(0, result.queue.steering.length - restored.length);
+      const missingSdkTexts = result.queue.steering.slice(0, missingCount);
+      const queuedText = [...missingSdkTexts, ...localTexts, ...result.queue.followUp].join('\n\n');
+
+      state.input = [queuedText, state.input].filter(text => text.trim()).join('\n\n');
+      state.contextFiles = dedupeContextFiles([...restored.flatMap(item => item.contextFiles), ...state.contextFiles]);
+    } catch (error) {
+      notificationStore.error('恢复待处理消息失败', toErrorMessage(error));
+    }
+  }
+
+  /** 启动普通 prompt，并把同一条事件流投影到当前 ChatView。 */
+  async function runQuery(query: string, options: RunQueryOptions): Promise<void> {
+    // 上一轮终态回载尚未完成时先等待，确保它不会覆盖本轮即将追加的乐观消息。
+    if (pendingTerminalReload) {
+      await pendingTerminalReload.catch(() => undefined);
+    }
+
+    const epoch = (runEpoch += 1);
+
     try {
       state.isConnecting = true;
-      // 清空输入状态前先复制本轮附件，确保异步建会话期间用户界面与提交 payload 使用同一快照。
+      // 清空输入状态前先复制本轮附件，确保异步建会话期间界面与 payload 使用同一快照。
       const submittedContextFiles = options.appendUser ? state.contextFiles.map(file => ({ ...file })) : [];
       const contextFilePaths = submittedContextFiles.map(file => file.path);
 
       if (options.appendUser) {
-        state.messages.push(createDisplayMessage(createUserMessage(query, submittedContextFiles)));
+        pendingUsers.enqueue('prompt', query, submittedContextFiles);
       }
 
       state.input = '';
@@ -84,11 +188,18 @@ export function useChatStreaming({
         query,
         {
           onMessage: message => {
-            if (message.role === 'user') {
-              const userMessage = state.messages.findLast(item => item.message.role === 'user');
+            // 取消或新运行启动后，旧运行的迟到消息不得再投影到视图。
+            if (epoch !== runEpoch) {
+              return;
+            }
 
-              if (userMessage) {
-                userMessage.message = message;
+            if (message.role === 'user') {
+              // 普通 prompt 与连续 steer 共用 FIFO；无记录时兼容分支编辑产生的 user event。
+              if (!pendingUsers.resolveNext(message)) {
+                const userMessage = state.messages.findLast(item => item.message.role === 'user');
+                if (userMessage) {
+                  userMessage.message = message;
+                }
               }
               return;
             }
@@ -129,15 +240,27 @@ export function useChatStreaming({
             }
           },
           onDone: () => {
+            if (epoch !== runEpoch) {
+              return;
+            }
+
             finishRun();
-            // 终态后清除乐观叶子并重读磁盘树，补齐 entryId、分支和用量等流式事件不携带的信息。
-            currentLeafId.value = null;
-            void sessionStore.loadSessions().then(loadCurrentSessionMessages);
+            // 终态后重读磁盘树，补齐 entryId、分支和用量等流事件不携带的信息。
+            trackTerminalReload(reloadPersistedSession().catch(() => undefined));
           },
           onError: message => {
+            if (epoch !== runEpoch) {
+              return;
+            }
+
             finishRun();
-            assistantStreaming.appendErrorMessage(message);
             notificationStore.error('AI 回复失败', message);
+            // 先清除未持久化的乐观投影，再追加错误消息，避免失败的 steer 看起来像已交付。
+            trackTerminalReload(
+              reloadPersistedSession()
+                .catch(() => undefined)
+                .then(() => assistantStreaming.appendErrorMessage(message))
+            );
           }
         },
         sessionId,
@@ -148,9 +271,18 @@ export function useChatStreaming({
         }
       );
 
+      // stream() 内部同步报错时本轮已收束，不能再把已终态的 runId 登记为活跃运行。
+      if (epoch !== runEpoch) {
+        return;
+      }
+
       activeRunId.value = runId;
       state.isConnecting = false;
     } catch (error) {
+      if (epoch !== runEpoch) {
+        return;
+      }
+
       const message = toErrorMessage(error);
       finishRun();
       assistantStreaming.appendErrorMessage(message);
@@ -158,5 +290,5 @@ export function useChatStreaming({
     }
   }
 
-  return { activeRunId, runQuery, cancelActiveRun };
+  return { activeRunId, runQuery, steer, restorePendingMessages, cancelActiveRun };
 }

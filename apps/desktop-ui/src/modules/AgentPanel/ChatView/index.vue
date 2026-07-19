@@ -113,6 +113,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       v-model="chat.state.input"
       :is-connecting="chat.state.isConnecting"
       :is-replying="chat.state.isReplying"
+      :is-submitting-steer="chat.state.isSubmittingSteer"
       :is-enabled-web-search="chat.state.isEnabledWebSearch"
       :context-files="chat.state.contextFiles"
       :slash-commands="chat.state.slashCommands"

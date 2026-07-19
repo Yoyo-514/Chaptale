@@ -1,10 +1,13 @@
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import type {
+  AgentClearPendingMessagesPayload,
   AgentDoneEvent,
   AgentErrorEvent,
   AgentMessageEvent,
+  AgentQueueClearResult,
   AgentRunResult,
   AgentStartPayload,
+  AgentSteerPayload,
   ChaptaleDesktopApi
 } from '@chaptale/ipc-contract';
 import { ipcRenderer, webUtils } from 'electron';
@@ -77,6 +80,18 @@ export function createAgentApi(): ChaptaleDesktopApi['agent'] {
 
       return { runId };
     },
+    /** steer 不建立新流，只把输入转发给主进程中的活跃运行。 */
+    steer: (runId, query, options) =>
+      ipcRenderer.invoke(IPC_CHANNELS.agent.steer, {
+        runId,
+        query,
+        contextFilePaths: options?.contextFilePaths
+      } satisfies AgentSteerPayload) as Promise<AgentRunResult>,
+    /** 清空队列由主进程和 Runtime 完成，Preload 不缓存运行状态。 */
+    clearPendingMessages: runId =>
+      ipcRenderer.invoke(IPC_CHANNELS.agent.clearPendingMessages, {
+        runId
+      } satisfies AgentClearPendingMessagesPayload) as Promise<AgentQueueClearResult>,
     cancel: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.cancel, runId) as Promise<AgentRunResult>
   };
 }

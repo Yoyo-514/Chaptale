@@ -57,6 +57,8 @@ export const IPC_CHANNELS = {
     selectContextFiles: 'agent:select-context-files',
     inspectContextFiles: 'agent:inspect-context-files',
     start: 'agent:start',
+    steer: 'agent:steer',
+    clearPendingMessages: 'agent:clear-pending-messages',
     cancel: 'agent:cancel',
     message: 'agent:message',
     done: 'agent:done',

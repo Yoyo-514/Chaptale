@@ -13,6 +13,8 @@ const props = defineProps<{
   modelValue: string;
   isConnecting: boolean;
   isReplying: boolean;
+  /** steer IPC 提交期间锁定输入，避免重复发送。 */
+  isSubmittingSteer: boolean;
   isEnabledWebSearch: boolean;
   contextFiles: ChatContextFile[];
   slashCommands: SlashCommand[];
@@ -99,6 +101,7 @@ function handleDrop(event: DragEvent) {
         :model-value="props.modelValue"
         :is-connecting="props.isConnecting"
         :is-replying="props.isReplying"
+        :is-submitting-steer="props.isSubmittingSteer"
         :slash-commands="props.slashCommands"
         @update:model-value="emit('update:modelValue', $event)"
         @submit="emit('submit')"

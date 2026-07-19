@@ -1,7 +1,7 @@
 import type { ChatMessage } from '@chaptale/shared';
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
-import { stringifyToolResult } from './message-mapper';
+import { stringifyToolResult, toChatMessages } from './message-mapper';
 
 export type AgentStreamEventMapping = {
   message?: ChatMessage;
@@ -12,6 +12,8 @@ export type AgentStreamEventMapping = {
 type AssistantMessage = Extract<ChatMessage, { role: 'assistant' }>;
 type AssistantContent = AssistantMessage['content'];
 
+/** Pi 开始处理一条消息时发出的事件。 */
+type MessageStartEvent = Extract<AgentSessionEvent, { type: 'message_start' }>;
 type MessageUpdateEvent = Extract<AgentSessionEvent, { type: 'message_update' }>;
 type ToolStartEvent = Extract<AgentSessionEvent, { type: 'tool_execution_start' }>;
 type ToolEndEvent = Extract<AgentSessionEvent, { type: 'tool_execution_end' }>;
@@ -47,6 +49,8 @@ function assistantError(message: string, retry?: AssistantMessage['retry']): Cha
  */
 export function mapAgentStreamEvent(event: AgentSessionEvent, options: { aborted: boolean }): AgentStreamEventMapping {
   switch (event.type) {
+    case 'message_start':
+      return mapMessageStartEvent(event);
     case 'message_update':
       return mapMessageUpdateEvent(event);
     case 'tool_execution_start':
@@ -62,6 +66,15 @@ export function mapAgentStreamEvent(event: AgentSessionEvent, options: { aborted
     default:
       return {};
   }
+}
+
+/** 只转发 user message_start；assistant 内容继续使用增量事件，避免重复渲染。 */
+function mapMessageStartEvent(event: MessageStartEvent): AgentStreamEventMapping {
+  if (event.message.role !== 'user') {
+    return {};
+  }
+
+  return { message: toChatMessages(event.message)[0] };
 }
 
 function mapMessageUpdateEvent(event: MessageUpdateEvent): AgentStreamEventMapping {

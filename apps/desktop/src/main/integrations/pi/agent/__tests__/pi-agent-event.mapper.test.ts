@@ -8,6 +8,19 @@ function mapEvent(event: unknown, aborted = false) {
 }
 
 describe('mapAgentStreamEvent', () => {
+  it('maps user message starts so consumed steer entries can leave the Renderer queue', () => {
+    const mapping = mapEvent({
+      type: 'message_start',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: '调整人物动机' }],
+        timestamp: 123
+      }
+    });
+
+    expect(mapping.message).toEqual({ role: 'user', content: '调整人物动机', timestamp: 123 });
+  });
+
   it('maps text deltas to partial assistant messages', () => {
     const mapping = mapEvent({
       type: 'message_update',

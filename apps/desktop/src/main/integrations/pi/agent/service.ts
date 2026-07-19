@@ -1,4 +1,10 @@
-import type { AgentRunOptions, AgentRuntime } from '@chaptale/ipc-contract';
+import type {
+  AgentClearedQueue,
+  AgentRunOptions,
+  AgentRunScope,
+  AgentRuntime,
+  AgentSteerOptions
+} from '@chaptale/ipc-contract';
 import type { ChatMessage, SkillInvocation } from '@chaptale/shared';
 import { errorToMessage, formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
 import type { ImageContent } from '@earendil-works/pi-ai/compat';
@@ -17,6 +23,9 @@ import { mapAgentStreamEvent } from './event-mapper';
 import { PiAgentSessionFactory } from './session-factory';
 
 export type StreamOptions = AgentRunOptions;
+
+/** 普通 prompt 与 steer 共享的文本、会话和附件输入。 */
+type AgentInputOptions = Pick<AgentRunOptions, 'query' | 'sessionId' | 'contextFilePaths' | 'reuseUserEntryId'>;
 
 type ReusedUserEntryContext = ReturnType<typeof getPiUserEntrySnapshot> | undefined;
 
@@ -92,6 +101,13 @@ export class PiAgentService implements AgentRuntime {
 
       abortHandled = true;
 
+      // 中断代表结束整次运行，必须先清掉 queued steer，避免 abort 后又触发续跑。
+      try {
+        session.clearQueue();
+      } catch {
+        // 清队列失败不应阻止底层运行被中断。
+      }
+
       try {
         void Promise.resolve(session.abort()).catch(() => undefined);
       } catch {
@@ -118,7 +134,14 @@ export class PiAgentService implements AgentRuntime {
 
       // AgentSession 事件是回调风格，经 AsyncMessageQueue 桥接为 AsyncGenerator 供 IPC 层消费
       const queue = new AsyncMessageQueue<ChatMessage>();
+      let skipInitialUserMessageStart = true;
       unsubscribe = session.subscribe((event: AgentSessionEvent) => {
+        // 初始用户消息已在 prompt 前显式 yield；后续 user message_start 才是被 SDK 消费的 steer。
+        if (event.type === 'message_start' && event.message.role === 'user' && skipInitialUserMessageStart) {
+          skipInitialUserMessageStart = false;
+          return;
+        }
+
         const mapping = mapAgentStreamEvent(event, { aborted: signal.aborted });
 
         if (mapping.message) {
@@ -161,6 +184,41 @@ export class PiAgentService implements AgentRuntime {
       signal.removeEventListener('abort', onAbort);
       unsubscribe?.();
     }
+  }
+
+  /**
+   * 向活跃 Pi AgentSession 追加 steer；运行结束时绝不退化为普通 prompt。
+   * 注意不走 prepareSession：reload 会重建 runtime、setModel 会改写运行中的 agent 状态，
+   * 两者都不得在活跃运行中触发；skill 命令由 Pi steer() 自身展开。
+   */
+  async steer(options: AgentSteerOptions): Promise<void> {
+    options.signal.throwIfAborted();
+    const skillInvocation = parseSkillInvocation(options.query);
+    const session = await this.getOrCreateSession(options.sessionId);
+    options.signal.throwIfAborted();
+
+    if (!session.isStreaming) {
+      throw new Error('Agent 运行已结束，无法发送 steer');
+    }
+
+    const runContext = await this.resolveRunContext(options, skillInvocation, undefined);
+    options.signal.throwIfAborted();
+
+    // 上下文文件解析包含异步 IO，结束后必须复查，避免消息滞留在已经停止的会话队列。
+    if (!session.isStreaming) {
+      throw new Error('Agent 运行已结束，无法发送 steer');
+    }
+
+    await session.steer(runContext.promptText, runContext.promptImages);
+  }
+
+  /** 清空 Pi 会话中尚未消费的 steering 与 follow-up 队列。 */
+  async clearPendingMessages(scope: AgentRunScope): Promise<AgentClearedQueue> {
+    scope.signal.throwIfAborted();
+    const session = await this.getOrCreateSession(scope.sessionId);
+    scope.signal.throwIfAborted();
+    const { steering, followUp } = session.clearQueue();
+    return { steering, followUp };
   }
 
   /** 取回（或创建）缓存会话，并保证 skills 定义与默认模型和当前设置一致。 */
@@ -207,7 +265,7 @@ export class PiAgentService implements AgentRuntime {
 
   /** 解析上下文文件与图片附件，产出用户消息、最终 prompt 文本与随行图片。 */
   private async resolveRunContext(
-    options: StreamOptions,
+    options: AgentInputOptions,
     skillInvocation: SkillInvocation | undefined,
     reusedContext: ReusedUserEntryContext
   ): Promise<AgentRunContext> {

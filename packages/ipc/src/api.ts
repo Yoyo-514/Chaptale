@@ -1,5 +1,11 @@
 import type { ChatContextFile, ChatMessage } from '@chaptale/shared';
-import type { AgentRunResult, StreamAgentHandlers, StreamAgentOptions } from './agent';
+import type {
+  AgentQueueClearResult,
+  AgentRunResult,
+  SteerAgentOptions,
+  StreamAgentHandlers,
+  StreamAgentOptions
+} from './agent';
 import type { AppPlatformResult } from './app';
 import type {
   AddCustomModelPayload,
@@ -101,6 +107,10 @@ export type ChaptaleDesktopApi = {
       sessionId?: string,
       options?: StreamAgentOptions
     ) => Promise<AgentRunResult>;
+    /** 向指定活跃运行追加一条 steer。 */
+    steer: (runId: string, query: string, options?: SteerAgentOptions) => Promise<AgentRunResult>;
+    /** 清空指定活跃运行尚未消费的消息。 */
+    clearPendingMessages: (runId: string) => Promise<AgentQueueClearResult>;
     cancel: (runId: string) => Promise<AgentRunResult>;
   };
 };

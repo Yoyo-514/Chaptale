@@ -81,17 +81,19 @@ export function useChatController() {
   const contextFiles = useChatContextFiles({ state, getDesktopApiOrNotify });
   const editing = useChatEditing({ state, runQuery: streaming.runQuery });
 
-  async function handleSend() {
-    // 正在回复时再次点击按钮则中断流。必须优先于 isConnecting 判断，
-    // 因为模型重试等待期间可能同时处于 connecting/replying 状态。
-    if (state.isReplying) {
+  /** 按运行状态把输入路由到普通 prompt、steer 或中断。 */
+  async function handleSend(): Promise<void> {
+    const query = state.input.trim();
+
+    // 回复中的空输入保留中断语义；模型重试时可能同时处于 connecting/replying。
+    if (state.isReplying && !query) {
       await streaming.cancelActiveRun();
       return;
     }
 
-    if (state.isConnecting) return;
-
-    const query = state.input.trim();
+    if (state.isSubmittingSteer || (state.isConnecting && !state.isReplying)) {
+      return;
+    }
 
     if (!query) {
       return;
@@ -101,7 +103,24 @@ export function useChatController() {
       return;
     }
 
+    if (state.isReplying) {
+      await streaming.steer(query);
+      return;
+    }
+
     await streaming.runQuery(query, { appendUser: true });
+  }
+
+  /** queued 用户消息整体恢复 SDK 队列；持久化消息仍走分支编辑。 */
+  async function handleEditUserMessage(messageId: string): Promise<void> {
+    const displayMessage = state.messages.find(item => item.id === messageId);
+
+    if (displayMessage?.deliveryState === 'queued') {
+      await streaming.restorePendingMessages();
+      return;
+    }
+
+    editing.handleEditUserMessage(messageId);
   }
 
   function handleOpenSettings(section: 'workspace' | 'llm' = 'workspace') {
@@ -139,7 +158,7 @@ export function useChatController() {
     recentSessions,
     handleSelectRecentSession: messages.handleSelectRecentSession,
     handleSend,
-    handleEditUserMessage: editing.handleEditUserMessage,
+    handleEditUserMessage,
     handleSaveUserMessage: editing.handleSaveUserMessage,
     handleCancelEdit: editing.handleCancelEdit,
     handleRegenerateAssistantMessage: editing.handleRegenerateAssistantMessage,

@@ -4,8 +4,10 @@ import {
   AddCustomModelArgsValidator,
   AddCustomProviderArgsValidator,
   AgentCancelArgsValidator,
+  AgentClearPendingMessagesArgsValidator,
   AgentInspectContextFilesArgsValidator,
   AgentStartArgsValidator,
+  AgentSteerArgsValidator,
   CreateSessionArgsValidator,
   DeleteSessionArgsValidator,
   DeleteSessionsArgsValidator,
@@ -65,6 +67,16 @@ describe('IPC 参数 Schema', () => {
     expect(AgentCancelArgsValidator.Check([1])).toBe(false);
     expect(AgentInspectContextFilesArgsValidator.Check([['C:/a.txt']])).toBe(true);
     expect(AgentInspectContextFilesArgsValidator.Check([['C:/a.txt', 1]])).toBe(false);
+  });
+
+  it('校验 Agent steer 与清空待处理消息参数', () => {
+    expect(
+      AgentSteerArgsValidator.Check([{ runId: 'run-1', query: '调整方向', contextFilePaths: ['C:/novel/outline.md'] }])
+    ).toBe(true);
+    expect(AgentSteerArgsValidator.Check([{ runId: 'run-1', query: '' }])).toBe(false);
+    expect(AgentSteerArgsValidator.Check([{ runId: 'run-1', query: '调整', extra: true }])).toBe(false);
+    expect(AgentClearPendingMessagesArgsValidator.Check([{ runId: 'run-1' }])).toBe(true);
+    expect(AgentClearPendingMessagesArgsValidator.Check([{ runId: 'run-1', extra: true }])).toBe(false);
   });
 
   it('校验会话创建、ID 和图片读取参数', () => {

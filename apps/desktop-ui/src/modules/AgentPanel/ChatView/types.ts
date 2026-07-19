@@ -20,6 +20,8 @@ export type ChatDisplayMessage = {
   id: string;
   message: ChatMessage;
   variant?: 'normal' | 'error';
+  /** 仅存在于当前 Renderer 生命周期的乐观交付状态，不写入持久化 ChatMessage。 */
+  deliveryState?: 'submitting' | 'queued';
   entryId?: string;
   parentEntryId?: string | null;
   branch?: MessageBranchControl;

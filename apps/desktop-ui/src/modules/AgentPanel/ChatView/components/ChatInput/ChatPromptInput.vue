@@ -12,6 +12,8 @@ const props = defineProps<{
   modelValue: string;
   isConnecting: boolean;
   isReplying: boolean;
+  /** steer IPC 提交期间锁定输入，避免草稿与回滚状态发生竞态。 */
+  isSubmittingSteer: boolean;
   slashCommands: SlashCommand[];
 }>();
 
@@ -45,6 +47,10 @@ const filteredSlashCommands = computed(() => {
     .slice(0, 8);
 });
 const isCommandMenuOpen = computed(() => filteredSlashCommands.value.length > 0);
+/** 只有初次连接或 steer IPC 提交期间锁定编辑器；回复重试期间仍允许排队 steer。 */
+const isInputDisabled = computed(() => (props.isConnecting && !props.isReplying) || props.isSubmittingSteer);
+/** 回复中有非空文本时主按钮发送 steer，否则保持中断语义。 */
+const isSteerReady = computed(() => props.isReplying && props.modelValue.trim().length > 0);
 const { resize: resizeTextarea } = useAutosizeTextarea(() => textareaRef.value?.getElement(), {
   maxRows: 5,
   value: () => props.modelValue
@@ -63,13 +69,14 @@ function handleInput(value: string) {
   resizeTextarea();
 }
 
+/** 按输入状态提交普通消息、steer 或中断意图。 */
 function handleSubmit() {
-  if (props.isReplying) {
-    emit('submit');
+  if (isInputDisabled.value) {
     return;
   }
 
-  if (props.isConnecting) {
+  if (props.isReplying) {
+    emit('submit');
     return;
   }
 
@@ -142,19 +149,22 @@ function handleKeydown(event: KeyboardEvent) {
     resize="none"
     variant="plain"
     placeholder="描述你的创作需求..."
-    :disabled="props.isConnecting"
+    :disabled="isInputDisabled"
     @update:model-value="handleInput"
     @keydown="handleKeydown"
   />
 
   <div class="chat-send-button-wrapper">
     <button
-      :class="cn('chat-send-button', props.isConnecting && !props.isReplying && 'chat-send-button-disabled')"
+      :class="cn('chat-send-button', isInputDisabled && 'chat-send-button-disabled')"
       type="button"
+      :disabled="isInputDisabled"
       @click="handleSubmit"
     >
-      <span v-if="props.isConnecting" class="i-mingcute-loading-line animate-spin" aria-label="正在连接" />
+      <span v-if="props.isSubmittingSteer" class="i-mingcute-loading-line animate-spin" aria-label="正在发送调整" />
+      <span v-else-if="isSteerReady" class="i-mingcute-send-plane-line" aria-label="发送调整" />
       <span v-else-if="props.isReplying" class="i-mingcute-stop-line" aria-label="中断" />
+      <span v-else-if="props.isConnecting" class="i-mingcute-loading-line animate-spin" aria-label="正在连接" />
       <span v-else class="i-mingcute-send-plane-line" aria-label="发送" />
     </button>
   </div>

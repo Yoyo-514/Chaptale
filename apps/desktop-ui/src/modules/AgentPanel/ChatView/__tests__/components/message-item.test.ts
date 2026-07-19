@@ -45,6 +45,7 @@ function mountMessage(
     branch?: { current: number; total: number; previousLeafId?: string; nextLeafId?: string };
     isEditing?: boolean;
     isBusy?: boolean;
+    deliveryState?: 'submitting' | 'queued';
     compactionBefore?: { summary: string; tokensBefore: number };
   } = {}
 ) {
@@ -54,6 +55,7 @@ function mountMessage(
         id: 'display-1',
         message,
         branch: options.branch,
+        deliveryState: options.deliveryState,
         compactionBefore: options.compactionBefore
       },
       isEditing: Boolean(options.isEditing),
@@ -214,6 +216,21 @@ describe('MessageItem', () => {
 
     const noUsage = mountMessage({ role: 'assistant', content: [{ type: 'text', text: '回答' }] });
     expect(noUsage.find('.message-meta').exists()).toBe(false);
+  });
+
+  it('shows pending steer state and allows queued editing while busy', async () => {
+    const queued = mountMessage({ role: 'user', content: '调整方向' }, { isBusy: true, deliveryState: 'queued' });
+    expect(queued.find('.message-meta').text()).toContain('待处理');
+    expect(queued.find('.edit').attributes('disabled')).toBeUndefined();
+    await queued.find('.edit').trigger('click');
+    expect(queued.emitted('editUser')).toEqual([['display-1']]);
+
+    const submitting = mountMessage(
+      { role: 'user', content: '正在提交' },
+      { isBusy: true, deliveryState: 'submitting' }
+    );
+    expect(submitting.find('.message-meta').text()).toContain('发送中');
+    expect(submitting.find('.edit').attributes('disabled')).toBeDefined();
   });
 
   it('renders a compaction notice above the message when history was compacted', () => {

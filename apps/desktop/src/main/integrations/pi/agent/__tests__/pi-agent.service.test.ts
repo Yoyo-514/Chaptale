@@ -13,6 +13,7 @@ function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<
   };
   const session: any = {
     model: { provider: 'old-provider', id: 'old-model' },
+    isStreaming: true,
     messages: [],
     agent: { state: { messages: [] as unknown[] } },
     sessionManager,
@@ -26,6 +27,8 @@ function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<
     prompt: vi.fn(async () => {
       await promptImpl?.(event => subscriber?.(event));
     }),
+    steer: vi.fn(async () => undefined),
+    clearQueue: vi.fn(() => ({ steering: [], followUp: [] })),
     resourceLoader: {
       getSkills: vi.fn(() => ({ skills: [], diagnostics: [] }))
     },
@@ -124,6 +127,30 @@ describe('PiAgentService', () => {
     expect(sessionManager._rewriteFile).toHaveBeenCalled();
   });
 
+  it('emits consumed steer user messages without duplicating the initial prompt event', async () => {
+    const { session } = createFakeSession(async emit => {
+      emit({
+        type: 'message_start',
+        message: { role: 'user', content: [{ type: 'text', text: '初始问题' }], timestamp: 1 }
+      });
+      emit({
+        type: 'message_start',
+        message: { role: 'user', content: [{ type: 'text', text: '调整方向' }], timestamp: 2 }
+      });
+      emit({ type: 'agent_end', willRetry: false, messages: [] });
+    });
+    const service = createService(session);
+
+    const messages = await collect(
+      service.stream({ sessionId: 'session-1', query: '初始问题', signal: new AbortController().signal })
+    );
+
+    expect(messages.filter(message => message.role === 'user')).toEqual([
+      expect.objectContaining({ role: 'user', content: '初始问题' }),
+      { role: 'user', content: '调整方向', timestamp: 2 }
+    ]);
+  });
+
   it('delegates skill expansion to pi while keeping attachment context in the command arguments', async () => {
     const { session } = createFakeSession(async emit => {
       emit({ type: 'agent_end', willRetry: false, messages: [] });
@@ -202,6 +229,134 @@ describe('PiAgentService', () => {
       '<attached_context_files>文件内容</attached_context_files>\n\n请分析附件',
       { images }
     );
+  });
+
+  it('resolves context files and delegates steer to the active Pi session', async () => {
+    const { session } = createFakeSession();
+    const service = createService(session);
+    const images = [{ type: 'image', data: 'cover-base64', mimeType: 'image/png' }];
+    const contextFileService = {
+      resolve: vi.fn().mockResolvedValue({
+        promptPrefix: '<attached_context_files>人物资料</attached_context_files>\n\n',
+        images,
+        imagePaths: ['C:/novel/cover.png']
+      })
+    };
+    (service as any).contextFileService = contextFileService;
+
+    await service.steer({
+      sessionId: 'session-1',
+      signal: new AbortController().signal,
+      query: '调整人物动机',
+      contextFilePaths: ['C:/novel/character.md', 'C:/novel/cover.png']
+    });
+
+    expect(contextFileService.resolve).toHaveBeenCalledWith(['C:/novel/character.md', 'C:/novel/cover.png']);
+    expect(session.steer).toHaveBeenCalledWith(
+      '<attached_context_files>人物资料</attached_context_files>\n\n调整人物动机',
+      images
+    );
+  });
+
+  it('never reloads or switches the model on the actively streaming session during steer', async () => {
+    const { session } = createFakeSession();
+    const service = createService(session);
+    (service as any).contextFileService = {
+      resolve: vi.fn().mockResolvedValue({ promptPrefix: '', images: [], imagePaths: [] })
+    };
+
+    await service.steer({
+      sessionId: 'session-1',
+      signal: new AbortController().signal,
+      query: '/skill:review 检查第一章'
+    });
+
+    // reload 会重建 runtime、setModel 会改写运行中的 agent 状态，两者都不得在活跃运行中触发；
+    // skill 展开由 Pi steer() 自身完成。
+    expect(session.reload).not.toHaveBeenCalled();
+    expect(session.setModel).not.toHaveBeenCalled();
+    expect(session.steer).toHaveBeenCalledWith('/skill:review 检查第一章', []);
+  });
+
+  it('rejects steer when the Pi session is no longer streaming', async () => {
+    const { session } = createFakeSession();
+    session.isStreaming = false;
+    const service = createService(session);
+
+    await expect(
+      service.steer({ sessionId: 'session-1', signal: new AbortController().signal, query: '调整方向' })
+    ).rejects.toThrow('运行已结束');
+    expect(session.steer).not.toHaveBeenCalled();
+  });
+
+  it('rechecks streaming state after asynchronous context resolution', async () => {
+    const { session } = createFakeSession();
+    const service = createService(session);
+    const contextResolved = createDeferred<any>();
+    (service as any).contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
+
+    const result = service.steer({
+      sessionId: 'session-1',
+      signal: new AbortController().signal,
+      query: '调整方向',
+      contextFilePaths: ['C:/novel/outline.md']
+    });
+    await Promise.resolve();
+    session.isStreaming = false;
+    contextResolved.resolve({ promptPrefix: '', images: [], imagePaths: [] });
+
+    await expect(result).rejects.toThrow('运行已结束');
+    expect(session.steer).not.toHaveBeenCalled();
+  });
+
+  it('rejects an old-run steer after that run is invalidated during context IO', async () => {
+    const { session } = createFakeSession();
+    const service = createService(session);
+    const contextResolved = createDeferred<any>();
+    const controller = new AbortController();
+    (service as any).contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
+
+    const result = service.steer({
+      sessionId: 'session-1',
+      query: '旧运行调整',
+      contextFilePaths: ['C:/novel/outline.md'],
+      signal: controller.signal
+    } as any);
+    await Promise.resolve();
+    controller.abort();
+    session.isStreaming = true;
+    contextResolved.resolve({ promptPrefix: '', images: [], imagePaths: [] });
+
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    expect(session.steer).not.toHaveBeenCalled();
+  });
+
+  it('rejects queue clearing after the original run is invalidated', async () => {
+    const { session } = createFakeSession();
+    const service = createService(session);
+    const pendingSession = createDeferred<any>();
+    (service as any).sessionFactory = { create: vi.fn(() => pendingSession.promise) };
+    const controller = new AbortController();
+
+    const result = service.clearPendingMessages({ sessionId: 'session-1', signal: controller.signal } as any);
+    controller.abort();
+    pendingSession.resolve(session);
+
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    expect(session.clearQueue).not.toHaveBeenCalled();
+  });
+
+  it('delegates pending-message clearing to Pi AgentSession', async () => {
+    const { session } = createFakeSession();
+    session.clearQueue.mockReturnValue({ steering: ['调整方向'], followUp: ['继续检查'] });
+    const service = createService(session);
+
+    await expect(
+      service.clearPendingMessages({ sessionId: 'session-1', signal: new AbortController().signal } as any)
+    ).resolves.toEqual({
+      steering: ['调整方向'],
+      followUp: ['继续检查']
+    });
   });
 
   it('reuses the persisted Pi user entry snapshot without reading local files again', async () => {
@@ -334,6 +489,7 @@ describe('PiAgentService', () => {
 
     await expect(iterator.next()).rejects.toMatchObject({ name: 'AbortError' });
     await Promise.resolve();
+    expect(session.clearQueue).toHaveBeenCalledTimes(1);
     expect(session.abort).toHaveBeenCalledTimes(1);
     expect(session.prompt).not.toHaveBeenCalled();
   });

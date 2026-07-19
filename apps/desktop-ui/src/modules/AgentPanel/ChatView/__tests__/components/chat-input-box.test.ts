@@ -9,6 +9,7 @@ function mountInput(props?: Partial<InstanceType<typeof ChatInputBox>['$props']>
       modelValue: '写一个故事',
       isConnecting: false,
       isReplying: false,
+      isSubmittingSteer: false,
       isEnabledWebSearch: true,
       contextFiles: [],
       slashCommands: [],
@@ -108,8 +109,25 @@ describe('ChatInputBox', () => {
 
     await wrapper.find('.chat-send-button').trigger('click');
 
-    expect(wrapper.find('.i-mingcute-loading-line').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="中断"]').exists()).toBe(true);
+    expect(wrapper.find('textarea').attributes('disabled')).toBeUndefined();
     expect(wrapper.emitted('submit')).toHaveLength(1);
+  });
+
+  it('shows the steer send icon when replying with non-empty input', () => {
+    const wrapper = mountInput({ isReplying: true, modelValue: '调整方向' });
+
+    expect(wrapper.find('[aria-label="发送调整"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="中断"]').exists()).toBe(false);
+  });
+
+  it('disables input and submission while a steer IPC call is pending', async () => {
+    const wrapper = mountInput({ isReplying: true, modelValue: '调整方向', isSubmittingSteer: true });
+
+    expect(wrapper.find('textarea').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('.chat-send-button').classes()).toContain('chat-send-button-disabled');
+    await wrapper.find('.chat-send-button').trigger('click');
+    expect(wrapper.emitted('submit')).toBeUndefined();
   });
 
   it('toggles web search from the toolbar and exposes pressed state', async () => {

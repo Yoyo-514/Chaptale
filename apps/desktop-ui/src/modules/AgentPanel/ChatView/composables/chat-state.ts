@@ -12,12 +12,15 @@ export type ChatState = {
   editingMessageId: string;
   isConnecting: boolean;
   isReplying: boolean;
+  /** steer IPC 正在提交时为 true，用于阻止重复发送和草稿竞态。 */
+  isSubmittingSteer: boolean;
   isEnabledWebSearch: boolean;
   isLoadingMessages: boolean;
   contextFiles: ChatContextFile[];
   slashCommands: SlashCommand[];
 };
 
+/** 创建 ChatView 的独立临时状态。 */
 export function createChatState(): ChatState {
   return {
     messages: [],
@@ -25,6 +28,7 @@ export function createChatState(): ChatState {
     editingMessageId: '',
     isConnecting: false,
     isReplying: false,
+    isSubmittingSteer: false,
     isEnabledWebSearch: true,
     isLoadingMessages: true,
     contextFiles: [],

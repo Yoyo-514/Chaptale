@@ -1,9 +1,19 @@
 import type { ChatMessage } from '@chaptale/shared';
 import type { Static } from 'typebox';
-import type { AgentStartPayloadSchema } from './schemas/agent';
+import type {
+  AgentClearPendingMessagesPayloadSchema,
+  AgentStartPayloadSchema,
+  AgentSteerPayloadSchema
+} from './schemas/agent';
 
 /** Renderer 发起 Agent 流式运行时传入的 IPC payload。 */
 export type AgentStartPayload = Static<typeof AgentStartPayloadSchema>;
+
+/** Renderer 请求把输入追加到活跃运行时使用的 payload。 */
+export type AgentSteerPayload = Static<typeof AgentSteerPayloadSchema>;
+
+/** Renderer 请求清空当前运行待处理消息时使用的 payload。 */
+export type AgentClearPendingMessagesPayload = Static<typeof AgentClearPendingMessagesPayloadSchema>;
 
 /** IPC 调用确认结果；runId 同时用于关联后续流式事件与取消请求。 */
 export type AgentRunResult = {
@@ -25,6 +35,20 @@ export type AgentErrorEvent = {
 
 export type StreamAgentOptions = Pick<AgentStartPayload, 'branchFromEntryId' | 'contextFilePaths' | 'reuseUserEntryId'>;
 
+/** Preload 发送 steer 时允许附带的应用选项。 */
+export type SteerAgentOptions = Pick<AgentSteerPayload, 'contextFilePaths'>;
+
+/** Runtime 清空队列后返回的项目级消息集合，不包含 Pi SDK 类型。 */
+export type AgentClearedQueue = {
+  steering: string[];
+  followUp: string[];
+};
+
+/** IPC 清空队列的确认结果。 */
+export type AgentQueueClearResult = AgentRunResult & {
+  queue: AgentClearedQueue;
+};
+
 /** Preload 为单次流式运行接收的回调集合；done 与 error 都是终态。 */
 export type StreamAgentHandlers = {
   onMessage: (message: ChatMessage) => void;
@@ -36,10 +60,16 @@ export type StreamAgentHandlers = {
  * 主进程 Agent 运行时入参：与 AgentStartPayload 同源派生，
  * 把 IPC 侧的 runId 换成进程内的 AbortSignal，并要求已解析好的 sessionId。
  */
-export type AgentRunOptions = Omit<AgentStartPayload, 'runId' | 'sessionId'> & {
+/** 主进程从活跃 runId 解析出的会话归属与生命周期信号。 */
+export type AgentRunScope = {
   sessionId: string;
   signal: AbortSignal;
 };
+
+export type AgentRunOptions = Omit<AgentStartPayload, 'runId' | 'sessionId'> & AgentRunScope;
+
+/** 通用 AgentRuntime 接收的 steer 参数；运行 scope 由主进程登记提供。 */
+export type AgentSteerOptions = Omit<AgentSteerPayload, 'runId'> & AgentRunScope;
 
 /**
  * Agent 运行时抽象（原 @chaptale/agent-core）。
@@ -48,5 +78,10 @@ export type AgentRunOptions = Omit<AgentStartPayload, 'runId' | 'sessionId'> & {
  * 不包含 Electron、Node fs 或 pi SDK 类型。
  */
 export interface AgentRuntime {
+  /** 启动并产出一条 Agent 消息流。 */
   stream(options: AgentRunOptions): AsyncGenerator<ChatMessage>;
+  /** 向当前活跃运行追加 steering message。 */
+  steer(options: AgentSteerOptions): Promise<void>;
+  /** 清空指定活跃运行中仍未消费的 steering 与 follow-up 消息。 */
+  clearPendingMessages(scope: AgentRunScope): Promise<AgentClearedQueue>;
 }

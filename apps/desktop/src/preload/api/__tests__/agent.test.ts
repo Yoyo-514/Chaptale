@@ -157,6 +157,35 @@ describe('createAgentApi', () => {
     expect(onMessageB).toHaveBeenCalledWith(message);
   });
 
+  it('steer 转发 runId、query 与上下文文件路径', async () => {
+    const result: AgentRunResult = { runId: OTHER_RUN_ID };
+    electronMock.invoke.mockResolvedValueOnce(result);
+    const api = createAgentApi();
+
+    await expect(
+      api.steer(OTHER_RUN_ID, '调整人物动机', { contextFilePaths: ['C:/novel/character.md'] })
+    ).resolves.toEqual(result);
+    expect(electronMock.invoke).toHaveBeenCalledWith(IPC_CHANNELS.agent.steer, {
+      runId: OTHER_RUN_ID,
+      query: '调整人物动机',
+      contextFilePaths: ['C:/novel/character.md']
+    });
+  });
+
+  it('clearPendingMessages 保持主进程返回的队列结果', async () => {
+    const result = {
+      runId: OTHER_RUN_ID,
+      queue: { steering: ['调整人物动机'], followUp: [] }
+    };
+    electronMock.invoke.mockResolvedValueOnce(result);
+    const api = createAgentApi();
+
+    await expect(api.clearPendingMessages(OTHER_RUN_ID)).resolves.toEqual(result);
+    expect(electronMock.invoke).toHaveBeenCalledWith(IPC_CHANNELS.agent.clearPendingMessages, {
+      runId: OTHER_RUN_ID
+    });
+  });
+
   it('cancel 保持主进程返回的 AgentRunResult', async () => {
     const result: AgentRunResult = { runId: OTHER_RUN_ID };
     electronMock.invoke.mockResolvedValueOnce(result);

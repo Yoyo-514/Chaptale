@@ -128,6 +128,11 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
         handlers.onDone();
         return { runId: 'run-1' };
       }),
+      steer: vi.fn().mockResolvedValue({ runId: 'run-1' }),
+      clearPendingMessages: vi.fn().mockResolvedValue({
+        runId: 'run-1',
+        queue: { steering: [], followUp: [] }
+      }),
       cancel: vi.fn().mockResolvedValue({ runId: 'run-1' })
     },
     ...overrides
@@ -304,6 +309,8 @@ describe('useChatController', () => {
           });
           return { runId: 'run-tools' };
         }),
+        steer: vi.fn(),
+        clearPendingMessages: vi.fn(),
         cancel: vi.fn()
       }
     });
@@ -415,12 +422,102 @@ describe('useChatController', () => {
     controller.state.input = '持续生成';
     await controller.handleSend();
     expect(controller.state.isReplying).toBe(true);
+    const callsBeforeCancel = api.session.getEntries.mock.calls.length;
 
     await controller.handleSend();
 
     expect(api.agent.cancel).toHaveBeenCalledWith('run-cancel');
     expect(controller.state.isReplying).toBe(false);
     expect(streamHandlers).toBeDefined();
+    // 取消后必须回读持久化会话，与磁盘上的中断结果对齐。
+    await vi.waitFor(() => expect(api.session.getEntries.mock.calls.length).toBeGreaterThan(callsBeforeCancel));
+  });
+
+  it('sends non-empty input as steer while a run is replying', async () => {
+    const api = installDesktopMock({
+      agent: {
+        stream: vi.fn().mockResolvedValue({ runId: 'run-steer' }),
+        steer: vi.fn().mockResolvedValue({ runId: 'run-steer' }),
+        clearPendingMessages: vi.fn(),
+        cancel: vi.fn()
+      }
+    } as any);
+    const controller = await mountController();
+
+    controller.state.input = '初始问题';
+    await controller.handleSend();
+    controller.state.contextFiles = [{ path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' }];
+    controller.state.input = '聚焦人物动机';
+    await controller.handleSend();
+
+    expect(api.agent.steer).toHaveBeenCalledWith('run-steer', '聚焦人物动机', {
+      contextFilePaths: ['C:/novel/outline.md']
+    });
+    expect(api.agent.cancel).not.toHaveBeenCalled();
+    expect(controller.state.input).toBe('');
+    expect(controller.state.contextFiles).toEqual([]);
+    expect(controller.state.messages.at(-1)?.deliveryState).toBe('queued');
+  });
+
+  it('keeps the steer draft and attachments when submission fails', async () => {
+    const api = installDesktopMock({
+      agent: {
+        stream: vi.fn().mockResolvedValue({ runId: 'run-steer' }),
+        steer: vi.fn().mockRejectedValue(new Error('steer failed')),
+        clearPendingMessages: vi.fn(),
+        cancel: vi.fn()
+      }
+    } as any);
+    const controller = await mountController();
+    const contextFile = { path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' as const };
+
+    controller.state.input = '初始问题';
+    await controller.handleSend();
+    const messageCountBeforeSteer = controller.state.messages.length;
+    controller.state.input = '保留这条调整';
+    controller.state.contextFiles = [contextFile];
+    await controller.handleSend();
+
+    expect(controller.state.input).toBe('保留这条调整');
+    expect(controller.state.contextFiles).toEqual([contextFile]);
+    expect(controller.state.messages).toHaveLength(messageCountBeforeSteer);
+    expect(useNotificationStore().items.at(-1)).toMatchObject({ title: '发送调整失败' });
+    expect(api.agent.cancel).not.toHaveBeenCalled();
+  });
+
+  it('restores only the queue tail actually cleared by the SDK', async () => {
+    const contextFile = { path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' as const };
+    const api = installDesktopMock({
+      agent: {
+        stream: vi.fn().mockResolvedValue({ runId: 'run-steer' }),
+        steer: vi.fn().mockResolvedValue({ runId: 'run-steer' }),
+        clearPendingMessages: vi.fn().mockResolvedValue({
+          runId: 'run-steer',
+          queue: { steering: ['第二条调整'], followUp: [] }
+        }),
+        cancel: vi.fn()
+      }
+    } as any);
+    const controller = await mountController();
+
+    controller.state.input = '初始问题';
+    await controller.handleSend();
+    controller.state.input = '第一条调整';
+    await controller.handleSend();
+    controller.state.contextFiles = [contextFile];
+    controller.state.input = '第二条调整';
+    await controller.handleSend();
+    const queuedMessageId = controller.state.messages.at(-1)!.id;
+    controller.state.input = '当前草稿';
+    controller.state.contextFiles = [contextFile];
+
+    await controller.handleEditUserMessage(queuedMessageId);
+
+    expect(api.agent.clearPendingMessages).toHaveBeenCalledWith('run-steer');
+    expect(controller.state.input).toBe('第二条调整\n\n当前草稿');
+    expect(controller.state.contextFiles).toEqual([contextFile]);
+    expect(controller.state.messages.some(item => item.id === queuedMessageId)).toBe(false);
+    expect(controller.state.messages.some(item => item.deliveryState === 'queued')).toBe(true);
   });
 
   it('shows an assistant error and notification when stream fails', async () => {
@@ -439,12 +536,124 @@ describe('useChatController', () => {
     controller.state.input = '会失败';
     await controller.handleSend();
 
-    expect(controller.state.messages.at(-1)?.message).toMatchObject({ role: 'assistant', errorMessage: '模型不可用' });
+    await vi.waitFor(() =>
+      expect(controller.state.messages.at(-1)?.message).toMatchObject({
+        role: 'assistant',
+        errorMessage: '模型不可用'
+      })
+    );
     expect(notificationStore.items.at(-1)).toMatchObject({
       kind: 'error',
       title: 'AI 回复失败',
       description: '模型不可用'
     });
+  });
+
+  it('reloads persisted messages on error and removes undelivered steer projections', async () => {
+    let streamHandlers: any;
+    const api = installDesktopMock({
+      agent: {
+        stream: vi.fn().mockImplementation(async (_query, handlers) => {
+          streamHandlers = handlers;
+          return { runId: 'run-error' };
+        }),
+        steer: vi.fn().mockResolvedValue({ runId: 'run-error' }),
+        clearPendingMessages: vi.fn(),
+        cancel: vi.fn()
+      }
+    } as any);
+    const controller = await mountController();
+
+    controller.state.input = '初始问题';
+    await controller.handleSend();
+    controller.state.input = '尚未交付的调整';
+    await controller.handleSend();
+    expect(controller.state.messages.some(item => item.deliveryState === 'queued')).toBe(true);
+    const callsBeforeError = api.session.getEntries.mock.calls.length;
+
+    streamHandlers.onError('模型不可用');
+
+    await vi.waitFor(() => expect(api.session.getEntries.mock.calls.length).toBeGreaterThan(callsBeforeError));
+    await vi.waitFor(() =>
+      expect(controller.state.messages.at(-1)?.message).toMatchObject({
+        role: 'assistant',
+        errorMessage: '模型不可用'
+      })
+    );
+    expect(controller.state.messages.some(item => item.message.role === 'user')).toBe(false);
+    expect(controller.state.messages.some(item => item.deliveryState)).toBe(false);
+  });
+
+  it('ignores stale terminal events from a cancelled run and keeps the new run intact', async () => {
+    let firstHandlers: any;
+    const api = installDesktopMock({
+      agent: {
+        stream: vi
+          .fn()
+          .mockImplementationOnce(async (_query, handlers) => {
+            firstHandlers = handlers;
+            return { runId: 'run-old' };
+          })
+          .mockImplementation(async () => ({ runId: 'run-new' })),
+        steer: vi.fn(),
+        clearPendingMessages: vi.fn(),
+        cancel: vi.fn().mockResolvedValue({ runId: 'run-old' })
+      }
+    } as any);
+    const controller = await mountController();
+    const notificationStore = useNotificationStore();
+
+    controller.state.input = '旧运行';
+    await controller.handleSend();
+    controller.state.input = '';
+    await controller.handleSend();
+    expect(api.agent.cancel).toHaveBeenCalledWith('run-old');
+
+    controller.state.input = '新运行';
+    await controller.handleSend();
+    const messageCountAfterNewRun = controller.state.messages.length;
+
+    // 旧运行被取消后才到达的终态事件不得收束新运行或污染其视图。
+    firstHandlers.onError('旧运行错误');
+    await nextTick();
+
+    expect(notificationStore.items.some(item => item.description === '旧运行错误')).toBe(false);
+    expect(controller.state.messages).toHaveLength(messageCountAfterNewRun);
+    expect(controller.state.isReplying).toBe(true);
+  });
+
+  it('starts the next run only after the error-terminal reload has settled', async () => {
+    let firstHandlers: any;
+    installDesktopMock({
+      agent: {
+        stream: vi
+          .fn()
+          .mockImplementationOnce(async (_query, handlers) => {
+            firstHandlers = handlers;
+            return { runId: 'run-old' };
+          })
+          .mockImplementation(async () => ({ runId: 'run-new' })),
+        steer: vi.fn(),
+        clearPendingMessages: vi.fn(),
+        cancel: vi.fn()
+      }
+    } as any);
+    const controller = await mountController();
+
+    controller.state.input = '旧运行';
+    await controller.handleSend();
+    firstHandlers.onError('模型不可用');
+    controller.state.input = '新运行';
+    await controller.handleSend();
+
+    // 新运行必须等终态回载完成后启动，否则旧回载会覆盖新运行的乐观消息。
+    const errorIndex = controller.state.messages.findIndex(
+      item => item.message.role === 'assistant' && 'errorMessage' in item.message
+    );
+    const userIndex = controller.state.messages.findIndex(item => item.message.role === 'user');
+    expect(errorIndex).toBeGreaterThanOrEqual(0);
+    expect(userIndex).toBeGreaterThan(errorIndex);
+    expect(controller.state.isReplying).toBe(true);
   });
 
   it('toggles web search and rolls back the optimistic state when settings update fails', async () => {

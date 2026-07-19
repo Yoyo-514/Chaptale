@@ -35,6 +35,7 @@ design-docs
 .playwright-mcp
 .pi-subagents
 .spec-workflow
+.pi
 
 # Local experiments
 /experiments/

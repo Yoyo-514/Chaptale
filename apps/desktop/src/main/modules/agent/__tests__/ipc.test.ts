@@ -144,15 +144,21 @@ async function* controlledStream(control: StreamControl, options: AgentRunOption
   }
 }
 
+/** 创建带可观察 steer/clear 方法的测试 Runtime。 */
 function createRuntime(control: StreamControl): AgentRuntime {
   return {
-    stream: vi.fn((options: AgentRunOptions) => controlledStream(control, options))
+    stream: vi.fn((options: AgentRunOptions) => controlledStream(control, options)),
+    steer: vi.fn(async () => undefined),
+    clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] }))
   };
 }
 
+/** 按 query 选择独立流控制器，验证并发运行互不影响。 */
 function createRuntimeByQuery(controls: Record<string, StreamControl>): AgentRuntime {
   return {
-    stream: vi.fn((options: AgentRunOptions) => controlledStream(controls[options.query]!, options))
+    stream: vi.fn((options: AgentRunOptions) => controlledStream(controls[options.query]!, options)),
+    steer: vi.fn(async () => undefined),
+    clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] }))
   };
 }
 
@@ -228,6 +234,23 @@ describe('Agent IPC lifecycle', () => {
     ]);
   });
 
+  it('rejects a duplicate active run id before it can replace the original run', async () => {
+    const control = createStreamControl();
+    const sender = new FakeWebContents();
+    registerAgentIpc(createRuntime(control));
+    const start = getValidatedHandler(IPC_CHANNELS.agent.start);
+
+    start({ sender: sender as unknown as WebContents }, createPayload());
+    await control.started.promise;
+
+    expect(() =>
+      start({ sender: sender as unknown as WebContents }, { ...createPayload(), sessionId: 'session-2' })
+    ).toThrow('runId 已存在');
+
+    control.release.resolve();
+    await sender.waitForDestroyedListenerRemoval();
+  });
+
   it('swallows only the send failure caused by destruction between the check and send', async () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
@@ -282,7 +305,9 @@ describe('Agent IPC lifecycle', () => {
         if (!options.signal.aborted) {
           yield { role: 'assistant', content: [] } satisfies ChatMessage;
         }
-      })
+      }),
+      steer: vi.fn(async () => undefined),
+      clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] }))
     };
     registerAgentIpc(runtime);
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
@@ -295,6 +320,97 @@ describe('Agent IPC lifecycle', () => {
     await sender.waitForDestroyedListenerRemoval();
 
     expect(sender.sent).toEqual([[IPC_CHANNELS.agent.done, { runId: 'run-1' }]]);
+  });
+
+  it('routes steer and clear requests through the session registered for the active run', async () => {
+    const control = createStreamControl();
+    const sender = new FakeWebContents();
+    const runtime = createRuntime(control);
+    vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: ['调整方向'], followUp: [] });
+    registerAgentIpc(runtime);
+    const start = getValidatedHandler(IPC_CHANNELS.agent.start);
+    const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
+    const clearPendingMessages = getValidatedHandler(IPC_CHANNELS.agent.clearPendingMessages);
+
+    start({ sender: sender as unknown as WebContents }, createPayload());
+    await control.started.promise;
+
+    await expect(
+      steer(
+        { sender: sender as unknown as WebContents },
+        { runId: 'run-1', query: '调整方向', contextFilePaths: ['C:/outline.md'] }
+      )
+    ).resolves.toEqual({ runId: 'run-1' });
+    expect(runtime.steer).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      signal: expect.any(AbortSignal),
+      query: '调整方向',
+      contextFilePaths: ['C:/outline.md']
+    });
+    await expect(
+      clearPendingMessages({ sender: sender as unknown as WebContents }, { runId: 'run-1' })
+    ).resolves.toEqual({
+      runId: 'run-1',
+      queue: { steering: ['调整方向'], followUp: [] }
+    });
+    expect(runtime.clearPendingMessages).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      signal: expect.any(AbortSignal)
+    });
+    expect(runtime.stream).toHaveBeenCalledTimes(1);
+
+    control.release.resolve();
+    await sender.waitForTerminalSend();
+  });
+
+  it('invalidates an in-flight steer when its original run finishes', async () => {
+    const control = createStreamControl();
+    const steerStarted = createDeferred();
+    const releaseSteer = createDeferred();
+    const sender = new FakeWebContents();
+    const runtime = createRuntime(control);
+    vi.mocked(runtime.steer).mockImplementation(async (options: any) => {
+      steerStarted.resolve();
+      await releaseSteer.promise;
+      options.signal.throwIfAborted();
+    });
+    registerAgentIpc(runtime);
+    const start = getValidatedHandler(IPC_CHANNELS.agent.start);
+    const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
+
+    start({ sender: sender as unknown as WebContents }, createPayload());
+    await control.started.promise;
+    const pendingSteer = Promise.resolve(
+      steer({ sender: sender as unknown as WebContents }, { runId: 'run-1', query: '调整方向' })
+    );
+    await steerStarted.promise;
+
+    control.release.resolve();
+    await sender.waitForDestroyedListenerRemoval();
+    releaseSteer.resolve();
+
+    await expect(pendingSteer).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('rejects steer for unknown runs and whitespace-only input', async () => {
+    const control = createStreamControl();
+    const sender = new FakeWebContents();
+    registerAgentIpc(createRuntime(control));
+    const start = getValidatedHandler(IPC_CHANNELS.agent.start);
+    const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
+
+    await expect(
+      steer({ sender: sender as unknown as WebContents }, { runId: 'missing', query: '调整' })
+    ).rejects.toThrow('运行已结束');
+
+    start({ sender: sender as unknown as WebContents }, createPayload());
+    await control.started.promise;
+    await expect(steer({ sender: sender as unknown as WebContents }, { runId: 'run-1', query: '   ' })).rejects.toThrow(
+      'steer 内容不能为空'
+    );
+
+    control.release.resolve();
+    await sender.waitForTerminalSend();
   });
 
   it('removes the destroyed listener after a normal stream completes', async () => {

@@ -1,7 +1,9 @@
 import {
   AgentCancelArgsValidator,
+  AgentClearPendingMessagesArgsValidator,
   AgentInspectContextFilesArgsValidator,
   AgentStartArgsValidator,
+  AgentSteerArgsValidator,
   IPC_CHANNELS
 } from '@chaptale/ipc-contract';
 import { errorToMessage } from '@chaptale/shared';
@@ -11,7 +13,15 @@ import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import { ContextFileService } from '../context/service';
 import { AgentRunManager } from './run-manager';
 
-import type { AgentDoneEvent, AgentErrorEvent, AgentMessageEvent, AgentStartPayload } from '@chaptale/ipc-contract';
+import type {
+  AgentClearPendingMessagesPayload,
+  AgentDoneEvent,
+  AgentErrorEvent,
+  AgentMessageEvent,
+  AgentRunScope,
+  AgentStartPayload,
+  AgentSteerPayload
+} from '@chaptale/ipc-contract';
 import type { AgentRuntime } from './runtime';
 import type { WebContents } from 'electron';
 
@@ -19,6 +29,19 @@ class WebContentsSendError extends Error {
   constructor(readonly sendError: unknown) {
     super('向 Renderer 发送 Agent 事件失败');
   }
+}
+
+/**
+ * 从活跃运行获取可信 sessionId，阻止过期 runId 被静默转为新请求。
+ */
+function requireActiveRun(runManager: AgentRunManager, runId: string): AgentRunScope {
+  const scope = runManager.getRunScope(runId);
+
+  if (!scope) {
+    throw new Error('Agent 运行已结束，无法修改待处理消息');
+  }
+
+  return scope;
 }
 
 function safeSend(webContents: WebContents, channel: string, payload: unknown): boolean {
@@ -58,7 +81,11 @@ export function registerAgentIpc(agentService: AgentRuntime) {
   );
 
   handleValidatedIpc(IPC_CHANNELS.agent.start, AgentStartArgsValidator, (event, payload: AgentStartPayload) => {
-    const signal = runManager.start(payload.runId);
+    if (!payload.sessionId) {
+      throw new Error('缺少 sessionId：Agent 流式执行需要绑定具体会话');
+    }
+
+    const signal = runManager.start(payload.runId, payload.sessionId);
     const onDestroyed = () => {
       runManager.cancel(payload.runId);
     };
@@ -79,6 +106,28 @@ export function registerAgentIpc(agentService: AgentRuntime) {
     return { runId: payload.runId };
   });
 
+  handleValidatedIpc(IPC_CHANNELS.agent.steer, AgentSteerArgsValidator, async (_event, payload: AgentSteerPayload) => {
+    const query = payload.query.trim();
+
+    if (!query) {
+      throw new Error('steer 内容不能为空');
+    }
+
+    const scope = requireActiveRun(runManager, payload.runId);
+    await agentService.steer({ ...scope, query, contextFilePaths: payload.contextFilePaths });
+    return { runId: payload.runId };
+  });
+
+  handleValidatedIpc(
+    IPC_CHANNELS.agent.clearPendingMessages,
+    AgentClearPendingMessagesArgsValidator,
+    async (_event, payload: AgentClearPendingMessagesPayload) => {
+      const scope = requireActiveRun(runManager, payload.runId);
+      const queue = await agentService.clearPendingMessages(scope);
+      return { runId: payload.runId, queue };
+    }
+  );
+
   handleValidatedIpc(IPC_CHANNELS.agent.cancel, AgentCancelArgsValidator, (_event, runId: string) => {
     runManager.cancel(runId);
     return { runId };
@@ -90,13 +139,12 @@ export function registerAgentIpc(agentService: AgentRuntime) {
    */
   async function streamAgentToRenderer(webContents: WebContents, payload: AgentStartPayload, signal: AbortSignal) {
     try {
-      if (!payload.sessionId) {
-        throw new Error('缺少 sessionId：Agent 流式执行需要绑定具体会话');
-      }
+      // start handler 已同步校验 sessionId；此处使用收窄后的值构造 Runtime 参数。
+      const sessionId = payload.sessionId!;
 
       for await (const message of agentService.stream({
         query: payload.query,
-        sessionId: payload.sessionId,
+        sessionId,
         branchFromEntryId: payload.branchFromEntryId,
         contextFilePaths: payload.contextFilePaths,
         reuseUserEntryId: payload.reuseUserEntryId,

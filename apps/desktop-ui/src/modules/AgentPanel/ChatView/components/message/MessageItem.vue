@@ -107,8 +107,16 @@ const stopNotice = computed(() => {
 
   return '';
 });
+/** 汇总临时交付状态、时间和用量，供消息底部统一展示。 */
 const messageMeta = computed(() => {
   const parts: string[] = [];
+
+  if (props.displayMessage.deliveryState === 'submitting') {
+    parts.push('发送中');
+  } else if (props.displayMessage.deliveryState === 'queued') {
+    parts.push('待处理');
+  }
+
   const time = formatMessageTime(message.value.timestamp);
 
   if (time) {
@@ -155,13 +163,18 @@ const showAssistantError = computed(() =>
   )
 );
 const showActions = computed(() => isRenderable.value);
-// 带附件的用户消息只有获得持久化 entryId 后才能编辑，否则无法让主进程安全复用原图。
-const canEdit = computed(
-  () =>
+// queued 编辑会整体恢复 SDK 队列，因此忙碌期间可用；其他附件消息仍需持久化 entryId。
+const canEdit = computed(() => {
+  if (props.displayMessage.deliveryState) {
+    return props.displayMessage.deliveryState === 'queued' && message.value.role === 'user';
+  }
+
+  return (
     !props.isBusy &&
     message.value.role === 'user' &&
     (!hasUserAttachments(message.value) || Boolean(props.displayMessage.entryId))
-);
+  );
+});
 const canRegenerate = computed(
   () => !props.isBusy && message.value.role === 'assistant' && !message.value.partial && !message.value.retry
 );
