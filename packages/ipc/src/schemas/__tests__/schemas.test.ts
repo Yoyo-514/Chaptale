@@ -184,27 +184,37 @@ describe('IPC 参数 Schema', () => {
     expect(UpdateCustomModelInputArgsValidator.Check([{ provider: '', modelId: '', input: ['audio'] }])).toBe(false);
   });
 
-  it('校验任务运行参数：拒绝空 personaId 与额外字段，允许空 text（由附件兜底）', () => {
-    expect(TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '正文' }])).toBe(true);
+  it('校验任务运行参数：要求 requestId，拒绝空 personaId 与额外字段，允许空 text（由附件兜底）', () => {
     expect(
       TaskRunArgsValidator.Check([
-        { personaId: 'continuity-reviewer', brief: '审查', text: '', contextFilePaths: ['/a.md'] }
+        { requestId: 'req-1', personaId: 'continuity-reviewer', brief: '审查', text: '正文' }
       ])
     ).toBe(true);
-    expect(TaskRunArgsValidator.Check([{ personaId: '', brief: '审查', text: '正文' }])).toBe(false);
     expect(
-      TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '正文', extra: 1 }])
+      TaskRunArgsValidator.Check([
+        { requestId: 'req-1', personaId: 'continuity-reviewer', brief: '审查', text: '', contextFilePaths: ['/a.md'] }
+      ])
+    ).toBe(true);
+    expect(TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '正文' }])).toBe(false);
+    expect(TaskRunArgsValidator.Check([{ requestId: 'req-1', personaId: '', brief: '审查', text: '正文' }])).toBe(
+      false
+    );
+    expect(
+      TaskRunArgsValidator.Check([
+        { requestId: 'req-1', personaId: 'continuity-reviewer', brief: '审查', text: '正文', extra: 1 }
+      ])
     ).toBe(false);
     expect(
       TaskRunArgsValidator.Check([
-        { personaId: 'continuity-reviewer', brief: '审查', text: 'x', contextFilePaths: 'no' }
+        { requestId: 'req-1', personaId: 'continuity-reviewer', brief: '审查', text: 'x', contextFilePaths: 'no' }
       ])
     ).toBe(false);
   });
 
   it('校验任务取消与运行列表参数', () => {
-    expect(TaskCancelArgsValidator.Check([{ runId: 'r1' }])).toBe(true);
-    expect(TaskCancelArgsValidator.Check([{ runId: '' }])).toBe(false);
+    expect(TaskCancelArgsValidator.Check([{ requestId: 'req-1' }])).toBe(true);
+    expect(TaskCancelArgsValidator.Check([{ requestId: '' }])).toBe(false);
+    expect(TaskCancelArgsValidator.Check([{ runId: 'r1' }])).toBe(false);
 
     expect(TaskListRunsArgsValidator.Check([{}])).toBe(true);
     expect(TaskListRunsArgsValidator.Check([{ limit: 10, personaId: 'p' }])).toBe(true);

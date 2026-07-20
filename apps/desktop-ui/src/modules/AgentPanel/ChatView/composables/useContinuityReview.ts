@@ -8,6 +8,9 @@ export type ReviewStatus = 'idle' | 'running' | 'done' | 'failed' | 'cancelled';
 
 export type ContinuityReviewState = {
   status: ReviewStatus;
+  /** 本次请求的取消路由键（renderer 预生成）。 */
+  requestId: string | null;
+  /** 落盘记录的 runId（main 生成，完成后回传）。 */
   runId: string | null;
   issues: ContinuityIssues['issues'];
   summary: string;
@@ -26,6 +29,7 @@ export type ContinuityReviewState = {
 export function useContinuityReview(getText: () => string, getContextFilePaths: () => string[]) {
   const state = reactive<ContinuityReviewState>({
     status: 'idle',
+    requestId: null,
     runId: null,
     issues: [],
     summary: '',
@@ -35,6 +39,7 @@ export function useContinuityReview(getText: () => string, getContextFilePaths: 
 
   function reset() {
     state.status = 'idle';
+    state.requestId = null;
     state.runId = null;
     state.issues = [];
     state.summary = '';
@@ -57,9 +62,12 @@ export function useContinuityReview(getText: () => string, getContextFilePaths: 
 
     reset();
     state.status = 'running';
+    // 取消路由键必须在 invoke 前就位：run 是 await 式 IPC，运行期间拿不到 main 生成的 runId。
+    state.requestId = crypto.randomUUID();
 
     try {
       const result = await getDesktopApi().tasks.run({
+        requestId: state.requestId,
         personaId: 'continuity-reviewer',
         brief: '审查以下文本的连贯性问题',
         text,
@@ -92,11 +100,11 @@ export function useContinuityReview(getText: () => string, getContextFilePaths: 
   }
 
   async function cancel() {
-    if (state.status !== 'running' || !state.runId) {
+    if (state.status !== 'running' || !state.requestId) {
       return;
     }
 
-    await getDesktopApi().tasks.cancel(state.runId);
+    await getDesktopApi().tasks.cancel(state.requestId);
   }
 
   return { state, start, cancel, dismiss: reset };

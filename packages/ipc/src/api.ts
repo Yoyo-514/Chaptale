@@ -117,7 +117,8 @@ export type ChaptaleDesktopApi = {
   };
   tasks: {
     run: (payload: TaskRunPayload) => Promise<TaskRunCompleteEvent>;
-    cancel: (runId: string) => Promise<void>;
+    /** 取消运行中的任务；键为发起时预生成的 requestId。 */
+    cancel: (requestId: string) => Promise<void>;
     listRuns: (payload?: AgentRunsListPayload) => Promise<unknown>;
   };
   todos: {
