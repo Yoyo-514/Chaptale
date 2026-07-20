@@ -6,6 +6,7 @@ export * from './models';
 export * from './prompt-settings';
 export * from './schemas';
 export * from './session';
+export * from './tasks';
 export * from './settings';
 export * from './slash-command';
 export * from './window';

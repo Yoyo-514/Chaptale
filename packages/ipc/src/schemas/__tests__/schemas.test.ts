@@ -23,6 +23,9 @@ import {
   SetDefaultModelArgsValidator,
   SetProviderApiKeyArgsValidator,
   SetSessionLeafArgsValidator,
+  TaskCancelArgsValidator,
+  TaskListRunsArgsValidator,
+  TaskRunArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
   UpdatePiWebAccessSettingsArgsValidator,
@@ -178,5 +181,24 @@ describe('IPC 参数 Schema', () => {
     expectStrictObject(RemoveProviderAuthArgsValidator, { provider: '' });
 
     expect(UpdateCustomModelInputArgsValidator.Check([{ provider: '', modelId: '', input: ['audio'] }])).toBe(false);
+  });
+
+  it('校验任务运行参数：拒绝空 personaId、空正文与额外字段', () => {
+    expect(TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '正文' }])).toBe(true);
+    expect(TaskRunArgsValidator.Check([{ personaId: '', brief: '审查', text: '正文' }])).toBe(false);
+    expect(TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '' }])).toBe(false);
+    expect(
+      TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '正文', extra: 1 }])
+    ).toBe(false);
+  });
+
+  it('校验任务取消与运行列表参数', () => {
+    expect(TaskCancelArgsValidator.Check([{ runId: 'r1' }])).toBe(true);
+    expect(TaskCancelArgsValidator.Check([{ runId: '' }])).toBe(false);
+
+    expect(TaskListRunsArgsValidator.Check([{}])).toBe(true);
+    expect(TaskListRunsArgsValidator.Check([{ limit: 10, personaId: 'p' }])).toBe(true);
+    expect(TaskListRunsArgsValidator.Check([{ limit: 0 }])).toBe(false);
+    expect(TaskListRunsArgsValidator.Check([{ limit: 1.5 }])).toBe(false);
   });
 });

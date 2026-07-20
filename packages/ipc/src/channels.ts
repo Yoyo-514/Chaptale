@@ -37,6 +37,11 @@ export const IPC_CHANNELS = {
     getState: 'prompt-settings:get-state',
     update: 'prompt-settings:update'
   },
+  tasks: {
+    run: 'tasks:run',
+    cancel: 'tasks:cancel',
+    listRuns: 'tasks:list-runs'
+  },
   slashCommands: {
     list: 'slash-commands:list'
   },

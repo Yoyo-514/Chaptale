@@ -8,6 +8,7 @@ import { createModelsApi } from './api/models';
 import { createPromptSettingsApi } from './api/prompts';
 import { createSessionApi } from './api/sessions';
 import { createSettingsApi } from './api/settings';
+import { createTasksApi } from './api/tasks';
 import { createWindowControlApi } from './api/window';
 
 const desktopApi: ChaptaleDesktopApi = {
@@ -18,7 +19,8 @@ const desktopApi: ChaptaleDesktopApi = {
   promptSettings: createPromptSettingsApi(),
   slashCommands: createSlashCommandsApi(),
   models: createModelsApi(),
-  agent: createAgentApi()
+  agent: createAgentApi(),
+  tasks: createTasksApi()
 };
 
 contextBridge.exposeInMainWorld('chaptaleDesktop', desktopApi);

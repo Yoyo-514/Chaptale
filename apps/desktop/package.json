@@ -26,7 +26,8 @@
     "@earendil-works/pi-coding-agent": "catalog:",
     "klona": "catalog:",
     "pi-web-access": "catalog:",
-    "radash": "catalog:"
+    "radash": "catalog:",
+    "typebox": "catalog:"
   },
   "devDependencies": {
     "@iconify-json/mingcute": "catalog:",

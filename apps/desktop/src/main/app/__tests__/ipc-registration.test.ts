@@ -22,6 +22,9 @@ import {
   SetDefaultModelArgsValidator,
   SetProviderApiKeyArgsValidator,
   SetSessionLeafArgsValidator,
+  TaskCancelArgsValidator,
+  TaskListRunsArgsValidator,
+  TaskRunArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
   UpdatePiWebAccessSettingsArgsValidator,
@@ -112,6 +115,10 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.agent.cancel, AgentCancelArgsValidator),
 
   trusted(IPC_CHANNELS.slashCommands.list),
+
+  validated(IPC_CHANNELS.tasks.run, TaskRunArgsValidator),
+  validated(IPC_CHANNELS.tasks.cancel, TaskCancelArgsValidator),
+  validated(IPC_CHANNELS.tasks.listRuns, TaskListRunsArgsValidator),
 
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),

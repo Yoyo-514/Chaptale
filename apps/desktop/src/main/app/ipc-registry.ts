@@ -5,6 +5,7 @@ import { registerModelsIpc } from '../modules/models/ipc';
 import { registerPromptSettingsIpc } from '../modules/prompts/ipc';
 import { registerSessionIpc } from '../modules/sessions/ipc';
 import { registerSettingsIpc } from '../modules/settings/ipc';
+import { registerTaskIpc } from '../modules/tasks/ipc';
 import { registerWindowIpc } from '../modules/window/ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
 import type { AppContext } from './app-context';
@@ -32,5 +33,6 @@ export function registerApplicationIpc(context: AppContext): void {
   registerModelsIpc(context.modelService);
   registerAgentIpc(context.agentRuntime);
   registerSlashCommandIpc(context.commandService);
+  registerTaskIpc(context.taskService, context.runStore);
   registerWindowIpc();
 }

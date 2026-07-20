@@ -39,6 +39,7 @@ import type {
   UpdatePiWebAccessSettingsPayload
 } from './settings';
 import type { SlashCommand } from './slash-command';
+import type { TaskRunPayload, TaskRunCompleteEvent, AgentRunsListPayload } from './tasks';
 import type { WindowStateResult } from './window';
 
 /**
@@ -112,5 +113,10 @@ export type ChaptaleDesktopApi = {
     /** 清空指定活跃运行尚未消费的消息。 */
     clearPendingMessages: (runId: string) => Promise<AgentQueueClearResult>;
     cancel: (runId: string) => Promise<AgentRunResult>;
+  };
+  tasks: {
+    run: (payload: TaskRunPayload) => Promise<TaskRunCompleteEvent>;
+    cancel: (runId: string) => Promise<void>;
+    listRuns: (payload?: AgentRunsListPayload) => Promise<unknown>;
   };
 };
