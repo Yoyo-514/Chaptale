@@ -81,13 +81,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       />
 
       <template v-else>
-        <TodoProgressCard
-          v-if="todoProgress.visible.value"
-          :items="todoProgress.items.value"
-          :total="todoProgress.total.value"
-          :completed-count="todoProgress.completedCount.value"
-        />
-
         <ChatSearchBar
           v-model:query="search.query.value"
           :open="search.isOpen.value"
@@ -128,6 +121,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
     </section>
 
     <ReviewResultCard :state="review.state" @cancel="review.cancel" @dismiss="review.dismiss" />
+
+    <TodoProgressCard
+      v-if="todoProgress.visible.value"
+      class="chat-todo-progress"
+      :items="todoProgress.items.value"
+      :total="todoProgress.total.value"
+      :completed-count="todoProgress.completedCount.value"
+    />
 
     <ChatInputBox
       v-model="chat.state.input"
@@ -171,5 +172,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
   @apply absolute right-4 top-0 z-$z-local-overlay;
 
   background: var(--surface-acrylic-strong);
+}
+
+.chat-todo-progress {
+  // 宽度对齐输入框，紧贴其上方。
+  @apply mx-auto mb-2 w-full md:w-3xl;
 }
 </style>
