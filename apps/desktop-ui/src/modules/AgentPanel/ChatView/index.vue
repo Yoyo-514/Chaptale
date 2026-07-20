@@ -9,11 +9,16 @@ import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
 import ReviewResultCard from './components/ReviewResultCard.vue';
+import TodoProgressCard from './components/TodoProgressCard.vue';
 import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
 import { useContinuityReview } from './composables/useContinuityReview';
+import { useTodoProgress } from './composables/useTodoProgress';
+import { useSessionStore } from '@/stores/session';
 
 const chat = useChatController();
+const sessionStore = useSessionStore();
+const todoProgress = useTodoProgress(() => sessionStore.currentSessionId);
 const review = useContinuityReview(
   () => chat.state.input,
   () => chat.state.contextFiles.map(file => file.path)
@@ -76,6 +81,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       />
 
       <template v-else>
+        <TodoProgressCard
+          v-if="todoProgress.visible.value"
+          :items="todoProgress.items.value"
+          :total="todoProgress.total.value"
+          :completed-count="todoProgress.completedCount.value"
+        />
+
         <ChatSearchBar
           v-model:query="search.query.value"
           :open="search.isOpen.value"

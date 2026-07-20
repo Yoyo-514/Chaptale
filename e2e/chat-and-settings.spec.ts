@@ -150,6 +150,10 @@ async function installDesktopMock(page: Page) {
           }
         ]
       },
+      todos: {
+        get: async () => [],
+        onUpdated: () => () => undefined
+      },
       models: {
         list: async () => ({ providers: [], models: [], defaultModel: undefined }),
         setDefault: async () => ({ providers: [], models: [], defaultModel: undefined }),
