@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import type { TodoItem } from '@chaptale/shared';
 
@@ -10,6 +10,17 @@ const props = defineProps<{
 }>();
 
 const collapsed = ref(false);
+
+// 全部完成后自动折叠成一行；新写入含未完成项的清单时自动展开。
+const allDone = computed(() => props.total > 0 && props.completedCount === props.total);
+watch(allDone, done => {
+  collapsed.value = done;
+});
+
+/** 进行中项显示进行时文案（activeForm），其余显示原始描述。 */
+function itemLabel(item: TodoItem): string {
+  return item.status === 'in_progress' ? (item.activeForm ?? item.content) : item.content;
+}
 
 const statusMeta: Record<TodoItem['status'], { icon: string; className: string }> = {
   completed: { icon: 'i-mingcute-check-circle-fill', className: 'todo-item-completed' },
@@ -31,7 +42,7 @@ const statusMeta: Record<TodoItem['status'], { icon: string; className: string }
     <ul v-show="!collapsed" class="todo-list">
       <li v-for="item in props.items" :key="item.id" class="todo-item" :class="statusMeta[item.status].className">
         <span :class="['size-4 shrink-0', statusMeta[item.status].icon]" aria-hidden="true" />
-        <span class="todo-item-content">{{ item.content }}</span>
+        <span class="todo-item-content">{{ itemLabel(item) }}</span>
       </li>
     </ul>
   </section>

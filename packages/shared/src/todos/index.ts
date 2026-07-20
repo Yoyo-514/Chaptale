@@ -5,11 +5,13 @@ export const todoStatuses = ['pending', 'in_progress', 'completed'] as const;
 
 export type TodoStatus = (typeof todoStatuses)[number];
 
-/** 单条 todo 项；id 由模型给定且在整表替换间保持稳定，content 是一句可执行描述。 */
+/** 单条 todo 项；id 由模型给定且在更新间保持稳定，content 是一句可执行描述。 */
 export const TodoItemSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
     content: Type.String({ minLength: 1 }),
+    /** 进行中时的展示文案（如“正在写第三章大纲”）；缺省回退 content。 */
+    activeForm: Type.Optional(Type.String({ minLength: 1 })),
     status: Type.Union([Type.Literal('pending'), Type.Literal('in_progress'), Type.Literal('completed')])
   },
   { additionalProperties: false }

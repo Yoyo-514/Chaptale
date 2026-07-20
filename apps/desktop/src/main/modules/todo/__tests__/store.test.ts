@@ -20,6 +20,39 @@ const items: TodoItem[] = [
 ];
 
 describe('TodoStore', () => {
+  it('serializes concurrent mutations so none of them is lost', async () => {
+    const { store } = createStore();
+
+    await Promise.all([
+      store.mutate('s1', current => [...current, { id: 'a', content: 'A', status: 'pending' as const }]),
+      store.mutate('s1', current => [...current, { id: 'b', content: 'B', status: 'pending' as const }])
+    ]);
+
+    const result = await store.read('s1');
+    expect(result.map(item => item.id).toSorted()).toEqual(['a', 'b']);
+  });
+
+  it('does not write or notify when the mutator throws, and keeps the queue alive', async () => {
+    const { store } = createStore();
+    const listener = vi.fn();
+    store.onChange(listener);
+    await store.replace('s1', items);
+    listener.mockClear();
+
+    await expect(
+      store.mutate('s1', () => {
+        throw new Error('校验失败');
+      })
+    ).rejects.toThrow('校验失败');
+
+    expect(listener).not.toHaveBeenCalled();
+    await expect(store.read('s1')).resolves.toEqual(items);
+
+    // 队列不因单次失败而阻断。
+    await store.replace('s1', []);
+    await expect(store.read('s1')).resolves.toEqual([]);
+  });
+
   it('returns an empty list when no file exists', async () => {
     const { store } = createStore();
 
