@@ -8,10 +8,16 @@ import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
+import ReviewResultCard from './components/ReviewResultCard.vue';
 import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
+import { useContinuityReview } from './composables/useContinuityReview';
 
 const chat = useChatController();
+const review = useContinuityReview(
+  () => chat.state.input,
+  () => chat.state.contextFiles.map(file => file.path)
+);
 const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
 const search = useChatSearch(() => chat.state.messages);
 const searchHit = computed(() => (search.isOpen.value ? search.activeMatch.value : undefined));
@@ -109,6 +115,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       </template>
     </section>
 
+    <ReviewResultCard :state="review.state" @cancel="review.cancel" @dismiss="review.dismiss" />
+
     <ChatInputBox
       v-model="chat.state.input"
       :is-connecting="chat.state.isConnecting"
@@ -125,6 +133,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       @drop-context-files="chat.handleDropContextFiles"
       @remove-context-file="chat.handleRemoveContextFile"
       @open-settings="chat.handleOpenSettings"
+      @run-review="review.start"
     />
   </main>
 </template>

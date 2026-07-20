@@ -14,6 +14,8 @@ export type TaskRunRequest = {
   brief: string;
   /** 待处理文本（粘贴或上传的正文）。 */
   text: string;
+  /** 附件解析出的上下文信封（attached_context_files），原样嵌入提示词。 */
+  contextPrompt?: string;
   trigger: AgentRunTrigger;
   parentSessionId?: string;
   signal?: AbortSignal;
@@ -61,7 +63,6 @@ export class TaskRunner {
       }
 
       const outcome = await this.promptWithRepair(session, request, schemaId);
-
       if (request.signal?.aborted) {
         await this.record(runId, request, spec, createdAt, 'cancelled', session);
         return { status: 'cancelled', runId };
@@ -88,7 +89,7 @@ export class TaskRunner {
     request: TaskRunRequest,
     schemaId: string
   ): Promise<{ ok: true; value: unknown; rawText: string } | { ok: false; errors: string[]; rawText: string }> {
-    let promptText = renderTaskPrompt(request.brief, request.text);
+    let promptText = renderTaskPrompt(request.brief, request.text, request.contextPrompt);
     let rawText = '';
     let errors: string[] = [];
 
@@ -157,12 +158,14 @@ function escapeXmlText(text: string): string {
   return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-/** 渲染任务提示词：简报 + 待处理正文，各自装入独立信封。 */
-export function renderTaskPrompt(brief: string, text: string): string {
+/** 渲染任务提示词：简报 + 可选附件信封 + 待处理正文，各自装入独立段落。 */
+export function renderTaskPrompt(brief: string, text: string, contextPrompt?: string): string {
   return [
     '<task_brief>',
     escapeXmlText(brief.trim()),
     '</task_brief>',
+    // 附件信封由 ContextFileService 生成，已是规范 XML，不再转义。
+    ...(contextPrompt ? ['', contextPrompt.trim()] : []),
     '',
     '<task_input>',
     escapeXmlText(text),

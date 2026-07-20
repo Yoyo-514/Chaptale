@@ -11,7 +11,7 @@ import type { AgentRunStore } from '../runs/store';
 
 export function registerTaskIpc(taskService: TaskService, runStore: AgentRunStore): void {
   handleValidatedIpc(IPC_CHANNELS.tasks.run, TaskRunArgsValidator, async (_event, payload) => {
-    const handle = await taskService.start(payload.personaId, payload.brief, payload.text);
+    const handle = await taskService.start(payload.personaId, payload.brief, payload.text, payload.contextFilePaths);
 
     // 审查类任务是短任务，直接 await 结果随 invoke 返回；
     // 未来长任务需要进度推送时，再改为 runId + 事件通道模式。

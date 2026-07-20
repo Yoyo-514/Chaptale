@@ -171,4 +171,13 @@ describe('renderTaskPrompt', () => {
     expect(prompt).toContain('&amp;');
     expect(prompt.match(/<task_input>/g)).toHaveLength(1);
   });
+
+  it('embeds the context envelope unescaped between brief and input', () => {
+    const envelope = '<attached_context_files>\n<file path="/a.md">内容</file>\n</attached_context_files>';
+    const prompt = renderTaskPrompt('审查', '正文', envelope);
+
+    expect(prompt).toContain(envelope);
+    expect(prompt.indexOf('</task_brief>')).toBeLessThan(prompt.indexOf('<attached_context_files>'));
+    expect(prompt.indexOf('</attached_context_files>')).toBeLessThan(prompt.indexOf('<task_input>'));
+  });
 });

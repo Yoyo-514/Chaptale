@@ -183,12 +183,21 @@ describe('IPC 参数 Schema', () => {
     expect(UpdateCustomModelInputArgsValidator.Check([{ provider: '', modelId: '', input: ['audio'] }])).toBe(false);
   });
 
-  it('校验任务运行参数：拒绝空 personaId、空正文与额外字段', () => {
+  it('校验任务运行参数：拒绝空 personaId 与额外字段，允许空 text（由附件兜底）', () => {
     expect(TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '正文' }])).toBe(true);
+    expect(
+      TaskRunArgsValidator.Check([
+        { personaId: 'continuity-reviewer', brief: '审查', text: '', contextFilePaths: ['/a.md'] }
+      ])
+    ).toBe(true);
     expect(TaskRunArgsValidator.Check([{ personaId: '', brief: '审查', text: '正文' }])).toBe(false);
-    expect(TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '' }])).toBe(false);
     expect(
       TaskRunArgsValidator.Check([{ personaId: 'continuity-reviewer', brief: '审查', text: '正文', extra: 1 }])
+    ).toBe(false);
+    expect(
+      TaskRunArgsValidator.Check([
+        { personaId: 'continuity-reviewer', brief: '审查', text: 'x', contextFilePaths: 'no' }
+      ])
     ).toBe(false);
   });
 

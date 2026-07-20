@@ -10,6 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggleWebSearch: [];
   addContextFiles: [];
+  runReview: [];
 }>();
 </script>
 
@@ -32,6 +33,12 @@ const emit = defineEmits<{
       <AppButton variant="ghost" size="xs" type="button" @click="emit('addContextFiles')">
         <span class="i-mingcute-attachment-line size-4" aria-hidden="true" />
         <span>{{ props.contextFileCount > 0 ? `${props.contextFileCount} 个文件` : '添加文件' }}</span>
+      </AppButton>
+    </AppTooltip>
+    <AppTooltip text="对当前输入或附件的文本做连贯性审查" side="bottom">
+      <AppButton variant="ghost" size="xs" type="button" @click="emit('runReview')">
+        <span class="i-mingcute-eye-line size-4" aria-hidden="true" />
+        <span>审查连贯性</span>
       </AppButton>
     </AppTooltip>
   </div>

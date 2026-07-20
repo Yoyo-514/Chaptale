@@ -1,12 +1,13 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
-/** tasks.run 的运行时参数边界；拒绝额外字段，防止 Renderer 传递未公开选项。 */
+/** tasks.run 的运行时参数边界；text 允许为空字符串，但 main 层要求 text 与附件至少其一非空。 */
 export const TaskRunPayloadSchema = Type.Object(
   {
     personaId: Type.String({ minLength: 1 }),
     brief: Type.String(),
-    text: Type.String({ minLength: 1 })
+    text: Type.String(),
+    contextFilePaths: Type.Optional(Type.Array(Type.String()))
   },
   { additionalProperties: false }
 );

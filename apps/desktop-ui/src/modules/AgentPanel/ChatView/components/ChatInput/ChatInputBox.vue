@@ -30,6 +30,7 @@ const emit = defineEmits<{
   dropContextFiles: [files: File[]];
   removeContextFile: [path: string];
   openSettings: [section: 'workspace' | 'llm'];
+  runReview: [];
 }>();
 
 const isDragOver = ref(false);
@@ -112,6 +113,7 @@ function handleDrop(event: DragEvent) {
         :context-file-count="props.contextFiles.length"
         @toggle-web-search="emit('toggleWebSearch')"
         @add-context-files="emit('addContextFiles')"
+        @run-review="emit('runReview')"
       />
 
       <div v-if="isDragOver" class="chat-drop-overlay">
