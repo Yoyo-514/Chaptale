@@ -29,7 +29,12 @@ export function useTodoProgress(getSessionId: () => string) {
       return;
     }
 
-    items.value = await getDesktopApi().todos.get(sessionId);
+    const fetched = await getDesktopApi().todos.get(sessionId);
+
+    // 等待响应期间会话可能已切换，晚到的旧响应不落地。
+    if (getSessionId() === sessionId) {
+      items.value = fetched;
+    }
   }
 
   watch(getSessionId, () => void refresh(), { immediate: true });

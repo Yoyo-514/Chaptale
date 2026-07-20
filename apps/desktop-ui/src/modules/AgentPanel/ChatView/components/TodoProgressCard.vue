@@ -13,7 +13,7 @@ const collapsed = ref(false);
 
 const statusMeta: Record<TodoItem['status'], { icon: string; className: string }> = {
   completed: { icon: 'i-mingcute-check-circle-fill', className: 'todo-item-completed' },
-  in_progress: { icon: 'i-mingcute-loading-3-line', className: 'todo-item-current' },
+  in_progress: { icon: 'i-mingcute-loading-3-line animate-spin', className: 'todo-item-current' },
   pending: { icon: 'i-mingcute-round-line', className: 'todo-item-pending' }
 };
 </script>

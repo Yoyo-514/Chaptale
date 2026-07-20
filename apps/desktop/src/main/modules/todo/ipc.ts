@@ -20,8 +20,14 @@ export function registerTodoIpc(todoStore: TodoStore): void {
     const event: TodosUpdatedEvent = { sessionId, items };
 
     for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.webContents.isDestroyed()) {
+      if (window.webContents.isDestroyed()) {
+        continue;
+      }
+
+      try {
         window.webContents.send(IPC_CHANNELS.todos.updated, event);
+      } catch {
+        // isDestroyed 检查与 send 之间存在窗口销毁竞态；推送失败不得连带 todo_write 工具执行失败。
       }
     }
   });
