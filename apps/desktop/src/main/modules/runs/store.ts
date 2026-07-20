@@ -4,8 +4,8 @@ import path from 'node:path';
 import type { AgentRunRecord } from './record';
 
 export type AgentRunStoreOptions = {
-  /** workspace 根目录（作品文件夹）；所有落盘路径以此为基。 */
-  cwd: string;
+  /** 解析当前 workspace 根目录（作品文件夹）；每次落盘/读取时求值，跟随工作区切换。 */
+  resolveCwd: () => Promise<string> | string;
 };
 
 export type AgentRunListOptions = {
@@ -41,7 +41,7 @@ export class AgentRunStore {
 
   /** 追加一条终态记录；目录不存在则惰性创建。 */
   async append(record: AgentRunRecord): Promise<void> {
-    const filePath = this.resolveMonthFile(record.createdAt);
+    const filePath = this.resolveMonthFile(await this.options.resolveCwd(), record.createdAt);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.appendFile(filePath, `${JSON.stringify(record)}\n`, 'utf8');
   }
@@ -49,7 +49,7 @@ export class AgentRunStore {
   /** 落盘输出体，返回相对 workspace 的引用路径（存进记录的 outputRef）。 */
   async saveOutput(runId: string, rawText: string): Promise<string> {
     const relativePath = path.join('.chaptale', 'runs', 'outputs', `${runId}.json`);
-    const filePath = path.join(this.options.cwd, relativePath);
+    const filePath = path.join(await this.options.resolveCwd(), relativePath);
 
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, `${JSON.stringify({ runId, rawText }, null, 2)}\n`, 'utf8');
@@ -60,11 +60,15 @@ export class AgentRunStore {
 
   /** 倒序列出最近的记录（当月 + 上月），坏行跳过并计入 diagnostics。 */
   async list(options: AgentRunListOptions = {}): Promise<AgentRunListResult> {
+    const cwd = await this.options.resolveCwd();
     const now = new Date();
     const previousMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
 
     // 先上月后当月，保持行序即时间序（同文件内追加写天然有序）。
-    const filePaths = [this.resolveMonthFile(previousMonth.toISOString()), this.resolveMonthFile(now.toISOString())];
+    const filePaths = [
+      this.resolveMonthFile(cwd, previousMonth.toISOString()),
+      this.resolveMonthFile(cwd, now.toISOString())
+    ];
 
     const records: AgentRunRecord[] = [];
     const diagnostics: AgentRunDiagnostic[] = [];
@@ -115,10 +119,10 @@ export class AgentRunStore {
   }
 
   /** 由 ISO 时间串定位月份文件路径（UTC 月份，与 toISOString 一致）。 */
-  private resolveMonthFile(createdAt: string): string {
+  private resolveMonthFile(cwd: string, createdAt: string): string {
     // ISO 8601 前 7 位即 YYYY-MM，避免时区换算引入歧义。
     const yearMonth = createdAt.slice(0, 7);
-    return path.join(this.options.cwd, '.chaptale', 'runs', `agent-runs-${yearMonth}.jsonl`);
+    return path.join(cwd, '.chaptale', 'runs', `agent-runs-${yearMonth}.jsonl`);
   }
 }
 

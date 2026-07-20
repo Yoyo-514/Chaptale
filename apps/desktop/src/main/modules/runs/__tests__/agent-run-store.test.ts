@@ -40,7 +40,7 @@ describe('AgentRunStore', () => {
 
   beforeEach(async () => {
     cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'chaptale-runs-'));
-    store = new AgentRunStore({ cwd });
+    store = new AgentRunStore({ resolveCwd: () => cwd });
   });
 
   afterEach(async () => {

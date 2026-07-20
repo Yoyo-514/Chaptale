@@ -45,7 +45,8 @@ export function createAppContext(): AppContext {
     skillsProvider: agentRuntime.skillsProvider,
     todoStore: agentRuntime.todoStore
   });
-  const runStore = new AgentRunStore({ cwd: settingsService.rootDir });
+  // runs 归属工作区（<workspace>/.chaptale/runs）：审查历史是创作产物，随作品同步。
+  const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   const taskRunner = new TaskRunner(sessionFactory, runStore);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner });
 

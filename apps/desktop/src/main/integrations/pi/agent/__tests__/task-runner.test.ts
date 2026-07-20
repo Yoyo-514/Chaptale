@@ -43,7 +43,7 @@ describe('TaskRunner', () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(path.join(os.tmpdir(), 'chaptale-task-runner-'));
-    runStore = new AgentRunStore({ cwd });
+    runStore = new AgentRunStore({ resolveCwd: () => cwd });
   });
 
   afterEach(async () => {
