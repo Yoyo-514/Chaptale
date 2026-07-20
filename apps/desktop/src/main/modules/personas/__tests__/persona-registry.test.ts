@@ -68,7 +68,7 @@ describe('PersonaRegistry', () => {
 
     const { personas, diagnostics } = await createRegistry().load(cwd);
 
-    expect(personas.map(persona => persona.id).toSorted()).toEqual(['companion', 'good']);
+    expect(personas.map(persona => persona.id).toSorted()).toEqual(['companion', 'continuity-reviewer', 'good']);
     expect(diagnostics).toHaveLength(2);
     expect(diagnostics.every(diagnostic => diagnostic.source === 'user')).toBe(true);
   });

@@ -1,7 +1,8 @@
 import companionSource from './companion.md?raw';
+import continuityReviewerSource from './continuity-reviewer.md?raw';
 
 /** 构建期打进 bundle 的内置 persona 源文本；新增内置 persona 时在此登记。 */
-export const builtinPersonaSources: readonly string[] = [companionSource];
+export const builtinPersonaSources: readonly string[] = [companionSource, continuityReviewerSource];
 
 /**
  * 内置 companion 的正文，作为系统提示词的最终回退（例如用户用 enabled: false 停用了 companion）。
