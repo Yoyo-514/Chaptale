@@ -10,6 +10,7 @@ import { PromptFileService } from '../modules/prompts/file-service';
 import { AgentRunStore } from '../modules/runs/store';
 import { SettingsService } from '../modules/settings/service';
 import { TaskService } from '../modules/tasks/service';
+import type { TodoStore } from '../modules/todo/store';
 
 export type AppContext = {
   settingsService: SettingsService;
@@ -20,6 +21,7 @@ export type AppContext = {
   commandService: SlashCommandService;
   taskService: TaskService;
   runStore: AgentRunStore;
+  todoStore: TodoStore;
 };
 
 export function createAppContext(): AppContext {
@@ -40,7 +42,8 @@ export function createAppContext(): AppContext {
   const sessionFactory = new PiAgentSessionFactory({
     settingsService,
     modelService,
-    skillsProvider: agentRuntime.skillsProvider
+    skillsProvider: agentRuntime.skillsProvider,
+    todoStore: agentRuntime.todoStore
   });
   const runStore = new AgentRunStore({ cwd: settingsService.rootDir });
   const taskRunner = new TaskRunner(sessionFactory, runStore);
@@ -54,6 +57,7 @@ export function createAppContext(): AppContext {
     promptFileService,
     commandService,
     taskService,
-    runStore
+    runStore,
+    todoStore: agentRuntime.todoStore
   };
 }

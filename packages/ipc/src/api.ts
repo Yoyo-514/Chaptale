@@ -1,4 +1,4 @@
-import type { ChatContextFile, ChatMessage } from '@chaptale/shared';
+import type { ChatContextFile, ChatMessage, TodoItem } from '@chaptale/shared';
 import type {
   AgentQueueClearResult,
   AgentRunResult,
@@ -40,6 +40,7 @@ import type {
 } from './settings';
 import type { SlashCommand } from './slash-command';
 import type { TaskRunPayload, TaskRunCompleteEvent, AgentRunsListPayload } from './tasks';
+import type { TodosUpdatedEvent } from './todos';
 import type { WindowStateResult } from './window';
 
 /**
@@ -118,5 +119,11 @@ export type ChaptaleDesktopApi = {
     run: (payload: TaskRunPayload) => Promise<TaskRunCompleteEvent>;
     cancel: (runId: string) => Promise<void>;
     listRuns: (payload?: AgentRunsListPayload) => Promise<unknown>;
+  };
+  todos: {
+    /** 读取指定会话的 todo 清单；无清单时返回空表。 */
+    get: (sessionId: string) => Promise<TodoItem[]>;
+    /** 订阅清单变更（整表推送）；返回取消订阅函数。 */
+    onUpdated: (listener: (event: TodosUpdatedEvent) => void) => () => void;
   };
 };

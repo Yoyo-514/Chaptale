@@ -19,12 +19,14 @@ export type ComposeSystemPromptOptions = {
   productDuty?: string;
   /** memory 协议层内容。 */
   memoryProtocol?: string;
+  /** todo 协议层内容；仅挂载了 todo_write 工具的会话注入。 */
+  todoProtocol?: string;
 };
 
 export function composeSystemPrompt(options: ComposeSystemPromptOptions): string {
   const personaLayer = options.discoveredSystemMd?.trim() ? options.discoveredSystemMd : options.personaBody;
 
-  return [personaLayer, options.productDuty, options.memoryProtocol]
+  return [personaLayer, options.productDuty, options.memoryProtocol, options.todoProtocol]
     .map(layer => layer?.trim())
     .filter((layer): layer is string => Boolean(layer))
     .join('\n\n');

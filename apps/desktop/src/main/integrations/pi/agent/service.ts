@@ -19,6 +19,7 @@ import { flushSessionFile } from '../sessions/file';
 import { getPiUserEntrySnapshot } from '../sessions/user-entry-snapshot';
 import type { PiModelService } from '../models/service';
 import type { SettingsService } from '../../../modules/settings/service';
+import { TodoStore } from '../../../modules/todo/store';
 import { SkillsProvider } from '../skills/provider';
 import { AsyncMessageQueue } from './async-message-queue';
 import { mapAgentStreamEvent } from './event-mapper';
@@ -49,17 +50,21 @@ export class PiAgentService implements AgentRuntime {
   private readonly sessionFactory: PiAgentSessionFactory;
   private readonly memoryInjector: MemoryInjector;
   readonly skillsProvider: SkillsProvider;
+  /** 会话级 todo 存储；对外暴露供 IPC 层订阅变更与查询。 */
+  readonly todoStore: TodoStore;
 
   constructor(
     private readonly settingsService: SettingsService,
     private readonly modelService: PiModelService,
     private readonly imageAttachmentService = new ImageAttachmentService(),
     skillsProvider = new SkillsProvider(settingsService),
-    memoryInjector?: MemoryInjector
+    memoryInjector?: MemoryInjector,
+    todoStore = new TodoStore(settingsService.todosDir)
   ) {
     this.skillsProvider = skillsProvider;
+    this.todoStore = todoStore;
     this.memoryInjector = memoryInjector ?? createMemoryInjector(settingsService.rootDir);
-    this.sessionFactory = new PiAgentSessionFactory({ settingsService, modelService, skillsProvider });
+    this.sessionFactory = new PiAgentSessionFactory({ settingsService, modelService, skillsProvider, todoStore });
   }
 
   /** 会话目录/工作区切换后调用，丢弃缓存的 AgentSession与记忆注入去重记录。 */

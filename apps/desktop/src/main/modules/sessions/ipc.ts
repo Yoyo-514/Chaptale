@@ -26,7 +26,13 @@ import type {
 import type { SessionRepository } from './repository';
 
 /** 归属会话读写、导出与存储目录频道；IPC 层负责信任及参数结构校验，持久化语义交给仓储。 */
-export function registerSessionIpc(sessionRepository: SessionRepository) {
+export function registerSessionIpc(
+  sessionRepository: SessionRepository,
+  hooks: {
+    /** 会话删除后的清理钩子（如会话级 todo 清单）；失败不影响删除结果。 */
+    onSessionsDeleted?: (sessionIds: string[]) => void;
+  } = {}
+) {
   handleTrustedIpc(IPC_CHANNELS.session.list, () => sessionRepository.list());
 
   handleValidatedIpc(
@@ -59,14 +65,22 @@ export function registerSessionIpc(sessionRepository: SessionRepository) {
     (_event, payload: ExportSessionPayload) => exportSessionHtmlToFile(sessionRepository, payload.sessionId)
   );
 
-  handleValidatedIpc(IPC_CHANNELS.session.delete, DeleteSessionArgsValidator, (_event, payload: DeleteSessionPayload) =>
-    sessionRepository.delete(payload.sessionId)
+  handleValidatedIpc(
+    IPC_CHANNELS.session.delete,
+    DeleteSessionArgsValidator,
+    async (_event, payload: DeleteSessionPayload) => {
+      await sessionRepository.delete(payload.sessionId);
+      hooks.onSessionsDeleted?.([payload.sessionId]);
+    }
   );
 
   handleValidatedIpc(
     IPC_CHANNELS.session.deleteMany,
     DeleteSessionsArgsValidator,
-    (_event, payload: DeleteSessionsPayload) => sessionRepository.deleteMany(payload.sessionIds)
+    async (_event, payload: DeleteSessionsPayload) => {
+      await sessionRepository.deleteMany(payload.sessionIds);
+      hooks.onSessionsDeleted?.(payload.sessionIds);
+    }
   );
 
   handleValidatedIpc(

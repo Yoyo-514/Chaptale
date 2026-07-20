@@ -26,6 +26,7 @@ import {
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
   TaskRunArgsValidator,
+  TodosGetArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
   UpdatePiWebAccessSettingsArgsValidator,
@@ -209,5 +210,12 @@ describe('IPC 参数 Schema', () => {
     expect(TaskListRunsArgsValidator.Check([{ limit: 10, personaId: 'p' }])).toBe(true);
     expect(TaskListRunsArgsValidator.Check([{ limit: 0 }])).toBe(false);
     expect(TaskListRunsArgsValidator.Check([{ limit: 1.5 }])).toBe(false);
+  });
+
+  it('校验 todo 清单查询参数：仅接受非空 sessionId', () => {
+    expect(TodosGetArgsValidator.Check(['session-1'])).toBe(true);
+    expect(TodosGetArgsValidator.Check([''])).toBe(false);
+    expect(TodosGetArgsValidator.Check([])).toBe(false);
+    expect(TodosGetArgsValidator.Check([1])).toBe(false);
   });
 });

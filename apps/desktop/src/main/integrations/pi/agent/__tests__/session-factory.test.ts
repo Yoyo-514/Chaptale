@@ -80,7 +80,8 @@ describe('PiAgentSessionFactory', () => {
     const factory = new PiAgentSessionFactory({
       settingsService: settingsService as any,
       modelService: modelService as any,
-      skillsProvider: skillsProvider as any
+      skillsProvider: skillsProvider as any,
+      todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any
     });
 
     await expect(factory.create('session-1')).resolves.toBe(session);
@@ -124,7 +125,8 @@ describe('PiAgentSessionFactory', () => {
       const factory = new PiAgentSessionFactory({
         settingsService: settingsService as any,
         modelService: modelService as any,
-        skillsProvider: { load: vi.fn(() => ({ skills: [], diagnostics: [] })) } as any
+        skillsProvider: { load: vi.fn(() => ({ skills: [], diagnostics: [] })) } as any,
+        todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any
       });
 
       return { factory, session, settingsService };

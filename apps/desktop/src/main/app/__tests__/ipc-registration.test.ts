@@ -24,6 +24,7 @@ import {
   SetSessionLeafArgsValidator,
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
+  TodosGetArgsValidator,
   TaskRunArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
@@ -120,6 +121,8 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.tasks.cancel, TaskCancelArgsValidator),
   validated(IPC_CHANNELS.tasks.listRuns, TaskListRunsArgsValidator),
 
+  validated(IPC_CHANNELS.todos.get, TodosGetArgsValidator),
+
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),
   trusted(IPC_CHANNELS.window.close),
@@ -129,7 +132,8 @@ const expectedRegistrations: Registration[] = [
 const mainToRendererEvents = new Set<string>([
   IPC_CHANNELS.agent.message,
   IPC_CHANNELS.agent.done,
-  IPC_CHANNELS.agent.error
+  IPC_CHANNELS.agent.error,
+  IPC_CHANNELS.todos.updated
 ]);
 
 function createContext(): AppContext {
@@ -139,8 +143,9 @@ function createContext(): AppContext {
     modelService: {},
     agentRuntime: {},
     promptFileService: {},
-    commandService: {}
-  } as AppContext;
+    commandService: {},
+    todoStore: { onChange: () => () => undefined, remove: async () => undefined }
+  } as unknown as AppContext;
 }
 
 describe('renderer → main IPC 注册边界', () => {

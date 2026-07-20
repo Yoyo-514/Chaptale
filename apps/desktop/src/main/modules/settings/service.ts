@@ -31,6 +31,8 @@ export class SettingsService {
   readonly sessionsRootDir: string;
   /** task 型子任务 session 目录；不在 sessionsRootDir 扫描范围，天然不进历史 UI。 */
   readonly taskSessionsDir: string;
+  /** 会话级 todo 清单存储目录；随会话删除一同清理。 */
+  readonly todosDir: string;
 
   // 串行化设置文件的读写，避免多个 IPC handler 并发读写造成竞态。
   private settingsQueue: Promise<unknown> = Promise.resolve();
@@ -48,6 +50,7 @@ export class SettingsService {
     this.piWebAccessConfigPath = path.join(this.agentDir, 'web-search.json');
     this.sessionsRootDir = path.join(this.agentDir, 'sessions');
     this.taskSessionsDir = path.join(this.agentDir, 'task-sessions');
+    this.todosDir = path.join(this.agentDir, 'todos');
   }
 
   async getState(): Promise<ChaptaleSettingsState> {

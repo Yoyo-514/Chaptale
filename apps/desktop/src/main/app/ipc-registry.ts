@@ -6,6 +6,7 @@ import { registerPromptSettingsIpc } from '../modules/prompts/ipc';
 import { registerSessionIpc } from '../modules/sessions/ipc';
 import { registerSettingsIpc } from '../modules/settings/ipc';
 import { registerTaskIpc } from '../modules/tasks/ipc';
+import { registerTodoIpc } from '../modules/todo/ipc';
 import { registerWindowIpc } from '../modules/window/ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
 import type { AppContext } from './app-context';
@@ -27,12 +28,19 @@ export function registerApplicationIpc(context: AppContext): void {
       }) satisfies AppPlatformResult
   );
 
-  registerSessionIpc(context.sessionRepository);
+  registerSessionIpc(context.sessionRepository, {
+    onSessionsDeleted: sessionIds => {
+      for (const sessionId of sessionIds) {
+        void context.todoStore.remove(sessionId).catch(() => undefined);
+      }
+    }
+  });
   registerSettingsIpc(context.settingsService, () => context.agentRuntime.invalidateSessions());
   registerPromptSettingsIpc(context.promptFileService, () => context.agentRuntime.invalidateSessions());
   registerModelsIpc(context.modelService);
   registerAgentIpc(context.agentRuntime);
   registerSlashCommandIpc(context.commandService);
   registerTaskIpc(context.taskService, context.runStore);
+  registerTodoIpc(context.todoStore);
   registerWindowIpc();
 }

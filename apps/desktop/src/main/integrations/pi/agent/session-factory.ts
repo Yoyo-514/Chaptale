@@ -18,10 +18,14 @@ import { builtinCompanionBody, builtinPersonaSources } from '../../../modules/pe
 import { PersonaRegistry } from '../../../modules/personas/registry';
 import type { TaskPersonaSpec } from '../../../modules/personas/task-spec';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
+import { TODO_PROTOCOL } from '../../../modules/todo/protocol';
+import type { TodoStore } from '../../../modules/todo/store';
+import { buildChatSessionTools } from '../../../modules/tools/tool-registry';
 import type { PiModelService } from '../models/service';
 import type { SettingsService } from '../../../modules/settings/service';
 import type { SkillsProvider } from '../skills/provider';
-import { getEnabledToolNames } from './tool-whitelist';
+import { toPiToolDefinition } from '../tools/adapter';
+import { getEnabledToolNames } from '../tools/tool-whitelist';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -29,6 +33,7 @@ export type PiAgentSessionFactoryOptions = {
   settingsService: SettingsService;
   modelService: PiModelService;
   skillsProvider: SkillsProvider;
+  todoStore: TodoStore;
   personaRegistry?: PersonaRegistry;
 };
 
@@ -59,7 +64,7 @@ export class PiAgentSessionFactory {
   }
 
   async create(sessionId: string): Promise<AgentSession> {
-    const { settingsService, modelService, skillsProvider } = this.options;
+    const { settingsService, modelService, skillsProvider, todoStore } = this.options;
     const target = await findSessionById(settingsService, sessionId);
 
     if (!target) {
@@ -96,9 +101,17 @@ export class PiAgentSessionFactory {
       // 分层拼装：SYSTEM.md 仅替换 persona 层，职责/协议层始终保留；
       // 拼装结果在会话生命周期内不变（缓存安全）；APPEND_SYSTEM.md 由 pi 原生追加。
       systemPromptOverride: discovered =>
-        composeSystemPrompt({ personaBody, discoveredSystemMd: discovered, memoryProtocol: MEMORY_PROTOCOL })
+        composeSystemPrompt({
+          personaBody,
+          discoveredSystemMd: discovered,
+          memoryProtocol: MEMORY_PROTOCOL,
+          todoProtocol: TODO_PROTOCOL
+        })
     });
     await resourceLoader.reload();
+
+    // 会话级自定义工具：sessionId 在此已知，直接闭包绑定，todo 清单随会话隔离。
+    const customTools = buildChatSessionTools({ todoStore, getSessionId: () => sessionId }).map(toPiToolDefinition);
 
     const { session } = await createAgentSession({
       cwd,
@@ -108,7 +121,9 @@ export class PiAgentSessionFactory {
       settingsManager,
       resourceLoader,
       // 创作场景：启用显式白名单工具。read/grep/find/ls/write/edit 用于工作区与文件能力；bash 暂不开放。
-      tools: getEnabledToolNames()
+      // 白名单为全量控制语义，自定义工具名需一并列入才会启用。
+      tools: [...getEnabledToolNames(), ...customTools.map(tool => tool.name)],
+      customTools
     });
 
     return session;

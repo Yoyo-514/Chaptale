@@ -21,14 +21,15 @@ describe('composeSystemPrompt', () => {
     expect(composeSystemPrompt({ personaBody: 'persona 正文', discoveredSystemMd: '  \n' })).toBe('persona 正文');
   });
 
-  it('joins layers in persona → duty → memory order and skips empty layers', () => {
+  it('joins layers in persona → duty → memory → todo order and skips empty layers', () => {
     const result = composeSystemPrompt({
       personaBody: 'persona',
       productDuty: '',
-      memoryProtocol: '记忆协议'
+      memoryProtocol: '记忆协议',
+      todoProtocol: '任务清单协议'
     });
 
-    expect(result).toBe('persona\n\n记忆协议');
+    expect(result).toBe('persona\n\n记忆协议\n\n任务清单协议');
   });
 
   it('is deterministic for identical inputs (prompt cache safety)', () => {

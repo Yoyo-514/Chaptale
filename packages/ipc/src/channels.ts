@@ -42,6 +42,10 @@ export const IPC_CHANNELS = {
     cancel: 'tasks:cancel',
     listRuns: 'tasks:list-runs'
   },
+  todos: {
+    get: 'todos:get',
+    updated: 'todos:updated'
+  },
   slashCommands: {
     list: 'slash-commands:list'
   },
