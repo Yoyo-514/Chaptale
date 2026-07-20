@@ -135,8 +135,9 @@ export class PiAgentSessionFactory {
    * 与主对话路径的差异：
    * - session 文件落在 taskSessionsDir（不在历史扫描范围）；
    * - 逐次新建不缓存，工具 schema 天然每次重算；
-   * - 系统提示词 = persona 正文 + memory 协议，不受用户 SYSTEM.md/APPEND_SYSTEM.md 与 skills 影响
+   * - 系统提示词仅含 persona 正文，不受用户 SYSTEM.md/APPEND_SYSTEM.md 与 skills 影响
    *   （task 行为由 persona 定义，不被全局自定义劫持）；
+   *   memory 协议也不注入——task 会话零工具零记忆通道，协议只会误导模型；
    * - 工具为 spec 白名单子集（[] = 纯分析）；模型按 spec 偏好解析，缺省跟随全局默认。
    */
   async createTaskSession(spec: TaskPersonaSpec): Promise<AgentSession> {
@@ -157,8 +158,7 @@ export class PiAgentSessionFactory {
       noContextFiles: true,
       skillsOverride: () => ({ skills: [], diagnostics: [] }),
       appendSystemPromptOverride: () => [],
-      systemPromptOverride: () =>
-        composeSystemPrompt({ personaBody: spec.systemPrompt, memoryProtocol: MEMORY_PROTOCOL })
+      systemPromptOverride: () => composeSystemPrompt({ personaBody: spec.systemPrompt })
     });
     await resourceLoader.reload();
 

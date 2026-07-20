@@ -171,7 +171,8 @@ describe('PiAgentSessionFactory', () => {
 
       expect(prompt).toContain('你是测试审查专员。');
       expect(prompt).not.toContain('用户 SYSTEM.md 内容');
-      expect(prompt).toContain('记忆协议');
+      // task 会话零工具零记忆通道，记忆协议不应注入。
+      expect(prompt).not.toContain('记忆协议');
       expect(loaderOptions.appendSystemPromptOverride(['用户追加'])).toEqual([]);
     });
 
