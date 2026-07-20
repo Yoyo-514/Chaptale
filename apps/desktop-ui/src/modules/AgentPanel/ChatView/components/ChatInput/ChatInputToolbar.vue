@@ -10,7 +10,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggleWebSearch: [];
   addContextFiles: [];
-  runReview: [];
+  /** 参数化任务入口：新增任务型 persona 只需加按钮/菜单项，链路不变。 */
+  runTask: [personaId: string];
 }>();
 </script>
 
@@ -36,7 +37,7 @@ const emit = defineEmits<{
       </AppButton>
     </AppTooltip>
     <AppTooltip text="对当前输入或附件的文本做连贯性审查" side="bottom">
-      <AppButton variant="ghost" size="xs" type="button" @click="emit('runReview')">
+      <AppButton variant="ghost" size="xs" type="button" @click="emit('runTask', 'continuity-reviewer')">
         <span class="i-mingcute-eye-line size-4" aria-hidden="true" />
         <span>审查连贯性</span>
       </AppButton>

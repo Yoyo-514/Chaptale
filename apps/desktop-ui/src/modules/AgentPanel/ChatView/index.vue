@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useSessionStore } from '@/stores/session';
 import { cn } from '@/utils';
 import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
@@ -14,7 +15,6 @@ import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
 import { useContinuityReview } from './composables/useContinuityReview';
 import { useTodoProgress } from './composables/useTodoProgress';
-import { useSessionStore } from '@/stores/session';
 
 const chat = useChatController();
 const sessionStore = useSessionStore();
@@ -23,6 +23,14 @@ const review = useContinuityReview(
   () => chat.state.input,
   () => chat.state.contextFiles.map(file => file.path)
 );
+
+/** 任务入口分发：后续任务型 persona 在此按 personaId 接入。 */
+function handleRunTask(personaId: string) {
+  if (personaId === 'continuity-reviewer') {
+    void review.start();
+  }
+}
+
 const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
 const search = useChatSearch(() => chat.state.messages);
 const searchHit = computed(() => (search.isOpen.value ? search.activeMatch.value : undefined));
@@ -120,11 +128,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       </template>
     </section>
 
-    <ReviewResultCard :state="review.state" @cancel="review.cancel" @dismiss="review.dismiss" />
+    <ReviewResultCard
+      class="chat-input-topbar"
+      :state="review.state"
+      @cancel="review.cancel"
+      @dismiss="review.dismiss"
+    />
 
     <TodoProgressCard
       v-if="todoProgress.visible.value"
-      class="chat-todo-progress"
+      class="chat-input-topbar"
       :items="todoProgress.items.value"
       :total="todoProgress.total.value"
       :completed-count="todoProgress.completedCount.value"
@@ -146,7 +159,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       @drop-context-files="chat.handleDropContextFiles"
       @remove-context-file="chat.handleRemoveContextFile"
       @open-settings="chat.handleOpenSettings"
-      @run-review="review.start"
+      @run-task="handleRunTask"
     />
   </main>
 </template>
@@ -174,7 +187,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
   background: var(--surface-acrylic-strong);
 }
 
-.chat-todo-progress {
+.chat-input-topbar {
   // 宽度对齐输入框，紧贴其上方。
   @apply mx-auto mb-2 w-full md:w-3xl;
 }
