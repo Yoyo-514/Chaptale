@@ -354,7 +354,8 @@ test('mixed attachments keep compact tiles in the input while sent images render
   await expect(galleryImage).toHaveAttribute('src', 'data:image/png;base64,YWJj');
   await page.getByRole('button', { name: '预览 用户上传的图片 1' }).click();
   await expect.poll(() => page.evaluate(() => (window as any).chaptaleE2E.imageReads.length)).toBe(1);
-  await expect(page.getByText('1 / 9')).toBeVisible();
+  // 依赖升级后首轮冷缓存会拖慢 lightbox 模块编译，放宽等待窗口避免一次性 flaky。
+  await expect(page.getByText('1 / 9')).toBeVisible({ timeout: 15000 });
 });
 
 test('prompt settings edit pi files and restore the built-in system prompt', async ({ page }) => {
