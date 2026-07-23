@@ -43,9 +43,9 @@ function expectStrictObject(
   expect(validator.Check([{ ...validPayload, extra: true }])).toBe(false);
 }
 
-describe('IPC 参数 Schema', () => {
-  const decideArgs = (decision: unknown) => [{ requestId: 'r1', decision }];
+const decideArgs = (decision: unknown) => [{ requestId: 'r1', decision }];
 
+describe('IPC 参数 Schema', () => {
   it('校验会话重命名参数并拒绝缺失或额外字段', () => {
     expect(RenameSessionArgsValidator.Check([{ sessionId: 's1', name: '新名称' }])).toBe(true);
     expect(RenameSessionArgsValidator.Check([{ sessionId: 's1' }])).toBe(false);

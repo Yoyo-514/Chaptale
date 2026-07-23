@@ -154,6 +154,11 @@ async function installDesktopMock(page: Page) {
         get: async () => [],
         onUpdated: () => () => undefined
       },
+      permissions: {
+        getPending: async () => [],
+        decide: async () => ({ accepted: true }),
+        onAsk: () => () => undefined
+      },
       models: {
         list: async () => ({ providers: [], models: [], defaultModel: undefined }),
         setDefault: async () => ({ providers: [], models: [], defaultModel: undefined }),

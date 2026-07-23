@@ -11,14 +11,17 @@ import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
 import ReviewResultCard from './components/ReviewResultCard.vue';
 import TodoProgressCard from './components/TodoProgressCard.vue';
+import PermissionRequestCard from './components/PermissionRequestCard.vue';
 import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
 import { useContinuityReview } from './composables/useContinuityReview';
 import { useTodoProgress } from './composables/useTodoProgress';
+import { usePermissionRequests } from './composables/usePermissionRequests';
 
 const chat = useChatController();
 const sessionStore = useSessionStore();
 const todoProgress = useTodoProgress(() => sessionStore.currentSessionId);
+const permissionRequests = usePermissionRequests(() => sessionStore.currentSessionId);
 const review = useContinuityReview(
   () => chat.state.input,
   () => chat.state.contextFiles.map(file => file.path)
@@ -127,6 +130,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
         />
       </template>
     </section>
+
+    <PermissionRequestCard
+      class="chat-input-topbar"
+      :requests="permissionRequests.requests.value"
+      :is-submitting="permissionRequests.isSubmitting.value"
+      @decide="permissionRequests.decide"
+    />
 
     <ReviewResultCard
       class="chat-input-topbar"
