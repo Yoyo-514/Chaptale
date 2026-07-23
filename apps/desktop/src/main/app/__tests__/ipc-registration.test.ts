@@ -25,6 +25,8 @@ import {
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
   TodosGetArgsValidator,
+  PermissionsPendingArgsValidator,
+  PermissionsDecideArgsValidator,
   TaskRunArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
@@ -123,6 +125,9 @@ const expectedRegistrations: Registration[] = [
 
   validated(IPC_CHANNELS.todos.get, TodosGetArgsValidator),
 
+  validated(IPC_CHANNELS.permissions.pending, PermissionsPendingArgsValidator),
+  validated(IPC_CHANNELS.permissions.decide, PermissionsDecideArgsValidator),
+
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),
   trusted(IPC_CHANNELS.window.close),
@@ -133,7 +138,8 @@ const mainToRendererEvents = new Set<string>([
   IPC_CHANNELS.agent.message,
   IPC_CHANNELS.agent.done,
   IPC_CHANNELS.agent.error,
-  IPC_CHANNELS.todos.updated
+  IPC_CHANNELS.todos.updated,
+  IPC_CHANNELS.permissions.ask
 ]);
 
 function createContext(): AppContext {
@@ -144,7 +150,9 @@ function createContext(): AppContext {
     agentRuntime: {},
     promptFileService: {},
     commandService: {},
-    todoStore: { onChange: () => () => undefined, remove: async () => undefined }
+    todoStore: { onChange: () => () => undefined, remove: async () => undefined },
+    permissionBroker: { onAsk: () => undefined, listPending: () => [], rejectSession: () => undefined },
+    permissionRuleStore: { addRule: async () => undefined, clearSession: () => undefined }
   } as unknown as AppContext;
 }
 

@@ -41,6 +41,7 @@ import type {
 import type { SlashCommand } from './slash-command';
 import type { TaskRunPayload, TaskRunCompleteEvent, AgentRunsListPayload } from './tasks';
 import type { TodosUpdatedEvent } from './todos';
+import type { PermissionAskEvent, PermissionDecideArgs, PermissionDecideResult } from './permissions';
 import type { WindowStateResult } from './window';
 
 /**
@@ -126,5 +127,12 @@ export type ChaptaleDesktopApi = {
     get: (sessionId: string) => Promise<TodoItem[]>;
     /** 订阅清单变更（整表推送）；返回取消订阅函数。 */
     onUpdated: (listener: (event: TodosUpdatedEvent) => void) => () => void;
+  };
+  permissions: {
+    /** 指定会话的待授权请求，供挂载/刷新后恢复卡片。 */
+    getPending: (sessionId: string) => Promise<PermissionAskEvent[]>;
+    decide: (args: PermissionDecideArgs) => Promise<PermissionDecideResult>;
+    /** 订阅新授权请求；返回取消订阅函数。 */
+    onAsk: (listener: (event: PermissionAskEvent) => void) => () => void;
   };
 };

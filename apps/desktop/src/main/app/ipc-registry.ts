@@ -7,6 +7,7 @@ import { registerSessionIpc } from '../modules/sessions/ipc';
 import { registerSettingsIpc } from '../modules/settings/ipc';
 import { registerTaskIpc } from '../modules/tasks/ipc';
 import { registerTodoIpc } from '../modules/todo/ipc';
+import { registerPermissionsIpc } from '../modules/permissions/ipc';
 import { registerWindowIpc } from '../modules/window/ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
 import type { AppContext } from './app-context';
@@ -32,6 +33,9 @@ export function registerApplicationIpc(context: AppContext): void {
     onSessionsDeleted: sessionIds => {
       for (const sessionId of sessionIds) {
         void context.todoStore.remove(sessionId).catch(() => undefined);
+        // 会话删除后释放其挂起的授权请求与会话级规则。
+        context.permissionBroker.rejectSession(sessionId);
+        context.permissionRuleStore.clearSession(sessionId);
       }
     }
   });
@@ -42,5 +46,6 @@ export function registerApplicationIpc(context: AppContext): void {
   registerSlashCommandIpc(context.commandService);
   registerTaskIpc(context.taskService, context.runStore);
   registerTodoIpc(context.todoStore);
+  registerPermissionsIpc(context.permissionBroker, context.permissionRuleStore);
   registerWindowIpc();
 }

@@ -27,6 +27,8 @@ import {
   TaskListRunsArgsValidator,
   TaskRunArgsValidator,
   TodosGetArgsValidator,
+  PermissionsDecideArgsValidator,
+  PermissionsPendingArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
   UpdatePiWebAccessSettingsArgsValidator,
@@ -42,6 +44,8 @@ function expectStrictObject(
 }
 
 describe('IPC 参数 Schema', () => {
+  const decideArgs = (decision: unknown) => [{ requestId: 'r1', decision }];
+
   it('校验会话重命名参数并拒绝缺失或额外字段', () => {
     expect(RenameSessionArgsValidator.Check([{ sessionId: 's1', name: '新名称' }])).toBe(true);
     expect(RenameSessionArgsValidator.Check([{ sessionId: 's1' }])).toBe(false);
@@ -227,5 +231,29 @@ describe('IPC 参数 Schema', () => {
     expect(TodosGetArgsValidator.Check([''])).toBe(false);
     expect(TodosGetArgsValidator.Check([])).toBe(false);
     expect(TodosGetArgsValidator.Check([1])).toBe(false);
+  });
+
+  it('校验授权决策参数：三类决策各自的字段约束', () => {
+    expect(PermissionsDecideArgsValidator.Check(decideArgs({ outcome: 'allow-once' }))).toBe(true);
+    expect(
+      PermissionsDecideArgsValidator.Check(
+        decideArgs({ outcome: 'allow-always', scope: 'workspace', pattern: 'write' })
+      )
+    ).toBe(true);
+    expect(PermissionsDecideArgsValidator.Check(decideArgs({ outcome: 'deny', reason: '路径不对' }))).toBe(true);
+    expect(PermissionsDecideArgsValidator.Check(decideArgs({ outcome: 'deny' }))).toBe(true);
+
+    // allow-always 缺 pattern、非法 scope、未知 outcome 均拒绝。
+    expect(PermissionsDecideArgsValidator.Check(decideArgs({ outcome: 'allow-always', scope: 'workspace' }))).toBe(
+      false
+    );
+    expect(
+      PermissionsDecideArgsValidator.Check(decideArgs({ outcome: 'allow-always', scope: 'everywhere', pattern: 'x' }))
+    ).toBe(false);
+    expect(PermissionsDecideArgsValidator.Check(decideArgs({ outcome: 'maybe' }))).toBe(false);
+    expect(PermissionsDecideArgsValidator.Check([{ requestId: '', decision: { outcome: 'allow-once' } }])).toBe(false);
+
+    expect(PermissionsPendingArgsValidator.Check(['session-1'])).toBe(true);
+    expect(PermissionsPendingArgsValidator.Check([''])).toBe(false);
   });
 });

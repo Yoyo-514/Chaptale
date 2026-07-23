@@ -8,6 +8,7 @@ export * from './schemas';
 export * from './session';
 export * from './tasks';
 export * from './todos';
+export * from './permissions';
 export * from './settings';
 export * from './slash-command';
 export * from './window';

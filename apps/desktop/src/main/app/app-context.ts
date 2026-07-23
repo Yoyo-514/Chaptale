@@ -7,6 +7,8 @@ import { PiSessionRepository } from '../integrations/pi/sessions/repository';
 import { SlashCommandService } from '../modules/commands/service';
 
 import { PromptFileService } from '../modules/prompts/file-service';
+import { PermissionBroker } from '../modules/permissions/broker';
+import { PermissionRuleStore } from '../modules/permissions/rule-store';
 import { AgentRunStore } from '../modules/runs/store';
 import { SettingsService } from '../modules/settings/service';
 import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
@@ -23,6 +25,8 @@ export type AppContext = {
   taskService: TaskService;
   runStore: AgentRunStore;
   todoStore: TodoStore;
+  permissionBroker: PermissionBroker;
+  permissionRuleStore: PermissionRuleStore;
 };
 
 export function createAppContext(): AppContext {
@@ -59,6 +63,11 @@ export function createAppContext(): AppContext {
   const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   const taskRunner = new TaskRunner(sessionFactory, runStore);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner });
+  const permissionRuleStore = new PermissionRuleStore({
+    globalDir: settingsService.rootDir,
+    resolveCwd: () => settingsService.getCurrentCwd()
+  });
+  const permissionBroker = new PermissionBroker();
 
   return {
     settingsService,
@@ -69,6 +78,8 @@ export function createAppContext(): AppContext {
     commandService,
     taskService,
     runStore,
-    todoStore: agentRuntime.todoStore
+    todoStore: agentRuntime.todoStore,
+    permissionBroker,
+    permissionRuleStore
   };
 }

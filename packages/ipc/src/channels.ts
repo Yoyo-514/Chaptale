@@ -46,6 +46,11 @@ export const IPC_CHANNELS = {
     get: 'todos:get',
     updated: 'todos:updated'
   },
+  permissions: {
+    pending: 'permissions:pending',
+    decide: 'permissions:decide',
+    ask: 'permissions:ask'
+  },
   slashCommands: {
     list: 'slash-commands:list'
   },
