@@ -7,13 +7,13 @@ import { PiSessionRepository } from '../integrations/pi/sessions/repository';
 import { SlashCommandService } from '../modules/commands/service';
 
 import { PromptFileService } from '../modules/prompts/file-service';
-import { PermissionBroker } from '../modules/permissions/broker';
-import { PermissionRuleStore } from '../modules/permissions/rule-store';
 import { AgentRunStore } from '../modules/runs/store';
 import { SettingsService } from '../modules/settings/service';
 import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
 import { TaskService } from '../modules/tasks/service';
 import type { TodoStore } from '../modules/todo/store';
+import type { PermissionBroker } from '../modules/permissions/broker';
+import type { PermissionRuleStore } from '../modules/permissions/rule-store';
 
 export type AppContext = {
   settingsService: SettingsService;
@@ -53,21 +53,20 @@ export function createAppContext(): AppContext {
   const agentRuntime = new PiAgentService(settingsService, modelService);
   const commandService = new SlashCommandService(settingsService, agentRuntime.skillsProvider);
   const personaRegistry = createDefaultPersonaRegistry(settingsService);
+  const permissionRuleStore = agentRuntime.permissionRuleStore;
+  const permissionBroker = agentRuntime.permissionBroker;
   const sessionFactory = new PiAgentSessionFactory({
     settingsService,
     modelService,
     skillsProvider: agentRuntime.skillsProvider,
-    todoStore: agentRuntime.todoStore
+    todoStore: agentRuntime.todoStore,
+    permissionBroker,
+    permissionRuleStore
   });
   // runs 归属工作区（<workspace>/.chaptale/runs）：审查历史是创作产物，随作品同步。
   const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   const taskRunner = new TaskRunner(sessionFactory, runStore);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner });
-  const permissionRuleStore = new PermissionRuleStore({
-    globalDir: settingsService.rootDir,
-    resolveCwd: () => settingsService.getCurrentCwd()
-  });
-  const permissionBroker = new PermissionBroker();
 
   return {
     settingsService,

@@ -24,6 +24,8 @@ import { SkillsProvider } from '../skills/provider';
 import { AsyncMessageQueue } from './async-message-queue';
 import { mapAgentStreamEvent } from './event-mapper';
 import { PiAgentSessionFactory } from './session-factory';
+import { PermissionBroker } from '../../../modules/permissions/broker';
+import { PermissionRuleStore } from '../../../modules/permissions/rule-store';
 
 export type StreamOptions = AgentRunOptions;
 
@@ -52,6 +54,9 @@ export class PiAgentService implements AgentRuntime {
   readonly skillsProvider: SkillsProvider;
   /** 会话级 todo 存储；对外暴露供 IPC 层订阅变更与查询。 */
   readonly todoStore: TodoStore;
+  /** 权限闸门依赖；对外暴露供 IPC 决策回传与 task 会话复用同一实例。 */
+  readonly permissionBroker: PermissionBroker;
+  readonly permissionRuleStore: PermissionRuleStore;
 
   constructor(
     private readonly settingsService: SettingsService,
@@ -59,12 +64,26 @@ export class PiAgentService implements AgentRuntime {
     private readonly imageAttachmentService = new ImageAttachmentService(),
     skillsProvider = new SkillsProvider(settingsService),
     memoryInjector?: MemoryInjector,
-    todoStore = new TodoStore(settingsService.todosDir)
+    todoStore = new TodoStore(settingsService.todosDir),
+    permissionBroker = new PermissionBroker(),
+    permissionRuleStore = new PermissionRuleStore({
+      globalDir: settingsService.rootDir,
+      resolveCwd: () => settingsService.getCurrentCwd()
+    })
   ) {
     this.skillsProvider = skillsProvider;
     this.todoStore = todoStore;
+    this.permissionBroker = permissionBroker;
+    this.permissionRuleStore = permissionRuleStore;
     this.memoryInjector = memoryInjector ?? createMemoryInjector(settingsService.rootDir);
-    this.sessionFactory = new PiAgentSessionFactory({ settingsService, modelService, skillsProvider, todoStore });
+    this.sessionFactory = new PiAgentSessionFactory({
+      settingsService,
+      modelService,
+      skillsProvider,
+      todoStore,
+      permissionBroker,
+      permissionRuleStore
+    });
   }
 
   /** 会话目录/工作区切换后调用，丢弃缓存的 AgentSession与记忆注入去重记录。 */
@@ -111,6 +130,9 @@ export class PiAgentService implements AgentRuntime {
       }
 
       abortHandled = true;
+
+      // 中断同时释放该会话挂起的授权请求，避免工具执行阻塞到超时。
+      this.permissionBroker.rejectSession(sessionId);
 
       // 中断代表结束整次运行，必须先清掉 queued steer，避免 abort 后又触发续跑。
       try {

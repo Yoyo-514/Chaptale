@@ -1,5 +1,7 @@
 import type { Static, TSchema } from 'typebox';
 
+import type { RiskLevel } from '@chaptale/shared';
+
 /** 工具执行结果：text 返回给模型，details 供日志或 UI 渲染使用。 */
 export type ToolResult = {
   text: string;
@@ -21,5 +23,7 @@ export type ToolDefinition<TParams extends TSchema = TSchema> = {
   description: string;
   /** typebox 参数 schema。 */
   parameters: TParams;
+  /** 权限风险分级；缺省按 mutating（需用户确认）保守处理。 */
+  riskLevel?: RiskLevel;
   execute(params: Static<TParams>, signal?: AbortSignal): Promise<ToolResult>;
 };

@@ -28,6 +28,7 @@ export type TodoWriteToolOptions = {
 export function createTodoWriteTool(options: TodoWriteToolOptions): ToolDefinition<typeof todoWriteParameters> {
   return {
     name: 'todo_write',
+    riskLevel: 'readonly',
     label: '任务清单',
     description:
       '维护当前会话的任务清单。action=write 整表替换（规划新任务时用）；' +

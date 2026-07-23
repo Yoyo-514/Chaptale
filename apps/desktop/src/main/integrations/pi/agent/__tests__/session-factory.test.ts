@@ -81,7 +81,9 @@ describe('PiAgentSessionFactory', () => {
       settingsService: settingsService as any,
       modelService: modelService as any,
       skillsProvider: skillsProvider as any,
-      todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any
+      todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any,
+      permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
+      permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any
     });
 
     await expect(factory.create('session-1')).resolves.toBe(session);
@@ -126,7 +128,9 @@ describe('PiAgentSessionFactory', () => {
         settingsService: settingsService as any,
         modelService: modelService as any,
         skillsProvider: { load: vi.fn(() => ({ skills: [], diagnostics: [] })) } as any,
-        todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any
+        todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any,
+        permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
+        permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any
       });
 
       return { factory, session, settingsService };

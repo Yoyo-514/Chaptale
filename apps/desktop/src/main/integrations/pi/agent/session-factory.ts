@@ -26,6 +26,10 @@ import type { SettingsService } from '../../../modules/settings/service';
 import type { SkillsProvider } from '../skills/provider';
 import { toPiToolDefinition } from '../tools/adapter';
 import { getEnabledToolNames } from '../tools/tool-whitelist';
+import { createPermissionGateExtension } from '../permissions/gate-extension';
+import type { PermissionBroker } from '../../../modules/permissions/broker';
+import type { PermissionRuleStore } from '../../../modules/permissions/rule-store';
+import type { RiskLevel } from '@chaptale/shared';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -34,6 +38,8 @@ export type PiAgentSessionFactoryOptions = {
   modelService: PiModelService;
   skillsProvider: SkillsProvider;
   todoStore: TodoStore;
+  permissionBroker: PermissionBroker;
+  permissionRuleStore: PermissionRuleStore;
   personaRegistry?: PersonaRegistry;
 };
 
@@ -64,7 +70,8 @@ export class PiAgentSessionFactory {
   }
 
   async create(sessionId: string): Promise<AgentSession> {
-    const { settingsService, modelService, skillsProvider, todoStore } = this.options;
+    const { settingsService, modelService, skillsProvider, todoStore, permissionBroker, permissionRuleStore } =
+      this.options;
     const target = await findSessionById(settingsService, sessionId);
 
     if (!target) {
@@ -87,6 +94,14 @@ export class PiAgentSessionFactory {
 
     // Chaptale 自己的角色 & 创作系统提示词，覆盖 pi 默认 coding 系统提示词；
     // 同时只定向加载白名单 pi package，避免把 pi CLI 的 coding 行为带进创作会话。
+    // 会话级自定义工具：sessionId 在此已知，直接闭包绑定，todo 清单随会话隔离。
+    // 构建于 loader 之前：权限闸门需要各自定义工具的风险分级。
+    const chatTools = buildChatSessionTools({ todoStore, getSessionId: () => sessionId });
+    const customTools = chatTools.map(toPiToolDefinition);
+    const customRiskLevels = Object.fromEntries(
+      chatTools.map(tool => [tool.name, tool.riskLevel ?? 'mutating'])
+    ) as Record<string, RiskLevel>;
+
     const resourceLoader = new DefaultResourceLoader({
       cwd,
       agentDir: settingsService.agentDir,
@@ -98,6 +113,16 @@ export class PiAgentSessionFactory {
       noThemes: true,
       noContextFiles: true,
       skillsOverride: () => skillsProvider.load(skillsCwd, 'companion'),
+      // 权限闸门：拦截全部工具调用；noExtensions 只关磁盘发现，不影响 inline factory。
+      extensionFactories: [
+        createPermissionGateExtension({
+          sessionId,
+          broker: permissionBroker,
+          ruleStore: permissionRuleStore,
+          customRiskLevels,
+          interactive: true
+        })
+      ],
       // 分层拼装：SYSTEM.md 仅替换 persona 层，职责/协议层始终保留；
       // 拼装结果在会话生命周期内不变（缓存安全）；APPEND_SYSTEM.md 由 pi 原生追加。
       systemPromptOverride: discovered =>
@@ -109,9 +134,6 @@ export class PiAgentSessionFactory {
         })
     });
     await resourceLoader.reload();
-
-    // 会话级自定义工具：sessionId 在此已知，直接闭包绑定，todo 清单随会话隔离。
-    const customTools = buildChatSessionTools({ todoStore, getSessionId: () => sessionId }).map(toPiToolDefinition);
 
     const { session } = await createAgentSession({
       cwd,
@@ -141,7 +163,7 @@ export class PiAgentSessionFactory {
    * - 工具为 spec 白名单子集（[] = 纯分析）；模型按 spec 偏好解析，缺省跟随全局默认。
    */
   async createTaskSession(spec: TaskPersonaSpec): Promise<AgentSession> {
-    const { settingsService, modelService } = this.options;
+    const { settingsService, modelService, permissionBroker, permissionRuleStore } = this.options;
     const cwd = await settingsService.getCurrentCwd();
     await fs.mkdir(settingsService.taskSessionsDir, { recursive: true });
     const sessionManager = SessionManager.create(cwd, settingsService.taskSessionsDir);
@@ -157,6 +179,16 @@ export class PiAgentSessionFactory {
       noThemes: true,
       noContextFiles: true,
       skillsOverride: () => ({ skills: [], diagnostics: [] }),
+      // task 会话无人值守：闸门仍拦截，但 ask 一律按拒绝处理，不会挂起等待授权。
+      extensionFactories: [
+        createPermissionGateExtension({
+          sessionId: `task-${Date.now()}`,
+          broker: permissionBroker,
+          ruleStore: permissionRuleStore,
+          customRiskLevels: {},
+          interactive: false
+        })
+      ],
       appendSystemPromptOverride: () => [],
       systemPromptOverride: () => composeSystemPrompt({ personaBody: spec.systemPrompt })
     });
