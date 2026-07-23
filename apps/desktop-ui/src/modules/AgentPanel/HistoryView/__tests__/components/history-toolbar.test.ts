@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AppInput } from '@/components/AppInput';
 import { AppSelect } from '@/components/AppSelect';
+
 import HistoryToolbar from '../../components/HistoryToolbar.vue';
 
 function mountToolbar(searchQuery = '') {

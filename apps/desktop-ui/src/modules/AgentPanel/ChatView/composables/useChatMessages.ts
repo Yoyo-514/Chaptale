@@ -1,9 +1,11 @@
 import { ref } from 'vue';
 
+import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+
 import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
 import { toErrorMessage } from '@/stores/utils/desktop-api';
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
 import type { ChatState } from './chat-state';
 import type { useAssistantStreamingMessages } from './useAssistantStreamingMessages';

@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
 import { configureTrustedRendererUrl } from '../infra/security/trusted-ipc';
 import { createAppContext } from './app-context';
 import { registerApplicationIpc } from './ipc-registry';

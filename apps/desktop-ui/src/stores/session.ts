@@ -1,11 +1,12 @@
+import { defineStore } from 'pinia';
+import { unique } from 'radash';
+
 import type {
   ChaptaleSessionListItem,
   ChaptaleSessionStorageDebugInfo,
   ChaptaleSessionTreeEntry,
   CreateSessionOptions
 } from '@chaptale/ipc-contract';
-import { defineStore } from 'pinia';
-import { unique } from 'radash';
 
 import { getDesktopApi, toErrorMessage } from './utils/desktop-api';
 

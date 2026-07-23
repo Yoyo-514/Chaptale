@@ -7,6 +7,7 @@ import { formatFileSize } from '@chaptale/shared';
 import { AppButton } from '@/components/AppButton';
 import { AppImagePreview, type AppImagePreviewItem } from '@/components/AppImagePreview';
 import { cn } from '@/utils';
+
 import { readImageBlob } from '../../utils/image-blob';
 
 const props = withDefaults(

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
+import type { ChatMessage, ChatToolCallContent } from '@chaptale/shared';
+
 import { AppCollapsible } from '@/components/AppCollapsible';
 import { AppImagePreview } from '@/components/AppImagePreview';
 import { formatTokenCount } from '@/utils/session-display';
-import type { ChatMessage, ChatToolCallContent } from '@chaptale/shared';
+
 import type { ChatDisplayMessage, ChatSearchMatch } from '../../types';
 import { toInlineImageItems } from '../../utils/message/inline-images';
 import { formatToolName, getAssistantToolCalls, getToolResultImages } from '../../utils/message/message-content';

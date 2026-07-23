@@ -1,6 +1,7 @@
-import type { PromptSettingsState, UpdatePromptSettingsPayload } from '@chaptale/ipc-contract';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+
+import type { PromptSettingsState, UpdatePromptSettingsPayload } from '@chaptale/ipc-contract';
 
 import { readOptionalTextFile } from '../../infra/filesystem/files';
 import { builtinCompanionBody } from '../personas/builtin';

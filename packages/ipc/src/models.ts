@@ -1,4 +1,5 @@
 import type { Static } from 'typebox';
+
 import type {
   AddCustomModelPayloadSchema,
   AddCustomProviderModelPayloadSchema,

@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationStore } from '@/stores/notification';
+
 import MessageItem from '../../components/message/MessageItem.vue';
 
 const stubs = {

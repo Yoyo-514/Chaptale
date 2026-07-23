@@ -1,3 +1,4 @@
+import type { AuthCheck, AuthInteraction, Model } from '@earendil-works/pi-ai';
 import { ModelRuntime, SettingsManager } from '@earendil-works/pi-coding-agent';
 
 import type {
@@ -16,11 +17,11 @@ import type {
   SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
-import type { AuthCheck, AuthInteraction, Model } from '@earendil-works/pi-ai';
+
 import type { SettingsService } from '../../../modules/settings/service';
-import { PiCustomModelConfigService } from './config-service';
 import { getModelKey, normalizeModelInput } from './config-helpers';
 import { PiModelConfigRepository } from './config-repository';
+import { PiCustomModelConfigService } from './config-service';
 import { fetchProviderModels } from './provider-model-fetcher';
 
 type ModelRuntimeFactory = () => Promise<ModelRuntime>;

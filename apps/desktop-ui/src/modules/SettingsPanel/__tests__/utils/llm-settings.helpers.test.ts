@@ -1,5 +1,6 @@
-import type { ChaptaleModelInfo, ChaptaleProviderInfo, FetchedCustomProviderModel } from '@chaptale/ipc-contract';
 import { describe, expect, it } from 'vitest';
+
+import type { ChaptaleModelInfo, ChaptaleProviderInfo, FetchedCustomProviderModel } from '@chaptale/ipc-contract';
 
 import {
   countModelsByGroup,

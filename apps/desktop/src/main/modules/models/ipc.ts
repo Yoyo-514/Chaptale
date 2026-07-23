@@ -11,9 +11,6 @@ import {
   SetProviderApiKeyArgsValidator,
   UpdateCustomModelInputArgsValidator
 } from '@chaptale/ipc-contract';
-import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
-import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-
 import type {
   AddCustomModelPayload,
   AddCustomProviderPayload,
@@ -26,6 +23,9 @@ import type {
   SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
+
+import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
+import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { ModelService } from './service';
 
 /** 归属模型与认证配置频道；IPC 层负责 sender 信任及参数结构校验，业务与持久化语义交给 ModelService。 */

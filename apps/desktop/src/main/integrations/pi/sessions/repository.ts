@@ -1,3 +1,7 @@
+import { SessionManager } from '@earendil-works/pi-coding-agent';
+import path from 'node:path';
+import { unique } from 'radash';
+
 import type {
   ChaptaleSessionInfoEntry,
   ChaptaleSessionListItem,
@@ -9,9 +13,6 @@ import type {
   ReadSessionImageResult
 } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
-import { SessionManager } from '@earendil-works/pi-coding-agent';
-import path from 'node:path';
-import { unique } from 'radash';
 
 import { ImageAttachmentService } from '../../../modules/attachments/service';
 import { buildSessionHtml, toSafeFileName } from '../../../modules/sessions/html-renderer';

@@ -1,6 +1,7 @@
 import { BrowserWindow, Menu, shell, type Event as ElectronEvent } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { isExternalUrl, isTrustedRendererUrl } from '../infra/security/navigation-security';
 
 const currentFilePath = fileURLToPath(import.meta.url);

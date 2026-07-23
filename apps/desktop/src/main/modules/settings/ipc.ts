@@ -1,3 +1,5 @@
+import { BrowserWindow } from 'electron';
+
 import {
   IPC_CHANNELS,
   UpdateChaptaleSettingsArgsValidator,
@@ -6,7 +8,7 @@ import {
   type UpdateChaptaleSettingsPayload,
   type UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
-import { BrowserWindow } from 'electron';
+
 import { pickDirectory } from '../../infra/electron/dialog';
 import { openPathOrThrow } from '../../infra/electron/shell';
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';

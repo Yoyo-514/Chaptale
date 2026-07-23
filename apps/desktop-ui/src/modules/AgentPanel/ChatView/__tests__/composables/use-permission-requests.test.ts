@@ -6,6 +6,7 @@ import { defineComponent } from 'vue';
 import type { PermissionAskEvent } from '@chaptale/ipc-contract';
 
 import { useNotificationStore } from '@/stores/notification';
+
 import { usePermissionRequests } from '../../composables/usePermissionRequests';
 
 const request: PermissionAskEvent = {

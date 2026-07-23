@@ -1,5 +1,6 @@
-import type { ChatContentBlock, ChatImageContent, ChatMessage, ChatTextContent } from '@chaptale/shared';
 import type { SessionManager } from '@earendil-works/pi-coding-agent';
+
+import type { ChatContentBlock, ChatImageContent, ChatMessage, ChatTextContent } from '@chaptale/shared';
 
 import { toChatMessages, type PiMessageMappingOptions } from '../agent/message-mapper';
 

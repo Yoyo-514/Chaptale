@@ -1,5 +1,6 @@
-import type { ChatContextFile } from '@chaptale/shared';
 import { unique } from 'radash';
+
+import type { ChatContextFile } from '@chaptale/shared';
 
 export function mergeChatContextFiles(
   currentFiles: ChatContextFile[],

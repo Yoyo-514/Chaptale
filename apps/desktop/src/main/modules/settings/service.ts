@@ -1,3 +1,7 @@
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import type {
   ChaptaleSettings,
   ChaptaleSettingsState,
@@ -6,9 +10,6 @@ import type {
   UpdateChaptaleSettingsPayload,
   UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
-import { promises as fs } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 
 import { readJsonFile, writeJsonFile } from '../../infra/filesystem/files';
 import { DEFAULT_WEB_ACCESS_SETTINGS, mergeSettings, mergeWebAccessSettings } from './defaults';

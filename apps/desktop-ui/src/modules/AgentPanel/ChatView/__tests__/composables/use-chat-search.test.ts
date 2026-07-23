@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 
-import type { ChatDisplayMessage } from '../../types';
 import { useChatSearch } from '../../composables/useChatSearch';
+import type { ChatDisplayMessage } from '../../types';
 
 function createMessages(): ChatDisplayMessage[] {
   return [

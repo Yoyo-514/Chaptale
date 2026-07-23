@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-import { cn } from '@/utils';
 import type { SlashCommand } from '@chaptale/ipc-contract';
 import type { ChatContextFile } from '@chaptale/shared';
+
+import { cn } from '@/utils';
+
 import ChatContextFiles from './ChatContextFiles.vue';
 import ChatInputStatusBar from './ChatInputStatusBar.vue';
 import ChatInputToolbar from './ChatInputToolbar.vue';

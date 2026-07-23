@@ -2,7 +2,9 @@
 import { computed, ref, watch } from 'vue';
 
 import type { ChatMessage, ChatToolCallContent } from '@chaptale/shared';
+
 import { AppCollapsible } from '@/components/AppCollapsible';
+
 import { formatToolName, getTextBlocks, getToolResultImages } from '../../utils/message/message-content';
 import ToolCallRequest from './ToolCallRequest.vue';
 import ToolCallResult from './ToolCallResult.vue';

@@ -3,6 +3,7 @@ import type { ChaptaleModelInfo } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
+
 import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
 import LlmModelList from './LlmModelList.vue';
 import LlmProviderAuthPanel from './LlmProviderAuthPanel.vue';

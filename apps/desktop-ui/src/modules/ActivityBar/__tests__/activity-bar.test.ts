@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSettingsStore } from '@/stores/settings';
+
 import ActivityBar from '../ActivityBar.vue';
 
 beforeEach(() => {

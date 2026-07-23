@@ -1,3 +1,6 @@
+import { BrowserWindow } from 'electron';
+import type { WebContents } from 'electron';
+
 import {
   AgentCancelArgsValidator,
   AgentClearPendingMessagesArgsValidator,
@@ -6,13 +9,6 @@ import {
   AgentSteerArgsValidator,
   IPC_CHANNELS
 } from '@chaptale/ipc-contract';
-import { errorToMessage } from '@chaptale/shared';
-import { BrowserWindow } from 'electron';
-import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
-import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import { ContextFileService } from '../context/service';
-import { AgentRunManager } from './run-manager';
-
 import type {
   AgentClearPendingMessagesPayload,
   AgentDoneEvent,
@@ -22,8 +18,13 @@ import type {
   AgentStartPayload,
   AgentSteerPayload
 } from '@chaptale/ipc-contract';
+import { errorToMessage } from '@chaptale/shared';
+
+import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
+import { handleValidatedIpc } from '../../infra/security/validated-ipc';
+import { ContextFileService } from '../context/service';
+import { AgentRunManager } from './run-manager';
 import type { AgentRuntime } from './runtime';
-import type { WebContents } from 'electron';
 
 class WebContentsSendError extends Error {
   constructor(readonly sendError: unknown) {

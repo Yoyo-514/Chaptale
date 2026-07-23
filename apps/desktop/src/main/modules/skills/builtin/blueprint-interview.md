@@ -23,6 +23,7 @@ appliesTo: [blueprint, companion]
 
 ```markdown
 # 作品蓝图：《暂定名》
+
 - 题材：
 - 一句话故事：谁 + 想要什么 + 什么阻止他 + 代价是什么
 - 核心冲突：

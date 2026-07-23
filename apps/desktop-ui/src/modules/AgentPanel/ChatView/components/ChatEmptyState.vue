@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { formatSessionTime, getSessionTitle } from '@/utils/session-display';
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
+
+import { formatSessionTime, getSessionTitle } from '@/utils/session-display';
 
 const props = defineProps<{
   recentSessions: ChaptaleSessionListItem[];

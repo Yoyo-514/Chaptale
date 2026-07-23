@@ -1,7 +1,7 @@
+import { Type } from 'typebox';
 import { describe, expect, it } from 'vitest';
 
 import { extractTaskOutput, getOutputSchema, registerOutputSchema, validateOutput } from '@chaptale/shared';
-import { Type } from 'typebox';
 
 describe('extractTaskOutput', () => {
   it('提取标签内的 JSON 对象', () => {

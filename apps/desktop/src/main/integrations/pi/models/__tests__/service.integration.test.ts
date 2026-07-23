@@ -1,7 +1,7 @@
+import { ModelRuntime, readStoredCredential } from '@earendil-works/pi-coding-agent';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { ModelRuntime, readStoredCredential } from '@earendil-works/pi-coding-agent';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { PiModelService } from '../service';

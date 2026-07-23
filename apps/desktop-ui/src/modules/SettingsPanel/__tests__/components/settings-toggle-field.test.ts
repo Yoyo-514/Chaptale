@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { AppCheckbox } from '@/components/AppCheckbox';
+
 import SettingsToggleField from '../../components/SettingsToggleField.vue';
 
 describe('SettingsToggleField', () => {

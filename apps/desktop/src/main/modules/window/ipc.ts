@@ -1,5 +1,7 @@
 import { BrowserWindow, type IpcMainInvokeEvent } from 'electron';
+
 import { IPC_CHANNELS, type WindowStateResult } from '@chaptale/ipc-contract';
+
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 
 function getWindowFromEvent(event: IpcMainInvokeEvent) {

@@ -1,7 +1,8 @@
-import type { PersonaDefinition, PersonaDiagnostic, PersonaSource } from '@chaptale/shared';
-import { PersonaFrontmatterValidator } from '@chaptale/shared';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+
+import type { PersonaDefinition, PersonaDiagnostic, PersonaSource } from '@chaptale/shared';
+import { PersonaFrontmatterValidator } from '@chaptale/shared';
 
 /** frontmatter 解析端口；由接线层注入（desktop 用 pi SDK 的 parseFrontmatter），modules 层不依赖 pi。 */
 export type FrontmatterParser = (content: string) => {

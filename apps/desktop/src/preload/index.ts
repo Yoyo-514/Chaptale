@@ -1,16 +1,17 @@
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 import { contextBridge } from 'electron';
+
+import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 
 import { createAgentApi } from './api/agent';
 import { createGetPlatformApi } from './api/app';
 import { createSlashCommandsApi } from './api/commands';
 import { createModelsApi } from './api/models';
+import { createPermissionsApi } from './api/permissions';
 import { createPromptSettingsApi } from './api/prompts';
 import { createSessionApi } from './api/sessions';
 import { createSettingsApi } from './api/settings';
 import { createTasksApi } from './api/tasks';
 import { createTodosApi } from './api/todos';
-import { createPermissionsApi } from './api/permissions';
 import { createWindowControlApi } from './api/window';
 
 const desktopApi: ChaptaleDesktopApi = {

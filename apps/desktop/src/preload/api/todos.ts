@@ -1,7 +1,8 @@
-import { IPC_CHANNELS } from '@chaptale/ipc-contract';
-import type { ChaptaleDesktopApi, TodosUpdatedEvent } from '@chaptale/ipc-contract';
 import { ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
+
+import { IPC_CHANNELS } from '@chaptale/ipc-contract';
+import type { ChaptaleDesktopApi, TodosUpdatedEvent } from '@chaptale/ipc-contract';
 
 export function createTodosApi(): ChaptaleDesktopApi['todos'] {
   return {

@@ -1,4 +1,5 @@
 import type { ChatContextFile, ChatImageAttachment, ChatMessage } from '@chaptale/shared';
+
 import type { ChatDisplayMessage } from '../../types';
 import { parseSkillSlashCommand } from '../slash-commands';
 

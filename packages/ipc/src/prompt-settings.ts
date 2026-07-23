@@ -1,4 +1,5 @@
 import type { Static } from 'typebox';
+
 import type { UpdatePromptSettingsPayloadSchema } from './schemas/prompts';
 
 export type PromptSettingsState = {

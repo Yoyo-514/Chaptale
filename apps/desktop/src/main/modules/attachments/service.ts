@@ -1,7 +1,7 @@
-import { MAX_CHAT_IMAGE_BYTES, type ChatImageAttachment, type ChatImageSource } from '@chaptale/shared';
-
 import { nativeImage } from 'electron';
 import { promises as fs } from 'node:fs';
+
+import { MAX_CHAT_IMAGE_BYTES, type ChatImageAttachment, type ChatImageSource } from '@chaptale/shared';
 
 import { getFileKind, getImageMimeType, IMAGE_MIME_TYPES } from '../../infra/filesystem/file-kind';
 

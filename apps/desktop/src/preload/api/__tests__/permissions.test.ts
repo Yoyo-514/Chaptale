@@ -1,5 +1,6 @@
-import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 
 const electronMock = vi.hoisted(() => ({
   invoke: vi.fn<(channel: string, ...args: unknown[]) => Promise<unknown>>(),

@@ -2,18 +2,17 @@ import { PiAgentService } from '../integrations/pi/agent/service';
 import { PiAgentSessionFactory, createDefaultPersonaRegistry } from '../integrations/pi/agent/session-factory';
 import { TaskRunner } from '../integrations/pi/agent/task-runner';
 import { PiModelService } from '../integrations/pi/models/service';
-import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
 import { PiSessionRepository } from '../integrations/pi/sessions/repository';
+import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
 import { SlashCommandService } from '../modules/commands/service';
-
+import type { PermissionBroker } from '../modules/permissions/broker';
+import type { PermissionRuleStore } from '../modules/permissions/rule-store';
 import { PromptFileService } from '../modules/prompts/file-service';
 import { AgentRunStore } from '../modules/runs/store';
 import { SettingsService } from '../modules/settings/service';
 import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
 import { TaskService } from '../modules/tasks/service';
 import type { TodoStore } from '../modules/todo/store';
-import type { PermissionBroker } from '../modules/permissions/broker';
-import type { PermissionRuleStore } from '../modules/permissions/rule-store';
 
 export type AppContext = {
   settingsService: SettingsService;

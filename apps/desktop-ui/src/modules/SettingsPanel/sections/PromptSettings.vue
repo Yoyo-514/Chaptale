@@ -6,6 +6,7 @@ import { AppForm, AppFormActions, AppFormField } from '@/components/AppForm';
 import { AppTextarea } from '@/components/AppTextarea';
 import { useNotificationStore } from '@/stores/notification';
 import { useSettingsStore } from '@/stores/settings';
+
 import SettingsSection from '../components/SettingsSection.vue';
 import { usePromptSettingsDraft } from '../composables/usePromptSettingsDraft';
 

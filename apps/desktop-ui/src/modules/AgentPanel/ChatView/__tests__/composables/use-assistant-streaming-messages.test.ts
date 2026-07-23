@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ChatMessage } from '@chaptale/shared';
-import type { ChatDisplayMessage } from '../../types';
+
 import { useAssistantStreamingMessages } from '../../composables/useAssistantStreamingMessages';
+import type { ChatDisplayMessage } from '../../types';
 
 function createHarness() {
   const messages: ChatDisplayMessage[] = [];

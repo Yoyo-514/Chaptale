@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import type { PermissionDecision } from '@chaptale/shared';
 import type { PermissionAskEvent } from '@chaptale/ipc-contract';
+import type { PermissionDecision } from '@chaptale/shared';
+
 import type { RiskLevel } from './protocol';
 
 interface PendingEntry {

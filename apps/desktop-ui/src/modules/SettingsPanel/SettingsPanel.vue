@@ -4,6 +4,7 @@ import { onMounted } from 'vue';
 import { AppButton } from '@/components/AppButton';
 import { useDraggablePanel, type ResizeDirection } from '@/composables';
 import { useSettingsStore } from '@/stores/settings';
+
 import SettingsSidebar from './components/SettingsSidebar.vue';
 import ConfigFilesSettings from './sections/ConfigFilesSettings.vue';
 import LLMSettings from './sections/LLMSettings.vue';

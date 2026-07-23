@@ -1,5 +1,6 @@
-import type { ChaptaleSessionListItem, ChaptaleSessionScope, ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
 import type { SessionEntry, SessionInfo } from '@earendil-works/pi-coding-agent';
+
+import type { ChaptaleSessionListItem, ChaptaleSessionScope, ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
 
 import type { ImageAttachmentService } from '../../../modules/attachments/service';
 import { fromPiMessage } from './message-mapper';

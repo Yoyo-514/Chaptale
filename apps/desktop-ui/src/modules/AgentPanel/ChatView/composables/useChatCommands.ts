@@ -3,6 +3,7 @@ import { watch } from 'vue';
 import { useNotificationStore } from '@/stores/notification';
 import { useSettingsStore } from '@/stores/settings';
 import { getDesktopApi, toErrorMessage } from '@/stores/utils/desktop-api';
+
 import { findSlashCommand, getSlashCommandName } from '../utils/slash-commands';
 import type { ChatState } from './chat-state';
 

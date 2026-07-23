@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ChatMessage } from '@chaptale/shared';
+
 import {
   formatMaybeJson,
   formatToolName,

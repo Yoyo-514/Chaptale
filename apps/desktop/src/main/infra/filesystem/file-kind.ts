@@ -1,6 +1,6 @@
-import type { ChatContextFile } from '@chaptale/shared';
-
 import path from 'node:path';
+
+import type { ChatContextFile } from '@chaptale/shared';
 
 /** OpenAI File inputs 支持的常见文本/代码类文件；当前可直接按 UTF-8 文本注入。 */
 export const TEXT_EXTENSIONS = new Set([

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
+import type { TodoItem } from '@chaptale/shared';
+
 import { AppCollapsible } from '@/components/AppCollapsible';
 import { AppScrollArea } from '@/components/AppScrollArea';
-import type { TodoItem } from '@chaptale/shared';
 
 const props = defineProps<{
   items: TodoItem[];

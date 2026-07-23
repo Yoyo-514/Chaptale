@@ -1,5 +1,6 @@
-import type { PersonaDefinition } from '@chaptale/shared';
 import { describe, expect, it } from 'vitest';
+
+import type { PersonaDefinition } from '@chaptale/shared';
 
 import { resolveTaskSpec } from '../task-spec';
 

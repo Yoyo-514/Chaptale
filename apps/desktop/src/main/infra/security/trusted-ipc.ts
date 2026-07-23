@@ -1,9 +1,9 @@
-import { errorToMessage } from '@chaptale/shared';
 import { ipcMain } from 'electron';
+import type { IpcMainInvokeEvent } from 'electron';
+
+import { errorToMessage } from '@chaptale/shared';
 
 import { isTrustedRendererUrl } from './navigation-security';
-
-import type { IpcMainInvokeEvent } from 'electron';
 
 let trustedRendererUrl: string | undefined;
 

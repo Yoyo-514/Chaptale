@@ -1,13 +1,12 @@
+import type { WebContents } from 'electron';
 import { EventEmitter } from 'node:events';
-
-import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { registerAgentIpc } from '../ipc';
-
+import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import type { AgentRunOptions, AgentRuntime, AgentStartPayload } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
-import type { WebContents } from 'electron';
+
+import { registerAgentIpc } from '../ipc';
 
 type ValidatedHandler = (event: { sender: WebContents }, ...args: any[]) => unknown;
 type ValidatedRegistration = {

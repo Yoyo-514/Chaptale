@@ -6,6 +6,7 @@ import { useNotificationStore } from '@/stores/notification';
 import { toErrorMessage } from '@/stores/utils/desktop-api';
 import { cn } from '@/utils';
 import { formatMessageCost, formatMessageTime, formatTokenCount } from '@/utils/session-display';
+
 import type { ChatDisplayMessage } from '../../types';
 import { toInlineImageItems } from '../../utils/message/inline-images';
 import {

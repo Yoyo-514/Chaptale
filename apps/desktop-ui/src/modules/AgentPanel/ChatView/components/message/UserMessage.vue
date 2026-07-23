@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
+import type { ChatContextFile, ChatImageAttachment, ChatSkillInvocation } from '@chaptale/shared';
+
 import { AppButton } from '@/components/AppButton';
 import { AppForm, AppFormActions } from '@/components/AppForm';
 import { AppImagePreview, type AppImagePreviewItem } from '@/components/AppImagePreview';
 import { AppTextarea } from '@/components/AppTextarea';
-import type { ChatContextFile, ChatImageAttachment, ChatSkillInvocation } from '@chaptale/shared';
-
 import type { AppTextareaExpose } from '@/components/AppTextarea';
-import ChatContextFiles from '../ChatInput/ChatContextFiles.vue';
+
 import { readImageBlob } from '../../utils/image-blob';
+import ChatContextFiles from '../ChatInput/ChatContextFiles.vue';
 
 const props = defineProps<{
   content: string;

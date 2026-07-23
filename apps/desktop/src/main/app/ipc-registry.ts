@@ -1,15 +1,16 @@
 import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
+
+import { handleTrustedIpc } from '../infra/security/trusted-ipc';
 import { registerAgentIpc } from '../modules/agent/ipc';
 import { registerSlashCommandIpc } from '../modules/commands/ipc';
 import { registerModelsIpc } from '../modules/models/ipc';
+import { registerPermissionsIpc } from '../modules/permissions/ipc';
 import { registerPromptSettingsIpc } from '../modules/prompts/ipc';
 import { registerSessionIpc } from '../modules/sessions/ipc';
 import { registerSettingsIpc } from '../modules/settings/ipc';
 import { registerTaskIpc } from '../modules/tasks/ipc';
 import { registerTodoIpc } from '../modules/todo/ipc';
-import { registerPermissionsIpc } from '../modules/permissions/ipc';
 import { registerWindowIpc } from '../modules/window/ipc';
-import { handleTrustedIpc } from '../infra/security/trusted-ipc';
 import type { AppContext } from './app-context';
 
 /**

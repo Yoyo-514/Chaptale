@@ -3,6 +3,7 @@ import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useSettingsStore } from '@/stores/settings';
+
 import SettingsPathCard from '../components/SettingsPathCard.vue';
 import SettingsSection from '../components/SettingsSection.vue';
 

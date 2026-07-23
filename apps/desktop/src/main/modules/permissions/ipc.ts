@@ -1,3 +1,6 @@
+import { BrowserWindow } from 'electron';
+import { unique } from 'radash';
+
 import type { PermissionAskEvent, PermissionRuleEntry } from '@chaptale/ipc-contract';
 import {
   IPC_CHANNELS,
@@ -6,8 +9,6 @@ import {
   PermissionsPendingArgsValidator,
   PermissionsRemoveRuleArgsValidator
 } from '@chaptale/ipc-contract';
-import { BrowserWindow } from 'electron';
-import { unique } from 'radash';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { PermissionBroker } from './broker';

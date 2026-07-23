@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ref } from 'vue';
 
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
+
 import { useHistorySessions } from '../useHistorySessions';
 
 function createSession(id: string, scope: 'global' | 'workspace', cwd: string): ChaptaleSessionListItem {

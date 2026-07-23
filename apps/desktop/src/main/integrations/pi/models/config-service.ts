@@ -1,3 +1,5 @@
+import { replaceOrAppend } from 'radash';
+
 import type {
   AddCustomModelPayload,
   AddCustomProviderPayload,
@@ -7,7 +9,6 @@ import type {
   SetCustomProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
-import { replaceOrAppend } from 'radash';
 
 import {
   normalizeCustomProviderApi,
@@ -16,8 +17,8 @@ import {
   toOptionalContextWindow,
   validateContextWindow
 } from './config-helpers';
-import type { PiModelDefinition, PiModelsConfig, PiProviderConfig } from './config-types';
 import type { PiModelConfigRepository } from './config-repository';
+import type { PiModelDefinition, PiModelsConfig, PiProviderConfig } from './config-types';
 import type { FetchModelsSource } from './provider-model-fetcher';
 
 /** 管理 agentDir/models.json 中的自定义供应商与模型配置。 */

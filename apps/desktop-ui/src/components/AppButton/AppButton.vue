@@ -2,6 +2,7 @@
 import { computed, useAttrs } from 'vue';
 
 import { cn } from '@/utils';
+
 import type { AppButtonSize, AppButtonVariant } from './types';
 
 defineOptions({

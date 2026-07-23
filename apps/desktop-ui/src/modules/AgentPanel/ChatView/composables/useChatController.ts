@@ -4,6 +4,7 @@ import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
 import { useSettingsStore } from '@/stores/settings';
 import { getDesktopApi } from '@/stores/utils/desktop-api';
+
 import { createDisplayMessage } from '../utils/message/display-message';
 import { createChatState } from './chat-state';
 import { useAssistantStreamingMessages } from './useAssistantStreamingMessages';

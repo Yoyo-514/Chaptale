@@ -1,6 +1,7 @@
-import { cleanUrlToken, collapseWhitespace, getHostname } from '@chaptale/shared';
 import { lexer } from 'marked';
 import { sift, unique } from 'radash';
+
+import { cleanUrlToken, collapseWhitespace, getHostname } from '@chaptale/shared';
 
 export { getHostname };
 

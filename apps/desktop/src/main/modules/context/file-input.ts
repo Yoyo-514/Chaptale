@@ -1,6 +1,6 @@
-import { escapeXmlAttribute, escapeXmlText, formatFileSize } from '@chaptale/shared';
-
 import path from 'node:path';
+
+import { escapeXmlAttribute, escapeXmlText, formatFileSize } from '@chaptale/shared';
 
 export function buildTextFileInputBlock(filePath: string, stats: { size: number }, text: string) {
   return `<file path="${escapeXmlAttribute(filePath)}" handling="file-input-text" size="${escapeXmlAttribute(formatFileSize(stats.size))}">

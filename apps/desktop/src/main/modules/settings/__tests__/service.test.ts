@@ -1,11 +1,12 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
-import type { PiWebAccessSettings, UpdatePiWebAccessSettingsPayload } from '@chaptale/ipc-contract';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { WebAccessAdapter } from '../web-access-adapter';
+import type { PiWebAccessSettings, UpdatePiWebAccessSettingsPayload } from '@chaptale/ipc-contract';
+
 import { SettingsService } from '../service';
+import type { WebAccessAdapter } from '../web-access-adapter';
 
 let rootDir: string;
 

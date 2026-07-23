@@ -39,6 +39,7 @@ enabled: true
 ```
 
 要求：
+
 - issues 按 severity 从高到低排序；同一根因导致的多处矛盾合并为一条
 - location 必须同时引用冲突的两处原文（各一句），否则视为依据不足
 - severity 标准：

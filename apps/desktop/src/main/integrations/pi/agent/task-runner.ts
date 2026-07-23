@@ -1,11 +1,11 @@
+import type { AgentSession } from '@earendil-works/pi-coding-agent';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { extractTaskOutput, validateOutput, type PersonaDefinition } from '@chaptale/shared';
-import type { AgentSession } from '@earendil-works/pi-coding-agent';
 
+import { resolveTaskSpec } from '../../../modules/personas/task-spec';
 import type { AgentRunRecord, AgentRunTrigger } from '../../../modules/runs/record';
 import type { AgentRunStore } from '../../../modules/runs/store';
-import { resolveTaskSpec } from '../../../modules/personas/task-spec';
 import type { PiAgentSessionFactory } from './session-factory';
 
 export type TaskRunRequest = {

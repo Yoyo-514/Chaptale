@@ -1,4 +1,5 @@
 import { useNotificationStore } from '@/stores/notification';
+
 import { markUserMessageAsOptimisticBranch } from '../utils/message/display-message';
 import { getUserImages, getUserText, hasUserAttachments } from '../utils/message/message-content';
 import type { ChatState } from './chat-state';

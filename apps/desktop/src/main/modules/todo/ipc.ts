@@ -1,6 +1,7 @@
+import { BrowserWindow } from 'electron';
+
 import { IPC_CHANNELS, TodosGetArgsValidator } from '@chaptale/ipc-contract';
 import type { TodosUpdatedEvent } from '@chaptale/ipc-contract';
-import { BrowserWindow } from 'electron';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { TodoStore } from './store';

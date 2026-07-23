@@ -1,5 +1,6 @@
-import type { ChatContextFile } from '@chaptale/shared';
 import { describe, expect, it } from 'vitest';
+
+import type { ChatContextFile } from '@chaptale/shared';
 
 import { getDroppedContextFilePaths, mergeChatContextFiles } from '../../utils/context-files';
 

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import { useNotificationStore } from '@/stores/notification';
+
 import NotificationCenterHeader from './components/NotificationCenterHeader.vue';
 import NotificationCenterList from './components/NotificationCenterList.vue';
 

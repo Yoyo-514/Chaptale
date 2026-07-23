@@ -1,8 +1,8 @@
-import type { ChatContextFile } from '@chaptale/shared';
-
 import type { BrowserWindow, OpenDialogOptions } from 'electron';
 import { promises as fs } from 'node:fs';
 import { unique } from 'radash';
+
+import type { ChatContextFile } from '@chaptale/shared';
 
 import { showOpenDialog } from '../../infra/electron/dialog';
 import {
@@ -14,6 +14,7 @@ import {
   TEXT_EXTENSIONS
 } from '../../infra/filesystem/file-kind';
 import type { ImageBlock } from '../attachments/service';
+import { toChatContextFile } from './chat-context-file';
 import {
   MAX_CONTEXT_FILE_BYTES,
   MAX_DIRECT_FILE_INPUT_BYTES,
@@ -28,7 +29,6 @@ import {
   buildOversizedImageBlock,
   buildUnavailableFileBlock
 } from './file-search';
-import { toChatContextFile } from './chat-context-file';
 import { isTextWithinTokenLimit } from './token-counter';
 
 export type ContextImage = Omit<ImageBlock, 'blockIndex'>;

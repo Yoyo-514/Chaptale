@@ -1,10 +1,11 @@
 import type { InlineExtension, ToolCallEvent, ToolCallEventResult } from '@earendil-works/pi-coding-agent';
 
-import { evaluatePermission } from '../../../modules/permissions/engine';
-import type { PermissionBroker } from '../../../modules/permissions/broker';
-import type { PermissionRuleStore } from '../../../modules/permissions/rule-store';
-import type { PermissionRequest } from '../../../modules/permissions/protocol';
 import type { RiskLevel } from '@chaptale/shared';
+
+import type { PermissionBroker } from '../../../modules/permissions/broker';
+import { evaluatePermission } from '../../../modules/permissions/engine';
+import type { PermissionRequest } from '../../../modules/permissions/protocol';
+import type { PermissionRuleStore } from '../../../modules/permissions/rule-store';
 
 /** pi 内置工具的风险分级；bash 可执行任意命令，归入需确认档。 */
 const BUILTIN_RISK_LEVELS: Record<string, RiskLevel> = {

@@ -9,11 +9,6 @@ import {
   SessionIdArgsValidator,
   SetSessionLeafArgsValidator
 } from '@chaptale/ipc-contract';
-import { openPathOrThrow } from '../../infra/electron/shell';
-import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
-import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import { exportSessionHtmlToFile } from './export';
-
 import type {
   CreateSessionOptions,
   DeleteSessionPayload,
@@ -23,6 +18,11 @@ import type {
   RenameSessionPayload,
   SetSessionLeafPayload
 } from '@chaptale/ipc-contract';
+
+import { openPathOrThrow } from '../../infra/electron/shell';
+import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
+import { handleValidatedIpc } from '../../infra/security/validated-ipc';
+import { exportSessionHtmlToFile } from './export';
 import type { SessionRepository } from './repository';
 
 /** 归属会话读写、导出与存储目录频道；IPC 层负责信任及参数结构校验，持久化语义交给仓储。 */

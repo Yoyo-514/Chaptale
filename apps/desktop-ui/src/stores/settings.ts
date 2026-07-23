@@ -4,8 +4,8 @@ import { settingsActionRunner } from './settings/action-runner';
 import { modelSettingsActions } from './settings/model-actions';
 import { settingsPanelActions } from './settings/panel-actions';
 import { promptSettingsActions } from './settings/prompt-actions';
-import { workspaceSettingsActions } from './settings/workspace-actions';
 import type { SettingsSection, SettingsStoreState } from './settings/types';
+import { workspaceSettingsActions } from './settings/workspace-actions';
 
 export type { SettingsSection } from './settings/types';
 

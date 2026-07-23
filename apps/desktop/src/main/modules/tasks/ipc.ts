@@ -6,8 +6,8 @@ import {
 } from '@chaptale/ipc-contract';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import type { TaskService } from './service';
 import type { AgentRunStore } from '../runs/store';
+import type { TaskService } from './service';
 
 export function registerTaskIpc(taskService: TaskService, runStore: AgentRunStore): void {
   handleValidatedIpc(IPC_CHANNELS.tasks.run, TaskRunArgsValidator, async (_event, payload) => {

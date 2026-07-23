@@ -1,4 +1,5 @@
 import type { ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
+
 import type { ChatDisplayMessage, MessageBranchControl } from '../../types';
 import { hasRenderableMessage } from './message-content';
 

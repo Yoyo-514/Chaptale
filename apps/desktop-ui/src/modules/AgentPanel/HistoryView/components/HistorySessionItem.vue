@@ -10,6 +10,7 @@ import {
   formatTokenCount,
   getSessionTitle
 } from '@/utils/session-display';
+
 import SessionRenameDialog from '../../components/SessionRenameDialog.vue';
 import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 

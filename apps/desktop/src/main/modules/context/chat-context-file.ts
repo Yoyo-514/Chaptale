@@ -1,8 +1,8 @@
-import type { ChatContextFile } from '@chaptale/shared';
-import { MAX_CHAT_IMAGE_BYTES } from '@chaptale/shared';
-
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+
+import type { ChatContextFile } from '@chaptale/shared';
+import { MAX_CHAT_IMAGE_BYTES } from '@chaptale/shared';
 
 import { getDocumentMimeType, getFileKind, getImageMimeType } from '../../infra/filesystem/file-kind';
 import { createInlineImageDataUrl, ImageAttachmentService } from '../attachments/service';

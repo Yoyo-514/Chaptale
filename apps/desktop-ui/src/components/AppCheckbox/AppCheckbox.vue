@@ -3,6 +3,7 @@ import { CheckboxIndicator, CheckboxRoot } from 'reka-ui';
 import { computed, inject, useAttrs } from 'vue';
 
 import { cn } from '@/utils';
+
 import { appFormContextKey } from '../AppForm/context';
 import type { CheckboxValue } from './types';
 

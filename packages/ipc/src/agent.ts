@@ -1,5 +1,7 @@
-import type { ChatMessage } from '@chaptale/shared';
 import type { Static } from 'typebox';
+
+import type { ChatMessage } from '@chaptale/shared';
+
 import type {
   AgentClearPendingMessagesPayloadSchema,
   AgentStartPayloadSchema,

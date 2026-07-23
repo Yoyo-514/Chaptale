@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { PermissionBroker } from '../broker';
 import type { PermissionAskEvent } from '@chaptale/ipc-contract';
+
+import { PermissionBroker } from '../broker';
 
 function createBroker(timeoutMs = 1000) {
   const asks: PermissionAskEvent[] = [];

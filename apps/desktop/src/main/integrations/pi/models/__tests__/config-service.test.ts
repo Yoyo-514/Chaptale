@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PiCustomModelConfigService } from '../config-service';
 import { PiModelConfigRepository } from '../config-repository';
+import { PiCustomModelConfigService } from '../config-service';
 import type { PiModelsConfig } from '../config-types';
 
 function cloneConfig(config: PiModelsConfig): PiModelsConfig {

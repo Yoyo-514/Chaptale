@@ -1,5 +1,6 @@
 import type { SlashCommand } from '@chaptale/ipc-contract';
 import type { ChatContextFile } from '@chaptale/shared';
+
 import type { ChatDisplayMessage } from '../types';
 
 /**

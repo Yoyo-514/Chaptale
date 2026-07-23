@@ -6,6 +6,7 @@ import type { PermissionRuleEntry } from '@chaptale/ipc-contract';
 
 import { AppAlertDialog } from '@/components/AppDialog';
 import { useNotificationStore } from '@/stores/notification';
+
 import PermissionsSettings from '../../sections/PermissionsSettings.vue';
 
 const initialRules: PermissionRuleEntry[] = [

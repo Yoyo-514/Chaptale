@@ -3,6 +3,7 @@ import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui
 import { computed, useAttrs, useSlots } from 'vue';
 
 import { cn } from '@/utils';
+
 import type { AppCollapsibleVariant } from './types';
 
 defineOptions({

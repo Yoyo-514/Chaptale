@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
+import type { SlashCommand } from '@chaptale/ipc-contract';
+
 import type { AppTextareaExpose } from '@/components/AppTextarea';
 import { AppTextarea } from '@/components/AppTextarea';
 import { useAutosizeTextarea } from '@/composables';
 import { cn } from '@/utils';
-import type { SlashCommand } from '@chaptale/ipc-contract';
+
 import ChatSlashCommandMenu from './ChatSlashCommandMenu.vue';
 
 const props = defineProps<{

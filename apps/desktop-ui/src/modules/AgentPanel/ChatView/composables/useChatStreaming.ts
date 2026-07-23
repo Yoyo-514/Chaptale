@@ -1,10 +1,12 @@
 import { ref, type Ref } from 'vue';
 
+import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import type { ChatContextFile } from '@chaptale/shared';
+
 import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
 import { getDesktopApi, toErrorMessage } from '@/stores/utils/desktop-api';
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
-import type { ChatContextFile } from '@chaptale/shared';
+
 import {
   getAssistantReasoning,
   getAssistantText,

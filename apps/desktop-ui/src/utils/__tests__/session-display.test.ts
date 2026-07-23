@@ -1,5 +1,6 @@
-import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 import { describe, expect, it } from 'vitest';
+
+import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
 import {
   formatSessionCost,

@@ -1,10 +1,9 @@
 import { _electron as electron, expect, test } from '@playwright/test';
+import type { ElectronApplication, Page } from '@playwright/test';
 import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-
-import type { ElectronApplication, Page } from '@playwright/test';
 
 const desktopDir = path.resolve('apps/desktop');
 const desktopRequire = createRequire(path.join(desktopDir, 'package.json'));

@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import {
   AddCustomModelArgsValidator,
   AddCustomProviderArgsValidator,
@@ -35,11 +37,9 @@ import {
   UpdatePiWebAccessSettingsArgsValidator,
   UpdatePromptSettingsArgsValidator
 } from '@chaptale/ipc-contract';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { registerApplicationIpc } from '../ipc-registry';
 
 import type { AppContext } from '../app-context';
+import { registerApplicationIpc } from '../ipc-registry';
 
 type IpcValidator = { Check(value: unknown): boolean };
 type Registration =

@@ -1,5 +1,6 @@
-import type { ChatMessage } from '@chaptale/shared';
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent';
+
+import type { ChatMessage } from '@chaptale/shared';
 
 import { stringifyToolResult, toChatMessages } from './message-mapper';
 

@@ -1,6 +1,7 @@
-import type { ChatMessage } from '@chaptale/shared';
-import type { ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
 import { describe, expect, it } from 'vitest';
+
+import type { ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
+import type { ChatMessage } from '@chaptale/shared';
 
 import { buildDisplayMessagesFromEntries } from '../branching';
 

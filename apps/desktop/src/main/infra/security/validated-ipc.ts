@@ -1,6 +1,6 @@
-import { handleTrustedIpc } from './trusted-ipc';
-
 import type { IpcMainInvokeEvent } from 'electron';
+
+import { handleTrustedIpc } from './trusted-ipc';
 
 export function handleValidatedIpc<TArgs extends unknown[], TResult>(
   channel: string,

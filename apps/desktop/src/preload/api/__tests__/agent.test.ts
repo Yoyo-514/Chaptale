@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import type { AgentDoneEvent, AgentErrorEvent, AgentMessageEvent, AgentRunResult } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => {
   type Listener = (...args: unknown[]) => void;

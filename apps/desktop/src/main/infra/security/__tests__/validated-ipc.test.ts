@@ -1,9 +1,8 @@
+import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { configureTrustedRendererUrl } from '../trusted-ipc';
 import { handleValidatedIpc } from '../validated-ipc';
-
-import type { IpcMainInvokeEvent } from 'electron';
 
 const electronMock = vi.hoisted(() => ({
   handle: vi.fn()

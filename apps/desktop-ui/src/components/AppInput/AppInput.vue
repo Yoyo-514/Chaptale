@@ -2,6 +2,7 @@
 import { computed, inject, useAttrs } from 'vue';
 
 import { cn } from '@/utils';
+
 import { appFormContextKey } from '../AppForm/context';
 import type { AppInputSize, AppInputType, AppInputVariant } from './types';
 

@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSettingsStore } from '@/stores/settings';
+
 import PromptSettings from '../../sections/PromptSettings.vue';
 
 beforeEach(() => {

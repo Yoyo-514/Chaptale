@@ -10,26 +10,26 @@ import {
 import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-
 import { unique } from 'radash';
 
+import type { RiskLevel } from '@chaptale/shared';
+
 import { MEMORY_PROTOCOL } from '../../../modules/memory/protocol';
+import type { PermissionBroker } from '../../../modules/permissions/broker';
+import type { PermissionRuleStore } from '../../../modules/permissions/rule-store';
 import { builtinCompanionBody, builtinPersonaSources } from '../../../modules/personas/builtin';
 import { PersonaRegistry } from '../../../modules/personas/registry';
 import type { TaskPersonaSpec } from '../../../modules/personas/task-spec';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
+import type { SettingsService } from '../../../modules/settings/service';
 import { TODO_PROTOCOL } from '../../../modules/todo/protocol';
 import type { TodoStore } from '../../../modules/todo/store';
 import { buildChatSessionTools } from '../../../modules/tools/tool-registry';
 import type { PiModelService } from '../models/service';
-import type { SettingsService } from '../../../modules/settings/service';
+import { createPermissionGateExtension } from '../permissions/gate-extension';
 import type { SkillsProvider } from '../skills/provider';
 import { toPiToolDefinition } from '../tools/adapter';
 import { getEnabledToolNames } from '../tools/tool-whitelist';
-import { createPermissionGateExtension } from '../permissions/gate-extension';
-import type { PermissionBroker } from '../../../modules/permissions/broker';
-import type { PermissionRuleStore } from '../../../modules/permissions/rule-store';
-import type { RiskLevel } from '@chaptale/shared';
 
 const nodeRequire = createRequire(import.meta.url);
 

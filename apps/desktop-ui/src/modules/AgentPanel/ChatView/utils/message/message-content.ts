@@ -1,3 +1,5 @@
+import { sift } from 'radash';
+
 import type {
   ChatContentBlock,
   ChatImageAttachment,
@@ -8,7 +10,6 @@ import type {
   ChatToolCallContent
 } from '@chaptale/shared';
 import { formatSkillInvocation } from '@chaptale/shared';
-import { sift } from 'radash';
 
 export function getTextBlocks(content: readonly { type: string }[]): ChatTextContent[] {
   return content.filter((block): block is ChatTextContent => block.type === 'text');

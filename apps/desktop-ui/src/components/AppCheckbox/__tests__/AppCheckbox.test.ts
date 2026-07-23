@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
-import { defineComponent, h } from 'vue';
 import { describe, expect, it } from 'vitest';
+import { defineComponent, h } from 'vue';
 
 import AppForm from '../../AppForm/AppForm.vue';
 import AppFormField from '../../AppForm/AppFormField.vue';

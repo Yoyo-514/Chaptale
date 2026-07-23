@@ -1,6 +1,6 @@
-import { escapeXmlAttribute, escapeXmlText, formatFileSize } from '@chaptale/shared';
-
 import path from 'node:path';
+
+import { escapeXmlAttribute, escapeXmlText, formatFileSize } from '@chaptale/shared';
 
 import { MAX_CONTEXT_FILE_BYTES, MAX_DIRECT_FILE_INPUT_TOTAL_BYTES, MAX_TEXT_DOCUMENT_TOKENS } from './constants';
 

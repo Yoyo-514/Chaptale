@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { AppButton } from '@/components/AppButton';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+
 import type { HistoryScopeFilter, HistorySortMode } from '../composables/useHistorySessions';
 
 const props = withDefaults(

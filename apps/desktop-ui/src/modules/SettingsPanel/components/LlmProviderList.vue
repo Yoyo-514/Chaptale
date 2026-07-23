@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { AppScrollArea } from '@/components/AppScrollArea';
+
 import type { ProviderView } from '../utils/llm-settings.helpers';
 
 const props = defineProps<{

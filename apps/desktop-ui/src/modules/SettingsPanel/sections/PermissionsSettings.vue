@@ -7,6 +7,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { useNotificationStore } from '@/stores/notification';
 import { getDesktopApi, toErrorMessage } from '@/stores/utils/desktop-api';
+
 import SettingsSection from '../components/SettingsSection.vue';
 
 const actionMeta = {

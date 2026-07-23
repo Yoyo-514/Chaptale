@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 import { ref, watch } from 'vue';
+
+import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppDialog } from '@/components/AppDialog';

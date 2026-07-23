@@ -1,7 +1,8 @@
-import type { ChaptaleSessionScope, ChaptaleStorageMode } from '@chaptale/ipc-contract';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { unique } from 'radash';
+
+import type { ChaptaleSessionScope, ChaptaleStorageMode } from '@chaptale/ipc-contract';
 
 export type SessionStorageContext = {
   storageMode?: ChaptaleStorageMode;

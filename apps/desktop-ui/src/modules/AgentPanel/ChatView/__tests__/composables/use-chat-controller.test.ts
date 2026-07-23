@@ -5,6 +5,7 @@ import { defineComponent, nextTick } from 'vue';
 
 import { useNotificationStore } from '@/stores/notification';
 import { useSettingsStore } from '@/stores/settings';
+
 import { useChatController } from '../../composables/useChatController';
 
 function createSettingsState(webSearchEnabled = true) {

@@ -1,7 +1,7 @@
+import type { ToolCallEvent, ToolCallEventResult } from '@earendil-works/pi-coding-agent';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPermissionGateExtension } from '../gate-extension';
-import type { ToolCallEvent, ToolCallEventResult } from '@earendil-works/pi-coding-agent';
 
 type GateHandler = (event: ToolCallEvent) => Promise<ToolCallEventResult | void>;
 

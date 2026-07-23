@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import type { ChatContextFile, ChatMessage } from '@chaptale/shared';
+
 import { createChatState } from '../../composables/chat-state';
 import { usePendingUserMessages } from '../../composables/usePendingUserMessages';
-
-import type { ChatContextFile, ChatMessage } from '@chaptale/shared';
 
 /** 从测试用户消息中提取纯文本，非用户消息视为测试错误。 */
 function getUserText(message: ChatMessage): string {

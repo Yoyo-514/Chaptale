@@ -10,6 +10,27 @@
   "arrowParens": "avoid",
   "quoteProps": "as-needed",
   "endOfLine": "lf",
+  "sortImports": {
+    "customGroups": [
+      {
+        "groupName": "workspace",
+        "elementNamePattern": ["@chaptale/**"]
+      },
+      {
+        "groupName": "app-alias",
+        "elementNamePattern": ["@/**"]
+      }
+    ],
+    "groups": [
+      ["builtin", "external"],
+      "workspace",
+      "app-alias",
+      ["internal", "subpath"],
+      ["parent", "sibling", "index"],
+      "style",
+      "unknown"
+    ]
+  },
   "ignorePatterns": [
     "dist/**",
     "build/**",

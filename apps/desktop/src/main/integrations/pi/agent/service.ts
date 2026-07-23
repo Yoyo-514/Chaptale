@@ -1,3 +1,6 @@
+import type { ImageContent } from '@earendil-works/pi-ai/compat';
+import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
+
 import type {
   AgentClearedQueue,
   AgentRunOptions,
@@ -7,25 +10,23 @@ import type {
 } from '@chaptale/ipc-contract';
 import type { ChatMessage, SkillInvocation } from '@chaptale/shared';
 import { errorToMessage, formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
-import type { ImageContent } from '@earendil-works/pi-ai/compat';
-import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
 import { ImageAttachmentService } from '../../../modules/attachments/service';
-import { ContextFileService } from '../../../modules/context/service';
 import { decodeContextMessage } from '../../../modules/context/context-message-codec';
+import { ContextFileService } from '../../../modules/context/service';
 import { createMemoryInjector, type MemoryInjector } from '../../../modules/memory/injector';
 import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
-import { flushSessionFile } from '../sessions/file';
-import { getPiUserEntrySnapshot } from '../sessions/user-entry-snapshot';
-import type { PiModelService } from '../models/service';
+import { PermissionBroker } from '../../../modules/permissions/broker';
+import { PermissionRuleStore } from '../../../modules/permissions/rule-store';
 import type { SettingsService } from '../../../modules/settings/service';
 import { TodoStore } from '../../../modules/todo/store';
+import type { PiModelService } from '../models/service';
+import { flushSessionFile } from '../sessions/file';
+import { getPiUserEntrySnapshot } from '../sessions/user-entry-snapshot';
 import { SkillsProvider } from '../skills/provider';
 import { AsyncMessageQueue } from './async-message-queue';
 import { mapAgentStreamEvent } from './event-mapper';
 import { PiAgentSessionFactory } from './session-factory';
-import { PermissionBroker } from '../../../modules/permissions/broker';
-import { PermissionRuleStore } from '../../../modules/permissions/rule-store';
 
 export type StreamOptions = AgentRunOptions;
 

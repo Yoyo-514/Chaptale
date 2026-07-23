@@ -5,18 +5,19 @@ import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useSessionStore } from '@/stores/session';
 import { cn } from '@/utils';
+
 import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
+import PermissionRequestCard from './components/PermissionRequestCard.vue';
 import ReviewResultCard from './components/ReviewResultCard.vue';
 import TodoProgressCard from './components/TodoProgressCard.vue';
-import PermissionRequestCard from './components/PermissionRequestCard.vue';
 import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
 import { useContinuityReview } from './composables/useContinuityReview';
-import { useTodoProgress } from './composables/useTodoProgress';
 import { usePermissionRequests } from './composables/usePermissionRequests';
+import { useTodoProgress } from './composables/useTodoProgress';
 
 const chat = useChatController();
 const sessionStore = useSessionStore();

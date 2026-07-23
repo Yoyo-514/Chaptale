@@ -1,4 +1,5 @@
 import type { ChatContextFile, ChatMessage } from '@chaptale/shared';
+
 import { createDisplayMessage, createUserMessage } from '../utils/message/display-message';
 import type { ChatState } from './chat-state';
 

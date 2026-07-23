@@ -1,3 +1,5 @@
+import { ipcRenderer } from 'electron';
+
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import type {
   AddCustomModelPayload,
@@ -14,7 +16,6 @@ import type {
   SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
-import { ipcRenderer } from 'electron';
 
 /** 为 Renderer 提供模型与认证配置的类型化 IPC 门面，不暴露 ipcRenderer 本身。 */
 export function createModelsApi(): ChaptaleDesktopApi['models'] {

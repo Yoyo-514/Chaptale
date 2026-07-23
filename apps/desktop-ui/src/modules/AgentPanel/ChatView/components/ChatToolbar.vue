@@ -6,6 +6,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
+
 import SessionRenameDialog from '../../components/SessionRenameDialog.vue';
 
 const router = useRouter();

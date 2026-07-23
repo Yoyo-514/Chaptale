@@ -1,10 +1,10 @@
 import { loadSkillsFromDir } from '@earendil-works/pi-coding-agent';
+import type { LoadSkillsResult, Skill } from '@earendil-works/pi-coding-agent';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { LoadSkillsResult, Skill } from '@earendil-works/pi-coding-agent';
-import type { SkillProvider } from '../../../modules/skills/provider';
 import type { SettingsService } from '../../../modules/settings/service';
+import type { SkillProvider } from '../../../modules/skills/provider';
 
 /** 使用 pi loader 读取磁盘 Skill，并只向应用层暴露稳定的 SkillProvider 能力。 */
 export class SkillsProvider implements SkillProvider {

@@ -19,6 +19,7 @@ appliesTo: [scene-planner, companion]
 
 ```markdown
 ## 场景卡 <章号>-<序号>：<一句话概括>
+
 - 地点/时间：
 - 出场人物（视角人物加 *）：
 - 场景目标：本场景要推进什么

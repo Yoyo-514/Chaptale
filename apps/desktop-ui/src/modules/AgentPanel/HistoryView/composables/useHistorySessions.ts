@@ -1,6 +1,7 @@
-import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 import { sift } from 'radash';
 import { computed, type Ref } from 'vue';
+
+import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
 import { getSessionTitle } from '@/utils/session-display';
 

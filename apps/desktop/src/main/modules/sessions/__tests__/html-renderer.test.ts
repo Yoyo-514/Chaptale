@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
+
 import { buildSessionHtml, toSafeFileName } from '../html-renderer';
 
 function messageEntry(id: string, message: any): ChaptaleSessionTreeEntry {
