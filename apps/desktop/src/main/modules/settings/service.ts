@@ -23,6 +23,8 @@ export type SettingsServiceOptions = {
 export class SettingsService {
   readonly rootDir: string;
   readonly agentDir: string;
+  /** 内置 skills 的物化目标；可重建缓存，每次启动全量重写。 */
+  readonly builtinSkillsDir: string;
   readonly settingsPath: string;
   readonly piSettingsPath: string;
   readonly piModelsPath: string;
@@ -43,6 +45,7 @@ export class SettingsService {
   ) {
     this.rootDir = options.rootDir ?? path.join(os.homedir(), '.chaptale');
     this.agentDir = path.join(this.rootDir, 'agent');
+    this.builtinSkillsDir = path.join(this.rootDir, 'cache', 'builtin-skills');
     this.settingsPath = path.join(this.rootDir, 'settings.json');
     this.piSettingsPath = path.join(this.agentDir, 'settings.json');
     this.piModelsPath = path.join(this.agentDir, 'models.json');

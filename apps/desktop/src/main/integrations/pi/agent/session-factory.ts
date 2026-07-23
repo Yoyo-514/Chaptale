@@ -97,7 +97,7 @@ export class PiAgentSessionFactory {
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      skillsOverride: () => skillsProvider.load(skillsCwd),
+      skillsOverride: () => skillsProvider.load(skillsCwd, 'companion'),
       // 分层拼装：SYSTEM.md 仅替换 persona 层，职责/协议层始终保留；
       // 拼装结果在会话生命周期内不变（缓存安全）；APPEND_SYSTEM.md 由 pi 原生追加。
       systemPromptOverride: discovered =>

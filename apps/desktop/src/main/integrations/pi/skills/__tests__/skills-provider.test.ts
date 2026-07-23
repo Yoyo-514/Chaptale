@@ -13,14 +13,18 @@ async function createTempDir() {
   return dir;
 }
 
-async function writeSkill(root: string, name: string, description: string) {
+async function writeSkill(root: string, name: string, description: string, appliesTo?: string) {
   const skillDir = path.join(root, name);
   await fs.mkdir(skillDir, { recursive: true });
   await fs.writeFile(
     path.join(skillDir, 'SKILL.md'),
-    `---\nname: ${name}\ndescription: ${description}\n---\n\n按照技能说明执行。\n`,
+    `---\nname: ${name}\ndescription: ${description}\n${appliesTo ? `appliesTo: ${appliesTo}\n` : ''}---\n\n按照技能说明执行。\n`,
     'utf8'
   );
+}
+
+function createProvider(rootDir: string) {
+  return new SkillsProvider({ rootDir, builtinSkillsDir: path.join(rootDir, 'cache', 'builtin-skills') } as never);
 }
 
 afterEach(async () => {
@@ -34,7 +38,7 @@ describe('SkillsProvider', () => {
     await writeSkill(path.join(rootDir, 'skills'), 'review', '用户级审查');
     await writeSkill(path.join(rootDir, 'skills'), 'naming', '用户级命名');
     await writeSkill(path.join(cwd, '.chaptale', 'skills'), 'review', '作品级审查');
-    const provider = new SkillsProvider({ rootDir } as never);
+    const provider = createProvider(rootDir);
 
     const result = provider.load(cwd);
 
@@ -50,11 +54,53 @@ describe('SkillsProvider', () => {
     const cwd = await createTempDir();
     await writeSkill(path.join(rootDir, 'skills'), 'valid-skill', '有效技能');
     await writeSkill(path.join(rootDir, 'skills'), 'Invalid Skill', '无效技能');
-    const provider = new SkillsProvider({ rootDir } as never);
+    const provider = createProvider(rootDir);
 
     const result = provider.load(cwd);
 
     expect(result.skills.map(skill => skill.name)).toEqual(['valid-skill']);
     expect(result.diagnostics.length).toBeGreaterThan(0);
+  });
+
+  it('loads builtin skills with the lowest precedence', async () => {
+    const rootDir = await createTempDir();
+    const cwd = await createTempDir();
+    await writeSkill(path.join(rootDir, 'cache', 'builtin-skills'), 'review', '内置审查');
+    await writeSkill(path.join(rootDir, 'cache', 'builtin-skills'), 'naming', '内置命名');
+    await writeSkill(path.join(rootDir, 'skills'), 'review', '用户级审查');
+    const provider = createProvider(rootDir);
+
+    const result = provider.load(cwd);
+
+    expect(new Map(result.skills.map(skill => [skill.name, skill.description]))).toEqual(
+      new Map([
+        ['review', '用户级审查'],
+        ['naming', '内置命名']
+      ])
+    );
+  });
+
+  it('filters skills by appliesTo when a persona id is given', async () => {
+    const rootDir = await createTempDir();
+    const cwd = await createTempDir();
+    const skillsRoot = path.join(rootDir, 'skills');
+    await writeSkill(skillsRoot, 'bound-skill', '仅绑定 rewriter', '[rewriter]');
+    await writeSkill(skillsRoot, 'open-skill', '无绑定全部可用');
+    await writeSkill(skillsRoot, 'empty-bound', '空数组全部可用', '[]');
+    const provider = createProvider(rootDir);
+
+    const forCompanion = provider.load(cwd, 'companion');
+    expect(forCompanion.skills.map(skill => skill.name).toSorted()).toEqual(['empty-bound', 'open-skill']);
+
+    const forRewriter = provider.load(cwd, 'rewriter');
+    expect(forRewriter.skills.map(skill => skill.name).toSorted()).toEqual([
+      'bound-skill',
+      'empty-bound',
+      'open-skill'
+    ]);
+
+    // 不传 personaId 列全量（Slash 菜单等场景）。
+    const unfiltered = provider.load(cwd);
+    expect(unfiltered.skills).toHaveLength(3);
   });
 });

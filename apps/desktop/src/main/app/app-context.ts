@@ -9,6 +9,7 @@ import { SlashCommandService } from '../modules/commands/service';
 import { PromptFileService } from '../modules/prompts/file-service';
 import { AgentRunStore } from '../modules/runs/store';
 import { SettingsService } from '../modules/settings/service';
+import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
 import { TaskService } from '../modules/tasks/service';
 import type { TodoStore } from '../modules/todo/store';
 
@@ -27,6 +28,15 @@ export type AppContext = {
 export function createAppContext(): AppContext {
   const webAccessAdapter = new PiWebAccessAdapter();
   const settingsService = new SettingsService(webAccessAdapter);
+
+  // 内置 skills 先于任何会话创建物化到磁盘（pi 目录扫描与模型 read 都需要真实文件）；
+  // 失败只影响内置 skills 可用性，不阻塞应用启动。
+  try {
+    materializeBuiltinSkills(settingsService.builtinSkillsDir);
+  } catch (error) {
+    console.error('内置 skills 物化失败:', error);
+  }
+
   const sessionRepository = new PiSessionRepository({
     rootDir: settingsService.agentDir,
     cwd: () => settingsService.getCurrentCwd(),
