@@ -1,6 +1,13 @@
-import { IPC_CHANNELS, PermissionsDecideArgsValidator, PermissionsPendingArgsValidator } from '@chaptale/ipc-contract';
-import type { PermissionAskEvent } from '@chaptale/ipc-contract';
+import type { PermissionAskEvent, PermissionRuleEntry } from '@chaptale/ipc-contract';
+import {
+  IPC_CHANNELS,
+  PermissionsDecideArgsValidator,
+  PermissionsListRulesArgsValidator,
+  PermissionsPendingArgsValidator,
+  PermissionsRemoveRuleArgsValidator
+} from '@chaptale/ipc-contract';
 import { BrowserWindow } from 'electron';
+import { unique } from 'radash';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { PermissionBroker } from './broker';
@@ -36,6 +43,16 @@ export function registerPermissionsIpc(broker: PermissionBroker, ruleStore: Perm
     return { accepted: broker.decide(args.requestId, args.decision) !== null };
   });
 
+  handleValidatedIpc(IPC_CHANNELS.permissions.listRules, PermissionsListRulesArgsValidator, async () => {
+    return listRuleEntries(ruleStore);
+  });
+
+  handleValidatedIpc(IPC_CHANNELS.permissions.removeRule, PermissionsRemoveRuleArgsValidator, async (_event, args) => {
+    const { scope, ...rule } = args;
+    await ruleStore.removePersistentRule(rule, scope);
+    return listRuleEntries(ruleStore);
+  });
+
   broker.onAsk((event: PermissionAskEvent) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (window.webContents.isDestroyed()) {
@@ -49,4 +66,20 @@ export function registerPermissionsIpc(broker: PermissionBroker, ruleStore: Perm
       }
     }
   });
+}
+
+async function listRuleEntries(ruleStore: PermissionRuleStore): Promise<PermissionRuleEntry[]> {
+  const rules = await ruleStore.listPersistentRules();
+  return [...uniqueRuleEntries(rules.workspace, 'workspace'), ...uniqueRuleEntries(rules.global, 'global')];
+}
+
+function uniqueRuleEntries(
+  rules: Awaited<ReturnType<PermissionRuleStore['listPersistentRules']>>['workspace'],
+  scope: PermissionRuleEntry['scope']
+): PermissionRuleEntry[] {
+  return unique(rules, rule => `${rule.action}\0${rule.pattern}`).map(rule => ({
+    pattern: rule.pattern,
+    action: rule.action,
+    scope
+  }));
 }

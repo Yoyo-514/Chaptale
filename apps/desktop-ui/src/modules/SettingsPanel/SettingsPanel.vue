@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/settings';
 import SettingsSidebar from './components/SettingsSidebar.vue';
 import ConfigFilesSettings from './sections/ConfigFilesSettings.vue';
 import LLMSettings from './sections/LLMSettings.vue';
+import PermissionsSettings from './sections/PermissionsSettings.vue';
 import PromptSettings from './sections/PromptSettings.vue';
 import WebAccessSettings from './sections/WebAccessSettings.vue';
 import WorkspaceSettings from './sections/WorkspaceSettings.vue';
@@ -79,6 +80,7 @@ onMounted(() => {
             <LLMSettings v-else-if="settingsStore.activeSection === 'llm'" />
             <PromptSettings v-else-if="settingsStore.activeSection === 'prompt'" />
             <WebAccessSettings v-else-if="settingsStore.activeSection === 'webAccess'" />
+            <PermissionsSettings v-else-if="settingsStore.activeSection === 'permissions'" />
             <ConfigFilesSettings v-else />
           </main>
         </div>

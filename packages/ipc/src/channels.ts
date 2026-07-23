@@ -49,6 +49,8 @@ export const IPC_CHANNELS = {
   permissions: {
     pending: 'permissions:pending',
     decide: 'permissions:decide',
+    listRules: 'permissions:list-rules',
+    removeRule: 'permissions:remove-rule',
     ask: 'permissions:ask'
   },
   slashCommands: {

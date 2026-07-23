@@ -13,6 +13,10 @@ import {
   DeleteSessionsArgsValidator,
   ExportSessionArgsValidator,
   FetchCustomProviderModelsArgsValidator,
+  PermissionsDecideArgsValidator,
+  PermissionsListRulesArgsValidator,
+  PermissionsPendingArgsValidator,
+  PermissionsRemoveRuleArgsValidator,
   ReadSessionImageArgsValidator,
   RemoveCustomModelArgsValidator,
   RemoveCustomProviderApiKeyArgsValidator,
@@ -27,8 +31,6 @@ import {
   TaskListRunsArgsValidator,
   TaskRunArgsValidator,
   TodosGetArgsValidator,
-  PermissionsDecideArgsValidator,
-  PermissionsPendingArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
   UpdatePiWebAccessSettingsArgsValidator,
@@ -255,5 +257,20 @@ describe('IPC 参数 Schema', () => {
 
     expect(PermissionsPendingArgsValidator.Check(['session-1'])).toBe(true);
     expect(PermissionsPendingArgsValidator.Check([''])).toBe(false);
+
+    expect(PermissionsListRulesArgsValidator.Check([])).toBe(true);
+    expect(PermissionsListRulesArgsValidator.Check(['unexpected'])).toBe(false);
+    expect(PermissionsRemoveRuleArgsValidator.Check([{ scope: 'workspace', pattern: 'write', action: 'allow' }])).toBe(
+      true
+    );
+    expect(PermissionsRemoveRuleArgsValidator.Check([{ scope: 'global', pattern: 'bash(rm *)', action: 'deny' }])).toBe(
+      true
+    );
+    expect(PermissionsRemoveRuleArgsValidator.Check([{ scope: 'session', pattern: 'write', action: 'allow' }])).toBe(
+      false
+    );
+    expect(PermissionsRemoveRuleArgsValidator.Check([{ scope: 'workspace', pattern: '', action: 'allow' }])).toBe(
+      false
+    );
   });
 });

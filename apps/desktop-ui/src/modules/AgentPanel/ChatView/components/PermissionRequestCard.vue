@@ -4,6 +4,9 @@ import { computed, ref, watch } from 'vue';
 import type { PermissionAskEvent, PermissionDecideArgs } from '@chaptale/ipc-contract';
 import type { RiskLevel } from '@chaptale/shared';
 
+import { AppButton } from '@/components/AppButton';
+import { AppTextarea } from '@/components/AppTextarea';
+
 const props = defineProps<{
   requests: PermissionAskEvent[];
   isSubmitting: boolean;
@@ -35,11 +38,6 @@ const riskMeta: Record<RiskLevel, { label: string; className: string }> = {
   destructive: { label: '危险', className: 'permission-risk-destructive' }
 };
 
-/** allow-always 默认按 subject 精确匹配落规则；无 subject 时放行该工具全部调用。 */
-function alwaysPattern(request: PermissionAskEvent): string {
-  return request.subject ? `${request.toolName}(${request.subject})` : request.toolName;
-}
-
 function allowOnce() {
   if (current.value) {
     emit('decide', { requestId: current.value.requestId, decision: { outcome: 'allow-once' } });
@@ -50,7 +48,7 @@ function allowAlways() {
   if (current.value) {
     emit('decide', {
       requestId: current.value.requestId,
-      decision: { outcome: 'allow-always', scope: 'workspace', pattern: alwaysPattern(current.value) }
+      decision: { outcome: 'allow-always', scope: 'workspace', pattern: current.value.toolName }
     });
   }
 }
@@ -87,24 +85,29 @@ function deny() {
     <p v-if="current.subject" class="permission-card-subject" :title="current.subject">{{ current.subject }}</p>
 
     <div v-if="showDenyInput" class="permission-card-reason">
-      <input
+      <AppTextarea
         v-model="denyReason"
-        type="text"
-        class="permission-card-reason-input"
+        :rows="2"
+        resize="none"
+        size="sm"
+        variant="muted"
         placeholder="可选：告诉模型拒绝的原因，便于它调整方案"
         maxlength="2000"
-        @keydown.enter.prevent="deny"
+        @keydown.ctrl.enter.prevent="deny"
+        @keydown.meta.enter.prevent="deny"
       />
     </div>
 
     <div class="permission-card-actions">
-      <button type="button" class="permission-btn permission-btn-primary" :disabled="isSubmitting" @click="allowOnce">
+      <AppButton variant="primary" size="xs" type="button" :disabled="isSubmitting" @click="allowOnce">
         仅此次允许
-      </button>
-      <button type="button" class="permission-btn" :disabled="isSubmitting" @click="allowAlways">总是允许</button>
-      <button type="button" class="permission-btn permission-btn-danger" :disabled="isSubmitting" @click="deny">
+      </AppButton>
+      <AppButton variant="secondary" size="xs" type="button" :disabled="isSubmitting" @click="allowAlways">
+        本工作区始终允许
+      </AppButton>
+      <AppButton variant="danger" size="xs" type="button" :disabled="isSubmitting" @click="deny">
         {{ showDenyInput ? '确认拒绝' : '拒绝' }}
-      </button>
+      </AppButton>
     </div>
   </section>
 </template>
@@ -163,41 +166,7 @@ function deny() {
   color: var(--muted-foreground);
 }
 
-.permission-card-reason-input {
-  @apply w-full rounded border px-2 py-1 text-xs outline-none;
-
-  border-color: var(--border-subtle);
-  background: transparent;
-  color: var(--foreground);
-}
-
 .permission-card-actions {
   @apply flex items-center gap-2;
-}
-
-.permission-btn {
-  @apply rounded border px-2.5 py-1 text-xs;
-
-  border-color: var(--border-subtle);
-  background: transparent;
-  color: var(--foreground);
-
-  &:hover:not(:disabled) {
-    background: var(--surface-muted);
-  }
-
-  &:disabled {
-    @apply cursor-not-allowed opacity-60;
-  }
-}
-
-.permission-btn-primary {
-  @apply font-medium;
-
-  color: var(--primary);
-}
-
-.permission-btn-danger {
-  color: var(--destructive, #b91c1c);
 }
 </style>

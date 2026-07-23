@@ -19,6 +19,8 @@ interface PermissionRuleStoreOptions {
  */
 export class PermissionRuleStore {
   private readonly sessionRules = new Map<string, PermissionRule[]>();
+  // 持久规则写入串行化，避免授权追加与设置页删除并发时互相覆盖。
+  private writeQueue: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly options: PermissionRuleStoreOptions) {}
 
@@ -42,16 +44,22 @@ export class PermissionRuleStore {
       return;
     }
 
-    const filePath =
-      scope === 'workspace' ? await this.workspaceFilePath() : path.join(this.options.globalDir, PERMISSIONS_FILE);
+    await this.mutatePersistentRules(scope, rules => [...rules, rule]);
+  }
 
-    if (!filePath) {
-      throw new Error('当前没有工作区，无法写入 workspace 级规则');
-    }
+  /** 分层读取持久规则；设置页据此区分当前工作区与全局影响范围。 */
+  async listPersistentRules(): Promise<{ workspace: PermissionRule[]; global: PermissionRule[] }> {
+    return {
+      workspace: readRuleFile(await this.workspaceFilePath()),
+      global: readRuleFile(path.join(this.options.globalDir, PERMISSIONS_FILE))
+    };
+  }
 
-    const rules = readRuleFile(filePath);
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, `${JSON.stringify({ rules: [...rules, rule] }, null, 2)}\n`, 'utf8');
+  /** 删除指定持久层内所有完全相同的规则；session 规则仍随会话生命周期管理。 */
+  async removePersistentRule(rule: PermissionRule, scope: Exclude<PermissionScope, 'session'>): Promise<void> {
+    await this.mutatePersistentRules(scope, rules =>
+      rules.filter(existing => existing.pattern !== rule.pattern || existing.action !== rule.action)
+    );
   }
 
   /** 会话结束时释放其内存规则。 */
@@ -62,6 +70,28 @@ export class PermissionRuleStore {
   private async workspaceFilePath(): Promise<string | null> {
     const cwd = await this.options.resolveCwd();
     return cwd ? path.join(cwd, '.chaptale', PERMISSIONS_FILE) : null;
+  }
+
+  private async mutatePersistentRules(
+    scope: Exclude<PermissionScope, 'session'>,
+    mutator: (rules: PermissionRule[]) => PermissionRule[]
+  ): Promise<PermissionRule[]> {
+    const task = this.writeQueue.then(async () => {
+      const filePath =
+        scope === 'workspace' ? await this.workspaceFilePath() : path.join(this.options.globalDir, PERMISSIONS_FILE);
+
+      if (!filePath) {
+        throw new Error('当前没有工作区，无法操作 workspace 级规则');
+      }
+
+      const next = mutator(readRuleFile(filePath));
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, `${JSON.stringify({ rules: next }, null, 2)}\n`, 'utf8');
+      return next;
+    });
+
+    this.writeQueue = task.catch(() => undefined);
+    return task;
   }
 }
 

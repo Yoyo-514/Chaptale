@@ -21,6 +21,13 @@ import type {
   SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from './models';
+import type {
+  PermissionAskEvent,
+  PermissionDecideArgs,
+  PermissionDecideResult,
+  PermissionRemoveRuleArgs,
+  PermissionRuleEntry
+} from './permissions';
 import type { PromptSettingsState, UpdatePromptSettingsPayload } from './prompt-settings';
 import type {
   ChaptaleSessionInfoEntry,
@@ -39,9 +46,8 @@ import type {
   UpdatePiWebAccessSettingsPayload
 } from './settings';
 import type { SlashCommand } from './slash-command';
-import type { TaskRunPayload, TaskRunCompleteEvent, AgentRunsListPayload } from './tasks';
+import type { AgentRunsListPayload, TaskRunCompleteEvent, TaskRunPayload } from './tasks';
 import type { TodosUpdatedEvent } from './todos';
-import type { PermissionAskEvent, PermissionDecideArgs, PermissionDecideResult } from './permissions';
 import type { WindowStateResult } from './window';
 
 /**
@@ -132,6 +138,10 @@ export type ChaptaleDesktopApi = {
     /** 指定会话的待授权请求，供挂载/刷新后恢复卡片。 */
     getPending: (sessionId: string) => Promise<PermissionAskEvent[]>;
     decide: (args: PermissionDecideArgs) => Promise<PermissionDecideResult>;
+    /** 列出工作区与全局两层持久规则。 */
+    listRules: () => Promise<PermissionRuleEntry[]>;
+    /** 删除指定持久层内所有完全相同的规则并返回最新列表。 */
+    removeRule: (args: PermissionRemoveRuleArgs) => Promise<PermissionRuleEntry[]>;
     /** 订阅新授权请求；返回取消订阅函数。 */
     onAsk: (listener: (event: PermissionAskEvent) => void) => () => void;
   };

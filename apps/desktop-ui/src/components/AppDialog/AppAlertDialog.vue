@@ -20,6 +20,7 @@ defineOptions({
 
 const props = withDefaults(
   defineProps<{
+    open?: boolean;
     title: string;
     description?: string;
     confirmLabel: string;
@@ -28,6 +29,7 @@ const props = withDefaults(
     contentClass?: string;
   }>(),
   {
+    open: undefined,
     description: undefined,
     cancelLabel: '取消',
     overlayClass: undefined,
@@ -37,6 +39,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   confirm: [];
+  'update:open': [open: boolean];
 }>();
 
 const slots = useSlots();
@@ -51,8 +54,8 @@ const contentAttrs = computed(() => {
 </script>
 
 <template>
-  <AlertDialogRoot>
-    <AlertDialogTrigger as-child data-slot="app-alert-dialog-trigger">
+  <AlertDialogRoot :open="props.open" @update:open="emit('update:open', $event)">
+    <AlertDialogTrigger v-if="slots.trigger" as-child data-slot="app-alert-dialog-trigger">
       <slot name="trigger" />
     </AlertDialogTrigger>
     <AlertDialogPortal>

@@ -157,6 +157,8 @@ async function installDesktopMock(page: Page) {
       permissions: {
         getPending: async () => [],
         decide: async () => ({ accepted: true }),
+        listRules: async () => [],
+        removeRule: async () => [],
         onAsk: () => () => undefined
       },
       models: {

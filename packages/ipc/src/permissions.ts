@@ -1,4 +1,12 @@
-import type { RiskLevel, PermissionDecision } from '@chaptale/shared';
+import type { PermissionDecision, PermissionRule, PermissionScope, RiskLevel } from '@chaptale/shared';
+
+/** 设置页展示的规则及其所属层；持久规则列表不会返回 session 层。 */
+export type PermissionRuleEntry = PermissionRule & {
+  scope: Exclude<PermissionScope, 'session'>;
+};
+
+/** 删除指定持久层内所有完全相同的规则。 */
+export type PermissionRemoveRuleArgs = PermissionRuleEntry;
 
 /** 待授权请求：推送给 renderer 渲染授权卡片，也是 pending 查询的返回单元。 */
 export type PermissionAskEvent = {

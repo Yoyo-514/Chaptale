@@ -2,7 +2,8 @@ import { onBeforeUnmount, ref, watch } from 'vue';
 
 import type { PermissionAskEvent, PermissionDecideArgs } from '@chaptale/ipc-contract';
 
-import { getDesktopApi, hasDesktopApi } from '@/stores/utils/desktop-api';
+import { useNotificationStore } from '@/stores/notification';
+import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/stores/utils/desktop-api';
 
 /**
  * 当前会话的待授权请求队列：切换会话时全量拉取，之后跟随 main 侧 ask 推送追加。
@@ -13,6 +14,7 @@ import { getDesktopApi, hasDesktopApi } from '@/stores/utils/desktop-api';
 export function usePermissionRequests(getSessionId: () => string) {
   const requests = ref<PermissionAskEvent[]>([]);
   const isSubmitting = ref(false);
+  const notificationStore = useNotificationStore();
 
   // 浏览器 e2e/dev 环境没有桌面 API：保持静态空态，不订阅不拉取。
   if (!hasDesktopApi()) {
@@ -48,10 +50,26 @@ export function usePermissionRequests(getSessionId: () => string) {
     isSubmitting.value = true;
 
     try {
-      await getDesktopApi().permissions.decide(args);
+      const result = await getDesktopApi().permissions.decide(args);
+
+      if (!result.accepted) {
+        notificationStore.info('授权请求已失效', '该请求可能已超时或在其他窗口中处理');
+        requests.value = requests.value.filter(item => item.requestId !== args.requestId);
+        return;
+      }
+
+      if (args.decision.outcome === 'allow-always') {
+        notificationStore.success(
+          '已添加工作区授权规则',
+          `${args.decision.pattern} · 保存于 .chaptale/permissions.json`
+        );
+      }
+
+      requests.value = requests.value.filter(item => item.requestId !== args.requestId);
+    } catch (error) {
+      notificationStore.error('提交授权决定失败', toErrorMessage(error));
     } finally {
       isSubmitting.value = false;
-      requests.value = requests.value.filter(item => item.requestId !== args.requestId);
     }
   }
 

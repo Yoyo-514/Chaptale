@@ -29,6 +29,12 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
     icon: 'i-mingcute-earth-line'
   },
   {
+    id: 'permissions',
+    title: '权限',
+    description: '工具授权与持久规则',
+    icon: 'i-mingcute-shield-shape-line'
+  },
+  {
     id: 'files',
     title: '配置文件',
     description: '应用与模型配置路径',

@@ -4,11 +4,11 @@ import type {
   ListModelsResult,
   PromptSettingsState,
   UpdateChaptaleSettingsPayload,
-  UpdatePromptSettingsPayload,
-  UpdatePiWebAccessSettingsPayload
+  UpdatePiWebAccessSettingsPayload,
+  UpdatePromptSettingsPayload
 } from '@chaptale/ipc-contract';
 
-export type SettingsSection = 'workspace' | 'llm' | 'prompt' | 'webAccess' | 'files';
+export type SettingsSection = 'workspace' | 'llm' | 'prompt' | 'webAccess' | 'permissions' | 'files';
 
 export type SettingsStoreState = {
   state: ChaptaleSettingsState | undefined;

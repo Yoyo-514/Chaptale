@@ -12,6 +12,10 @@ import {
   ExportSessionArgsValidator,
   FetchCustomProviderModelsArgsValidator,
   IPC_CHANNELS,
+  PermissionsDecideArgsValidator,
+  PermissionsListRulesArgsValidator,
+  PermissionsPendingArgsValidator,
+  PermissionsRemoveRuleArgsValidator,
   ReadSessionImageArgsValidator,
   RemoveCustomModelArgsValidator,
   RemoveCustomProviderApiKeyArgsValidator,
@@ -24,10 +28,8 @@ import {
   SetSessionLeafArgsValidator,
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
-  TodosGetArgsValidator,
-  PermissionsPendingArgsValidator,
-  PermissionsDecideArgsValidator,
   TaskRunArgsValidator,
+  TodosGetArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
   UpdatePiWebAccessSettingsArgsValidator,
@@ -127,6 +129,8 @@ const expectedRegistrations: Registration[] = [
 
   validated(IPC_CHANNELS.permissions.pending, PermissionsPendingArgsValidator),
   validated(IPC_CHANNELS.permissions.decide, PermissionsDecideArgsValidator),
+  validated(IPC_CHANNELS.permissions.listRules, PermissionsListRulesArgsValidator),
+  validated(IPC_CHANNELS.permissions.removeRule, PermissionsRemoveRuleArgsValidator),
 
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),
@@ -152,7 +156,12 @@ function createContext(): AppContext {
     commandService: {},
     todoStore: { onChange: () => () => undefined, remove: async () => undefined },
     permissionBroker: { onAsk: () => undefined, listPending: () => [], rejectSession: () => undefined },
-    permissionRuleStore: { addRule: async () => undefined, clearSession: () => undefined }
+    permissionRuleStore: {
+      addRule: async () => undefined,
+      listPersistentRules: async () => ({ workspace: [], global: [] }),
+      removePersistentRule: async () => undefined,
+      clearSession: () => undefined
+    }
   } as unknown as AppContext;
 }
 

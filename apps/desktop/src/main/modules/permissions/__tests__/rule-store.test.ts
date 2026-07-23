@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { PermissionRuleStore } from '../rule-store';
 
@@ -46,6 +46,38 @@ describe('PermissionRuleStore', () => {
     await reloaded.addRule({ pattern: 'write', action: 'allow' }, 'workspace');
 
     expect((await reloaded.collect()).map(rule => rule.pattern)).toEqual(['edit', 'write']);
+  });
+
+  it('lists persistent rules by scope and removes all exact duplicates from one scope', async () => {
+    const globalDir = createTempDir();
+    const cwd = createTempDir();
+    const store = new PermissionRuleStore({ globalDir, resolveCwd: () => cwd });
+
+    await store.addRule({ pattern: 'write(src/example.ts)', action: 'allow' }, 'workspace');
+    await store.addRule({ pattern: 'write(src/example.ts)', action: 'allow' }, 'workspace');
+    await store.addRule({ pattern: 'write(src/example.ts)', action: 'allow' }, 'global');
+    await store.addRule({ pattern: 'bash(rm *)', action: 'deny' }, 'global');
+
+    expect(await store.listPersistentRules()).toEqual({
+      workspace: [
+        { pattern: 'write(src/example.ts)', action: 'allow' },
+        { pattern: 'write(src/example.ts)', action: 'allow' }
+      ],
+      global: [
+        { pattern: 'write(src/example.ts)', action: 'allow' },
+        { pattern: 'bash(rm *)', action: 'deny' }
+      ]
+    });
+
+    await store.removePersistentRule({ pattern: 'write(src/example.ts)', action: 'allow' }, 'workspace');
+
+    expect(await store.listPersistentRules()).toEqual({
+      workspace: [],
+      global: [
+        { pattern: 'write(src/example.ts)', action: 'allow' },
+        { pattern: 'bash(rm *)', action: 'deny' }
+      ]
+    });
   });
 
   it('degrades corrupt files to empty and keeps only valid entries', async () => {
