@@ -1,4 +1,13 @@
-import type { ChatContextFile, ChatMessage, SubagentSlotEvent, SubagentSlotSnapshot, TodoItem } from '@chaptale/shared';
+import type {
+  ChatContextFile,
+  ChatMessage,
+  MemoryPendingAction,
+  MemoryPendingListResult,
+  MemoryPendingResolveResult,
+  SubagentSlotEvent,
+  SubagentSlotSnapshot,
+  TodoItem
+} from '@chaptale/shared';
 
 import type {
   AgentQueueClearResult,
@@ -144,6 +153,14 @@ export type ChaptaleDesktopApi = {
     cancel: (requestId: string) => Promise<void>;
     /** 订阅槽位状态机事件；返回取消订阅函数。 */
     onEvent: (listener: (event: SubagentSlotEvent) => void) => () => void;
+  };
+  memory: {
+    /** 当前作品的待确认提议列表（含坏文件诊断）。 */
+    listPending: () => Promise<MemoryPendingListResult>;
+    /** 接受或拒绝提议；冲突时提议保留并返回原因。 */
+    resolvePending: (args: { id: string; action: MemoryPendingAction }) => Promise<MemoryPendingResolveResult>;
+    /** 订阅 pending 集合变更（新提议/已处理）；返回取消订阅函数。 */
+    onPendingChanged: (listener: () => void) => () => void;
   };
   permissions: {
     /** 指定会话的待授权请求，供挂载/刷新后恢复卡片。 */

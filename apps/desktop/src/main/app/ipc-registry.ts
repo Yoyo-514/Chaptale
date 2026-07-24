@@ -3,6 +3,7 @@ import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
 import { registerAgentIpc } from '../modules/agent/ipc';
 import { registerSlashCommandIpc } from '../modules/commands/ipc';
+import { registerMemoryIpc } from '../modules/memory/ipc';
 import { registerModelsIpc } from '../modules/models/ipc';
 import { registerPermissionsIpc } from '../modules/permissions/ipc';
 import { registerPromptSettingsIpc } from '../modules/prompts/ipc';
@@ -49,6 +50,7 @@ export function registerApplicationIpc(context: AppContext): void {
   registerTaskIpc(context.taskService, context.runStore);
   registerTodoIpc(context.todoStore);
   registerSubagentIpc(context.subagentPool);
+  registerMemoryIpc(context.memoryPendingStore);
   registerPermissionsIpc(context.permissionBroker, context.permissionRuleStore);
   registerWindowIpc();
 }

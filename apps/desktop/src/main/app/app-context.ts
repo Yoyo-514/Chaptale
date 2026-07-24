@@ -1,10 +1,12 @@
 import { PiAgentService } from '../integrations/pi/agent/service';
-import { createDefaultPersonaRegistry } from '../integrations/pi/agent/session-factory';
+import { createDefaultPersonaRegistry, piParseFrontmatter } from '../integrations/pi/agent/session-factory';
 import { TaskRunner } from '../integrations/pi/agent/task-runner';
 import { PiModelService } from '../integrations/pi/models/service';
 import { PiSessionRepository } from '../integrations/pi/sessions/repository';
 import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
 import { SlashCommandService } from '../modules/commands/service';
+import { MemoryPendingStore } from '../modules/memory/pending-store';
+import { createMemoryProposeTool, createMemorySaveTool } from '../modules/memory/tools';
 import type { PermissionBroker } from '../modules/permissions/broker';
 import type { PermissionRuleStore } from '../modules/permissions/rule-store';
 import { PromptFileService } from '../modules/prompts/file-service';
@@ -27,6 +29,7 @@ export type AppContext = {
   runStore: AgentRunStore;
   todoStore: TodoStore;
   subagentPool: SubagentPool;
+  memoryPendingStore: MemoryPendingStore;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
 };
@@ -63,18 +66,34 @@ export function createAppContext(): AppContext {
   const taskRunner = new TaskRunner(agentRuntime.sessionFactory, runStore);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner });
   const subagentPool = new SubagentPool();
+  const memoryPendingStore = new MemoryPendingStore({
+    resolveCwd: () => settingsService.getCurrentCwd(),
+    parseFrontmatter: piParseFrontmatter
+  });
 
   // delegate 工具依赖 taskRunner，而 taskRunner 又依赖会话工厂；
   // 通过工厂的额外工具注册点 late-bind，避免构造期循环。
-  agentRuntime.sessionFactory.setExtraChatTools(async sessionId => [
-    await createDelegateTool({
-      pool: subagentPool,
-      taskRunner,
-      personaRegistry,
-      resolveCwd: () => settingsService.getCurrentCwd(),
-      sessionId
-    })
-  ]);
+  agentRuntime.sessionFactory.setExtraChatTools(async sessionId => {
+    const resolveCwd = () => settingsService.getCurrentCwd();
+    // persona.memory 权限矩阵在工具组装时执行：缺省（未声明）按协议默认全开，
+    // 显式声明时按矩阵收窄——write 含 notes 才挂笔记工具，propose 非空才挂提议工具。
+    const memoryMatrix = (await personaRegistry.get(await resolveCwd(), 'companion'))?.memory;
+    const canSaveNotes = !memoryMatrix || (memoryMatrix.write ?? []).includes('notes');
+    const canPropose = !memoryMatrix || (memoryMatrix.propose ?? []).length > 0;
+    const memoryToolContext = { resolveCwd, getSessionId: () => sessionId };
+
+    return [
+      await createDelegateTool({
+        pool: subagentPool,
+        taskRunner,
+        personaRegistry,
+        resolveCwd,
+        sessionId
+      }),
+      ...(canSaveNotes ? [createMemorySaveTool(memoryToolContext)] : []),
+      ...(canPropose ? [createMemoryProposeTool({ ...memoryToolContext, pendingStore: memoryPendingStore })] : [])
+    ];
+  });
 
   return {
     settingsService,
@@ -87,6 +106,7 @@ export function createAppContext(): AppContext {
     runStore,
     todoStore: agentRuntime.todoStore,
     subagentPool,
+    memoryPendingStore,
     permissionBroker,
     permissionRuleStore
   };

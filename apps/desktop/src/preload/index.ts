@@ -5,6 +5,7 @@ import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 import { createAgentApi } from './api/agent';
 import { createGetPlatformApi } from './api/app';
 import { createSlashCommandsApi } from './api/commands';
+import { createMemoryApi } from './api/memory';
 import { createModelsApi } from './api/models';
 import { createPermissionsApi } from './api/permissions';
 import { createPromptSettingsApi } from './api/prompts';
@@ -26,6 +27,7 @@ const desktopApi: ChaptaleDesktopApi = {
   agent: createAgentApi(),
   tasks: createTasksApi(),
   todos: createTodosApi(),
+  memory: createMemoryApi(),
   subagent: createSubagentApi(),
   permissions: createPermissionsApi()
 };

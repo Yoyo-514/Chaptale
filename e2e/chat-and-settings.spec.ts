@@ -166,6 +166,11 @@ async function installDesktopMock(page: Page) {
         cancel: async () => undefined,
         onEvent: () => () => undefined
       },
+      memory: {
+        listPending: async () => ({ proposals: [], diagnostics: [] }),
+        resolvePending: async () => ({ id: 'p-e2e', status: 'rejected' }),
+        onPendingChanged: () => () => undefined
+      },
       tasks: {
         run: async () => ({ status: 'cancelled', runId: 'run-e2e' }),
         cancel: async () => undefined,

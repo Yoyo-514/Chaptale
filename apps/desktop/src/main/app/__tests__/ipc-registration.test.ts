@@ -8,6 +8,8 @@ import {
   AgentInspectContextFilesArgsValidator,
   AgentStartArgsValidator,
   AgentSteerArgsValidator,
+  MemoryListPendingArgsValidator,
+  MemoryResolvePendingArgsValidator,
   CreateSessionArgsValidator,
   DeleteSessionArgsValidator,
   DeleteSessionsArgsValidator,
@@ -134,6 +136,9 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.subagent.listActive, SubagentListActiveArgsValidator),
   validated(IPC_CHANNELS.subagent.cancel, SubagentCancelArgsValidator),
 
+  validated(IPC_CHANNELS.memory.listPending, MemoryListPendingArgsValidator),
+  validated(IPC_CHANNELS.memory.resolvePending, MemoryResolvePendingArgsValidator),
+
   validated(IPC_CHANNELS.permissions.pending, PermissionsPendingArgsValidator),
   validated(IPC_CHANNELS.permissions.decide, PermissionsDecideArgsValidator),
   validated(IPC_CHANNELS.permissions.listRules, PermissionsListRulesArgsValidator),
@@ -151,6 +156,7 @@ const mainToRendererEvents = new Set<string>([
   IPC_CHANNELS.agent.error,
   IPC_CHANNELS.todos.updated,
   IPC_CHANNELS.subagent.event,
+  IPC_CHANNELS.memory.pendingChanged,
   IPC_CHANNELS.permissions.ask
 ]);
 
@@ -164,6 +170,7 @@ function createContext(): AppContext {
     commandService: {},
     todoStore: { onChange: () => () => undefined, remove: async () => undefined },
     subagentPool: { onEvent: () => () => undefined, listActive: () => [], cancel: () => undefined },
+    memoryPendingStore: { onChange: () => () => undefined, list: async () => ({ proposals: [], diagnostics: [] }) },
     permissionBroker: { onAsk: () => undefined, listPending: () => [], rejectSession: () => undefined },
     permissionRuleStore: {
       addRule: async () => undefined,

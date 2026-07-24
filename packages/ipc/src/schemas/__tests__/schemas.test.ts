@@ -6,6 +6,8 @@ import {
   AgentCancelArgsValidator,
   AgentClearPendingMessagesArgsValidator,
   AgentInspectContextFilesArgsValidator,
+  MemoryListPendingArgsValidator,
+  MemoryResolvePendingArgsValidator,
   AgentStartArgsValidator,
   AgentSteerArgsValidator,
   CreateSessionArgsValidator,
@@ -272,5 +274,16 @@ describe('IPC 参数 Schema', () => {
     expect(PermissionsRemoveRuleArgsValidator.Check([{ scope: 'workspace', pattern: '', action: 'allow' }])).toBe(
       false
     );
+  });
+
+  it('memory pending 参数校验', () => {
+    expect(MemoryListPendingArgsValidator.Check([])).toBe(true);
+    expect(MemoryListPendingArgsValidator.Check(['unexpected'])).toBe(false);
+
+    expect(MemoryResolvePendingArgsValidator.Check([{ id: 'p-1', action: 'accept' }])).toBe(true);
+    expect(MemoryResolvePendingArgsValidator.Check([{ id: 'p-1', action: 'reject' }])).toBe(true);
+    expect(MemoryResolvePendingArgsValidator.Check([{ id: '', action: 'accept' }])).toBe(false);
+    expect(MemoryResolvePendingArgsValidator.Check([{ id: 'p-1', action: 'apply' }])).toBe(false);
+    expect(MemoryResolvePendingArgsValidator.Check([{ id: 'p-1', action: 'accept', extra: 1 }])).toBe(false);
   });
 });

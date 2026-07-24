@@ -7,6 +7,10 @@ import {
   type AgentSession,
   type SessionInfo
 } from '@earendil-works/pi-coding-agent';
+
+// 供接线层（app-context）注入到 pi-free 模块的 frontmatter 解析端口；
+// 统一经 integrations 导出，避免 app 层直接依赖 pi 包。
+export { parseFrontmatter as piParseFrontmatter } from '@earendil-works/pi-coding-agent';
 import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';

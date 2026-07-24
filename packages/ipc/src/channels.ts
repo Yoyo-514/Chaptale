@@ -52,6 +52,11 @@ export const IPC_CHANNELS = {
     cancel: 'subagent:cancel',
     event: 'subagent:event'
   },
+  memory: {
+    listPending: 'memory:list-pending',
+    resolvePending: 'memory:resolve-pending',
+    pendingChanged: 'memory:pending-changed'
+  },
   permissions: {
     pending: 'permissions:pending',
     decide: 'permissions:decide',
