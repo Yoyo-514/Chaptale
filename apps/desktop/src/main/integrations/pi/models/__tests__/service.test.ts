@@ -33,7 +33,7 @@ function createModelRuntime() {
   };
 
   return {
-    reloadConfig: vi.fn(async () => undefined),
+    refresh: vi.fn(async () => ({ aborted: false, errors: new Map() })),
     getModels: vi.fn(() => [model]),
     getModel: vi.fn((provider: string, modelId: string) =>
       provider === model.provider && modelId === model.id ? model : undefined
@@ -83,7 +83,8 @@ describe('PiModelService ModelRuntime integration', () => {
 
     const result = await service.listModels();
 
-    expect(runtime.reloadConfig).toHaveBeenCalledOnce();
+    expect(runtime.refresh).toHaveBeenCalledOnce();
+    expect(runtime.refresh).toHaveBeenCalledWith();
     expect(runtime.getModels).toHaveBeenCalledOnce();
     expect(runtime.getProviders).toHaveBeenCalledOnce();
     expect(runtime.checkAuth).toHaveBeenCalledWith('openai');
@@ -121,7 +122,7 @@ describe('PiModelService ModelRuntime integration', () => {
 
     expect(runtime.login).toHaveBeenCalledWith('openai', 'api_key', expect.any(Object));
     await expect(runtime.login.mock.results[0]?.value).resolves.toEqual({ type: 'api_key', key: 'sk-test' });
-    expect(runtime.reloadConfig).not.toHaveBeenCalled();
+    expect(runtime.refresh).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -169,34 +170,35 @@ describe('PiModelService ModelRuntime integration', () => {
     await service.removeProviderAuth({ provider: 'openai' });
 
     expect(runtime.logout).toHaveBeenCalledWith('openai');
-    expect(runtime.reloadConfig).not.toHaveBeenCalled();
+    expect(runtime.refresh).not.toHaveBeenCalled();
   });
 
-  it('serializes concurrent runtime reloads', async () => {
+  it('serializes concurrent runtime refreshes', async () => {
     const { service, runtime } = createService();
-    let releaseFirstReload!: () => void;
-    let markFirstReloadStarted!: () => void;
-    const firstReloadStarted = new Promise<void>(resolve => {
-      markFirstReloadStarted = resolve;
+    let releaseFirstRefresh!: () => void;
+    let markFirstRefreshStarted!: () => void;
+    const firstRefreshStarted = new Promise<void>(resolve => {
+      markFirstRefreshStarted = resolve;
     });
-    const firstReloadCanFinish = new Promise<void>(resolve => {
-      releaseFirstReload = resolve;
+    const firstRefreshCanFinish = new Promise<void>(resolve => {
+      releaseFirstRefresh = resolve;
     });
-    runtime.reloadConfig
+    runtime.refresh
       .mockImplementationOnce(async () => {
-        markFirstReloadStarted();
-        await firstReloadCanFinish;
+        markFirstRefreshStarted();
+        await firstRefreshCanFinish;
+        return { aborted: false, errors: new Map() };
       })
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({ aborted: false, errors: new Map() });
 
     const firstList = service.listModels();
-    await firstReloadStarted;
+    await firstRefreshStarted;
     const secondList = service.listModels();
     await Promise.resolve();
 
-    expect(runtime.reloadConfig).toHaveBeenCalledTimes(1);
-    releaseFirstReload();
+    expect(runtime.refresh).toHaveBeenCalledTimes(1);
+    releaseFirstRefresh();
     await Promise.all([firstList, secondList]);
-    expect(runtime.reloadConfig).toHaveBeenCalledTimes(2);
+    expect(runtime.refresh).toHaveBeenCalledTimes(2);
   });
 });

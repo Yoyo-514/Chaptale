@@ -58,7 +58,10 @@ export class PiModelService {
         }));
     this.modelConfigRepository = new PiModelConfigRepository({
       modelsPath: settingsService.piModelsPath,
-      onWrite: () => this.runWithModelRuntime(modelRuntime => modelRuntime.reloadConfig())
+      onWrite: () =>
+        this.runWithModelRuntime(async modelRuntime => {
+          await modelRuntime.refresh({ allowNetwork: false });
+        })
     });
     this.customModelConfig = new PiCustomModelConfigService(this.modelConfigRepository);
   }
@@ -90,7 +93,7 @@ export class PiModelService {
    */
   listModels(): Promise<ListModelsResult> {
     return this.runWithModelRuntime(async modelRuntime => {
-      await modelRuntime.reloadConfig();
+      await modelRuntime.refresh();
       return this.buildModelsResult(modelRuntime);
     });
   }
