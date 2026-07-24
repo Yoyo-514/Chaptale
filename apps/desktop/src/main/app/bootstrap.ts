@@ -25,7 +25,7 @@ export function bootstrapDesktopApp(): void {
 
     // 开发服务器和打包后的 file URL 共用同一信任入口，必须先配置白名单再创建窗口和注册 IPC。
     const rendererEntryUrl =
-      process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(path.join(currentDir, '../renderer/index.html')).toString();
+      process.env.VITE_DEV_SERVER_URL ?? pathToFileURL(path.join(currentDir, '../renderer/index.html')).toString();
     configureTrustedRendererUrl(rendererEntryUrl);
 
     const context = createAppContext();

@@ -26,10 +26,10 @@ export function createMainWindow(rendererEntryUrl: string): BrowserWindow {
     frame: false,
     backgroundColor: '#fffaf2',
     webPreferences: {
-      preload: path.join(currentDir, '../preload/index.js'),
+      preload: path.join(currentDir, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   });
 

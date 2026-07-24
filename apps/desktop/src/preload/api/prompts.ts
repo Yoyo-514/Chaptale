@@ -1,7 +1,7 @@
 import { ipcRenderer } from 'electron';
 
-import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import type { ChaptaleDesktopApi, UpdatePromptSettingsPayload } from '@chaptale/ipc-contract';
+import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 
 export function createPromptSettingsApi(): ChaptaleDesktopApi['promptSettings'] {
   return {

@@ -1,12 +1,12 @@
 import { ipcRenderer } from 'electron';
 
-import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import type {
   ChaptaleDesktopApi,
   CreateSessionOptions,
   ReadSessionImagePayload,
   ReadSessionImageResult
 } from '@chaptale/ipc-contract';
+import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 
 /** 为 Renderer 提供会话读写、分支、导出及图片读取的最小 IPC 门面。 */
 export function createSessionApi(): ChaptaleDesktopApi['session'] {

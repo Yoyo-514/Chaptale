@@ -1,7 +1,6 @@
-import { ipcRenderer, webUtils } from 'electron';
 import type { IpcRendererEvent } from 'electron';
+import { ipcRenderer, webUtils } from 'electron';
 
-import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import type {
   AgentClearPendingMessagesPayload,
   AgentDoneEvent,
@@ -13,6 +12,7 @@ import type {
   AgentSteerPayload,
   ChaptaleDesktopApi
 } from '@chaptale/ipc-contract';
+import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 
 /**
  * 暴露 Renderer 可用的 Agent API，并在 Preload 内隔离 Electron IPC 与本地文件路径能力。

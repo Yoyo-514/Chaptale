@@ -26,7 +26,7 @@ let testHome: string;
 test.beforeEach(async () => {
   testHome = await fs.mkdtemp(path.join(os.tmpdir(), 'chaptale-electron-e2e-'));
   const env = { ...process.env };
-  delete env.ELECTRON_RENDERER_URL;
+  delete env.VITE_DEV_SERVER_URL;
   env.NODE_ENV = 'production';
   env.HOME = testHome;
   env.USERPROFILE = testHome;
@@ -51,6 +51,14 @@ test('production renderer exposes the trusted preload IPC facade', async () => {
 
   expect(hasDesktopApi).toBe(true);
   expect(platform?.platform).toBe(process.platform);
+});
+
+test('production renderer runs with the Chromium sandbox enabled', async () => {
+  const sandboxEnabled = await electronApp.evaluate(({ BrowserWindow }) => {
+    return BrowserWindow.getAllWindows()[0]?.webContents.getLastWebPreferences().sandbox;
+  });
+
+  expect(sandboxEnabled).toBe(true);
 });
 
 test('external links open outside the app without replacing the trusted renderer', async () => {

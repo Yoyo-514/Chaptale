@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./src/index.ts"
+    },
+    "./channels": {
+      "types": "./dist/channels.d.ts",
+      "default": "./src/channels.ts"
     }
   },
   "scripts": {

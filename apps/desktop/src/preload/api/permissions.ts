@@ -2,7 +2,7 @@ import type { IpcRendererEvent } from 'electron';
 import { ipcRenderer } from 'electron';
 
 import type { ChaptaleDesktopApi, PermissionAskEvent } from '@chaptale/ipc-contract';
-import { IPC_CHANNELS } from '@chaptale/ipc-contract';
+import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 
 export function createPermissionsApi(): ChaptaleDesktopApi['permissions'] {
   return {
