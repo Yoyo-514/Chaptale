@@ -161,6 +161,11 @@ async function installDesktopMock(page: Page) {
         removeRule: async () => [],
         onAsk: () => () => undefined
       },
+      subagent: {
+        listActive: async () => [],
+        cancel: async () => undefined,
+        onEvent: () => () => undefined
+      },
       models: {
         list: async () => ({ providers: [], models: [], defaultModel: undefined }),
         setDefault: async () => ({ providers: [], models: [], defaultModel: undefined }),
@@ -360,7 +365,8 @@ test('mixed attachments keep compact tiles in the input while sent images render
   const galleryImage = page.locator('.message-container-user .app-image-gallery-image').first();
   await expect(galleryImage).toHaveAttribute('src', 'data:image/png;base64,YWJj');
   await page.getByRole('button', { name: '预览 用户上传的图片 1' }).click();
-  await expect.poll(() => page.evaluate(() => (window as any).chaptaleE2E.imageReads.length)).toBe(1);
+  // lightbox 会预加载循环相邻原图：当前 + 前后各一张，共 3 次读取。
+  await expect.poll(() => page.evaluate(() => (window as any).chaptaleE2E.imageReads.length)).toBe(3);
   // 依赖升级后首轮冷缓存会拖慢 lightbox 模块编译，放宽等待窗口避免一次性 flaky。
   await expect(page.getByText('1 / 9')).toBeVisible({ timeout: 15000 });
 });
