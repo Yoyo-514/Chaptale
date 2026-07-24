@@ -93,6 +93,8 @@ export function createAgentApi(): ChaptaleDesktopApi['agent'] {
       ipcRenderer.invoke(IPC_CHANNELS.agent.clearPendingMessages, {
         runId
       } satisfies AgentClearPendingMessagesPayload) as Promise<AgentQueueClearResult>,
+    getContextPressure: sessionId => ipcRenderer.invoke(IPC_CHANNELS.agent.getContextPressure, sessionId),
+    compactSession: sessionId => ipcRenderer.invoke(IPC_CHANNELS.agent.compactSession, sessionId),
     cancel: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.agent.cancel, runId) as Promise<AgentRunResult>
   };
 }

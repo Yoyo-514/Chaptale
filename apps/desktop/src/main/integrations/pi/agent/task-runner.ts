@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { extractTaskOutput, validateOutput, type PersonaDefinition } from '@chaptale/shared';
 
+import { estimateTextTokens, fitTextToTokens } from '../../../modules/context/token-counter';
 import { resolveTaskSpec } from '../../../modules/personas/task-spec';
 import type { AgentRunRecord, AgentRunTrigger } from '../../../modules/runs/record';
 import type { AgentRunStore } from '../../../modules/runs/store';
@@ -10,6 +11,8 @@ import type { PiAgentSessionFactory } from './session-factory';
 
 export type TaskRunRequest = {
   persona: PersonaDefinition;
+  /** 启动时绑定的工作区；task session、输出和 AgentRun 必须使用同一值。 */
+  cwd: string;
   /** 任务简报：要做什么。 */
   brief: string;
   /** 待处理文本（粘贴或上传的正文）。 */
@@ -18,6 +21,8 @@ export type TaskRunRequest = {
   contextPrompt?: string;
   trigger: AgentRunTrigger;
   parentSessionId?: string;
+  /** 完整首轮 prompt 的硬预算；缺省不裁剪。 */
+  maxPromptTokens?: number;
   signal?: AbortSignal;
 };
 
@@ -58,7 +63,7 @@ export class TaskRunner {
       throw new Error(`task persona 缺少输出 schema 声明：${request.persona.id}`);
     }
 
-    const session = await this.sessionFactory.createTaskSession(spec);
+    const session = await this.sessionFactory.createTaskSession(spec, request.cwd);
     const onAbort = () => void Promise.resolve(session.abort()).catch(() => undefined);
     request.signal?.addEventListener('abort', onAbort, { once: true });
 
@@ -73,7 +78,7 @@ export class TaskRunner {
         return { status: 'cancelled', runId, usage: readUsage(session) };
       }
 
-      const outputRef = await this.runStore.saveOutput(runId, outcome.rawText);
+      const outputRef = await this.runStore.saveOutput(runId, outcome.rawText, request.cwd);
 
       if (outcome.ok) {
         await this.record(runId, request, spec, createdAt, 'success', session, outputRef);
@@ -94,7 +99,10 @@ export class TaskRunner {
     request: TaskRunRequest,
     schemaId: string
   ): Promise<{ ok: true; value: unknown; rawText: string } | { ok: false; errors: string[]; rawText: string }> {
-    let promptText = renderTaskPrompt(request.brief, request.text, request.contextPrompt);
+    let promptText =
+      request.maxPromptTokens !== undefined
+        ? renderTaskPromptWithinBudget(request.brief, request.text, request.contextPrompt, request.maxPromptTokens)
+        : renderTaskPrompt(request.brief, request.text, request.contextPrompt);
     let rawText = '';
     let errors: string[] = [];
 
@@ -153,7 +161,7 @@ export class TaskRunner {
     };
 
     // 记录落盘失败不应吞掉任务结果本身。
-    await this.runStore.append(record).catch(() => undefined);
+    await this.runStore.append(record, request.cwd).catch(() => undefined);
   }
 }
 
@@ -170,15 +178,51 @@ function escapeXmlText(text: string): string {
 
 /** 渲染任务提示词：简报 + 可选附件信封 + 待处理正文，各自装入独立段落。 */
 export function renderTaskPrompt(brief: string, text: string, contextPrompt?: string): string {
+  return renderEscapedTaskPrompt(escapeXmlText(brief.trim()), escapeXmlText(text), contextPrompt);
+}
+
+/** 在 XML 转义后计算最终首轮 prompt，确保实体膨胀也不能突破模型预算。 */
+export function renderTaskPromptWithinBudget(
+  brief: string,
+  text: string,
+  contextPrompt: string | undefined,
+  maxTokens: number
+): string {
+  const limit = Math.max(0, Math.floor(maxTokens));
+  const escapedBrief = escapeXmlText(brief.trim());
+  const escapedText = escapeXmlText(text);
+  const fixed = renderEscapedTaskPrompt(escapedBrief, '', contextPrompt);
+  const fixedTokens = estimateTextTokens(fixed);
+
+  if (fixedTokens > limit) {
+    throw new Error(`task prompt 固定内容超出预算：${fixedTokens}/${limit} tokens`);
+  }
+
+  let textBudget = limit - fixedTokens;
+  let prompt = renderEscapedTaskPrompt(escapedBrief, fitTextToTokens(escapedText, textBudget), contextPrompt);
+
+  while (estimateTextTokens(prompt) > limit && textBudget > 0) {
+    textBudget = Math.max(0, textBudget - (estimateTextTokens(prompt) - limit));
+    prompt = renderEscapedTaskPrompt(escapedBrief, fitTextToTokens(escapedText, textBudget), contextPrompt);
+  }
+
+  if (estimateTextTokens(prompt) > limit) {
+    throw new Error(`task prompt 无法收敛到预算：${estimateTextTokens(prompt)}/${limit} tokens`);
+  }
+
+  return prompt;
+}
+
+function renderEscapedTaskPrompt(escapedBrief: string, escapedText: string, contextPrompt?: string): string {
   return [
     '<task_brief>',
-    escapeXmlText(brief.trim()),
+    escapedBrief,
     '</task_brief>',
     // 附件信封由 ContextFileService 生成，已是规范 XML，不再转义。
     ...(contextPrompt ? ['', contextPrompt.trim()] : []),
     '',
     '<task_input>',
-    escapeXmlText(text),
+    escapedText,
     '</task_input>'
   ].join('\n');
 }

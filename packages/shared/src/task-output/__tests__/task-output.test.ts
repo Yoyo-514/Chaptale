@@ -92,6 +92,10 @@ describe('输出 schema 注册表', () => {
   it('内置 continuity-issues schema 默认已注册', () => {
     expect(getOutputSchema('continuity-issues')).toBeDefined();
   });
+
+  it('内置 creative-checkpoint schema 默认已注册', () => {
+    expect(getOutputSchema('creative-checkpoint')).toBeDefined();
+  });
 });
 
 describe('validateOutput', () => {
@@ -143,6 +147,24 @@ describe('validateOutput', () => {
   it('多余字段被拒绝', () => {
     const result = validateOutput('continuity-issues', { ...validPayload, extra: true });
     expect(result.ok).toBe(false);
+  });
+
+  it('创作检查点要求分离事实、约束与未决事项', () => {
+    const checkpoint = {
+      objective: '继续写完第三章夜谈场景',
+      authorConstraints: ['不得揭露顾沉的真实身份'],
+      confirmedFacts: ['林晚左眼已盲'],
+      creativeState: ['林晚已经看到旧照片'],
+      decisions: ['本场采用林晚限知视角'],
+      unresolved: ['照片来源尚未确认'],
+      recentProgress: ['完成车间入口段落'],
+      nextIntent: ['续写林晚试探顾沉']
+    };
+
+    expect(validateOutput('creative-checkpoint', checkpoint)).toEqual({ ok: true, value: checkpoint });
+    expect(validateOutput('creative-checkpoint', { ...checkpoint, confirmedFacts: ['事实'], extra: true }).ok).toBe(
+      false
+    );
   });
 
   it('未注册 schema id 归入失败分支', () => {

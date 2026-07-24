@@ -292,6 +292,18 @@ async function installDesktopMock(page: Page) {
           }, 700);
           return { runId: 'run-1' };
         },
+        getContextPressure: async () => ({
+          tokens: 0,
+          contextWindow: 100_000,
+          percent: 0,
+          thresholdPercent: 70,
+          shouldPrompt: false
+        }),
+        compactSession: async (sessionId: string) => ({
+          sessionId,
+          tokensBefore: 0,
+          summaryRef: '.chaptale/memory/summaries/compactions/e2e.md'
+        }),
         cancel: async (runId: string) => {
           calls.cancelledRuns.push(runId);
           return { runId };

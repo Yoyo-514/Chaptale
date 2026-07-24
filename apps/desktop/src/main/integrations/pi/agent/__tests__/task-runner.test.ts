@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
+import { estimateTextTokens } from '../../../../modules/context/token-counter';
 import { AgentRunStore } from '../../../../modules/runs/store';
-import { renderTaskPrompt, TaskRunner } from '../task-runner';
+import { renderTaskPrompt, renderTaskPromptWithinBudget, TaskRunner } from '../task-runner';
 
 const persona: PersonaDefinition = {
   id: 'continuity-reviewer',
@@ -59,7 +60,7 @@ describe('TaskRunner', () => {
     const session = createSession([`分析完成。\n<output>${validOutput}</output>`]);
     const { runner } = createRunner(session);
 
-    const result = await runner.run({ persona, brief: '审查连贯性', text: '第一章……', trigger: 'ui-action' });
+    const result = await runner.run({ persona, cwd, brief: '审查连贯性', text: '第一章……', trigger: 'ui-action' });
 
     expect(result.status).toBe('success');
     expect(session.prompt).toHaveBeenCalledOnce();
@@ -80,11 +81,36 @@ describe('TaskRunner', () => {
     expect(saved.rawText).toContain('<output>');
   });
 
+  it('binds task session, output and run record to the request cwd', async () => {
+    const boundCwd = path.join(cwd, 'bound-workspace');
+    const session = createSession([`<output>${validOutput}</output>`]);
+    const { runner, factory } = createRunner(session);
+
+    const result = await runner.run({
+      persona,
+      cwd: boundCwd,
+      brief: '审查',
+      text: '正文',
+      trigger: 'ui-action'
+    });
+
+    expect(factory.createTaskSession).toHaveBeenCalledWith(expect.any(Object), boundCwd);
+    if (result.status !== 'success') throw new Error('unreachable');
+    await expect(readFile(path.join(boundCwd, result.outputRef), 'utf8')).resolves.toContain('<output>');
+    const runFile = path.join(
+      boundCwd,
+      '.chaptale',
+      'runs',
+      `agent-runs-${new Date().toISOString().slice(0, 7)}.jsonl`
+    );
+    await expect(readFile(runFile, 'utf8')).resolves.toContain(result.runId);
+  });
+
   it('repairs invalid output through a retry prompt carrying validation errors', async () => {
     const session = createSession(['<output>{"issues": "not-an-array"}</output>', `<output>${validOutput}</output>`]);
     const { runner } = createRunner(session);
 
-    const result = await runner.run({ persona, brief: '审查', text: '正文', trigger: 'ui-action' });
+    const result = await runner.run({ persona, cwd, brief: '审查', text: '正文', trigger: 'ui-action' });
 
     expect(result.status).toBe('success');
     expect(session.prompt).toHaveBeenCalledTimes(2);
@@ -97,7 +123,7 @@ describe('TaskRunner', () => {
     const session = createSession(['没有输出标签的回答']);
     const { runner } = createRunner(session);
 
-    const result = await runner.run({ persona, brief: '审查', text: '正文', trigger: 'ui-action' });
+    const result = await runner.run({ persona, cwd, brief: '审查', text: '正文', trigger: 'ui-action' });
 
     expect(result.status).toBe('failed');
     expect(session.prompt).toHaveBeenCalledTimes(3);
@@ -118,6 +144,7 @@ describe('TaskRunner', () => {
 
     const result = await runner.run({
       persona,
+      cwd,
       brief: '审查',
       text: '正文',
       trigger: 'ui-action',
@@ -139,6 +166,7 @@ describe('TaskRunner', () => {
 
     const result = await runner.run({
       persona,
+      cwd,
       brief: '审查',
       text: '正文',
       trigger: 'ui-action',
@@ -157,7 +185,7 @@ describe('TaskRunner', () => {
     const { runner } = createRunner(session);
 
     await expect(
-      runner.run({ persona: { ...persona, output: undefined }, brief: 'b', text: 't', trigger: 'ui-action' })
+      runner.run({ persona: { ...persona, output: undefined }, cwd, brief: 'b', text: 't', trigger: 'ui-action' })
     ).rejects.toThrow(/缺少输出 schema/);
   });
 });
@@ -170,6 +198,14 @@ describe('renderTaskPrompt', () => {
     expect(prompt).toContain('&lt;/task_input&gt;');
     expect(prompt).toContain('&amp;');
     expect(prompt.match(/<task_input>/g)).toHaveLength(1);
+  });
+
+  it('budgets the final XML-escaped prompt without breaking envelopes', () => {
+    const prompt = renderTaskPromptWithinBudget('蒸馏', '<&>'.repeat(2_000), undefined, 300);
+
+    expect(estimateTextTokens(prompt)).toBeLessThanOrEqual(300);
+    expect(prompt.match(/<task_input>/g)).toHaveLength(1);
+    expect(prompt).toContain('已按 token 预算省略内容');
   });
 
   it('embeds the context envelope unescaped between brief and input', () => {

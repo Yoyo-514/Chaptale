@@ -1,3 +1,4 @@
+import { createCompactExt } from '../integrations/pi/agent/compact-extension';
 import { PiAgentService } from '../integrations/pi/agent/service';
 import { createDefaultPersonaRegistry, piParseFrontmatter } from '../integrations/pi/agent/session-factory';
 import { TaskRunner } from '../integrations/pi/agent/task-runner';
@@ -5,7 +6,10 @@ import { PiModelService } from '../integrations/pi/models/service';
 import { PiSessionRepository } from '../integrations/pi/sessions/repository';
 import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
 import { SlashCommandService } from '../modules/commands/service';
+import { CompactCoord } from '../modules/memory/compact-coord';
+import { CompactionSummaryStore } from '../modules/memory/compaction-summary-store';
 import { MemoryPendingStore } from '../modules/memory/pending-store';
+import { MemoryService } from '../modules/memory/service';
 import { createMemoryProposeTool, createMemorySaveTool } from '../modules/memory/tools';
 import type { PermissionBroker } from '../modules/permissions/broker';
 import type { PermissionRuleStore } from '../modules/permissions/rule-store';
@@ -65,6 +69,21 @@ export function createAppContext(): AppContext {
   // 复用 agent runtime 的会话工厂：task 会话与 chat 会话共享模型/权限接线，避免双实例漂移。
   const taskRunner = new TaskRunner(agentRuntime.sessionFactory, runStore);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner });
+  const compactCoord = new CompactCoord({
+    personas: personaRegistry,
+    tasks: taskRunner,
+    memory: new MemoryService({ chaptaleRootDir: settingsService.rootDir }),
+    summaries: new CompactionSummaryStore()
+  });
+  // manual/threshold/overflow 共用此扩展；检查点失败时显式 cancel，禁止回退 coding 摘要。
+  agentRuntime.sessionFactory.setCompactExt((sessionId, cwd) =>
+    createCompactExt({
+      sessionId,
+      cwd,
+      coord: compactCoord,
+      onError: (error, reason) => console.error(`创作会话压缩失败（${reason}）:`, error)
+    })
+  );
   const subagentPool = new SubagentPool();
   const memoryPendingStore = new MemoryPendingStore({
     resolveCwd: () => settingsService.getCurrentCwd(),

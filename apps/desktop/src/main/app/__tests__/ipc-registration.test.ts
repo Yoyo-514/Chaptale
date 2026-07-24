@@ -8,6 +8,8 @@ import {
   AgentInspectContextFilesArgsValidator,
   AgentStartArgsValidator,
   AgentSteerArgsValidator,
+  AgentGetContextPressureArgsValidator,
+  AgentCompactSessionArgsValidator,
   MemoryListPendingArgsValidator,
   MemoryResolvePendingArgsValidator,
   CreateSessionArgsValidator,
@@ -123,6 +125,8 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.agent.steer, AgentSteerArgsValidator),
   validated(IPC_CHANNELS.agent.clearPendingMessages, AgentClearPendingMessagesArgsValidator),
   validated(IPC_CHANNELS.agent.cancel, AgentCancelArgsValidator),
+  validated(IPC_CHANNELS.agent.getContextPressure, AgentGetContextPressureArgsValidator),
+  validated(IPC_CHANNELS.agent.compactSession, AgentCompactSessionArgsValidator),
 
   trusted(IPC_CHANNELS.slashCommands.list),
 

@@ -45,7 +45,25 @@ export const ContinuityIssuesSchema = Type.Object(
 
 export type ContinuityIssues = Static<typeof ContinuityIssuesSchema>;
 
+/** 创作会话检查点；字段分离后由代码确定性渲染为 compaction 摘要。 */
+export const CreativeCheckpointSchema = Type.Object(
+  {
+    objective: Type.String({ minLength: 1 }),
+    authorConstraints: Type.Array(Type.String()),
+    confirmedFacts: Type.Array(Type.String()),
+    creativeState: Type.Array(Type.String()),
+    decisions: Type.Array(Type.String()),
+    unresolved: Type.Array(Type.String()),
+    recentProgress: Type.Array(Type.String()),
+    nextIntent: Type.Array(Type.String())
+  },
+  { additionalProperties: false }
+);
+
+export type CreativeCheckpoint = Static<typeof CreativeCheckpointSchema>;
+
 registerOutputSchema('continuity-issues', ContinuityIssuesSchema);
+registerOutputSchema('creative-checkpoint', CreativeCheckpointSchema);
 
 /** 校验结果：成功携带（类型收窄后的）值，失败携带人类可读的错误列表。 */
 export type OutputValidationResult = { ok: true; value: unknown } | { ok: false; errors: string[] };

@@ -312,6 +312,8 @@ describe('useChatController', () => {
         }),
         steer: vi.fn(),
         clearPendingMessages: vi.fn(),
+        getContextPressure: vi.fn(),
+        compactSession: vi.fn(),
         cancel: vi.fn()
       }
     });

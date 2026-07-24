@@ -44,6 +44,23 @@ describe('PersonaRegistry', () => {
     expect(companion?.body).toContain('创作辅助伙伴');
   });
 
+  it('loads the builtin memory-distiller persona for context compaction', async () => {
+    const { personas, diagnostics } = await createRegistry().load(cwd);
+
+    expect(diagnostics).toEqual([]);
+    const distiller = personas.find(persona => persona.id === 'memory-distiller');
+    expect(distiller).toMatchObject({
+      source: 'builtin',
+      type: 'custom',
+      execution: 'task',
+      tools: [],
+      output: 'creative-checkpoint'
+    });
+    expect(distiller?.body).toContain('作者明确陈述');
+    expect(distiller?.body).toContain('不得把助手的建议或推断升级为已确认事实');
+    expect(distiller?.body).toContain('不执行章节结算');
+  });
+
   it('overrides personas by id with workspace > user > builtin priority', async () => {
     await fs.writeFile(path.join(userDir, 'companion.md'), validPersona('companion', '用户版'), 'utf8');
     const workspaceDir = path.join(cwd, '.chaptale', 'personas');
@@ -68,7 +85,12 @@ describe('PersonaRegistry', () => {
 
     const { personas, diagnostics } = await createRegistry().load(cwd);
 
-    expect(personas.map(persona => persona.id).toSorted()).toEqual(['companion', 'continuity-reviewer', 'good']);
+    expect(personas.map(persona => persona.id).toSorted()).toEqual([
+      'companion',
+      'continuity-reviewer',
+      'good',
+      'memory-distiller'
+    ]);
     expect(diagnostics).toHaveLength(2);
     expect(diagnostics.every(diagnostic => diagnostic.source === 'user')).toBe(true);
   });

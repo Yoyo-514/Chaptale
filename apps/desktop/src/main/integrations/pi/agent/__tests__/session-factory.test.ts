@@ -85,6 +85,9 @@ describe('PiAgentSessionFactory', () => {
       permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
       permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any
     });
+    const compactExt = { name: 'test-compact', hidden: true, factory: vi.fn() };
+    const buildCompactExt = vi.fn(() => compactExt);
+    factory.setCompactExt(buildCompactExt as any);
 
     await expect(factory.create('session-1')).resolves.toBe(session);
     expect(modelService.getModelRuntime).toHaveBeenCalledOnce();
@@ -97,6 +100,8 @@ describe('PiAgentSessionFactory', () => {
     );
     expect(sdkMocks.createAgentSession.mock.calls[0]?.[0]).not.toHaveProperty('authStorage');
     expect(sdkMocks.createAgentSession.mock.calls[0]?.[0]).not.toHaveProperty('modelRegistry');
+    expect(buildCompactExt).toHaveBeenCalledWith('session-1', rootDir);
+    expect((sdkMocks.loaderOptions as any).extensionFactories).toContain(compactExt);
   });
 
   describe('createTaskSession', () => {
@@ -146,6 +151,23 @@ describe('PiAgentSessionFactory', () => {
       // 主对话的历史发现链路（listAll/open）不参与 task session。
       expect(sdkMocks.listAll).not.toHaveBeenCalled();
       expect(sdkMocks.open).not.toHaveBeenCalled();
+    });
+
+    it('blocks native compaction in one-shot task sessions', async () => {
+      const { factory } = createTaskFactory();
+      await factory.createTaskSession(spec);
+
+      const extensions = (sdkMocks.loaderOptions as any).extensionFactories as any[];
+      const guard = extensions.find(extension => extension.name === 'chaptale-task-no-compact');
+      let handler: (() => Promise<unknown>) | undefined;
+      guard.factory({
+        on: (name: string, value: () => Promise<unknown>) => {
+          if (name === 'session_before_compact') handler = value;
+        }
+      });
+
+      expect(handler).toBeDefined();
+      await expect(handler!()).resolves.toEqual({ cancel: true });
     });
 
     it('suppresses all tools for analysis personas and passes tool subsets through', async () => {

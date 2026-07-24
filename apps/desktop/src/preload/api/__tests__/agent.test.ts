@@ -187,6 +187,35 @@ describe('createAgentApi', () => {
     });
   });
 
+  it('getContextPressure 按 sessionId 查询上下文水位', async () => {
+    const result = {
+      tokens: 72_000,
+      contextWindow: 100_000,
+      percent: 72,
+      thresholdPercent: 70,
+      shouldPrompt: true
+    };
+    electronMock.invoke.mockResolvedValueOnce(result);
+    const api = createAgentApi();
+
+    await expect(api.getContextPressure('session-1')).resolves.toEqual(result);
+    expect(electronMock.invoke).toHaveBeenCalledWith(IPC_CHANNELS.agent.getContextPressure, 'session-1');
+  });
+
+  it('compactSession 按 sessionId 执行作者确认后的压缩', async () => {
+    const result = {
+      sessionId: 'session-1',
+      tokensBefore: 72_000,
+      estimatedTokensAfter: 18_000,
+      summaryRef: '.chaptale/memory/summaries/compactions/summary.md'
+    };
+    electronMock.invoke.mockResolvedValueOnce(result);
+    const api = createAgentApi();
+
+    await expect(api.compactSession('session-1')).resolves.toEqual(result);
+    expect(electronMock.invoke).toHaveBeenCalledWith(IPC_CHANNELS.agent.compactSession, 'session-1');
+  });
+
   it('cancel 保持主进程返回的 AgentRunResult', async () => {
     const result: AgentRunResult = { runId: OTHER_RUN_ID };
     electronMock.invoke.mockResolvedValueOnce(result);

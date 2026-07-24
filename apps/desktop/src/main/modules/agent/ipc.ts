@@ -4,6 +4,8 @@ import type { WebContents } from 'electron';
 import {
   AgentCancelArgsValidator,
   AgentClearPendingMessagesArgsValidator,
+  AgentCompactSessionArgsValidator,
+  AgentGetContextPressureArgsValidator,
   AgentInspectContextFilesArgsValidator,
   AgentStartArgsValidator,
   AgentSteerArgsValidator,
@@ -133,6 +135,16 @@ export function registerAgentIpc(agentService: AgentRuntime) {
     runManager.cancel(runId);
     return { runId };
   });
+
+  handleValidatedIpc(
+    IPC_CHANNELS.agent.getContextPressure,
+    AgentGetContextPressureArgsValidator,
+    (_event, sessionId: string) => agentService.getContextPressure(sessionId)
+  );
+
+  handleValidatedIpc(IPC_CHANNELS.agent.compactSession, AgentCompactSessionArgsValidator, (_event, sessionId: string) =>
+    agentService.compactSession(sessionId)
+  );
 
   /**
    * 将单次运行的异步事件流转换为带 runId 的 IPC 事件。

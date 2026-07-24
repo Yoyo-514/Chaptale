@@ -8,12 +8,18 @@ import type {
   AgentRuntime,
   AgentSteerOptions
 } from '@chaptale/ipc-contract';
-import type { ChatMessage, SkillInvocation } from '@chaptale/shared';
+import type {
+  ChatMessage,
+  MemoryCompactionResult,
+  MemoryContextPressureStatus,
+  SkillInvocation
+} from '@chaptale/shared';
 import { errorToMessage, formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
 
 import { ImageAttachmentService } from '../../../modules/attachments/service';
 import { decodeContextMessage } from '../../../modules/context/context-message-codec';
 import { ContextFileService } from '../../../modules/context/service';
+import { evaluateContextPressure } from '../../../modules/memory/context-pressure';
 import { createMemoryInjector, type MemoryInjector } from '../../../modules/memory/injector';
 import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
 import { PermissionBroker } from '../../../modules/permissions/broker';
@@ -25,6 +31,7 @@ import { flushSessionFile } from '../sessions/file';
 import { getPiUserEntrySnapshot } from '../sessions/user-entry-snapshot';
 import { SkillsProvider } from '../skills/provider';
 import { AsyncMessageQueue } from './async-message-queue';
+import { isChaptaleCompactDetails } from './compact-extension';
 import { mapAgentStreamEvent } from './event-mapper';
 import { PiAgentSessionFactory } from './session-factory';
 
@@ -258,6 +265,45 @@ export class PiAgentService implements AgentRuntime {
     scope.signal.throwIfAborted();
     const { steering, followUp } = session.clearQueue();
     return { steering, followUp };
+  }
+
+  /** 读取 SDK 的当前上下文估算，并按产品 70% 阈值判断是否提示作者。 */
+  async getContextPressure(sessionId: string): Promise<MemoryContextPressureStatus> {
+    const session = await this.getOrCreateSession(sessionId);
+    const usage = session.getSessionStats().contextUsage;
+
+    return evaluateContextPressure(
+      usage ?? {
+        tokens: null,
+        contextWindow: session.model?.contextWindow ?? 0,
+        percent: null
+      }
+    );
+  }
+
+  /** 作者主动压缩；检查点生成和 memory 先写由 inline extension 在 pi 落树前完成。 */
+  async compactSession(sessionId: string): Promise<MemoryCompactionResult> {
+    const session = await this.getOrCreateSession(sessionId);
+
+    if (session.isStreaming) {
+      throw new Error('运行中不能压缩会话，请等待当前回复完成');
+    }
+
+    if (session.isCompacting) {
+      throw new Error('会话正在压缩，请勿重复提交');
+    }
+
+    const result = await session.compact();
+    if (!isChaptaleCompactDetails(result.details)) {
+      throw new Error('创作压缩扩展未生效，拒绝接受 native coding 摘要');
+    }
+
+    return {
+      sessionId,
+      tokensBefore: result.tokensBefore,
+      ...(result.estimatedTokensAfter !== undefined ? { estimatedTokensAfter: result.estimatedTokensAfter } : {}),
+      summaryRef: result.details.summaryRef
+    };
   }
 
   /** 取回（或创建）缓存会话，并保证 skills 定义与默认模型和当前设置一致。 */

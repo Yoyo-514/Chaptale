@@ -63,6 +63,7 @@ export class TaskService {
     try {
       return await this.options.taskRunner.run({
         persona,
+        cwd,
         brief: request.brief,
         text: request.text,
         contextPrompt,

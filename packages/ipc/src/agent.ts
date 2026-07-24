@@ -1,6 +1,6 @@
 import type { Static } from 'typebox';
 
-import type { ChatMessage } from '@chaptale/shared';
+import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus } from '@chaptale/shared';
 
 import type {
   AgentClearPendingMessagesPayloadSchema,
@@ -86,4 +86,8 @@ export interface AgentRuntime {
   steer(options: AgentSteerOptions): Promise<void>;
   /** 清空指定活跃运行中仍未消费的 steering 与 follow-up 消息。 */
   clearPendingMessages(scope: AgentRunScope): Promise<AgentClearedQueue>;
+  /** 查询当前会话水位；达到产品阈值时由 Renderer 提示作者。 */
+  getContextPressure(sessionId: string): Promise<MemoryContextPressureStatus>;
+  /** 作者确认后压缩会话，并把摘要镜像落入 memory。 */
+  compactSession(sessionId: string): Promise<MemoryCompactionResult>;
 }

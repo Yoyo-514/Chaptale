@@ -39,17 +39,19 @@ export type AgentRunListResult = {
 export class AgentRunStore {
   constructor(private readonly options: AgentRunStoreOptions) {}
 
-  /** 追加一条终态记录；目录不存在则惰性创建。 */
-  async append(record: AgentRunRecord): Promise<void> {
-    const filePath = this.resolveMonthFile(await this.options.resolveCwd(), record.createdAt);
+  /** 追加一条终态记录；cwdOverride 用于把一次运行固定在启动时的工作区。 */
+  async append(record: AgentRunRecord, cwdOverride?: string): Promise<void> {
+    const cwd = cwdOverride ?? (await this.options.resolveCwd());
+    const filePath = this.resolveMonthFile(cwd, record.createdAt);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.appendFile(filePath, `${JSON.stringify(record)}\n`, 'utf8');
   }
 
-  /** 落盘输出体，返回相对 workspace 的引用路径（存进记录的 outputRef）。 */
-  async saveOutput(runId: string, rawText: string): Promise<string> {
+  /** 落盘输出体；cwdOverride 与 append 共用，避免工作区切换把同一 run 拆开。 */
+  async saveOutput(runId: string, rawText: string, cwdOverride?: string): Promise<string> {
     const relativePath = path.join('.chaptale', 'runs', 'outputs', `${runId}.json`);
-    const filePath = path.join(await this.options.resolveCwd(), relativePath);
+    const cwd = cwdOverride ?? (await this.options.resolveCwd());
+    const filePath = path.join(cwd, relativePath);
 
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, `${JSON.stringify({ runId, rawText }, null, 2)}\n`, 'utf8');

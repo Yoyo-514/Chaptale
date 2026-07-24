@@ -14,7 +14,25 @@ function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<
   const session: any = {
     model: { provider: 'old-provider', id: 'old-model' },
     isStreaming: true,
+    isCompacting: false,
     messages: [],
+    getSessionStats: vi.fn(() => ({
+      contextUsage: { tokens: 72_000, contextWindow: 100_000, percent: 72 }
+    })),
+    compact: vi.fn(async () => ({
+      summary: '压缩摘要',
+      firstKeptEntryId: 'entry-2',
+      tokensBefore: 72_000,
+      estimatedTokensAfter: 18_000,
+      details: {
+        kind: 'chaptale-creative-checkpoint',
+        schemaVersion: 1,
+        checkpointId: 'entry-2',
+        summaryRef: '.chaptale/memory/summaries/compactions/summary.md',
+        distillerRunId: 'run-distill',
+        memoryRefs: ['author:preferences']
+      }
+    })),
     agent: { state: { messages: [] as unknown[] } },
     sessionManager,
     setModel: vi.fn(async (model: any) => {
@@ -70,7 +88,9 @@ function createService(
     // memory 注入与对话主流程解耦，这里用空实现；注入行为由 memory 专项测试覆盖。
     { resolvePrefix: vi.fn(async () => ''), reset: vi.fn() } as any
   );
-  (service as any).sessionFactory = { create: vi.fn(async () => session) };
+  (service as any).sessionFactory = {
+    create: vi.fn(async () => session)
+  };
   return service;
 }
 
@@ -576,5 +596,63 @@ describe('PiAgentService', () => {
     service.invalidateSessions();
     await Promise.resolve();
     expect(session.dispose).toHaveBeenCalled();
+  });
+
+  it('reports author-facing context pressure from the SDK session usage', async () => {
+    const { session } = createFakeSession();
+    const service = createService(session);
+
+    await expect(service.getContextPressure('session-1')).resolves.toEqual({
+      tokens: 72_000,
+      contextWindow: 100_000,
+      percent: 72,
+      thresholdPercent: 70,
+      shouldPrompt: true
+    });
+  });
+
+  it('returns the memory checkpoint reference produced before custom compaction', async () => {
+    const { session } = createFakeSession();
+    session.isStreaming = false;
+    const service = createService(session);
+
+    await expect(service.compactSession('session-1')).resolves.toEqual({
+      sessionId: 'session-1',
+      tokensBefore: 72_000,
+      estimatedTokensAfter: 18_000,
+      summaryRef: '.chaptale/memory/summaries/compactions/summary.md'
+    });
+    expect(session.compact).toHaveBeenCalledWith();
+  });
+
+  it('rejects native results without a persisted Chaptale checkpoint', async () => {
+    const { session } = createFakeSession();
+    session.isStreaming = false;
+    session.compact.mockResolvedValueOnce({
+      summary: 'native coding 摘要',
+      firstKeptEntryId: 'entry-2',
+      tokensBefore: 72_000
+    });
+    const service = createService(session);
+
+    await expect(service.compactSession('session-1')).rejects.toThrow('创作压缩扩展未生效');
+  });
+
+  it('refuses manual compaction while the agent is streaming', async () => {
+    const { session } = createFakeSession();
+    const service = createService(session);
+
+    await expect(service.compactSession('session-1')).rejects.toThrow('运行中不能压缩会话');
+    expect(session.compact).not.toHaveBeenCalled();
+  });
+
+  it('refuses a second compaction while one is already running', async () => {
+    const { session } = createFakeSession();
+    session.isStreaming = false;
+    session.isCompacting = true;
+    const service = createService(session);
+
+    await expect(service.compactSession('session-1')).rejects.toThrow('会话正在压缩');
+    expect(session.compact).not.toHaveBeenCalled();
   });
 });

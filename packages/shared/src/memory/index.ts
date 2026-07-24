@@ -33,6 +33,23 @@ export type MemoryPendingListResult = {
 
 export type MemoryPendingAction = 'accept' | 'reject';
 
+/** 当前会话上下文水位；compaction 后尚无新 usage 时 tokens/percent 为 null。 */
+export type MemoryContextPressureStatus = {
+  tokens: number | null;
+  contextWindow: number;
+  percent: number | null;
+  thresholdPercent: number;
+  shouldPrompt: boolean;
+};
+
+/** 压缩结果；summaryRef 必然存在，因为 memory 检查点落盘是 compaction 前置条件。 */
+export type MemoryCompactionResult = {
+  sessionId: string;
+  tokensBefore: number;
+  estimatedTokensAfter?: number;
+  summaryRef: string;
+};
+
 /**
  * 提议处理结果：
  * - applied：接受且已写盘；rejected：拒绝并归档留痕；

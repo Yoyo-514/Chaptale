@@ -5,6 +5,7 @@ import {
   SessionManager,
   SettingsManager,
   type AgentSession,
+  type InlineExtension,
   type SessionInfo
 } from '@earendil-works/pi-coding-agent';
 
@@ -71,6 +72,14 @@ export class PiAgentSessionFactory {
   setExtraChatTools(builder: (sessionId: string) => Promise<ToolDefinition[]>): void {
     this.extraChatTools = builder;
   }
+
+  private compactExt?: (sessionId: string, cwd: string) => InlineExtension;
+
+  /** late-bind 创作压缩扩展，cwd 固定为会话所属工作区，不能跟随当前 UI 工作区漂移。 */
+  setCompactExt(builder: (sessionId: string, cwd: string) => InlineExtension): void {
+    this.compactExt = builder;
+  }
+
   private personaRegistry?: PersonaRegistry;
 
   constructor(private readonly options: PiAgentSessionFactoryOptions) {}
@@ -79,6 +88,11 @@ export class PiAgentSessionFactory {
   private getPersonaRegistry(): PersonaRegistry {
     this.personaRegistry ??= this.options.personaRegistry ?? createDefaultPersonaRegistry(this.options.settingsService);
     return this.personaRegistry;
+  }
+
+  /** 解析当前工作区的 persona；内部会话能力与普通 persona 共用三层覆盖规则。 */
+  getPersona(cwd: string, personaId: string) {
+    return this.getPersonaRegistry().get(cwd, personaId);
   }
 
   async create(sessionId: string): Promise<AgentSession> {
@@ -136,7 +150,8 @@ export class PiAgentSessionFactory {
           ruleStore: permissionRuleStore,
           customRiskLevels,
           interactive: true
-        })
+        }),
+        ...(this.compactExt ? [this.compactExt(sessionId, cwd)] : [])
       ],
       // 分层拼装：SYSTEM.md 仅替换 persona 层，职责/协议层始终保留；
       // 拼装结果在会话生命周期内不变（缓存安全）；APPEND_SYSTEM.md 由 pi 原生追加。
@@ -177,9 +192,9 @@ export class PiAgentSessionFactory {
    *   memory 协议也不注入——task 会话零工具零记忆通道，协议只会误导模型；
    * - 工具为 spec 白名单子集（[] = 纯分析）；模型按 spec 偏好解析，缺省跟随全局默认。
    */
-  async createTaskSession(spec: TaskPersonaSpec): Promise<AgentSession> {
+  async createTaskSession(spec: TaskPersonaSpec, cwdOverride?: string): Promise<AgentSession> {
     const { settingsService, modelService, permissionBroker, permissionRuleStore } = this.options;
-    const cwd = await settingsService.getCurrentCwd();
+    const cwd = cwdOverride ?? (await settingsService.getCurrentCwd());
     await fs.mkdir(settingsService.taskSessionsDir, { recursive: true });
     const sessionManager = SessionManager.create(cwd, settingsService.taskSessionsDir);
     const settingsManager = SettingsManager.create(cwd, settingsService.agentDir);
@@ -202,7 +217,8 @@ export class PiAgentSessionFactory {
           ruleStore: permissionRuleStore,
           customRiskLevels: {},
           interactive: false
-        })
+        }),
+        createTaskNoCompactExt()
       ],
       appendSystemPromptOverride: () => [],
       systemPromptOverride: () => composeSystemPrompt({ personaBody: spec.systemPrompt })
@@ -250,6 +266,17 @@ export class PiAgentSessionFactory {
 
     return modelService.getDefaultPiModel();
   }
+}
+
+/** 一次性 task 不允许用 coding 摘要自救；溢出应由调用方缩减输入后重试。 */
+function createTaskNoCompactExt(): InlineExtension {
+  return {
+    name: 'chaptale-task-no-compact',
+    hidden: true,
+    factory: pi => {
+      pi.on('session_before_compact', async () => ({ cancel: true }));
+    }
+  };
 }
 
 function resolvePiPackageRoot(packageName: string): string {

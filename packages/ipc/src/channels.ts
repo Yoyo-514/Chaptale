@@ -86,6 +86,8 @@ export const IPC_CHANNELS = {
     start: 'agent:start',
     steer: 'agent:steer',
     clearPendingMessages: 'agent:clear-pending-messages',
+    getContextPressure: 'agent:get-context-pressure',
+    compactSession: 'agent:compact-session',
     cancel: 'agent:cancel',
     message: 'agent:message',
     done: 'agent:done',

@@ -10,6 +10,7 @@ import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
+import ContextPressureCard from './components/ContextPressureCard.vue';
 import MemoryPendingCard from './components/MemoryPendingCard.vue';
 import PermissionRequestCard from './components/PermissionRequestCard.vue';
 import ReviewResultCard from './components/ReviewResultCard.vue';
@@ -17,6 +18,7 @@ import SubagentTaskCard from './components/SubagentTaskCard.vue';
 import TodoProgressCard from './components/TodoProgressCard.vue';
 import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
+import { useContextCompaction } from './composables/useContextCompaction';
 import { useContinuityReview } from './composables/useContinuityReview';
 import { useMemoryPending } from './composables/useMemoryPending';
 import { usePermissionRequests } from './composables/usePermissionRequests';
@@ -29,6 +31,12 @@ const todoProgress = useTodoProgress(() => sessionStore.currentSessionId);
 const permissionRequests = usePermissionRequests(() => sessionStore.currentSessionId);
 const memoryPending = useMemoryPending();
 const subagentTasks = useSubagentTasks(() => sessionStore.currentSessionId);
+const contextCompaction = useContextCompaction(
+  () => sessionStore.currentSessionId,
+  async () => {
+    await Promise.all([sessionStore.loadSessions(), chat.reloadCurrentSessionMessages()]);
+  }
+);
 const review = useContinuityReview(
   () => chat.state.input,
   () => chat.state.contextFiles.map(file => file.path)
@@ -44,6 +52,16 @@ function handleRunTask(personaId: string) {
 const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
 const search = useChatSearch(() => chat.state.messages);
 const searchHit = computed(() => (search.isOpen.value ? search.activeMatch.value : undefined));
+
+// 每轮终态会刷新会话列表 updatedAt；据此重查 SDK 的“当前上下文”水位，而非累计 token。
+watch(
+  () => sessionStore.currentSession?.updatedAt,
+  (updatedAt, previousUpdatedAt) => {
+    if (updatedAt && updatedAt !== previousUpdatedAt) {
+      void contextCompaction.refresh();
+    }
+  }
+);
 
 async function scrollMessagesToBottom() {
   await nextTick();
@@ -143,6 +161,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       :tasks="subagentTasks.tasks.value"
       @cancel="subagentTasks.cancel"
       @dismiss="subagentTasks.dismiss"
+    />
+
+    <ContextPressureCard
+      v-if="contextCompaction.shouldShow.value && contextCompaction.status.value"
+      class="chat-input-topbar"
+      :status="contextCompaction.status.value"
+      :is-compacting="contextCompaction.isCompacting.value"
+      @compact="contextCompaction.compact"
+      @dismiss="contextCompaction.dismiss"
     />
 
     <MemoryPendingCard

@@ -168,6 +168,8 @@ export function useChatController() {
     handleRemoveContextFile: contextFiles.handleRemoveContextFile,
     handleOpenSettings,
     handleToggleWebSearch: commands.handleToggleWebSearch,
-    handleSwitchBranch: messages.handleSwitchBranch
+    handleSwitchBranch: messages.handleSwitchBranch,
+    /** 会话压缩写入新的 compaction 分支后，原地重载当前消息树。 */
+    reloadCurrentSessionMessages: messages.loadCurrentSessionMessages
   };
 }

@@ -5,6 +5,8 @@ import {
   AddCustomProviderArgsValidator,
   AgentCancelArgsValidator,
   AgentClearPendingMessagesArgsValidator,
+  AgentCompactSessionArgsValidator,
+  AgentGetContextPressureArgsValidator,
   AgentInspectContextFilesArgsValidator,
   MemoryListPendingArgsValidator,
   MemoryResolvePendingArgsValidator,
@@ -274,6 +276,16 @@ describe('IPC 参数 Schema', () => {
     expect(PermissionsRemoveRuleArgsValidator.Check([{ scope: 'workspace', pattern: '', action: 'allow' }])).toBe(
       false
     );
+  });
+
+  it('agent 会话压缩参数校验', () => {
+    expect(AgentGetContextPressureArgsValidator.Check(['session-1'])).toBe(true);
+    expect(AgentGetContextPressureArgsValidator.Check([''])).toBe(false);
+    expect(AgentGetContextPressureArgsValidator.Check([])).toBe(false);
+
+    expect(AgentCompactSessionArgsValidator.Check(['session-1'])).toBe(true);
+    expect(AgentCompactSessionArgsValidator.Check([''])).toBe(false);
+    expect(AgentCompactSessionArgsValidator.Check(['session-1', 'extra'])).toBe(false);
   });
 
   it('memory pending 参数校验', () => {

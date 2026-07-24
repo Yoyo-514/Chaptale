@@ -210,6 +210,7 @@ export async function createDelegateTool(context: DelegateToolContext): Promise<
               execute: slotSignal =>
                 context.taskRunner.run({
                   persona: lane.persona,
+                  cwd: currentCwd,
                   brief: params.brief,
                   text: params.text ?? '',
                   trigger: 'delegate',

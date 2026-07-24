@@ -148,7 +148,15 @@ function createRuntime(control: StreamControl): AgentRuntime {
   return {
     stream: vi.fn((options: AgentRunOptions) => controlledStream(control, options)),
     steer: vi.fn(async () => undefined),
-    clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] }))
+    clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] })),
+    getContextPressure: vi.fn(async () => ({
+      tokens: 0,
+      contextWindow: 100_000,
+      percent: 0,
+      thresholdPercent: 70,
+      shouldPrompt: false
+    })),
+    compactSession: vi.fn(async sessionId => ({ sessionId, tokensBefore: 0, summaryRef: 'summary.md' }))
   };
 }
 
@@ -157,7 +165,15 @@ function createRuntimeByQuery(controls: Record<string, StreamControl>): AgentRun
   return {
     stream: vi.fn((options: AgentRunOptions) => controlledStream(controls[options.query]!, options)),
     steer: vi.fn(async () => undefined),
-    clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] }))
+    clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] })),
+    getContextPressure: vi.fn(async () => ({
+      tokens: 0,
+      contextWindow: 100_000,
+      percent: 0,
+      thresholdPercent: 70,
+      shouldPrompt: false
+    })),
+    compactSession: vi.fn(async sessionId => ({ sessionId, tokensBefore: 0, summaryRef: 'summary.md' }))
   };
 }
 
@@ -306,7 +322,15 @@ describe('Agent IPC lifecycle', () => {
         }
       }),
       steer: vi.fn(async () => undefined),
-      clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] }))
+      clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] })),
+      getContextPressure: vi.fn(async () => ({
+        tokens: 0,
+        contextWindow: 100_000,
+        percent: 0,
+        thresholdPercent: 70,
+        shouldPrompt: false
+      })),
+      compactSession: vi.fn(async sessionId => ({ sessionId, tokensBefore: 0, summaryRef: 'summary.md' }))
     };
     registerAgentIpc(runtime);
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);

@@ -46,3 +46,11 @@ export const AgentClearPendingMessagesArgsValidator = Compile(AgentClearPendingM
 
 export const AgentInspectContextFilesArgsSchema = Type.Tuple([Type.Array(Type.String())]);
 export const AgentInspectContextFilesArgsValidator = Compile(AgentInspectContextFilesArgsSchema);
+
+/** 查询会话上下文水位；sessionId 必须绑定现有会话。 */
+export const AgentGetContextPressureArgsSchema = Type.Tuple([Type.String({ minLength: 1 })]);
+export const AgentGetContextPressureArgsValidator = Compile(AgentGetContextPressureArgsSchema);
+
+/** 作者确认执行会话压缩；只接收 sessionId，不允许 Renderer 注入摘要指令。 */
+export const AgentCompactSessionArgsSchema = Type.Tuple([Type.String({ minLength: 1 })]);
+export const AgentCompactSessionArgsValidator = Compile(AgentCompactSessionArgsSchema);

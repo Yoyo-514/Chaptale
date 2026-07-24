@@ -1,6 +1,8 @@
 import type {
   ChatContextFile,
   ChatMessage,
+  MemoryCompactionResult,
+  MemoryContextPressureStatus,
   MemoryPendingAction,
   MemoryPendingListResult,
   MemoryPendingResolveResult,
@@ -130,6 +132,10 @@ export type ChaptaleDesktopApi = {
     steer: (runId: string, query: string, options?: SteerAgentOptions) => Promise<AgentRunResult>;
     /** 清空指定活跃运行尚未消费的消息。 */
     clearPendingMessages: (runId: string) => Promise<AgentQueueClearResult>;
+    /** 查询当前会话上下文水位及是否达到作者提示阈值。 */
+    getContextPressure: (sessionId: string) => Promise<MemoryContextPressureStatus>;
+    /** 作者确认后压缩会话；运行中调用会被主进程拒绝。 */
+    compactSession: (sessionId: string) => Promise<MemoryCompactionResult>;
     cancel: (runId: string) => Promise<AgentRunResult>;
   };
   tasks: {
