@@ -26,7 +26,19 @@ const isOpen = computed(
   () => activeIndex.value !== null && activeIndex.value >= 0 && activeIndex.value < props.items.length
 );
 const currentItem = computed(() => (isOpen.value ? props.items[activeIndex.value!] : undefined));
-const { originalSrc, isLoading, errorMessage } = useOriginalImage(currentItem);
+const adjacentItems = computed(() => {
+  if (!isOpen.value || props.items.length <= 1) {
+    return [];
+  }
+
+  const index = activeIndex.value!;
+  const previous = props.items[(index - 1 + props.items.length) % props.items.length]!;
+  const next = props.items[(index + 1) % props.items.length]!;
+
+  // 两张图片时前后邻项相同；按 id 去重，避免重复预加载。
+  return previous.id === next.id ? [previous] : [previous, next];
+});
+const { originalSrc, isLoading, errorMessage } = useOriginalImage(currentItem, adjacentItems);
 
 const viewportRef = ref<HTMLElement | null>(null);
 const imageRef = ref<HTMLImageElement | null>(null);

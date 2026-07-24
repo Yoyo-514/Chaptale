@@ -65,16 +65,16 @@ describe('AppImagePreview', () => {
     expect(wrapper.find('.dialog-root-stub').exists()).toBe(false);
   });
 
-  it('opens the lightbox at the clicked thumbnail and loads only that original', async () => {
+  it('opens at the clicked thumbnail and preloads the circular adjacent originals', async () => {
     const items = createItems(3);
     const wrapper = mountPreview(items);
 
     await wrapper.findAll('.app-image-thumbnail-trigger')[1]!.trigger('click');
     await flushPromises();
 
-    expect(items[0]!.loadOriginal).not.toHaveBeenCalled();
+    expect(items[0]!.loadOriginal).toHaveBeenCalledTimes(1);
     expect(items[1]!.loadOriginal).toHaveBeenCalledTimes(1);
-    expect(items[2]!.loadOriginal).not.toHaveBeenCalled();
+    expect(items[2]!.loadOriginal).toHaveBeenCalledTimes(1);
     expect(wrapper.find('.app-image-lightbox-counter').text()).toBe('2 / 3');
     expect(wrapper.find('.app-image-lightbox-image').attributes('src')).toMatch(/^blob:/);
   });
@@ -89,12 +89,12 @@ describe('AppImagePreview', () => {
     await wrapper.find('[aria-label="下一张图片"]').trigger('click');
     await flushPromises();
     expect(items[2]!.loadOriginal).toHaveBeenCalledTimes(1);
-    expect(URL.revokeObjectURL).toHaveBeenCalled();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
     expect(wrapper.find('.app-image-lightbox-counter').text()).toBe('3 / 3');
 
     await wrapper.find('.dialog-content-stub').trigger('keydown', { key: 'ArrowLeft' });
     await flushPromises();
-    expect(items[1]!.loadOriginal).toHaveBeenCalledTimes(2);
+    expect(items[1]!.loadOriginal).toHaveBeenCalledTimes(1);
     expect(wrapper.find('.app-image-lightbox-counter').text()).toBe('2 / 3');
 
     await wrapper.findAll('.app-image-lightbox-thumb')[0]!.trigger('click');
@@ -102,6 +102,27 @@ describe('AppImagePreview', () => {
     expect(items[0]!.loadOriginal).toHaveBeenCalledTimes(1);
     expect(wrapper.find('.app-image-lightbox-counter').text()).toBe('1 / 3');
     expect(wrapper.find('.app-image-lightbox-thumb[data-active="true"]').exists()).toBe(true);
+  });
+
+  it('evicts the least recently used original after the five-image cache limit', async () => {
+    const items = createItems(7);
+    const wrapper = mountPreview(items);
+
+    await wrapper.findAll('.app-image-thumbnail-trigger')[0]!.trigger('click');
+    await flushPromises();
+
+    for (let index = 0; index < 3; index += 1) {
+      await wrapper.find('[aria-label="下一张图片"]').trigger('click');
+      await flushPromises();
+    }
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(items[6]!.loadOriginal).toHaveBeenCalledTimes(1);
+
+    await wrapper.findAll('.app-image-lightbox-thumb')[6]!.trigger('click');
+    await flushPromises();
+
+    expect(items[6]!.loadOriginal).toHaveBeenCalledTimes(2);
   });
 
   it('closes via the close button', async () => {
@@ -114,6 +135,38 @@ describe('AppImagePreview', () => {
 
     await wrapper.find('[aria-label="关闭预览"]').trigger('click');
     expect(wrapper.find('.dialog-root-stub').exists()).toBe(false);
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+  });
+
+  it('discards an in-flight result from a closed lightbox session', async () => {
+    let resolveFirst!: (blob: Blob) => void;
+    let resolveSecond!: (blob: Blob) => void;
+    const loadOriginal = vi
+      .fn<() => Promise<Blob>>()
+      .mockImplementationOnce(() => new Promise(resolve => (resolveFirst = resolve)))
+      .mockImplementationOnce(() => new Promise(resolve => (resolveSecond = resolve)));
+    const item: AppImagePreviewItem = {
+      id: 'deferred-image',
+      alt: '延迟图片',
+      thumbnailSrc: 'data:image/png;base64,deferred',
+      loadOriginal
+    };
+    const wrapper = mountPreview([item]);
+
+    await wrapper.find('.app-image-thumbnail-trigger').trigger('click');
+    await wrapper.find('[aria-label="关闭预览"]').trigger('click');
+    await wrapper.find('.app-image-thumbnail-trigger').trigger('click');
+
+    expect(loadOriginal).toHaveBeenCalledTimes(2);
+
+    resolveFirst(new Blob(['stale'], { type: 'image/png' }));
+    await flushPromises();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+
+    resolveSecond(new Blob(['current'], { type: 'image/png' }));
+    await flushPromises();
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(wrapper.find('.app-image-lightbox-image').attributes('src')).toMatch(/^blob:/);
   });
 
   it('closes when the open index falls out of range after items shrink', async () => {
@@ -187,7 +240,9 @@ describe('AppImagePreview', () => {
     await wrapper.findAll('.app-image-gallery-item')[1]!.trigger('click');
     await flushPromises();
 
+    expect(items[0]!.loadOriginal).toHaveBeenCalledTimes(1);
     expect(items[1]!.loadOriginal).toHaveBeenCalledTimes(1);
+    expect(items[2]!.loadOriginal).toHaveBeenCalledTimes(1);
     expect(wrapper.find('.app-image-lightbox-counter').text()).toBe('2 / 3');
   });
 
