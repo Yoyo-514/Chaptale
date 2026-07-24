@@ -2,6 +2,7 @@ import {
   IPC_CHANNELS,
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
+  TaskReadRunOutputArgsValidator,
   TaskRunArgsValidator
 } from '@chaptale/ipc-contract';
 
@@ -22,5 +23,9 @@ export function registerTaskIpc(taskService: TaskService, runStore: AgentRunStor
 
   handleValidatedIpc(IPC_CHANNELS.tasks.listRuns, TaskListRunsArgsValidator, async (_event, payload) => {
     return runStore.list(payload);
+  });
+
+  handleValidatedIpc(IPC_CHANNELS.tasks.readRunOutput, TaskReadRunOutputArgsValidator, async (_event, outputRef) => {
+    return runStore.readOutput(outputRef);
   });
 }

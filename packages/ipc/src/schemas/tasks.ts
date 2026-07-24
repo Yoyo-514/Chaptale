@@ -35,3 +35,6 @@ export const TaskListRunsPayloadSchema = Type.Object(
 
 export const TaskListRunsArgsSchema = Type.Tuple([TaskListRunsPayloadSchema]);
 export const TaskListRunsArgsValidator = Compile(TaskListRunsArgsSchema);
+
+export const TaskReadRunOutputArgsSchema = Type.Tuple([Type.String({ minLength: 1 })]);
+export const TaskReadRunOutputArgsValidator = Compile(TaskReadRunOutputArgsSchema);

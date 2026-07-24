@@ -7,6 +7,7 @@ export function createTasksApi(): ChaptaleDesktopApi['tasks'] {
   return {
     run: payload => ipcRenderer.invoke(IPC_CHANNELS.tasks.run, payload),
     cancel: requestId => ipcRenderer.invoke(IPC_CHANNELS.tasks.cancel, { requestId }),
-    listRuns: payload => ipcRenderer.invoke(IPC_CHANNELS.tasks.listRuns, payload ?? {})
+    listRuns: payload => ipcRenderer.invoke(IPC_CHANNELS.tasks.listRuns, payload ?? {}),
+    readRunOutput: outputRef => ipcRenderer.invoke(IPC_CHANNELS.tasks.readRunOutput, outputRef)
   };
 }

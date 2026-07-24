@@ -34,6 +34,7 @@ import {
   TodosGetArgsValidator,
   SubagentListActiveArgsValidator,
   SubagentCancelArgsValidator,
+  TaskReadRunOutputArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
   UpdatePiWebAccessSettingsArgsValidator,
@@ -126,6 +127,7 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.tasks.run, TaskRunArgsValidator),
   validated(IPC_CHANNELS.tasks.cancel, TaskCancelArgsValidator),
   validated(IPC_CHANNELS.tasks.listRuns, TaskListRunsArgsValidator),
+  validated(IPC_CHANNELS.tasks.readRunOutput, TaskReadRunOutputArgsValidator),
 
   validated(IPC_CHANNELS.todos.get, TodosGetArgsValidator),
 

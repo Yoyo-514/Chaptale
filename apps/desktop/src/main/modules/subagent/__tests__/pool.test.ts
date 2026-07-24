@@ -144,14 +144,20 @@ describe('SubagentPool', () => {
     const pool = new SubagentPool();
     const events = collectEvents(pool);
     const usage = { inputTokens: 10, outputTokens: 5 };
-    const a = deferredExecutor({ status: 'success', usage });
+    const a = deferredExecutor({ status: 'success', usage, runId: 'run-1', outputRef: 'runs/outputs/run-1.json' });
 
     const run = pool.run({ requestId: 'a', personaId: 'reviewer', execute: a.execute });
     a.release();
     await run;
 
     expect(events.map(event => event.state)).toEqual(['queued', 'running', 'success']);
-    expect(events[2]).toMatchObject({ personaId: 'reviewer', usage });
+    // 终态事件携带落盘引用，供 UI 直读结果（双通道之一）。
+    expect(events[2]).toMatchObject({
+      personaId: 'reviewer',
+      usage,
+      runId: 'run-1',
+      outputRef: 'runs/outputs/run-1.json'
+    });
   });
 
   it('keeps the state machine running when a listener throws', async () => {

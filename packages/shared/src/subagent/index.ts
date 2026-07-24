@@ -7,7 +7,7 @@ export type SubagentUsage = {
   outputTokens: number;
 };
 
-/** 槽位状态机事件：每次状态迁移推送一条，终态附带 usage/错误信息。 */
+/** 槽位状态机事件：每次状态迁移推送一条，终态附带 usage/结果引用/错误信息。 */
 export type SubagentSlotEvent = {
   requestId: string;
   personaId: string;
@@ -15,6 +15,9 @@ export type SubagentSlotEvent = {
   sessionId?: string;
   state: SubagentState;
   usage?: SubagentUsage;
+  /** 终态时的落盘引用；UI 据此读取并展示结果正文（双通道之一）。 */
+  runId?: string;
+  outputRef?: string;
   error?: string;
 };
 

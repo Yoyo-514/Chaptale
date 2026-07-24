@@ -77,7 +77,9 @@ describe('createDelegateTool', () => {
     expect(result.text).toContain('发现 2 处矛盾');
     // 红线：结构化结果全文不回传给 parent。
     expect(result.text).not.toContain('"summary"');
-    expect(result.details).toMatchObject({ personaId: 'continuity-reviewer', state: 'success', runId: 'run-1' });
+    expect(result.details).toMatchObject({
+      tasks: [{ personaId: 'continuity-reviewer', state: 'success', runId: 'run-1' }]
+    });
   });
 
   it('returns the available list when the target persona is not delegatable', async () => {
@@ -106,7 +108,7 @@ describe('createDelegateTool', () => {
 
     expect(result.text).toContain('未通过校验');
     expect(result.text).toContain('缺少 issues 字段');
-    expect(result.details).toMatchObject({ state: 'failed', runId: 'run-2' });
+    expect(result.details).toMatchObject({ tasks: [{ state: 'failed', runId: 'run-2' }] });
   });
 
   it('cancels the pooled task when the outer tool signal aborts', async () => {
@@ -129,6 +131,102 @@ describe('createDelegateTool', () => {
     const result = await pending;
 
     expect(result.text).toContain('已被取消');
-    expect(result.details).toMatchObject({ state: 'cancelled' });
+    expect(result.details).toMatchObject({ tasks: [{ state: 'cancelled' }] });
+  });
+
+  it('fans out array targets, waits for all lanes and reports per-lane status only', async () => {
+    const runResults = new Map<string, TaskRunResult>([
+      [
+        'reviewer-a',
+        {
+          status: 'success',
+          runId: 'run-a',
+          output: { summary: 'A 意见' },
+          outputRef: 'runs/outputs/run-a.json',
+          usage: { inputTokens: 1, outputTokens: 1 }
+        }
+      ],
+      [
+        'reviewer-b',
+        {
+          status: 'failed',
+          runId: 'run-b',
+          errors: ['缺字段'],
+          outputRef: 'runs/outputs/run-b.json',
+          usage: { inputTokens: 1, outputTokens: 1 }
+        }
+      ],
+      [
+        'reviewer-c',
+        {
+          status: 'success',
+          runId: 'run-c',
+          output: { summary: 'C 意见' },
+          outputRef: 'runs/outputs/run-c.json',
+          usage: { inputTokens: 1, outputTokens: 1 }
+        }
+      ]
+    ]);
+    const personas = [
+      persona({ id: 'reviewer-a', name: 'A' }),
+      persona({ id: 'reviewer-b', name: 'B' }),
+      persona({ id: 'reviewer-c', name: 'C' })
+    ];
+    const run = vi.fn(async (request: { persona: PersonaDefinition }) => runResults.get(request.persona.id)!);
+    const { context } = createContext({ taskRunner: { run } as never }, personas);
+    const tool = await createDelegateTool(context);
+
+    const result = await tool.execute({ to: ['reviewer-a', 'reviewer-b', 'reviewer-c'], brief: '三路并审' });
+
+    // 屏障：三路全部终态后才返回；单路失败（reviewer-b）不连带其余路。
+    expect(run).toHaveBeenCalledTimes(3);
+    expect(result.text).toContain('3 路并行');
+    expect(result.text).toContain('run-a');
+    expect(result.text).toContain('run-b');
+    expect(result.text).toContain('run-c');
+    // 多路只回状态与引用，不带摘要——parent 不得聚合复述各路结果。
+    expect(result.text).not.toContain('A 意见');
+    expect(result.text).not.toContain('C 意见');
+    expect((result.details as { tasks: unknown[] }).tasks).toHaveLength(3);
+  });
+
+  it('deduplicates repeated targets and rejects the whole call when any target is invalid', async () => {
+    const { context, taskRunner } = createContext();
+    const tool = await createDelegateTool(context);
+
+    const dupResult = await tool.execute({ to: ['continuity-reviewer', 'continuity-reviewer'], brief: '审查' });
+    expect(taskRunner.run).toHaveBeenCalledTimes(1);
+    expect((dupResult.details as { tasks: unknown[] }).tasks).toHaveLength(1);
+
+    taskRunner.run.mockClear();
+    const invalidResult = await tool.execute({ to: ['continuity-reviewer', 'missing'], brief: '审查' });
+    expect(invalidResult.text).toContain('persona 不可用：missing');
+    // 整体拒绝：有效目标也不执行，避免部分执行歧义。
+    expect(taskRunner.run).not.toHaveBeenCalled();
+  });
+
+  it('cancels all lanes when the outer tool signal aborts during gather', async () => {
+    const releases: Array<(result: TaskRunResult) => void> = [];
+    const run = vi.fn((request: { signal?: AbortSignal }) => {
+      return new Promise<TaskRunResult>(resolve => {
+        releases.push(resolve);
+        request.signal?.addEventListener('abort', () =>
+          resolve({ status: 'cancelled', runId: `run-${releases.length}` })
+        );
+      });
+    });
+    const personas = [persona({ id: 'reviewer-a', name: 'A' }), persona({ id: 'reviewer-b', name: 'B' })];
+    const { context } = createContext({ taskRunner: { run } as never }, personas);
+    const tool = await createDelegateTool(context);
+
+    const controller = new AbortController();
+    const pending = tool.execute({ to: ['reviewer-a', 'reviewer-b'], brief: '审查' }, controller.signal);
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2));
+
+    controller.abort();
+    const result = await pending;
+
+    const states = (result.details as { tasks: Array<{ state: string }> }).tasks.map(lane => lane.state);
+    expect(states).toEqual(['cancelled', 'cancelled']);
   });
 });

@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+
 import type { SubagentState } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
+import { getDesktopApi, hasDesktopApi } from '@/stores/utils/desktop-api';
 
 import { isTerminalState, type SubagentTaskEntry } from '../composables/useSubagentTasks';
 
@@ -27,6 +30,25 @@ const stateMeta: Record<SubagentState, { label: string; icon: string; className:
 function usageLabel(task: SubagentTaskEntry): string | undefined {
   return task.usage ? `${task.usage.inputTokens + task.usage.outputTokens} tokens` : undefined;
 }
+
+// 展开查看的路：一次只展开一路，再次点击收起；正文按需拉取不预加载。
+const expandedRequestId = ref<string | null>(null);
+const expandedText = ref('');
+
+async function toggleOutput(task: SubagentTaskEntry) {
+  if (expandedRequestId.value === task.requestId) {
+    expandedRequestId.value = null;
+    return;
+  }
+
+  if (!task.outputRef || !hasDesktopApi()) {
+    return;
+  }
+
+  const output = await getDesktopApi().tasks.readRunOutput(task.outputRef);
+  expandedText.value = output?.rawText ?? '（结果文件不可读）';
+  expandedRequestId.value = task.requestId;
+}
 </script>
 
 <template>
@@ -45,6 +67,15 @@ function usageLabel(task: SubagentTaskEntry): string | undefined {
           <span v-if="task.error" class="subagent-item-error" :title="task.error">{{ task.error }}</span>
           <span v-if="usageLabel(task)" class="subagent-item-usage">{{ usageLabel(task) }}</span>
           <AppButton
+            v-if="isTerminalState(task.state) && task.outputRef"
+            variant="ghost"
+            size="xs"
+            type="button"
+            @click="toggleOutput(task)"
+          >
+            {{ expandedRequestId === task.requestId ? '收起' : '查看' }}
+          </AppButton>
+          <AppButton
             v-if="!isTerminalState(task.state)"
             variant="ghost"
             size="xs"
@@ -58,6 +89,9 @@ function usageLabel(task: SubagentTaskEntry): string | undefined {
           </AppButton>
         </li>
       </ul>
+    </AppScrollArea>
+    <AppScrollArea v-if="expandedRequestId" class="subagent-output-scroll">
+      <pre class="subagent-output">{{ expandedText }}</pre>
     </AppScrollArea>
   </section>
 </template>
@@ -76,6 +110,19 @@ function usageLabel(task: SubagentTaskEntry): string | undefined {
 
 .subagent-list {
   @apply m-0 list-none px-3 py-1;
+}
+
+.subagent-output-scroll {
+  // 结果正文区限高，避免长输出挤压输入框。
+  max-height: 12rem;
+
+  border-top: 1px solid var(--border-subtle);
+}
+
+.subagent-output {
+  @apply m-0 whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs;
+
+  color: var(--muted-foreground);
 }
 
 .subagent-item {

@@ -128,6 +128,8 @@ export type ChaptaleDesktopApi = {
     /** 取消运行中的任务；键为发起时预生成的 requestId。 */
     cancel: (requestId: string) => Promise<void>;
     listRuns: (payload?: AgentRunsListPayload) => Promise<unknown>;
+    /** 按 outputRef 读取落盘的运行输出原文；引用非法或不存在时返回 null。 */
+    readRunOutput: (outputRef: string) => Promise<{ runId: string; rawText: string } | null>;
   };
   todos: {
     /** 读取指定会话的 todo 清单；无清单时返回空表。 */

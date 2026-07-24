@@ -58,6 +58,39 @@ export class AgentRunStore {
     return relativePath.split(path.sep).join('/');
   }
 
+  /**
+   * 按 outputRef 读回输出体原文；引用非法或文件不存在时返回 null。
+   *
+   * outputRef 来自事件/记录透传，但仍按不可信输入处理：解析后必须
+   * 落在 outputs 目录内，阻断路径穿越读任意文件。
+   */
+  async readOutput(outputRef: string): Promise<{ runId: string; rawText: string } | null> {
+    const cwd = await this.options.resolveCwd();
+    const outputsDir = path.resolve(cwd, '.chaptale', 'runs', 'outputs');
+    const filePath = path.resolve(cwd, outputRef);
+
+    if (filePath !== outputsDir && !filePath.startsWith(outputsDir + path.sep)) {
+      return null;
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(await fs.readFile(filePath, 'utf8'));
+
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        typeof (parsed as { runId?: unknown }).runId === 'string' &&
+        typeof (parsed as { rawText?: unknown }).rawText === 'string'
+      ) {
+        return { runId: (parsed as { runId: string }).runId, rawText: (parsed as { rawText: string }).rawText };
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   /** 倒序列出最近的记录（当月 + 上月），坏行跳过并计入 diagnostics。 */
   async list(options: AgentRunListOptions = {}): Promise<AgentRunListResult> {
     const cwd = await this.options.resolveCwd();

@@ -1,9 +1,11 @@
 import type { SubagentSlotEvent, SubagentSlotSnapshot, SubagentState, SubagentUsage } from '@chaptale/shared';
 
-/** 执行器返回的最小结果约定：状态映射终态，usage 透传给事件。 */
+/** 执行器返回的最小结果约定：状态映射终态，usage 与落盘引用透传给事件。 */
 export type SubagentOutcome = {
   status: 'success' | 'failed' | 'cancelled';
   usage?: SubagentUsage;
+  runId?: string;
+  outputRef?: string;
 };
 
 export type SubagentExecutor<T extends SubagentOutcome> = (signal: AbortSignal) => Promise<T>;
@@ -172,18 +174,20 @@ export class SubagentPool {
     entry.settled = true;
     clearTimeout(entry.timer);
     this.running.delete(entry.requestId);
-    this.emit(entry, state, outcome?.usage, error);
+    this.emit(entry, state, outcome, error);
     entry.resolve({ state, ...(outcome ? { outcome } : {}), ...(error ? { error } : {}) });
     this.schedule();
   }
 
-  private emit(entry: Entry<SubagentOutcome>, state: SubagentState, usage?: SubagentUsage, error?: string): void {
+  private emit(entry: Entry<SubagentOutcome>, state: SubagentState, outcome?: SubagentOutcome, error?: string): void {
     const event: SubagentSlotEvent = {
       requestId: entry.requestId,
       personaId: entry.personaId,
       ...(entry.sessionId ? { sessionId: entry.sessionId } : {}),
       state,
-      ...(usage ? { usage } : {}),
+      ...(outcome?.usage ? { usage: outcome.usage } : {}),
+      ...(outcome?.runId ? { runId: outcome.runId } : {}),
+      ...(outcome?.outputRef ? { outputRef: outcome.outputRef } : {}),
       ...(error ? { error } : {})
     };
 

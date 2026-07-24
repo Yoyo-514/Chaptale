@@ -9,6 +9,8 @@ export type SubagentTaskEntry = {
   personaId: string;
   state: SubagentState;
   usage?: { inputTokens: number; outputTokens: number };
+  runId?: string;
+  outputRef?: string;
   error?: string;
 };
 
@@ -69,6 +71,8 @@ export function useSubagentTasks(getSessionId: () => string) {
       personaId: event.personaId,
       state: event.state,
       ...(event.usage ? { usage: event.usage } : {}),
+      ...(event.runId ? { runId: event.runId } : {}),
+      ...(event.outputRef ? { outputRef: event.outputRef } : {}),
       ...(event.error ? { error: event.error } : {})
     };
 

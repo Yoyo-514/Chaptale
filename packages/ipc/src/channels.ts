@@ -40,7 +40,8 @@ export const IPC_CHANNELS = {
   tasks: {
     run: 'tasks:run',
     cancel: 'tasks:cancel',
-    listRuns: 'tasks:list-runs'
+    listRuns: 'tasks:list-runs',
+    readRunOutput: 'tasks:read-run-output'
   },
   todos: {
     get: 'todos:get',

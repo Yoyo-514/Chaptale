@@ -126,4 +126,26 @@ describe('AgentRunStore', () => {
     expect(parsed.runId).toBe('run-42');
     expect(parsed.rawText).toBe('第三章润色结果……');
   });
+
+  it('reads back saved outputs by outputRef', async () => {
+    const outputRef = await store.saveOutput('run-50', '审查结果正文');
+
+    await expect(store.readOutput(outputRef)).resolves.toEqual({ runId: 'run-50', rawText: '审查结果正文' });
+  });
+
+  it('rejects output refs that escape the outputs directory', async () => {
+    // 路径穿越与目录外引用一律返回 null，不读任意文件。
+    await expect(store.readOutput('.chaptale/runs/outputs/../../../package.json')).resolves.toBeNull();
+    await expect(store.readOutput('package.json')).resolves.toBeNull();
+    await expect(store.readOutput('.chaptale/runs/agent-runs-2026-07.jsonl')).resolves.toBeNull();
+  });
+
+  it('returns null for missing or malformed output files', async () => {
+    await expect(store.readOutput('.chaptale/runs/outputs/missing.json')).resolves.toBeNull();
+
+    const badPath = path.join(cwd, '.chaptale', 'runs', 'outputs', 'bad.json');
+    await fs.mkdir(path.dirname(badPath), { recursive: true });
+    await fs.writeFile(badPath, '不是 JSON', 'utf8');
+    await expect(store.readOutput('.chaptale/runs/outputs/bad.json')).resolves.toBeNull();
+  });
 });

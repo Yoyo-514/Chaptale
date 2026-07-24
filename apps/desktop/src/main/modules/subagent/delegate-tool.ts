@@ -19,7 +19,10 @@ export type DelegateToolContext = {
 
 const DelegateParams = Type.Object(
   {
-    to: Type.String({ minLength: 1, description: '目标 persona 的 id' }),
+    to: Type.Union(
+      [Type.String({ minLength: 1 }), Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 5 })],
+      { description: '目标 persona 的 id；传数组可并行委派多路（如多角度审查）' }
+    ),
     brief: Type.String({ minLength: 1, description: '任务简报：要求子任务做什么' }),
     text: Type.Optional(Type.String({ description: '待处理的正文文本（如需审查的段落）' }))
   },
@@ -51,7 +54,7 @@ function extractSummary(output: unknown): string | undefined {
   return undefined;
 }
 
-/** 把子任务终态渲染为回给模型的文本；结果正文只给 outputRef 引用，不内联。 */
+/** 把单路子任务终态渲染为回给模型的文本；结果正文只给 outputRef 引用，不内联。 */
 function renderResultText(state: string, outcome: TaskRunResult | undefined, error: string | undefined): string {
   if (outcome?.status === 'success') {
     const summary = extractSummary(outcome.output);
@@ -81,11 +84,57 @@ function renderResultText(state: string, outcome: TaskRunResult | undefined, err
   return `子任务失败：${error ?? '未知错误'}`;
 }
 
+/** 多路 gather 的汇总行：每路只回状态与落盘引用，不带摘要——parent 不得聚合/复述各路结果。 */
+function renderGatherLine(
+  personaId: string,
+  state: string,
+  outcome: TaskRunResult | undefined,
+  error: string | undefined
+): string {
+  if (outcome?.status === 'success') {
+    return `- ${personaId}：完成（runId: ${outcome.runId}，结果：${outcome.outputRef}）`;
+  }
+
+  if (outcome?.status === 'failed') {
+    return `- ${personaId}：输出未通过校验（runId: ${outcome.runId}，原始输出：${outcome.outputRef}）`;
+  }
+
+  if (state === 'timeout') {
+    return `- ${personaId}：超时`;
+  }
+
+  if (state === 'cancelled' || outcome?.status === 'cancelled') {
+    return `- ${personaId}：已取消`;
+  }
+
+  return `- ${personaId}：失败（${error ?? '未知错误'}）`;
+}
+
+type LaneResult = {
+  requestId: string;
+  personaId: string;
+  state: string;
+  outcome?: TaskRunResult;
+  error?: string;
+};
+
+function laneDetails(lane: LaneResult) {
+  return {
+    requestId: lane.requestId,
+    personaId: lane.personaId,
+    state: lane.state,
+    ...(lane.outcome && lane.outcome.status !== 'cancelled'
+      ? { runId: lane.outcome.runId, outputRef: lane.outcome.outputRef }
+      : {})
+  };
+}
+
 /**
- * delegate 工具：把任务委派给 task 型 persona 在隔离子会话中执行。
+ * delegate 工具：把任务委派给 task 型 persona 在隔离子会话中执行；
+ * to 传数组时 fan out 多路并行（gather），屏障等全部终态后汇总。
  *
  * description 里的 persona 枚举是会话创建时的快照；执行期重新加载校验，
- * 目标失效时返回当前可用列表让模型自纠，因此快照过期不会造成错误委派。
+ * 任一目标失效时整体拒绝并返回当前可用列表让模型自纠，避免部分执行的歧义。
  *
  * 分级为 readonly：子任务在无人值守闸门（ask 即拒）下运行且默认零工具，
  * 委派本身不产生需要用户确认的副作用。
@@ -108,45 +157,88 @@ export async function createDelegateTool(context: DelegateToolContext): Promise<
     execute: async (params, signal) => {
       const currentCwd = await context.resolveCwd();
       const available = listDelegatablePersonas((await context.personaRegistry.load(currentCwd)).personas);
-      const persona = available.find(item => item.id === params.to);
+      // 归一化为目标列表；同一 persona 重复出现时去重，避免无意义的重复子任务。
+      const targetIds = [...new Set(Array.isArray(params.to) ? params.to : [params.to])];
+      const targets: PersonaDefinition[] = [];
+      const missing: string[] = [];
 
-      if (!persona) {
+      for (const targetId of targetIds) {
+        const persona = available.find(item => item.id === targetId);
+
+        if (persona) {
+          targets.push(persona);
+        } else {
+          missing.push(targetId);
+        }
+      }
+
+      // 任一目标无效时整体拒绝：避免部分执行后模型对缺失路产生歧义。
+      if (missing.length > 0) {
         return {
-          text: [`persona 不可用：${params.to}。当前可委派的 persona：`, renderPersonaList(available)].join('\n')
+          text: [`persona 不可用：${missing.join('、')}。当前可委派的 persona：`, renderPersonaList(available)].join(
+            '\n'
+          )
         };
       }
 
-      const requestId = randomUUID();
-      // 宿主运行被中断时，通过池的取消路径统一终结子任务（立即释放槽位）。
-      const onAbort = () => context.pool.cancel(requestId);
+      const lanes = targets.map(persona => ({ persona, requestId: randomUUID() }));
+      // 宿主运行被中断时，通过池的取消路径统一终结全部子任务（立即释放槽位）。
+      const onAbort = () => {
+        for (const lane of lanes) {
+          context.pool.cancel(lane.requestId);
+        }
+      };
       signal?.addEventListener('abort', onAbort, { once: true });
 
       try {
-        const result = await context.pool.run({
-          requestId,
-          personaId: persona.id,
-          sessionId: context.sessionId,
-          execute: slotSignal =>
-            context.taskRunner.run({
-              persona,
-              brief: params.brief,
-              text: params.text ?? '',
-              trigger: 'delegate',
-              parentSessionId: context.sessionId,
-              signal: slotSignal
-            })
-        });
+        // 屏障：pool.run 以终态 resolve（不 reject），单路失败/取消不连带其余路。
+        const results = await Promise.all(
+          lanes.map(async (lane): Promise<LaneResult> => {
+            const result = await context.pool.run({
+              requestId: lane.requestId,
+              personaId: lane.persona.id,
+              sessionId: context.sessionId,
+              execute: slotSignal =>
+                context.taskRunner.run({
+                  persona: lane.persona,
+                  brief: params.brief,
+                  text: params.text ?? '',
+                  trigger: 'delegate',
+                  parentSessionId: context.sessionId,
+                  signal: slotSignal
+                })
+            });
+
+            const laneResult: LaneResult = {
+              requestId: lane.requestId,
+              personaId: lane.persona.id,
+              state: result.state
+            };
+
+            if (result.outcome) {
+              laneResult.outcome = result.outcome;
+            }
+
+            if (result.error) {
+              laneResult.error = result.error;
+            }
+
+            return laneResult;
+          })
+        );
+
+        // 单路保持原有详细文本（含摘要）；多路每路只回状态+引用，防止 parent 聚合复述。
+        const text =
+          results.length === 1
+            ? renderResultText(results[0].state, results[0].outcome, results[0].error)
+            : [
+                `已完成 ${results.length} 路并行子任务，各路结果已落盘并在界面分栏展示（无需复述全文）：`,
+                ...results.map(lane => renderGatherLine(lane.personaId, lane.state, lane.outcome, lane.error))
+              ].join('\n');
 
         return {
-          text: renderResultText(result.state, result.outcome, result.error),
-          details: {
-            requestId,
-            personaId: persona.id,
-            state: result.state,
-            ...(result.outcome && result.outcome.status !== 'cancelled'
-              ? { runId: result.outcome.runId, outputRef: result.outcome.outputRef }
-              : {})
-          }
+          text,
+          details: { tasks: results.map(laneDetails) }
         };
       } finally {
         signal?.removeEventListener('abort', onAbort);

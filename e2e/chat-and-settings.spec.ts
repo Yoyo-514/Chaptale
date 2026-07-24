@@ -166,6 +166,12 @@ async function installDesktopMock(page: Page) {
         cancel: async () => undefined,
         onEvent: () => () => undefined
       },
+      tasks: {
+        run: async () => ({ status: 'cancelled', runId: 'run-e2e' }),
+        cancel: async () => undefined,
+        listRuns: async () => ({ records: [], diagnostics: [] }),
+        readRunOutput: async () => null
+      },
       models: {
         list: async () => ({ providers: [], models: [], defaultModel: undefined }),
         setDefault: async () => ({ providers: [], models: [], defaultModel: undefined }),
