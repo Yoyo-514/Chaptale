@@ -46,6 +46,11 @@ export const IPC_CHANNELS = {
     get: 'todos:get',
     updated: 'todos:updated'
   },
+  subagent: {
+    listActive: 'subagent:list-active',
+    cancel: 'subagent:cancel',
+    event: 'subagent:event'
+  },
   permissions: {
     pending: 'permissions:pending',
     decide: 'permissions:decide',

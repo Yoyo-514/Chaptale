@@ -8,6 +8,7 @@ import { registerPermissionsIpc } from '../modules/permissions/ipc';
 import { registerPromptSettingsIpc } from '../modules/prompts/ipc';
 import { registerSessionIpc } from '../modules/sessions/ipc';
 import { registerSettingsIpc } from '../modules/settings/ipc';
+import { registerSubagentIpc } from '../modules/subagent/ipc';
 import { registerTaskIpc } from '../modules/tasks/ipc';
 import { registerTodoIpc } from '../modules/todo/ipc';
 import { registerWindowIpc } from '../modules/window/ipc';
@@ -47,6 +48,7 @@ export function registerApplicationIpc(context: AppContext): void {
   registerSlashCommandIpc(context.commandService);
   registerTaskIpc(context.taskService, context.runStore);
   registerTodoIpc(context.todoStore);
+  registerSubagentIpc(context.subagentPool);
   registerPermissionsIpc(context.permissionBroker, context.permissionRuleStore);
   registerWindowIpc();
 }

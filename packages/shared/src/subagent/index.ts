@@ -11,9 +11,19 @@ export type SubagentUsage = {
 export type SubagentSlotEvent = {
   requestId: string;
   personaId: string;
+  /** 发起委派的宿主会话；UI 据此过滤自己关心的子任务。 */
+  sessionId?: string;
   state: SubagentState;
   usage?: SubagentUsage;
   error?: string;
+};
+
+/** 活跃槽位快照：窗口重开后 UI 恢复展示用。 */
+export type SubagentSlotSnapshot = {
+  requestId: string;
+  personaId: string;
+  sessionId?: string;
+  state: SubagentState;
 };
 
 /** 终态状态集合：进入即不再迁移。 */

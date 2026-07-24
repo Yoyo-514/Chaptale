@@ -1,4 +1,4 @@
-import type { ChatContextFile, ChatMessage, TodoItem } from '@chaptale/shared';
+import type { ChatContextFile, ChatMessage, SubagentSlotEvent, SubagentSlotSnapshot, TodoItem } from '@chaptale/shared';
 
 import type {
   AgentQueueClearResult,
@@ -134,6 +134,14 @@ export type ChaptaleDesktopApi = {
     get: (sessionId: string) => Promise<TodoItem[]>;
     /** 订阅清单变更（整表推送）；返回取消订阅函数。 */
     onUpdated: (listener: (event: TodosUpdatedEvent) => void) => () => void;
+  };
+  subagent: {
+    /** 指定会话的活跃子任务快照，供挂载/刷新后恢复卡片。 */
+    listActive: (sessionId: string) => Promise<SubagentSlotSnapshot[]>;
+    /** 取消子任务；排队中直接出队，运行中立即终结。 */
+    cancel: (requestId: string) => Promise<void>;
+    /** 订阅槽位状态机事件；返回取消订阅函数。 */
+    onEvent: (listener: (event: SubagentSlotEvent) => void) => () => void;
   };
   permissions: {
     /** 指定会话的待授权请求，供挂载/刷新后恢复卡片。 */

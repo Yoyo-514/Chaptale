@@ -24,6 +24,7 @@ import { composeSystemPrompt } from '../../../modules/prompts/compose-system-pro
 import type { SettingsService } from '../../../modules/settings/service';
 import { TODO_PROTOCOL } from '../../../modules/todo/protocol';
 import type { TodoStore } from '../../../modules/todo/store';
+import type { ToolDefinition } from '../../../modules/tools/definition';
 import { buildChatSessionTools } from '../../../modules/tools/tool-registry';
 import type { PiModelService } from '../models/service';
 import { createPermissionGateExtension } from '../permissions/gate-extension';
@@ -59,6 +60,13 @@ export function createDefaultPersonaRegistry(settingsService: SettingsService): 
  * 让 PiAgentService 只关心 runtime 缓存与事件流桥接。
  */
 export class PiAgentSessionFactory {
+  /** 会话级额外工具构建器：由 app 组装层注入（如 delegate），解开与 TaskRunner 的构造环。 */
+  private extraChatTools?: (sessionId: string) => Promise<ToolDefinition[]>;
+
+  /** 注册额外的 chat 会话工具构建器；仅对注册后新建的会话生效。 */
+  setExtraChatTools(builder: (sessionId: string) => Promise<ToolDefinition[]>): void {
+    this.extraChatTools = builder;
+  }
   private personaRegistry?: PersonaRegistry;
 
   constructor(private readonly options: PiAgentSessionFactoryOptions) {}
@@ -96,7 +104,10 @@ export class PiAgentSessionFactory {
     // 同时只定向加载白名单 pi package，避免把 pi CLI 的 coding 行为带进创作会话。
     // 会话级自定义工具：sessionId 在此已知，直接闭包绑定，todo 清单随会话隔离。
     // 构建于 loader 之前：权限闸门需要各自定义工具的风险分级。
-    const chatTools = buildChatSessionTools({ todoStore, getSessionId: () => sessionId });
+    const chatTools = [
+      ...buildChatSessionTools({ todoStore, getSessionId: () => sessionId }),
+      ...(this.extraChatTools ? await this.extraChatTools(sessionId) : [])
+    ];
     const customTools = chatTools.map(toPiToolDefinition);
     const customRiskLevels = Object.fromEntries(
       chatTools.map(tool => [tool.name, tool.riskLevel ?? 'mutating'])

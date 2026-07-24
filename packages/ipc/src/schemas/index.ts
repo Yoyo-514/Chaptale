@@ -5,4 +5,5 @@ export * from './sessions';
 export * from './settings';
 export * from './tasks';
 export * from './todos';
+export * from './subagent';
 export * from './permissions';

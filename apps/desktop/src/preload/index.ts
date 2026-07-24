@@ -10,6 +10,7 @@ import { createPermissionsApi } from './api/permissions';
 import { createPromptSettingsApi } from './api/prompts';
 import { createSessionApi } from './api/sessions';
 import { createSettingsApi } from './api/settings';
+import { createSubagentApi } from './api/subagent';
 import { createTasksApi } from './api/tasks';
 import { createTodosApi } from './api/todos';
 import { createWindowControlApi } from './api/window';
@@ -25,6 +26,7 @@ const desktopApi: ChaptaleDesktopApi = {
   agent: createAgentApi(),
   tasks: createTasksApi(),
   todos: createTodosApi(),
+  subagent: createSubagentApi(),
   permissions: createPermissionsApi()
 };
 

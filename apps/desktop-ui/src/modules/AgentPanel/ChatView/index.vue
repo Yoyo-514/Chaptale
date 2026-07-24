@@ -12,17 +12,20 @@ import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
 import PermissionRequestCard from './components/PermissionRequestCard.vue';
 import ReviewResultCard from './components/ReviewResultCard.vue';
+import SubagentTaskCard from './components/SubagentTaskCard.vue';
 import TodoProgressCard from './components/TodoProgressCard.vue';
 import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
 import { useContinuityReview } from './composables/useContinuityReview';
 import { usePermissionRequests } from './composables/usePermissionRequests';
+import { useSubagentTasks } from './composables/useSubagentTasks';
 import { useTodoProgress } from './composables/useTodoProgress';
 
 const chat = useChatController();
 const sessionStore = useSessionStore();
 const todoProgress = useTodoProgress(() => sessionStore.currentSessionId);
 const permissionRequests = usePermissionRequests(() => sessionStore.currentSessionId);
+const subagentTasks = useSubagentTasks(() => sessionStore.currentSessionId);
 const review = useContinuityReview(
   () => chat.state.input,
   () => chat.state.contextFiles.map(file => file.path)
@@ -131,6 +134,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
         />
       </template>
     </section>
+
+    <SubagentTaskCard
+      class="chat-input-topbar"
+      :tasks="subagentTasks.tasks.value"
+      @cancel="subagentTasks.cancel"
+      @dismiss="subagentTasks.dismiss"
+    />
 
     <PermissionRequestCard
       class="chat-input-topbar"

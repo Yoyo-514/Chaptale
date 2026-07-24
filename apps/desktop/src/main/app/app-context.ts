@@ -1,5 +1,5 @@
 import { PiAgentService } from '../integrations/pi/agent/service';
-import { PiAgentSessionFactory, createDefaultPersonaRegistry } from '../integrations/pi/agent/session-factory';
+import { createDefaultPersonaRegistry } from '../integrations/pi/agent/session-factory';
 import { TaskRunner } from '../integrations/pi/agent/task-runner';
 import { PiModelService } from '../integrations/pi/models/service';
 import { PiSessionRepository } from '../integrations/pi/sessions/repository';
@@ -11,6 +11,8 @@ import { PromptFileService } from '../modules/prompts/file-service';
 import { AgentRunStore } from '../modules/runs/store';
 import { SettingsService } from '../modules/settings/service';
 import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
+import { createDelegateTool } from '../modules/subagent/delegate-tool';
+import { SubagentPool } from '../modules/subagent/pool';
 import { TaskService } from '../modules/tasks/service';
 import type { TodoStore } from '../modules/todo/store';
 
@@ -24,6 +26,7 @@ export type AppContext = {
   taskService: TaskService;
   runStore: AgentRunStore;
   todoStore: TodoStore;
+  subagentPool: SubagentPool;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
 };
@@ -54,18 +57,24 @@ export function createAppContext(): AppContext {
   const personaRegistry = createDefaultPersonaRegistry(settingsService);
   const permissionRuleStore = agentRuntime.permissionRuleStore;
   const permissionBroker = agentRuntime.permissionBroker;
-  const sessionFactory = new PiAgentSessionFactory({
-    settingsService,
-    modelService,
-    skillsProvider: agentRuntime.skillsProvider,
-    todoStore: agentRuntime.todoStore,
-    permissionBroker,
-    permissionRuleStore
-  });
   // runs 归属工作区（<workspace>/.chaptale/runs）：审查历史是创作产物，随作品同步。
   const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
-  const taskRunner = new TaskRunner(sessionFactory, runStore);
+  // 复用 agent runtime 的会话工厂：task 会话与 chat 会话共享模型/权限接线，避免双实例漂移。
+  const taskRunner = new TaskRunner(agentRuntime.sessionFactory, runStore);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner });
+  const subagentPool = new SubagentPool();
+
+  // delegate 工具依赖 taskRunner，而 taskRunner 又依赖会话工厂；
+  // 通过工厂的额外工具注册点 late-bind，避免构造期循环。
+  agentRuntime.sessionFactory.setExtraChatTools(async sessionId => [
+    await createDelegateTool({
+      pool: subagentPool,
+      taskRunner,
+      personaRegistry,
+      resolveCwd: () => settingsService.getCurrentCwd(),
+      sessionId
+    })
+  ]);
 
   return {
     settingsService,
@@ -77,6 +86,7 @@ export function createAppContext(): AppContext {
     taskService,
     runStore,
     todoStore: agentRuntime.todoStore,
+    subagentPool,
     permissionBroker,
     permissionRuleStore
   };

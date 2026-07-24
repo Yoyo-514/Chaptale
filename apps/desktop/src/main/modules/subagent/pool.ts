@@ -1,4 +1,4 @@
-import type { SubagentSlotEvent, SubagentState, SubagentUsage } from '@chaptale/shared';
+import type { SubagentSlotEvent, SubagentSlotSnapshot, SubagentState, SubagentUsage } from '@chaptale/shared';
 
 /** 执行器返回的最小结果约定：状态映射终态，usage 透传给事件。 */
 export type SubagentOutcome = {
@@ -12,6 +12,8 @@ export type SubagentRunRequest<T extends SubagentOutcome> = {
   /** 调用方预生成的请求标识：取消与事件的路由键（同 TaskService 模式）。 */
   requestId: string;
   personaId: string;
+  /** 发起委派的宿主会话；随事件透传供 UI 按会话过滤。 */
+  sessionId?: string;
   execute: SubagentExecutor<T>;
 };
 
@@ -38,6 +40,7 @@ const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 type Entry<T extends SubagentOutcome> = {
   requestId: string;
   personaId: string;
+  sessionId?: string;
   execute: SubagentExecutor<T>;
   controller: AbortController;
   resolve: (result: SubagentRunResult<T>) => void;
@@ -71,6 +74,21 @@ export class SubagentPool {
     return () => this.listeners.delete(listener);
   }
 
+  /** 活跃（排队+运行中）槽位快照；供窗口重开后恢复展示。 */
+  listActive(sessionId?: string): SubagentSlotSnapshot[] {
+    const snapshots: SubagentSlotSnapshot[] = [];
+
+    for (const entry of this.queued.values()) {
+      snapshots.push(toSnapshot(entry, 'queued'));
+    }
+
+    for (const entry of this.running.values()) {
+      snapshots.push(toSnapshot(entry, 'running'));
+    }
+
+    return sessionId ? snapshots.filter(snapshot => snapshot.sessionId === sessionId) : snapshots;
+  }
+
   run<T extends SubagentOutcome>(request: SubagentRunRequest<T>): Promise<SubagentRunResult<T>> {
     if (this.queued.has(request.requestId) || this.running.has(request.requestId)) {
       throw new Error(`重复的子任务请求：${request.requestId}`);
@@ -80,6 +98,7 @@ export class SubagentPool {
       const entry: Entry<SubagentOutcome> = {
         requestId: request.requestId,
         personaId: request.personaId,
+        ...(request.sessionId ? { sessionId: request.sessionId } : {}),
         execute: request.execute,
         controller: new AbortController(),
         resolve: resolve as Entry<SubagentOutcome>['resolve'],
@@ -162,6 +181,7 @@ export class SubagentPool {
     const event: SubagentSlotEvent = {
       requestId: entry.requestId,
       personaId: entry.personaId,
+      ...(entry.sessionId ? { sessionId: entry.sessionId } : {}),
       state,
       ...(usage ? { usage } : {}),
       ...(error ? { error } : {})
@@ -176,4 +196,16 @@ export class SubagentPool {
       }
     }
   }
+}
+
+function toSnapshot(
+  entry: { requestId: string; personaId: string; sessionId?: string },
+  state: SubagentState
+): SubagentSlotSnapshot {
+  return {
+    requestId: entry.requestId,
+    personaId: entry.personaId,
+    ...(entry.sessionId ? { sessionId: entry.sessionId } : {}),
+    state
+  };
 }

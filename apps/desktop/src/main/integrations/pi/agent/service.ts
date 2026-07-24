@@ -50,8 +50,9 @@ type AgentRunContext = {
 export class PiAgentService implements AgentRuntime {
   private sessions = new Map<string, Promise<AgentSession>>();
   private readonly contextFileService = new ContextFileService();
-  private readonly sessionFactory: PiAgentSessionFactory;
   private readonly memoryInjector: MemoryInjector;
+  /** 会话工厂；对外暴露供组装层复用（TaskRunner 的 task 会话与额外工具注册）。 */
+  readonly sessionFactory: PiAgentSessionFactory;
   readonly skillsProvider: SkillsProvider;
   /** 会话级 todo 存储；对外暴露供 IPC 层订阅变更与查询。 */
   readonly todoStore: TodoStore;

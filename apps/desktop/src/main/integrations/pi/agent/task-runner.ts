@@ -22,9 +22,14 @@ export type TaskRunRequest = {
 };
 
 export type TaskRunResult =
-  | { status: 'success'; runId: string; output: unknown; outputRef: string }
-  | { status: 'failed'; runId: string; errors: string[]; outputRef: string }
-  | { status: 'cancelled'; runId: string };
+  | { status: 'success'; runId: string; output: unknown; outputRef: string; usage: TaskRunUsage }
+  | { status: 'failed'; runId: string; errors: string[]; outputRef: string; usage: TaskRunUsage }
+  | { status: 'cancelled'; runId: string; usage?: TaskRunUsage };
+
+export type TaskRunUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
 
 /** 校验失败后允许模型自我修复的最大次数。 */
 const MAX_REPAIR_ATTEMPTS = 2;
@@ -65,18 +70,18 @@ export class TaskRunner {
       const outcome = await this.promptWithRepair(session, request, schemaId);
       if (request.signal?.aborted) {
         await this.record(runId, request, spec, createdAt, 'cancelled', session);
-        return { status: 'cancelled', runId };
+        return { status: 'cancelled', runId, usage: readUsage(session) };
       }
 
       const outputRef = await this.runStore.saveOutput(runId, outcome.rawText);
 
       if (outcome.ok) {
         await this.record(runId, request, spec, createdAt, 'success', session, outputRef);
-        return { status: 'success', runId, output: outcome.value, outputRef };
+        return { status: 'success', runId, output: outcome.value, outputRef, usage: readUsage(session) };
       }
 
       await this.record(runId, request, spec, createdAt, 'failed', session, outputRef);
-      return { status: 'failed', runId, errors: outcome.errors, outputRef };
+      return { status: 'failed', runId, errors: outcome.errors, outputRef, usage: readUsage(session) };
     } finally {
       request.signal?.removeEventListener('abort', onAbort);
       session.dispose();
@@ -131,7 +136,6 @@ export class TaskRunner {
     session: AgentSession,
     outputRef?: string
   ): Promise<void> {
-    const tokens = session.getSessionStats().tokens;
     const record: AgentRunRecord = {
       id: runId,
       personaId: spec.personaId,
@@ -143,7 +147,7 @@ export class TaskRunner {
       ...(outputRef ? { outputRef } : {}),
       memoryRefs: [],
       status,
-      usage: { inputTokens: tokens.input, outputTokens: tokens.output },
+      usage: readUsage(session),
       createdAt,
       completedAt: new Date().toISOString()
     };
@@ -151,6 +155,12 @@ export class TaskRunner {
     // 记录落盘失败不应吞掉任务结果本身。
     await this.runStore.append(record).catch(() => undefined);
   }
+}
+
+/** 从会话统计读取 token 消耗；落盘记录与返回值共用同一口径。 */
+function readUsage(session: AgentSession): TaskRunUsage {
+  const tokens = session.getSessionStats().tokens;
+  return { inputTokens: tokens.input, outputTokens: tokens.output };
 }
 
 /** 转义嵌入 XML envelope 的文本，防止正文内容被误认为信封边界。 */
