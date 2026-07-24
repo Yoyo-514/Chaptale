@@ -16,6 +16,8 @@ export type SubagentRunRequest<T extends SubagentOutcome> = {
   personaId: string;
   /** 发起委派的宿主会话；随事件透传供 UI 按会话过滤。 */
   sessionId?: string;
+  /** 请求级超时覆盖；缺省用池的默认值。 */
+  timeoutMs?: number;
   execute: SubagentExecutor<T>;
 };
 
@@ -43,6 +45,7 @@ type Entry<T extends SubagentOutcome> = {
   requestId: string;
   personaId: string;
   sessionId?: string;
+  timeoutMs?: number;
   execute: SubagentExecutor<T>;
   controller: AbortController;
   resolve: (result: SubagentRunResult<T>) => void;
@@ -101,6 +104,7 @@ export class SubagentPool {
         requestId: request.requestId,
         personaId: request.personaId,
         ...(request.sessionId ? { sessionId: request.sessionId } : {}),
+        ...(request.timeoutMs !== undefined ? { timeoutMs: request.timeoutMs } : {}),
         execute: request.execute,
         controller: new AbortController(),
         resolve: resolve as Entry<SubagentOutcome>['resolve'],
@@ -156,7 +160,7 @@ export class SubagentPool {
     entry.timer = setTimeout(() => {
       entry.controller.abort();
       this.settle(entry, 'timeout');
-    }, this.timeoutMs);
+    }, entry.timeoutMs ?? this.timeoutMs);
 
     entry.execute(entry.controller.signal).then(
       outcome => this.settle(entry, outcome.status, outcome),

@@ -60,10 +60,18 @@ describe('createDelegateTool', () => {
 
   it('runs the task through the pool and returns summary with outputRef only', async () => {
     const { context, taskRunner } = createContext();
+    const poolRun = vi.spyOn(context.pool, 'run');
     const tool = await createDelegateTool(context);
 
-    const result = await tool.execute({ to: 'continuity-reviewer', brief: '审查衔接', text: '正文' });
+    const result = await tool.execute({
+      to: 'continuity-reviewer',
+      brief: '审查衔接',
+      text: '正文',
+      timeoutSeconds: 600
+    });
 
+    // 主 agent 设定的超时透传到池（秒→毫秒）。
+    expect(poolRun).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 600_000 }));
     expect(taskRunner.run).toHaveBeenCalledWith(
       expect.objectContaining({
         brief: '审查衔接',

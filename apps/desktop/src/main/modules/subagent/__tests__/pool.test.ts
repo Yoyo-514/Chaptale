@@ -102,6 +102,17 @@ describe('SubagentPool', () => {
     expect(next.execute).toHaveBeenCalled();
   });
 
+  it('honors a per-request timeout override over the pool default', async () => {
+    const pool = new SubagentPool({ timeoutMs: 60_000 });
+    const hung = deferredExecutor();
+
+    const run = pool.run({ requestId: 'short', personaId: 'p', timeoutMs: 1000, execute: hung.execute });
+
+    // 请求级超时（1s）先于池默认（60s）触发。
+    vi.advanceTimersByTime(1000);
+    await expect(run).resolves.toMatchObject({ state: 'timeout' });
+  });
+
   it('ignores a late executor result after timeout has settled the entry', async () => {
     const pool = new SubagentPool({ timeoutMs: 1000 });
     const events = collectEvents(pool);

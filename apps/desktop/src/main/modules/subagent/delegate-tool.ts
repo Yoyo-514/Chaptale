@@ -24,7 +24,14 @@ const DelegateParams = Type.Object(
       { description: '目标 persona 的 id；传数组可并行委派多路（如多角度审查）' }
     ),
     brief: Type.String({ minLength: 1, description: '任务简报：要求子任务做什么' }),
-    text: Type.Optional(Type.String({ description: '待处理的正文文本（如需审查的段落）' }))
+    text: Type.Optional(Type.String({ description: '待处理的正文文本（如需审查的段落）' })),
+    timeoutSeconds: Type.Optional(
+      Type.Number({
+        minimum: 30,
+        maximum: 1800,
+        description: '单路超时秒数（30~1800）；缺省 300。大篇幅文本建议适当调高'
+      })
+    )
   },
   { additionalProperties: false }
 );
@@ -198,6 +205,8 @@ export async function createDelegateTool(context: DelegateToolContext): Promise<
               requestId: lane.requestId,
               personaId: lane.persona.id,
               sessionId: context.sessionId,
+              // 主 agent 按任务规模设定超时；schema 已限幅，缺省交给池的默认值。
+              ...(params.timeoutSeconds !== undefined ? { timeoutMs: params.timeoutSeconds * 1000 } : {}),
               execute: slotSignal =>
                 context.taskRunner.run({
                   persona: lane.persona,
