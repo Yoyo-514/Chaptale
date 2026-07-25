@@ -23,9 +23,35 @@ vi.mock('../../../infra/security/trusted-ipc', () => ({
 }));
 
 vi.mock('../../../infra/security/validated-ipc', () => ({
-  handleValidatedIpc: vi.fn((_channel: string, _validator: unknown, handler: ValidatedHandler) => {
-    registrationMock.validated.push({ channel: _channel, handler });
-  })
+  handleValidatedIpc: vi.fn(
+    (
+      _channel: string,
+      _argsValidator: unknown,
+      resultValidatorOrHandler: { Check(value: unknown): boolean } | ValidatedHandler,
+      maybeHandler?: ValidatedHandler
+    ) => {
+      const resultValidator = maybeHandler
+        ? (resultValidatorOrHandler as { Check(value: unknown): boolean })
+        : undefined;
+      const handler = maybeHandler ?? (resultValidatorOrHandler as ValidatedHandler);
+
+      registrationMock.validated.push({
+        channel: _channel,
+        handler: (event, ...args) => {
+          const result = handler(event, ...args);
+          const checkResult = (value: unknown) => {
+            if (resultValidator && !resultValidator.Check(value)) {
+              throw new Error(`IPC 响应无效：${_channel}`);
+            }
+
+            return value;
+          };
+
+          return result instanceof Promise ? result.then(checkResult) : checkResult(result);
+        }
+      });
+    }
+  )
 }));
 
 vi.mock('electron', () => ({
@@ -352,7 +378,7 @@ describe('Agent IPC lifecycle', () => {
     const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
     const clearPendingMessages = getValidatedHandler(IPC_CHANNELS.agent.clearPendingMessages);
 
-    start({ sender: sender as unknown as WebContents }, createPayload());
+    expect(start({ sender: sender as unknown as WebContents }, createPayload())).toEqual({ runId: 'run-1' });
     await control.started.promise;
 
     await expect(
@@ -378,6 +404,26 @@ describe('Agent IPC lifecycle', () => {
       signal: expect.any(AbortSignal)
     });
     expect(runtime.stream).toHaveBeenCalledTimes(1);
+
+    control.release.resolve();
+    await sender.waitForTerminalSend();
+  });
+
+  it('rejects an invalid clearPendingMessages response before it reaches Renderer', async () => {
+    const control = createStreamControl();
+    const sender = new FakeWebContents();
+    const runtime = createRuntime(control);
+    vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: '坏队列', followUp: [] } as never);
+    registerAgentIpc(runtime);
+    const start = getValidatedHandler(IPC_CHANNELS.agent.start);
+    const clearPendingMessages = getValidatedHandler(IPC_CHANNELS.agent.clearPendingMessages);
+
+    expect(start({ sender: sender as unknown as WebContents }, createPayload())).toEqual({ runId: 'run-1' });
+    await control.started.promise;
+
+    await expect(
+      clearPendingMessages({ sender: sender as unknown as WebContents }, { runId: 'run-1' })
+    ).rejects.toThrow(`IPC 响应无效：${IPC_CHANNELS.agent.clearPendingMessages}`);
 
     control.release.resolve();
     await sender.waitForTerminalSend();

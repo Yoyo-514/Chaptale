@@ -68,6 +68,75 @@ describe('handleValidatedIpc', () => {
     expect(listener).toHaveBeenCalledWith(event, 'chapter', 3);
   });
 
+  it('响应校验通过时返回 await 后的原始结果', async () => {
+    const argsValidator = {
+      Check: (_value: unknown): _value is [] => true
+    };
+    const resultValidator = {
+      Check(value: unknown): value is { ok: true; count: number } {
+        return (
+          typeof value === 'object' &&
+          value !== null &&
+          (value as { ok?: unknown }).ok === true &&
+          typeof (value as { count?: unknown }).count === 'number'
+        );
+      }
+    };
+    const result = { ok: true, count: 2 } as const;
+
+    handleValidatedIpc('test:channel', argsValidator, resultValidator, async () => result);
+
+    await expect(getRegisteredListener()(createEvent(trustedUrl))).resolves.toBe(result);
+  });
+
+  it('同步非法响应只暴露频道信息', async () => {
+    const argsValidator = {
+      Check: (_value: unknown): _value is [] => true
+    };
+    const resultValidator = {
+      Check(value: unknown): value is { ok: true } {
+        return typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === true;
+      }
+    };
+
+    handleValidatedIpc('test:channel', argsValidator, resultValidator, () => ({ ok: false }));
+
+    await expect(getRegisteredListener()(createEvent(trustedUrl))).rejects.toThrow('IPC 响应无效：test:channel');
+  });
+
+  it('异步非法响应在 await 后被拒绝', async () => {
+    const argsValidator = {
+      Check: (_value: unknown): _value is [] => true
+    };
+    const resultValidator = {
+      Check(value: unknown): value is { ok: true } {
+        return typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === true;
+      }
+    };
+
+    handleValidatedIpc('test:channel', argsValidator, resultValidator, async () => ({ ok: false }));
+
+    await expect(getRegisteredListener()(createEvent(trustedUrl))).rejects.toThrow('IPC 响应无效：test:channel');
+  });
+
+  it('响应校验不改写业务 listener 的原始 Error', async () => {
+    const argsValidator = {
+      Check: (_value: unknown): _value is [] => true
+    };
+    const resultValidator = {
+      Check(value: unknown): value is { ok: true } {
+        return typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === true;
+      }
+    };
+    const businessError = new Error('业务错误');
+
+    handleValidatedIpc('test:channel', argsValidator, resultValidator, () => {
+      throw businessError;
+    });
+
+    await expect(getRegisteredListener()(createEvent(trustedUrl))).rejects.toBe(businessError);
+  });
+
   it('在参数校验前拒绝非可信 sender', async () => {
     const check = vi.fn((_value: unknown) => true);
     const validator = {

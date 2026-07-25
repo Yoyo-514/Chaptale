@@ -3,8 +3,11 @@ import type { Static } from 'typebox';
 import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus } from '@chaptale/shared';
 
 import type {
+  AgentClearedQueueSchema,
   AgentClearPendingMessagesPayloadSchema,
   AgentEndEventSchema,
+  AgentQueueClearResultSchema,
+  AgentRunResultSchema,
   AgentStartPayloadSchema,
   AgentSteerPayloadSchema,
   RunEndSchema
@@ -20,9 +23,7 @@ export type AgentSteerPayload = Static<typeof AgentSteerPayloadSchema>;
 export type AgentClearPendingMessagesPayload = Static<typeof AgentClearPendingMessagesPayloadSchema>;
 
 /** IPC 调用确认结果；runId 同时用于关联后续流式事件与取消请求。 */
-export type AgentRunResult = {
-  runId: string;
-};
+export type AgentRunResult = Static<typeof AgentRunResultSchema>;
 
 /** 主进程推送的增量消息事件，Renderer 必须按 runId 路由到对应运行。 */
 export type AgentMessageEvent = {
@@ -42,15 +43,10 @@ export type StreamAgentOptions = Pick<AgentStartPayload, 'branchFromEntryId' | '
 export type SteerAgentOptions = Pick<AgentSteerPayload, 'contextFilePaths'>;
 
 /** Runtime 清空队列后返回的项目级消息集合，不包含 Pi SDK 类型。 */
-export type AgentClearedQueue = {
-  steering: string[];
-  followUp: string[];
-};
+export type AgentClearedQueue = Static<typeof AgentClearedQueueSchema>;
 
 /** IPC 清空队列的确认结果。 */
-export type AgentQueueClearResult = AgentRunResult & {
-  queue: AgentClearedQueue;
-};
+export type AgentQueueClearResult = Static<typeof AgentQueueClearResultSchema>;
 
 /** Preload 为单次流式运行接收的回调集合；所有终态统一经 onEnd 判别。 */
 export type StreamAgentHandlers = {

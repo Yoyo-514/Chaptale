@@ -26,6 +26,34 @@ export const AgentEndEventSchema = Type.Object(
 );
 export const AgentEndEventValidator = Compile(AgentEndEventSchema);
 
+/** invoke 确认响应边界：只允许 Renderer 需要关联后续事件的 runId。 */
+export const AgentRunResultSchema = Type.Object(
+  {
+    runId: Type.String()
+  },
+  { additionalProperties: false }
+);
+export const AgentRunResultValidator = Compile(AgentRunResultSchema);
+
+/** Runtime 清空队列后允许跨 IPC 返回的项目级消息集合。 */
+export const AgentClearedQueueSchema = Type.Object(
+  {
+    steering: Type.Array(Type.String()),
+    followUp: Type.Array(Type.String())
+  },
+  { additionalProperties: false }
+);
+
+/** clearPendingMessages invoke 的响应边界，防止 Runtime 坏结构透传给 Renderer。 */
+export const AgentQueueClearResultSchema = Type.Object(
+  {
+    runId: Type.String(),
+    queue: AgentClearedQueueSchema
+  },
+  { additionalProperties: false }
+);
+export const AgentQueueClearResultValidator = Compile(AgentQueueClearResultSchema);
+
 /** Agent IPC 的运行时参数边界；拒绝额外字段，避免 Renderer 绕过公开契约传递内部选项。 */
 export const AgentStartPayloadSchema = Type.Object(
   {

@@ -7,6 +7,8 @@ import {
   AgentCompactSessionArgsValidator,
   AgentGetContextPressureArgsValidator,
   AgentInspectContextFilesArgsValidator,
+  AgentQueueClearResultValidator,
+  AgentRunResultValidator,
   AgentStartArgsValidator,
   AgentSteerArgsValidator,
   IPC_CHANNELS
@@ -82,47 +84,58 @@ export function registerAgentIpc(agentService: AgentRuntime) {
     (_event, paths: string[]) => contextFileService.inspectFiles(paths)
   );
 
-  handleValidatedIpc(IPC_CHANNELS.agent.start, AgentStartArgsValidator, (event, payload: AgentStartPayload) => {
-    if (!payload.sessionId) {
-      throw new Error('缺少 sessionId：Agent 流式执行需要绑定具体会话');
+  handleValidatedIpc(
+    IPC_CHANNELS.agent.start,
+    AgentStartArgsValidator,
+    AgentRunResultValidator,
+    (event, payload: AgentStartPayload) => {
+      if (!payload.sessionId) {
+        throw new Error('缺少 sessionId：Agent 流式执行需要绑定具体会话');
+      }
+
+      const signal = runManager.start(payload.runId, payload.sessionId);
+      const onDestroyed = () => {
+        runManager.cancel(payload.runId);
+      };
+      event.sender.once('destroyed', onDestroyed);
+
+      if (event.sender.isDestroyed()) {
+        onDestroyed();
+      }
+
+      // Agent 流在主进程内执行，Renderer 只接收结构化事件，不直接接触模型密钥和本地服务。
+      void streamAgentToRenderer(event.sender, payload, signal)
+        .finally(() => {
+          event.sender.removeListener('destroyed', onDestroyed);
+          runManager.finish(payload.runId);
+        })
+        .catch(() => undefined);
+
+      return { runId: payload.runId };
     }
+  );
 
-    const signal = runManager.start(payload.runId, payload.sessionId);
-    const onDestroyed = () => {
-      runManager.cancel(payload.runId);
-    };
-    event.sender.once('destroyed', onDestroyed);
+  handleValidatedIpc(
+    IPC_CHANNELS.agent.steer,
+    AgentSteerArgsValidator,
+    AgentRunResultValidator,
+    async (_event, payload: AgentSteerPayload) => {
+      const query = payload.query.trim();
 
-    if (event.sender.isDestroyed()) {
-      onDestroyed();
+      if (!query) {
+        throw new Error('steer 内容不能为空');
+      }
+
+      const scope = requireActiveRun(runManager, payload.runId);
+      await agentService.steer({ ...scope, query, contextFilePaths: payload.contextFilePaths });
+      return { runId: payload.runId };
     }
-
-    // Agent 流在主进程内执行，Renderer 只接收结构化事件，不直接接触模型密钥和本地服务。
-    void streamAgentToRenderer(event.sender, payload, signal)
-      .finally(() => {
-        event.sender.removeListener('destroyed', onDestroyed);
-        runManager.finish(payload.runId);
-      })
-      .catch(() => undefined);
-
-    return { runId: payload.runId };
-  });
-
-  handleValidatedIpc(IPC_CHANNELS.agent.steer, AgentSteerArgsValidator, async (_event, payload: AgentSteerPayload) => {
-    const query = payload.query.trim();
-
-    if (!query) {
-      throw new Error('steer 内容不能为空');
-    }
-
-    const scope = requireActiveRun(runManager, payload.runId);
-    await agentService.steer({ ...scope, query, contextFilePaths: payload.contextFilePaths });
-    return { runId: payload.runId };
-  });
+  );
 
   handleValidatedIpc(
     IPC_CHANNELS.agent.clearPendingMessages,
     AgentClearPendingMessagesArgsValidator,
+    AgentQueueClearResultValidator,
     async (_event, payload: AgentClearPendingMessagesPayload) => {
       const scope = requireActiveRun(runManager, payload.runId);
       const queue = await agentService.clearPendingMessages(scope);
@@ -130,10 +143,15 @@ export function registerAgentIpc(agentService: AgentRuntime) {
     }
   );
 
-  handleValidatedIpc(IPC_CHANNELS.agent.cancel, AgentCancelArgsValidator, (_event, runId: string) => {
-    runManager.cancel(runId);
-    return { runId };
-  });
+  handleValidatedIpc(
+    IPC_CHANNELS.agent.cancel,
+    AgentCancelArgsValidator,
+    AgentRunResultValidator,
+    (_event, runId: string) => {
+      runManager.cancel(runId);
+      return { runId };
+    }
+  );
 
   handleValidatedIpc(
     IPC_CHANNELS.agent.getContextPressure,
