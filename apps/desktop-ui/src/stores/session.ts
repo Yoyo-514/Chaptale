@@ -91,12 +91,12 @@ export const useSessionStore = defineStore('session', {
     },
 
     async bindCwd(cwd: string) {
-      const previousCwd = this.activeCwd;
       this.activeCwd = cwd;
+      // 绑定新 cwd 后旧选择不再可信；加载失败也不能重新暴露旧 workspace 的会话。
+      this.currentSessionId = '';
       const loaded = await this.loadSessions();
 
       if (!loaded) {
-        this.activeCwd = previousCwd;
         throw new Error(this.error || '会话列表加载失败');
       }
     },

@@ -8,12 +8,14 @@ import { useSettingsStore } from '../settings';
 function createSettingsState(
   webSearchEnabled = true,
   currentCwd = 'agent/global',
-  storage: { mode: 'global' | 'workspace'; workspacePath?: string } = { mode: 'global' }
+  storage: { mode: 'global' | 'workspace'; workspacePath?: string } = { mode: 'global' },
+  lastSessionId?: string
 ) {
   return {
     settings: {
       version: 1,
-      storage
+      storage,
+      ...(lastSessionId ? { lastSessionId } : {})
     },
     webAccess: {
       webSearchEnabled,
@@ -38,6 +40,22 @@ function createSettingsState(
       effectiveSessionDir: 'agent/sessions/global',
       currentCwd
     }
+  };
+}
+
+function createSession(id: string, overrides = {}) {
+  return {
+    id,
+    createdAt: '2026-07-06T00:00:00.000Z',
+    updatedAt: '2026-07-06T00:00:00.000Z',
+    cwd: 'E:/backend-study/Chaptale',
+    path: `${id}.jsonl`,
+    leafId: null,
+    messageCount: 1,
+    scope: 'global' as const,
+    totalTokens: 0,
+    totalCost: 0,
+    ...overrides
   };
 }
 
@@ -73,6 +91,15 @@ function installDesktopApi() {
         state: createSettingsState(false, 'E:/workspace-b', { mode: 'workspace', workspacePath: 'E:/workspace-b' })
       }),
       openConfigDir: vi.fn().mockResolvedValue(undefined)
+    },
+    session: {
+      list: vi
+        .fn()
+        .mockResolvedValue([
+          createSession('session-a', { cwd: 'E:/workspace-a', scope: 'workspace' }),
+          createSession('session-b', { cwd: 'E:/workspace-b', scope: 'workspace' })
+        ]),
+      create: vi.fn().mockResolvedValue(createSession('created'))
     },
     models: {
       list: vi.fn().mockResolvedValue(modelsResult),
@@ -114,6 +141,27 @@ describe('settings store', () => {
     expect(api.models.list).toHaveBeenCalled();
   });
 
+  it('binds sessions to state current cwd during initial settings load', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const api = installDesktopApi();
+    const state = createSettingsState(true, workspaceB, { mode: 'workspace', workspacePath: workspaceB }, 'session-a');
+    api.settings.getState.mockResolvedValue(state);
+    api.session.list.mockResolvedValue([
+      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
+      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+    ]);
+    const store = useSettingsStore();
+    const sessionStore = useSessionStore();
+
+    await store.load();
+
+    expect(store.state).toEqual(state);
+    expect(sessionStore.activeCwd).toBe(workspaceB);
+    expect(sessionStore.currentSessionId).toBe('session-b');
+    expect(sessionStore.currentSession?.cwd).toBe(workspaceB);
+  });
+
   it('opens and switches the settings panel while lazily loading LLM models', async () => {
     const api = installDesktopApi();
     const store = useSettingsStore();
@@ -150,6 +198,36 @@ describe('settings store', () => {
     expect(bindCwd).toHaveBeenNthCalledWith(2, 'agent/global');
     expect(api.settings.openConfigDir).toHaveBeenCalled();
     expect(store.state).toBeDefined();
+  });
+
+  it('surfaces workspace rebind failures and does not expose the previous cwd session', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const api = installDesktopApi();
+    api.session.list.mockRejectedValue(new Error('list failed'));
+    api.settings.selectWorkspaceDir.mockResolvedValue({
+      canceled: false,
+      state: createSettingsState(false, workspaceB, { mode: 'workspace', workspacePath: workspaceB })
+    });
+    const store = useSettingsStore();
+    const sessionStore = useSessionStore();
+    const notifications = useNotificationStore();
+    sessionStore.sessions = [createSession('session-a', { cwd: workspaceA, scope: 'workspace' })];
+    sessionStore.activeCwd = workspaceA;
+    sessionStore.currentSessionId = 'session-a';
+
+    await expect(store.selectWorkspaceDir()).resolves.toBeUndefined();
+
+    expect(store.state?.paths.currentCwd).toBe(workspaceB);
+    expect(sessionStore.activeCwd).toBe(workspaceB);
+    expect(sessionStore.currentSessionId).toBe('');
+    expect(api.session.create).not.toHaveBeenCalled();
+    expect(store.error).toBe('list failed');
+    expect(notifications.items.at(-1)).toMatchObject({
+      kind: 'error',
+      title: '绑定会话目录失败',
+      description: 'list failed'
+    });
   });
 
   it('runs every model mutation through runModelsAction and refreshes the list', async () => {

@@ -186,6 +186,28 @@ describe('session store', () => {
     expect(sessionId).toBe('created');
   });
 
+  it('keeps the requested cwd and clears selection when workspace rebind loading fails', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const api = installDesktopApi({
+      session: {
+        ...installDesktopApi().session,
+        list: vi.fn().mockRejectedValue(new Error('list failed'))
+      }
+    });
+    const store = useSessionStore();
+    store.sessions = [createSession('session-a', { cwd: workspaceA, scope: 'workspace' })];
+    store.activeCwd = workspaceA;
+    store.currentSessionId = 'session-a';
+
+    await expect(store.bindCwd(workspaceB)).rejects.toThrow('list failed');
+
+    expect(store.activeCwd).toBe(workspaceB);
+    expect(store.currentSessionId).toBe('');
+    expect(store.sessions.map(session => session.id)).toEqual(['session-a']);
+    expect(api.session.create).not.toHaveBeenCalled();
+  });
+
   it('deletes one or many sessions and moves selection away from deleted current session', async () => {
     const api = installDesktopApi();
     const store = useSessionStore();

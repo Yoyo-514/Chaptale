@@ -17,6 +17,7 @@ export const workspaceSettingsActions = {
       const state = await this.runAction('读取设置失败', () => getDesktopApi().settings.getState());
       if (state) {
         this.state = state;
+        await bindSessionCwd(this, state);
       }
     } finally {
       this.isLoading = false;
@@ -30,7 +31,7 @@ export const workspaceSettingsActions = {
       const state = await this.runAction('更新设置失败', () => getDesktopApi().settings.update(payload));
       if (state) {
         this.state = state;
-        await bindSessionCwd(state);
+        await bindSessionCwd(this, state);
       }
     } finally {
       this.isLoading = false;
@@ -57,7 +58,7 @@ export const workspaceSettingsActions = {
       const result = await this.runAction('选择工作区失败', () => getDesktopApi().settings.selectWorkspaceDir());
       if (result && !result.canceled && result.state) {
         this.state = result.state;
-        await bindSessionCwd(result.state);
+        await bindSessionCwd(this, result.state);
       }
     } finally {
       this.isLoading = false;
@@ -73,7 +74,7 @@ export const workspaceSettingsActions = {
   }
 };
 
-async function bindSessionCwd(state: ChaptaleSettingsState) {
+async function bindSessionCwd(store: SettingsStoreContext, state: ChaptaleSettingsState) {
   // 只接受 Main 返回的 currentCwd；Renderer 不自行拼路径，避免 workspace 切换后误绑定旧会话。
-  await useSessionStore().bindCwd(state.paths.currentCwd);
+  await store.runAction('绑定会话目录失败', () => useSessionStore().bindCwd(state.paths.currentCwd));
 }
