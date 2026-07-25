@@ -38,7 +38,6 @@ vi.mock('../../../infra/security/validated-ipc', () => ({
       registrationMock.validated.push({
         channel: _channel,
         handler: (event, ...args) => {
-          const result = handler(event, ...args);
           const checkResult = (value: unknown) => {
             if (resultValidator && !resultValidator.Check(value)) {
               throw new Error(`IPC 响应无效：${_channel}`);
@@ -47,7 +46,9 @@ vi.mock('../../../infra/security/validated-ipc', () => ({
             return value;
           };
 
-          return result instanceof Promise ? result.then(checkResult) : checkResult(result);
+          return Promise.resolve()
+            .then(() => handler(event, ...args))
+            .then(checkResult);
         }
       });
     }
@@ -232,7 +233,9 @@ describe('Agent IPC lifecycle', () => {
     registerAgentIpc(createRuntime(control));
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
-    expect(start({ sender: sender as unknown as WebContents }, createPayload())).toEqual({ runId: 'run-1' });
+    await expect(start({ sender: sender as unknown as WebContents }, createPayload())).resolves.toEqual({
+      runId: 'run-1'
+    });
     await control.started.promise;
     expect.soft(sender.listenerCount('destroyed')).toBe(1);
 
@@ -281,9 +284,9 @@ describe('Agent IPC lifecycle', () => {
     start({ sender: sender as unknown as WebContents }, createPayload());
     await control.started.promise;
 
-    expect(() =>
+    await expect(
       start({ sender: sender as unknown as WebContents }, { ...createPayload(), sessionId: 'session-2' })
-    ).toThrow('runId 已存在');
+    ).rejects.toThrow('Agent runId 已存在：run-1');
 
     control.release.resolve();
     await sender.waitForDestroyedListenerRemoval();
@@ -359,9 +362,11 @@ describe('Agent IPC lifecycle', () => {
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const cancel = getValidatedHandler(IPC_CHANNELS.agent.cancel);
 
-    expect(start({ sender: sender as unknown as WebContents }, createPayload())).toEqual({ runId: 'run-1' });
+    await expect(start({ sender: sender as unknown as WebContents }, createPayload())).resolves.toEqual({
+      runId: 'run-1'
+    });
     await started.promise;
-    expect(cancel({ sender: sender as unknown as WebContents }, 'run-1')).toEqual({ runId: 'run-1' });
+    await expect(cancel({ sender: sender as unknown as WebContents }, 'run-1')).resolves.toEqual({ runId: 'run-1' });
     await sender.waitForTerminalSend();
     await sender.waitForDestroyedListenerRemoval();
 
@@ -378,7 +383,9 @@ describe('Agent IPC lifecycle', () => {
     const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
     const clearPendingMessages = getValidatedHandler(IPC_CHANNELS.agent.clearPendingMessages);
 
-    expect(start({ sender: sender as unknown as WebContents }, createPayload())).toEqual({ runId: 'run-1' });
+    await expect(start({ sender: sender as unknown as WebContents }, createPayload())).resolves.toEqual({
+      runId: 'run-1'
+    });
     await control.started.promise;
 
     await expect(
@@ -418,7 +425,9 @@ describe('Agent IPC lifecycle', () => {
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const clearPendingMessages = getValidatedHandler(IPC_CHANNELS.agent.clearPendingMessages);
 
-    expect(start({ sender: sender as unknown as WebContents }, createPayload())).toEqual({ runId: 'run-1' });
+    await expect(start({ sender: sender as unknown as WebContents }, createPayload())).resolves.toEqual({
+      runId: 'run-1'
+    });
     await control.started.promise;
 
     await expect(
@@ -427,6 +436,33 @@ describe('Agent IPC lifecycle', () => {
 
     control.release.resolve();
     await sender.waitForTerminalSend();
+  });
+
+  it('unwraps thenable IPC results before running the response validator', async () => {
+    const { handleValidatedIpc } = await import('../../../infra/security/validated-ipc');
+
+    class TestThenable {
+      // oxlint-disable-next-line unicorn/no-thenable
+      then(resolve: (value: { runId: string }) => void) {
+        resolve({ runId: 'run-1' });
+      }
+    }
+
+    handleValidatedIpc(
+      'test:thenable-response',
+      { Check: (_value: unknown): _value is [] => true },
+      {
+        Check: (value: unknown): value is { runId: string } =>
+          typeof value === 'object' && value !== null && 'runId' in value
+      },
+      () => new TestThenable() as unknown as Promise<{ runId: string }>
+    );
+
+    const handler = getValidatedHandler('test:thenable-response');
+
+    await expect(handler({ sender: new FakeWebContents() as unknown as WebContents })).resolves.toEqual({
+      runId: 'run-1'
+    });
   });
 
   it('invalidates an in-flight steer when its original run finishes', async () => {

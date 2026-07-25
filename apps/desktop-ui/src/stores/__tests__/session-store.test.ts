@@ -171,6 +171,30 @@ describe('session store', () => {
     expect(store.currentSessionId).toBe('session-a');
   });
 
+  it('keeps an explicitly selected global session when the active cwd points to a sibling workspace', async () => {
+    const workspaceA = 'E:/Work/Novel';
+    const workspaceB = 'E:/Work/Novel-2';
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([
+      createSession('session-global', { cwd: workspaceA, scope: 'global' }),
+      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+    ]);
+    const store = useSessionStore();
+    store.activeCwd = workspaceB;
+    store.currentSessionId = 'session-global';
+    store.selectionRestored = true;
+
+    await store.loadSessions();
+
+    expect(store.currentSessionId).toBe('session-global');
+    expect(store.currentSession?.id).toBe('session-global');
+
+    await store.getCurrentEntries();
+
+    expect(api.session.getEntries).toHaveBeenCalledWith('session-global');
+    expect(store.currentSessionId).toBe('session-global');
+  });
+
   it('matches current workspace sessions with normalized cwd paths', () => {
     const store = useSessionStore();
     store.activeCwd = 'E:/Work/Novel/';

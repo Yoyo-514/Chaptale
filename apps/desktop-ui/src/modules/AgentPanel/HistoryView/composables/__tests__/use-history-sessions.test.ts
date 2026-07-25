@@ -42,4 +42,23 @@ describe('useHistorySessions', () => {
     scopeFilter.value = 'all';
     expect(filteredSessions.value).toHaveLength(3);
   });
+
+  it('treats sibling workspace paths as different workspaces instead of prefix matches', () => {
+    const scopeFilter = ref<'all' | 'workspace' | 'global'>('workspace');
+    const currentWorkspacePath = ref('E:/Work/Novel');
+    const sessions = ref([
+      createSession('exact', 'workspace', 'E:/Work/Novel'),
+      createSession('sibling', 'workspace', 'E:/Work/Novel-2'),
+      createSession('global', 'global', 'E:/Work/Novel')
+    ]);
+    const { filteredSessions } = useHistorySessions({
+      sessions,
+      searchQuery: ref(''),
+      scopeFilter,
+      sortMode: ref('latest'),
+      currentWorkspacePath
+    });
+
+    expect(filteredSessions.value.map(session => session.id)).toEqual(['exact']);
+  });
 });
