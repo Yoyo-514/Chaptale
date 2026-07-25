@@ -161,7 +161,7 @@ export class PiAgentSessionFactory {
       // 权限闸门：拦截全部工具调用；noExtensions 只关磁盘发现，不影响 inline factory。
       extensionFactories: [
         createPermissionGateExtension({
-          sessionId,
+          ctx,
           broker: permissionBroker,
           ruleStore: permissionRuleStore,
           customRiskLevels,
@@ -222,6 +222,8 @@ export class PiAgentSessionFactory {
       taskTools.map(tool => [tool.name, tool.riskLevel ?? 'mutating'])
     ) as Record<string, RiskLevel>;
 
+    const taskCtx: SessionCtx = { sessionId: `task-${Date.now()}`, cwd, scope: 'workspace' };
+
     const resourceLoader = new DefaultResourceLoader({
       cwd,
       agentDir: settingsService.agentDir,
@@ -235,7 +237,7 @@ export class PiAgentSessionFactory {
       // task 会话无人值守：闸门仍拦截，但 ask 一律按拒绝处理，不会挂起等待授权。
       extensionFactories: [
         createPermissionGateExtension({
-          sessionId: `task-${Date.now()}`,
+          ctx: taskCtx,
           broker: permissionBroker,
           ruleStore: permissionRuleStore,
           customRiskLevels,

@@ -3,12 +3,17 @@ import { randomUUID } from 'node:crypto';
 import type { PermissionAskEvent } from '@chaptale/ipc-contract';
 import type { PermissionDecision } from '@chaptale/shared';
 
+import type { SessionCtx } from '../session-ctx/types';
 import type { RiskLevel } from './protocol';
 
-interface PendingEntry {
+export type PermissionPending = {
+  event: PermissionAskEvent;
+  ctx: SessionCtx;
+};
+
+interface PendingEntry extends PermissionPending {
   resolve: (decision: PermissionDecision) => void;
   timer: NodeJS.Timeout;
-  event: PermissionAskEvent;
 }
 
 interface PermissionBrokerOptions {
@@ -37,24 +42,37 @@ export class PermissionBroker {
   }
 
   ask(input: {
-    sessionId: string;
+    ctx: SessionCtx;
     toolName: string;
     riskLevel: RiskLevel;
     subject?: string;
   }): Promise<PermissionDecision> {
-    const event: PermissionAskEvent = { requestId: randomUUID(), ...input };
+    // cwd 是 Main 侧安全上下文，只保存在 broker 内部；renderer 只拿 sessionId 和工具摘要。
+    const event: PermissionAskEvent = {
+      requestId: randomUUID(),
+      sessionId: input.ctx.sessionId,
+      toolName: input.toolName,
+      riskLevel: input.riskLevel,
+      subject: input.subject
+    };
 
     return new Promise<PermissionDecision>(resolve => {
       const timer = setTimeout(() => {
         this.settle(event.requestId, { outcome: 'deny', reason: '授权请求超时，未获得用户确认' });
       }, this.timeoutMs);
 
-      this.pending.set(event.requestId, { resolve, timer, event });
+      this.pending.set(event.requestId, { resolve, timer, event, ctx: input.ctx });
 
       for (const listener of this.askListeners) {
         listener(event);
       }
     });
+  }
+
+  /** 待决请求的 Main 内部记录；包含不可暴露给 renderer 的 cwd。 */
+  getPending(requestId: string): PermissionPending | null {
+    const entry = this.pending.get(requestId);
+    return entry ? { event: entry.event, ctx: entry.ctx } : null;
   }
 
   /** 用户决策；返回对应请求（供规则落库等后续处理），不存在（已超时/已决）时返回 null。 */

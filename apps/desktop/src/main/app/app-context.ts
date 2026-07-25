@@ -42,6 +42,8 @@ export type AppContext = {
   indexService: IndexService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
+  /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
+  getPermissionSettingsCwd: () => Promise<string | null>;
 };
 
 export function createAppContext(): AppContext {
@@ -138,6 +140,7 @@ export function createAppContext(): AppContext {
     memoryPendingStore,
     indexService,
     permissionBroker,
-    permissionRuleStore
+    permissionRuleStore,
+    getPermissionSettingsCwd: () => settingsService.getCurrentCwd()
   };
 }

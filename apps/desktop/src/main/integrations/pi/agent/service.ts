@@ -69,17 +69,14 @@ export class PiAgentService implements AgentRuntime {
   readonly permissionRuleStore: PermissionRuleStore;
 
   constructor(
-    private readonly settingsService: SettingsService,
+    settingsService: SettingsService,
     private readonly modelService: PiModelService,
     private readonly imageAttachmentService = new ImageAttachmentService(),
     skillsProvider = new SkillsProvider(settingsService),
     memoryInjector?: MemoryInjector,
     todoStore = new TodoStore(settingsService.todosDir),
     permissionBroker = new PermissionBroker(),
-    permissionRuleStore = new PermissionRuleStore({
-      globalDir: settingsService.rootDir,
-      resolveCwd: () => settingsService.getCurrentCwd()
-    })
+    permissionRuleStore = new PermissionRuleStore({ globalDir: settingsService.rootDir })
   ) {
     this.skillsProvider = skillsProvider;
     this.todoStore = todoStore;

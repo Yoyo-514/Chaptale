@@ -6,6 +6,7 @@ import type { PermissionBroker } from '../../../modules/permissions/broker';
 import { evaluatePermission } from '../../../modules/permissions/engine';
 import type { PermissionRequest } from '../../../modules/permissions/protocol';
 import type { PermissionRuleStore } from '../../../modules/permissions/rule-store';
+import type { SessionCtx } from '../../../modules/session-ctx/types';
 
 /** pi 内置工具的风险分级；bash 可执行任意命令，归入需确认档。 */
 const BUILTIN_RISK_LEVELS: Record<string, RiskLevel> = {
@@ -19,7 +20,7 @@ const BUILTIN_RISK_LEVELS: Record<string, RiskLevel> = {
 };
 
 interface PermissionGateOptions {
-  sessionId: string;
+  ctx: SessionCtx;
   broker: PermissionBroker;
   ruleStore: PermissionRuleStore;
   /** 自定义工具的风险分级（按工具名）；未声明按 mutating 保守处理。 */
@@ -42,7 +43,7 @@ export function createPermissionGateExtension(options: PermissionGateOptions): I
     factory: pi => {
       pi.on('tool_call', async (event): Promise<ToolCallEventResult | void> => {
         const request = toPermissionRequest(event, options.customRiskLevels);
-        const action = evaluatePermission(request, await options.ruleStore.collect(options.sessionId));
+        const action = evaluatePermission(request, await options.ruleStore.collect(options.ctx));
 
         if (action === 'allow') {
           return;
@@ -52,7 +53,7 @@ export function createPermissionGateExtension(options: PermissionGateOptions): I
           return { block: true, reason: buildBlockReason(request, action, options.interactive) };
         }
 
-        const decision = await options.broker.ask({ sessionId: options.sessionId, ...request });
+        const decision = await options.broker.ask({ ctx: options.ctx, ...request });
 
         if (decision.outcome === 'deny') {
           return {

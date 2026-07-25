@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import type { SessionCtx } from '../session-ctx/types';
 import type { PermissionRule, PermissionScope } from './protocol';
 
 const PERMISSIONS_FILE = 'permissions.json';
@@ -9,8 +10,6 @@ const VALID_ACTIONS = new Set(['allow', 'ask', 'deny']);
 interface PermissionRuleStoreOptions {
   /** 全局规则目录（~/.chaptale）。 */
   globalDir: string;
-  /** 当前工作区根；跟随会话切换动态解析。 */
-  resolveCwd: () => Promise<string | null> | string | null;
 }
 
 /**
@@ -24,40 +23,44 @@ export class PermissionRuleStore {
 
   constructor(private readonly options: PermissionRuleStoreOptions) {}
 
-  /** 合并三层规则；sessionId 为空时只取持久层。 */
-  async collect(sessionId?: string): Promise<PermissionRule[]> {
+  /** 合并三层规则；安全边界必须来自发起工具调用的不可变会话 ctx，不能读取 UI 当前工作区。 */
+  async collect(ctx: SessionCtx): Promise<PermissionRule[]> {
     return [
-      ...((sessionId && this.sessionRules.get(sessionId)) || []),
-      ...readRuleFile(await this.workspaceFilePath()),
+      ...(this.sessionRules.get(ctx.sessionId) || []),
+      ...readRuleFile(workspaceFilePath(ctx.cwd)),
       ...readRuleFile(path.join(this.options.globalDir, PERMISSIONS_FILE))
     ];
   }
 
-  async addRule(rule: PermissionRule, scope: PermissionScope, sessionId?: string): Promise<void> {
+  async addRule(rule: PermissionRule, scope: PermissionScope, ctx: SessionCtx): Promise<void> {
     if (scope === 'session') {
-      if (!sessionId) {
+      if (!ctx.sessionId.trim()) {
         throw new Error('session 级规则必须提供 sessionId');
       }
 
-      const rules = this.sessionRules.get(sessionId) ?? [];
-      this.sessionRules.set(sessionId, [...rules, rule]);
+      const rules = this.sessionRules.get(ctx.sessionId) ?? [];
+      this.sessionRules.set(ctx.sessionId, [...rules, rule]);
       return;
     }
 
-    await this.mutatePersistentRules(scope, rules => [...rules, rule]);
+    await this.mutatePersistentRules(scope, scope === 'workspace' ? ctx.cwd : null, rules => [...rules, rule]);
   }
 
-  /** 分层读取持久规则；设置页据此区分当前工作区与全局影响范围。 */
-  async listPersistentRules(): Promise<{ workspace: PermissionRule[]; global: PermissionRule[] }> {
+  /** 分层读取持久规则；设置页显式传入 UI 当前工作区，避免 RuleStore 内部保存可漂移 cwd。 */
+  async listPersistentRules(cwd: string | null): Promise<{ workspace: PermissionRule[]; global: PermissionRule[] }> {
     return {
-      workspace: readRuleFile(await this.workspaceFilePath()),
+      workspace: readRuleFile(workspaceFilePath(cwd)),
       global: readRuleFile(path.join(this.options.globalDir, PERMISSIONS_FILE))
     };
   }
 
   /** 删除指定持久层内所有完全相同的规则；session 规则仍随会话生命周期管理。 */
-  async removePersistentRule(rule: PermissionRule, scope: Exclude<PermissionScope, 'session'>): Promise<void> {
-    await this.mutatePersistentRules(scope, rules =>
+  async removePersistentRule(
+    rule: PermissionRule,
+    scope: Exclude<PermissionScope, 'session'>,
+    cwd: string | null
+  ): Promise<void> {
+    await this.mutatePersistentRules(scope, cwd, rules =>
       rules.filter(existing => existing.pattern !== rule.pattern || existing.action !== rule.action)
     );
   }
@@ -67,18 +70,14 @@ export class PermissionRuleStore {
     this.sessionRules.delete(sessionId);
   }
 
-  private async workspaceFilePath(): Promise<string | null> {
-    const cwd = await this.options.resolveCwd();
-    return cwd ? path.join(cwd, '.chaptale', PERMISSIONS_FILE) : null;
-  }
-
   private async mutatePersistentRules(
     scope: Exclude<PermissionScope, 'session'>,
+    cwd: string | null,
     mutator: (rules: PermissionRule[]) => PermissionRule[]
   ): Promise<PermissionRule[]> {
     const task = this.writeQueue.then(async () => {
       const filePath =
-        scope === 'workspace' ? await this.workspaceFilePath() : path.join(this.options.globalDir, PERMISSIONS_FILE);
+        scope === 'workspace' ? workspaceFilePath(cwd) : path.join(this.options.globalDir, PERMISSIONS_FILE);
 
       if (!filePath) {
         throw new Error('当前没有工作区，无法操作 workspace 级规则');
@@ -93,6 +92,10 @@ export class PermissionRuleStore {
     this.writeQueue = task.catch(() => undefined);
     return task;
   }
+}
+
+function workspaceFilePath(cwd: string | null): string | null {
+  return cwd?.trim() ? path.join(cwd, '.chaptale', PERMISSIONS_FILE) : null;
 }
 
 /** 读规则文件；缺失、损坏或结构非法一律降级为空，合法条目单独保留。 */

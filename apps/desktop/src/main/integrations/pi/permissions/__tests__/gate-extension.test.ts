@@ -1,21 +1,26 @@
 import type { ToolCallEvent, ToolCallEventResult } from '@earendil-works/pi-coding-agent';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { SessionCtx } from '../../../../modules/session-ctx/types';
 import { createPermissionGateExtension } from '../gate-extension';
 
 type GateHandler = (event: ToolCallEvent) => Promise<ToolCallEventResult | void>;
 
+const SESSION_CTX: SessionCtx = { sessionId: 's1', cwd: '/workspace-a', scope: 'workspace' };
+
 async function setupGate(overrides: {
+  ctx?: SessionCtx;
   rules?: unknown[];
   interactive?: boolean;
   askResult?: unknown;
   customRiskLevels?: Record<string, 'readonly' | 'mutating' | 'destructive'>;
 }) {
   const ask = vi.fn(async () => overrides.askResult ?? { outcome: 'allow-once' });
+  const collect = vi.fn(async () => overrides.rules ?? []);
   const extension = createPermissionGateExtension({
-    sessionId: 's1',
+    ctx: overrides.ctx ?? SESSION_CTX,
     broker: { ask } as never,
-    ruleStore: { collect: vi.fn(async () => overrides.rules ?? []) } as never,
+    ruleStore: { collect } as never,
     customRiskLevels: overrides.customRiskLevels ?? {},
     interactive: overrides.interactive ?? true
   });
@@ -28,7 +33,7 @@ async function setupGate(overrides: {
     throw new Error('tool_call handler 未注册');
   }
 
-  return { handler, ask };
+  return { handler, ask, collect };
 }
 
 function toolCall(toolName: string, input: Record<string, unknown> = {}): ToolCallEvent {
@@ -36,6 +41,14 @@ function toolCall(toolName: string, input: Record<string, unknown> = {}): ToolCa
 }
 
 describe('createPermissionGateExtension', () => {
+  it('passes the session context to rule collection', async () => {
+    const { handler, collect } = await setupGate({});
+
+    await handler(toolCall('read', { path: 'a.md' }));
+
+    expect(collect).toHaveBeenCalledWith({ sessionId: 's1', cwd: '/workspace-a', scope: 'workspace' });
+  });
+
   it('passes readonly builtin tools without asking', async () => {
     const { handler, ask } = await setupGate({});
     await expect(handler(toolCall('read', { path: 'a.md' }))).resolves.toBeUndefined();
@@ -50,10 +63,15 @@ describe('createPermissionGateExtension', () => {
     expect(ask).not.toHaveBeenCalled();
   });
 
-  it('asks for mutating tools and forwards the user deny reason to the model', async () => {
+  it('asks for mutating tools with ctx and forwards the user deny reason to the model', async () => {
     const { handler, ask } = await setupGate({ askResult: { outcome: 'deny', reason: '路径不对' } });
     const result = await handler(toolCall('write', { path: 'a.md' }));
-    expect(ask).toHaveBeenCalledWith({ sessionId: 's1', toolName: 'write', riskLevel: 'mutating', subject: 'a.md' });
+    expect(ask).toHaveBeenCalledWith({
+      ctx: SESSION_CTX,
+      toolName: 'write',
+      riskLevel: 'mutating',
+      subject: 'a.md'
+    });
     expect(result).toMatchObject({ block: true, reason: '用户拒绝了此操作：路径不对' });
   });
 
