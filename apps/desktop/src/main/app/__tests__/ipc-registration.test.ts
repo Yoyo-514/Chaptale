@@ -57,6 +57,10 @@ const registrationMock = vi.hoisted(() => ({
   registrations: [] as Registration[]
 }));
 
+const memoryIpcMock = vi.hoisted(() => ({
+  registerMemoryIpc: vi.fn()
+}));
+
 vi.mock('../../infra/security/trusted-ipc', () => ({
   handleTrustedIpc: vi.fn((channel: string) => {
     registrationMock.registrations.push({ kind: 'trusted', channel });
@@ -68,6 +72,18 @@ vi.mock('../../infra/security/validated-ipc', () => ({
     registrationMock.registrations.push({ kind: 'validated', channel, validator });
   })
 }));
+
+vi.mock('../../modules/memory/ipc', async () => {
+  const actual = await vi.importActual<typeof import('../../modules/memory/ipc')>('../../modules/memory/ipc');
+
+  return {
+    ...actual,
+    registerMemoryIpc: ((...args: Parameters<typeof actual.registerMemoryIpc>) => {
+      memoryIpcMock.registerMemoryIpc(...args);
+      return actual.registerMemoryIpc(...args);
+    }) as typeof actual.registerMemoryIpc
+  };
+});
 
 vi.mock('electron', () => ({
   BrowserWindow: {
@@ -181,13 +197,16 @@ function createContext(): AppContext {
       listPersistentRules: async () => ({ workspace: [], global: [] }),
       removePersistentRule: async () => undefined,
       clearSession: () => undefined
-    }
+    },
+    getMemoryPendingCwd: vi.fn(async () => '/workspace/memory-pending'),
+    getPermissionSettingsCwd: vi.fn(async () => '/workspace/permissions')
   } as unknown as AppContext;
 }
 
 describe('renderer → main IPC 注册边界', () => {
   beforeEach(() => {
     registrationMock.registrations.length = 0;
+    memoryIpcMock.registerMemoryIpc.mockClear();
   });
 
   it('分类表完整覆盖全部请求频道且不包含 main → renderer 事件', () => {
@@ -201,7 +220,9 @@ describe('renderer → main IPC 注册边界', () => {
   });
 
   it('调用应用注册表时按原顺序为每个频道选择 trusted 或对应 validator', () => {
-    registerApplicationIpc(createContext());
+    const context = createContext();
+
+    registerApplicationIpc(context);
 
     expect(registrationMock.registrations).toHaveLength(expectedRegistrations.length);
 
@@ -218,6 +239,11 @@ describe('renderer → main IPC 注册边界', () => {
           expect(actual.validator).toBe(expected.validator);
         }
       }
+    });
+
+    expect(memoryIpcMock.registerMemoryIpc).toHaveBeenCalledTimes(1);
+    expect(memoryIpcMock.registerMemoryIpc).toHaveBeenCalledWith(context.memoryPendingStore, {
+      resolveCwd: context.getMemoryPendingCwd
     });
   });
 });
