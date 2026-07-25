@@ -172,8 +172,7 @@ const expectedRegistrations: Registration[] = [
 
 const mainToRendererEvents = new Set<string>([
   IPC_CHANNELS.agent.message,
-  IPC_CHANNELS.agent.done,
-  IPC_CHANNELS.agent.error,
+  IPC_CHANNELS.agent.end,
   IPC_CHANNELS.todos.updated,
   IPC_CHANNELS.subagent.event,
   IPC_CHANNELS.memory.pendingChanged,

@@ -90,8 +90,7 @@ export const IPC_CHANNELS = {
     compactSession: 'agent:compact-session',
     cancel: 'agent:cancel',
     message: 'agent:message',
-    done: 'agent:done',
-    error: 'agent:error'
+    end: 'agent:end'
   }
 } as const;
 

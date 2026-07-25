@@ -3,8 +3,7 @@ import { ipcRenderer, webUtils } from 'electron';
 
 import type {
   AgentClearPendingMessagesPayload,
-  AgentDoneEvent,
-  AgentErrorEvent,
+  AgentEndEvent,
   AgentMessageEvent,
   AgentQueueClearResult,
   AgentRunResult,
@@ -30,8 +29,7 @@ export function createAgentApi(): ChaptaleDesktopApi['agent'] {
       // 每个 run 只移除自己注册的回调，避免并发流互相清理监听器。
       const cleanup = () => {
         ipcRenderer.removeListener(IPC_CHANNELS.agent.message, handleMessage);
-        ipcRenderer.removeListener(IPC_CHANNELS.agent.done, handleDone);
-        ipcRenderer.removeListener(IPC_CHANNELS.agent.error, handleError);
+        ipcRenderer.removeListener(IPC_CHANNELS.agent.end, handleEnd);
       };
 
       const handleMessage = (_event: IpcRendererEvent, event: AgentMessageEvent) => {
@@ -40,29 +38,18 @@ export function createAgentApi(): ChaptaleDesktopApi['agent'] {
         }
       };
 
-      const handleDone = (_event: IpcRendererEvent, event: AgentDoneEvent) => {
+      const handleEnd = (_event: IpcRendererEvent, event: AgentEndEvent) => {
         if (event.runId !== runId) {
           return;
         }
 
-        // 终态到达后立即释放三个监听器，防止后续运行重复接收事件。
+        // 匹配终态后只释放本 run 的两个监听器；其他并发 run 仍保有各自函数引用。
         cleanup();
-        handlers.onDone?.();
-      };
-
-      const handleError = (_event: IpcRendererEvent, event: AgentErrorEvent) => {
-        if (event.runId !== runId) {
-          return;
-        }
-
-        // error 与 done 都是终态，必须采用相同的监听器清理策略。
-        cleanup();
-        handlers.onError?.(event.message);
+        handlers.onEnd?.(event.end);
       };
 
       ipcRenderer.on(IPC_CHANNELS.agent.message, handleMessage);
-      ipcRenderer.on(IPC_CHANNELS.agent.done, handleDone);
-      ipcRenderer.on(IPC_CHANNELS.agent.error, handleError);
+      ipcRenderer.on(IPC_CHANNELS.agent.end, handleEnd);
 
       try {
         await ipcRenderer.invoke(IPC_CHANNELS.agent.start, {

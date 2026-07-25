@@ -71,7 +71,7 @@ class FakeWebContents extends EventEmitter {
 
     this.sent.push([channel, payload]);
 
-    if (channel === IPC_CHANNELS.agent.done || channel === IPC_CHANNELS.agent.error) {
+    if (channel === IPC_CHANNELS.agent.end) {
       this.terminalSent.resolve();
     }
   }
@@ -243,10 +243,7 @@ describe('Agent IPC lifecycle', () => {
     await Promise.all([firstSender.waitForDestroyedListenerRemoval(), secondSender.waitForDestroyedListenerRemoval()]);
 
     expect(firstSender.sent).toEqual([]);
-    expect(secondSender.sent.map(([channel]) => channel)).toEqual([
-      IPC_CHANNELS.agent.message,
-      IPC_CHANNELS.agent.done
-    ]);
+    expect(secondSender.sent.map(([channel]) => channel)).toEqual([IPC_CHANNELS.agent.message, IPC_CHANNELS.agent.end]);
   });
 
   it('rejects a duplicate active run id before it can replace the original run', async () => {
@@ -302,7 +299,7 @@ describe('Agent IPC lifecycle', () => {
     expect(sender.sent).toEqual([]);
   });
 
-  it('keeps start and cancel results while ending a live sender with done', async () => {
+  it('keeps start and cancel results while ending a live sender as cancelled', async () => {
     const started = createDeferred();
     const sender = new FakeWebContents();
     const runtime: AgentRuntime = {
@@ -342,7 +339,7 @@ describe('Agent IPC lifecycle', () => {
     await sender.waitForTerminalSend();
     await sender.waitForDestroyedListenerRemoval();
 
-    expect(sender.sent).toEqual([[IPC_CHANNELS.agent.done, { runId: 'run-1' }]]);
+    expect(sender.sent).toEqual([[IPC_CHANNELS.agent.end, { runId: 'run-1', end: { status: 'cancelled' } }]]);
   });
 
   it('routes steer and clear requests through the session registered for the active run', async () => {
@@ -436,6 +433,36 @@ describe('Agent IPC lifecycle', () => {
     await sender.waitForTerminalSend();
   });
 
+  it('sends a complete failed end for a real runtime exception', async () => {
+    const sender = new FakeWebContents();
+    const runtime = createRuntime(createStreamControl());
+    runtime.stream = vi.fn(async function* () {
+      await new Promise<never>((_resolve, reject) => reject(new Error('runtime failed')));
+      yield { role: 'assistant', content: [] } satisfies ChatMessage;
+    });
+    registerAgentIpc(runtime);
+    const start = getValidatedHandler(IPC_CHANNELS.agent.start);
+
+    start({ sender: sender as unknown as WebContents }, createPayload());
+    await sender.waitForTerminalSend();
+    await sender.waitForDestroyedListenerRemoval();
+
+    expect(sender.sent).toEqual([
+      [
+        IPC_CHANNELS.agent.end,
+        {
+          runId: 'run-1',
+          end: {
+            status: 'failed',
+            code: 'AGENT_RUN_FAILED',
+            message: 'runtime failed',
+            retryable: false
+          }
+        }
+      ]
+    ]);
+  });
+
   it('removes the destroyed listener after a normal stream completes', async () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
@@ -456,7 +483,7 @@ describe('Agent IPC lifecycle', () => {
         IPC_CHANNELS.agent.message,
         { runId: 'run-1', message: { role: 'assistant', content: [{ type: 'text', text: 'reply' }] } }
       ],
-      [IPC_CHANNELS.agent.done, { runId: 'run-1' }]
+      [IPC_CHANNELS.agent.end, { runId: 'run-1', end: { status: 'completed' } }]
     ]);
   });
 });

@@ -267,7 +267,12 @@ async function installDesktopMock(page: Page) {
 
           if (query.includes('失败')) {
             setTimeout(() => {
-              handlers.onError(`模拟失败：${query}`);
+              handlers.onEnd({
+                status: 'failed',
+                code: 'E2E_SIMULATED_FAILURE',
+                message: `模拟失败：${query}`,
+                retryable: false
+              });
             }, 80);
             return { runId: `run-${entries.length}` };
           }
@@ -288,7 +293,7 @@ async function installDesktopMock(page: Page) {
               timestamp: now,
               message: { role: 'assistant', content: [{ type: 'text', text: `收到：${query}` }], timestamp: Date.now() }
             });
-            handlers.onDone();
+            handlers.onEnd({ status: 'completed' });
           }, 700);
           return { runId: 'run-1' };
         },

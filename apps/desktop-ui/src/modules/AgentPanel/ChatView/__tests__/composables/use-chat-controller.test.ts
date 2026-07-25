@@ -126,7 +126,7 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
           timestamp: Date.now()
         });
         handlers.onMessage({ role: 'assistant', content: [{ type: 'text', text: '最终回复' }], timestamp: Date.now() });
-        handlers.onDone();
+        handlers.onEnd({ status: 'completed' });
         return { runId: 'run-1' };
       }),
       steer: vi.fn().mockResolvedValue({ runId: 'run-1' }),
@@ -430,10 +430,16 @@ describe('useChatController', () => {
     await controller.handleSend();
 
     expect(api.agent.cancel).toHaveBeenCalledWith('run-cancel');
-    expect(controller.state.isReplying).toBe(false);
-    expect(streamHandlers).toBeDefined();
-    // 取消后必须回读持久化会话，与磁盘上的中断结果对齐。
+    expect(controller.state.isReplying).toBe(true);
+    expect(controller.state.isCancelling).toBe(true);
+    expect(api.session.getEntries).toHaveBeenCalledTimes(callsBeforeCancel);
+
+    streamHandlers.onEnd({ status: 'cancelled' });
+
+    // 只有 Main 的取消终态到达后，Renderer 才收束并回读持久化会话。
     await vi.waitFor(() => expect(api.session.getEntries.mock.calls.length).toBeGreaterThan(callsBeforeCancel));
+    expect(controller.state.isReplying).toBe(false);
+    expect(controller.state.isCancelling).toBe(false);
   });
 
   it('sends non-empty input as steer while a run is replying', async () => {
@@ -527,7 +533,12 @@ describe('useChatController', () => {
     installDesktopMock({
       agent: {
         stream: vi.fn().mockImplementation(async (_query, handlers) => {
-          handlers.onError('模型不可用');
+          handlers.onEnd({
+            status: 'failed',
+            code: 'AGENT_RUN_FAILED',
+            message: '模型不可用',
+            retryable: false
+          });
           return { runId: 'run-error' };
         }),
         cancel: vi.fn()
@@ -574,7 +585,12 @@ describe('useChatController', () => {
     expect(controller.state.messages.some(item => item.deliveryState === 'queued')).toBe(true);
     const callsBeforeError = api.session.getEntries.mock.calls.length;
 
-    streamHandlers.onError('模型不可用');
+    streamHandlers.onEnd({
+      status: 'failed',
+      code: 'AGENT_RUN_FAILED',
+      message: '模型不可用',
+      retryable: false
+    });
 
     await vi.waitFor(() => expect(api.session.getEntries.mock.calls.length).toBeGreaterThan(callsBeforeError));
     await vi.waitFor(() =>
@@ -611,13 +627,22 @@ describe('useChatController', () => {
     controller.state.input = '';
     await controller.handleSend();
     expect(api.agent.cancel).toHaveBeenCalledWith('run-old');
+    const reloadsBeforeEnd = api.session.getEntries.mock.calls.length;
+
+    firstHandlers.onEnd({ status: 'cancelled' });
+    await vi.waitFor(() => expect(api.session.getEntries.mock.calls.length).toBeGreaterThan(reloadsBeforeEnd));
 
     controller.state.input = '新运行';
     await controller.handleSend();
     const messageCountAfterNewRun = controller.state.messages.length;
 
-    // 旧运行被取消后才到达的终态事件不得收束新运行或污染其视图。
-    firstHandlers.onError('旧运行错误');
+    // 旧 epoch 的重复终态不得收束新运行或污染其视图。
+    firstHandlers.onEnd({
+      status: 'failed',
+      code: 'AGENT_RUN_FAILED',
+      message: '旧运行错误',
+      retryable: false
+    });
     await nextTick();
 
     expect(notificationStore.items.some(item => item.description === '旧运行错误')).toBe(false);
@@ -645,7 +670,12 @@ describe('useChatController', () => {
 
     controller.state.input = '旧运行';
     await controller.handleSend();
-    firstHandlers.onError('模型不可用');
+    firstHandlers.onEnd({
+      status: 'failed',
+      code: 'AGENT_RUN_FAILED',
+      message: '模型不可用',
+      retryable: false
+    });
     controller.state.input = '新运行';
     await controller.handleSend();
 
@@ -665,6 +695,7 @@ describe('useChatController', () => {
     const settingsStore = useSettingsStore();
     vi.spyOn(settingsStore, 'updateWebAccess').mockImplementation(async () => {
       settingsStore.error = '保存失败';
+      return false;
     });
 
     await controller.handleToggleWebSearch();

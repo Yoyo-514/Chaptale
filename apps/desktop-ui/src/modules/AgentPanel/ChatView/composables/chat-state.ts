@@ -13,6 +13,8 @@ export type ChatState = {
   editingMessageId: string;
   isConnecting: boolean;
   isReplying: boolean;
+  /** 取消 IPC 已成功发起或正在等待响应，但唯一 end 终态尚未收束运行。 */
+  isCancelling: boolean;
   /** steer IPC 正在提交时为 true，用于阻止重复发送和草稿竞态。 */
   isSubmittingSteer: boolean;
   isEnabledWebSearch: boolean;
@@ -29,6 +31,7 @@ export function createChatState(): ChatState {
     editingMessageId: '',
     isConnecting: false,
     isReplying: false,
+    isCancelling: false,
     isSubmittingSteer: false,
     isEnabledWebSearch: true,
     isLoadingMessages: true,

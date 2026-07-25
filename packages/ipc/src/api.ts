@@ -122,6 +122,7 @@ export type ChaptaleDesktopApi = {
     inspectContextFiles: (paths: string[]) => Promise<ChatContextFile[]>;
     /** 拖拽场景：把 renderer 的 File 对象转换为本地绝对路径（preload 内调用 webUtils）。 */
     getPathForFile: (file: File) => string;
+    /** 启动流式运行；completed/cancelled/failed 均只经 handlers.onEnd 回传。 */
     stream: (
       query: string,
       handlers: StreamAgentHandlers,

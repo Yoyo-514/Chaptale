@@ -6,6 +6,7 @@ import {
   AgentCancelArgsValidator,
   AgentClearPendingMessagesArgsValidator,
   AgentCompactSessionArgsValidator,
+  AgentEndEventValidator,
   AgentGetContextPressureArgsValidator,
   AgentInspectContextFilesArgsValidator,
   MemoryListPendingArgsValidator,
@@ -81,6 +82,19 @@ describe('IPC 参数 Schema', () => {
     expect(AgentCancelArgsValidator.Check([1])).toBe(false);
     expect(AgentInspectContextFilesArgsValidator.Check([['C:/a.txt']])).toBe(true);
     expect(AgentInspectContextFilesArgsValidator.Check([['C:/a.txt', 1]])).toBe(false);
+  });
+
+  it('校验 Agent 三种显式终态并拒绝不完整失败信息', () => {
+    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'completed' } })).toBe(true);
+    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'cancelled' } })).toBe(true);
+    expect(
+      AgentEndEventValidator.Check({
+        runId: 'r1',
+        end: { status: 'failed', code: 'AGENT_RUN_FAILED', message: 'x', retryable: false }
+      })
+    ).toBe(true);
+    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'failed', message: 'x' } })).toBe(false);
+    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'cancelled', message: 'x' } })).toBe(false);
   });
 
   it('校验 Agent steer 与清空待处理消息参数', () => {

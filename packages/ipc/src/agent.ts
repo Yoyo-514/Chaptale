@@ -4,8 +4,10 @@ import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus }
 
 import type {
   AgentClearPendingMessagesPayloadSchema,
+  AgentEndEventSchema,
   AgentStartPayloadSchema,
-  AgentSteerPayloadSchema
+  AgentSteerPayloadSchema,
+  RunEndSchema
 } from './schemas/agent';
 
 /** Renderer 发起 Agent 流式运行时传入的 IPC payload。 */
@@ -28,12 +30,11 @@ export type AgentMessageEvent = {
   message: ChatMessage;
 };
 
-export type AgentDoneEvent = AgentRunResult;
+/** Agent 运行的明确终态；failed 分支始终携带可机器处理的完整错误信息。 */
+export type RunEnd = Static<typeof RunEndSchema>;
 
-export type AgentErrorEvent = {
-  runId: string;
-  message: string;
-};
+/** Main 推送的唯一 Agent 终态事件。 */
+export type AgentEndEvent = Static<typeof AgentEndEventSchema>;
 
 export type StreamAgentOptions = Pick<AgentStartPayload, 'branchFromEntryId' | 'contextFilePaths' | 'reuseUserEntryId'>;
 
@@ -51,11 +52,10 @@ export type AgentQueueClearResult = AgentRunResult & {
   queue: AgentClearedQueue;
 };
 
-/** Preload 为单次流式运行接收的回调集合；done 与 error 都是终态。 */
+/** Preload 为单次流式运行接收的回调集合；所有终态统一经 onEnd 判别。 */
 export type StreamAgentHandlers = {
   onMessage: (message: ChatMessage) => void;
-  onDone?: () => void;
-  onError?: (message: string) => void;
+  onEnd?: (end: RunEnd) => void;
 };
 
 /**

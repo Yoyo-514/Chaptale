@@ -1,6 +1,31 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+/** Agent 运行的唯一终态；失败信息必须完整，便于 Renderer 做确定性处理。 */
+export const RunEndSchema = Type.Union([
+  Type.Object({ status: Type.Literal('completed') }, { additionalProperties: false }),
+  Type.Object({ status: Type.Literal('cancelled') }, { additionalProperties: false }),
+  Type.Object(
+    {
+      status: Type.Literal('failed'),
+      code: Type.String(),
+      message: Type.String(),
+      retryable: Type.Boolean()
+    },
+    { additionalProperties: false }
+  )
+]);
+
+/** Main 推送给单次 Renderer 运行的终态事件。 */
+export const AgentEndEventSchema = Type.Object(
+  {
+    runId: Type.String(),
+    end: RunEndSchema
+  },
+  { additionalProperties: false }
+);
+export const AgentEndEventValidator = Compile(AgentEndEventSchema);
+
 /** Agent IPC 的运行时参数边界；拒绝额外字段，避免 Renderer 绕过公开契约传递内部选项。 */
 export const AgentStartPayloadSchema = Type.Object(
   {

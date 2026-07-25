@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentDoneEvent, AgentErrorEvent, AgentMessageEvent, AgentRunResult } from '@chaptale/ipc-contract';
+import type { AgentEndEvent, AgentMessageEvent, AgentRunResult, RunEnd } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 import type { ChatMessage } from '@chaptale/shared';
 
@@ -49,7 +49,7 @@ vi.mock('electron', () => ({
 import { createAgentApi } from '../agent';
 
 const OTHER_RUN_ID = '00000000-0000-4000-8000-000000000000';
-const agentChannels = [IPC_CHANNELS.agent.message, IPC_CHANNELS.agent.done, IPC_CHANNELS.agent.error] as const;
+const agentChannels = [IPC_CHANNELS.agent.message, IPC_CHANNELS.agent.end] as const;
 
 function expectNoAgentListeners(): void {
   for (const channel of agentChannels) {
@@ -80,50 +80,30 @@ describe('createAgentApi', () => {
     expect(onMessage).toHaveBeenCalledWith(message);
   });
 
-  it('只转发相同 runId 的 done，并在转发后清理自己的三个监听器', async () => {
-    const onDone = vi.fn();
+  it.each<RunEnd>([
+    { status: 'completed' },
+    { status: 'cancelled' },
+    { status: 'failed', code: 'AGENT_RUN_FAILED', message: 'run failure', retryable: false }
+  ])('只转发相同 runId 的 $status 终态，并清理自己的 message/end 监听器', async end => {
+    const onEnd = vi.fn();
     const api = createAgentApi();
 
-    const { runId } = await api.stream('query', { onMessage: vi.fn(), onDone });
-    electronMock.emit(IPC_CHANNELS.agent.done, { runId: OTHER_RUN_ID } satisfies AgentDoneEvent);
+    const { runId } = await api.stream('query', { onMessage: vi.fn(), onEnd });
+    electronMock.emit(IPC_CHANNELS.agent.end, { runId: OTHER_RUN_ID, end } satisfies AgentEndEvent);
 
-    expect(onDone).not.toHaveBeenCalled();
+    expect(onEnd).not.toHaveBeenCalled();
     for (const channel of agentChannels) {
       expect(electronMock.listenerCount(channel)).toBe(1);
     }
 
-    electronMock.emit(IPC_CHANNELS.agent.done, { runId } satisfies AgentDoneEvent);
+    electronMock.emit(IPC_CHANNELS.agent.end, { runId, end } satisfies AgentEndEvent);
 
-    expect(onDone).toHaveBeenCalledOnce();
+    expect(onEnd).toHaveBeenCalledOnce();
+    expect(onEnd).toHaveBeenCalledWith(end);
     expectNoAgentListeners();
   });
 
-  it('只转发相同 runId 的 error，并在转发后清理自己的三个监听器', async () => {
-    const onError = vi.fn();
-    const api = createAgentApi();
-
-    const { runId } = await api.stream('query', { onMessage: vi.fn(), onError });
-    electronMock.emit(IPC_CHANNELS.agent.error, {
-      runId: OTHER_RUN_ID,
-      message: 'other failure'
-    } satisfies AgentErrorEvent);
-
-    expect(onError).not.toHaveBeenCalled();
-    for (const channel of agentChannels) {
-      expect(electronMock.listenerCount(channel)).toBe(1);
-    }
-
-    electronMock.emit(IPC_CHANNELS.agent.error, {
-      runId,
-      message: 'run failure'
-    } satisfies AgentErrorEvent);
-
-    expect(onError).toHaveBeenCalledOnce();
-    expect(onError).toHaveBeenCalledWith('run failure');
-    expectNoAgentListeners();
-  });
-
-  it('start invoke 失败时清理自己的三个监听器并保留原始拒绝', async () => {
+  it('start invoke 失败时清理自己的两个监听器并保留原始拒绝', async () => {
     const startFailure = new Error('start failed');
     electronMock.invoke.mockRejectedValueOnce(startFailure);
     const api = createAgentApi();
@@ -134,20 +114,23 @@ describe('createAgentApi', () => {
   });
 
   it('并发 run 完成时只清理自身监听器，不影响另一个 run', async () => {
-    const onDoneA = vi.fn();
-    const onDoneB = vi.fn();
+    const onEndA = vi.fn();
+    const onEndB = vi.fn();
     const onMessageB = vi.fn();
     const api = createAgentApi();
 
     const [runA, runB] = await Promise.all([
-      api.stream('query a', { onMessage: vi.fn(), onDone: onDoneA }),
-      api.stream('query b', { onMessage: onMessageB, onDone: onDoneB })
+      api.stream('query a', { onMessage: vi.fn(), onEnd: onEndA }),
+      api.stream('query b', { onMessage: onMessageB, onEnd: onEndB })
     ]);
 
-    electronMock.emit(IPC_CHANNELS.agent.done, { runId: runA.runId } satisfies AgentDoneEvent);
+    electronMock.emit(IPC_CHANNELS.agent.end, {
+      runId: runA.runId,
+      end: { status: 'completed' }
+    } satisfies AgentEndEvent);
 
-    expect(onDoneA).toHaveBeenCalledOnce();
-    expect(onDoneB).not.toHaveBeenCalled();
+    expect(onEndA).toHaveBeenCalledOnce();
+    expect(onEndB).not.toHaveBeenCalled();
     for (const channel of agentChannels) {
       expect(electronMock.listenerCount(channel)).toBe(1);
     }

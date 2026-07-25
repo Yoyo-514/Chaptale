@@ -13,8 +13,7 @@ import {
 } from '@chaptale/ipc-contract';
 import type {
   AgentClearPendingMessagesPayload,
-  AgentDoneEvent,
-  AgentErrorEvent,
+  AgentEndEvent,
   AgentMessageEvent,
   AgentRunScope,
   AgentStartPayload,
@@ -67,7 +66,7 @@ function safeSend(webContents: WebContents, channel: string, payload: unknown): 
 
 /**
  * 归属 Agent 的启动、取消与上下文文件频道；IPC 层负责信任及参数结构校验，运行语义交给 AgentRuntime。
- * 流式 message、done、error 事件只回传给发起请求的 sender，避免跨窗口泄漏执行状态。
+ * 流式 message 与唯一 end 事件只回传给发起请求的 sender，避免跨窗口泄漏执行状态。
  */
 export function registerAgentIpc(agentService: AgentRuntime) {
   const runManager = new AgentRunManager();
@@ -148,7 +147,7 @@ export function registerAgentIpc(agentService: AgentRuntime) {
 
   /**
    * 将单次运行的异步事件流转换为带 runId 的 IPC 事件。
-   * Abort 被视为正常终态并发送 done；发送通道自身失败则向外抛出，由 detached promise 统一回收。
+   * Abort、正常完成和真实异常必须保持可判别；发送通道自身失败仍交给 detached promise 回收。
    */
   async function streamAgentToRenderer(webContents: WebContents, payload: AgentStartPayload, signal: AbortSignal) {
     try {
@@ -173,25 +172,32 @@ export function registerAgentIpc(agentService: AgentRuntime) {
         }
       }
 
-      safeSend(webContents, IPC_CHANNELS.agent.done, {
-        runId: payload.runId
-      } satisfies AgentDoneEvent);
+      safeSend(webContents, IPC_CHANNELS.agent.end, {
+        runId: payload.runId,
+        end: signal.aborted ? { status: 'cancelled' } : { status: 'completed' }
+      } satisfies AgentEndEvent);
     } catch (error) {
       if (error instanceof WebContentsSendError) {
         throw error.sendError;
       }
 
       if (signal.aborted) {
-        safeSend(webContents, IPC_CHANNELS.agent.done, {
-          runId: payload.runId
-        } satisfies AgentDoneEvent);
+        safeSend(webContents, IPC_CHANNELS.agent.end, {
+          runId: payload.runId,
+          end: { status: 'cancelled' }
+        } satisfies AgentEndEvent);
         return;
       }
 
-      safeSend(webContents, IPC_CHANNELS.agent.error, {
+      safeSend(webContents, IPC_CHANNELS.agent.end, {
         runId: payload.runId,
-        message: errorToMessage(error)
-      } satisfies AgentErrorEvent);
+        end: {
+          status: 'failed',
+          code: 'AGENT_RUN_FAILED',
+          message: errorToMessage(error),
+          retryable: false
+        }
+      } satisfies AgentEndEvent);
     }
   }
 }

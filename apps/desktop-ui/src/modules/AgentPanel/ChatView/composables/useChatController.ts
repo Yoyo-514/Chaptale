@@ -86,6 +86,10 @@ export function useChatController() {
   async function handleSend(): Promise<void> {
     const query = state.input.trim();
 
+    if (state.isCancelling) {
+      return;
+    }
+
     // 回复中的空输入保留中断语义；模型重试时可能同时处于 connecting/replying。
     if (state.isReplying && !query) {
       await streaming.cancelActiveRun();
