@@ -24,6 +24,7 @@ import { createMemoryInjector, type MemoryInjector } from '../../../modules/memo
 import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
 import { PermissionBroker } from '../../../modules/permissions/broker';
 import { PermissionRuleStore } from '../../../modules/permissions/rule-store';
+import type { BoundSession } from '../../../modules/session-ctx/types';
 import type { SettingsService } from '../../../modules/settings/service';
 import { TodoStore } from '../../../modules/todo/store';
 import type { PiModelService } from '../models/service';
@@ -55,7 +56,7 @@ type AgentRunContext = {
  * 事件与图片在离开该边界前转换为应用协议。
  */
 export class PiAgentService implements AgentRuntime {
-  private sessions = new Map<string, Promise<AgentSession>>();
+  private sessions = new Map<string, Promise<BoundSession<AgentSession>>>();
   private readonly contextFileService = new ContextFileService();
   private readonly memoryInjector: MemoryInjector;
   /** 会话工厂；对外暴露供组装层复用（TaskRunner 的 task 会话与额外工具注册）。 */
@@ -98,7 +99,7 @@ export class PiAgentService implements AgentRuntime {
   /** 会话目录/工作区切换后调用，丢弃缓存的 AgentSession与记忆注入去重记录。 */
   invalidateSessions() {
     for (const pending of this.sessions.values()) {
-      void pending.then(session => session.dispose()).catch(() => undefined);
+      void pending.then(({ session }) => session.dispose()).catch(() => undefined);
     }
 
     this.sessions.clear();
@@ -109,7 +110,7 @@ export class PiAgentService implements AgentRuntime {
    * 按会话 ID 复用创建中的 Promise，避免并发请求为同一持久化文件构造多个 AgentSession。
    * 创建失败时移除缓存，使下一次运行可以重试初始化。
    */
-  private getOrCreateSession(sessionId: string): Promise<AgentSession> {
+  private getOrCreateSession(sessionId: string): Promise<BoundSession<AgentSession>> {
     const cached = this.sessions.get(sessionId);
 
     if (cached) {
@@ -122,7 +123,7 @@ export class PiAgentService implements AgentRuntime {
     return created;
   }
 
-  private createSession(sessionId: string): Promise<AgentSession> {
+  private createSession(sessionId: string): Promise<BoundSession<AgentSession>> {
     return this.sessionFactory.create(sessionId);
   }
 
@@ -131,7 +132,7 @@ export class PiAgentService implements AgentRuntime {
     signal.throwIfAborted();
 
     const skillInvocation = parseSkillInvocation(query);
-    const session = await this.prepareSession(sessionId, Boolean(skillInvocation));
+    const { session, ctx } = await this.prepareSession(sessionId, Boolean(skillInvocation));
     let abortHandled = false;
     const onAbort = () => {
       if (abortHandled) {
@@ -197,9 +198,7 @@ export class PiAgentService implements AgentRuntime {
       signal.throwIfAborted();
 
       // 记忆注入仅限新发 prompt：复用历史条目需逐字重现原 prompt，steer 保持轻量（均不注入）。
-      const memoryPrefix = options.reuseUserEntryId
-        ? ''
-        : await this.memoryInjector.resolvePrefix(sessionId, await this.settingsService.getCurrentCwd());
+      const memoryPrefix = options.reuseUserEntryId ? '' : await this.memoryInjector.resolvePrefix(sessionId, ctx.cwd);
       const runContext = await this.resolveRunContext(options, skillInvocation, reusedContext, memoryPrefix);
       signal.throwIfAborted();
 
@@ -240,7 +239,7 @@ export class PiAgentService implements AgentRuntime {
   async steer(options: AgentSteerOptions): Promise<void> {
     options.signal.throwIfAborted();
     const skillInvocation = parseSkillInvocation(options.query);
-    const session = await this.getOrCreateSession(options.sessionId);
+    const { session } = await this.getOrCreateSession(options.sessionId);
     options.signal.throwIfAborted();
 
     if (!session.isStreaming) {
@@ -261,7 +260,7 @@ export class PiAgentService implements AgentRuntime {
   /** 清空 Pi 会话中尚未消费的 steering 与 follow-up 队列。 */
   async clearPendingMessages(scope: AgentRunScope): Promise<AgentClearedQueue> {
     scope.signal.throwIfAborted();
-    const session = await this.getOrCreateSession(scope.sessionId);
+    const { session } = await this.getOrCreateSession(scope.sessionId);
     scope.signal.throwIfAborted();
     const { steering, followUp } = session.clearQueue();
     return { steering, followUp };
@@ -269,7 +268,7 @@ export class PiAgentService implements AgentRuntime {
 
   /** 读取 SDK 的当前上下文估算，并按产品 70% 阈值判断是否提示作者。 */
   async getContextPressure(sessionId: string): Promise<MemoryContextPressureStatus> {
-    const session = await this.getOrCreateSession(sessionId);
+    const { session } = await this.getOrCreateSession(sessionId);
     const usage = session.getSessionStats().contextUsage;
 
     return evaluateContextPressure(
@@ -283,7 +282,7 @@ export class PiAgentService implements AgentRuntime {
 
   /** 作者主动压缩；检查点生成和 memory 先写由 inline extension 在 pi 落树前完成。 */
   async compactSession(sessionId: string): Promise<MemoryCompactionResult> {
-    const session = await this.getOrCreateSession(sessionId);
+    const { session } = await this.getOrCreateSession(sessionId);
 
     if (session.isStreaming) {
       throw new Error('运行中不能压缩会话，请等待当前回复完成');
@@ -307,8 +306,9 @@ export class PiAgentService implements AgentRuntime {
   }
 
   /** 取回（或创建）缓存会话，并保证 skills 定义与默认模型和当前设置一致。 */
-  private async prepareSession(sessionId: string, hasSkillInvocation: boolean): Promise<AgentSession> {
-    const session = await this.getOrCreateSession(sessionId);
+  private async prepareSession(sessionId: string, hasSkillInvocation: boolean): Promise<BoundSession<AgentSession>> {
+    const bound = await this.getOrCreateSession(sessionId);
+    const { session } = bound;
 
     // 显式 skill 命令应读取磁盘上的最新定义，避免命令菜单已刷新但缓存会话仍持有旧 skills。
     if (hasSkillInvocation) {
@@ -327,7 +327,7 @@ export class PiAgentService implements AgentRuntime {
       throw new Error('尚未配置可用模型：请在设置面板 LLM Provider 中配置凭据并选择默认模型');
     }
 
-    return session;
+    return bound;
   }
 
   /**

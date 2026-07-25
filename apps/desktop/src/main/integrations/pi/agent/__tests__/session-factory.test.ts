@@ -54,11 +54,12 @@ afterEach(async () => {
 describe('PiAgentSessionFactory', () => {
   it('passes the model service shared ModelRuntime to createAgentSession', async () => {
     const sessionsRootDir = path.join(rootDir, 'sessions');
-    const sessionDir = path.join(sessionsRootDir, 'global');
+    const workspaceDir = path.join(rootDir, 'workspace-a');
+    const sessionDir = path.join(sessionsRootDir, 'workspace-a');
     const sessionPath = path.join(sessionDir, 'session-1.jsonl');
     await mkdir(sessionDir, { recursive: true });
 
-    const target = { id: 'session-1', cwd: rootDir, path: sessionPath };
+    const target = { id: 'session-1', cwd: workspaceDir, path: sessionPath };
     const sessionManager = { id: 'manager' };
     const settingsManager = { id: 'settings' };
     const modelRuntime = { id: 'runtime' };
@@ -93,7 +94,14 @@ describe('PiAgentSessionFactory', () => {
     const buildCompactExt = vi.fn(() => compactExt);
     factory.setCompactExt(buildCompactExt as any);
 
-    await expect(factory.create('session-1')).resolves.toBe(session);
+    const bound = await factory.create('session-1');
+
+    expect(bound.ctx).toEqual({
+      sessionId: 'session-1',
+      cwd: workspaceDir,
+      scope: 'workspace'
+    });
+    expect(bound.session).toBe(session);
     expect(modelService.getModelRuntime).toHaveBeenCalledOnce();
     expect(sdkMocks.createAgentSession).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -104,14 +112,14 @@ describe('PiAgentSessionFactory', () => {
     );
     expect(sdkMocks.createAgentSession.mock.calls[0]?.[0]).not.toHaveProperty('authStorage');
     expect(sdkMocks.createAgentSession.mock.calls[0]?.[0]).not.toHaveProperty('modelRegistry');
-    expect(buildCompactExt).toHaveBeenCalledWith('session-1', rootDir);
+    expect(buildCompactExt).toHaveBeenCalledWith('session-1', workspaceDir);
     expect((sdkMocks.loaderOptions as any).extensionFactories).toContain(compactExt);
   });
 
   it('applies the companion whitelist and binds security context to the session workspace', async () => {
-    const sessionDir = path.join(rootDir, 'sessions', 'global');
-    const sessionPath = path.join(sessionDir, 'session-1.jsonl');
     const sessionCwd = path.join(rootDir, 'workspace-a');
+    const sessionDir = path.join(rootDir, 'sessions', 'workspace-a');
+    const sessionPath = path.join(sessionDir, 'session-1.jsonl');
     const currentUiCwd = path.join(rootDir, 'workspace-b');
     await mkdir(sessionDir, { recursive: true });
     sdkMocks.listAll.mockResolvedValue([{ id: 'session-1', cwd: sessionCwd, path: sessionPath }]);

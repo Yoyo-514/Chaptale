@@ -27,12 +27,14 @@ import { PersonaRegistry } from '../../../modules/personas/registry';
 import type { TaskPersonaSpec } from '../../../modules/personas/task-spec';
 import { resolveAllowedPersonaTools } from '../../../modules/personas/tool-access';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
+import type { BoundSession, SessionCtx } from '../../../modules/session-ctx/types';
 import type { SettingsService } from '../../../modules/settings/service';
 import { TODO_PROTOCOL } from '../../../modules/todo/protocol';
 import type { TodoStore } from '../../../modules/todo/store';
 import type { ToolDefinition } from '../../../modules/tools/definition';
 import type { PiModelService } from '../models/service';
 import { createPermissionGateExtension } from '../permissions/gate-extension';
+import { getSessionScope } from '../sessions/storage';
 import type { SkillsProvider } from '../skills/provider';
 import { toPiToolDefinition } from '../tools/adapter';
 import { getEnabledToolNames } from '../tools/tool-whitelist';
@@ -107,7 +109,7 @@ export class PiAgentSessionFactory {
     return this.getPersonaRegistry().get(cwd, personaId);
   }
 
-  async create(sessionId: string): Promise<AgentSession> {
+  async create(sessionId: string): Promise<BoundSession<AgentSession>> {
     const { settingsService, modelService, skillsProvider, permissionBroker, permissionRuleStore } = this.options;
     const target = await findSessionById(settingsService, sessionId);
 
@@ -115,18 +117,14 @@ export class PiAgentSessionFactory {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
-    if (!target.cwd?.trim()) {
-      throw new Error(`会话缺少 workspace，无法安全恢复：${sessionId}`);
-    }
-    const cwd = target.cwd;
-    // persona、skills 与工具授权绑定会话 workspace；UI 切换工作区不能改写历史会话的安全上下文。
-    const skillsCwd = cwd;
-    // 主对话固定 companion persona；文件缺失/非法时回退内置默认值，不阻塞会话创建。
-    const companion = await this.getPersonaRegistry().get(skillsCwd, 'companion');
+    const ctx = this.createSessionCtx(sessionId, target);
+    // persona、skills、工具授权与压缩上下文都必须绑定历史会话 cwd；
+    // UI 当前 workspace 只能影响新建会话，不能改写已落盘会话的安全边界。
+    const companion = await this.getPersonaRegistry().get(ctx.cwd, 'companion');
     const personaBody = companion?.body ?? builtinCompanionBody;
     const sessionDir = path.dirname(target.path);
-    const sessionManager = SessionManager.open(target.path, sessionDir, cwd);
-    const settingsManager = SettingsManager.create(cwd, settingsService.agentDir);
+    const sessionManager = SessionManager.open(target.path, sessionDir, ctx.cwd);
+    const settingsManager = SettingsManager.create(ctx.cwd, settingsService.agentDir);
 
     // pi-web-access 会读取 PI_CODING_AGENT_DIR/web-search.json；
     // 将其绑定到 Chaptale 自己的 agentDir，避免污染用户全局 ~/.pi 配置。
@@ -140,7 +138,7 @@ export class PiAgentSessionFactory {
     const allowedTools = companion?.tools ? new Set(resolveAllowedPersonaTools(companion)) : undefined;
     const registeredTools =
       companion && this.extraChatTools
-        ? await this.extraChatTools({ sessionId, cwd: skillsCwd, persona: companion })
+        ? await this.extraChatTools({ sessionId, cwd: ctx.cwd, persona: companion })
         : [];
     const chatTools = registeredTools.filter(tool => !allowedTools || allowedTools.has(tool.name));
     const enabledPiTools = getEnabledToolNames().filter(tool => !allowedTools || allowedTools.has(tool));
@@ -150,7 +148,7 @@ export class PiAgentSessionFactory {
     ) as Record<string, RiskLevel>;
 
     const resourceLoader = new DefaultResourceLoader({
-      cwd,
+      cwd: ctx.cwd,
       agentDir: settingsService.agentDir,
       settingsManager,
       additionalExtensionPaths: [resolvePiPackageRoot('pi-web-access')],
@@ -159,7 +157,7 @@ export class PiAgentSessionFactory {
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      skillsOverride: () => skillsProvider.load(skillsCwd, 'companion'),
+      skillsOverride: () => skillsProvider.load(ctx.cwd, 'companion'),
       // 权限闸门：拦截全部工具调用；noExtensions 只关磁盘发现，不影响 inline factory。
       extensionFactories: [
         createPermissionGateExtension({
@@ -169,7 +167,7 @@ export class PiAgentSessionFactory {
           customRiskLevels,
           interactive: true
         }),
-        ...(this.compactExt ? [this.compactExt(sessionId, cwd)] : [])
+        ...(this.compactExt ? [this.compactExt(sessionId, ctx.cwd)] : [])
       ],
       // 分层拼装：SYSTEM.md 仅替换 persona 层，职责/协议层始终保留；
       // 拼装结果在会话生命周期内不变（缓存安全）；APPEND_SYSTEM.md 由 pi 原生追加。
@@ -184,7 +182,7 @@ export class PiAgentSessionFactory {
     await resourceLoader.reload();
 
     const { session } = await createAgentSession({
-      cwd,
+      cwd: ctx.cwd,
       agentDir: settingsService.agentDir,
       modelRuntime: await modelService.getModelRuntime(),
       sessionManager,
@@ -195,7 +193,7 @@ export class PiAgentSessionFactory {
       customTools
     });
 
-    return session;
+    return { session, ctx };
   }
 
   /**
@@ -273,6 +271,19 @@ export class PiAgentSessionFactory {
     }
 
     return session;
+  }
+
+  /** 从持久化 session 元数据恢复安全上下文，拒绝缺失 cwd 的历史会话。 */
+  private createSessionCtx(sessionId: string, target: SessionInfo): SessionCtx {
+    if (!target.cwd?.trim()) {
+      throw new Error(`会话缺少 workspace，无法安全恢复：${sessionId}`);
+    }
+
+    return {
+      sessionId,
+      cwd: target.cwd,
+      scope: getSessionScope(path.dirname(target.path))
+    };
   }
 
   /** 解析 persona 模型偏好："provider/modelId" 显式指定；fast/quality 映射尚未实现，当前跟随全局默认。 */

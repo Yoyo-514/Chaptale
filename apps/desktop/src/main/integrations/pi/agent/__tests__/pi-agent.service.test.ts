@@ -78,18 +78,39 @@ function createImageAttachmentService() {
 function createService(
   session: any,
   defaultModel: any = { provider: 'new-provider', id: 'new-model' },
-  imageAttachmentService = createImageAttachmentService()
+  imageAttachmentService = createImageAttachmentService(),
+  options?: {
+    settingsService?: any;
+    memoryInjector?: any;
+    sessionCtx?: { sessionId?: string; cwd: string; scope: 'global' | 'workspace' };
+  }
 ) {
+  const settingsService =
+    options?.settingsService ??
+    ({ rootDir: '/tmp/chaptale-test', getCurrentCwd: vi.fn(async () => '/tmp/chaptale-test-cwd') } as any);
+  const memoryInjector =
+    options?.memoryInjector ??
+    ({
+      // memory 注入与对话主流程解耦，这里用空实现；注入行为由 memory 专项测试覆盖。
+      resolvePrefix: vi.fn(async () => ''),
+      reset: vi.fn()
+    } as any);
   const service = new PiAgentService(
-    { rootDir: '/tmp/chaptale-test', getCurrentCwd: vi.fn(async () => '/tmp/chaptale-test-cwd') } as any,
+    settingsService,
     { getDefaultPiModel: vi.fn(async () => defaultModel) } as any,
     imageAttachmentService as any,
     undefined,
-    // memory 注入与对话主流程解耦，这里用空实现；注入行为由 memory 专项测试覆盖。
-    { resolvePrefix: vi.fn(async () => ''), reset: vi.fn() } as any
+    memoryInjector
   );
   (service as any).sessionFactory = {
-    create: vi.fn(async () => session)
+    create: vi.fn(async (sessionId: string) => ({
+      session,
+      ctx: {
+        sessionId,
+        cwd: options?.sessionCtx?.cwd ?? (await settingsService.getCurrentCwd()),
+        scope: options?.sessionCtx?.scope ?? 'workspace'
+      }
+    }))
   };
   return service;
 }
@@ -112,6 +133,35 @@ function createDeferred<T>() {
 }
 
 describe('PiAgentService', () => {
+  it('uses the restored session workspace for memory injection instead of the current UI workspace', async () => {
+    const { session } = createFakeSession(async emit => {
+      emit({ type: 'agent_end', willRetry: false, messages: [] });
+    });
+    const settingsService = {
+      rootDir: '/tmp/chaptale-test',
+      getCurrentCwd: vi.fn(async () => 'E:/works/workspace-b')
+    };
+    const memoryInjector = {
+      resolvePrefix: vi.fn(async () => '记忆前缀'),
+      reset: vi.fn()
+    };
+    const service = createService(
+      session,
+      { provider: 'new-provider', id: 'new-model' },
+      createImageAttachmentService(),
+      {
+        settingsService,
+        memoryInjector,
+        sessionCtx: { cwd: 'E:/works/workspace-a', scope: 'workspace' }
+      }
+    );
+
+    await collect(service.stream({ sessionId: 'session-1', query: 'hi', signal: new AbortController().signal }));
+
+    expect(memoryInjector.resolvePrefix).toHaveBeenCalledWith('session-1', 'E:/works/workspace-a');
+    expect(memoryInjector.resolvePrefix).not.toHaveBeenCalledWith('session-1', 'E:/works/workspace-b');
+  });
+
   it('bridges agent session events to chat messages and flushes the session file', async () => {
     const { session, sessionManager } = createFakeSession(async emit => {
       emit({ type: 'message_update', assistantMessageEvent: { type: 'thinking_start' } });
@@ -363,7 +413,10 @@ describe('PiAgentService', () => {
 
     const result = service.clearPendingMessages({ sessionId: 'session-1', signal: controller.signal } as any);
     controller.abort();
-    pendingSession.resolve(session);
+    pendingSession.resolve({
+      session,
+      ctx: { sessionId: 'session-1', cwd: '/tmp/chaptale-test-cwd', scope: 'workspace' }
+    });
 
     await expect(result).rejects.toMatchObject({ name: 'AbortError' });
     expect(session.clearQueue).not.toHaveBeenCalled();
@@ -560,7 +613,10 @@ describe('PiAgentService', () => {
     expect(create).toHaveBeenCalledWith('session-1');
 
     controller.abort();
-    pendingSession.resolve(session);
+    pendingSession.resolve({
+      session,
+      ctx: { sessionId: 'session-1', cwd: '/tmp/chaptale-test-cwd', scope: 'workspace' }
+    });
     const outcome = await result.then(
       () => undefined,
       error => error
