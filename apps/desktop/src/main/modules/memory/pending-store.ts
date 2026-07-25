@@ -15,7 +15,6 @@ import type { FrontmatterParser } from '../frontmatter/types';
 import { resolveWorkspaceMemoryPaths } from './paths';
 
 export type MemoryPendingStoreOptions = {
-  resolveCwd: () => Promise<string> | string;
   parseFrontmatter: FrontmatterParser;
 };
 
@@ -59,24 +58,27 @@ export class MemoryPendingStore {
   }
 
   /** 校验 targetPath 合法性：必须落在 workspace 内，且不得指向 .chaptale 运行时数据区。 */
-  private async resolveTargetPath(targetPath: string): Promise<{ cwd: string; absolute: string } | null> {
-    const cwd = await this.options.resolveCwd();
-    const absolute = path.resolve(cwd, targetPath);
+  private resolveTargetPath(cwd: string, targetPath: string): { cwd: string; absolute: string } | null {
+    const workspaceCwd = path.resolve(cwd);
+    const absolute = path.resolve(workspaceCwd, targetPath);
 
-    if (absolute !== cwd && !absolute.startsWith(cwd + path.sep)) {
+    if (absolute !== workspaceCwd && !absolute.startsWith(workspaceCwd + path.sep)) {
       return null;
     }
 
-    if (absolute.startsWith(path.join(cwd, '.chaptale') + path.sep)) {
+    const runtimeDir = path.join(workspaceCwd, '.chaptale');
+
+    // 安全边界：pending 提议只能指向作者资产，不能写入应用运行时目录。
+    if (absolute === runtimeDir || absolute.startsWith(runtimeDir + path.sep)) {
       return null;
     }
 
-    return { cwd, absolute };
+    return { cwd: workspaceCwd, absolute };
   }
 
   /** 新增提议：update/archive 会读取目标文件计算 contentHash；返回提议 id。 */
-  async add(draft: MemoryProposalDraft): Promise<MemoryPendingProposal> {
-    const resolved = await this.resolveTargetPath(draft.targetPath);
+  async add(cwd: string, draft: MemoryProposalDraft): Promise<MemoryPendingProposal> {
+    const resolved = this.resolveTargetPath(cwd, draft.targetPath);
 
     if (!resolved) {
       throw new Error(`目标路径不合法（必须在作品内且不得指向 .chaptale）：${draft.targetPath}`);
@@ -128,9 +130,8 @@ export class MemoryPendingStore {
   }
 
   /** 列出待处理提议；坏文件跳过并入诊断，不拖垮整表。 */
-  async list(): Promise<MemoryPendingListResult> {
-    const cwd = await this.options.resolveCwd();
-    const pendingDir = resolveWorkspaceMemoryPaths(cwd).pendingDir;
+  async list(cwd: string): Promise<MemoryPendingListResult> {
+    const pendingDir = resolveWorkspaceMemoryPaths(path.resolve(cwd)).pendingDir;
 
     let entries: string[];
 
@@ -157,9 +158,9 @@ export class MemoryPendingStore {
   }
 
   /** 接受或拒绝提议；终态提议移入 pending/archived/ 留痕（AgentRun 可溯）。 */
-  async resolve(id: string, action: MemoryPendingAction): Promise<MemoryPendingResolveResult> {
-    const cwd = await this.options.resolveCwd();
-    const pendingDir = resolveWorkspaceMemoryPaths(cwd).pendingDir;
+  async resolve(cwd: string, id: string, action: MemoryPendingAction): Promise<MemoryPendingResolveResult> {
+    const workspaceCwd = path.resolve(cwd);
+    const pendingDir = resolveWorkspaceMemoryPaths(workspaceCwd).pendingDir;
     const filePath = path.join(pendingDir, `${id}.md`);
 
     let proposal: MemoryPendingProposal;
@@ -176,7 +177,7 @@ export class MemoryPendingStore {
       return { id, status: 'rejected' };
     }
 
-    const applied = await this.applyProposal(proposal);
+    const applied = await this.applyProposal(workspaceCwd, proposal);
 
     if (applied.status === 'conflict') {
       return { id, status: 'conflict', ...(applied.message ? { message: applied.message } : {}) };
@@ -188,9 +189,10 @@ export class MemoryPendingStore {
   }
 
   private async applyProposal(
+    cwd: string,
     proposal: MemoryPendingProposal
   ): Promise<{ status: 'applied' | 'conflict'; message?: string }> {
-    const resolved = await this.resolveTargetPath(proposal.targetPath);
+    const resolved = this.resolveTargetPath(cwd, proposal.targetPath);
 
     if (!resolved) {
       return { status: 'conflict', message: `目标路径不合法：${proposal.targetPath}` };

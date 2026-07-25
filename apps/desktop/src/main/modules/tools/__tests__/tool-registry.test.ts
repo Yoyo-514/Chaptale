@@ -86,6 +86,44 @@ describe('tool-registry', () => {
     );
   });
 
+  it('binds memory_propose to the chat session cwd instead of a dynamic workspace', async () => {
+    const add = vi.fn(async () => ({
+      id: 'p-1',
+      proposalType: 'create',
+      title: '新增角色：沈青',
+      reason: '第 3 章出场',
+      targetPath: '角色/沈青.md',
+      source: 'session:session-a',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      content: '正文'
+    }));
+    const tools = await buildChatSessionTools(
+      createChatContext({
+        cwd: '/workspace-a',
+        sessionId: 'session-a',
+        getSessionId: () => 'session-a',
+        memoryPendingStore: { add }
+      })
+    );
+
+    await tools
+      .find(tool => tool.name === 'memory_propose')!
+      .execute({
+        proposalType: 'create',
+        title: '新增角色：沈青',
+        reason: '第 3 章出场',
+        targetPath: '角色/沈青.md',
+        content: '---\nkind: character\n---\n\n沈青。\n'
+      });
+
+    expect(add).toHaveBeenCalledWith(
+      '/workspace-a',
+      expect.objectContaining({
+        source: 'session:session-a'
+      })
+    );
+  });
+
   it('registers task custom tools through the same registry', async () => {
     const tools = await buildTaskSessionTools({
       spec: {

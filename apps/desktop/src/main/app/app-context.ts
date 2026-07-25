@@ -44,6 +44,8 @@ export type AppContext = {
   permissionRuleStore: PermissionRuleStore;
   /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
   getPermissionSettingsCwd: () => Promise<string | null>;
+  /** Pending 面板只按 UI 当前 workspace 拉取，避免复用会话工具闭包 cwd。 */
+  getMemoryPendingCwd: () => Promise<string>;
 };
 
 export function createAppContext(): AppContext {
@@ -93,10 +95,7 @@ export function createAppContext(): AppContext {
     })
   );
   const subagentPool = new SubagentPool();
-  const memoryPendingStore = new MemoryPendingStore({
-    resolveCwd: () => settingsService.getCurrentCwd(),
-    parseFrontmatter: piParseFrontmatter
-  });
+  const memoryPendingStore = new MemoryPendingStore({ parseFrontmatter: piParseFrontmatter });
   const indexSourceResolver = new WorkspaceIndexSourceResolver();
   const indexService = new IndexService({
     resolver: indexSourceResolver,
@@ -141,6 +140,7 @@ export function createAppContext(): AppContext {
     indexService,
     permissionBroker,
     permissionRuleStore,
-    getPermissionSettingsCwd: () => settingsService.getCurrentCwd()
+    getPermissionSettingsCwd: () => settingsService.getCurrentCwd(),
+    getMemoryPendingCwd: () => settingsService.getCurrentCwd()
   };
 }

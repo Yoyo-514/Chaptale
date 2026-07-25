@@ -63,7 +63,7 @@ describe('memory tools', () => {
   });
 
   it('memory_propose submits a pending proposal instead of touching the target', async () => {
-    const pendingStore = new MemoryPendingStore({ resolveCwd: () => cwd, parseFrontmatter });
+    const pendingStore = new MemoryPendingStore({ parseFrontmatter });
     const tool = createMemoryProposeTool({ resolveCwd: () => cwd, getSessionId: () => 's-9', pendingStore });
 
     const result = await tool.execute({
@@ -77,11 +77,11 @@ describe('memory tools', () => {
     // 提议只落 pending，目标文件不产生。
     expect(result.text).toContain('等待作者');
     await expect(fs.access(path.join(cwd, '角色', '沈青.md'))).rejects.toThrow();
-    expect((await pendingStore.list()).proposals).toHaveLength(1);
+    expect((await pendingStore.list(cwd)).proposals).toHaveLength(1);
   });
 
   it('memory_propose requires content for create and update proposals', async () => {
-    const pendingStore = new MemoryPendingStore({ resolveCwd: () => cwd, parseFrontmatter });
+    const pendingStore = new MemoryPendingStore({ parseFrontmatter });
     const tool = createMemoryProposeTool({ resolveCwd: () => cwd, getSessionId: () => 's-9', pendingStore });
 
     await expect(

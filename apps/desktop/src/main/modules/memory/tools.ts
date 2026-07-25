@@ -119,7 +119,8 @@ export function createMemoryProposeTool(
         throw new Error(`${params.proposalType} 提议必须提供完整的新文件内容（content）`);
       }
 
-      const proposal = await context.pendingStore.add({
+      const cwd = await context.resolveCwd();
+      const proposal = await context.pendingStore.add(cwd, {
         proposalType: params.proposalType,
         title: params.title,
         reason: params.reason,

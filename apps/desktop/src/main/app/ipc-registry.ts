@@ -50,7 +50,7 @@ export function registerApplicationIpc(context: AppContext): void {
   registerTaskIpc(context.taskService, context.runStore);
   registerTodoIpc(context.todoStore);
   registerSubagentIpc(context.subagentPool);
-  registerMemoryIpc(context.memoryPendingStore);
+  registerMemoryIpc(context.memoryPendingStore, { resolveCwd: context.getMemoryPendingCwd });
   registerPermissionsIpc(context.permissionBroker, context.permissionRuleStore, {
     resolveCwd: context.getPermissionSettingsCwd
   });

@@ -15,13 +15,19 @@ import type { MemoryPendingStore } from './pending-store';
  * 变更由主进程内的 memory_propose 工具或确认流本身触发（没有发起方 sender），
  * changed 只作"该刷新了"的信号广播，数据由 renderer 重新拉取——避免双份状态。
  */
-export function registerMemoryIpc(pendingStore: MemoryPendingStore): void {
+export type MemoryIpcOptions = {
+  resolveCwd: () => Promise<string> | string;
+};
+
+export function registerMemoryIpc(pendingStore: MemoryPendingStore, options: MemoryIpcOptions): void {
   handleValidatedIpc(IPC_CHANNELS.memory.listPending, MemoryListPendingArgsValidator, async () => {
-    return pendingStore.list();
+    const cwd = await options.resolveCwd();
+    return pendingStore.list(cwd);
   });
 
   handleValidatedIpc(IPC_CHANNELS.memory.resolvePending, MemoryResolvePendingArgsValidator, async (_event, payload) => {
-    return pendingStore.resolve(payload.id, payload.action);
+    const cwd = await options.resolveCwd();
+    return pendingStore.resolve(cwd, payload.id, payload.action);
   });
 
   pendingStore.onChange(() => {
