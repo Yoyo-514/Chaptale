@@ -8,6 +8,8 @@ import type {
   CreateSessionOptions
 } from '@chaptale/ipc-contract';
 
+import { isSameWorkspacePath } from '@/utils/workspace-path';
+
 import { getDesktopApi, toErrorMessage } from './utils/desktop-api';
 
 /**
@@ -27,12 +29,12 @@ export const useSessionStore = defineStore('session', {
   }),
   getters: {
     currentSession(state) {
-      return state.sessions.find(
-        session => session.id === state.currentSessionId && (!state.activeCwd || session.cwd === state.activeCwd)
-      );
+      return state.sessions.find(session => session.id === state.currentSessionId);
     },
     cwdSessions(state) {
-      return state.activeCwd ? state.sessions.filter(session => session.cwd === state.activeCwd) : state.sessions;
+      return state.activeCwd
+        ? state.sessions.filter(session => isSameWorkspacePath(session.cwd, state.activeCwd))
+        : state.sessions;
     }
   },
   actions: {
@@ -60,8 +62,8 @@ export const useSessionStore = defineStore('session', {
           if (this.currentSessionId !== persistedSessionId) {
             await this.persistCurrentSession();
           }
-        } else if (!candidates.some(session => session.id === this.currentSessionId)) {
-          // 当前会话可能被批量删除、外部清理或 workspace 切换隔离，必须只回退到当前 cwd 内的候选。
+        } else if (!this.sessions.some(session => session.id === this.currentSessionId)) {
+          // 只有当前选择确实不存在时才回退；显式选择的跨 workspace/global 会话必须保留。
           this.currentSessionId = candidates[0]?.id ?? '';
           await this.persistCurrentSession();
         }
@@ -119,7 +121,7 @@ export const useSessionStore = defineStore('session', {
         this.sessions = this.sessions.filter(session => session.id !== sessionId);
 
         if (deletedCurrentSession) {
-          this.currentSessionId = this.sessions[0]?.id ?? '';
+          this.currentSessionId = this.cwdSessions[0]?.id ?? '';
           await this.persistCurrentSession();
         }
 
@@ -142,7 +144,7 @@ export const useSessionStore = defineStore('session', {
         this.sessions = this.sessions.filter(session => !ids.includes(session.id));
 
         if (ids.includes(this.currentSessionId)) {
-          this.currentSessionId = this.sessions[0]?.id ?? '';
+          this.currentSessionId = this.cwdSessions[0]?.id ?? '';
           await this.persistCurrentSession();
         }
 

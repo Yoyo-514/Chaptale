@@ -4,6 +4,7 @@ import { computed, type Ref } from 'vue';
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
 import { getSessionTitle } from '@/utils/session-display';
+import { isSameWorkspacePath } from '@/utils/workspace-path';
 
 export type HistoryScopeFilter = 'all' | 'workspace' | 'global';
 export type HistorySortMode = 'latest' | 'oldest' | 'cost' | 'tokens';
@@ -44,11 +45,6 @@ export function useHistorySessions(options: {
   };
 }
 
-// 历史记录可能由不同平台写入，比较工作区时统一分隔符、尾斜杠和大小写。
-function normalizePath(value: string) {
-  return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
-}
-
 function matchesScope(session: ChaptaleSessionListItem, scope: HistoryScopeFilter, currentWorkspacePath: string) {
   if (scope === 'all') {
     return true;
@@ -58,11 +54,7 @@ function matchesScope(session: ChaptaleSessionListItem, scope: HistoryScopeFilte
     return session.scope === 'global';
   }
 
-  return (
-    session.scope === 'workspace' &&
-    Boolean(currentWorkspacePath) &&
-    normalizePath(session.cwd) === normalizePath(currentWorkspacePath)
-  );
+  return session.scope === 'workspace' && isSameWorkspacePath(session.cwd, currentWorkspacePath);
 }
 
 function matchesSearch(session: ChaptaleSessionListItem, query: string) {

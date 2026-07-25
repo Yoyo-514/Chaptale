@@ -23,11 +23,11 @@ function createSession(id: string, scope: 'global' | 'workspace', cwd: string): 
 describe('useHistorySessions', () => {
   it('limits the workspace scope to the current workspace path', () => {
     const scopeFilter = ref<'all' | 'workspace' | 'global'>('workspace');
-    const currentWorkspacePath = ref('C:/work/current/');
+    const currentWorkspacePath = ref('E:/Work/Novel/');
     const sessions = ref([
-      createSession('current', 'workspace', 'c:\\work\\current'),
-      createSession('other', 'workspace', 'C:/work/other'),
-      createSession('global', 'global', 'C:/work/current')
+      createSession('current', 'workspace', 'e:\\work\\novel'),
+      createSession('other', 'workspace', 'E:/Work/Other'),
+      createSession('global', 'global', 'E:/Work/Novel')
     ]);
     const { filteredSessions } = useHistorySessions({
       sessions,

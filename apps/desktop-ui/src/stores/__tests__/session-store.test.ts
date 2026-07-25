@@ -145,6 +145,43 @@ describe('session store', () => {
     expect(store.error).toBe('list failed');
   });
 
+  it('preserves an explicit cross-workspace session across reloads and current entry reads', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([
+      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
+      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+    ]);
+    const store = useSessionStore();
+    store.activeCwd = workspaceB;
+    store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
+
+    await store.loadSessions();
+
+    expect(store.currentSessionId).toBe('session-a');
+    expect(store.currentSession?.id).toBe('session-a');
+    expect(api.settings.update).not.toHaveBeenCalled();
+
+    await store.getCurrentEntries();
+
+    expect(api.session.create).not.toHaveBeenCalled();
+    expect(api.session.getEntries).toHaveBeenCalledWith('session-a');
+    expect(store.currentSessionId).toBe('session-a');
+  });
+
+  it('matches current workspace sessions with normalized cwd paths', () => {
+    const store = useSessionStore();
+    store.activeCwd = 'E:/Work/Novel/';
+    store.sessions = [
+      createSession('same-workspace', { cwd: 'e:\\work\\novel', scope: 'workspace' }),
+      createSession('other-workspace', { cwd: 'E:/Work/Other', scope: 'workspace' })
+    ];
+
+    expect(store.cwdSessions.map(session => session.id)).toEqual(['same-workspace']);
+  });
+
   it('rebinds the current session to the selected workspace cwd', async () => {
     const workspaceA = 'E:/workspace-a';
     const workspaceB = 'E:/workspace-b';
@@ -226,6 +263,53 @@ describe('session store', () => {
 
     expect(api.session.deleteMany).toHaveBeenCalledWith(['session-2']);
     expect(store.currentSessionId).toBe('session-3');
+  });
+
+  it('falls back to a current-cwd session after deleting an explicit cross-workspace current session', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const workspaceC = 'E:/workspace-c';
+    const api = installDesktopApi();
+    const remainingSessions = [
+      createSession('session-c', { cwd: workspaceC, scope: 'workspace' }),
+      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+    ];
+    const store = useSessionStore();
+    store.sessions = [createSession('session-a', { cwd: workspaceA, scope: 'workspace' }), ...remainingSessions];
+    store.activeCwd = workspaceB;
+    store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
+    api.session.list.mockResolvedValue(remainingSessions);
+
+    await store.deleteSession('session-a');
+
+    expect(store.currentSessionId).toBe('session-b');
+    expect(api.settings.update).not.toHaveBeenCalledWith({ lastSessionId: 'session-c' });
+    expect(api.settings.update).toHaveBeenLastCalledWith({ lastSessionId: 'session-b' });
+  });
+
+  it('falls back to a current-cwd session after deleting an explicit cross-workspace current session in bulk', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const workspaceC = 'E:/workspace-c';
+    const api = installDesktopApi();
+    const remainingSessions = [
+      createSession('session-c', { cwd: workspaceC, scope: 'workspace' }),
+      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+    ];
+    const store = useSessionStore();
+    store.sessions = [createSession('session-a', { cwd: workspaceA, scope: 'workspace' }), ...remainingSessions];
+    store.activeCwd = workspaceB;
+    store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
+    api.session.list.mockResolvedValue(remainingSessions);
+
+    await store.deleteSessions(['session-a', 'session-a']);
+
+    expect(api.session.deleteMany).toHaveBeenCalledWith(['session-a']);
+    expect(store.currentSessionId).toBe('session-b');
+    expect(api.settings.update).not.toHaveBeenCalledWith({ lastSessionId: 'session-c' });
+    expect(api.settings.update).toHaveBeenLastCalledWith({ lastSessionId: 'session-b' });
   });
 
   it('renames a session, ignoring empty names, and reloads the list', async () => {
