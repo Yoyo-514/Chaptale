@@ -120,10 +120,10 @@ describe('WebAccessSettings', () => {
     expect(timeoutField?.find('label').attributes('for')).toBe(timeoutField?.find('input').attributes('id'));
   });
 
-  it('updates draft values through controls and saves a cloned web access payload', async () => {
+  it('updates draft values through controls and only notifies success after a saved web access payload', async () => {
     const settingsStore = useSettingsStore();
     settingsStore.state = createSettingsState() as any;
-    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(undefined as never);
+    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(false as never);
     const notificationStore = useNotificationStore();
 
     const wrapper = mountSection();
@@ -143,7 +143,9 @@ describe('WebAccessSettings', () => {
         braveApiKey: 'BSA_test'
       })
     );
-    expect(notificationStore.items.at(-1)).toMatchObject({ kind: 'success', title: '联网能力设置已保存' });
+    expect(notificationStore.items).not.toContainEqual(
+      expect.objectContaining({ kind: 'success', title: '联网能力设置已保存' })
+    );
   });
 
   it('resets to safe defaults without mutating the persisted store state until save', async () => {

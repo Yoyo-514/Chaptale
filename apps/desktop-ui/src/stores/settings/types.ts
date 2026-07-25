@@ -33,5 +33,5 @@ export type SettingsStoreContext = SettingsStoreState & {
   loadPromptSettings(): Promise<void>;
   updatePromptSettings(payload: UpdatePromptSettingsPayload): Promise<boolean>;
   update(payload: UpdateChaptaleSettingsPayload): Promise<void>;
-  updateWebAccess(payload: UpdatePiWebAccessSettingsPayload): Promise<void>;
+  updateWebAccess(payload: UpdatePiWebAccessSettingsPayload): Promise<boolean>;
 };

@@ -185,8 +185,12 @@ describe('settings store', () => {
     const store = useSettingsStore();
     const sessionStore = useSessionStore();
     const bindCwd = vi.spyOn(sessionStore, 'bindCwd').mockResolvedValue(undefined);
+    const updatedState = createSettingsState(false, 'agent/global');
+    api.settings.updateWebAccess.mockResolvedValue(updatedState);
 
-    await store.updateWebAccess({ webSearchEnabled: false });
+    await expect(store.updateWebAccess({ webSearchEnabled: false })).resolves.toBe(true);
+    expect(store.state).toStrictEqual(updatedState);
+
     await store.selectWorkspaceDir();
     await store.useGlobalStorage();
     await store.openConfigDir();
@@ -197,7 +201,25 @@ describe('settings store', () => {
     expect(bindCwd).toHaveBeenNthCalledWith(1, 'E:/workspace-b');
     expect(bindCwd).toHaveBeenNthCalledWith(2, 'agent/global');
     expect(api.settings.openConfigDir).toHaveBeenCalled();
-    expect(store.state).toBeDefined();
+  });
+
+  it('surfaces web access save failures through the shared action runner', async () => {
+    const api = installDesktopApi();
+    const store = useSettingsStore();
+    const notifications = useNotificationStore();
+    const beforeState = createSettingsState(true);
+    store.state = beforeState as any;
+    api.settings.updateWebAccess.mockRejectedValue(new Error('save failed'));
+
+    await expect(store.updateWebAccess({ webSearchEnabled: false })).resolves.toBe(false);
+
+    expect(store.state).toStrictEqual(beforeState);
+    expect(store.error).toBe('save failed');
+    expect(notifications.items.at(-1)).toMatchObject({
+      kind: 'error',
+      title: '更新联网设置失败',
+      description: 'save failed'
+    });
   });
 
   it('surfaces workspace rebind failures and does not expose the previous cwd session', async () => {

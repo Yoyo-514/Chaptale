@@ -43,9 +43,12 @@ export const workspaceSettingsActions = {
 
     try {
       const state = await this.runAction('更新联网设置失败', () => getDesktopApi().settings.updateWebAccess(payload));
-      if (state) {
-        this.state = state;
+      if (!state) {
+        return false;
       }
+
+      this.state = state;
+      return true;
     } finally {
       this.isLoading = false;
     }

@@ -67,8 +67,10 @@ export function useWebAccessSettingsState() {
 
   async function save() {
     // 发送深拷贝快照，避免保存进行中继续编辑嵌套字段时改变本次 IPC payload。
-    await settingsStore.updateWebAccess(klona(draft));
-    notificationStore.success('联网能力设置已保存');
+    const saved = await settingsStore.updateWebAccess(klona(draft));
+    if (saved) {
+      notificationStore.success('联网能力设置已保存');
+    }
   }
 
   function resetToSafeDefaults() {
