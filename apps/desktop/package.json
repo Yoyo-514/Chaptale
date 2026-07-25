@@ -24,8 +24,12 @@
     "@chaptale/shared": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
+    "@node-rs/jieba": "catalog:",
     "klona": "catalog:",
+    "marked": "catalog:",
+    "minisearch": "catalog:",
     "pi-web-access": "catalog:",
+    "pinyin-pro": "catalog:",
     "radash": "catalog:",
     "typebox": "catalog:"
   },

@@ -41,7 +41,10 @@ export default defineConfig(async () => ({
           },
           build: {
             outDir: path.resolve(desktopRoot, 'dist/main'),
-            emptyOutDir: true
+            emptyOutDir: true,
+            rolldownOptions: {
+              external: ['@node-rs/jieba', '@node-rs/jieba/dict']
+            }
           }
         }
       },

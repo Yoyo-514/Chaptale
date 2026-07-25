@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { estimateTextTokens, fitTextToTokens, isTextWithinTokenLimit } from '../token-counter';
+import {
+  estimateTextTokens,
+  fitTextToTokens,
+  isTextWithinTokenLimit,
+  takeTextTailToTokenBudget,
+  takeTextToTokenBudget
+} from '../token-counter';
 
 describe('token-counter', () => {
   it('沿用 pi 的 ASCII 四字符约一 token 估算', () => {
@@ -31,5 +37,36 @@ describe('token-counter', () => {
 
   it('未超预算时保持原文逐字不变', () => {
     expect(fitTextToTokens('短文本 abc', 100)).toBe('短文本 abc');
+  });
+
+  it('按预算无损连续切片且不拆分代理对', () => {
+    const input = '林晚🙂abcdef机械师';
+    const parts: string[] = [];
+    let rest = input;
+
+    while (rest) {
+      const slice = takeTextToTokenBudget(rest, 3);
+      expect(estimateTextTokens(slice.head)).toBeLessThanOrEqual(3);
+      expect(slice.head.length).toBeGreaterThan(0);
+      expect(slice.head.endsWith('\ud83d')).toBe(false);
+      expect(slice.rest.startsWith('\ude42')).toBe(false);
+      parts.push(slice.head);
+      rest = slice.rest;
+    }
+
+    expect(parts.join('')).toBe(input);
+  });
+
+  it('零预算不消费原文', () => {
+    expect(takeTextToTokenBudget('正文', 0)).toEqual({ head: '', rest: '正文' });
+  });
+
+  it('从尾部取预算时不拆分代理对', () => {
+    const result = takeTextTailToTokenBudget('前文abcdef🙂林晚', 3);
+
+    expect(estimateTextTokens(result.tail)).toBeLessThanOrEqual(3);
+    expect(result.head + result.tail).toBe('前文abcdef🙂林晚');
+    expect(result.head.endsWith('\ud83d')).toBe(false);
+    expect(result.tail.startsWith('\ude42')).toBe(false);
   });
 });

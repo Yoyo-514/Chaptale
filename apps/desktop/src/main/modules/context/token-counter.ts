@@ -24,6 +24,20 @@ export function isTextWithinTokenLimit(text: string, tokenLimit: number): boolea
   return estimateTextTokens(text) <= tokenLimit;
 }
 
+/** 从头部消费预算内文本，确保连续切片可无损还原原文。 */
+export function takeTextToTokenBudget(text: string, tokenBudget: number): { head: string; rest: string } {
+  const budget = Math.max(0, Math.floor(tokenBudget));
+  const head = take(text, budget, false);
+  return { head, rest: text.slice(head.length) };
+}
+
+/** 从尾部消费预算内文本，确保 overlap 不会拆分 Unicode 代理对。 */
+export function takeTextTailToTokenBudget(text: string, tokenBudget: number): { head: string; tail: string } {
+  const budget = Math.max(0, Math.floor(tokenBudget));
+  const tail = take(text, budget, true);
+  return { head: text.slice(0, text.length - tail.length), tail };
+}
+
 /** 超预算时保留首尾；首部通常含原始目标，尾部通常含最近决策。 */
 export function fitTextToTokens(text: string, tokenBudget: number): string {
   const budget = Math.max(0, Math.floor(tokenBudget));

@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { createCompactExt } from '../integrations/pi/agent/compact-extension';
 import { PiAgentService } from '../integrations/pi/agent/service';
 import { createDefaultPersonaRegistry, piParseFrontmatter } from '../integrations/pi/agent/session-factory';
@@ -15,6 +17,8 @@ import type { PermissionBroker } from '../modules/permissions/broker';
 import type { PermissionRuleStore } from '../modules/permissions/rule-store';
 import { PromptFileService } from '../modules/prompts/file-service';
 import { AgentRunStore } from '../modules/runs/store';
+import { IndexService } from '../modules/search/index-service';
+import { WorkspaceIndexSourceResolver } from '../modules/search/source-resolver';
 import { SettingsService } from '../modules/settings/service';
 import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
 import { createDelegateTool } from '../modules/subagent/delegate-tool';
@@ -34,6 +38,7 @@ export type AppContext = {
   todoStore: TodoStore;
   subagentPool: SubagentPool;
   memoryPendingStore: MemoryPendingStore;
+  indexService: IndexService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
 };
@@ -89,6 +94,11 @@ export function createAppContext(): AppContext {
     resolveCwd: () => settingsService.getCurrentCwd(),
     parseFrontmatter: piParseFrontmatter
   });
+  const indexService = new IndexService({
+    resolver: new WorkspaceIndexSourceResolver(),
+    parseFrontmatter: piParseFrontmatter,
+    cacheRoot: path.join(settingsService.rootDir, 'cache')
+  });
 
   // delegate 工具依赖 taskRunner，而 taskRunner 又依赖会话工厂；
   // 通过工厂的额外工具注册点 late-bind，避免构造期循环。
@@ -126,6 +136,7 @@ export function createAppContext(): AppContext {
     todoStore: agentRuntime.todoStore,
     subagentPool,
     memoryPendingStore,
+    indexService,
     permissionBroker,
     permissionRuleStore
   };
