@@ -17,7 +17,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { unique } from 'radash';
 
-import type { RiskLevel } from '@chaptale/shared';
+import type { PersonaDefinition, RiskLevel } from '@chaptale/shared';
 
 import { MEMORY_PROTOCOL } from '../../../modules/memory/protocol';
 import type { PermissionBroker } from '../../../modules/permissions/broker';
@@ -25,12 +25,12 @@ import type { PermissionRuleStore } from '../../../modules/permissions/rule-stor
 import { builtinCompanionBody, builtinPersonaSources } from '../../../modules/personas/builtin';
 import { PersonaRegistry } from '../../../modules/personas/registry';
 import type { TaskPersonaSpec } from '../../../modules/personas/task-spec';
+import { resolveAllowedPersonaTools } from '../../../modules/personas/tool-access';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
 import type { SettingsService } from '../../../modules/settings/service';
 import { TODO_PROTOCOL } from '../../../modules/todo/protocol';
 import type { TodoStore } from '../../../modules/todo/store';
 import type { ToolDefinition } from '../../../modules/tools/definition';
-import { buildChatSessionTools } from '../../../modules/tools/tool-registry';
 import type { PiModelService } from '../models/service';
 import { createPermissionGateExtension } from '../permissions/gate-extension';
 import type { SkillsProvider } from '../skills/provider';
@@ -66,11 +66,23 @@ export function createDefaultPersonaRegistry(settingsService: SettingsService): 
  */
 export class PiAgentSessionFactory {
   /** 会话级额外工具构建器：由 app 组装层注入（如 delegate），解开与 TaskRunner 的构造环。 */
-  private extraChatTools?: (sessionId: string) => Promise<ToolDefinition[]>;
+  private extraChatTools?: (context: {
+    sessionId: string;
+    cwd: string;
+    persona: PersonaDefinition;
+  }) => Promise<ToolDefinition[]>;
+  private extraTaskTools?: (spec: TaskPersonaSpec, cwd: string) => Promise<ToolDefinition[]>;
 
   /** 注册额外的 chat 会话工具构建器；仅对注册后新建的会话生效。 */
-  setExtraChatTools(builder: (sessionId: string) => Promise<ToolDefinition[]>): void {
+  setExtraChatTools(
+    builder: (context: { sessionId: string; cwd: string; persona: PersonaDefinition }) => Promise<ToolDefinition[]>
+  ): void {
     this.extraChatTools = builder;
+  }
+
+  /** task 自定义工具仍受 spec.tools 白名单约束，builder 不能越权扩大 persona 能力。 */
+  setExtraTaskTools(builder: (spec: TaskPersonaSpec, cwd: string) => Promise<ToolDefinition[]>): void {
+    this.extraTaskTools = builder;
   }
 
   private compactExt?: (sessionId: string, cwd: string) => InlineExtension;
@@ -96,17 +108,19 @@ export class PiAgentSessionFactory {
   }
 
   async create(sessionId: string): Promise<AgentSession> {
-    const { settingsService, modelService, skillsProvider, todoStore, permissionBroker, permissionRuleStore } =
-      this.options;
+    const { settingsService, modelService, skillsProvider, permissionBroker, permissionRuleStore } = this.options;
     const target = await findSessionById(settingsService, sessionId);
 
     if (!target) {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
-    const cwd = target.cwd || (await settingsService.getCurrentCwd());
-    // 会话 cwd 保持历史文件语境；Slash 菜单、skills 与 persona 明确跟随当前工作区。
-    const skillsCwd = await settingsService.getCurrentCwd();
+    if (!target.cwd?.trim()) {
+      throw new Error(`会话缺少 workspace，无法安全恢复：${sessionId}`);
+    }
+    const cwd = target.cwd;
+    // persona、skills 与工具授权绑定会话 workspace；UI 切换工作区不能改写历史会话的安全上下文。
+    const skillsCwd = cwd;
     // 主对话固定 companion persona；文件缺失/非法时回退内置默认值，不阻塞会话创建。
     const companion = await this.getPersonaRegistry().get(skillsCwd, 'companion');
     const personaBody = companion?.body ?? builtinCompanionBody;
@@ -122,10 +136,14 @@ export class PiAgentSessionFactory {
     // 同时只定向加载白名单 pi package，避免把 pi CLI 的 coding 行为带进创作会话。
     // 会话级自定义工具：sessionId 在此已知，直接闭包绑定，todo 清单随会话隔离。
     // 构建于 loader 之前：权限闸门需要各自定义工具的风险分级。
-    const chatTools = [
-      ...buildChatSessionTools({ todoStore, getSessionId: () => sessionId }),
-      ...(this.extraChatTools ? await this.extraChatTools(sessionId) : [])
-    ];
+    // 内置 chat persona 省略 tools = 使用 registry 默认全集；显式声明时才作为收窄白名单。
+    const allowedTools = companion?.tools ? new Set(resolveAllowedPersonaTools(companion)) : undefined;
+    const registeredTools =
+      companion && this.extraChatTools
+        ? await this.extraChatTools({ sessionId, cwd: skillsCwd, persona: companion })
+        : [];
+    const chatTools = registeredTools.filter(tool => !allowedTools || allowedTools.has(tool.name));
+    const enabledPiTools = getEnabledToolNames().filter(tool => !allowedTools || allowedTools.has(tool));
     const customTools = chatTools.map(toPiToolDefinition);
     const customRiskLevels = Object.fromEntries(
       chatTools.map(tool => [tool.name, tool.riskLevel ?? 'mutating'])
@@ -172,9 +190,8 @@ export class PiAgentSessionFactory {
       sessionManager,
       settingsManager,
       resourceLoader,
-      // 创作场景：启用显式白名单工具。read/grep/find/ls/write/edit 用于工作区与文件能力；bash 暂不开放。
-      // 白名单为全量控制语义，自定义工具名需一并列入才会启用。
-      tools: [...getEnabledToolNames(), ...customTools.map(tool => tool.name)],
+      // persona.tools 是全量能力边界；Pi 内置、package 与自定义工具统一求交，未知工具不会启用。
+      tools: [...enabledPiTools, ...customTools.map(tool => tool.name)],
       customTools
     });
 
@@ -189,8 +206,8 @@ export class PiAgentSessionFactory {
    * - 逐次新建不缓存，工具 schema 天然每次重算；
    * - 系统提示词仅含 persona 正文，不受用户 SYSTEM.md/APPEND_SYSTEM.md 与 skills 影响
    *   （task 行为由 persona 定义，不被全局自定义劫持）；
-   *   memory 协议也不注入——task 会话零工具零记忆通道，协议只会误导模型；
-   * - 工具为 spec 白名单子集（[] = 纯分析）；模型按 spec 偏好解析，缺省跟随全局默认。
+   *   memory 写协议不注入；只读检索由显式工具 schema 自描述，避免给纯分析任务加入无关协议；
+   * - 工具为 spec 白名单子集（[] = 纯分析），自定义工具也不能越过该白名单；模型按 spec 偏好解析，缺省跟随全局默认。
    */
   async createTaskSession(spec: TaskPersonaSpec, cwdOverride?: string): Promise<AgentSession> {
     const { settingsService, modelService, permissionBroker, permissionRuleStore } = this.options;
@@ -198,6 +215,14 @@ export class PiAgentSessionFactory {
     await fs.mkdir(settingsService.taskSessionsDir, { recursive: true });
     const sessionManager = SessionManager.create(cwd, settingsService.taskSessionsDir);
     const settingsManager = SettingsManager.create(cwd, settingsService.agentDir);
+    const declaredTools = new Set(spec.tools);
+    const taskTools = (this.extraTaskTools ? await this.extraTaskTools(spec, cwd) : []).filter(tool =>
+      declaredTools.has(tool.name)
+    );
+    const customTools = taskTools.map(toPiToolDefinition);
+    const customRiskLevels = Object.fromEntries(
+      taskTools.map(tool => [tool.name, tool.riskLevel ?? 'mutating'])
+    ) as Record<string, RiskLevel>;
 
     const resourceLoader = new DefaultResourceLoader({
       cwd,
@@ -215,7 +240,7 @@ export class PiAgentSessionFactory {
           sessionId: `task-${Date.now()}`,
           broker: permissionBroker,
           ruleStore: permissionRuleStore,
-          customRiskLevels: {},
+          customRiskLevels,
           interactive: false
         }),
         createTaskNoCompactExt()
@@ -233,6 +258,7 @@ export class PiAgentSessionFactory {
       settingsManager,
       resourceLoader,
       tools: spec.tools,
+      customTools,
       ...(spec.tools.length === 0 ? { noTools: 'all' as const } : {})
     });
 

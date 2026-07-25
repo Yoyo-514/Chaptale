@@ -3,11 +3,13 @@ import { promises as fs, type Dirent } from 'node:fs';
 import path from 'node:path';
 
 import type { FrontmatterParser } from '../frontmatter/types';
+import { throwIfSearchAborted } from './abort';
 import type { IndexDiagnostic, IndexSourceDocument, IndexSourceFile, IndexSourceRoot } from './types';
 
 export type DiscoverIndexSourceFilesOptions = {
   cwd: string;
   roots: readonly IndexSourceRoot[];
+  signal?: AbortSignal;
 };
 
 export type DiscoverIndexSourceFilesResult = {
@@ -20,6 +22,7 @@ export type ReadIndexSourceDocumentsOptions = {
   files: readonly IndexSourceFile[];
   parseFrontmatter: FrontmatterParser;
   readFile?: (filePath: string) => Promise<string>;
+  signal?: AbortSignal;
 };
 
 export type ReadIndexSourceDocumentsResult = {
@@ -48,9 +51,12 @@ export async function discoverIndexSourceFiles(
   const cwd = path.resolve(options.cwd);
   const diagnostics: IndexDiagnostic[] = [];
   const files: IndexSourceFile[] = [];
+  const workspaceRealPath = await fs.realpath(cwd).catch(() => cwd);
 
   for (const root of options.roots) {
-    for (const absolutePath of await collectMarkdownFiles(root.absolutePath, diagnostics, root.role)) {
+    throwIfSearchAborted(options.signal);
+    if (!(await isSafeSourceRoot(workspaceRealPath, root, diagnostics))) continue;
+    for (const absolutePath of await collectMarkdownFiles(root.absolutePath, diagnostics, root.role, options.signal)) {
       const sourcePath = toWorkspacePath(cwd, absolutePath);
       if (isConflictCopy(path.basename(absolutePath))) {
         diagnostics.push({ code: 'conflict-copy-skipped', message: '已跳过同步冲突副本', sourcePath, role: root.role });
@@ -89,6 +95,7 @@ export async function readIndexSourceDocuments(
   const readFile = options.readFile ?? ((filePath: string) => fs.readFile(filePath, 'utf8'));
 
   for (const file of options.files) {
+    throwIfSearchAborted(options.signal);
     let raw: string;
     try {
       raw = await readFile(file.absolutePath);
@@ -101,6 +108,7 @@ export async function readIndexSourceDocuments(
       });
       continue;
     }
+    throwIfSearchAborted(options.signal);
 
     // frontmatter 损坏时仍索引原文；缓存是辅助能力，不应让一份坏元数据隐藏整篇正文。
     let body = raw;
@@ -144,6 +152,7 @@ export async function scanIndexSources(options: ScanIndexSourcesOptions): Promis
   const read = await readIndexSourceDocuments({
     files: discovered.files,
     parseFrontmatter: options.parseFrontmatter,
+    signal: options.signal,
     ...(options.readFile ? { readFile: options.readFile } : {})
   });
   return {
@@ -153,11 +162,52 @@ export async function scanIndexSources(options: ScanIndexSourcesOptions): Promis
   };
 }
 
+async function isSafeSourceRoot(
+  workspaceRealPath: string,
+  root: IndexSourceRoot,
+  diagnostics: IndexDiagnostic[]
+): Promise<boolean> {
+  let stat: Awaited<ReturnType<typeof fs.lstat>>;
+  try {
+    stat = await fs.lstat(root.absolutePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      diagnostics.push({ code: 'source-directory-failed', message: toMessage(error), role: root.role });
+    }
+    return false;
+  }
+
+  if (stat.isSymbolicLink()) {
+    diagnostics.push({ code: 'root-symlink-skipped', message: '已跳过符号链接索引根目录', role: root.role });
+    return false;
+  }
+
+  try {
+    const rootRealPath = await fs.realpath(root.absolutePath);
+    if (!isWithin(workspaceRealPath, rootRealPath)) {
+      diagnostics.push({ code: 'source-outside-workspace', message: '索引根目录越过 workspace', role: root.role });
+      return false;
+    }
+  } catch (error) {
+    diagnostics.push({ code: 'source-directory-failed', message: toMessage(error), role: root.role });
+    return false;
+  }
+
+  return true;
+}
+
+function isWithin(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
 async function collectMarkdownFiles(
   rootPath: string,
   diagnostics: IndexDiagnostic[],
-  role: IndexSourceRoot['role']
+  role: IndexSourceRoot['role'],
+  signal?: AbortSignal
 ): Promise<string[]> {
+  throwIfSearchAborted(signal);
   const files: string[] = [];
   let entries: Dirent<string>[];
   try {
@@ -170,10 +220,11 @@ async function collectMarkdownFiles(
   }
 
   for (const entry of entries.toSorted((left, right) => left.name.localeCompare(right.name, 'zh-CN'))) {
+    throwIfSearchAborted(signal);
     // 不跟随 symlink，既防 workspace 逃逸，也避免目录环。
     if (entry.isSymbolicLink()) continue;
     const entryPath = path.join(rootPath, entry.name);
-    if (entry.isDirectory()) files.push(...(await collectMarkdownFiles(entryPath, diagnostics, role)));
+    if (entry.isDirectory()) files.push(...(await collectMarkdownFiles(entryPath, diagnostics, role, signal)));
     else if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.md') files.push(entryPath);
   }
   return files;

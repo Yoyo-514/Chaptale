@@ -3,6 +3,11 @@ id: continuity-reviewer
 name: 连贯性审查
 type: review
 execution: task
+tools: []
+memory:
+  read: [canon, summaries]
+  write: []
+  propose: []
 output: continuity-issues
 enabled: true
 ---

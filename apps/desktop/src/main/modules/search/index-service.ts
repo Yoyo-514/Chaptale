@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import type { FrontmatterParser } from '../frontmatter/types';
 import { toWorkspaceSessionDirName } from '../settings/workspace-session-directory';
+import { waitForSearch } from './abort';
 import { IndexCacheStore, type IndexCacheEnvelope, type IndexCachePort } from './cache-store';
 import { createSearchTokenizer, type SearchTokenizerResult } from './jieba-tokenizer';
 import { KeywordIndex } from './keyword-index';
@@ -64,7 +65,8 @@ export class IndexService {
 
   async search(cwd: string, query: string, options: IndexSearchOptions = {}): Promise<IndexSearchResult[]> {
     if (!query.trim()) return [];
-    return (await this.ensureState(cwd)).index.search(query, options);
+    const state = await waitForSearch(this.ensureState(cwd), options.signal);
+    return state.index.search(query, options);
   }
 
   async getChunk(cwd: string, chunkId: string): Promise<IndexChunk | undefined> {

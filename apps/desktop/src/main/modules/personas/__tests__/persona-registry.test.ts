@@ -40,8 +40,20 @@ describe('PersonaRegistry', () => {
 
     expect(diagnostics).toEqual([]);
     const companion = personas.find(persona => persona.id === 'companion');
-    expect(companion).toMatchObject({ source: 'builtin', type: 'chat', execution: 'chat' });
+    expect(companion).toMatchObject({
+      source: 'builtin',
+      type: 'chat',
+      execution: 'chat',
+      memory: { read: ['canon', 'notes', 'summaries'], write: ['notes'], propose: ['canon'] }
+    });
+    expect(companion).not.toHaveProperty('tools');
     expect(companion?.body).toContain('创作辅助伙伴');
+
+    const reviewer = personas.find(persona => persona.id === 'continuity-reviewer');
+    expect(reviewer).toMatchObject({
+      tools: [],
+      memory: { read: ['canon', 'summaries'], write: [], propose: [] }
+    });
   });
 
   it('loads the builtin memory-distiller persona for context compaction', async () => {

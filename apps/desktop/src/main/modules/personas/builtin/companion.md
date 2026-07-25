@@ -3,6 +3,10 @@ id: companion
 name: 创作伙伴
 type: chat
 execution: chat
+memory:
+  read: [canon, notes, summaries]
+  write: [notes]
+  propose: [canon]
 enabled: true
 ---
 

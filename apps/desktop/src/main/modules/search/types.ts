@@ -62,6 +62,8 @@ export type IndexChunk = {
 export type IndexSearchOptions = {
   domains?: IndexDomain[];
   limit?: number;
+  /** 单个调用方可提前停止等待；共享索引构建可在后台完成供后续查询复用。 */
+  signal?: AbortSignal;
 };
 
 export type IndexSearchResult = {

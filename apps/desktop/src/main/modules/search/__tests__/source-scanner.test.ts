@@ -81,6 +81,24 @@ describe('scanIndexSources', () => {
     expect(read.documents[0].title).toBe('林晚');
   });
 
+  it('拒绝指向 workspace 外部的根目录符号链接', async () => {
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'chaptale-index-outside-'));
+    try {
+      await fs.writeFile(path.join(outside, '秘密.md'), '工作区外内容', 'utf8');
+      await fs.rm(root.absolutePath, { recursive: true, force: true });
+      await fs.symlink(outside, root.absolutePath, process.platform === 'win32' ? 'junction' : 'dir');
+
+      const result = await discoverIndexSourceFiles({ cwd, roots: [root] });
+
+      expect(result.files).toEqual([]);
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({ code: expect.stringMatching(/root-symlink-skipped|source-outside-workspace/) })
+      );
+    } finally {
+      await fs.rm(outside, { recursive: true, force: true });
+    }
+  });
+
   it('单文件读取失败时继续扫描并报告诊断', async () => {
     await fs.writeFile(path.join(root.absolutePath, '坏文件.md'), 'bad', 'utf8');
     await fs.writeFile(path.join(root.absolutePath, '好文件.md'), 'good', 'utf8');

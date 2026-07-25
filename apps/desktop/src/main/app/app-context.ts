@@ -12,19 +12,20 @@ import { CompactCoord } from '../modules/memory/compact-coord';
 import { CompactionSummaryStore } from '../modules/memory/compaction-summary-store';
 import { MemoryPendingStore } from '../modules/memory/pending-store';
 import { MemoryService } from '../modules/memory/service';
-import { createMemoryProposeTool, createMemorySaveTool } from '../modules/memory/tools';
 import type { PermissionBroker } from '../modules/permissions/broker';
 import type { PermissionRuleStore } from '../modules/permissions/rule-store';
 import { PromptFileService } from '../modules/prompts/file-service';
 import { AgentRunStore } from '../modules/runs/store';
 import { IndexService } from '../modules/search/index-service';
+import { LiteralSearchProvider } from '../modules/search/literal-search-provider';
+import { MemorySearchService } from '../modules/search/memory-search-service';
 import { WorkspaceIndexSourceResolver } from '../modules/search/source-resolver';
 import { SettingsService } from '../modules/settings/service';
 import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
-import { createDelegateTool } from '../modules/subagent/delegate-tool';
 import { SubagentPool } from '../modules/subagent/pool';
 import { TaskService } from '../modules/tasks/service';
 import type { TodoStore } from '../modules/todo/store';
+import { buildChatSessionTools, buildTaskSessionTools } from '../modules/tools/tool-registry';
 
 export type AppContext = {
   settingsService: SettingsService;
@@ -94,35 +95,34 @@ export function createAppContext(): AppContext {
     resolveCwd: () => settingsService.getCurrentCwd(),
     parseFrontmatter: piParseFrontmatter
   });
+  const indexSourceResolver = new WorkspaceIndexSourceResolver();
   const indexService = new IndexService({
-    resolver: new WorkspaceIndexSourceResolver(),
+    resolver: indexSourceResolver,
     parseFrontmatter: piParseFrontmatter,
     cacheRoot: path.join(settingsService.rootDir, 'cache')
   });
-
-  // delegate 工具依赖 taskRunner，而 taskRunner 又依赖会话工厂；
-  // 通过工厂的额外工具注册点 late-bind，避免构造期循环。
-  agentRuntime.sessionFactory.setExtraChatTools(async sessionId => {
-    const resolveCwd = () => settingsService.getCurrentCwd();
-    // persona.memory 权限矩阵在工具组装时执行：缺省（未声明）按协议默认全开，
-    // 显式声明时按矩阵收窄——write 含 notes 才挂笔记工具，propose 非空才挂提议工具。
-    const memoryMatrix = (await personaRegistry.get(await resolveCwd(), 'companion'))?.memory;
-    const canSaveNotes = !memoryMatrix || (memoryMatrix.write ?? []).includes('notes');
-    const canPropose = !memoryMatrix || (memoryMatrix.propose ?? []).length > 0;
-    const memoryToolContext = { resolveCwd, getSessionId: () => sessionId };
-
-    return [
-      await createDelegateTool({
-        pool: subagentPool,
-        taskRunner,
-        personaRegistry,
-        resolveCwd,
-        sessionId
-      }),
-      ...(canSaveNotes ? [createMemorySaveTool(memoryToolContext)] : []),
-      ...(canPropose ? [createMemoryProposeTool({ ...memoryToolContext, pendingStore: memoryPendingStore })] : [])
-    ];
+  const memorySearchService = new MemorySearchService({
+    indexSearch: (cwd, query, options) => indexService.search(cwd, query, options),
+    literalSearch: new LiteralSearchProvider({ resolver: indexSourceResolver, parseFrontmatter: piParseFrontmatter }),
+    sourceResolver: indexSourceResolver
   });
+
+  // 工具注册统一由 modules/tools 管理；late-bind 只注入运行时依赖，解开 TaskRunner 构造环。
+  agentRuntime.sessionFactory.setExtraChatTools(context =>
+    buildChatSessionTools({
+      ...context,
+      todoStore: agentRuntime.todoStore,
+      getSessionId: () => context.sessionId,
+      subagentPool,
+      taskRunner,
+      personaRegistry,
+      memoryPendingStore,
+      memorySearchService
+    })
+  );
+  agentRuntime.sessionFactory.setExtraTaskTools((spec, cwd) =>
+    buildTaskSessionTools({ spec, cwd, memorySearchService })
+  );
 
   return {
     settingsService,
