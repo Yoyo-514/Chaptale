@@ -96,11 +96,9 @@ describe('PiAgentSessionFactory', () => {
 
     const bound = await factory.create('session-1');
 
-    expect(bound.ctx).toEqual({
-      sessionId: 'session-1',
-      cwd: workspaceDir,
-      scope: 'workspace'
-    });
+    expect(bound.ctx.sessionId).toBe('session-1');
+    expect(bound.ctx.cwd).toBe(workspaceDir);
+    expect(bound.ctx.scope).toBe('workspace');
     expect(bound.session).toBe(session);
     expect(modelService.getModelRuntime).toHaveBeenCalledOnce();
     expect(sdkMocks.createAgentSession).toHaveBeenCalledWith(
@@ -114,6 +112,42 @@ describe('PiAgentSessionFactory', () => {
     expect(sdkMocks.createAgentSession.mock.calls[0]?.[0]).not.toHaveProperty('modelRegistry');
     expect(buildCompactExt).toHaveBeenCalledWith('session-1', workspaceDir);
     expect((sdkMocks.loaderOptions as any).extensionFactories).toContain(compactExt);
+  });
+
+  it('binds global session scope from sessions/global', async () => {
+    const sessionsRootDir = path.join(rootDir, 'sessions');
+    const workspaceDir = path.join(rootDir, 'workspace-a');
+    const sessionDir = path.join(sessionsRootDir, 'global');
+    const sessionPath = path.join(sessionDir, 'session-1.jsonl');
+    await mkdir(sessionDir, { recursive: true });
+
+    sdkMocks.listAll.mockResolvedValue([{ id: 'session-1', cwd: workspaceDir, path: sessionPath }]);
+    sdkMocks.open.mockReturnValue({ id: 'manager' });
+    sdkMocks.settingsCreate.mockReturnValue({ id: 'settings' });
+    sdkMocks.createAgentSession.mockResolvedValue({ session: { id: 'agent-session' } });
+
+    const settingsService = {
+      rootDir,
+      agentDir: path.join(rootDir, 'agent'),
+      sessionsRootDir,
+      getCurrentSessionDir: vi.fn(async () => sessionDir),
+      getCurrentCwd: vi.fn(async () => rootDir)
+    };
+    const factory = new PiAgentSessionFactory({
+      settingsService: settingsService as any,
+      modelService: { getModelRuntime: vi.fn(async () => ({ id: 'runtime' })) } as any,
+      skillsProvider: { load: vi.fn(() => ({ skills: [], diagnostics: [] })) } as any,
+      todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any,
+      permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
+      permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any
+    });
+
+    const bound = await factory.create('session-1');
+
+    expect(bound.ctx.sessionId).toBe('session-1');
+    expect(bound.ctx.cwd).toBe(workspaceDir);
+    expect(bound.ctx.scope).toBe('global');
+    expect(bound.session).toEqual(expect.objectContaining({ id: 'agent-session' }));
   });
 
   it('applies the companion whitelist and binds security context to the session workspace', async () => {
