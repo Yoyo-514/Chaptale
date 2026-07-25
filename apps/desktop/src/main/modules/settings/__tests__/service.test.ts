@@ -94,6 +94,7 @@ describe('SettingsService', () => {
     const state = await service.update({ storage: { mode: 'workspace', workspacePath: undefined } });
 
     expect(state.settings.storage.mode).toBe('global');
+    expect(state.paths.currentCwd).toBe(path.join(service.agentDir, 'global'));
     expect(state.paths.effectiveSessionDir).toBe(path.join(service.sessionsRootDir, 'global'));
   });
 
@@ -106,6 +107,7 @@ describe('SettingsService', () => {
     expect(await service.getCurrentCwd()).toBe(workspacePath);
     expect(await service.getStorageContext()).toEqual({ storageMode: 'workspace', workspacePath });
     expect(await service.getCurrentSessionDir()).toBe(state.paths.effectiveSessionDir);
+    expect(state.paths.currentCwd).toBe(workspacePath);
     expect(state.paths.effectiveSessionDir).toContain('Story Workspace-');
   });
 

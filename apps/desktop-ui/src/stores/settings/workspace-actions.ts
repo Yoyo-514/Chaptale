@@ -1,5 +1,10 @@
-import type { UpdateChaptaleSettingsPayload, UpdatePiWebAccessSettingsPayload } from '@chaptale/ipc-contract';
+import type {
+  ChaptaleSettingsState,
+  UpdateChaptaleSettingsPayload,
+  UpdatePiWebAccessSettingsPayload
+} from '@chaptale/ipc-contract';
 
+import { useSessionStore } from '../session';
 import { getDesktopApi } from '../utils/desktop-api';
 import type { SettingsStoreContext } from './types';
 
@@ -25,6 +30,7 @@ export const workspaceSettingsActions = {
       const state = await this.runAction('更新设置失败', () => getDesktopApi().settings.update(payload));
       if (state) {
         this.state = state;
+        await bindSessionCwd(state);
       }
     } finally {
       this.isLoading = false;
@@ -51,6 +57,7 @@ export const workspaceSettingsActions = {
       const result = await this.runAction('选择工作区失败', () => getDesktopApi().settings.selectWorkspaceDir());
       if (result && !result.canceled && result.state) {
         this.state = result.state;
+        await bindSessionCwd(result.state);
       }
     } finally {
       this.isLoading = false;
@@ -65,3 +72,8 @@ export const workspaceSettingsActions = {
     await this.runAction('打开配置目录失败', () => getDesktopApi().settings.openConfigDir());
   }
 };
+
+async function bindSessionCwd(state: ChaptaleSettingsState) {
+  // 只接受 Main 返回的 currentCwd；Renderer 不自行拼路径，避免 workspace 切换后误绑定旧会话。
+  await useSessionStore().bindCwd(state.paths.currentCwd);
+}

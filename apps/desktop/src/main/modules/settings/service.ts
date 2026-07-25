@@ -134,12 +134,7 @@ export class SettingsService {
 
   async getCurrentCwd() {
     const settings = await this.readSettings();
-
-    if (settings.storage.mode === 'workspace' && settings.storage.workspacePath) {
-      return settings.storage.workspacePath;
-    }
-
-    return path.join(this.agentDir, 'global');
+    return this.getCurrentCwdFromStorage(settings.storage);
   }
 
   async getStorageContext() {
@@ -191,9 +186,19 @@ export class SettingsService {
         piAuthPath: this.piAuthPath,
         piWebAccessConfigPath: this.piWebAccessConfigPath,
         sessionsRootDir: this.sessionsRootDir,
-        effectiveSessionDir: this.getSessionDir(settings.storage)
+        effectiveSessionDir: this.getSessionDir(settings.storage),
+        currentCwd: this.getCurrentCwdFromStorage(settings.storage)
       }
     };
+  }
+
+  /** currentCwd 是 Renderer 绑定会话的权威来源；workspace 路径只在 Main 侧解析，避免前端自行猜测。 */
+  private getCurrentCwdFromStorage(storage: ChaptaleStorageSettings) {
+    if (storage.mode === 'workspace' && storage.workspacePath) {
+      return storage.workspacePath;
+    }
+
+    return path.join(this.agentDir, 'global');
   }
 
   private async readWebAccessConfig(): Promise<UpdatePiWebAccessSettingsPayload> {

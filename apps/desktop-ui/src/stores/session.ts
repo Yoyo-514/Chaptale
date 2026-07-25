@@ -18,6 +18,8 @@ export const useSessionStore = defineStore('session', {
   state: () => ({
     sessions: [] as ChaptaleSessionListItem[],
     currentSessionId: '',
+    /** 当前 workspace 的权威 cwd，由 Settings Main 返回；为空时沿用全量历史选择。 */
+    activeCwd: '',
     selectionRestored: false,
     storageDebugInfo: undefined as ChaptaleSessionStorageDebugInfo | undefined,
     isLoading: false,
@@ -25,7 +27,12 @@ export const useSessionStore = defineStore('session', {
   }),
   getters: {
     currentSession(state) {
-      return state.sessions.find(session => session.id === state.currentSessionId);
+      return state.sessions.find(
+        session => session.id === state.currentSessionId && (!state.activeCwd || session.cwd === state.activeCwd)
+      );
+    },
+    cwdSessions(state) {
+      return state.activeCwd ? state.sessions.filter(session => session.cwd === state.activeCwd) : state.sessions;
     }
   },
   actions: {
@@ -36,6 +43,7 @@ export const useSessionStore = defineStore('session', {
       try {
         const desktopApi = getDesktopApi();
         this.sessions = await desktopApi.session.list();
+        const candidates = this.cwdSessions;
 
         if (!this.selectionRestored) {
           // 首次加载才读取持久化选择；之后刷新列表必须保留用户在当前运行期刚完成的切换。
@@ -44,35 +52,53 @@ export const useSessionStore = defineStore('session', {
             .then(state => state.settings.lastSessionId ?? '')
             .catch(() => '');
           const candidateId = this.currentSessionId || persistedSessionId;
-          this.currentSessionId = this.sessions.some(session => session.id === candidateId)
+          this.currentSessionId = candidates.some(session => session.id === candidateId)
             ? candidateId
-            : (this.sessions[0]?.id ?? '');
+            : (candidates[0]?.id ?? '');
           this.selectionRestored = true;
 
           if (this.currentSessionId !== persistedSessionId) {
             await this.persistCurrentSession();
           }
-        } else if (!this.sessions.some(session => session.id === this.currentSessionId)) {
-          // 当前会话可能被批量删除或由外部清理，回退到最新会话并同步偏好。
-          this.currentSessionId = this.sessions[0]?.id ?? '';
+        } else if (!candidates.some(session => session.id === this.currentSessionId)) {
+          // 当前会话可能被批量删除、外部清理或 workspace 切换隔离，必须只回退到当前 cwd 内的候选。
+          this.currentSessionId = candidates[0]?.id ?? '';
           await this.persistCurrentSession();
         }
+
+        return true;
       } catch (error) {
         this.error = toErrorMessage(error);
+        return false;
       } finally {
         this.isLoading = false;
       }
     },
 
     async ensureActiveSession() {
-      await this.loadSessions();
+      const loaded = await this.loadSessions();
+      if (!loaded) {
+        // 加载失败与成功空列表必须区分；失败时创建新会话会把真实错误伪装成空状态。
+        throw new Error(this.error || '会话列表加载失败');
+      }
 
-      if (this.currentSessionId) {
+      if (this.currentSessionId && this.currentSession) {
         return this.currentSessionId;
       }
 
       const session = await this.createSession({ name: '新会话' });
       return session.id;
+    },
+
+    async bindCwd(cwd: string) {
+      const previousCwd = this.activeCwd;
+      this.activeCwd = cwd;
+      const loaded = await this.loadSessions();
+
+      if (!loaded) {
+        this.activeCwd = previousCwd;
+        throw new Error(this.error || '会话列表加载失败');
+      }
     },
 
     async createSession(options: CreateSessionOptions = {}) {

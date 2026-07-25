@@ -130,6 +130,62 @@ describe('session store', () => {
     expect(sessionId).toBe('created');
   });
 
+  it('does not create a fallback session when loading sessions fails', async () => {
+    const api = installDesktopApi({
+      session: {
+        ...installDesktopApi().session,
+        list: vi.fn().mockRejectedValue(new Error('list failed'))
+      }
+    });
+    const store = useSessionStore();
+
+    await expect(store.ensureActiveSession()).rejects.toThrow('list failed');
+
+    expect(api.session.create).not.toHaveBeenCalled();
+    expect(store.error).toBe('list failed');
+  });
+
+  it('rebinds the current session to the selected workspace cwd', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([
+      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
+      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+    ]);
+    const store = useSessionStore();
+    store.currentSessionId = 'session-a';
+
+    await store.bindCwd(workspaceB);
+
+    expect(store.activeCwd).toBe(workspaceB);
+    expect(store.currentSessionId).toBe('session-b');
+    expect(store.currentSession?.cwd).toBe(workspaceB);
+  });
+
+  it('clears the current session for a workspace with no sessions and creates only on demand', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const api = installDesktopApi();
+    api.session.list
+      .mockResolvedValueOnce([createSession('session-a', { cwd: workspaceA, scope: 'workspace' })])
+      .mockResolvedValueOnce([createSession('session-a', { cwd: workspaceA, scope: 'workspace' })])
+      .mockResolvedValueOnce([createSession('created', { cwd: workspaceB, scope: 'workspace' })]);
+    api.session.create.mockResolvedValue(createSession('created', { cwd: workspaceB, scope: 'workspace' }));
+    const store = useSessionStore();
+    store.currentSessionId = 'session-a';
+
+    await store.bindCwd(workspaceB);
+
+    expect(store.currentSessionId).toBe('');
+    expect(api.session.create).not.toHaveBeenCalled();
+
+    const sessionId = await store.ensureActiveSession();
+
+    expect(api.session.create).toHaveBeenCalledWith({ name: '新会话' });
+    expect(sessionId).toBe('created');
+  });
+
   it('deletes one or many sessions and moves selection away from deleted current session', async () => {
     const api = installDesktopApi();
     const store = useSessionStore();

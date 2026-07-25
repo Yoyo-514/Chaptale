@@ -2,13 +2,18 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationStore } from '../notification';
+import { useSessionStore } from '../session';
 import { useSettingsStore } from '../settings';
 
-function createSettingsState(webSearchEnabled = true) {
+function createSettingsState(
+  webSearchEnabled = true,
+  currentCwd = 'agent/global',
+  storage: { mode: 'global' | 'workspace'; workspacePath?: string } = { mode: 'global' }
+) {
   return {
     settings: {
       version: 1,
-      storage: { mode: 'global' }
+      storage
     },
     webAccess: {
       webSearchEnabled,
@@ -30,7 +35,8 @@ function createSettingsState(webSearchEnabled = true) {
       piAuthPath: 'agent/auth.json',
       piWebAccessConfigPath: 'agent/web-search.json',
       sessionsRootDir: 'agent/sessions',
-      effectiveSessionDir: 'agent/sessions/global'
+      effectiveSessionDir: 'agent/sessions/global',
+      currentCwd
     }
   };
 }
@@ -62,7 +68,10 @@ function installDesktopApi() {
       getState: vi.fn().mockResolvedValue(settingsState),
       update: vi.fn().mockResolvedValue(settingsState),
       updateWebAccess: vi.fn().mockResolvedValue(settingsState),
-      selectWorkspaceDir: vi.fn().mockResolvedValue({ canceled: false, state: createSettingsState(false) }),
+      selectWorkspaceDir: vi.fn().mockResolvedValue({
+        canceled: false,
+        state: createSettingsState(false, 'E:/workspace-b', { mode: 'workspace', workspacePath: 'E:/workspace-b' })
+      }),
       openConfigDir: vi.fn().mockResolvedValue(undefined)
     },
     models: {
@@ -126,6 +135,8 @@ describe('settings store', () => {
   it('updates workspace settings, selects a workspace, and opens the config directory', async () => {
     const api = installDesktopApi();
     const store = useSettingsStore();
+    const sessionStore = useSessionStore();
+    const bindCwd = vi.spyOn(sessionStore, 'bindCwd').mockResolvedValue(undefined);
 
     await store.updateWebAccess({ webSearchEnabled: false });
     await store.selectWorkspaceDir();
@@ -135,6 +146,8 @@ describe('settings store', () => {
     expect(api.settings.updateWebAccess).toHaveBeenCalledWith({ webSearchEnabled: false });
     expect(api.settings.selectWorkspaceDir).toHaveBeenCalled();
     expect(api.settings.update).toHaveBeenCalledWith({ storage: { mode: 'global' } });
+    expect(bindCwd).toHaveBeenNthCalledWith(1, 'E:/workspace-b');
+    expect(bindCwd).toHaveBeenNthCalledWith(2, 'agent/global');
     expect(api.settings.openConfigDir).toHaveBeenCalled();
     expect(store.state).toBeDefined();
   });

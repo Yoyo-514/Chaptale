@@ -76,6 +76,8 @@ export type ChaptaleSettingsPaths = {
   piWebAccessConfigPath: string;
   sessionsRootDir: string;
   effectiveSessionDir: string;
+  /** Renderer 绑定会话时使用的权威 cwd；避免前端自行推导 workspace 安全边界。 */
+  currentCwd: string;
 };
 
 export type ChaptaleSettingsState = {
