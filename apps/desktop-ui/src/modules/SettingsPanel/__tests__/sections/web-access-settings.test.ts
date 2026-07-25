@@ -120,10 +120,10 @@ describe('WebAccessSettings', () => {
     expect(timeoutField?.find('label').attributes('for')).toBe(timeoutField?.find('input').attributes('id'));
   });
 
-  it('updates draft values through controls and only notifies success after a saved web access payload', async () => {
+  it('updates draft values through controls and does not notify success when save fails', async () => {
     const settingsStore = useSettingsStore();
     settingsStore.state = createSettingsState() as any;
-    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(false as never);
+    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(false);
     const notificationStore = useNotificationStore();
 
     const wrapper = mountSection();
@@ -148,6 +148,35 @@ describe('WebAccessSettings', () => {
     );
   });
 
+  it('notifies success exactly once after saving web access settings', async () => {
+    const settingsStore = useSettingsStore();
+    settingsStore.state = createSettingsState() as any;
+    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(true);
+    const notificationStore = useNotificationStore();
+
+    const wrapper = mountSection();
+    await wrapper.findAll('.checkbox-stub')[0]!.trigger('click');
+    const selects = wrapper.findAllComponents(AppSelect);
+    await selects[0]!.vm.$emit('update:modelValue', 'brave');
+    await selects[1]!.vm.$emit('update:modelValue', 'auto-summary');
+    const braveInput = wrapper.findAll('input').find(input => input.element.getAttribute('type') === 'password');
+    await braveInput?.setValue('BSA_test');
+    await wrapper.get('form').trigger('submit');
+
+    expect(updateWebAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        webSearchEnabled: false,
+        provider: 'brave',
+        workflow: 'auto-summary',
+        braveApiKey: 'BSA_test'
+      })
+    );
+    const successNotifications = notificationStore.items.filter(
+      item => item.kind === 'success' && item.title === '联网能力设置已保存'
+    );
+    expect(successNotifications).toHaveLength(1);
+  });
+
   it('resets to safe defaults without mutating the persisted store state until save', async () => {
     const settingsStore = useSettingsStore();
     settingsStore.state = createSettingsState({
@@ -155,7 +184,7 @@ describe('WebAccessSettings', () => {
       workflow: 'summary-review',
       webSearchEnabled: false
     }) as any;
-    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(undefined as never);
+    const updateWebAccess = vi.spyOn(settingsStore, 'updateWebAccess').mockResolvedValue(true);
 
     const wrapper = mountSection();
     await wrapper
