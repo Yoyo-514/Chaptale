@@ -17,6 +17,8 @@ vi.mock('electron', () => ({
   }
 }));
 
+import { ContextFileService } from '../service';
+
 describe('ContextFileService', () => {
   let tempDir: string;
 
@@ -29,7 +31,6 @@ describe('ContextFileService', () => {
   });
 
   it('uses basic text file input for text files', async () => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, 'note.txt');
     await writeFile(filePath, '第一章 开始\n正文内容', 'utf8');
 
@@ -44,7 +45,6 @@ describe('ContextFileService', () => {
   });
 
   it('uses basic text file input for large novels within direct input budget', async () => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, 'novel.txt');
     const chapters = Array.from({ length: 12 }, (_, index) => {
       const chapterNumber = index + 1;
@@ -64,7 +64,6 @@ describe('ContextFileService', () => {
   });
 
   it('does not cap the number of selected context files in main-side inspection', async () => {
-    const { ContextFileService } = await import('../service');
     const filePaths = await Promise.all(
       Array.from({ length: 12 }, async (_, index) => {
         const filePath = path.join(tempDir, `note-${index}.txt`);
@@ -84,7 +83,6 @@ describe('ContextFileService', () => {
     ['slides.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
     ['sheet.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
   ])('treats %s as metadata-only document input', async (fileName, mimeType) => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, fileName);
     await writeFile(filePath, Buffer.from('mock document body'));
 
@@ -100,7 +98,6 @@ describe('ContextFileService', () => {
   });
 
   it('sends supported images as native pi image blocks without a file envelope', async () => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, 'cover.png');
     await writeFile(filePath, Buffer.from('image-data'));
 
@@ -112,7 +109,6 @@ describe('ContextFileService', () => {
   });
 
   it('does not cap the number or cumulative size of individually valid images', async () => {
-    const { ContextFileService } = await import('../service');
     const filePaths = await Promise.all(
       Array.from({ length: 21 }, async (_, index) => {
         const filePath = path.join(tempDir, `image-${index}.png`);
@@ -128,7 +124,6 @@ describe('ContextFileService', () => {
   });
 
   it('returns a generated thumbnail instead of the original image data during inspection', async () => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, 'preview.png');
     await writeFile(filePath, Buffer.from('image-data'));
 
@@ -144,7 +139,6 @@ describe('ContextFileService', () => {
   });
 
   it('creates a file search placeholder when direct text input budget is exceeded', async () => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, 'huge-novel.txt');
     await writeFile(filePath, '', 'utf8');
     await truncate(filePath, 51 * 1024 * 1024);
@@ -158,7 +152,6 @@ describe('ContextFileService', () => {
   });
 
   it('keeps valid attachments when another file disappears before resolution', async () => {
-    const { ContextFileService } = await import('../service');
     const missingPath = path.join(tempDir, 'missing.txt');
     const validPath = path.join(tempDir, 'valid.txt');
     await writeFile(validPath, '仍然可用的正文', 'utf8');
@@ -171,7 +164,6 @@ describe('ContextFileService', () => {
   });
 
   it('rejects a directory even when its name uses a supported extension', async () => {
-    const { ContextFileService } = await import('../service');
     const directoryPath = path.join(tempDir, 'folder.txt');
     await mkdir(directoryPath);
 
@@ -182,7 +174,6 @@ describe('ContextFileService', () => {
   });
 
   it('accepts exactly 2M estimated tokens and uses the placeholder when one token over', async () => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, 'token-heavy.txt');
     await writeFile(filePath, 'abcd'.repeat(2_000_000), 'utf8');
 
@@ -198,7 +189,6 @@ describe('ContextFileService', () => {
   });
 
   it('accepts an image exactly at the 20 MB boundary', async () => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, 'boundary.png');
     await writeFile(filePath, '');
     await truncate(filePath, 20 * 1024 * 1024);
@@ -210,7 +200,6 @@ describe('ContextFileService', () => {
   });
 
   it('accepts a document exactly at 512 MB and skips one byte over the boundary', async () => {
-    const { ContextFileService } = await import('../service');
     const boundaryPath = path.join(tempDir, 'boundary.pdf');
     const oversizedPath = path.join(tempDir, 'oversized.pdf');
     await writeFile(boundaryPath, '');
@@ -225,7 +214,6 @@ describe('ContextFileService', () => {
   });
 
   it('skips oversized prompt images with an explicit context note', async () => {
-    const { ContextFileService } = await import('../service');
     const filePath = path.join(tempDir, 'huge.png');
     await writeFile(filePath, Buffer.alloc(21 * 1024 * 1024));
 
