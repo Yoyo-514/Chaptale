@@ -2,9 +2,9 @@
 import { SettingsPanel } from '@/features/settings';
 
 import ActivityBar from '../modules/ActivityBar/ActivityBar.vue';
-import AgentPanel from '../modules/AgentPanel/AgentPanel.vue';
 import StatusBar from '../modules/StatusBar/StatusBar.vue';
 import TitleBar from '../modules/TitleBar/TitleBar.vue';
+import AgentPanel from './AgentPanel.vue';
 </script>
 
 <template>

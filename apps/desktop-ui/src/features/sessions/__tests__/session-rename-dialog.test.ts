@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
-import SessionRenameDialog from '../components/SessionRenameDialog.vue';
+import { SessionRenameDialog } from '@/features/sessions';
 
 function createSession(overrides = {}) {
   return {

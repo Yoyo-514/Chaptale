@@ -1,6 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
-const ChatView = () => import('../modules/AgentPanel/ChatView/index.vue');
+const ChatView = () => import('@/features/chat').then(m => m.ChatView);
 const HistoryView = () => import('../modules/AgentPanel/HistoryView/index.vue');
 
 export const router = createRouter({

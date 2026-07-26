@@ -2,6 +2,7 @@
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
 import { AppCheckbox } from '@/components/AppCheckbox';
+import { SessionRenameDialog } from '@/features/sessions';
 import { cn } from '@/utils';
 import {
   formatSessionCost,
@@ -11,7 +12,6 @@ import {
   getSessionTitle
 } from '@/utils/session-display';
 
-import SessionRenameDialog from '../../components/SessionRenameDialog.vue';
 import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 
 const props = defineProps<{
