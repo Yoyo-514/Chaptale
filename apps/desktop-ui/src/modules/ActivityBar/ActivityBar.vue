@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
-import { useSettingsStore } from '@/stores/settings';
+import { useSettingsStore } from '@/features/settings';
 
 const settingsStore = useSettingsStore();
 </script>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { SettingsPanel } from '@/features/settings';
+
 import ActivityBar from '../modules/ActivityBar/ActivityBar.vue';
 import AgentPanel from '../modules/AgentPanel/AgentPanel.vue';
-import SettingsPanel from '../modules/SettingsPanel/SettingsPanel.vue';
 import StatusBar from '../modules/StatusBar/StatusBar.vue';
 import TitleBar from '../modules/TitleBar/TitleBar.vue';
 </script>

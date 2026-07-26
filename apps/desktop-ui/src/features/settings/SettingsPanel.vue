@@ -3,7 +3,6 @@ import { onMounted } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useDraggablePanel, type ResizeDirection } from '@/composables';
-import { useSettingsStore } from '@/stores/settings';
 
 import SettingsSidebar from './components/SettingsSidebar.vue';
 import ConfigFilesSettings from './sections/ConfigFilesSettings.vue';
@@ -12,6 +11,7 @@ import PermissionsSettings from './sections/PermissionsSettings.vue';
 import PromptSettings from './sections/PromptSettings.vue';
 import WebAccessSettings from './sections/WebAccessSettings.vue';
 import WorkspaceSettings from './sections/WorkspaceSettings.vue';
+import { useSettingsStore } from './store';
 
 const resizeDirections: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 

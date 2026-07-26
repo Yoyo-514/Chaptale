@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
 import { useNotificationStore } from '@/features/notifications';
-import { useSettingsStore } from '@/stores/settings';
 
 import LlmAddCustomModelPanel from '../components/LlmAddCustomModelPanel.vue';
 import LlmCustomProviderForm from '../components/LlmCustomProviderForm.vue';
@@ -13,6 +12,7 @@ import { useLlmCustomModelForms } from '../composables/useLlmCustomModelForms';
 import { useLlmModelActions } from '../composables/useLlmModelActions';
 import { useLlmProviderAuth } from '../composables/useLlmProviderAuth';
 import { useLlmSettingsState } from '../composables/useLlmSettingsState';
+import { useSettingsStore } from '../store';
 
 const notificationStore = useNotificationStore();
 const settingsStore = useSettingsStore();

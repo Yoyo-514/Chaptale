@@ -3,10 +3,10 @@ import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useSessionStore } from '@/stores/session';
-import { useSettingsStore } from '@/stores/settings';
 
 import SettingsPathCard from '../components/SettingsPathCard.vue';
 import SettingsSection from '../components/SettingsSection.vue';
+import { useSettingsStore } from '../store';
 
 const settingsStore = useSettingsStore();
 const sessionStore = useSessionStore();

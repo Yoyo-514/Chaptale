@@ -1,6 +1,6 @@
 import { computed, reactive, watch } from 'vue';
 
-import { useSettingsStore } from '@/stores/settings';
+import { useSettingsStore } from '../store';
 
 /**
  * 在设置快照之外维护 Prompt 编辑草稿，支持放弃、恢复默认值与显式保存。

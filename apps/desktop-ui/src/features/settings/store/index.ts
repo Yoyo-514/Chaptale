@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia';
 
-import { settingsActionRunner } from './settings/action-runner';
-import { modelSettingsActions } from './settings/model-actions';
-import { settingsPanelActions } from './settings/panel-actions';
-import { promptSettingsActions } from './settings/prompt-actions';
-import type { SettingsSection, SettingsStoreState } from './settings/types';
-import { workspaceSettingsActions } from './settings/workspace-actions';
+import { settingsActionRunner } from './action-runner';
+import { modelSettingsActions } from './model-actions';
+import { settingsPanelActions } from './panel-actions';
+import { promptSettingsActions } from './prompt-actions';
+import type { SettingsSection, SettingsStoreState } from './types';
+import { workspaceSettingsActions } from './workspace-actions';
 
-export type { SettingsSection } from './settings/types';
+export type { SettingsSection } from './types';
 
 /**
  * 设置面板的统一状态入口。

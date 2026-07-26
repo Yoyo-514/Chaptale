@@ -5,9 +5,9 @@ import { defineComponent, h } from 'vue';
 
 import { AppSelect } from '@/components/AppSelect';
 import { useNotificationStore } from '@/features/notifications';
-import { useSettingsStore } from '@/stores/settings';
 
 import WebAccessSettings from '../../sections/WebAccessSettings.vue';
+import { useSettingsStore } from '../../store';
 
 function createSettingsState(overrides: Record<string, unknown> = {}) {
   return {

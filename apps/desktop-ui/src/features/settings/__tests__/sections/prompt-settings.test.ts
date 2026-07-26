@@ -2,9 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSettingsStore } from '@/stores/settings';
-
 import PromptSettings from '../../sections/PromptSettings.vue';
+import { useSettingsStore } from '../../store';
 
 beforeEach(() => {
   setActivePinia(createPinia());

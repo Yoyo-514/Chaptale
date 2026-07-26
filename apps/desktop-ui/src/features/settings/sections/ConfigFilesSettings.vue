@@ -2,10 +2,10 @@
 import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { useSettingsStore } from '@/stores/settings';
 
 import SettingsPathCard from '../components/SettingsPathCard.vue';
 import SettingsSection from '../components/SettingsSection.vue';
+import { useSettingsStore } from '../store';
 
 const settingsStore = useSettingsStore();
 const paths = computed(() => settingsStore.state?.paths);

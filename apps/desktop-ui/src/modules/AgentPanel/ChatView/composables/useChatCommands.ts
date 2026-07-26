@@ -1,7 +1,7 @@
 import { watch } from 'vue';
 
 import { useNotificationStore } from '@/features/notifications';
-import { useSettingsStore } from '@/stores/settings';
+import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import { findSlashCommand, getSlashCommandName } from '../utils/slash-commands';

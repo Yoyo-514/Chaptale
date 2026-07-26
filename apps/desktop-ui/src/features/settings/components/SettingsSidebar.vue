@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useSettingsStore, type SettingsSection } from '@/stores/settings';
+import { useSettingsStore, type SettingsSection } from '../store';
 
 const settingsStore = useSettingsStore();
 

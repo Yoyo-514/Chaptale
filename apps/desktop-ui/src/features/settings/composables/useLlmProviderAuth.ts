@@ -1,8 +1,8 @@
 import { reactive, ref, type Ref } from 'vue';
 
 import type { useNotificationStore } from '@/features/notifications';
-import type { useSettingsStore } from '@/stores/settings';
 
+import type { useSettingsStore } from '../store';
 import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
 
 type NotificationStore = ReturnType<typeof useNotificationStore>;

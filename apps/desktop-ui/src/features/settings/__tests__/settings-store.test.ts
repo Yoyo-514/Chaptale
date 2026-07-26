@@ -2,9 +2,9 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationStore } from '@/features/notifications';
+import { useSessionStore } from '@/stores/session';
 
-import { useSessionStore } from '../session';
-import { useSettingsStore } from '../settings';
+import { useSettingsStore } from '../store';
 
 function createSettingsState(
   webSearchEnabled = true,

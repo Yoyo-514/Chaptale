@@ -4,9 +4,9 @@ import type {
   UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
 
+import { useSessionStore } from '@/stores/session';
 import { getDesktopApi } from '@/utils/desktop-api';
 
-import { useSessionStore } from '../session';
 import type { SettingsStoreContext } from './types';
 
 /** 应用设置与 Web Access 的读写动作；每次成功响应都整体替换状态快照。 */

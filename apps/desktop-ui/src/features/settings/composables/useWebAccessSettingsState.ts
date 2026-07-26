@@ -4,8 +4,8 @@ import { computed, reactive, watch } from 'vue';
 import type { PiWebAccessProvider, PiWebAccessSettings, PiWebAccessWorkflow } from '@chaptale/ipc-contract';
 
 import { useNotificationStore } from '@/features/notifications';
-import { useSettingsStore } from '@/stores/settings';
 
+import { useSettingsStore } from '../store';
 import {
   createDefaultWebAccessSettings,
   normalizeWebAccessSettings,

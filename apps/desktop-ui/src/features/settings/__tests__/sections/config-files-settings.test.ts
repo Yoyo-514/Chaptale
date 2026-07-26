@@ -2,9 +2,8 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSettingsStore } from '@/stores/settings';
-
 import ConfigFilesSettings from '../../sections/ConfigFilesSettings.vue';
+import { useSettingsStore } from '../../store';
 
 beforeEach(() => {
   setActivePinia(createPinia());

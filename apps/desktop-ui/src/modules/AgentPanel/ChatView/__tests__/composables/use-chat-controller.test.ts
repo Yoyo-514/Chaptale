@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, nextTick } from 'vue';
 
 import { useNotificationStore } from '@/features/notifications';
-import { useSettingsStore } from '@/stores/settings';
+import { useSettingsStore } from '@/features/settings';
 
 import { useChatController } from '../../composables/useChatController';
 

@@ -1,7 +1,6 @@
 import { computed, ref, watch } from 'vue';
 
-import type { useSettingsStore } from '@/stores/settings';
-
+import type { useSettingsStore } from '../store';
 import {
   countModelsByGroup,
   createProviderViews,
