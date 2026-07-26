@@ -151,10 +151,10 @@ function spreadBudget(lengths: number[], weights: number[], total: number): numb
 
 function renderMemory(sections: MemorySections): string {
   const parts = [
-    section('作者偏好', sections.preferences),
-    section('创作守则', sections.styleGuide),
+    section('作者偏好要点', sections.preferences),
+    section('创作守则与禁忌', sections.styleGuide),
     section('最近剧情', sections.recent),
-    section('Notes 清单', sections.notes)
+    section('观察笔记清单', sections.notes)
   ].filter(Boolean);
 
   return parts.join('\n\n') || '（无）';

@@ -70,5 +70,5 @@ export function buildMemoryInjectionBlock(
   const body = [...rendered, ...(hints.length > 0 ? [`## 未注入内容\n${hints.join('\n')}`] : [])].join('\n\n');
 
   // 信封说明放属性外的固定文案，内容本身不转义（Markdown 正文，非 XML 数据）。
-  return `<memory summary="跨会话记忆注入，仅供参考；与用户本轮指令冲突时以指令为准">\n${body}\n</memory>`;
+  return `<memory summary="跨会话记忆注入，仅供参考；与作者本轮指令冲突时以指令为准">\n${body}\n</memory>`;
 }

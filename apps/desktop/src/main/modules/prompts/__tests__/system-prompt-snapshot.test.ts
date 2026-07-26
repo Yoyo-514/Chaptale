@@ -19,7 +19,7 @@ describe('内置 systemPrompt 拼装', () => {
   });
 
   it('分层顺序：persona 在最前，todo 协议在 memory 协议之后', () => {
-    expect(full.startsWith(builtinCompanionBody.slice(0, 20))).toBe(true);
+    expect(full.startsWith(builtinCompanionBody)).toBe(true);
     expect(full.indexOf('## 任务清单协议')).toBeGreaterThan(full.indexOf('## 记忆协议'));
   });
 
@@ -37,7 +37,7 @@ describe('内置 systemPrompt 拼装', () => {
   });
 
   it('资产红线只在产品职责层，不在 memory 协议', () => {
-    expect(PRODUCT_DUTY).toContain('memory_propose');
+    expect(PRODUCT_DUTY).toContain('write/edit');
     expect(MEMORY_PROTOCOL).not.toContain('write/edit');
   });
 });
