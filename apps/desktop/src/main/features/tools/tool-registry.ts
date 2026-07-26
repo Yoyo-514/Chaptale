@@ -1,5 +1,6 @@
 import type { PersonaDefinition } from '@chaptale/shared';
 
+import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import type { MemoryPendingStore } from '../memory/pending-store';
 import { createMemoryProposeTool, createMemorySaveTool } from '../memory/tools';
 import { resolveReadableIndexDomains } from '../personas/memory-access';
@@ -11,7 +12,6 @@ import { createDelegateTool, type DelegateToolContext } from '../subagent/delega
 import type { SubagentPool } from '../subagent/pool';
 import type { TodoStore } from '../todo/store';
 import { createTodoWriteTool } from '../todo/tool';
-import type { ToolDefinition } from './definition';
 
 export type ChatToolContext = {
   todoStore: TodoStore;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import { createDefaultToolCatalog } from '../../tools/catalog';
+import { createDefaultToolCatalog } from '../../../core/tool-protocol/catalog';
 import { resolveTaskSpec } from '../task-spec';
 
 function createPersona(overrides: Partial<PersonaDefinition> = {}): PersonaDefinition {

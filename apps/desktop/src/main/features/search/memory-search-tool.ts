@@ -1,7 +1,7 @@
 import { Type } from 'typebox';
 
 import { estimateTextTokens, takeTextToTokenBudget } from '../../core/context/token-counter';
-import type { ToolDefinition } from '../tools/definition';
+import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import type { MemorySearchInput, MemorySearchOutput, MemorySearchService } from './memory-search-service';
 import { safeWorkspaceRelativePath } from './path-safety';
 import type { IndexDiagnostic, IndexDomain, IndexSearchResult } from './types';

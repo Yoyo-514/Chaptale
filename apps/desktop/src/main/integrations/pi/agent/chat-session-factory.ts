@@ -13,6 +13,8 @@ import type { PersonaDefinition, RiskLevel } from '@chaptale/shared';
 
 import type { BoundSession } from '../../../core/session-ctx/types';
 import type { SettingsService } from '../../../core/settings/service';
+import type { ToolCatalog } from '../../../core/tool-protocol/catalog';
+import type { ToolDefinition } from '../../../core/tool-protocol/definition';
 import { MEMORY_PROTOCOL } from '../../../features/memory/protocol';
 import type { PermissionBroker } from '../../../features/permissions/broker';
 import type { PermissionRuleStore } from '../../../features/permissions/rule-store';
@@ -22,8 +24,6 @@ import { composeSystemPrompt } from '../../../features/prompts/compose-system-pr
 import { PRODUCT_DUTY } from '../../../features/prompts/product-duty';
 import { TODO_PROTOCOL } from '../../../features/todo/protocol';
 import type { TodoStore } from '../../../features/todo/store';
-import type { ToolCatalog } from '../../../features/tools/catalog';
-import type { ToolDefinition } from '../../../features/tools/definition';
 import type { PiModelService } from '../models/service';
 import { createPermissionGateExtension } from '../permissions/gate-extension';
 import type { SkillsProvider } from '../skills/provider';

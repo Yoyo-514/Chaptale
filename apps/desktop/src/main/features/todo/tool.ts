@@ -2,7 +2,7 @@ import { Type, type Static } from 'typebox';
 
 import { TodoItemSchema, type TodoItem } from '@chaptale/shared';
 
-import type { ToolDefinition } from '../tools/definition';
+import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import type { TodoStore } from './store';
 
 const todoWriteParameters = Type.Object(

@@ -12,12 +12,12 @@ import type { RiskLevel } from '@chaptale/shared';
 
 import type { SessionCtx } from '../../../core/session-ctx/types';
 import type { SettingsService } from '../../../core/settings/service';
+import type { ToolDefinition } from '../../../core/tool-protocol/definition';
 import type { PermissionBroker } from '../../../features/permissions/broker';
 import type { PermissionRuleStore } from '../../../features/permissions/rule-store';
 import type { TaskPersonaSpec } from '../../../features/personas/task-spec';
 import { composeSystemPrompt } from '../../../features/prompts/compose-system-prompt';
 import type { TaskSessionFactoryPort } from '../../../features/tasks/runner-port';
-import type { ToolDefinition } from '../../../features/tools/definition';
 import type { PiModelService } from '../models/service';
 import { createPermissionGateExtension } from '../permissions/gate-extension';
 import { toPiToolDefinition } from '../tools/adapter';

@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { extractTaskOutput, validateOutput } from '@chaptale/shared';
 
 import { estimateTextTokens, fitTextToTokens } from '../../../core/context/token-counter';
+import type { ToolCatalog } from '../../../core/tool-protocol/catalog';
 import { resolveTaskSpec } from '../../../features/personas/task-spec';
 import type { AgentRunRecord } from '../../../features/runs/record';
 import type { AgentRunStore } from '../../../features/runs/store';
@@ -14,7 +15,6 @@ import type {
   TaskRunUsage,
   TaskSessionFactoryPort
 } from '../../../features/tasks/runner-port';
-import type { ToolCatalog } from '../../../features/tools/catalog';
 
 /** 校验失败后允许模型自我修复的最大次数。 */
 const MAX_REPAIR_ATTEMPTS = 2;

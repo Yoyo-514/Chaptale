@@ -1,7 +1,7 @@
 import type { PersonaDefinition } from '@chaptale/shared';
 
+import type { ToolCatalog } from '../../core/tool-protocol/catalog';
 import type { IndexDomain } from '../search/types';
-import type { ToolCatalog } from '../tools/catalog';
 import { resolveReadableIndexDomains } from './memory-access';
 
 /** task 执行规格：由 persona 定义派生的、与 pi 无关的执行参数。 */

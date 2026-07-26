@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Type } from 'typebox';
 
-import type { ToolDefinition } from '../tools/definition';
+import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import { resolveWorkspaceMemoryPaths } from './paths';
 import type { MemoryPendingStore } from './pending-store';
 

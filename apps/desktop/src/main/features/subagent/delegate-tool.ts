@@ -3,9 +3,9 @@ import { Type } from 'typebox';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
+import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import type { PersonaRegistry } from '../personas/registry';
 import type { TaskRunnerPort, TaskRunResult } from '../tasks/runner-port';
-import type { ToolDefinition } from '../tools/definition';
 import type { SubagentPool } from './pool';
 
 export type DelegateToolContext = {

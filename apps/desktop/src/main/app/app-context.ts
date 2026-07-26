@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ImageAttachmentService } from '../core/attachments/service';
 import { ContextFileService } from '../core/context/service';
 import { SettingsService } from '../core/settings/service';
+import { createDefaultToolCatalog } from '../core/tool-protocol/catalog';
 import { SlashCommandService } from '../features/commands/service';
 import { CompactCoord } from '../features/memory/compact-coord';
 import { CompactionSummaryStore } from '../features/memory/compaction-summary-store';
@@ -21,7 +22,6 @@ import { materializeBuiltinSkills } from '../features/skills/builtin-materialize
 import { SubagentPool } from '../features/subagent/pool';
 import { TaskService } from '../features/tasks/service';
 import { TodoStore } from '../features/todo/store';
-import { createDefaultToolCatalog } from '../features/tools/catalog';
 import { buildChatSessionTools, buildTaskSessionTools } from '../features/tools/tool-registry';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
