@@ -1,4 +1,3 @@
-import type { ImageContent } from '@earendil-works/pi-ai/compat';
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
 import type {
@@ -8,20 +7,11 @@ import type {
   AgentRuntime,
   AgentSteerOptions
 } from '@chaptale/ipc-contract';
-import type {
-  ChatMessage,
-  MemoryCompactionResult,
-  MemoryContextPressureStatus,
-  SkillInvocation
-} from '@chaptale/shared';
-import { errorToMessage, formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
+import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus } from '@chaptale/shared';
+import { errorToMessage, parseSkillInvocation } from '@chaptale/shared';
 
-import { ImageAttachmentService } from '../../../modules/attachments/service';
-import { decodeContextMessage } from '../../../modules/context/context-message-codec';
-import { ContextFileService } from '../../../modules/context/service';
 import { evaluateContextPressure } from '../../../modules/memory/context-pressure';
 import type { MemoryInjector } from '../../../modules/memory/injector';
-import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
 import type { PermissionBroker } from '../../../modules/permissions/broker';
 import type { BoundSession } from '../../../modules/session-ctx/types';
 import type { PiModelService } from '../models/service';
@@ -31,30 +21,19 @@ import { AsyncMessageQueue } from './async-message-queue';
 import type { ChatSessionFactory } from './chat-session-factory';
 import { isChaptaleCompactDetails } from './compact-extension';
 import { mapAgentStreamEvent } from './event-mapper';
+import type { InputAssembler } from './input-assembler';
 import { SessionPool, type DisposableSession } from './session-pool';
 
 type DisposableBoundSession = BoundSession<AgentSession> & DisposableSession;
 
 export type StreamOptions = AgentRunOptions;
 
-/** 普通 prompt 与 steer 共享的文本、会话和附件输入。 */
-type AgentInputOptions = Pick<AgentRunOptions, 'query' | 'sessionId' | 'contextFilePaths' | 'reuseUserEntryId'>;
-
-type ReusedUserEntryContext = ReturnType<typeof getPiUserEntrySnapshot> | undefined;
-
-type AgentRunContext = {
-  userMessage: ChatMessage;
-  promptText: string;
-  promptImages: ImageContent[];
-};
-
 export type PiAgentServiceOptions = {
   chatFactory: Pick<ChatSessionFactory, 'create'>;
   modelService: PiModelService;
   memoryInjector: MemoryInjector;
   permissionBroker: PermissionBroker;
-  contextFileService: Pick<ContextFileService, 'resolve'>;
-  imageAttachmentService: Pick<ImageAttachmentService, 'createPresentation'>;
+  inputAssembler: Pick<InputAssembler, 'assemble'>;
 };
 
 /**
@@ -157,7 +136,12 @@ export class PiAgentService implements AgentRuntime {
       const memoryPrefix = options.reuseUserEntryId
         ? ''
         : await this.options.memoryInjector.resolvePrefix(sessionId, ctx.cwd);
-      const runContext = await this.resolveRunContext(options, skillInvocation, reusedContext, memoryPrefix);
+      const runContext = await this.options.inputAssembler.assemble({
+        options,
+        skillInvocation,
+        reusedContext,
+        memoryPrefix
+      });
       signal.throwIfAborted();
 
       yield runContext.userMessage;
@@ -204,7 +188,7 @@ export class PiAgentService implements AgentRuntime {
       throw new Error('Agent 运行已结束，无法发送 steer');
     }
 
-    const runContext = await this.resolveRunContext(options, skillInvocation, undefined);
+    const runContext = await this.options.inputAssembler.assemble({ options, skillInvocation });
     options.signal.throwIfAborted();
 
     // 上下文文件解析包含异步 IO，结束后必须复查，避免消息滞留在已经停止的会话队列。
@@ -304,76 +288,5 @@ export class PiAgentService implements AgentRuntime {
     }
 
     session.agent.state.messages = session.sessionManager.buildSessionContext().messages;
-  }
-
-  /** 解析上下文文件与图片附件，产出用户消息、最终 prompt 文本与随行图片。 */
-  private async resolveRunContext(
-    options: AgentInputOptions,
-    skillInvocation: SkillInvocation | undefined,
-    reusedContext: ReusedUserEntryContext,
-    memoryPrefix = ''
-  ): Promise<AgentRunContext> {
-    const resolvedContext = reusedContext
-      ? undefined
-      : await this.options.contextFileService.resolve(options.contextFilePaths);
-    // 上下文信封单独解码（其正则锚定行首）；复用的历史前缀可能自带 memory 信封，先剔除再解。
-    const contextPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
-    const decodedContext = decodeContextMessage(decodeMemoryMessage(contextPrefix).text);
-    // 记忆信封排在最前：它是变化频率最低的前缀，有利于 provider 前缀缓存。
-    const promptPrefix = `${memoryPrefix}${contextPrefix}`;
-    // 复用历史消息时保留原始 content 下标，保证 session-entry source 与 readOriginal 对齐；
-    // 新发送时 pi 会把消息持久化为 [text, ...images]，图片真实下标从 1 开始。
-    const imageBlocks = reusedContext
-      ? reusedContext.imageBlocks
-      : (resolvedContext?.images ?? []).map((image, index) => ({
-          type: image.type,
-          data: image.data,
-          mimeType: image.mimeType,
-          blockIndex: index + 1
-        }));
-    const promptImages = imageBlocks.map(image => ({
-      type: image.type,
-      data: image.data,
-      mimeType: image.mimeType
-    }));
-    const imagePaths = resolvedContext?.imagePaths ?? [];
-    const presentation = this.options.imageAttachmentService.createPresentation(imageBlocks, blockIndex => {
-      if (options.reuseUserEntryId) {
-        return {
-          type: 'session-entry',
-          sessionId: options.sessionId,
-          entryId: options.reuseUserEntryId,
-          blockIndex
-        };
-      }
-
-      const imagePath = imagePaths[blockIndex - 1];
-      return imagePath ? { type: 'context-file', path: imagePath } : undefined;
-    });
-    const displayText = skillInvocation?.arguments ?? options.query;
-    const userContent =
-      presentation.attachments.length > 0
-        ? [...(displayText ? [{ type: 'text' as const, text: displayText }] : []), ...presentation.attachments]
-        : displayText;
-
-    // pi 只在文本以 /skill: 开头时执行原生展开；附件信封因此作为命令参数注入，而不是放在命令前。
-    const promptText = skillInvocation
-      ? formatSkillInvocation({
-          ...skillInvocation,
-          arguments: `${promptPrefix}${skillInvocation.arguments}`.trim()
-        })
-      : `${promptPrefix}${options.query}`;
-
-    return {
-      userMessage: {
-        role: 'user',
-        content: userContent,
-        ...(decodedContext.contextFiles.length > 0 ? { contextFiles: decodedContext.contextFiles } : {}),
-        ...(skillInvocation ? { skillInvocation } : {}),
-        timestamp: Date.now()
-      },
-      promptText,
-      promptImages
-    };
   }
 }

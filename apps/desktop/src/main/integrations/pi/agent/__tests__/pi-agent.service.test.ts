@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { ContextFileService } from '../../../../modules/context/service';
+import { InputAssembler } from '../input-assembler';
 import { PiAgentService } from '../service';
 
 function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<void> | void) {
@@ -96,6 +97,7 @@ function createService(
       resolvePrefix: vi.fn(async () => ''),
       reset: vi.fn()
     } as any);
+  const assemblerDeps: any = { contextFileService: new ContextFileService(), imageAttachmentService };
   const service = new PiAgentService({
     chatFactory: {
       create: vi.fn(async (sessionId: string) => ({
@@ -110,9 +112,15 @@ function createService(
     modelService: { getDefaultPiModel: vi.fn(async () => defaultModel) } as any,
     memoryInjector,
     permissionBroker: { rejectSession: vi.fn() } as any,
-    contextFileService: new ContextFileService(),
-    imageAttachmentService: imageAttachmentService as any
+    inputAssembler: new InputAssembler({
+      // 用可变引用转发，测试可在构造后替换 fake，仍走真实组装逻辑。
+      contextFileService: { resolve: (...args) => assemblerDeps.contextFileService.resolve(...args) },
+      imageAttachmentService: {
+        createPresentation: (...args) => assemblerDeps.imageAttachmentService.createPresentation(...args)
+      }
+    })
   });
+  (service as any).assemblerDeps = assemblerDeps;
   return service;
 }
 
@@ -232,7 +240,7 @@ describe('PiAgentService', () => {
     const service = createService(session);
     const promptPrefix =
       '<attached_context_files>\n<file path="C:/novel/outline.md" handling="file-input-text" size="2 KB">正文</file>\n</attached_context_files>\n\n';
-    (service as any).options.contextFileService = {
+    (service as any).assemblerDeps.contextFileService = {
       resolve: vi.fn().mockResolvedValue({ promptPrefix, images: [], imagePaths: [] })
     };
 
@@ -272,7 +280,7 @@ describe('PiAgentService', () => {
         imagePaths
       })
     };
-    (service as any).options.contextFileService = contextFileService;
+    (service as any).assemblerDeps.contextFileService = contextFileService;
 
     const messages = await collect(
       service.stream({
@@ -316,7 +324,7 @@ describe('PiAgentService', () => {
         imagePaths: ['C:/novel/cover.png']
       })
     };
-    (service as any).options.contextFileService = contextFileService;
+    (service as any).assemblerDeps.contextFileService = contextFileService;
 
     await service.steer({
       sessionId: 'session-1',
@@ -335,7 +343,7 @@ describe('PiAgentService', () => {
   it('never reloads or switches the model on the actively streaming session during steer', async () => {
     const { session } = createFakeSession();
     const service = createService(session);
-    (service as any).options.contextFileService = {
+    (service as any).assemblerDeps.contextFileService = {
       resolve: vi.fn().mockResolvedValue({ promptPrefix: '', images: [], imagePaths: [] })
     };
 
@@ -367,7 +375,7 @@ describe('PiAgentService', () => {
     const { session } = createFakeSession();
     const service = createService(session);
     const contextResolved = createDeferred<any>();
-    (service as any).options.contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
+    (service as any).assemblerDeps.contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
 
     const result = service.steer({
       sessionId: 'session-1',
@@ -388,7 +396,7 @@ describe('PiAgentService', () => {
     const service = createService(session);
     const contextResolved = createDeferred<any>();
     const controller = new AbortController();
-    (service as any).options.contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
+    (service as any).assemblerDeps.contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
 
     const result = service.steer({
       sessionId: 'session-1',
@@ -456,7 +464,7 @@ describe('PiAgentService', () => {
     const imageAttachmentService = createImageAttachmentService();
     const service = createService(session, { provider: 'new-provider', id: 'new-model' }, imageAttachmentService);
     const contextFileService = { resolve: vi.fn() };
-    (service as any).options.contextFileService = contextFileService;
+    (service as any).assemblerDeps.contextFileService = contextFileService;
 
     const messages = await collect(
       service.stream({

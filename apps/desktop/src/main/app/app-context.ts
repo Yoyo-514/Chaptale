@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ChatSessionFactory } from '../integrations/pi/agent/chat-session-factory';
 import { createCompactExt } from '../integrations/pi/agent/compact-extension';
 import { piParseFrontmatter } from '../integrations/pi/agent/frontmatter';
+import { InputAssembler } from '../integrations/pi/agent/input-assembler';
 import { createDefaultPersonaRegistry } from '../integrations/pi/agent/persona-registry-factory';
 import { PiAgentService } from '../integrations/pi/agent/service';
 import { TaskRunner } from '../integrations/pi/agent/task-runner';
@@ -149,8 +150,10 @@ export function createAppContext(): AppContext {
     modelService,
     memoryInjector: createMemoryInjector(settingsService.rootDir),
     permissionBroker,
-    contextFileService: new ContextFileService(),
-    imageAttachmentService: new ImageAttachmentService()
+    inputAssembler: new InputAssembler({
+      contextFileService: new ContextFileService(),
+      imageAttachmentService: new ImageAttachmentService()
+    })
   });
 
   return {
