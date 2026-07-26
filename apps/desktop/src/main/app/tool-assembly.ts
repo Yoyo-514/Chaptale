@@ -1,17 +1,17 @@
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import type { ToolDefinition } from '../../core/tool-protocol/definition';
-import type { MemoryPendingStore } from '../memory/pending-store';
-import { createMemoryProposeTool, createMemorySaveTool } from '../memory/tools';
-import { resolveReadableIndexDomains } from '../personas/memory-access';
-import type { PersonaRegistry } from '../personas/registry';
-import type { TaskPersonaSpec } from '../personas/task-spec';
-import type { MemorySearchService } from '../search/memory-search-service';
-import { createMemorySearchTool } from '../search/memory-search-tool';
-import { createDelegateTool, type DelegateToolContext } from '../subagent/delegate-tool';
-import type { SubagentPool } from '../subagent/pool';
-import type { TodoStore } from '../todo/store';
-import { createTodoWriteTool } from '../todo/tool';
+import type { ToolDefinition } from '../core/tool-protocol/definition';
+import type { MemoryPendingStore } from '../features/memory/pending-store';
+import { createMemoryProposeTool, createMemorySaveTool } from '../features/memory/tools';
+import { resolveReadableIndexDomains } from '../features/personas/memory-access';
+import type { PersonaRegistry } from '../features/personas/registry';
+import type { TaskPersonaSpec } from '../features/personas/task-spec';
+import type { MemorySearchService } from '../features/search/memory-search-service';
+import { createMemorySearchTool } from '../features/search/memory-search-tool';
+import { createDelegateTool, type DelegateToolContext } from '../features/subagent/delegate-tool';
+import type { SubagentPool } from '../features/subagent/pool';
+import type { TodoStore } from '../features/todo/store';
+import { createTodoWriteTool } from '../features/todo/tool';
 
 export type ChatToolContext = {
   todoStore: TodoStore;

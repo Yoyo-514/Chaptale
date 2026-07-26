@@ -22,7 +22,6 @@ import { materializeBuiltinSkills } from '../features/skills/builtin-materialize
 import { SubagentPool } from '../features/subagent/pool';
 import { TaskService } from '../features/tasks/service';
 import { TodoStore } from '../features/todo/store';
-import { buildChatSessionTools, buildTaskSessionTools } from '../features/tools/tool-registry';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { ChatSessionFactory } from '../integrations/pi/agent/chat-session-factory';
@@ -37,6 +36,7 @@ import { PiModelService } from '../integrations/pi/models/service';
 import { PiSessionRepository } from '../integrations/pi/sessions/repository';
 import { SkillsProvider } from '../integrations/pi/skills/provider';
 import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
+import { buildChatSessionTools, buildTaskSessionTools } from './tool-assembly';
 
 export type AppContext = {
   settingsService: SettingsService;

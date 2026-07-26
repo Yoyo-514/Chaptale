@@ -11,13 +11,10 @@ const featuresRoot = path.join(mainRoot, 'features');
  * 约束：
  * - 新增跨 feature 导入必须在此显式登记并通过评审；陈旧条目同样报错；
  * - 所有边必须保持无运行时环：当前唯一反向运行时边是 search -> memory/paths，
- *   memory -> personas 与 personas -> search 均为 type-only，不构成运行时环；
- * - tools -> * 的 11 条边源自 tool-registry 装配文件，属 S5 拆分对象（装配下沉 app 层），
- *   在此临时登记，禁止继续扩张。
+ *   memory -> personas 与 personas -> search 均为 type-only，不构成运行时环。
  */
 const crossFeatureAllowlist = [
   'commands -> skills/provider',
-
   'memory -> personas/registry',
   'personas -> search/types',
   'prompts -> personas/builtin',
@@ -27,18 +24,7 @@ const crossFeatureAllowlist = [
   'tasks -> personas/registry',
   'tasks -> personas/task-spec',
   'tasks -> runs/record',
-  'tasks -> runs/store',
-  'tools -> memory/pending-store',
-  'tools -> memory/tools',
-  'tools -> personas/memory-access',
-  'tools -> personas/registry',
-  'tools -> personas/task-spec',
-  'tools -> search/memory-search-service',
-  'tools -> search/memory-search-tool',
-  'tools -> subagent/delegate-tool',
-  'tools -> subagent/pool',
-  'tools -> todo/store',
-  'tools -> todo/tool'
+  'tasks -> runs/store'
 ] as const;
 
 describe('Main 跨 feature 依赖白名单', () => {

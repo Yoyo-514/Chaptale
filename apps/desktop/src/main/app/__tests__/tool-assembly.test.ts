@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import { buildChatSessionTools, buildTaskSessionTools } from '../tool-registry';
+import { buildChatSessionTools, buildTaskSessionTools } from '../tool-assembly';
 
 const companion: PersonaDefinition = {
   id: 'companion',
