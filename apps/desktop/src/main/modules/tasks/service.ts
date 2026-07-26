@@ -1,14 +1,14 @@
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import type { TaskRunner, TaskRunResult } from '../../integrations/pi/agent/task-runner';
 import { ContextFileService } from '../context/service';
 import type { PersonaRegistry } from '../personas/registry';
 import type { SettingsService } from '../settings/service';
+import type { TaskRunnerPort, TaskRunResult } from './runner-port';
 
 export type TaskServiceOptions = {
   settingsService: SettingsService;
   personaRegistry: PersonaRegistry;
-  taskRunner: TaskRunner;
+  taskRunner: TaskRunnerPort;
   contextFileService?: Pick<ContextFileService, 'resolve'>;
 };
 

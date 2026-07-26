@@ -1,40 +1,19 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { extractTaskOutput, validateOutput, type PersonaDefinition } from '@chaptale/shared';
+import { extractTaskOutput, validateOutput } from '@chaptale/shared';
 
 import { estimateTextTokens, fitTextToTokens } from '../../../modules/context/token-counter';
 import { resolveTaskSpec } from '../../../modules/personas/task-spec';
-import type { AgentRunRecord, AgentRunTrigger } from '../../../modules/runs/record';
+import type { AgentRunRecord } from '../../../modules/runs/record';
 import type { AgentRunStore } from '../../../modules/runs/store';
-import type { PiAgentSessionFactory } from './session-factory';
-
-export type TaskRunRequest = {
-  persona: PersonaDefinition;
-  /** 启动时绑定的工作区；task session、输出和 AgentRun 必须使用同一值。 */
-  cwd: string;
-  /** 任务简报：要做什么。 */
-  brief: string;
-  /** 待处理文本（粘贴或上传的正文）。 */
-  text: string;
-  /** 附件解析出的上下文信封（attached_context_files），原样嵌入提示词。 */
-  contextPrompt?: string;
-  trigger: AgentRunTrigger;
-  parentSessionId?: string;
-  /** 完整首轮 prompt 的硬预算；缺省不裁剪。 */
-  maxPromptTokens?: number;
-  signal?: AbortSignal;
-};
-
-export type TaskRunResult =
-  | { status: 'success'; runId: string; output: unknown; outputRef: string; usage: TaskRunUsage }
-  | { status: 'failed'; runId: string; errors: string[]; outputRef: string; usage: TaskRunUsage }
-  | { status: 'cancelled'; runId: string; usage?: TaskRunUsage };
-
-export type TaskRunUsage = {
-  inputTokens: number;
-  outputTokens: number;
-};
+import type {
+  TaskRunnerPort,
+  TaskRunRequest,
+  TaskRunResult,
+  TaskRunUsage,
+  TaskSessionFactoryPort
+} from '../../../modules/tasks/runner-port';
 
 /** 校验失败后允许模型自我修复的最大次数。 */
 const MAX_REPAIR_ATTEMPTS = 2;
@@ -47,9 +26,9 @@ const MAX_REPAIR_ATTEMPTS = 2;
  * 校验失败的原始输出完整保留在 outputs 文件里——坏输出是复盘素材，
  * 只是不进结构化 UI。
  */
-export class TaskRunner {
+export class TaskRunner implements TaskRunnerPort {
   constructor(
-    private readonly sessionFactory: Pick<PiAgentSessionFactory, 'createTaskSession'>,
+    private readonly sessionFactory: TaskSessionFactoryPort<AgentSession>,
     private readonly runStore: AgentRunStore
   ) {}
 

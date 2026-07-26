@@ -3,14 +3,14 @@ import { Type } from 'typebox';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import type { TaskRunner, TaskRunResult } from '../../integrations/pi/agent/task-runner';
 import type { PersonaRegistry } from '../personas/registry';
+import type { TaskRunnerPort, TaskRunResult } from '../tasks/runner-port';
 import type { ToolDefinition } from '../tools/definition';
 import type { SubagentPool } from './pool';
 
 export type DelegateToolContext = {
   pool: SubagentPool;
-  taskRunner: Pick<TaskRunner, 'run'>;
+  taskRunner: Pick<TaskRunnerPort, 'run'>;
   personaRegistry: Pick<PersonaRegistry, 'load'>;
   resolveCwd: () => Promise<string>;
   /** 发起委派的宿主会话；作为子任务的 parentSessionId 与事件过滤键。 */

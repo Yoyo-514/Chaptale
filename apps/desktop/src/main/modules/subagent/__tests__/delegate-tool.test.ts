@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import type { TaskRunResult } from '../../../integrations/pi/agent/task-runner';
+import type { TaskRunResult } from '../../tasks/runner-port';
 import { createDelegateTool, type DelegateToolContext } from '../delegate-tool';
 import { SubagentPool } from '../pool';
 

@@ -161,6 +161,15 @@ describe('模块依赖边界', () => {
 
     expect(imports).toEqual([]);
   });
+
+  it('modules 生产代码不导入 integrations 实现', async () => {
+    const mainRoot = path.resolve(import.meta.dirname, '../../..');
+    const modulesRoot = path.join(mainRoot, 'modules');
+    const integrationsRoot = path.join(mainRoot, 'integrations');
+    const imports = await findRelativeImportsInto(modulesRoot, integrationsRoot);
+
+    expect(imports).toEqual([]);
+  });
 });
 
 async function createTemporarySourceTree(files: Record<string, string>): Promise<string> {
