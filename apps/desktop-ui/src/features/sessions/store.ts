@@ -11,6 +11,8 @@ import type {
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { isSameWorkspacePath } from '@/utils/workspace-path';
 
+import { resolveSessionSelection } from './session-selection';
+
 /**
  * 按 store 实例记录在途的会话列表请求。
  * 放在模块级而非 pinia state：Promise 不可序列化，进 state 会带来 devtools 噪声与 $reset 语义问题。
@@ -65,26 +67,24 @@ export const useSessionStore = defineStore('session', {
       try {
         const desktopApi = getDesktopApi();
         this.sessions = await desktopApi.session.list();
-        const candidates = this.cwdSessions;
+        // 首次加载才读取持久化选择；之后刷新列表必须保留用户在当前运行期刚完成的切换。
+        const persistedSessionId = this.selectionRestored
+          ? ''
+          : await desktopApi.settings
+              .getState()
+              .then(state => state.settings.lastSessionId ?? '')
+              .catch(() => '');
+        const selection = resolveSessionSelection({
+          candidates: this.cwdSessions,
+          allSessions: this.sessions,
+          currentSessionId: this.currentSessionId,
+          selectionRestored: this.selectionRestored,
+          persistedSessionId
+        });
+        this.currentSessionId = selection.nextSessionId;
+        this.selectionRestored = true;
 
-        if (!this.selectionRestored) {
-          // 首次加载才读取持久化选择；之后刷新列表必须保留用户在当前运行期刚完成的切换。
-          const persistedSessionId = await desktopApi.settings
-            .getState()
-            .then(state => state.settings.lastSessionId ?? '')
-            .catch(() => '');
-          const candidateId = this.currentSessionId || persistedSessionId;
-          this.currentSessionId = candidates.some(session => session.id === candidateId)
-            ? candidateId
-            : (candidates[0]?.id ?? '');
-          this.selectionRestored = true;
-
-          if (this.currentSessionId !== persistedSessionId) {
-            await this.persistCurrentSession();
-          }
-        } else if (!this.sessions.some(session => session.id === this.currentSessionId)) {
-          // 只有当前选择确实不存在时才回退；显式选择的跨 workspace/global 会话必须保留。
-          this.currentSessionId = candidates[0]?.id ?? '';
+        if (selection.shouldPersist) {
           await this.persistCurrentSession();
         }
 
