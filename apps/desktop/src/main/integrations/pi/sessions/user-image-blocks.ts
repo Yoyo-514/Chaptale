@@ -1,4 +1,4 @@
-import type { ImageBlock } from '../../../modules/attachments/service';
+import type { ImageBlock } from '../../../core/attachments/service';
 
 /**
  * 兼容 pi 持久化用户消息的 content 数组：blockIndex 必须保留原始下标，

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { SessionCtx } from '../../session-ctx/types';
+import type { SessionCtx } from '../../../core/session-ctx/types';
 import { PermissionRuleStore } from '../rule-store';
 
 const tempDirs: string[] = [];

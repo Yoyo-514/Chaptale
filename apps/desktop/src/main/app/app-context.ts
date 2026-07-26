@@ -1,5 +1,8 @@
 import path from 'node:path';
 
+import { ImageAttachmentService } from '../core/attachments/service';
+import { ContextFileService } from '../core/context/service';
+import { SettingsService } from '../core/settings/service';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { ChatSessionFactory } from '../integrations/pi/agent/chat-session-factory';
@@ -14,9 +17,7 @@ import { PiModelService } from '../integrations/pi/models/service';
 import { PiSessionRepository } from '../integrations/pi/sessions/repository';
 import { SkillsProvider } from '../integrations/pi/skills/provider';
 import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
-import { ImageAttachmentService } from '../modules/attachments/service';
 import { SlashCommandService } from '../modules/commands/service';
-import { ContextFileService } from '../modules/context/service';
 import { CompactCoord } from '../modules/memory/compact-coord';
 import { CompactionSummaryStore } from '../modules/memory/compaction-summary-store';
 import { createMemoryInjector } from '../modules/memory/injector';
@@ -30,7 +31,6 @@ import { IndexService } from '../modules/search/index-service';
 import { LiteralSearchProvider } from '../modules/search/literal-search-provider';
 import { MemorySearchService } from '../modules/search/memory-search-service';
 import { WorkspaceIndexSourceResolver } from '../modules/search/source-resolver';
-import { SettingsService } from '../modules/settings/service';
 import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
 import { SubagentPool } from '../modules/subagent/pool';
 import { TaskService } from '../modules/tasks/service';

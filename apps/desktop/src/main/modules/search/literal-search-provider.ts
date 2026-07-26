@@ -1,4 +1,4 @@
-import type { FrontmatterParser } from '../frontmatter/types';
+import type { FrontmatterParser } from '../../core/frontmatter/types';
 import { throwIfSearchAborted } from './abort';
 import { chunkMarkdownDocument, type MarkdownChunkOptions } from './markdown-chunker';
 import type { LiteralSearchProviderPort, SearchProviderInput, SearchProviderOutput } from './memory-search-service';

@@ -4,9 +4,9 @@ import type { AgentRunOptions } from '@chaptale/ipc-contract';
 import type { ChatMessage, SkillInvocation } from '@chaptale/shared';
 import { formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
 
-import type { ImageAttachmentService } from '../../../modules/attachments/service';
-import { decodeContextMessage } from '../../../modules/context/context-message-codec';
-import type { ContextFileService } from '../../../modules/context/service';
+import type { ImageAttachmentService } from '../../../core/attachments/service';
+import { decodeContextMessage } from '../../../core/context/context-message-codec';
+import type { ContextFileService } from '../../../core/context/service';
 import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
 
 /** 普通 prompt 与 steer 共享的文本、会话和附件输入。 */

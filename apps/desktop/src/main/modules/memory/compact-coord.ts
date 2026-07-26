@@ -1,7 +1,7 @@
 import type { CreativeCheckpoint, PersonaDefinition } from '@chaptale/shared';
 import { validateOutput } from '@chaptale/shared';
 
-import { estimateTextTokens, fitTextToTokens } from '../context/token-counter';
+import { estimateTextTokens, fitTextToTokens } from '../../core/context/token-counter';
 import type { PersonaRegistry } from '../personas/registry';
 import type { CompactionSummaryStore } from './compaction-summary-store';
 import type { MemorySections, MemoryService } from './service';

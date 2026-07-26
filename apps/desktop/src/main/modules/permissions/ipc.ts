@@ -9,8 +9,8 @@ import {
   PermissionsRemoveRuleArgsValidator
 } from '@chaptale/ipc-contract';
 
+import type { IpcBroadcaster } from '../../core/ipc-ports';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import type { IpcBroadcaster } from '../ipc-ports';
 import type { PermissionBroker } from './broker';
 import type { PermissionRuleStore } from './rule-store';
 

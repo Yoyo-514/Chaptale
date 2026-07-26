@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 
-import type { SessionCtx } from '../../session-ctx/types';
+import type { SessionCtx } from '../../../core/session-ctx/types';
 import { registerPermissionsIpc } from '../ipc';
 
 const ipcMock = vi.hoisted(() => ({

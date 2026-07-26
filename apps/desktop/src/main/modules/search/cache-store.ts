@@ -2,8 +2,8 @@ import path from 'node:path';
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+import { toWorkspaceSessionDirName } from '../../core/settings/workspace-session-directory';
 import { readJsonFile, writeJsonFile } from '../../infra/filesystem/files';
-import { toWorkspaceSessionDirName } from '../settings/workspace-session-directory';
 import type { IndexChunk } from './types';
 
 export type IndexCacheEnvelope = {

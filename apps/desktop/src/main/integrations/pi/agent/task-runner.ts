@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { extractTaskOutput, validateOutput } from '@chaptale/shared';
 
-import { estimateTextTokens, fitTextToTokens } from '../../../modules/context/token-counter';
+import { estimateTextTokens, fitTextToTokens } from '../../../core/context/token-counter';
 import { resolveTaskSpec } from '../../../modules/personas/task-spec';
 import type { AgentRunRecord } from '../../../modules/runs/record';
 import type { AgentRunStore } from '../../../modules/runs/store';

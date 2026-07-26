@@ -18,7 +18,7 @@ import type {
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
 
-import type { SettingsService } from '../../../modules/settings/service';
+import type { SettingsService } from '../../../core/settings/service';
 import { getModelKey, normalizeModelInput } from './config-helpers';
 import { PiModelConfigRepository } from './config-repository';
 import { PiCustomModelConfigService } from './config-service';

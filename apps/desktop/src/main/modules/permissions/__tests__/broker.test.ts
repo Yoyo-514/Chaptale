@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PermissionAskEvent } from '@chaptale/ipc-contract';
 
-import type { SessionCtx } from '../../session-ctx/types';
+import type { SessionCtx } from '../../../core/session-ctx/types';
 import { PermissionBroker } from '../broker';
 
 const SESSION_CTX: SessionCtx = { sessionId: 's1', cwd: '/workspace-a', scope: 'workspace' };

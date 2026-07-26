@@ -1,6 +1,6 @@
 import { BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 
-import type { NativeDialogPort, UiShell } from '../../modules/ipc-ports';
+import type { NativeDialogPort, UiShell } from '../../core/ipc-ports';
 import { pickDirectory, pickSavePath } from './dialog';
 import { openPathOrThrow } from './shell';
 

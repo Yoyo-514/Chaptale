@@ -1,8 +1,8 @@
 import { IPC_CHANNELS, TodosGetArgsValidator } from '@chaptale/ipc-contract';
 import type { TodosUpdatedEvent } from '@chaptale/ipc-contract';
 
+import type { IpcBroadcaster } from '../../core/ipc-ports';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import type { IpcBroadcaster } from '../ipc-ports';
 import type { TodoStore } from './store';
 
 /**

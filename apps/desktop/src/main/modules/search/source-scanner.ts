@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { promises as fs, type Dirent } from 'node:fs';
 import path from 'node:path';
 
-import type { FrontmatterParser } from '../frontmatter/types';
+import type { FrontmatterParser } from '../../core/frontmatter/types';
 import { throwIfSearchAborted } from './abort';
 import type { IndexDiagnostic, IndexSourceDocument, IndexSourceFile, IndexSourceRoot } from './types';
 

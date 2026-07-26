@@ -1,8 +1,8 @@
 import { IPC_CHANNELS, SubagentCancelArgsValidator, SubagentListActiveArgsValidator } from '@chaptale/ipc-contract';
 import type { SubagentSlotEvent } from '@chaptale/shared';
 
+import type { IpcBroadcaster } from '../../core/ipc-ports';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import type { IpcBroadcaster } from '../ipc-ports';
 import type { SubagentPool } from './pool';
 
 /**

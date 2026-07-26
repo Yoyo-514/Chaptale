@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mergeWebAccessSettings } from '../../../../modules/settings/defaults';
+import { mergeWebAccessSettings } from '../../../../core/settings/defaults';
 import { fromPiWebAccessConfig, mergeWebAccessUpdate, PiWebAccessAdapter, toPiWebAccessConfig } from '../config-mapper';
 
 describe('pi web access config mapper', () => {

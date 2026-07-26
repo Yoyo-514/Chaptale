@@ -1,7 +1,7 @@
 import type { ToolCallEvent, ToolCallEventResult } from '@earendil-works/pi-coding-agent';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SessionCtx } from '../../../../modules/session-ctx/types';
+import type { SessionCtx } from '../../../../core/session-ctx/types';
 import { createPermissionGateExtension } from '../gate-extension';
 
 type GateHandler = (event: ToolCallEvent) => Promise<ToolCallEventResult | void>;

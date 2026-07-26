@@ -2,7 +2,7 @@ import { nativeImage } from 'electron';
 
 import { MAX_CHAT_IMAGE_BYTES } from '@chaptale/shared';
 
-import type { ThumbnailResult } from '../../modules/attachments/thumbnail-port';
+import type { ThumbnailResult } from '../../core/attachments/thumbnail-port';
 
 const THUMBNAIL_MAX_EDGE = 256;
 /** nativeImage 解码失败时，小于该体积的图片直接内联原图作为缩略图兜底。 */

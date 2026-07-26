@@ -1,8 +1,8 @@
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import type { ContextFileService } from '../context/service';
+import type { ContextFileService } from '../../core/context/service';
+import type { SettingsService } from '../../core/settings/service';
 import type { PersonaRegistry } from '../personas/registry';
-import type { SettingsService } from '../settings/service';
 import type { TaskRunnerPort, TaskRunResult } from './runner-port';
 
 export type TaskServiceOptions = {

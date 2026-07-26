@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ContextFileService } from '../../../../modules/context/service';
+import { ContextFileService } from '../../../../core/context/service';
 import { InputAssembler } from '../input-assembler';
 import { PiAgentService } from '../service';
 

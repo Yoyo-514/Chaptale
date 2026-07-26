@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { PermissionAskEvent } from '@chaptale/ipc-contract';
 import type { PermissionDecision } from '@chaptale/shared';
 
-import type { SessionCtx } from '../session-ctx/types';
+import type { SessionCtx } from '../../core/session-ctx/types';
 import type { RiskLevel } from './protocol';
 
 export type PermissionPending = {

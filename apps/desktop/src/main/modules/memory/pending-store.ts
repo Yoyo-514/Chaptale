@@ -11,7 +11,7 @@ import type {
   MemoryProposalType
 } from '@chaptale/shared';
 
-import type { FrontmatterParser } from '../frontmatter/types';
+import type { FrontmatterParser } from '../../core/frontmatter/types';
 import { resolveWorkspaceMemoryPaths } from './paths';
 
 export type MemoryPendingStoreOptions = {

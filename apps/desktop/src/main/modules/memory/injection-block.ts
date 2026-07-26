@@ -1,4 +1,4 @@
-import { estimateTextTokens } from '../context/token-counter';
+import { estimateTextTokens } from '../../core/context/token-counter';
 import type { MemorySections } from './service';
 
 /** 注入块总预算（tokens）；接入 tokenizer 前用 chars/4 保守估算。 */

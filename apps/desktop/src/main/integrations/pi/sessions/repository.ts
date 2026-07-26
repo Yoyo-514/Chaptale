@@ -14,7 +14,7 @@ import type {
 } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
-import type { ImageAttachmentService } from '../../../modules/attachments/service';
+import type { ImageAttachmentService } from '../../../core/attachments/service';
 import { buildSessionHtml, toSafeFileName } from '../../../modules/sessions/html-renderer';
 import type { SessionRepository } from '../../../modules/sessions/repository';
 import { toSessionListItem, toSessionTreeEntry } from './entry-mapper';

@@ -10,12 +10,12 @@ import { promises as fs } from 'node:fs';
 
 import type { RiskLevel } from '@chaptale/shared';
 
+import type { SessionCtx } from '../../../core/session-ctx/types';
+import type { SettingsService } from '../../../core/settings/service';
 import type { PermissionBroker } from '../../../modules/permissions/broker';
 import type { PermissionRuleStore } from '../../../modules/permissions/rule-store';
 import type { TaskPersonaSpec } from '../../../modules/personas/task-spec';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
-import type { SessionCtx } from '../../../modules/session-ctx/types';
-import type { SettingsService } from '../../../modules/settings/service';
 import type { TaskSessionFactoryPort } from '../../../modules/tasks/runner-port';
 import type { ToolDefinition } from '../../../modules/tools/definition';
 import type { PiModelService } from '../models/service';

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { SessionCtx } from '../session-ctx/types';
+import type { SessionCtx } from '../../core/session-ctx/types';
 import type { PermissionRule, PermissionScope } from './protocol';
 
 const PERMISSIONS_FILE = 'permissions.json';

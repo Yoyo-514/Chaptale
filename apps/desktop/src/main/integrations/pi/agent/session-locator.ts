@@ -3,8 +3,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { unique } from 'radash';
 
-import type { SessionCtx } from '../../../modules/session-ctx/types';
-import type { SettingsService } from '../../../modules/settings/service';
+import type { SessionCtx } from '../../../core/session-ctx/types';
+import type { SettingsService } from '../../../core/settings/service';
 import { getSessionScope } from '../sessions/storage';
 
 /** 从持久化 session 元数据恢复安全上下文，拒绝缺失 cwd 的历史会话。 */

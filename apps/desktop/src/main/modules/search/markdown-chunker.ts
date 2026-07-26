@@ -1,7 +1,7 @@
 import { marked, type Token } from 'marked';
 import { createHash } from 'node:crypto';
 
-import { estimateTextTokens, takeTextTailToTokenBudget, takeTextToTokenBudget } from '../context/token-counter';
+import { estimateTextTokens, takeTextTailToTokenBudget, takeTextToTokenBudget } from '../../core/context/token-counter';
 import { buildPinyinAliases } from './pinyin-aliases';
 import type { IndexChunk, IndexSourceDocument } from './types';
 

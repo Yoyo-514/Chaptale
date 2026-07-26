@@ -155,25 +155,39 @@ describe('Pi 依赖边界', () => {
 describe('模块依赖边界', () => {
   it('attachments 不依赖 context', async () => {
     const mainRoot = path.resolve(import.meta.dirname, '../../..');
-    const attachmentsRoot = path.join(mainRoot, 'modules/attachments');
-    const contextRoot = path.join(mainRoot, 'modules/context');
+    const attachmentsRoot = path.join(mainRoot, 'core/attachments');
+    const contextRoot = path.join(mainRoot, 'core/context');
     const imports = await findRelativeImportsInto(attachmentsRoot, contextRoot);
+
+    expect(imports).toEqual([]);
+  });
+
+  it('core 生产代码不导入业务模块', async () => {
+    const mainRoot = path.resolve(import.meta.dirname, '../../..');
+    const coreRoot = path.join(mainRoot, 'core');
+    const modulesRoot = path.join(mainRoot, 'modules');
+    const imports = await findRelativeImportsInto(coreRoot, modulesRoot);
 
     expect(imports).toEqual([]);
   });
 
   it('modules 生产代码不导入 integrations 实现', async () => {
     const mainRoot = path.resolve(import.meta.dirname, '../../..');
-    const modulesRoot = path.join(mainRoot, 'modules');
     const integrationsRoot = path.join(mainRoot, 'integrations');
-    const imports = await findRelativeImportsInto(modulesRoot, integrationsRoot);
+    const imports = [
+      ...(await findRelativeImportsInto(path.join(mainRoot, 'core'), integrationsRoot)),
+      ...(await findRelativeImportsInto(path.join(mainRoot, 'modules'), integrationsRoot))
+    ];
 
     expect(imports).toEqual([]);
   });
 
   it('modules 生产代码不导入 Electron 实现', async () => {
     const mainRoot = path.resolve(import.meta.dirname, '../../..');
-    const files = await collectTypeScriptFiles(path.join(mainRoot, 'modules'));
+    const files = [
+      ...(await collectTypeScriptFiles(path.join(mainRoot, 'core'))),
+      ...(await collectTypeScriptFiles(path.join(mainRoot, 'modules')))
+    ];
     const violations = await Promise.all(
       files.map(async filePath => {
         const source = await fs.readFile(filePath, 'utf8');

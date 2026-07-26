@@ -10,10 +10,10 @@ import type {
 import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus } from '@chaptale/shared';
 import { errorToMessage, parseSkillInvocation } from '@chaptale/shared';
 
+import type { BoundSession } from '../../../core/session-ctx/types';
 import { evaluateContextPressure } from '../../../modules/memory/context-pressure';
 import type { MemoryInjector } from '../../../modules/memory/injector';
 import type { PermissionBroker } from '../../../modules/permissions/broker';
-import type { BoundSession } from '../../../modules/session-ctx/types';
 import type { PiModelService } from '../models/service';
 import { flushSessionFile } from '../sessions/file';
 import { getPiUserEntrySnapshot } from '../sessions/user-entry-snapshot';

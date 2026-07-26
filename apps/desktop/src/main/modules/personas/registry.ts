@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { PersonaDefinition, PersonaDiagnostic, PersonaSource } from '@chaptale/shared';
 import { PersonaFrontmatterValidator } from '@chaptale/shared';
 
-import type { FrontmatterParser } from '../frontmatter/types';
+import type { FrontmatterParser } from '../../core/frontmatter/types';
 
 export type PersonaRegistryOptions = {
   parseFrontmatter: FrontmatterParser;

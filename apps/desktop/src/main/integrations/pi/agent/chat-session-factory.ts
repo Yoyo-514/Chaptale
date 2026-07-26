@@ -11,6 +11,8 @@ import path from 'node:path';
 
 import type { PersonaDefinition, RiskLevel } from '@chaptale/shared';
 
+import type { BoundSession } from '../../../core/session-ctx/types';
+import type { SettingsService } from '../../../core/settings/service';
 import { MEMORY_PROTOCOL } from '../../../modules/memory/protocol';
 import type { PermissionBroker } from '../../../modules/permissions/broker';
 import type { PermissionRuleStore } from '../../../modules/permissions/rule-store';
@@ -18,8 +20,6 @@ import { builtinCompanionBody } from '../../../modules/personas/builtin';
 import type { PersonaRegistry } from '../../../modules/personas/registry';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
 import { PRODUCT_DUTY } from '../../../modules/prompts/product-duty';
-import type { BoundSession } from '../../../modules/session-ctx/types';
-import type { SettingsService } from '../../../modules/settings/service';
 import { TODO_PROTOCOL } from '../../../modules/todo/protocol';
 import type { TodoStore } from '../../../modules/todo/store';
 import type { ToolCatalog } from '../../../modules/tools/catalog';

@@ -9,8 +9,8 @@ import {
   stripUndefined
 } from '@chaptale/shared';
 
-import { mergeWebAccessSettings } from '../../../modules/settings/defaults';
-import type { WebAccessAdapter } from '../../../modules/settings/web-access-adapter';
+import { mergeWebAccessSettings } from '../../../core/settings/defaults';
+import type { WebAccessAdapter } from '../../../core/settings/web-access-adapter';
 
 /** 将稳定的设置模块端口适配到 Pi web-search.json 配置格式。 */
 export class PiWebAccessAdapter implements WebAccessAdapter {

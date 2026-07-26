@@ -22,10 +22,10 @@ import type {
 } from '@chaptale/ipc-contract';
 import { errorToMessage } from '@chaptale/shared';
 
+import type { ContextFileService } from '../../core/context/service';
+import type { IpcOwnerResolver } from '../../core/ipc-ports';
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import type { ContextFileService } from '../context/service';
-import type { IpcOwnerResolver } from '../ipc-ports';
 import { AgentRunManager } from './run-manager';
 import type { AgentRuntime } from './runtime';
 

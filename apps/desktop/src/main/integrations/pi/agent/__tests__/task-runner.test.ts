@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import { estimateTextTokens } from '../../../../modules/context/token-counter';
+import { estimateTextTokens } from '../../../../core/context/token-counter';
 import { AgentRunStore } from '../../../../modules/runs/store';
 import { createDefaultToolCatalog } from '../../../../modules/tools/catalog';
 import { renderTaskPrompt, renderTaskPromptWithinBudget, TaskRunner } from '../task-runner';

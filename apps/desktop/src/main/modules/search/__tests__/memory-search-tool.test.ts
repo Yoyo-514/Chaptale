@@ -1,7 +1,7 @@
 import { Check } from 'typebox/value';
 import { describe, expect, it, vi } from 'vitest';
 
-import { estimateTextTokens } from '../../context/token-counter';
+import { estimateTextTokens } from '../../../core/context/token-counter';
 import type { MemorySearchOutput } from '../memory-search-service';
 import { createMemorySearchTool, memorySearchParameters } from '../memory-search-tool';
 

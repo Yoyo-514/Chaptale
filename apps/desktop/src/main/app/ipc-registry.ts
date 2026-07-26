@@ -1,5 +1,6 @@
 import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
 
+import { registerSettingsIpc } from '../core/settings/ipc';
 import { ElectronUiShell } from '../infra/electron/ui-shell';
 import { registerWindowIpc } from '../infra/electron/window-ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
@@ -10,7 +11,6 @@ import { registerModelsIpc } from '../modules/models/ipc';
 import { registerPermissionsIpc } from '../modules/permissions/ipc';
 import { registerPromptSettingsIpc } from '../modules/prompts/ipc';
 import { registerSessionIpc } from '../modules/sessions/ipc';
-import { registerSettingsIpc } from '../modules/settings/ipc';
 import { registerSubagentIpc } from '../modules/subagent/ipc';
 import { registerTaskIpc } from '../modules/tasks/ipc';
 import { registerTodoIpc } from '../modules/todo/ipc';

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
-import type { FrontmatterParser } from '../frontmatter/types';
-import { toWorkspaceSessionDirName } from '../settings/workspace-session-directory';
+import type { FrontmatterParser } from '../../core/frontmatter/types';
+import { toWorkspaceSessionDirName } from '../../core/settings/workspace-session-directory';
 import { waitForSearch } from './abort';
 import { IndexCacheStore, type IndexCacheEnvelope, type IndexCachePort } from './cache-store';
 import { createSearchTokenizer, type SearchTokenizerResult } from './jieba-tokenizer';

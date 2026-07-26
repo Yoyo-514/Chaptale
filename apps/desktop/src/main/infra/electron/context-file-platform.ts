@@ -1,7 +1,7 @@
 import type { BrowserWindow, OpenDialogOptions } from 'electron';
 import { unique } from 'radash';
 
-import type { ContextFilePlatform, ContextImagePreview } from '../../modules/context/platform';
+import type { ContextFilePlatform, ContextImagePreview } from '../../core/context/platform';
 import { DOCUMENT_MIME_TYPES, IMAGE_MIME_TYPES, TEXT_EXTENSIONS } from '../filesystem/file-kind';
 import { showOpenDialog } from './dialog';
 import { createElectronThumbnail } from './thumbnail';

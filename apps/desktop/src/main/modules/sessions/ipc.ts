@@ -19,9 +19,9 @@ import type {
   SetSessionLeafPayload
 } from '@chaptale/ipc-contract';
 
+import type { UiShell } from '../../core/ipc-ports';
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import type { UiShell } from '../ipc-ports';
 import { exportSessionHtmlToFile } from './export';
 import type { SessionRepository } from './repository';
 

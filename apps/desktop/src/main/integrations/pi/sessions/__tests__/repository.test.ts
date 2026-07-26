@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ImageAttachmentService } from '../../../../modules/attachments/service';
+import { ImageAttachmentService } from '../../../../core/attachments/service';
 import { PiSessionRepository } from '../repository';
 
 let rootDir: string;

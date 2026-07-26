@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { estimateTextTokens } from '../../context/token-counter';
+import { estimateTextTokens } from '../../../core/context/token-counter';
 import { chunkMarkdownDocument } from '../markdown-chunker';
 import type { IndexSourceDocument } from '../types';
 

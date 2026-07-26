@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import { estimateTextTokens } from '../../context/token-counter';
+import { estimateTextTokens } from '../../../core/context/token-counter';
 import { CompactCoord } from '../compact-coord';
 
 const persona = {
