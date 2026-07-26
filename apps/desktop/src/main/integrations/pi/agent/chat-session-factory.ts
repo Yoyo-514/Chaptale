@@ -17,6 +17,7 @@ import type { PermissionRuleStore } from '../../../modules/permissions/rule-stor
 import { builtinCompanionBody } from '../../../modules/personas/builtin';
 import type { PersonaRegistry } from '../../../modules/personas/registry';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
+import { PRODUCT_DUTY } from '../../../modules/prompts/product-duty';
 import type { BoundSession } from '../../../modules/session-ctx/types';
 import type { SettingsService } from '../../../modules/settings/service';
 import { TODO_PROTOCOL } from '../../../modules/todo/protocol';
@@ -147,6 +148,7 @@ export class ChatSessionFactory {
         composeSystemPrompt({
           personaBody,
           discoveredSystemMd: discovered,
+          productDuty: PRODUCT_DUTY,
           memoryProtocol: MEMORY_PROTOCOL,
           todoProtocol: TODO_PROTOCOL
         })

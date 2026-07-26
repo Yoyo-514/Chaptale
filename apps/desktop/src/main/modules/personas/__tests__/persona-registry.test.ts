@@ -47,7 +47,7 @@ describe('PersonaRegistry', () => {
       memory: { read: ['canon', 'notes', 'summaries'], write: ['notes'], propose: ['canon'] }
     });
     expect(companion).not.toHaveProperty('tools');
-    expect(companion?.body).toContain('创作辅助伙伴');
+    expect(companion?.body).toContain('创作伙伴');
 
     const reviewer = personas.find(persona => persona.id === 'continuity-reviewer');
     expect(reviewer).toMatchObject({

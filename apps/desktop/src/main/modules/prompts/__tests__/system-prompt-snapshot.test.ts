@@ -4,10 +4,12 @@ import { MEMORY_PROTOCOL } from '../../memory/protocol';
 import { builtinCompanionBody } from '../../personas/builtin';
 import { TODO_PROTOCOL } from '../../todo/protocol';
 import { composeSystemPrompt } from '../compose-system-prompt';
+import { PRODUCT_DUTY } from '../product-duty';
 
 describe('内置 systemPrompt 拼装', () => {
   const full = composeSystemPrompt({
     personaBody: builtinCompanionBody,
+    productDuty: PRODUCT_DUTY,
     memoryProtocol: MEMORY_PROTOCOL,
     todoProtocol: TODO_PROTOCOL
   });
@@ -26,5 +28,16 @@ describe('内置 systemPrompt 拼装', () => {
     expect(full).toContain('memory_save');
     expect(full).toContain('memory_propose');
     expect(full).toContain('todo_write');
+  });
+
+  it('产品职责层在 persona 与 memory 协议之间', () => {
+    const dutyIndex = full.indexOf('## 工作纪律');
+    expect(dutyIndex).toBeGreaterThan(0);
+    expect(dutyIndex).toBeLessThan(full.indexOf('## 记忆协议'));
+  });
+
+  it('资产红线只在产品职责层，不在 memory 协议', () => {
+    expect(PRODUCT_DUTY).toContain('memory_propose');
+    expect(MEMORY_PROTOCOL).not.toContain('write/edit');
   });
 });
