@@ -38,7 +38,9 @@ vi.mock('@earendil-works/pi-coding-agent', async importOriginal => ({
 }));
 
 import type { TaskPersonaSpec } from '../../../../modules/personas/task-spec';
-import { PiAgentSessionFactory } from '../session-factory';
+import { createDefaultToolCatalog } from '../../../../modules/tools/catalog';
+import { ChatSessionFactory } from '../chat-session-factory';
+import { TaskSessionFactory } from '../task-session-factory';
 
 let rootDir: string;
 
@@ -51,7 +53,12 @@ afterEach(async () => {
   await rm(rootDir, { recursive: true, force: true });
 });
 
-describe('PiAgentSessionFactory', () => {
+const noChatTools = async () => [];
+
+describe('ChatSessionFactory', () => {
+  const toolCatalog = createDefaultToolCatalog();
+  const noCompactExt = { name: 'test-noop-compact', hidden: true, factory: vi.fn() };
+
   it('passes the model service shared ModelRuntime to createAgentSession', async () => {
     const sessionsRootDir = path.join(rootDir, 'sessions');
     const workspaceDir = path.join(rootDir, 'workspace-a');
@@ -82,17 +89,20 @@ describe('PiAgentSessionFactory', () => {
     const skillsProvider = {
       load: vi.fn(() => ({ skills: [], diagnostics: [] }))
     };
-    const factory = new PiAgentSessionFactory({
+    const compactExt = { name: 'test-compact', hidden: true, factory: vi.fn() };
+    const buildCompactExt = vi.fn(() => compactExt);
+    const factory = new ChatSessionFactory({
       settingsService: settingsService as any,
       modelService: modelService as any,
       skillsProvider: skillsProvider as any,
       todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any,
       permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
-      permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any
+      permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any,
+      personaRegistry: { get: vi.fn(async () => undefined) } as any,
+      toolCatalog,
+      buildChatTools: noChatTools,
+      buildCompactExt: buildCompactExt as any
     });
-    const compactExt = { name: 'test-compact', hidden: true, factory: vi.fn() };
-    const buildCompactExt = vi.fn(() => compactExt);
-    factory.setCompactExt(buildCompactExt as any);
 
     const bound = await factory.create('session-1');
 
@@ -133,13 +143,17 @@ describe('PiAgentSessionFactory', () => {
       getCurrentSessionDir: vi.fn(async () => sessionDir),
       getCurrentCwd: vi.fn(async () => rootDir)
     };
-    const factory = new PiAgentSessionFactory({
+    const factory = new ChatSessionFactory({
       settingsService: settingsService as any,
       modelService: { getModelRuntime: vi.fn(async () => ({ id: 'runtime' })) } as any,
       skillsProvider: { load: vi.fn(() => ({ skills: [], diagnostics: [] })) } as any,
       todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any,
       permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
-      permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any
+      permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any,
+      personaRegistry: { get: vi.fn(async () => undefined) } as any,
+      toolCatalog,
+      buildChatTools: noChatTools,
+      buildCompactExt: () => noCompactExt as any
     });
 
     const bound = await factory.create('session-1');
@@ -179,15 +193,6 @@ describe('PiAgentSessionFactory', () => {
     };
     const personaRegistry = { get: vi.fn(async () => companion) };
     const skillsProvider = { load: vi.fn(() => ({ skills: [], diagnostics: [] })) };
-    const factory = new PiAgentSessionFactory({
-      settingsService: settingsService as any,
-      modelService: { getModelRuntime: vi.fn(async () => ({ id: 'runtime' })) } as any,
-      skillsProvider: skillsProvider as any,
-      todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any,
-      permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
-      permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any,
-      personaRegistry: personaRegistry as any
-    });
     const buildTools = vi.fn(async () => [
       {
         name: 'memory_search',
@@ -205,7 +210,18 @@ describe('PiAgentSessionFactory', () => {
         execute: vi.fn(async () => ({ text: 'saved' }))
       }
     ]);
-    factory.setExtraChatTools(buildTools);
+    const factory = new ChatSessionFactory({
+      settingsService: settingsService as any,
+      modelService: { getModelRuntime: vi.fn(async () => ({ id: 'runtime' })) } as any,
+      skillsProvider: skillsProvider as any,
+      todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any,
+      permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
+      permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any,
+      personaRegistry: personaRegistry as any,
+      toolCatalog,
+      buildChatTools: buildTools as any,
+      buildCompactExt: () => noCompactExt as any
+    });
 
     await factory.create('session-1');
 
@@ -235,7 +251,7 @@ describe('PiAgentSessionFactory', () => {
     expect(settingsService.getCurrentCwd).not.toHaveBeenCalled();
   });
 
-  describe('createTaskSession', () => {
+  describe('TaskSessionFactory', () => {
     function createTaskFactory(model: any = { provider: 'p', id: 'm' }) {
       const sessionManager = { id: 'task-manager' };
       const settingsManager = { id: 'settings' };
@@ -260,16 +276,23 @@ describe('PiAgentSessionFactory', () => {
         // null 哨兵表示"未配置"；不能用 undefined，否则触发默认参数。
         getDefaultPiModel: vi.fn(async () => (model === null ? undefined : model))
       };
-      const factory = new PiAgentSessionFactory({
+      let buildTaskTools: (spec: any, cwd: string) => Promise<any[]> = vi.fn(async () => []);
+      const factory = new TaskSessionFactory({
         settingsService: settingsService as any,
         modelService: modelService as any,
-        skillsProvider: { load: vi.fn(() => ({ skills: [], diagnostics: [] })) } as any,
-        todoStore: { replace: vi.fn(), read: vi.fn(async () => []) } as any,
         permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
-        permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any
+        permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any,
+        buildTaskTools: (spec, cwd) => buildTaskTools(spec as any, cwd as any)
       });
 
-      return { factory, session, settingsService };
+      return {
+        factory,
+        session,
+        settingsService,
+        setTaskTools: (builder: any) => {
+          buildTaskTools = builder;
+        }
+      };
     }
 
     const spec = {
@@ -321,7 +344,7 @@ describe('PiAgentSessionFactory', () => {
     });
 
     it('mounts explicitly declared task custom tools', async () => {
-      const { factory } = createTaskFactory();
+      const { factory, setTaskTools } = createTaskFactory();
       const execute = vi.fn(async () => ({ text: 'result' }));
       const buildTaskTools = vi.fn(async () => [
         {
@@ -333,7 +356,7 @@ describe('PiAgentSessionFactory', () => {
           execute
         }
       ]);
-      factory.setExtraTaskTools(buildTaskTools);
+      setTaskTools(buildTaskTools);
       const searchSpec: TaskPersonaSpec = {
         ...spec,
         tools: ['memory_search'],

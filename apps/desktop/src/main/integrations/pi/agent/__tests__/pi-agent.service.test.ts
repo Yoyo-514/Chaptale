@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { ContextFileService } from '../../../../modules/context/service';
 import { PiAgentService } from '../service';
 
 function createFakeSession(promptImpl?: (emit: (event: any) => void) => Promise<void> | void) {
@@ -95,23 +96,23 @@ function createService(
       resolvePrefix: vi.fn(async () => ''),
       reset: vi.fn()
     } as any);
-  const service = new PiAgentService(
-    settingsService,
-    { getDefaultPiModel: vi.fn(async () => defaultModel) } as any,
-    imageAttachmentService as any,
-    undefined,
-    memoryInjector
-  );
-  (service as any).sessionFactory = {
-    create: vi.fn(async (sessionId: string) => ({
-      session,
-      ctx: {
-        sessionId,
-        cwd: options?.sessionCtx?.cwd ?? (await settingsService.getCurrentCwd()),
-        scope: options?.sessionCtx?.scope ?? 'workspace'
-      }
-    }))
-  };
+  const service = new PiAgentService({
+    chatFactory: {
+      create: vi.fn(async (sessionId: string) => ({
+        session,
+        ctx: {
+          sessionId,
+          cwd: options?.sessionCtx?.cwd ?? (await settingsService.getCurrentCwd()),
+          scope: options?.sessionCtx?.scope ?? 'workspace'
+        }
+      }))
+    } as any,
+    modelService: { getDefaultPiModel: vi.fn(async () => defaultModel) } as any,
+    memoryInjector,
+    permissionBroker: { rejectSession: vi.fn() } as any,
+    contextFileService: new ContextFileService(),
+    imageAttachmentService: imageAttachmentService as any
+  });
   return service;
 }
 
@@ -231,7 +232,7 @@ describe('PiAgentService', () => {
     const service = createService(session);
     const promptPrefix =
       '<attached_context_files>\n<file path="C:/novel/outline.md" handling="file-input-text" size="2 KB">正文</file>\n</attached_context_files>\n\n';
-    (service as any).contextFileService = {
+    (service as any).options.contextFileService = {
       resolve: vi.fn().mockResolvedValue({ promptPrefix, images: [], imagePaths: [] })
     };
 
@@ -271,7 +272,7 @@ describe('PiAgentService', () => {
         imagePaths
       })
     };
-    (service as any).contextFileService = contextFileService;
+    (service as any).options.contextFileService = contextFileService;
 
     const messages = await collect(
       service.stream({
@@ -315,7 +316,7 @@ describe('PiAgentService', () => {
         imagePaths: ['C:/novel/cover.png']
       })
     };
-    (service as any).contextFileService = contextFileService;
+    (service as any).options.contextFileService = contextFileService;
 
     await service.steer({
       sessionId: 'session-1',
@@ -334,7 +335,7 @@ describe('PiAgentService', () => {
   it('never reloads or switches the model on the actively streaming session during steer', async () => {
     const { session } = createFakeSession();
     const service = createService(session);
-    (service as any).contextFileService = {
+    (service as any).options.contextFileService = {
       resolve: vi.fn().mockResolvedValue({ promptPrefix: '', images: [], imagePaths: [] })
     };
 
@@ -366,7 +367,7 @@ describe('PiAgentService', () => {
     const { session } = createFakeSession();
     const service = createService(session);
     const contextResolved = createDeferred<any>();
-    (service as any).contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
+    (service as any).options.contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
 
     const result = service.steer({
       sessionId: 'session-1',
@@ -387,7 +388,7 @@ describe('PiAgentService', () => {
     const service = createService(session);
     const contextResolved = createDeferred<any>();
     const controller = new AbortController();
-    (service as any).contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
+    (service as any).options.contextFileService = { resolve: vi.fn(() => contextResolved.promise) };
 
     const result = service.steer({
       sessionId: 'session-1',
@@ -408,7 +409,7 @@ describe('PiAgentService', () => {
     const { session } = createFakeSession();
     const service = createService(session);
     const pendingSession = createDeferred<any>();
-    (service as any).sessionFactory = { create: vi.fn(() => pendingSession.promise) };
+    (service as any).options.chatFactory = { create: vi.fn(() => pendingSession.promise) };
     const controller = new AbortController();
 
     const result = service.clearPendingMessages({ sessionId: 'session-1', signal: controller.signal } as any);
@@ -455,7 +456,7 @@ describe('PiAgentService', () => {
     const imageAttachmentService = createImageAttachmentService();
     const service = createService(session, { provider: 'new-provider', id: 'new-model' }, imageAttachmentService);
     const contextFileService = { resolve: vi.fn() };
-    (service as any).contextFileService = contextFileService;
+    (service as any).options.contextFileService = contextFileService;
 
     const messages = await collect(
       service.stream({
@@ -606,7 +607,7 @@ describe('PiAgentService', () => {
     const service = createService(session);
     const pendingSession = createDeferred<any>();
     const create = vi.fn(() => pendingSession.promise);
-    (service as any).sessionFactory = { create };
+    (service as any).options.chatFactory = { create };
     const controller = new AbortController();
 
     const result = collect(service.stream({ sessionId: 'session-1', query: 'hi', signal: controller.signal }));

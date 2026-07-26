@@ -20,22 +20,17 @@ import { ImageAttachmentService } from '../../../modules/attachments/service';
 import { decodeContextMessage } from '../../../modules/context/context-message-codec';
 import { ContextFileService } from '../../../modules/context/service';
 import { evaluateContextPressure } from '../../../modules/memory/context-pressure';
-import { createMemoryInjector, type MemoryInjector } from '../../../modules/memory/injector';
+import type { MemoryInjector } from '../../../modules/memory/injector';
 import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
-import { PermissionBroker } from '../../../modules/permissions/broker';
-import { PermissionRuleStore } from '../../../modules/permissions/rule-store';
+import type { PermissionBroker } from '../../../modules/permissions/broker';
 import type { BoundSession } from '../../../modules/session-ctx/types';
-import type { SettingsService } from '../../../modules/settings/service';
-import { TodoStore } from '../../../modules/todo/store';
-import { createDefaultToolCatalog, type ToolCatalog } from '../../../modules/tools/catalog';
 import type { PiModelService } from '../models/service';
 import { flushSessionFile } from '../sessions/file';
 import { getPiUserEntrySnapshot } from '../sessions/user-entry-snapshot';
-import { SkillsProvider } from '../skills/provider';
 import { AsyncMessageQueue } from './async-message-queue';
+import type { ChatSessionFactory } from './chat-session-factory';
 import { isChaptaleCompactDetails } from './compact-extension';
 import { mapAgentStreamEvent } from './event-mapper';
-import { createDefaultPersonaRegistry, PiAgentSessionFactory } from './session-factory';
 
 export type StreamOptions = AgentRunOptions;
 
@@ -50,6 +45,15 @@ type AgentRunContext = {
   promptImages: ImageContent[];
 };
 
+export type PiAgentServiceOptions = {
+  chatFactory: Pick<ChatSessionFactory, 'create'>;
+  modelService: PiModelService;
+  memoryInjector: MemoryInjector;
+  permissionBroker: PermissionBroker;
+  contextFileService: Pick<ContextFileService, 'resolve'>;
+  imageAttachmentService: Pick<ImageAttachmentService, 'createPresentation'>;
+};
+
 /**
  * AgentRuntime 的 Pi 适配边界。
  *
@@ -58,45 +62,8 @@ type AgentRunContext = {
  */
 export class PiAgentService implements AgentRuntime {
   private sessions = new Map<string, Promise<BoundSession<AgentSession>>>();
-  private readonly contextFileService = new ContextFileService();
-  private readonly memoryInjector: MemoryInjector;
-  /** 会话工厂；对外暴露供组装层复用（TaskRunner 的 task 会话与额外工具注册）。 */
-  readonly sessionFactory: PiAgentSessionFactory;
-  readonly skillsProvider: SkillsProvider;
-  /** 会话级 todo 存储；对外暴露供 IPC 层订阅变更与查询。 */
-  readonly todoStore: TodoStore;
-  /** 权限闸门依赖；对外暴露供 IPC 决策回传与 task 会话复用同一实例。 */
-  readonly permissionBroker: PermissionBroker;
-  readonly permissionRuleStore: PermissionRuleStore;
 
-  constructor(
-    settingsService: SettingsService,
-    private readonly modelService: PiModelService,
-    private readonly imageAttachmentService = new ImageAttachmentService(),
-    skillsProvider = new SkillsProvider(settingsService),
-    memoryInjector?: MemoryInjector,
-    todoStore = new TodoStore(settingsService.todosDir),
-    permissionBroker = new PermissionBroker(),
-    permissionRuleStore = new PermissionRuleStore({ globalDir: settingsService.rootDir }),
-    personaRegistry = createDefaultPersonaRegistry(settingsService),
-    toolCatalog: ToolCatalog = createDefaultToolCatalog()
-  ) {
-    this.skillsProvider = skillsProvider;
-    this.todoStore = todoStore;
-    this.permissionBroker = permissionBroker;
-    this.permissionRuleStore = permissionRuleStore;
-    this.memoryInjector = memoryInjector ?? createMemoryInjector(settingsService.rootDir);
-    this.sessionFactory = new PiAgentSessionFactory({
-      settingsService,
-      modelService,
-      skillsProvider,
-      todoStore,
-      permissionBroker,
-      permissionRuleStore,
-      personaRegistry,
-      toolCatalog
-    });
-  }
+  constructor(private readonly options: PiAgentServiceOptions) {}
 
   /** 会话目录/工作区切换后调用，丢弃缓存的 AgentSession与记忆注入去重记录。 */
   invalidateSessions() {
@@ -105,7 +72,7 @@ export class PiAgentService implements AgentRuntime {
     }
 
     this.sessions.clear();
-    this.memoryInjector.reset();
+    this.options.memoryInjector.reset();
   }
 
   /**
@@ -126,7 +93,7 @@ export class PiAgentService implements AgentRuntime {
   }
 
   private createSession(sessionId: string): Promise<BoundSession<AgentSession>> {
-    return this.sessionFactory.create(sessionId);
+    return this.options.chatFactory.create(sessionId);
   }
 
   async *stream(options: StreamOptions): AsyncGenerator<ChatMessage> {
@@ -144,7 +111,7 @@ export class PiAgentService implements AgentRuntime {
       abortHandled = true;
 
       // 中断同时释放该会话挂起的授权请求，避免工具执行阻塞到超时。
-      this.permissionBroker.rejectSession(sessionId);
+      this.options.permissionBroker.rejectSession(sessionId);
 
       // 中断代表结束整次运行，必须先清掉 queued steer，避免 abort 后又触发续跑。
       try {
@@ -200,7 +167,9 @@ export class PiAgentService implements AgentRuntime {
       signal.throwIfAborted();
 
       // 记忆注入仅限新发 prompt：复用历史条目需逐字重现原 prompt，steer 保持轻量（均不注入）。
-      const memoryPrefix = options.reuseUserEntryId ? '' : await this.memoryInjector.resolvePrefix(sessionId, ctx.cwd);
+      const memoryPrefix = options.reuseUserEntryId
+        ? ''
+        : await this.options.memoryInjector.resolvePrefix(sessionId, ctx.cwd);
       const runContext = await this.resolveRunContext(options, skillInvocation, reusedContext, memoryPrefix);
       signal.throwIfAborted();
 
@@ -319,7 +288,7 @@ export class PiAgentService implements AgentRuntime {
 
     // 默认模型可能在会话创建后被切换（或会话恢复了无凭据的旧模型），
     // 每次执行前同步为当前默认模型，避免拿旧模型/旧凭据请求导致 401/403。
-    const defaultModel = await this.modelService.getDefaultPiModel();
+    const defaultModel = await this.options.modelService.getDefaultPiModel();
 
     if (defaultModel && (session.model?.provider !== defaultModel.provider || session.model?.id !== defaultModel.id)) {
       await session.setModel(defaultModel);
@@ -357,7 +326,9 @@ export class PiAgentService implements AgentRuntime {
     reusedContext: ReusedUserEntryContext,
     memoryPrefix = ''
   ): Promise<AgentRunContext> {
-    const resolvedContext = reusedContext ? undefined : await this.contextFileService.resolve(options.contextFilePaths);
+    const resolvedContext = reusedContext
+      ? undefined
+      : await this.options.contextFileService.resolve(options.contextFilePaths);
     // 上下文信封单独解码（其正则锚定行首）；复用的历史前缀可能自带 memory 信封，先剔除再解。
     const contextPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
     const decodedContext = decodeContextMessage(decodeMemoryMessage(contextPrefix).text);
@@ -379,7 +350,7 @@ export class PiAgentService implements AgentRuntime {
       mimeType: image.mimeType
     }));
     const imagePaths = resolvedContext?.imagePaths ?? [];
-    const presentation = this.imageAttachmentService.createPresentation(imageBlocks, blockIndex => {
+    const presentation = this.options.imageAttachmentService.createPresentation(imageBlocks, blockIndex => {
       if (options.reuseUserEntryId) {
         return {
           type: 'session-entry',
