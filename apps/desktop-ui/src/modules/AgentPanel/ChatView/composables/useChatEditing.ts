@@ -1,4 +1,4 @@
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 
 import { markUserMessageAsOptimisticBranch } from '../utils/message/display-message';
 import { getUserImages, getUserText, hasUserAttachments } from '../utils/message/message-content';

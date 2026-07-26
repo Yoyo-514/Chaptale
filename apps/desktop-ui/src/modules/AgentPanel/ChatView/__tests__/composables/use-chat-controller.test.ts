@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, nextTick } from 'vue';
 
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/stores/settings';
 
 import { useChatController } from '../../composables/useChatController';

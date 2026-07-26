@@ -2,7 +2,7 @@ import { computed, reactive, ref, watch, type Ref } from 'vue';
 
 import type { ChaptaleCustomProviderApi, ChaptaleModelInfo } from '@chaptale/ipc-contract';
 
-import type { useNotificationStore } from '@/stores/notification';
+import type { useNotificationStore } from '@/features/notifications';
 import type { useSettingsStore } from '@/stores/settings';
 
 import {

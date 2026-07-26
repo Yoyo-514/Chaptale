@@ -2,7 +2,7 @@ import { computed, ref, watch } from 'vue';
 
 import type { MemoryContextPressureStatus } from '@chaptale/shared';
 
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 /**

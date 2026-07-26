@@ -4,7 +4,7 @@ import { onMounted } from 'vue';
 import { AppButton } from '@/components/AppButton';
 import { AppForm, AppFormActions, AppFormField } from '@/components/AppForm';
 import { AppTextarea } from '@/components/AppTextarea';
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/stores/settings';
 
 import SettingsSection from '../components/SettingsSection.vue';

@@ -5,7 +5,7 @@ import type { PermissionRuleEntry } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog } from '@/components/AppDialog';
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import SettingsSection from '../components/SettingsSection.vue';

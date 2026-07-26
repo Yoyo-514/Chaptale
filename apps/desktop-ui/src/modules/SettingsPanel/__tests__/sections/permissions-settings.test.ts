@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PermissionRuleEntry } from '@chaptale/ipc-contract';
 
 import { AppAlertDialog } from '@/components/AppDialog';
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 
 import PermissionsSettings from '../../sections/PermissionsSettings.vue';
 

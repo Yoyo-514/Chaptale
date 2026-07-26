@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { useNotificationStore } from '@/stores/notification';
-
 import NotificationCenterHeader from './components/NotificationCenterHeader.vue';
 import NotificationCenterList from './components/NotificationCenterList.vue';
+import { useNotificationStore } from './store';
 
 const notificationStore = useNotificationStore();
 

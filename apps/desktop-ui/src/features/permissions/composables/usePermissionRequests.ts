@@ -2,7 +2,7 @@ import { onBeforeUnmount, ref, watch } from 'vue';
 
 import type { PermissionAskEvent, PermissionDecideArgs } from '@chaptale/ipc-contract';
 
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 /**

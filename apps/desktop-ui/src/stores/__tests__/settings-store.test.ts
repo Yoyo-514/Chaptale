@@ -1,7 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useNotificationStore } from '../notification';
+import { useNotificationStore } from '@/features/notifications';
+
 import { useSessionStore } from '../session';
 import { useSettingsStore } from '../settings';
 

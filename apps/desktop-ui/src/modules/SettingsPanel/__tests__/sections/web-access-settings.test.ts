@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import { AppSelect } from '@/components/AppSelect';
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/stores/settings';
 
 import WebAccessSettings from '../../sections/WebAccessSettings.vue';

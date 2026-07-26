@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/stores/settings';
 
 import LlmAddCustomModelPanel from '../components/LlmAddCustomModelPanel.vue';

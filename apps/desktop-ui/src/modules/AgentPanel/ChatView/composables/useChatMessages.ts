@@ -2,7 +2,7 @@ import { ref } from 'vue';
 
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { useSessionStore } from '@/stores/session';
 import { toErrorMessage } from '@/utils/desktop-api';
 

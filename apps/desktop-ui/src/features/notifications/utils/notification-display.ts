@@ -1,4 +1,4 @@
-import type { NotificationKind } from '@/stores/notification';
+import type { NotificationKind } from '../store';
 
 export function getNotificationIcon(kind: NotificationKind) {
   if (kind === 'error') return 'i-mingcute-warning-line';

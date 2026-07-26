@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 import { AppImagePreview } from '@/components/AppImagePreview';
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { cn } from '@/utils';
 import { toErrorMessage } from '@/utils/desktop-api';
 import { formatMessageCost, formatMessageTime, formatTokenCount } from '@/utils/session-display';

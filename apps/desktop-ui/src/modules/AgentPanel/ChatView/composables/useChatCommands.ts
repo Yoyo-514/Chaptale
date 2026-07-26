@@ -1,6 +1,6 @@
 import { watch } from 'vue';
 
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/stores/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 

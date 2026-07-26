@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
-import type { NotificationItem, NotificationPanelMode } from '@/stores/notification';
 
+import type { NotificationItem, NotificationPanelMode } from '../store';
 import { formatNotificationTime, getNotificationIcon } from '../utils/notification-display';
 
 const props = defineProps<{

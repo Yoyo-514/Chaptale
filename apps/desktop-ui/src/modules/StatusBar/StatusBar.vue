@@ -3,7 +3,7 @@ import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 
 const notificationStore = useNotificationStore();
 

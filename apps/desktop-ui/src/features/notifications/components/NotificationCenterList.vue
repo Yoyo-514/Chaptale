@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AppScrollArea } from '@/components/AppScrollArea';
-import type { NotificationItem as Notification, NotificationPanelMode } from '@/stores/notification';
 
+import type { NotificationItem as Notification, NotificationPanelMode } from '../store';
 import NotificationCenterItem from './NotificationCenterItem.vue';
 
 const props = defineProps<{

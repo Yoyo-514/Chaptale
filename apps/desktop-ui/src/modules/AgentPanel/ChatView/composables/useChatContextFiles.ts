@@ -1,7 +1,7 @@
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 import type { ChatContextFile } from '@chaptale/shared';
 
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 
 import { getDroppedContextFilePaths, mergeChatContextFiles } from '../utils/context-files';
 import type { ChatState } from './chat-state';

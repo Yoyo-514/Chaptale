@@ -3,7 +3,7 @@ import { ref, type Ref } from 'vue';
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 import type { ChatContextFile } from '@chaptale/shared';
 
-import { useNotificationStore } from '@/stores/notification';
+import { useNotificationStore } from '@/features/notifications';
 import { useSessionStore } from '@/stores/session';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
