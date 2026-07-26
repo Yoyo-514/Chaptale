@@ -6,9 +6,9 @@ import { AppTooltip } from '@/components/AppTooltip';
 import { ReviewResultCard, useContinuityReview } from '@/features/continuity-review';
 import { MemoryPendingCard, useMemoryPending } from '@/features/memory-review';
 import { PermissionRequestCard, usePermissionRequests } from '@/features/permissions';
+import { useSessionStore } from '@/features/sessions';
 import { SubagentTaskCard, useSubagentTasks } from '@/features/subagent-tasks';
 import { TodoProgressCard, useTodoProgress } from '@/features/todo-progress';
-import { useSessionStore } from '@/stores/session';
 import { cn } from '@/utils';
 
 import ChatEmptyState from './components/ChatEmptyState.vue';

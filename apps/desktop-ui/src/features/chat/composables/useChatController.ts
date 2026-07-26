@@ -1,8 +1,8 @@
 import { computed, onMounted, reactive, watch } from 'vue';
 
 import { useNotificationStore } from '@/features/notifications';
+import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
-import { useSessionStore } from '@/stores/session';
 import { getDesktopApi } from '@/utils/desktop-api';
 
 import { createDisplayMessage } from '../utils/message/display-message';

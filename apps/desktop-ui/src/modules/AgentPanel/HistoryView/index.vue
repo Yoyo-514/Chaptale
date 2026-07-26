@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router';
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
 import { AppScrollArea } from '@/components/AppScrollArea';
-import { useSessionStore } from '@/stores/session';
+import { useSessionStore } from '@/features/sessions';
 
 import HistorySelectionBar from './components/HistorySelectionBar.vue';
 import HistorySelectionToolbar from './components/HistorySelectionToolbar.vue';

@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSessionStore } from '../session';
+import { useSessionStore } from '../store';
 
 function createSession(id: string, overrides = {}) {
   return {

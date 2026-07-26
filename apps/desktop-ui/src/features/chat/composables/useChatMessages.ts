@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 
 import { useNotificationStore } from '@/features/notifications';
-import { useSessionStore } from '@/stores/session';
+import { useSessionStore } from '@/features/sessions';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';

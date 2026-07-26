@@ -4,7 +4,7 @@ import type {
   UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
 
-import { useSessionStore } from '@/stores/session';
+import { useSessionStore } from '@/features/sessions';
 import { getDesktopApi } from '@/utils/desktop-api';
 
 import type { SettingsStoreContext } from './types';
