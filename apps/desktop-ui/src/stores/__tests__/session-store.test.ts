@@ -74,6 +74,25 @@ describe('session store', () => {
     expect(store.isLoading).toBe(false);
   });
 
+  it('shares one in-flight list request across concurrent loadSessions calls', async () => {
+    const api = installDesktopApi();
+    api.session.list.mockImplementation(
+      () => new Promise(resolve => setTimeout(() => resolve([createSession('session-1')]), 10))
+    );
+    const store = useSessionStore();
+
+    const [first, second] = await Promise.all([store.loadSessions(), store.loadSessions()]);
+
+    expect(api.session.list).toHaveBeenCalledTimes(1);
+    expect(first).toBe(true);
+    expect(second).toBe(true);
+    expect(store.currentSessionId).toBe('session-1');
+
+    // 在途请求结束后，后续调用必须重新发起请求，而不是复用已完成的 Promise。
+    await store.loadSessions();
+    expect(api.session.list).toHaveBeenCalledTimes(2);
+  });
+
   it('restores the last opened session when it still exists', async () => {
     const api = installDesktopApi();
     api.settings.getState.mockResolvedValue({

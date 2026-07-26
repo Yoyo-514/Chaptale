@@ -13,6 +13,12 @@ import { isSameWorkspacePath } from '@/utils/workspace-path';
 import { getDesktopApi, toErrorMessage } from './utils/desktop-api';
 
 /**
+ * 按 store 实例记录在途的会话列表请求。
+ * 放在模块级而非 pinia state：Promise 不可序列化，进 state 会带来 devtools 噪声与 $reset 语义问题。
+ */
+const sessionListRequests = new WeakMap<object, Promise<boolean>>();
+
+/**
  * Renderer 的会话目录与当前选择事实源。
  * 消息树仍按需从主进程读取；store 只缓存列表、选择和存储调试信息，避免长期复制完整会话内容。
  */
@@ -39,6 +45,21 @@ export const useSessionStore = defineStore('session', {
   },
   actions: {
     async loadSessions() {
+      // 并发调用共享同一次在途请求，避免快速切换 workspace 时后发先至覆盖列表。
+      const inFlight = sessionListRequests.get(this);
+
+      if (inFlight) {
+        return inFlight;
+      }
+
+      const request = this.doLoadSessions().finally(() => {
+        sessionListRequests.delete(this);
+      });
+      sessionListRequests.set(this, request);
+      return request;
+    },
+
+    async doLoadSessions() {
       this.isLoading = true;
       this.error = '';
 
