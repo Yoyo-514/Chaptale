@@ -58,7 +58,7 @@ import type {
   UpdatePiWebAccessSettingsPayload
 } from './settings';
 import type { SlashCommand } from './slash-command';
-import type { AgentRunsListPayload, TaskRunCompleteEvent, TaskRunPayload } from './tasks';
+import type { AgentRunsListPayload, AgentRunsListResult, TaskRunCompleteEvent, TaskRunPayload } from './tasks';
 import type { TodosUpdatedEvent } from './todos';
 import type { WindowStateResult } from './window';
 
@@ -143,7 +143,7 @@ export type ChaptaleDesktopApi = {
     run: (payload: TaskRunPayload) => Promise<TaskRunCompleteEvent>;
     /** 取消运行中的任务；键为发起时预生成的 requestId。 */
     cancel: (requestId: string) => Promise<void>;
-    listRuns: (payload?: AgentRunsListPayload) => Promise<unknown>;
+    listRuns: (payload?: AgentRunsListPayload) => Promise<AgentRunsListResult>;
     /** 按 outputRef 读取落盘的运行输出原文；引用非法或不存在时返回 null。 */
     readRunOutput: (outputRef: string) => Promise<{ runId: string; rawText: string } | null>;
   };

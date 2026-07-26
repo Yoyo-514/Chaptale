@@ -32,6 +32,7 @@ import {
   SetDefaultModelArgsValidator,
   SetProviderApiKeyArgsValidator,
   SetSessionLeafArgsValidator,
+  AgentRunsListResultValidator,
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
   TaskRunArgsValidator,
@@ -244,6 +245,75 @@ describe('IPC 参数 Schema', () => {
     expect(TaskListRunsArgsValidator.Check([{ limit: 10, personaId: 'p' }])).toBe(true);
     expect(TaskListRunsArgsValidator.Check([{ limit: 0 }])).toBe(false);
     expect(TaskListRunsArgsValidator.Check([{ limit: 1.5 }])).toBe(false);
+  });
+
+  it('校验运行列表结果：接受合法记录列表与诊断信息', () => {
+    expect(
+      AgentRunsListResultValidator.Check({
+        records: [
+          {
+            id: 'run-1',
+            personaId: 'continuity-reviewer',
+            execution: 'task',
+            trigger: 'ui-action',
+            promptTemplateHash: 'abc',
+            inputDigest: { brief: 'x' },
+            memoryRefs: [],
+            status: 'success',
+            usage: { inputTokens: 1, outputTokens: 2 },
+            createdAt: '2026-07-27T00:00:00.000Z'
+          }
+        ],
+        diagnostics: []
+      })
+    ).toBe(true);
+
+    // 可选字段齐全 + 诊断条目也应通过。
+    expect(
+      AgentRunsListResultValidator.Check({
+        records: [
+          {
+            id: 'run-2',
+            personaId: 'p',
+            execution: 'chat',
+            trigger: 'delegate',
+            parentSessionId: 's1',
+            promptTemplateHash: 'h',
+            inputDigest: { files: ['a.md'] },
+            outputRef: '.chaptale/runs/outputs/run-2.json',
+            memoryRefs: ['m1'],
+            status: 'timeout',
+            usage: { inputTokens: 0, outputTokens: 0 },
+            createdAt: '2026-07-27T00:00:00.000Z',
+            completedAt: '2026-07-27T00:01:00.000Z'
+          }
+        ],
+        diagnostics: [{ filePath: 'C:/w/.chaptale/runs/agent-runs-2026-07.jsonl', line: 3, message: '坏行' }]
+      })
+    ).toBe(true);
+  });
+
+  it('校验运行列表结果：拒绝缺失 status 的记录与未知枚举值', () => {
+    expect(AgentRunsListResultValidator.Check({ records: [{ id: 'run-1' }], diagnostics: [] })).toBe(false);
+    expect(
+      AgentRunsListResultValidator.Check({
+        records: [
+          {
+            id: 'run-1',
+            personaId: 'p',
+            execution: 'batch',
+            trigger: 'user',
+            promptTemplateHash: 'h',
+            inputDigest: {},
+            memoryRefs: [],
+            status: 'success',
+            usage: { inputTokens: 1, outputTokens: 2 },
+            createdAt: '2026-07-27T00:00:00.000Z'
+          }
+        ],
+        diagnostics: []
+      })
+    ).toBe(false);
   });
 
   it('校验 todo 清单查询参数：仅接受非空 sessionId', () => {
