@@ -150,9 +150,10 @@ function spreadBudget(lengths: number[], weights: number[], total: number): numb
 }
 
 function renderMemory(sections: MemorySections): string {
+  // 节序与 injection-block 的 SECTION_PRIORITY 保持一致：守则 > 偏好 > 近况 > notes。
   const parts = [
-    section('作者偏好要点', sections.preferences),
     section('创作守则与禁忌', sections.styleGuide),
+    section('作者偏好要点', sections.preferences),
     section('最近剧情', sections.recent),
     section('观察笔记清单', sections.notes)
   ].filter(Boolean);
