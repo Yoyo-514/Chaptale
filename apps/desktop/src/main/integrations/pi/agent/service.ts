@@ -31,6 +31,9 @@ import { AsyncMessageQueue } from './async-message-queue';
 import type { ChatSessionFactory } from './chat-session-factory';
 import { isChaptaleCompactDetails } from './compact-extension';
 import { mapAgentStreamEvent } from './event-mapper';
+import { SessionPool, type DisposableSession } from './session-pool';
+
+type DisposableBoundSession = BoundSession<AgentSession> & DisposableSession;
 
 export type StreamOptions = AgentRunOptions;
 
@@ -61,39 +64,23 @@ export type PiAgentServiceOptions = {
  * 事件与图片在离开该边界前转换为应用协议。
  */
 export class PiAgentService implements AgentRuntime {
-  private sessions = new Map<string, Promise<BoundSession<AgentSession>>>();
+  private readonly sessions = new SessionPool<DisposableBoundSession>(sessionId => this.createSession(sessionId));
 
   constructor(private readonly options: PiAgentServiceOptions) {}
 
   /** 会话目录/工作区切换后调用，丢弃缓存的 AgentSession与记忆注入去重记录。 */
   invalidateSessions() {
-    for (const pending of this.sessions.values()) {
-      void pending.then(({ session }) => session.dispose()).catch(() => undefined);
-    }
-
-    this.sessions.clear();
+    this.sessions.invalidate();
     this.options.memoryInjector.reset();
   }
 
-  /**
-   * 按会话 ID 复用创建中的 Promise，避免并发请求为同一持久化文件构造多个 AgentSession。
-   * 创建失败时移除缓存，使下一次运行可以重试初始化。
-   */
   private getOrCreateSession(sessionId: string): Promise<BoundSession<AgentSession>> {
-    const cached = this.sessions.get(sessionId);
-
-    if (cached) {
-      return cached;
-    }
-
-    const created = this.createSession(sessionId);
-    this.sessions.set(sessionId, created);
-    created.catch(() => this.sessions.delete(sessionId));
-    return created;
+    return this.sessions.get(sessionId);
   }
 
-  private createSession(sessionId: string): Promise<BoundSession<AgentSession>> {
-    return this.options.chatFactory.create(sessionId);
+  private async createSession(sessionId: string): Promise<DisposableBoundSession> {
+    const bound = await this.options.chatFactory.create(sessionId);
+    return { ...bound, dispose: () => bound.session.dispose() };
   }
 
   async *stream(options: StreamOptions): AsyncGenerator<ChatMessage> {
