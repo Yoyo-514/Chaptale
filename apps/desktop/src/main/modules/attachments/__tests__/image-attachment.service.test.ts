@@ -46,43 +46,27 @@ describe('ImageAttachmentService', () => {
     });
   });
 
-  it('falls back to the inline original when thumbnail decoding fails for a small image', () => {
+  it('skips images whose thumbnail generation fails, with a warning', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const service = new ImageAttachmentService(
       vi.fn(() => {
-        throw new Error('无法解码图片');
+        throw new Error('无法生成缩略图');
       })
     );
 
     const result = service.createPresentation([{ type: 'image', data: 'YWJj', mimeType: 'image/webp', blockIndex: 1 }]);
 
-    expect(result.attachments).toHaveLength(1);
-    expect(result.attachments[0]).toMatchObject({
-      type: 'imageAttachment',
-      mimeType: 'image/webp',
-      thumbnailDataUrl: 'data:image/webp;base64,YWJj',
-      width: 0,
-      height: 0
-    });
-    expect(warn).not.toHaveBeenCalled();
-  });
-
-  it('skips undecodable oversized images with a warning instead of failing silently', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const service = new ImageAttachmentService(
-      vi.fn(() => {
-        throw new Error('无法解码图片');
-      })
-    );
-    // 4MB 图片超过内联兜底阈值（2MB）。
-    const oversized = Buffer.alloc(4 * 1024 * 1024).toString('base64');
-
-    const result = service.createPresentation([
-      { type: 'image', data: oversized, mimeType: 'image/webp', blockIndex: 1 }
-    ]);
-
     expect(result.attachments).toHaveLength(0);
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the block mime type to the thumbnail factory', () => {
+    const createThumbnail = vi.fn(() => ({ dataUrl: 'data:image/png;base64,dGh1bWI=', width: 8, height: 8 }));
+    const service = new ImageAttachmentService(createThumbnail);
+
+    service.createPresentation([{ type: 'image', data: 'YWJj', mimeType: 'image/png', blockIndex: 1 }]);
+
+    expect(createThumbnail).toHaveBeenCalledWith(Buffer.from('YWJj', 'base64'), 'image/png');
   });
 
   it('warns and skips image blocks whose base64 payload is invalid', () => {

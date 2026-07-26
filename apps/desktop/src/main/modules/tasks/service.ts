@@ -1,6 +1,6 @@
 import type { PersonaDefinition } from '@chaptale/shared';
 
-import { ContextFileService } from '../context/service';
+import type { ContextFileService } from '../context/service';
 import type { PersonaRegistry } from '../personas/registry';
 import type { SettingsService } from '../settings/service';
 import type { TaskRunnerPort, TaskRunResult } from './runner-port';
@@ -9,7 +9,7 @@ export type TaskServiceOptions = {
   settingsService: SettingsService;
   personaRegistry: PersonaRegistry;
   taskRunner: TaskRunnerPort;
-  contextFileService?: Pick<ContextFileService, 'resolve'>;
+  contextFileService: Pick<ContextFileService, 'resolve'>;
 };
 
 export type TaskStartRequest = {
@@ -29,11 +29,7 @@ export type TaskStartRequest = {
  */
 export class TaskService {
   private readonly activeRuns = new Map<string, AbortController>();
-  private readonly contextFileService: Pick<ContextFileService, 'resolve'>;
-
-  constructor(private readonly options: TaskServiceOptions) {
-    this.contextFileService = options.contextFileService ?? new ContextFileService();
-  }
+  constructor(private readonly options: TaskServiceOptions) {}
 
   async start(request: TaskStartRequest): Promise<TaskRunResult> {
     const cwd = await this.options.settingsService.getCurrentCwd();
@@ -54,7 +50,7 @@ export class TaskService {
 
     // 附件文本复用对话流的上下文解析（同一套大小/类型约束），信封原样传入提示词。
     const contextPrompt = request.contextFilePaths?.length
-      ? (await this.contextFileService.resolve(request.contextFilePaths)).promptPrefix
+      ? (await this.options.contextFileService.resolve(request.contextFilePaths)).promptPrefix
       : undefined;
 
     const controller = new AbortController();

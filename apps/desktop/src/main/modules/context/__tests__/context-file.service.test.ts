@@ -3,21 +3,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('electron', () => ({
-  dialog: {
-    showOpenDialog: vi.fn()
-  },
-  nativeImage: {
-    createFromBuffer: vi.fn(() => ({
-      isEmpty: () => false,
-      getSize: () => ({ width: 1920, height: 1080 }),
-      resize: () => ({ toDataURL: () => 'data:image/png;base64,dGh1bWI=' }),
-      toDataURL: () => 'data:image/png;base64,dGh1bWI='
-    }))
-  }
-}));
-
+import type { ContextFilePlatform } from '../platform';
 import { ContextFileService } from '../service';
+
+function createFakePlatform(overrides: Partial<ContextFilePlatform> = {}) {
+  return {
+    selectContextFilePaths: vi.fn(async () => []),
+    createImagePreview: vi.fn(async () => ({ dataUrl: 'data:image/png;base64,dGh1bWI=', width: 1920, height: 1080 })),
+    ...overrides
+  } satisfies ContextFilePlatform;
+}
 
 describe('ContextFileService', () => {
   let tempDir: string;
@@ -34,7 +29,7 @@ describe('ContextFileService', () => {
     const filePath = path.join(tempDir, 'note.txt');
     await writeFile(filePath, '第一章 开始\n正文内容', 'utf8');
 
-    const result = await new ContextFileService().resolve([filePath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(result.promptPrefix).toContain('<attached_context_files>');
     expect(result.promptPrefix).toContain('handling="file-input-text"');
@@ -52,7 +47,7 @@ describe('ContextFileService', () => {
     });
     await writeFile(filePath, chapters.join('\n\n'), 'utf8');
 
-    const result = await new ContextFileService().resolve([filePath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(result.promptPrefix).toContain('handling="file-input-text"');
     expect(result.promptPrefix).toContain('用户随消息提供的文件内容');
@@ -72,7 +67,7 @@ describe('ContextFileService', () => {
       })
     );
 
-    const inspected = await new ContextFileService().inspectFiles(filePaths);
+    const inspected = await new ContextFileService(createFakePlatform()).inspectFiles(filePaths);
 
     expect(inspected).toHaveLength(12);
   });
@@ -86,8 +81,8 @@ describe('ContextFileService', () => {
     const filePath = path.join(tempDir, fileName);
     await writeFile(filePath, Buffer.from('mock document body'));
 
-    const [inspected] = await new ContextFileService().inspectFiles([filePath]);
-    const result = await new ContextFileService().resolve([filePath]);
+    const [inspected] = await new ContextFileService(createFakePlatform()).inspectFiles([filePath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(inspected).toMatchObject({ kind: 'document', mimeType });
     expect(result.promptPrefix).toContain('handling="document-file-input"');
@@ -101,7 +96,7 @@ describe('ContextFileService', () => {
     const filePath = path.join(tempDir, 'cover.png');
     await writeFile(filePath, Buffer.from('image-data'));
 
-    const result = await new ContextFileService().resolve([filePath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(result.images).toEqual([{ type: 'image', data: 'aW1hZ2UtZGF0YQ==', mimeType: 'image/png' }]);
     expect(result.imagePaths).toEqual([filePath]);
@@ -117,7 +112,7 @@ describe('ContextFileService', () => {
       })
     );
 
-    const result = await new ContextFileService().resolve(filePaths);
+    const result = await new ContextFileService(createFakePlatform()).resolve(filePaths);
 
     expect(result.images).toHaveLength(21);
     expect(result.imagePaths).toEqual(filePaths);
@@ -127,7 +122,7 @@ describe('ContextFileService', () => {
     const filePath = path.join(tempDir, 'preview.png');
     await writeFile(filePath, Buffer.from('image-data'));
 
-    const [file] = await new ContextFileService().inspectFiles([filePath]);
+    const [file] = await new ContextFileService(createFakePlatform()).inspectFiles([filePath]);
 
     expect(file).toMatchObject({
       kind: 'image',
@@ -143,7 +138,7 @@ describe('ContextFileService', () => {
     await writeFile(filePath, '', 'utf8');
     await truncate(filePath, 51 * 1024 * 1024);
 
-    const result = await new ContextFileService().resolve([filePath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(result.promptPrefix).toContain('handling="file-search-placeholder"');
     expect(result.promptPrefix).toContain('read/grep/find/ls');
@@ -156,7 +151,7 @@ describe('ContextFileService', () => {
     const validPath = path.join(tempDir, 'valid.txt');
     await writeFile(validPath, '仍然可用的正文', 'utf8');
 
-    const result = await new ContextFileService().resolve([missingPath, validPath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([missingPath, validPath]);
 
     expect(result.promptPrefix).toContain(`path="${missingPath}"`);
     expect(result.promptPrefix).toContain('reason="file-unavailable"');
@@ -167,7 +162,7 @@ describe('ContextFileService', () => {
     const directoryPath = path.join(tempDir, 'folder.txt');
     await mkdir(directoryPath);
 
-    const result = await new ContextFileService().resolve([directoryPath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([directoryPath]);
 
     expect(result.promptPrefix).toContain('reason="file-unavailable"');
     expect(result.promptPrefix).toContain('文件可能已被移动、删除或占用');
@@ -177,12 +172,12 @@ describe('ContextFileService', () => {
     const filePath = path.join(tempDir, 'token-heavy.txt');
     await writeFile(filePath, 'abcd'.repeat(2_000_000), 'utf8');
 
-    const boundaryResult = await new ContextFileService().resolve([filePath]);
+    const boundaryResult = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(boundaryResult.promptPrefix).toContain('handling="file-input-text"');
 
     await writeFile(filePath, 'abcd'.repeat(2_000_001), 'utf8');
-    const overLimitResult = await new ContextFileService().resolve([filePath]);
+    const overLimitResult = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(overLimitResult.promptPrefix).toContain('handling="file-search-placeholder"');
     expect(overLimitResult.promptPrefix).not.toContain('<content encoding="utf-8">');
@@ -193,7 +188,7 @@ describe('ContextFileService', () => {
     await writeFile(filePath, '');
     await truncate(filePath, 20 * 1024 * 1024);
 
-    const result = await new ContextFileService().resolve([filePath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(result.images).toHaveLength(1);
     expect(result.promptPrefix).toBe('');
@@ -207,7 +202,7 @@ describe('ContextFileService', () => {
     await truncate(boundaryPath, 512 * 1024 * 1024);
     await truncate(oversizedPath, 512 * 1024 * 1024 + 1);
 
-    const result = await new ContextFileService().resolve([boundaryPath, oversizedPath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([boundaryPath, oversizedPath]);
 
     expect(result.promptPrefix).toContain(`path="${boundaryPath}" handling="document-file-input"`);
     expect(result.promptPrefix).toContain(`path="${oversizedPath}" skipped="true" reason="file-too-large"`);
@@ -217,11 +212,32 @@ describe('ContextFileService', () => {
     const filePath = path.join(tempDir, 'huge.png');
     await writeFile(filePath, Buffer.alloc(21 * 1024 * 1024));
 
-    const result = await new ContextFileService().resolve([filePath]);
+    const result = await new ContextFileService(createFakePlatform()).resolve([filePath]);
 
     expect(result.images).toEqual([]);
     expect(result.promptPrefix).toContain('kind="image"');
     expect(result.promptPrefix).toContain('skipped="true"');
     expect(result.promptPrefix).toContain('图片超过 20.0 MB');
+  });
+
+  it('uses platform dialog for file selection', async () => {
+    const filePath = path.join(tempDir, 'note.txt');
+    await writeFile(filePath, '正文', 'utf8');
+    const platform = createFakePlatform({ selectContextFilePaths: vi.fn(async () => [filePath]) });
+    const ownerToken = { id: 'window-1' };
+
+    const files = await new ContextFileService(platform).selectFiles(ownerToken);
+
+    expect(platform.selectContextFilePaths).toHaveBeenCalledWith(ownerToken);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({ path: filePath, kind: 'text' });
+  });
+
+  it('drops unsupported files returned by the platform dialog', async () => {
+    const filePath = path.join(tempDir, 'archive.zip');
+    await writeFile(filePath, Buffer.from('zip'));
+    const platform = createFakePlatform({ selectContextFilePaths: vi.fn(async () => [filePath]) });
+
+    await expect(new ContextFileService(platform).selectFiles()).resolves.toEqual([]);
   });
 });

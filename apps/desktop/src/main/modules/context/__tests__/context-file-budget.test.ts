@@ -3,17 +3,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('electron', () => ({
-  dialog: { showOpenDialog: vi.fn() }
-}));
-
 vi.mock('../constants', async importOriginal => ({
   ...(await importOriginal<typeof import('../constants')>()),
   MAX_DIRECT_FILE_INPUT_BYTES: 10,
   MAX_DIRECT_FILE_INPUT_TOTAL_BYTES: 10
 }));
 
+import type { ContextFilePlatform } from '../platform';
 import { ContextFileService } from '../service';
+
+const platform: ContextFilePlatform = {
+  selectContextFilePaths: async () => [],
+  createImagePreview: async () => undefined
+};
 
 const tempDirs: string[] = [];
 
@@ -30,8 +32,8 @@ describe('ContextFileService direct text budget', () => {
     await writeFile(boundaryPath, '1234567890', 'utf8');
     await writeFile(oversizedPath, '12345678901', 'utf8');
 
-    const boundaryResult = await new ContextFileService().resolve([boundaryPath]);
-    const oversizedResult = await new ContextFileService().resolve([oversizedPath]);
+    const boundaryResult = await new ContextFileService(platform).resolve([boundaryPath]);
+    const oversizedResult = await new ContextFileService(platform).resolve([oversizedPath]);
 
     expect(boundaryResult.promptPrefix).toContain('handling="file-input-text"');
     expect(oversizedResult.promptPrefix).toContain('handling="file-search-placeholder"');
@@ -45,7 +47,7 @@ describe('ContextFileService direct text budget', () => {
     await writeFile(firstPath, '123456', 'utf8');
     await writeFile(secondPath, 'abcde', 'utf8');
 
-    const result = await new ContextFileService().resolve([firstPath, secondPath]);
+    const result = await new ContextFileService(platform).resolve([firstPath, secondPath]);
 
     expect(result.promptPrefix).toContain('123456');
     expect(result.promptPrefix).toContain(`path="${secondPath}" handling="file-search-placeholder"`);

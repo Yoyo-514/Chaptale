@@ -45,7 +45,7 @@ export function registerApplicationIpc(context: AppContext): void {
   registerSettingsIpc(context.settingsService, () => context.agentRuntime.invalidateSessions());
   registerPromptSettingsIpc(context.promptFileService, () => context.agentRuntime.invalidateSessions());
   registerModelsIpc(context.modelService);
-  registerAgentIpc(context.agentRuntime);
+  registerAgentIpc({ runtime: context.agentRuntime, contextFileService: context.contextFileService });
   registerSlashCommandIpc(context.commandService);
   registerTaskIpc(context.taskService, context.runStore);
   registerTodoIpc(context.todoStore);

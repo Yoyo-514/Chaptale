@@ -97,7 +97,13 @@ function createService(
       resolvePrefix: vi.fn(async () => ''),
       reset: vi.fn()
     } as any);
-  const assemblerDeps: any = { contextFileService: new ContextFileService(), imageAttachmentService };
+  const assemblerDeps: any = {
+    contextFileService: new ContextFileService({
+      selectContextFilePaths: async () => [],
+      createImagePreview: async () => undefined
+    }),
+    imageAttachmentService
+  };
   const service = new PiAgentService({
     chatFactory: {
       create: vi.fn(async (sessionId: string) => ({

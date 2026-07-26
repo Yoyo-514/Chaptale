@@ -14,7 +14,7 @@ import type {
 } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
-import { ImageAttachmentService } from '../../../modules/attachments/service';
+import type { ImageAttachmentService } from '../../../modules/attachments/service';
 import { buildSessionHtml, toSafeFileName } from '../../../modules/sessions/html-renderer';
 import type { SessionRepository } from '../../../modules/sessions/repository';
 import { toSessionListItem, toSessionTreeEntry } from './entry-mapper';
@@ -34,7 +34,7 @@ export class PiSessionRepository implements SessionRepository {
 
   constructor(
     options: PiSessionRepositoryOptions,
-    private readonly imageAttachmentService = new ImageAttachmentService(),
+    private readonly imageAttachmentService: ImageAttachmentService,
     storage = new SessionStorageResolver(options)
   ) {
     this.storage = storage;

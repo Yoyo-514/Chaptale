@@ -3,17 +3,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { ImageAttachmentService } from '../../../../modules/attachments/service';
 import { PiSessionRepository } from '../repository';
 
 let rootDir: string;
 let sessionDir: string;
 
 function createRepository() {
-  return new PiSessionRepository({
-    rootDir,
-    cwd: rootDir,
-    sessionDir
-  });
+  return new PiSessionRepository(
+    {
+      rootDir,
+      cwd: rootDir,
+      sessionDir
+    },
+    new ImageAttachmentService(() => ({ dataUrl: 'data:image/png;base64,dGh1bWI=', width: 8, height: 8 }))
+  );
 }
 
 beforeEach(async () => {

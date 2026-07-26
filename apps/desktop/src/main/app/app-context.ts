@@ -1,5 +1,7 @@
 import path from 'node:path';
 
+import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
+import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { ChatSessionFactory } from '../integrations/pi/agent/chat-session-factory';
 import { createCompactExt } from '../integrations/pi/agent/compact-extension';
 import { piParseFrontmatter } from '../integrations/pi/agent/frontmatter';
@@ -41,6 +43,7 @@ export type AppContext = {
   sessionRepository: PiSessionRepository;
   modelService: PiModelService;
   agentRuntime: PiAgentService;
+  contextFileService: ContextFileService;
   promptFileService: PromptFileService;
   commandService: SlashCommandService;
   taskService: TaskService;
@@ -69,13 +72,27 @@ export function createAppContext(): AppContext {
     console.error('内置 skills 物化失败:', error);
   }
 
-  const sessionRepository = new PiSessionRepository({
-    rootDir: settingsService.agentDir,
-    cwd: () => settingsService.getCurrentCwd(),
-    sessionDir: () => settingsService.getCurrentSessionDir(),
-    sessionsRootDir: settingsService.sessionsRootDir,
-    getStorageContext: () => settingsService.getStorageContext()
+  const contextFileService = new ContextFileService(new ElectronContextFilePlatform());
+  // createElectronThumbnail 失败时抛错，保留 attachments 层“跳过此图”分支。
+  const imageAttachmentService = new ImageAttachmentService((data, mimeType) => {
+    const thumbnail = createElectronThumbnail(data, mimeType);
+
+    if (!thumbnail) {
+      throw new Error('无法生成缩略图');
+    }
+
+    return thumbnail;
   });
+  const sessionRepository = new PiSessionRepository(
+    {
+      rootDir: settingsService.agentDir,
+      cwd: () => settingsService.getCurrentCwd(),
+      sessionDir: () => settingsService.getCurrentSessionDir(),
+      sessionsRootDir: settingsService.sessionsRootDir,
+      getStorageContext: () => settingsService.getStorageContext()
+    },
+    imageAttachmentService
+  );
   const modelService = new PiModelService(settingsService);
   const promptFileService = new PromptFileService(settingsService.agentDir);
   const personaRegistry = createDefaultPersonaRegistry(settingsService);
@@ -108,7 +125,7 @@ export function createAppContext(): AppContext {
     buildTaskTools: (spec, cwd) => buildTaskSessionTools({ spec, cwd, memorySearchService })
   });
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, toolCatalog);
-  const taskService = new TaskService({ settingsService, personaRegistry, taskRunner });
+  const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
   const compactCoord = new CompactCoord({
     personas: personaRegistry,
     tasks: taskRunner,
@@ -150,10 +167,7 @@ export function createAppContext(): AppContext {
     modelService,
     memoryInjector: createMemoryInjector(settingsService.rootDir),
     permissionBroker,
-    inputAssembler: new InputAssembler({
-      contextFileService: new ContextFileService(),
-      imageAttachmentService: new ImageAttachmentService()
-    })
+    inputAssembler: new InputAssembler({ contextFileService, imageAttachmentService })
   });
 
   return {
@@ -161,6 +175,7 @@ export function createAppContext(): AppContext {
     sessionRepository,
     modelService,
     agentRuntime,
+    contextFileService,
     promptFileService,
     commandService,
     taskService,

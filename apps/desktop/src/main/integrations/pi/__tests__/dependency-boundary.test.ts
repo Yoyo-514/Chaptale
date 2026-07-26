@@ -170,6 +170,23 @@ describe('模块依赖边界', () => {
 
     expect(imports).toEqual([]);
   });
+
+  it('modules/context 与 modules/attachments 生产代码不导入 Electron 实现', async () => {
+    const mainRoot = path.resolve(import.meta.dirname, '../../..');
+    const roots = [path.join(mainRoot, 'modules/context'), path.join(mainRoot, 'modules/attachments')];
+    const files = (await Promise.all(roots.map(root => collectTypeScriptFiles(root)))).flat();
+    const violations = await Promise.all(
+      files.map(async filePath => {
+        const source = await fs.readFile(filePath, 'utf8');
+        const relativePath = toPosixPath(path.relative(mainRoot, filePath));
+        return collectImportSpecifiers(filePath, source)
+          .filter(specifier => specifier === 'electron' || specifier.includes('infra/electron'))
+          .map(specifier => `${relativePath}::${specifier}`);
+      })
+    );
+
+    expect(violations.flat().toSorted()).toEqual([]);
+  });
 });
 
 async function createTemporarySourceTree(files: Record<string, string>): Promise<string> {
@@ -221,6 +238,16 @@ async function findRelativeImportsInto(sourceRoot: string, targetRoot: string): 
   );
 
   return imports.flat().toSorted();
+}
+
+/** 收集顶层 import 声明的 specifier（含 type-only）。 */
+function collectImportSpecifiers(filePath: string, source: string): string[] {
+  const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  return sourceFile.statements.flatMap(statement =>
+    ts.isImportDeclaration(statement) && ts.isStringLiteralLike(statement.moduleSpecifier)
+      ? [statement.moduleSpecifier.text]
+      : []
+  );
 }
 
 async function collectTypeScriptFiles(directory: string, rootDir = directory): Promise<string[]> {

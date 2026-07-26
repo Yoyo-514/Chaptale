@@ -230,7 +230,10 @@ describe('Agent IPC lifecycle', () => {
   it('aborts the sender run on destruction and does not send after destruction', async () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
-    registerAgentIpc(createRuntime(control));
+    registerAgentIpc({
+      runtime: createRuntime(control),
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
     await expect(start({ sender: sender as unknown as WebContents }, createPayload())).resolves.toEqual({
@@ -254,7 +257,10 @@ describe('Agent IPC lifecycle', () => {
     const second = createStreamControl();
     const firstSender = new FakeWebContents();
     const secondSender = new FakeWebContents();
-    registerAgentIpc(createRuntimeByQuery({ first, second }));
+    registerAgentIpc({
+      runtime: createRuntimeByQuery({ first, second }),
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
     start({ sender: firstSender as unknown as WebContents }, createPayload('run-1', 'first'));
@@ -278,7 +284,10 @@ describe('Agent IPC lifecycle', () => {
   it('rejects a duplicate active run id before it can replace the original run', async () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
-    registerAgentIpc(createRuntime(control));
+    registerAgentIpc({
+      runtime: createRuntime(control),
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
     start({ sender: sender as unknown as WebContents }, createPayload());
@@ -296,7 +305,10 @@ describe('Agent IPC lifecycle', () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
     sender.failNextSendBecauseDestroyed();
-    registerAgentIpc(createRuntime(control));
+    registerAgentIpc({
+      runtime: createRuntime(control),
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
     start({ sender: sender as unknown as WebContents }, createPayload());
@@ -314,7 +326,10 @@ describe('Agent IPC lifecycle', () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
     sender.failSends(new Error('transport failed'));
-    registerAgentIpc(createRuntime(control));
+    registerAgentIpc({
+      runtime: createRuntime(control),
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
     start({ sender: sender as unknown as WebContents }, createPayload());
@@ -358,7 +373,10 @@ describe('Agent IPC lifecycle', () => {
       })),
       compactSession: vi.fn(async sessionId => ({ sessionId, tokensBefore: 0, summaryRef: 'summary.md' }))
     };
-    registerAgentIpc(runtime);
+    registerAgentIpc({
+      runtime: runtime,
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const cancel = getValidatedHandler(IPC_CHANNELS.agent.cancel);
 
@@ -378,7 +396,10 @@ describe('Agent IPC lifecycle', () => {
     const sender = new FakeWebContents();
     const runtime = createRuntime(control);
     vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: ['调整方向'], followUp: [] });
-    registerAgentIpc(runtime);
+    registerAgentIpc({
+      runtime: runtime,
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
     const clearPendingMessages = getValidatedHandler(IPC_CHANNELS.agent.clearPendingMessages);
@@ -421,7 +442,10 @@ describe('Agent IPC lifecycle', () => {
     const sender = new FakeWebContents();
     const runtime = createRuntime(control);
     vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: '坏队列', followUp: [] } as never);
-    registerAgentIpc(runtime);
+    registerAgentIpc({
+      runtime: runtime,
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const clearPendingMessages = getValidatedHandler(IPC_CHANNELS.agent.clearPendingMessages);
 
@@ -476,7 +500,10 @@ describe('Agent IPC lifecycle', () => {
       await releaseSteer.promise;
       options.signal.throwIfAborted();
     });
-    registerAgentIpc(runtime);
+    registerAgentIpc({
+      runtime: runtime,
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
 
@@ -497,7 +524,10 @@ describe('Agent IPC lifecycle', () => {
   it('rejects steer for unknown runs and whitespace-only input', async () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
-    registerAgentIpc(createRuntime(control));
+    registerAgentIpc({
+      runtime: createRuntime(control),
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
 
@@ -522,7 +552,10 @@ describe('Agent IPC lifecycle', () => {
       await new Promise<never>((_resolve, reject) => reject(new Error('runtime failed')));
       yield { role: 'assistant', content: [] } satisfies ChatMessage;
     });
-    registerAgentIpc(runtime);
+    registerAgentIpc({
+      runtime: runtime,
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
     start({ sender: sender as unknown as WebContents }, createPayload());
@@ -548,7 +581,10 @@ describe('Agent IPC lifecycle', () => {
   it('removes the destroyed listener after a normal stream completes', async () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
-    registerAgentIpc(createRuntime(control));
+    registerAgentIpc({
+      runtime: createRuntime(control),
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+    });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
     start({ sender: sender as unknown as WebContents }, createPayload());

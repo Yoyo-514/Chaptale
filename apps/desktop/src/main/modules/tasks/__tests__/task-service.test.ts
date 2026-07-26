@@ -106,7 +106,8 @@ describe('TaskService', () => {
     const service = new TaskService({
       settingsService: settingsService as any,
       personaRegistry: personaRegistry as any,
-      taskRunner: taskRunner as any
+      taskRunner: taskRunner as any,
+      contextFileService: { resolve: vi.fn(async () => ({ promptPrefix: '', images: [], imagePaths: [] })) }
     });
 
     void service.start(startRequest());
@@ -129,7 +130,8 @@ describe('TaskService', () => {
     const service = new TaskService({
       settingsService: settingsService as any,
       personaRegistry: personaRegistry as any,
-      taskRunner: taskRunner as any
+      taskRunner: taskRunner as any,
+      contextFileService: { resolve: vi.fn(async () => ({ promptPrefix: '', images: [], imagePaths: [] })) }
     });
 
     void service.start(startRequest({ requestId: 'req-a' }));

@@ -25,7 +25,7 @@ import { errorToMessage } from '@chaptale/shared';
 
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import { ContextFileService } from '../context/service';
+import type { ContextFileService } from '../context/service';
 import { AgentRunManager } from './run-manager';
 import type { AgentRuntime } from './runtime';
 
@@ -70,9 +70,12 @@ function safeSend(webContents: WebContents, channel: string, payload: unknown): 
  * 归属 Agent 的启动、取消与上下文文件频道；IPC 层负责信任及参数结构校验，运行语义交给 AgentRuntime。
  * 流式 message 与唯一 end 事件只回传给发起请求的 sender，避免跨窗口泄漏执行状态。
  */
-export function registerAgentIpc(agentService: AgentRuntime) {
+export function registerAgentIpc(options: {
+  runtime: AgentRuntime;
+  contextFileService: Pick<ContextFileService, 'selectFiles' | 'inspectFiles'>;
+}) {
+  const { runtime: agentService, contextFileService } = options;
   const runManager = new AgentRunManager();
-  const contextFileService = new ContextFileService();
 
   handleTrustedIpc(IPC_CHANNELS.agent.selectContextFiles, event => {
     return contextFileService.selectFiles(BrowserWindow.fromWebContents(event.sender));
