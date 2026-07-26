@@ -106,7 +106,8 @@ export function createMemoryProposeTool(
     description:
       '对角色、设定、大纲、伏笔等资产文件提出修改提议（落 pending，作者确认后才应用）。' +
       '资产文件是作者领地，任何新增/更新/归档都必须走本工具而不是直接写文件。' +
-      'update 需给出完整新内容（基于当前文件内容修改，不要凭记忆重写）。',
+      'update 需给出完整新内容（基于当前文件内容修改，不要凭记忆重写）。' +
+      '一次提议只改一个文件、一件事。',
     parameters: memoryProposeParameters,
     async execute(params) {
       const sessionId = context.getSessionId();

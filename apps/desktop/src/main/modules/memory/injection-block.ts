@@ -16,10 +16,18 @@ type SectionSpec = {
  * 超限规则：低优先级整节截断并附一行提示，不做节内裁剪（保持内容完整可信）。
  */
 const SECTION_PRIORITY: SectionSpec[] = [
-  { key: 'styleGuide', title: '创作守则与禁忌', truncationHint: '创作守则未注入，用 read 查看 设定/创作守则.md' },
-  { key: 'preferences', title: '作者偏好要点', truncationHint: '作者偏好未注入，用 read 查看 ~/.chaptale/memory/' },
-  { key: 'recent', title: '最近剧情', truncationHint: '近况未注入，用 read 查看 .chaptale/memory/summaries/recent.md' },
-  { key: 'notes', title: '观察笔记清单', truncationHint: '笔记清单未注入，用 ls 查看 .chaptale/memory/notes/' }
+  { key: 'styleGuide', title: '创作守则与禁忌', truncationHint: '创作守则未注入，需要时用 read 查看 设定/创作守则.md' },
+  {
+    key: 'preferences',
+    title: '作者偏好要点',
+    truncationHint: '作者偏好未注入，需要时用 read 查看 ~/.chaptale/memory/'
+  },
+  {
+    key: 'recent',
+    title: '最近剧情',
+    truncationHint: '近况未注入，需要时用 read 查看 .chaptale/memory/summaries/recent.md'
+  },
+  { key: 'notes', title: '观察笔记清单', truncationHint: '笔记清单未注入，需要时用 ls 查看 .chaptale/memory/notes/' }
 ];
 
 /**

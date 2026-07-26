@@ -155,7 +155,7 @@ export async function createDelegateTool(context: DelegateToolContext): Promise<
     label: '委派子任务',
     description: [
       '把一项独立任务委派给专职 persona 在后台子会话中执行（如文本审查）。',
-      '结果以结构化形式落盘并在界面展示，你只会收到状态与摘要——不要向作者复述结果全文。',
+      '结果以结构化形式落盘并在界面展示，你只会收到状态与摘要——向作者简要转述结论即可，不要复述结果全文。',
       '当前可委派的 persona：',
       renderPersonaList(snapshot)
     ].join('\n'),
