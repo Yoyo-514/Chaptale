@@ -15,8 +15,8 @@ import type {
 import type { ChatMessage } from '@chaptale/shared';
 
 import type { ImageAttachmentService } from '../../../core/attachments/service';
-import { buildSessionHtml, toSafeFileName } from '../../../modules/sessions/html-renderer';
-import type { SessionRepository } from '../../../modules/sessions/repository';
+import { buildSessionHtml, toSafeFileName } from '../../../features/sessions/html-renderer';
+import type { SessionRepository } from '../../../features/sessions/repository';
 import { toSessionListItem, toSessionTreeEntry } from './entry-mapper';
 import { flushSessionFile } from './file';
 import { fromPiMessage, toPiMessage } from './message-mapper';
@@ -129,7 +129,7 @@ export class PiSessionRepository implements SessionRepository {
       .map(entry => toSessionTreeEntry(entry, { sessionId, imageAttachmentService: this.imageAttachmentService }));
   }
 
-  /** 导出当前分支为单文件 HTML；文件写入由 modules/sessions/export 负责。 */
+  /** 导出当前分支为单文件 HTML；文件写入由 features/sessions/export 负责。 */
   async exportHtml(sessionId: string): Promise<{ html: string; suggestedFileName: string }> {
     const [session, entries] = await Promise.all([this.findSessionInfo(sessionId), this.getPathToRoot(sessionId)]);
     const name = session.name || session.lastMessagePreview || '未命名会话';

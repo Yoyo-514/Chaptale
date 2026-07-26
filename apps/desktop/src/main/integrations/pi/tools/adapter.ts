@@ -1,6 +1,6 @@
 import type { ToolDefinition as PiToolDefinition } from '@earendil-works/pi-coding-agent';
 
-import type { ToolDefinition } from '../../../modules/tools/definition';
+import type { ToolDefinition } from '../../../features/tools/definition';
 
 /**
  * 把项目侧工具定义适配为 pi 的自定义工具。

@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PersonaDefinition } from '@chaptale/shared';
 
 import { estimateTextTokens } from '../../../../core/context/token-counter';
-import { AgentRunStore } from '../../../../modules/runs/store';
-import { createDefaultToolCatalog } from '../../../../modules/tools/catalog';
+import { AgentRunStore } from '../../../../features/runs/store';
+import { createDefaultToolCatalog } from '../../../../features/tools/catalog';
 import { renderTaskPrompt, renderTaskPromptWithinBudget, TaskRunner } from '../task-runner';
 
 const persona: PersonaDefinition = {

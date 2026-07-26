@@ -37,8 +37,8 @@ vi.mock('@earendil-works/pi-coding-agent', async importOriginal => ({
   }
 }));
 
-import type { TaskPersonaSpec } from '../../../../modules/personas/task-spec';
-import { createDefaultToolCatalog } from '../../../../modules/tools/catalog';
+import type { TaskPersonaSpec } from '../../../../features/personas/task-spec';
+import { createDefaultToolCatalog } from '../../../../features/tools/catalog';
 import { ChatSessionFactory } from '../chat-session-factory';
 import { TaskSessionFactory } from '../task-session-factory';
 

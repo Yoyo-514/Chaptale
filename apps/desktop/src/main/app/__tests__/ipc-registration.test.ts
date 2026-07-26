@@ -73,8 +73,8 @@ vi.mock('../../infra/security/validated-ipc', () => ({
   })
 }));
 
-vi.mock('../../modules/memory/ipc', async () => {
-  const actual = await vi.importActual<typeof import('../../modules/memory/ipc')>('../../modules/memory/ipc');
+vi.mock('../../features/memory/ipc', async () => {
+  const actual = await vi.importActual<typeof import('../../features/memory/ipc')>('../../features/memory/ipc');
 
   return {
     ...actual,

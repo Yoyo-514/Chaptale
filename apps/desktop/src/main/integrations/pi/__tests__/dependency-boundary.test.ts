@@ -165,8 +165,8 @@ describe('模块依赖边界', () => {
   it('core 生产代码不导入业务模块', async () => {
     const mainRoot = path.resolve(import.meta.dirname, '../../..');
     const coreRoot = path.join(mainRoot, 'core');
-    const modulesRoot = path.join(mainRoot, 'modules');
-    const imports = await findRelativeImportsInto(coreRoot, modulesRoot);
+    const featuresRoot = path.join(mainRoot, 'features');
+    const imports = await findRelativeImportsInto(coreRoot, featuresRoot);
 
     expect(imports).toEqual([]);
   });
@@ -176,7 +176,7 @@ describe('模块依赖边界', () => {
     const integrationsRoot = path.join(mainRoot, 'integrations');
     const imports = [
       ...(await findRelativeImportsInto(path.join(mainRoot, 'core'), integrationsRoot)),
-      ...(await findRelativeImportsInto(path.join(mainRoot, 'modules'), integrationsRoot))
+      ...(await findRelativeImportsInto(path.join(mainRoot, 'features'), integrationsRoot))
     ];
 
     expect(imports).toEqual([]);
@@ -186,7 +186,7 @@ describe('模块依赖边界', () => {
     const mainRoot = path.resolve(import.meta.dirname, '../../..');
     const files = [
       ...(await collectTypeScriptFiles(path.join(mainRoot, 'core'))),
-      ...(await collectTypeScriptFiles(path.join(mainRoot, 'modules')))
+      ...(await collectTypeScriptFiles(path.join(mainRoot, 'features')))
     ];
     const violations = await Promise.all(
       files.map(async filePath => {

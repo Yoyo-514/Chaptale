@@ -3,6 +3,26 @@ import path from 'node:path';
 import { ImageAttachmentService } from '../core/attachments/service';
 import { ContextFileService } from '../core/context/service';
 import { SettingsService } from '../core/settings/service';
+import { SlashCommandService } from '../features/commands/service';
+import { CompactCoord } from '../features/memory/compact-coord';
+import { CompactionSummaryStore } from '../features/memory/compaction-summary-store';
+import { createMemoryInjector } from '../features/memory/injector';
+import { MemoryPendingStore } from '../features/memory/pending-store';
+import { MemoryService } from '../features/memory/service';
+import { PermissionBroker } from '../features/permissions/broker';
+import { PermissionRuleStore } from '../features/permissions/rule-store';
+import { PromptFileService } from '../features/prompts/file-service';
+import { AgentRunStore } from '../features/runs/store';
+import { IndexService } from '../features/search/index-service';
+import { LiteralSearchProvider } from '../features/search/literal-search-provider';
+import { MemorySearchService } from '../features/search/memory-search-service';
+import { WorkspaceIndexSourceResolver } from '../features/search/source-resolver';
+import { materializeBuiltinSkills } from '../features/skills/builtin-materializer';
+import { SubagentPool } from '../features/subagent/pool';
+import { TaskService } from '../features/tasks/service';
+import { TodoStore } from '../features/todo/store';
+import { createDefaultToolCatalog } from '../features/tools/catalog';
+import { buildChatSessionTools, buildTaskSessionTools } from '../features/tools/tool-registry';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { ChatSessionFactory } from '../integrations/pi/agent/chat-session-factory';
@@ -17,26 +37,6 @@ import { PiModelService } from '../integrations/pi/models/service';
 import { PiSessionRepository } from '../integrations/pi/sessions/repository';
 import { SkillsProvider } from '../integrations/pi/skills/provider';
 import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
-import { SlashCommandService } from '../modules/commands/service';
-import { CompactCoord } from '../modules/memory/compact-coord';
-import { CompactionSummaryStore } from '../modules/memory/compaction-summary-store';
-import { createMemoryInjector } from '../modules/memory/injector';
-import { MemoryPendingStore } from '../modules/memory/pending-store';
-import { MemoryService } from '../modules/memory/service';
-import { PermissionBroker } from '../modules/permissions/broker';
-import { PermissionRuleStore } from '../modules/permissions/rule-store';
-import { PromptFileService } from '../modules/prompts/file-service';
-import { AgentRunStore } from '../modules/runs/store';
-import { IndexService } from '../modules/search/index-service';
-import { LiteralSearchProvider } from '../modules/search/literal-search-provider';
-import { MemorySearchService } from '../modules/search/memory-search-service';
-import { WorkspaceIndexSourceResolver } from '../modules/search/source-resolver';
-import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer';
-import { SubagentPool } from '../modules/subagent/pool';
-import { TaskService } from '../modules/tasks/service';
-import { TodoStore } from '../modules/todo/store';
-import { createDefaultToolCatalog } from '../modules/tools/catalog';
-import { buildChatSessionTools, buildTaskSessionTools } from '../modules/tools/tool-registry';
 
 export type AppContext = {
   settingsService: SettingsService;
@@ -141,7 +141,7 @@ export function createAppContext(): AppContext {
     permissionRuleStore,
     personaRegistry,
     toolCatalog,
-    // 工具注册统一由 modules/tools 管理；此处只注入运行时依赖。
+    // 工具注册统一由 features/tools 管理；此处只注入运行时依赖。
     buildChatTools: context =>
       buildChatSessionTools({
         ...context,

@@ -11,7 +11,7 @@ export const builtinPersonaSources: readonly string[] = [
 
 /**
  * 内置 companion 的正文，作为系统提示词的最终回退（例如用户用 enabled: false 停用了 companion）。
- * 这里只剔除 frontmatter，不引入完整解析器，保持 modules 层零 pi 依赖。
+ * 这里只剔除 frontmatter，不引入完整解析器，保持 features 层零 pi 依赖。
  */
 export const builtinCompanionBody = companionSource
   .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '')

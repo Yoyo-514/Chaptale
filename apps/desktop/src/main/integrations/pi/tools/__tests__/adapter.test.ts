@@ -1,7 +1,7 @@
 import { Type } from 'typebox';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ToolDefinition } from '../../../../modules/tools/definition';
+import type { ToolDefinition } from '../../../../features/tools/definition';
 import { toPiToolDefinition } from '../adapter';
 
 const parameters = Type.Object({ note: Type.String() }, { additionalProperties: false });

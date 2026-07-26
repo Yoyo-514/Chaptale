@@ -1,7 +1,7 @@
 import type { InlineExtension, SessionBeforeCompactEvent } from '@earendil-works/pi-coding-agent';
 
-import type { CompactCoord, CompactOutput, CompactReason } from '../../../modules/memory/compact-coord';
-import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
+import type { CompactCoord, CompactOutput, CompactReason } from '../../../features/memory/compact-coord';
+import { decodeMemoryMessage } from '../../../features/memory/message-codec';
 
 export type ChaptaleCompactDetails = {
   kind: 'chaptale-creative-checkpoint';

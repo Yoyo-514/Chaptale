@@ -6,8 +6,8 @@ import {
   type ImageBlock
 } from '../../../core/attachments/service';
 import { decodeContextMessage } from '../../../core/context/context-message-codec';
-import { decodeMemoryMessage } from '../../../modules/memory/message-codec';
-import { decodeSkillMessage } from '../../../modules/skills/message-codec';
+import { decodeMemoryMessage } from '../../../features/memory/message-codec';
+import { decodeSkillMessage } from '../../../features/skills/message-codec';
 import { getPiUserImageBlocks } from '../sessions/user-image-blocks';
 
 export type PiMessageMappingOptions = {

@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { builtinCompanionBody } from '../../../../modules/personas/builtin';
-import { composeSystemPrompt } from '../../../../modules/prompts/compose-system-prompt';
+import { builtinCompanionBody } from '../../../../features/personas/builtin';
+import { composeSystemPrompt } from '../../../../features/prompts/compose-system-prompt';
 
 describe('pi prompt resources', () => {
   let rootDir: string;
