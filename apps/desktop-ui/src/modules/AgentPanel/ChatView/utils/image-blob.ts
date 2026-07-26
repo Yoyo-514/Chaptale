@@ -1,6 +1,6 @@
 import type { ChatImageSource } from '@chaptale/shared';
 
-import { getDesktopApi } from '@/stores/utils/desktop-api';
+import { getDesktopApi } from '@/utils/desktop-api';
 
 /**
  * 读取会话/上下文图片并转成 Blob。

@@ -5,7 +5,7 @@ import type { SubagentState } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
-import { getDesktopApi, hasDesktopApi } from '@/stores/utils/desktop-api';
+import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import { isTerminalState, type SubagentTaskEntry } from '../composables/useSubagentTasks';
 

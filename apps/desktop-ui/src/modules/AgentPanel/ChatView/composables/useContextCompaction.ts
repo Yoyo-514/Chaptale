@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 import type { MemoryContextPressureStatus } from '@chaptale/shared';
 
 import { useNotificationStore } from '@/stores/notification';
-import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/stores/utils/desktop-api';
+import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 /**
  * 会话水位提示与作者确认压缩流程。

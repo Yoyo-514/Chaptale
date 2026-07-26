@@ -4,7 +4,7 @@ import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 
 import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
-import { toErrorMessage } from '@/stores/utils/desktop-api';
+import { toErrorMessage } from '@/utils/desktop-api';
 
 import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
 import type { ChatState } from './chat-state';

@@ -6,7 +6,8 @@ import type {
   ListModelsResult
 } from '@chaptale/ipc-contract';
 
-import { getDesktopApi } from '../utils/desktop-api';
+import { getDesktopApi } from '@/utils/desktop-api';
+
 import type { SettingsStoreContext } from './types';
 
 export const modelSettingsActions = {

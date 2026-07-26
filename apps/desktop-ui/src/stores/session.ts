@@ -8,9 +8,8 @@ import type {
   CreateSessionOptions
 } from '@chaptale/ipc-contract';
 
+import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { isSameWorkspacePath } from '@/utils/workspace-path';
-
-import { getDesktopApi, toErrorMessage } from './utils/desktop-api';
 
 /**
  * 按 store 实例记录在途的会话列表请求。

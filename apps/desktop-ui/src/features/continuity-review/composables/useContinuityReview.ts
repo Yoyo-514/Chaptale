@@ -2,7 +2,7 @@ import { reactive } from 'vue';
 
 import type { ContinuityIssues } from '@chaptale/shared';
 
-import { getDesktopApi } from '@/stores/utils/desktop-api';
+import { getDesktopApi } from '@/utils/desktop-api';
 
 export type ReviewStatus = 'idle' | 'running' | 'done' | 'failed' | 'cancelled';
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { getDesktopApi, toErrorMessage } from '../utils/desktop-api';
+import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 describe('desktop-api helpers', () => {
   afterEach(() => {

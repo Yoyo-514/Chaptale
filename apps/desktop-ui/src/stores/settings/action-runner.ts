@@ -1,5 +1,6 @@
+import { toErrorMessage } from '@/utils/desktop-api';
+
 import { useNotificationStore } from '../notification';
-import { toErrorMessage } from '../utils/desktop-api';
 import type { SettingsStoreState } from './types';
 
 export const settingsActionRunner = {

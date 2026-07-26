@@ -3,8 +3,8 @@ import { computed } from 'vue';
 
 import { AppImagePreview } from '@/components/AppImagePreview';
 import { useNotificationStore } from '@/stores/notification';
-import { toErrorMessage } from '@/stores/utils/desktop-api';
 import { cn } from '@/utils';
+import { toErrorMessage } from '@/utils/desktop-api';
 import { formatMessageCost, formatMessageTime, formatTokenCount } from '@/utils/session-display';
 
 import type { ChatDisplayMessage } from '../../types';

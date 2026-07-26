@@ -2,7 +2,7 @@ import { onBeforeUnmount, ref } from 'vue';
 
 import type { MemoryPendingAction, MemoryPendingProposal } from '@chaptale/shared';
 
-import { getDesktopApi, hasDesktopApi } from '@/stores/utils/desktop-api';
+import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 /**
  * 待确认的记忆提议列表：挂载时拉取，之后跟随 pendingChanged 信号重新拉取。

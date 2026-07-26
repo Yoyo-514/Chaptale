@@ -3,7 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue';
 import type { PermissionAskEvent, PermissionDecideArgs } from '@chaptale/ipc-contract';
 
 import { useNotificationStore } from '@/stores/notification';
-import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/stores/utils/desktop-api';
+import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 /**
  * 当前会话的待授权请求队列：切换会话时全量拉取，之后跟随 main 侧 ask 推送追加。

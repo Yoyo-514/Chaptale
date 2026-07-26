@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, watch } from 'vue';
 import { useNotificationStore } from '@/stores/notification';
 import { useSessionStore } from '@/stores/session';
 import { useSettingsStore } from '@/stores/settings';
-import { getDesktopApi } from '@/stores/utils/desktop-api';
+import { getDesktopApi } from '@/utils/desktop-api';
 
 import { createDisplayMessage } from '../utils/message/display-message';
 import { createChatState } from './chat-state';

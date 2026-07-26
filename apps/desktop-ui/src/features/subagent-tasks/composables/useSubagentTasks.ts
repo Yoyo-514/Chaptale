@@ -2,7 +2,7 @@ import { onBeforeUnmount, ref, watch } from 'vue';
 
 import type { SubagentSlotEvent, SubagentSlotSnapshot, SubagentState } from '@chaptale/shared';
 
-import { getDesktopApi, hasDesktopApi } from '@/stores/utils/desktop-api';
+import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 export type SubagentTaskEntry = {
   requestId: string;
