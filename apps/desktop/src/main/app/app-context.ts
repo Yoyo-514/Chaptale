@@ -25,6 +25,7 @@ import { materializeBuiltinSkills } from '../modules/skills/builtin-materializer
 import { SubagentPool } from '../modules/subagent/pool';
 import { TaskService } from '../modules/tasks/service';
 import type { TodoStore } from '../modules/todo/store';
+import { createDefaultToolCatalog } from '../modules/tools/catalog';
 import { buildChatSessionTools, buildTaskSessionTools } from '../modules/tools/tool-registry';
 
 export type AppContext = {
@@ -69,15 +70,27 @@ export function createAppContext(): AppContext {
   });
   const modelService = new PiModelService(settingsService);
   const promptFileService = new PromptFileService(settingsService.agentDir);
-  const agentRuntime = new PiAgentService(settingsService, modelService);
-  const commandService = new SlashCommandService(settingsService, agentRuntime.skillsProvider);
   const personaRegistry = createDefaultPersonaRegistry(settingsService);
+  const toolCatalog = createDefaultToolCatalog();
+  const agentRuntime = new PiAgentService(
+    settingsService,
+    modelService,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    personaRegistry,
+    toolCatalog
+  );
+  const commandService = new SlashCommandService(settingsService, agentRuntime.skillsProvider);
   const permissionRuleStore = agentRuntime.permissionRuleStore;
   const permissionBroker = agentRuntime.permissionBroker;
   // runs 归属工作区（<workspace>/.chaptale/runs）：审查历史是创作产物，随作品同步。
   const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   // 复用 agent runtime 的会话工厂：task 会话与 chat 会话共享模型/权限接线，避免双实例漂移。
-  const taskRunner = new TaskRunner(agentRuntime.sessionFactory, runStore);
+  const taskRunner = new TaskRunner(agentRuntime.sessionFactory, runStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner });
   const compactCoord = new CompactCoord({
     personas: personaRegistry,

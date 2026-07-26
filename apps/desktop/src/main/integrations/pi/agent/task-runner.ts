@@ -14,6 +14,7 @@ import type {
   TaskRunUsage,
   TaskSessionFactoryPort
 } from '../../../modules/tasks/runner-port';
+import type { ToolCatalog } from '../../../modules/tools/catalog';
 
 /** 校验失败后允许模型自我修复的最大次数。 */
 const MAX_REPAIR_ATTEMPTS = 2;
@@ -29,13 +30,14 @@ const MAX_REPAIR_ATTEMPTS = 2;
 export class TaskRunner implements TaskRunnerPort {
   constructor(
     private readonly sessionFactory: TaskSessionFactoryPort<AgentSession>,
-    private readonly runStore: AgentRunStore
+    private readonly runStore: AgentRunStore,
+    private readonly toolCatalog: ToolCatalog
   ) {}
 
   async run(request: TaskRunRequest): Promise<TaskRunResult> {
     const runId = randomUUID();
     const createdAt = new Date().toISOString();
-    const spec = resolveTaskSpec(request.persona);
+    const spec = resolveTaskSpec(request.persona, this.toolCatalog);
     const schemaId = request.persona.output;
 
     if (!schemaId) {

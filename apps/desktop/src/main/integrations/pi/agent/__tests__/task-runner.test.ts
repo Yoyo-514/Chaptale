@@ -7,6 +7,7 @@ import type { PersonaDefinition } from '@chaptale/shared';
 
 import { estimateTextTokens } from '../../../../modules/context/token-counter';
 import { AgentRunStore } from '../../../../modules/runs/store';
+import { createDefaultToolCatalog } from '../../../../modules/tools/catalog';
 import { renderTaskPrompt, renderTaskPromptWithinBudget, TaskRunner } from '../task-runner';
 
 const persona: PersonaDefinition = {
@@ -53,7 +54,7 @@ describe('TaskRunner', () => {
 
   function createRunner(session: ReturnType<typeof createSession>) {
     const factory = { createTaskSession: vi.fn(async () => session as any) };
-    return { runner: new TaskRunner(factory, runStore), factory };
+    return { runner: new TaskRunner(factory, runStore, createDefaultToolCatalog()), factory };
   }
 
   it('succeeds on a valid structured output and records the run', async () => {

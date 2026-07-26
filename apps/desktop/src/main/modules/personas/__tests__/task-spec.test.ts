@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
+import { createDefaultToolCatalog } from '../../tools/catalog';
 import { resolveTaskSpec } from '../task-spec';
 
 function createPersona(overrides: Partial<PersonaDefinition> = {}): PersonaDefinition {
@@ -17,8 +18,10 @@ function createPersona(overrides: Partial<PersonaDefinition> = {}): PersonaDefin
 }
 
 describe('resolveTaskSpec', () => {
+  const toolCatalog = createDefaultToolCatalog();
+
   it('derives spec with least-privilege tool default (no tools declared = no tools)', () => {
-    const spec = resolveTaskSpec(createPersona());
+    const spec = resolveTaskSpec(createPersona(), toolCatalog);
 
     expect(spec).toEqual({
       personaId: 'test-reviewer',
@@ -35,7 +38,8 @@ describe('resolveTaskSpec', () => {
         tools: ['read', 'grep', 'memory_search', 'bash'],
         memory: { read: ['canon', 'notes', 'summaries'], write: [], propose: [] },
         model: { preference: 'anthropic/claude-sonnet-4-5' }
-      })
+      }),
+      toolCatalog
     );
 
     expect(spec.tools).toEqual(['read', 'grep', 'memory_search']);
@@ -48,7 +52,8 @@ describe('resolveTaskSpec', () => {
       createPersona({
         tools: ['read', 'grep', 'find', 'ls', 'memory_search'],
         memory: { read: ['canon', 'notes', 'summaries'], write: [], propose: [] }
-      })
+      }),
+      toolCatalog
     );
 
     expect(spec.memoryReadDomains).toEqual(['canon', 'summaries']);
@@ -60,7 +65,8 @@ describe('resolveTaskSpec', () => {
       createPersona({
         tools: ['memory_search'],
         memory: { read: ['notes'], write: [], propose: [] }
-      })
+      }),
+      toolCatalog
     );
 
     expect(spec.memoryReadDomains).toEqual([]);
@@ -68,7 +74,7 @@ describe('resolveTaskSpec', () => {
   });
 
   it('rejects chat personas and disabled personas', () => {
-    expect(() => resolveTaskSpec(createPersona({ execution: 'chat' }))).toThrow(/不是 task 型/);
-    expect(() => resolveTaskSpec(createPersona({ enabled: false }))).toThrow(/已停用/);
+    expect(() => resolveTaskSpec(createPersona({ execution: 'chat' }), toolCatalog)).toThrow(/不是 task 型/);
+    expect(() => resolveTaskSpec(createPersona({ enabled: false }), toolCatalog)).toThrow(/已停用/);
   });
 });

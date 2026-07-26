@@ -25,19 +25,18 @@ import type { PermissionRuleStore } from '../../../modules/permissions/rule-stor
 import { builtinCompanionBody, builtinPersonaSources } from '../../../modules/personas/builtin';
 import { PersonaRegistry } from '../../../modules/personas/registry';
 import type { TaskPersonaSpec } from '../../../modules/personas/task-spec';
-import { resolveAllowedPersonaTools } from '../../../modules/personas/tool-access';
 import { composeSystemPrompt } from '../../../modules/prompts/compose-system-prompt';
 import type { BoundSession, SessionCtx } from '../../../modules/session-ctx/types';
 import type { SettingsService } from '../../../modules/settings/service';
 import { TODO_PROTOCOL } from '../../../modules/todo/protocol';
 import type { TodoStore } from '../../../modules/todo/store';
+import { createDefaultToolCatalog, type ToolCatalog } from '../../../modules/tools/catalog';
 import type { ToolDefinition } from '../../../modules/tools/definition';
 import type { PiModelService } from '../models/service';
 import { createPermissionGateExtension } from '../permissions/gate-extension';
 import { getSessionScope } from '../sessions/storage';
 import type { SkillsProvider } from '../skills/provider';
 import { toPiToolDefinition } from '../tools/adapter';
-import { getEnabledToolNames } from '../tools/tool-whitelist';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -49,6 +48,7 @@ export type PiAgentSessionFactoryOptions = {
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
   personaRegistry?: PersonaRegistry;
+  toolCatalog?: ToolCatalog;
 };
 
 /** desktop 默认 persona 注册表：pi frontmatter 解析 + 构建期内置 persona + 用户级目录。 */
@@ -95,6 +95,7 @@ export class PiAgentSessionFactory {
   }
 
   private personaRegistry?: PersonaRegistry;
+  private toolCatalog?: ToolCatalog;
 
   constructor(private readonly options: PiAgentSessionFactoryOptions) {}
 
@@ -102,6 +103,11 @@ export class PiAgentSessionFactory {
   private getPersonaRegistry(): PersonaRegistry {
     this.personaRegistry ??= this.options.personaRegistry ?? createDefaultPersonaRegistry(this.options.settingsService);
     return this.personaRegistry;
+  }
+
+  private getToolCatalog(): ToolCatalog {
+    this.toolCatalog ??= this.options.toolCatalog ?? createDefaultToolCatalog();
+    return this.toolCatalog;
   }
 
   /** 解析当前工作区的 persona；内部会话能力与普通 persona 共用三层覆盖规则。 */
@@ -134,14 +140,23 @@ export class PiAgentSessionFactory {
     // 同时只定向加载白名单 pi package，避免把 pi CLI 的 coding 行为带进创作会话。
     // 会话级自定义工具：sessionId 在此已知，直接闭包绑定，todo 清单随会话隔离。
     // 构建于 loader 之前：权限闸门需要各自定义工具的风险分级。
-    // 内置 chat persona 省略 tools = 使用 registry 默认全集；显式声明时才作为收窄白名单。
-    const allowedTools = companion?.tools ? new Set(resolveAllowedPersonaTools(companion)) : undefined;
+    // 内置 chat persona 省略 tools = 使用目录默认全集；显式声明时才作为收窄白名单。
+    const selectedTools = this.getToolCatalog().selectSessionTools(
+      companion ?? {
+        id: 'companion',
+        name: 'Companion',
+        type: 'chat',
+        execution: 'chat',
+        body: personaBody,
+        source: 'builtin'
+      }
+    );
     const registeredTools =
       companion && this.extraChatTools
         ? await this.extraChatTools({ sessionId, cwd: ctx.cwd, persona: companion })
         : [];
-    const chatTools = registeredTools.filter(tool => !allowedTools || allowedTools.has(tool.name));
-    const enabledPiTools = getEnabledToolNames().filter(tool => !allowedTools || allowedTools.has(tool));
+    const chatTools = registeredTools.filter(tool => selectedTools.customToolNames.includes(tool.name));
+    const enabledPiTools = selectedTools.piToolNames;
     const customTools = chatTools.map(toPiToolDefinition);
     const customRiskLevels = Object.fromEntries(
       chatTools.map(tool => [tool.name, tool.riskLevel ?? 'mutating'])

@@ -27,6 +27,7 @@ import { PermissionRuleStore } from '../../../modules/permissions/rule-store';
 import type { BoundSession } from '../../../modules/session-ctx/types';
 import type { SettingsService } from '../../../modules/settings/service';
 import { TodoStore } from '../../../modules/todo/store';
+import { createDefaultToolCatalog, type ToolCatalog } from '../../../modules/tools/catalog';
 import type { PiModelService } from '../models/service';
 import { flushSessionFile } from '../sessions/file';
 import { getPiUserEntrySnapshot } from '../sessions/user-entry-snapshot';
@@ -34,7 +35,7 @@ import { SkillsProvider } from '../skills/provider';
 import { AsyncMessageQueue } from './async-message-queue';
 import { isChaptaleCompactDetails } from './compact-extension';
 import { mapAgentStreamEvent } from './event-mapper';
-import { PiAgentSessionFactory } from './session-factory';
+import { createDefaultPersonaRegistry, PiAgentSessionFactory } from './session-factory';
 
 export type StreamOptions = AgentRunOptions;
 
@@ -76,7 +77,9 @@ export class PiAgentService implements AgentRuntime {
     memoryInjector?: MemoryInjector,
     todoStore = new TodoStore(settingsService.todosDir),
     permissionBroker = new PermissionBroker(),
-    permissionRuleStore = new PermissionRuleStore({ globalDir: settingsService.rootDir })
+    permissionRuleStore = new PermissionRuleStore({ globalDir: settingsService.rootDir }),
+    personaRegistry = createDefaultPersonaRegistry(settingsService),
+    toolCatalog: ToolCatalog = createDefaultToolCatalog()
   ) {
     this.skillsProvider = skillsProvider;
     this.todoStore = todoStore;
@@ -89,7 +92,9 @@ export class PiAgentService implements AgentRuntime {
       skillsProvider,
       todoStore,
       permissionBroker,
-      permissionRuleStore
+      permissionRuleStore,
+      personaRegistry,
+      toolCatalog
     });
   }
 

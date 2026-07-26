@@ -1,8 +1,8 @@
 import type { PersonaDefinition } from '@chaptale/shared';
 
 import type { IndexDomain } from '../search/types';
+import type { ToolCatalog } from '../tools/catalog';
 import { resolveReadableIndexDomains } from './memory-access';
-import { resolveAllowedPersonaTools } from './tool-access';
 
 /** task 执行规格：由 persona 定义派生的、与 pi 无关的执行参数。 */
 export type TaskPersonaSpec = {
@@ -26,7 +26,7 @@ export type TaskPersonaSpec = {
  * 仅接受 execution=task 且 enabled 的 persona——chat 型走主对话链路，
  * 在类型入口处挡住误用，而不是靠调用方自觉。
  */
-export function resolveTaskSpec(persona: PersonaDefinition): TaskPersonaSpec {
+export function resolveTaskSpec(persona: PersonaDefinition, toolCatalog: ToolCatalog): TaskPersonaSpec {
   if (persona.execution !== 'task') {
     throw new Error(`persona 不是 task 型，无法作为子任务执行：${persona.id}`);
   }
@@ -36,8 +36,9 @@ export function resolveTaskSpec(persona: PersonaDefinition): TaskPersonaSpec {
   }
 
   const memoryReadDomains = resolveReadableIndexDomains(persona);
+  const selected = toolCatalog.selectSessionTools(persona, 'task');
   // memory_search 同时要求工具声明与至少一个可读索引域，避免把未注册工具名传给 runtime。
-  const tools = resolveAllowedPersonaTools(persona).filter(
+  const tools = [...selected.piToolNames, ...selected.customToolNames].filter(
     tool => tool !== 'memory_search' || memoryReadDomains.length > 0
   );
 
