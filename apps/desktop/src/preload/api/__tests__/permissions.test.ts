@@ -46,10 +46,16 @@ describe('createPermissionsApi', () => {
 
     const cleanup = api.onAsk(listener);
     const handler = electronMock.on.mock.calls[0]?.[1];
-    handler?.({}, { requestId: 'permission-1' });
+    const askEvent = {
+      requestId: 'permission-1',
+      sessionId: 'session-1',
+      toolName: 'write',
+      riskLevel: 'mutating'
+    };
+    handler?.({}, askEvent);
     cleanup();
 
-    expect(listener).toHaveBeenCalledWith({ requestId: 'permission-1' });
+    expect(listener).toHaveBeenCalledWith(askEvent);
     expect(electronMock.removeListener).toHaveBeenCalledWith(IPC_CHANNELS.permissions.ask, handler);
   });
 });

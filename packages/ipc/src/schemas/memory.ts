@@ -16,3 +16,7 @@ export const MemoryResolvePendingArgsSchema = Type.Tuple([
   )
 ]);
 export const MemoryResolvePendingArgsValidator = Compile(MemoryResolvePendingArgsSchema);
+
+/** pendingChanged 是无 payload 通知：仅接受 undefined/null，拒绝任何携带数据的伪装事件。 */
+export const MemoryPendingChangedEventSchema = Type.Union([Type.Undefined(), Type.Null()]);
+export const MemoryPendingChangedEventValidator = Compile(MemoryPendingChangedEventSchema);

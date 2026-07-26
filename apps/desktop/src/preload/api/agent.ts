@@ -11,7 +11,10 @@ import type {
   AgentSteerPayload,
   ChaptaleDesktopApi
 } from '@chaptale/ipc-contract';
+import { AgentEndEventValidator } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
+
+import { onValidatedEvent } from './validated-event';
 
 /**
  * 暴露 Renderer 可用的 Agent API，并在 Preload 内隔离 Electron IPC 与本地文件路径能力。
@@ -29,7 +32,7 @@ export function createAgentApi(): ChaptaleDesktopApi['agent'] {
       // 每个 run 只移除自己注册的回调，避免并发流互相清理监听器。
       const cleanup = () => {
         ipcRenderer.removeListener(IPC_CHANNELS.agent.message, handleMessage);
-        ipcRenderer.removeListener(IPC_CHANNELS.agent.end, handleEnd);
+        removeEndListener();
       };
 
       const handleMessage = (_event: IpcRendererEvent, event: AgentMessageEvent) => {
@@ -38,7 +41,7 @@ export function createAgentApi(): ChaptaleDesktopApi['agent'] {
         }
       };
 
-      const handleEnd = (_event: IpcRendererEvent, event: AgentEndEvent) => {
+      const handleEnd = (event: AgentEndEvent) => {
         if (event.runId !== runId) {
           return;
         }
@@ -49,7 +52,7 @@ export function createAgentApi(): ChaptaleDesktopApi['agent'] {
       };
 
       ipcRenderer.on(IPC_CHANNELS.agent.message, handleMessage);
-      ipcRenderer.on(IPC_CHANNELS.agent.end, handleEnd);
+      const removeEndListener = onValidatedEvent(IPC_CHANNELS.agent.end, AgentEndEventValidator, handleEnd);
 
       try {
         await ipcRenderer.invoke(IPC_CHANNELS.agent.start, {

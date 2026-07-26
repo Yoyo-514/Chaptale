@@ -1,8 +1,10 @@
-import type { IpcRendererEvent } from 'electron';
 import { ipcRenderer } from 'electron';
 
-import type { ChaptaleDesktopApi, PermissionAskEvent } from '@chaptale/ipc-contract';
+import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import { PermissionAskEventValidator } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
+
+import { onValidatedEvent } from './validated-event';
 
 export function createPermissionsApi(): ChaptaleDesktopApi['permissions'] {
   return {
@@ -10,15 +12,6 @@ export function createPermissionsApi(): ChaptaleDesktopApi['permissions'] {
     decide: args => ipcRenderer.invoke(IPC_CHANNELS.permissions.decide, args),
     listRules: () => ipcRenderer.invoke(IPC_CHANNELS.permissions.listRules),
     removeRule: args => ipcRenderer.invoke(IPC_CHANNELS.permissions.removeRule, args),
-    onAsk: listener => {
-      const handler = (_event: IpcRendererEvent, payload: PermissionAskEvent) => {
-        listener(payload);
-      };
-
-      ipcRenderer.on(IPC_CHANNELS.permissions.ask, handler);
-      return () => {
-        ipcRenderer.removeListener(IPC_CHANNELS.permissions.ask, handler);
-      };
-    }
+    onAsk: listener => onValidatedEvent(IPC_CHANNELS.permissions.ask, PermissionAskEventValidator, listener)
   };
 }
