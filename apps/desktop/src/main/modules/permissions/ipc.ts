@@ -1,4 +1,3 @@
-import { BrowserWindow } from 'electron';
 import { unique } from 'radash';
 
 import type { PermissionAskEvent, PermissionRuleEntry } from '@chaptale/ipc-contract';
@@ -11,6 +10,7 @@ import {
 } from '@chaptale/ipc-contract';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
+import type { IpcBroadcaster } from '../ipc-ports';
 import type { PermissionBroker } from './broker';
 import type { PermissionRuleStore } from './rule-store';
 
@@ -28,6 +28,7 @@ interface PermissionsIpcOptions {
 export function registerPermissionsIpc(
   broker: PermissionBroker,
   ruleStore: PermissionRuleStore,
+  ui: IpcBroadcaster,
   options: PermissionsIpcOptions
 ): void {
   handleValidatedIpc(IPC_CHANNELS.permissions.pending, PermissionsPendingArgsValidator, async (_event, sessionId) => {
@@ -62,17 +63,7 @@ export function registerPermissionsIpc(
   });
 
   broker.onAsk((event: PermissionAskEvent) => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.webContents.isDestroyed()) {
-        continue;
-      }
-
-      try {
-        window.webContents.send(IPC_CHANNELS.permissions.ask, event);
-      } catch {
-        // isDestroyed 检查与 send 之间存在窗口销毁竞态；推送失败由超时兜底，不额外处理。
-      }
-    }
+    ui.broadcast(IPC_CHANNELS.permissions.ask, event);
   });
 }
 

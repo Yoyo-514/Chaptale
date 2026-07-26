@@ -171,17 +171,22 @@ describe('模块依赖边界', () => {
     expect(imports).toEqual([]);
   });
 
-  it('modules/context 与 modules/attachments 生产代码不导入 Electron 实现', async () => {
+  it('modules 生产代码不导入 Electron 实现', async () => {
     const mainRoot = path.resolve(import.meta.dirname, '../../..');
-    const roots = [path.join(mainRoot, 'modules/context'), path.join(mainRoot, 'modules/attachments')];
-    const files = (await Promise.all(roots.map(root => collectTypeScriptFiles(root)))).flat();
+    const files = await collectTypeScriptFiles(path.join(mainRoot, 'modules'));
     const violations = await Promise.all(
       files.map(async filePath => {
         const source = await fs.readFile(filePath, 'utf8');
         const relativePath = toPosixPath(path.relative(mainRoot, filePath));
-        return collectImportSpecifiers(filePath, source)
-          .filter(specifier => specifier === 'electron' || specifier.includes('infra/electron'))
-          .map(specifier => `${relativePath}::${specifier}`);
+        return (
+          collectImportSpecifiers(filePath, source)
+            // 纯类型 import 不产生运行时依赖，port 签名可以引用 Electron 事件类型。
+            .filter(
+              ({ specifier, typeOnly }) =>
+                !typeOnly && (specifier === 'electron' || specifier.includes('infra/electron'))
+            )
+            .map(({ specifier }) => `${relativePath}::${specifier}`)
+        );
       })
     );
 
@@ -240,12 +245,12 @@ async function findRelativeImportsInto(sourceRoot: string, targetRoot: string): 
   return imports.flat().toSorted();
 }
 
-/** 收集顶层 import 声明的 specifier（含 type-only）。 */
-function collectImportSpecifiers(filePath: string, source: string): string[] {
+/** 收集顶层 import 声明的 specifier；typeOnly 区分 `import type`。 */
+function collectImportSpecifiers(filePath: string, source: string): Array<{ specifier: string; typeOnly: boolean }> {
   const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   return sourceFile.statements.flatMap(statement =>
     ts.isImportDeclaration(statement) && ts.isStringLiteralLike(statement.moduleSpecifier)
-      ? [statement.moduleSpecifier.text]
+      ? [{ specifier: statement.moduleSpecifier.text, typeOnly: statement.importClause?.isTypeOnly === true }]
       : []
   );
 }

@@ -1,5 +1,3 @@
-import { BrowserWindow } from 'electron';
-
 import {
   IPC_CHANNELS,
   MemoryListPendingArgsValidator,
@@ -7,6 +5,7 @@ import {
 } from '@chaptale/ipc-contract';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
+import type { IpcBroadcaster } from '../ipc-ports';
 import type { MemoryPendingStore } from './pending-store';
 
 /**
@@ -19,7 +18,11 @@ export type MemoryIpcOptions = {
   resolveCwd: () => Promise<string> | string;
 };
 
-export function registerMemoryIpc(pendingStore: MemoryPendingStore, options: MemoryIpcOptions): void {
+export function registerMemoryIpc(
+  pendingStore: MemoryPendingStore,
+  ui: IpcBroadcaster,
+  options: MemoryIpcOptions
+): void {
   handleValidatedIpc(IPC_CHANNELS.memory.listPending, MemoryListPendingArgsValidator, async () => {
     const cwd = await options.resolveCwd();
     return pendingStore.list(cwd);
@@ -31,16 +34,6 @@ export function registerMemoryIpc(pendingStore: MemoryPendingStore, options: Mem
   });
 
   pendingStore.onChange(() => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.webContents.isDestroyed()) {
-        continue;
-      }
-
-      try {
-        window.webContents.send(IPC_CHANNELS.memory.pendingChanged);
-      } catch {
-        // isDestroyed 检查与 send 之间存在窗口销毁竞态；推送失败不得连带写入失败。
-      }
-    }
+    ui.broadcast(IPC_CHANNELS.memory.pendingChanged);
   });
 }

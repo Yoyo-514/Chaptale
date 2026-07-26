@@ -3,10 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { exportSessionHtmlToFile } from '../export';
 import type { SessionRepository } from '../repository';
 
-const pickSavePath = vi.hoisted(() => vi.fn());
+const pickSavePath = vi.fn();
 const writeTextFile = vi.hoisted(() => vi.fn());
 
-vi.mock('../../../infra/electron/dialog', () => ({ pickSavePath }));
 vi.mock('../../../infra/filesystem/files', () => ({ writeTextFile }));
 
 function createRepository() {
@@ -24,7 +23,7 @@ describe('exportSessionHtmlToFile', () => {
     pickSavePath.mockResolvedValue('C:/out/chat.html');
     const repository = createRepository();
 
-    await expect(exportSessionHtmlToFile(repository, 'session-1')).resolves.toBe('C:/out/chat.html');
+    await expect(exportSessionHtmlToFile(repository, 'session-1', { pickSavePath })).resolves.toBe('C:/out/chat.html');
     expect(repository.exportHtml).toHaveBeenCalledWith('session-1');
     expect(writeTextFile).toHaveBeenCalledWith('C:/out/chat.html', '<html></html>');
   });
@@ -32,7 +31,7 @@ describe('exportSessionHtmlToFile', () => {
   it('returns null without writing when the dialog is canceled', async () => {
     pickSavePath.mockResolvedValue(undefined);
 
-    await expect(exportSessionHtmlToFile(createRepository(), 'session-1')).resolves.toBeNull();
+    await expect(exportSessionHtmlToFile(createRepository(), 'session-1', { pickSavePath })).resolves.toBeNull();
     expect(writeTextFile).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,8 @@
-import { BrowserWindow } from 'electron';
-
 import { IPC_CHANNELS, SubagentCancelArgsValidator, SubagentListActiveArgsValidator } from '@chaptale/ipc-contract';
 import type { SubagentSlotEvent } from '@chaptale/shared';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
+import type { IpcBroadcaster } from '../ipc-ports';
 import type { SubagentPool } from './pool';
 
 /**
@@ -12,7 +11,7 @@ import type { SubagentPool } from './pool';
  * 事件由主进程内的 delegate 工具执行触发（没有发起方 sender），
  * 广播给所有存活窗口，renderer 侧按 sessionId 过滤自己关心的子任务。
  */
-export function registerSubagentIpc(pool: SubagentPool): void {
+export function registerSubagentIpc(pool: SubagentPool, ui: IpcBroadcaster): void {
   handleValidatedIpc(IPC_CHANNELS.subagent.listActive, SubagentListActiveArgsValidator, async (_event, sessionId) => {
     return pool.listActive(sessionId);
   });
@@ -22,16 +21,6 @@ export function registerSubagentIpc(pool: SubagentPool): void {
   });
 
   pool.onEvent((event: SubagentSlotEvent) => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.webContents.isDestroyed()) {
-        continue;
-      }
-
-      try {
-        window.webContents.send(IPC_CHANNELS.subagent.event, event);
-      } catch {
-        // isDestroyed 检查与 send 之间存在窗口销毁竞态；推送失败不得连带子任务执行失败。
-      }
-    }
+    ui.broadcast(IPC_CHANNELS.subagent.event, event);
   });
 }

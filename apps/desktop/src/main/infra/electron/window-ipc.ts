@@ -2,7 +2,7 @@ import { BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 
 import { IPC_CHANNELS, type WindowStateResult } from '@chaptale/ipc-contract';
 
-import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
+import { handleTrustedIpc } from '../security/trusted-ipc';
 
 function getWindowFromEvent(event: IpcMainInvokeEvent) {
   const window = BrowserWindow.fromWebContents(event.sender);

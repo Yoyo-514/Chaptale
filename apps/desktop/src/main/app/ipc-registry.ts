@@ -1,5 +1,7 @@
 import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
 
+import { ElectronUiShell } from '../infra/electron/ui-shell';
+import { registerWindowIpc } from '../infra/electron/window-ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
 import { registerAgentIpc } from '../modules/agent/ipc';
 import { registerSlashCommandIpc } from '../modules/commands/ipc';
@@ -12,7 +14,6 @@ import { registerSettingsIpc } from '../modules/settings/ipc';
 import { registerSubagentIpc } from '../modules/subagent/ipc';
 import { registerTaskIpc } from '../modules/tasks/ipc';
 import { registerTodoIpc } from '../modules/todo/ipc';
-import { registerWindowIpc } from '../modules/window/ipc';
 import type { AppContext } from './app-context';
 
 /**
@@ -21,6 +22,8 @@ import type { AppContext } from './app-context';
  * 所有模块共享同一个 AppContext 实例并只在应用启动时注册一次，避免服务状态分裂或频道重复注册。
  */
 export function registerApplicationIpc(context: AppContext): void {
+  const ui = new ElectronUiShell();
+
   handleTrustedIpc(
     IPC_CHANNELS.app.getPlatform,
     () =>
@@ -32,7 +35,7 @@ export function registerApplicationIpc(context: AppContext): void {
       }) satisfies AppPlatformResult
   );
 
-  registerSessionIpc(context.sessionRepository, {
+  registerSessionIpc(context.sessionRepository, ui, {
     onSessionsDeleted: sessionIds => {
       for (const sessionId of sessionIds) {
         void context.todoStore.remove(sessionId).catch(() => undefined);
@@ -42,16 +45,16 @@ export function registerApplicationIpc(context: AppContext): void {
       }
     }
   });
-  registerSettingsIpc(context.settingsService, () => context.agentRuntime.invalidateSessions());
+  registerSettingsIpc(context.settingsService, ui, () => context.agentRuntime.invalidateSessions());
   registerPromptSettingsIpc(context.promptFileService, () => context.agentRuntime.invalidateSessions());
   registerModelsIpc(context.modelService);
-  registerAgentIpc({ runtime: context.agentRuntime, contextFileService: context.contextFileService });
+  registerAgentIpc({ runtime: context.agentRuntime, contextFileService: context.contextFileService, ui });
   registerSlashCommandIpc(context.commandService);
   registerTaskIpc(context.taskService, context.runStore);
-  registerTodoIpc(context.todoStore);
-  registerSubagentIpc(context.subagentPool);
-  registerMemoryIpc(context.memoryPendingStore, { resolveCwd: context.getMemoryPendingCwd });
-  registerPermissionsIpc(context.permissionBroker, context.permissionRuleStore, {
+  registerTodoIpc(context.todoStore, ui);
+  registerSubagentIpc(context.subagentPool, ui);
+  registerMemoryIpc(context.memoryPendingStore, ui, { resolveCwd: context.getMemoryPendingCwd });
+  registerPermissionsIpc(context.permissionBroker, context.permissionRuleStore, ui, {
     resolveCwd: context.getPermissionSettingsCwd
   });
   registerWindowIpc();

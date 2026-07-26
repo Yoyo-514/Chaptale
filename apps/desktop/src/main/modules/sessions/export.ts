@@ -1,14 +1,15 @@
-import { pickSavePath } from '../../infra/electron/dialog';
 import { writeTextFile } from '../../infra/filesystem/files';
+import type { NativeDialogPort } from '../ipc-ports';
 import type { SessionRepository } from './repository';
 
 /** 弹出保存对话框并把会话 HTML 落盘；用户取消时返回 null。 */
 export async function exportSessionHtmlToFile(
   sessionRepository: SessionRepository,
-  sessionId: string
+  sessionId: string,
+  dialog: Pick<NativeDialogPort, 'pickSavePath'>
 ): Promise<string | null> {
   const { html, suggestedFileName } = await sessionRepository.exportHtml(sessionId);
-  const filePath = await pickSavePath({
+  const filePath = await dialog.pickSavePath({
     title: '导出会话为 HTML',
     defaultPath: suggestedFileName,
     filters: [

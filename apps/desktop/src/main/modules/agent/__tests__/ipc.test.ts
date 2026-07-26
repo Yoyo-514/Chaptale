@@ -232,7 +232,8 @@ describe('Agent IPC lifecycle', () => {
     const sender = new FakeWebContents();
     registerAgentIpc({
       runtime: createRuntime(control),
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
@@ -259,7 +260,8 @@ describe('Agent IPC lifecycle', () => {
     const secondSender = new FakeWebContents();
     registerAgentIpc({
       runtime: createRuntimeByQuery({ first, second }),
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
@@ -286,7 +288,8 @@ describe('Agent IPC lifecycle', () => {
     const sender = new FakeWebContents();
     registerAgentIpc({
       runtime: createRuntime(control),
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
@@ -307,7 +310,8 @@ describe('Agent IPC lifecycle', () => {
     sender.failNextSendBecauseDestroyed();
     registerAgentIpc({
       runtime: createRuntime(control),
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
@@ -328,7 +332,8 @@ describe('Agent IPC lifecycle', () => {
     sender.failSends(new Error('transport failed'));
     registerAgentIpc({
       runtime: createRuntime(control),
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
@@ -375,7 +380,8 @@ describe('Agent IPC lifecycle', () => {
     };
     registerAgentIpc({
       runtime: runtime,
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const cancel = getValidatedHandler(IPC_CHANNELS.agent.cancel);
@@ -398,7 +404,8 @@ describe('Agent IPC lifecycle', () => {
     vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: ['调整方向'], followUp: [] });
     registerAgentIpc({
       runtime: runtime,
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
@@ -444,7 +451,8 @@ describe('Agent IPC lifecycle', () => {
     vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: '坏队列', followUp: [] } as never);
     registerAgentIpc({
       runtime: runtime,
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const clearPendingMessages = getValidatedHandler(IPC_CHANNELS.agent.clearPendingMessages);
@@ -502,7 +510,8 @@ describe('Agent IPC lifecycle', () => {
     });
     registerAgentIpc({
       runtime: runtime,
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
@@ -526,7 +535,8 @@ describe('Agent IPC lifecycle', () => {
     const sender = new FakeWebContents();
     registerAgentIpc({
       runtime: createRuntime(control),
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
     const steer = getValidatedHandler(IPC_CHANNELS.agent.steer);
@@ -554,7 +564,8 @@ describe('Agent IPC lifecycle', () => {
     });
     registerAgentIpc({
       runtime: runtime,
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 
@@ -583,7 +594,8 @@ describe('Agent IPC lifecycle', () => {
     const sender = new FakeWebContents();
     registerAgentIpc({
       runtime: createRuntime(control),
-      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) }
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
     });
     const start = getValidatedHandler(IPC_CHANNELS.agent.start);
 

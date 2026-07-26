@@ -1,4 +1,3 @@
-import { BrowserWindow } from 'electron';
 import type { WebContents } from 'electron';
 
 import {
@@ -26,6 +25,7 @@ import { errorToMessage } from '@chaptale/shared';
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { ContextFileService } from '../context/service';
+import type { IpcOwnerResolver } from '../ipc-ports';
 import { AgentRunManager } from './run-manager';
 import type { AgentRuntime } from './runtime';
 
@@ -73,12 +73,13 @@ function safeSend(webContents: WebContents, channel: string, payload: unknown): 
 export function registerAgentIpc(options: {
   runtime: AgentRuntime;
   contextFileService: Pick<ContextFileService, 'selectFiles' | 'inspectFiles'>;
+  ui: IpcOwnerResolver;
 }) {
-  const { runtime: agentService, contextFileService } = options;
+  const { runtime: agentService, contextFileService, ui } = options;
   const runManager = new AgentRunManager();
 
   handleTrustedIpc(IPC_CHANNELS.agent.selectContextFiles, event => {
-    return contextFileService.selectFiles(BrowserWindow.fromWebContents(event.sender));
+    return contextFileService.selectFiles(ui.resolveOwner(event));
   });
 
   handleValidatedIpc(

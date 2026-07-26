@@ -1,5 +1,3 @@
-import { BrowserWindow } from 'electron';
-
 import {
   IPC_CHANNELS,
   UpdateChaptaleSettingsArgsValidator,
@@ -9,17 +7,16 @@ import {
   type UpdatePiWebAccessSettingsPayload
 } from '@chaptale/ipc-contract';
 
-import { pickDirectory } from '../../infra/electron/dialog';
-import { openPathOrThrow } from '../../infra/electron/shell';
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
+import type { UiShell } from '../ipc-ports';
 import { SettingsService } from './service';
 
 /**
  * 归属设置读写、目录选择与配置目录频道；IPC 层校验信任和参数结构，持久化语义交给服务。
  * 目录选择绑定请求 sender 所属窗口，含存储设置的更新成功后触发失效回调。
  */
-export function registerSettingsIpc(settingsService: SettingsService, onStorageChanged?: () => void) {
+export function registerSettingsIpc(settingsService: SettingsService, ui: UiShell, onStorageChanged?: () => void) {
   handleTrustedIpc(IPC_CHANNELS.settings.getState, () => settingsService.getState());
 
   handleValidatedIpc(
@@ -43,8 +40,7 @@ export function registerSettingsIpc(settingsService: SettingsService, onStorageC
   );
 
   handleTrustedIpc(IPC_CHANNELS.settings.selectWorkspaceDir, async (event): Promise<SelectWorkspaceDirResult> => {
-    const owner = BrowserWindow.fromWebContents(event.sender);
-    const workspacePath = await pickDirectory(owner, '选择 Chaptale 工作区');
+    const workspacePath = await ui.pickDirectory(ui.resolveOwner(event), '选择 Chaptale 工作区');
 
     if (!workspacePath) {
       return { canceled: true };
@@ -58,6 +54,6 @@ export function registerSettingsIpc(settingsService: SettingsService, onStorageC
 
   handleTrustedIpc(IPC_CHANNELS.settings.openConfigDir, async () => {
     await settingsService.ensureBaseDirs();
-    await openPathOrThrow(settingsService.rootDir);
+    await ui.openPath(settingsService.rootDir);
   });
 }

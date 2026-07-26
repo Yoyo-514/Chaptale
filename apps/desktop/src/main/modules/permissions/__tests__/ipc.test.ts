@@ -15,10 +15,6 @@ vi.mock('../../../infra/security/validated-ipc', () => ({
   })
 }));
 
-vi.mock('electron', () => ({
-  BrowserWindow: { getAllWindows: () => [] }
-}));
-
 const WORKSPACE_A_CTX: SessionCtx = { sessionId: 's1', cwd: '/workspace-a', scope: 'workspace' };
 
 beforeEach(() => {
@@ -40,7 +36,7 @@ describe('permissions IPC', () => {
       addRule: vi.fn().mockResolvedValue(undefined)
     };
     const resolveCwd = vi.fn().mockResolvedValue('/workspace-b');
-    registerPermissionsIpc(broker as any, ruleStore as any, { resolveCwd });
+    registerPermissionsIpc(broker as any, ruleStore as any, { broadcast: vi.fn() }, { resolveCwd });
 
     const listener = ipcMock.listeners.get(IPC_CHANNELS.permissions.decide);
     await expect(
@@ -66,7 +62,12 @@ describe('permissions IPC', () => {
       })
     };
     const resolveCwd = vi.fn().mockResolvedValue('/workspace-b');
-    registerPermissionsIpc({ onAsk: vi.fn(), listPending: vi.fn() } as any, ruleStore as any, { resolveCwd });
+    registerPermissionsIpc(
+      { onAsk: vi.fn(), listPending: vi.fn() } as any,
+      ruleStore as any,
+      { broadcast: vi.fn() },
+      { resolveCwd }
+    );
 
     const listener = ipcMock.listeners.get(IPC_CHANNELS.permissions.listRules);
     await expect(listener?.({})).resolves.toEqual([
@@ -85,7 +86,12 @@ describe('permissions IPC', () => {
       })
     };
     const resolveCwd = vi.fn().mockResolvedValue('/workspace-b');
-    registerPermissionsIpc({ onAsk: vi.fn(), listPending: vi.fn() } as any, ruleStore as any, { resolveCwd });
+    registerPermissionsIpc(
+      { onAsk: vi.fn(), listPending: vi.fn() } as any,
+      ruleStore as any,
+      { broadcast: vi.fn() },
+      { resolveCwd }
+    );
     const listener = ipcMock.listeners.get(IPC_CHANNELS.permissions.removeRule);
 
     await expect(listener?.({}, { scope: 'workspace', pattern: 'write', action: 'allow' })).resolves.toEqual([

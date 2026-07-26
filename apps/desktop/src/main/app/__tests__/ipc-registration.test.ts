@@ -241,8 +241,12 @@ describe('renderer → main IPC 注册边界', () => {
     });
 
     expect(memoryIpcMock.registerMemoryIpc).toHaveBeenCalledTimes(1);
-    expect(memoryIpcMock.registerMemoryIpc).toHaveBeenCalledWith(context.memoryPendingStore, {
-      resolveCwd: context.getMemoryPendingCwd
-    });
+    expect(memoryIpcMock.registerMemoryIpc).toHaveBeenCalledWith(
+      context.memoryPendingStore,
+      expect.objectContaining({ broadcast: expect.any(Function) }),
+      {
+        resolveCwd: context.getMemoryPendingCwd
+      }
+    );
   });
 });
