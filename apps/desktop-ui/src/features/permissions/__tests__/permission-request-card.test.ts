@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
-import PermissionRequestCard from '../../components/PermissionRequestCard.vue';
+import PermissionRequestCard from '../components/PermissionRequestCard.vue';
 
 describe('PermissionRequestCard', () => {
   it('creates a workspace-wide rule for the tool rather than the current subject', async () => {

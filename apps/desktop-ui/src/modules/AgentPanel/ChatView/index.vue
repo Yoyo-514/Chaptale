@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { MemoryPendingCard, useMemoryPending } from '@/features/memory-review';
+import { PermissionRequestCard, usePermissionRequests } from '@/features/permissions';
 import { TodoProgressCard, useTodoProgress } from '@/features/todo-progress';
 import { useSessionStore } from '@/stores/session';
 import { cn } from '@/utils';
@@ -13,14 +14,12 @@ import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
 import ContextPressureCard from './components/ContextPressureCard.vue';
-import PermissionRequestCard from './components/PermissionRequestCard.vue';
 import ReviewResultCard from './components/ReviewResultCard.vue';
 import SubagentTaskCard from './components/SubagentTaskCard.vue';
 import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
 import { useContextCompaction } from './composables/useContextCompaction';
 import { useContinuityReview } from './composables/useContinuityReview';
-import { usePermissionRequests } from './composables/usePermissionRequests';
 import { useSubagentTasks } from './composables/useSubagentTasks';
 
 const chat = useChatController();
