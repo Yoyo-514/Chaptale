@@ -50,7 +50,7 @@ export default defineConfig({
       reporter: ['text', 'json-summary'],
       include: [
         'apps/desktop/src/main/**/*.ts',
-        'apps/desktop-ui/src/{stores,utils,views,components}/**/*.ts',
+        'apps/desktop-ui/src/{features,components,composables,utils}/**/*.ts',
         'packages/shared/src/**/*.ts'
       ],
       exclude: [
@@ -70,8 +70,7 @@ export default defineConfig({
         '**/infra/shell-gateway.ts',
 
         // Type-only contract packages are validated by TypeScript and package consumers.
-        'packages/ipc/src/**',
-        'apps/desktop-ui/src/modules/HistoryView/**'
+        'packages/ipc/src/**'
       ],
       thresholds: {
         statements: 80,

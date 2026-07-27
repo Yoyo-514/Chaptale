@@ -33,7 +33,7 @@
     "typecheck:desktop": "turbo run typecheck --filter @chaptale/desktop",
     "check": "run-s lint typecheck test",
     "test": "run-s test:unit test:e2e",
-    "test:unit": "turbo run test",
+    "test:unit": "turbo run test --concurrency=1",
     "test:coverage": "run-s test:coverage:core test:coverage:all",
     "test:coverage:core": "vitest run --config vitest.config.ts --coverage",
     "test:coverage:all": "vitest run --config vitest.coverage.config.ts --coverage",
