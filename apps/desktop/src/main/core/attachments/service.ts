@@ -1,6 +1,11 @@
 import { promises as fs } from 'node:fs';
 
-import { MAX_CHAT_IMAGE_BYTES, type ChatImageAttachment, type ChatImageSource } from '@chaptale/shared';
+import {
+  MAX_CHAT_IMAGE_BYTES,
+  type ChatImageAttachment,
+  type ChatImageContent,
+  type ChatImageSource
+} from '@chaptale/shared';
 
 import { getFileKind, getImageMimeType, IMAGE_MIME_TYPES } from '../../infra/filesystem/file-kind';
 import type { ThumbnailFactory, ThumbnailResult } from './thumbnail-port';
@@ -9,12 +14,7 @@ const THUMBNAIL_CACHE_LIMIT = 256;
 const ALLOWED_IMAGE_MIME_TYPES = new Set(Object.values(IMAGE_MIME_TYPES));
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 
-export type ImageBlock = {
-  type: 'image';
-  data: string;
-  mimeType: string;
-  blockIndex: number;
-};
+export type ImageBlock = ChatImageContent & { blockIndex: number };
 
 export type ImageAttachmentPresentation = {
   attachments: ChatImageAttachment[];

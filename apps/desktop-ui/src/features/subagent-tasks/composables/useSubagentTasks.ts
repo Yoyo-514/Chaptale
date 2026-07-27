@@ -1,20 +1,13 @@
 import { onBeforeUnmount, ref, watch } from 'vue';
 
 import type { SubagentSlotEvent, SubagentSlotSnapshot, SubagentState } from '@chaptale/shared';
+import { SUBAGENT_TERMINAL_STATES } from '@chaptale/shared';
 
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
-export type SubagentTaskEntry = {
-  requestId: string;
-  personaId: string;
-  state: SubagentState;
-  usage?: { inputTokens: number; outputTokens: number };
-  runId?: string;
-  outputRef?: string;
-  error?: string;
-};
+export type SubagentTaskEntry = Omit<SubagentSlotEvent, 'sessionId'>;
 
-const TERMINAL_STATES: ReadonlySet<SubagentState> = new Set(['success', 'failed', 'cancelled', 'timeout']);
+const TERMINAL_STATES: ReadonlySet<SubagentState> = new Set(SUBAGENT_TERMINAL_STATES);
 
 export function isTerminalState(state: SubagentState): boolean {
   return TERMINAL_STATES.has(state);

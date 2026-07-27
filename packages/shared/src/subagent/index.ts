@@ -22,12 +22,7 @@ export type SubagentSlotEvent = {
 };
 
 /** 活跃槽位快照：窗口重开后 UI 恢复展示用。 */
-export type SubagentSlotSnapshot = {
-  requestId: string;
-  personaId: string;
-  sessionId?: string;
-  state: SubagentState;
-};
+export type SubagentSlotSnapshot = Pick<SubagentSlotEvent, 'requestId' | 'personaId' | 'sessionId' | 'state'>;
 
 /** 终态状态集合：进入即不再迁移。 */
 export const SUBAGENT_TERMINAL_STATES: readonly SubagentState[] = ['success', 'failed', 'cancelled', 'timeout'];
