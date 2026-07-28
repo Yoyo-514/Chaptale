@@ -5,11 +5,24 @@ import type { LiteralSearchProviderPort, SearchProviderInput, SearchProviderOutp
 import { discoverIndexSourceFiles, readIndexSourceDocuments } from './source-scanner';
 import type { IndexChunk, IndexSearchResult, IndexSourceResolver } from './types';
 
+export type LiteralSearchBudget = {
+  maxFiles: number;
+  maxBytes: number;
+  timeoutMs: number;
+};
+
 export type LiteralSearchProviderOptions = {
   resolver: IndexSourceResolver;
   parseFrontmatter: FrontmatterParser;
   chunkConfig?: MarkdownChunkOptions;
+  budget?: Partial<LiteralSearchBudget>;
   readFile?: (filePath: string) => Promise<string>;
+};
+
+const DEFAULT_BUDGET: LiteralSearchBudget = {
+  maxFiles: 500,
+  maxBytes: 20 * 1024 * 1024,
+  timeoutMs: 2_000
 };
 
 /** 无索引、无分词依赖的最终兜底；仍复用统一 source 边界和 Markdown 分块规则。 */
@@ -17,12 +30,29 @@ export class LiteralSearchProvider implements LiteralSearchProviderPort {
   constructor(private readonly options: LiteralSearchProviderOptions) {}
 
   async search(input: SearchProviderInput): Promise<SearchProviderOutput> {
+    const budget = normalizeBudget(this.options.budget);
+    const timeoutController = new AbortController();
+    const signal = input.signal ? AbortSignal.any([input.signal, timeoutController.signal]) : timeoutController.signal;
+    return withTimeBudget(this.searchWithinBudget({ ...input, signal }, budget), budget.timeoutMs, timeoutController);
+  }
+
+  private async searchWithinBudget(
+    input: SearchProviderInput,
+    budget: LiteralSearchBudget
+  ): Promise<SearchProviderOutput> {
     throwIfSearchAborted(input.signal);
     const resolved = await this.options.resolver.resolve(input.cwd);
     const allowed = new Set(input.domains);
     const roots = resolved.roots.filter(root => allowed.has(root.domain));
     const discovered = await discoverIndexSourceFiles({ cwd: input.cwd, roots, signal: input.signal });
     throwIfSearchAborted(input.signal);
+    if (discovered.files.length > budget.maxFiles) {
+      throw new Error(`L1 文件数预算超限：${discovered.files.length}/${budget.maxFiles}`);
+    }
+    const totalBytes = discovered.files.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > budget.maxBytes) {
+      throw new Error(`L1 字节预算超限：${totalBytes}/${budget.maxBytes}`);
+    }
     const read = await readIndexSourceDocuments({
       files: discovered.files,
       parseFrontmatter: this.options.parseFrontmatter,
@@ -49,6 +79,40 @@ export class LiteralSearchProvider implements LiteralSearchProviderPort {
       results: matches,
       diagnostics: [...resolved.diagnostics, ...discovered.diagnostics, ...read.diagnostics]
     };
+  }
+}
+
+function normalizeBudget(value: Partial<LiteralSearchBudget> | undefined): LiteralSearchBudget {
+  return {
+    maxFiles: positiveInteger(value?.maxFiles, DEFAULT_BUDGET.maxFiles),
+    maxBytes: positiveInteger(value?.maxBytes, DEFAULT_BUDGET.maxBytes),
+    timeoutMs: positiveInteger(value?.timeoutMs, DEFAULT_BUDGET.timeoutMs)
+  };
+}
+
+function positiveInteger(value: number | undefined, fallback: number): number {
+  const normalized = Math.floor(value ?? fallback);
+  return normalized > 0 ? normalized : fallback;
+}
+
+async function withTimeBudget<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  timeoutController: AbortController
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          timeoutController.abort();
+          reject(new Error(`L1 时间预算超限：${timeoutMs}ms`));
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

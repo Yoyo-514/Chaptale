@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LiteralSearchProvider } from '../literal-search-provider';
+import type { SearchProviderInput } from '../memory-search-service';
 import { WorkspaceIndexSourceResolver } from '../source-resolver';
 
 describe('LiteralSearchProvider', () => {
@@ -52,6 +53,37 @@ describe('LiteralSearchProvider', () => {
     expect(result.results[0].chunkId).toBeTruthy();
     expect(result.results[0].body).toContain('机械师公会');
     expect(result.results.every(item => !path.isAbsolute(item.sourcePath))).toBe(true);
+  });
+
+  it('rejects scans that exceed file and byte budgets', async () => {
+    const fileBounded = new LiteralSearchProvider({
+      resolver: new WorkspaceIndexSourceResolver(),
+      parseFrontmatter,
+      budget: { maxFiles: 1, maxBytes: 1024 * 1024, timeoutMs: 2_000 }
+    });
+    const byteBounded = new LiteralSearchProvider({
+      resolver: new WorkspaceIndexSourceResolver(),
+      parseFrontmatter,
+      budget: { maxFiles: 100, maxBytes: 1, timeoutMs: 2_000 }
+    });
+    const input: SearchProviderInput = { cwd, query: '机械师', domains: ['canon'], limit: 10 };
+
+    await expect(fileBounded.search(input)).rejects.toThrow(/文件数预算/);
+    await expect(byteBounded.search(input)).rejects.toThrow(/字节预算/);
+  });
+
+  it('rejects scans that exceed the time budget', async () => {
+    const provider = new LiteralSearchProvider({
+      resolver: new WorkspaceIndexSourceResolver(),
+      parseFrontmatter,
+      budget: { maxFiles: 100, maxBytes: 1024 * 1024, timeoutMs: 1 },
+      readFile: async filePath => {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        return fs.readFile(filePath, 'utf8');
+      }
+    });
+
+    await expect(provider.search({ cwd, query: '机械师', domains: ['canon'], limit: 10 })).rejects.toThrow(/时间预算/);
   });
 
   it('honors domain filters and reports unreadable files without failing the scan', async () => {

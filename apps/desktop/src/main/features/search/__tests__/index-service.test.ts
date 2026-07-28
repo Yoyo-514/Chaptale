@@ -77,12 +77,25 @@ describe('IndexService', () => {
     expect(chunkDocument).not.toHaveBeenCalled();
   });
 
-  it('源文件变化后重建 cache', async () => {
+  it('查询只读已构建快照，refresh 后才纳入源文件变化', async () => {
     const service = createService();
+    expect(service.status(cwd)).toEqual({ state: 'idle' });
     expect(await service.search(cwd, '逐光城')).toEqual([]);
+    expect(service.status(cwd)).toMatchObject({ state: 'ready', chunkCount: 2 });
     await fs.writeFile(path.join(cwd, '角色', '林晚.md'), '# 新地点\n\n逐光城已经开放。', 'utf8');
 
+    expect(await service.search(cwd, '逐光城')).toEqual([]);
+    await service.refresh(cwd);
     expect((await service.search(cwd, '逐光城'))[0].body).toContain('逐光城');
+  });
+
+  it('invalidate 清除指定 workspace 快照', async () => {
+    const service = createService();
+    await service.ensureReady(cwd);
+
+    await service.invalidate(cwd);
+
+    expect(service.status(cwd)).toEqual({ state: 'idle' });
   });
 
   it('并发 ensure 对同一 workspace 只初始化一次 tokenizer', async () => {

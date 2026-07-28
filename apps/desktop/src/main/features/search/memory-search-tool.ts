@@ -1,3 +1,5 @@
+import { stat } from 'node:fs/promises';
+import path from 'node:path';
 import { Type } from 'typebox';
 
 import { estimateTextTokens, takeTextToTokenBudget } from '../../core/context/token-counter';
@@ -47,6 +49,7 @@ export type MemorySearchToolContext = {
   service: MemorySearchPort;
   resolveCwd: () => Promise<string> | string;
   allowedDomains: readonly IndexDomain[];
+  onRead?: (refs: readonly string[]) => void;
 };
 
 type FormattedSearchResult = {
@@ -81,8 +84,9 @@ export function createMemorySearchTool(
       if (!query) throw new Error('query 不能为空');
       const limit = params.limit ?? 5;
       const maxTokens = params.maxTokens ?? 4_000;
+      const cwd = await context.resolveCwd();
       const searchInput: MemorySearchInput = {
-        cwd: await context.resolveCwd(),
+        cwd,
         query,
         allowedDomains: context.allowedDomains,
         limit,
@@ -91,6 +95,7 @@ export function createMemorySearchTool(
       };
       const output = await context.service.search(searchInput);
       const details = formatOutput(output, limit, maxTokens);
+      context.onRead?.(await collectMemoryRefs(cwd, details.results));
       return { text: JSON.stringify(details), details };
     }
   };
@@ -118,6 +123,20 @@ function formatOutput(output: MemorySearchOutput, limit: number, maxTokens: numb
     diagnostics: output.diagnostics.map(safeDiagnostic),
     ...(output.failure ? { failure: output.failure } : {})
   };
+}
+
+async function collectMemoryRefs(cwd: string, results: readonly FormattedSearchResult[]): Promise<string[]> {
+  const sourcePaths = [...new Set(results.map(result => result.sourcePath))];
+  return Promise.all(
+    sourcePaths.map(async sourcePath => {
+      try {
+        const sourceStat = await stat(path.join(cwd, ...sourcePath.split('/')));
+        return `${sourcePath}@${sourceStat.mtime.toISOString()}`;
+      } catch {
+        return sourcePath;
+      }
+    })
+  );
 }
 
 function formatResult(result: IndexSearchResult, content: string, truncated: boolean): FormattedSearchResult {

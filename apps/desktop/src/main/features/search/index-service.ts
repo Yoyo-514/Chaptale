@@ -25,6 +25,11 @@ export type IndexReadyResult = {
   diagnostics: IndexDiagnostic[];
 };
 
+export type IndexStatus =
+  | { state: 'idle' }
+  | { state: 'building' }
+  | { state: 'ready'; chunkCount: number; diagnostics: IndexDiagnostic[] };
+
 export type IndexServiceOptions = {
   resolver: IndexSourceResolver;
   parseFrontmatter: FrontmatterParser;
@@ -63,6 +68,26 @@ export class IndexService {
     return { chunkCount: state.chunkCount, diagnostics: [...state.diagnostics] };
   }
 
+  status(cwd: string): IndexStatus {
+    const workspacePath = path.resolve(cwd);
+    if (this.inflight.has(workspacePath)) return { state: 'building' };
+    const state = this.states.get(workspacePath);
+    return state
+      ? { state: 'ready', chunkCount: state.chunkCount, diagnostics: [...state.diagnostics] }
+      : { state: 'idle' };
+  }
+
+  async invalidate(cwd: string): Promise<void> {
+    const workspacePath = path.resolve(cwd);
+    await this.inflight.get(workspacePath)?.catch(() => undefined);
+    this.states.delete(workspacePath);
+  }
+
+  async refresh(cwd: string): Promise<IndexReadyResult> {
+    await this.invalidate(cwd);
+    return this.ensureReady(cwd);
+  }
+
   async search(cwd: string, query: string, options: IndexSearchOptions = {}): Promise<IndexSearchResult[]> {
     if (!query.trim()) return [];
     const state = await waitForSearch(this.ensureState(cwd), options.signal);
@@ -76,6 +101,8 @@ export class IndexService {
   /** 同一 workspace 的并发首次查询共享一个构建 promise，避免重复扫描和覆盖 cache。 */
   private ensureState(cwd: string): Promise<WorkspaceIndexState> {
     const workspacePath = path.resolve(cwd);
+    const ready = this.states.get(workspacePath);
+    if (ready) return Promise.resolve(ready);
     const existing = this.inflight.get(workspacePath);
     if (existing) return existing;
 
