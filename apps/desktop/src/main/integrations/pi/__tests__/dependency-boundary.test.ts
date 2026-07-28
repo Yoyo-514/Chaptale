@@ -15,8 +15,8 @@ type DependencyViolation = {
 };
 
 /**
- * 任务 6-8 每迁移一批 Pi 实现与测试，就删除对应的精确条目，最终必须清空。
- * 这里只按“相对文件路径 + 完整 import specifier”临时放行，禁止目录通配符或包级忽略。
+ * 迁移期间如需临时放行，只能登记“相对文件路径 + 完整 import specifier”；
+ * 禁止目录通配符或包级忽略，陈旧条目也会使测试失败。
  */
 const legacyAllowlist: string[] = [];
 

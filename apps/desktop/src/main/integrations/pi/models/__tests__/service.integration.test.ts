@@ -9,10 +9,14 @@ import { PiModelService } from '../service';
 let rootDir: string;
 
 beforeEach(async () => {
+  // create({ allowModelNetwork: false }) 只约束初始化刷新；login/logout 仍读取 PI_OFFLINE。
+  // 测试必须固定整个 ModelRuntime 生命周期为离线，避免凭据写入触发真实目录刷新网络请求。
+  vi.stubEnv('PI_OFFLINE', '1');
   rootDir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-model-runtime-'));
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await rm(rootDir, { recursive: true, force: true });
 });
 
