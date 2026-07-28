@@ -27,6 +27,7 @@ describe('resolveTaskSpec', () => {
       personaId: 'test-reviewer',
       systemPrompt: '你是测试审查专员。',
       tools: [],
+      skills: [],
       memoryReadDomains: []
     });
   });
@@ -36,6 +37,7 @@ describe('resolveTaskSpec', () => {
       createPersona({
         type: 'plan',
         tools: ['read', 'grep', 'memory_search', 'bash'],
+        skills: ['review-checklist'],
         memory: { read: ['canon', 'notes', 'summaries'], write: [], propose: [] },
         model: { preference: 'anthropic/claude-sonnet-4-5' }
       }),
@@ -43,6 +45,7 @@ describe('resolveTaskSpec', () => {
     );
 
     expect(spec.tools).toEqual(['read', 'grep', 'memory_search']);
+    expect(spec.skills).toEqual(['review-checklist']);
     expect(spec.memoryReadDomains).toEqual(['canon', 'notes', 'summaries']);
     expect(spec.modelPreference).toBe('anthropic/claude-sonnet-4-5');
   });

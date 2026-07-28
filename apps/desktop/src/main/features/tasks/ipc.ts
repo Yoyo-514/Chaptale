@@ -8,9 +8,14 @@ import {
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { AgentRunStore } from '../runs/store';
+import type { TaskOutputStorePort } from './output-port';
 import type { TaskService } from './service';
 
-export function registerTaskIpc(taskService: TaskService, runStore: AgentRunStore): void {
+export function registerTaskIpc(
+  taskService: TaskService,
+  runStore: AgentRunStore,
+  outputStore: TaskOutputStorePort
+): void {
   handleValidatedIpc(IPC_CHANNELS.tasks.run, TaskRunArgsValidator, async (_event, payload) => {
     // 审查类任务是短任务，直接 await 结果随 invoke 返回；
     // 未来长任务需要进度推送时，再改为事件通道模式。
@@ -26,6 +31,6 @@ export function registerTaskIpc(taskService: TaskService, runStore: AgentRunStor
   });
 
   handleValidatedIpc(IPC_CHANNELS.tasks.readRunOutput, TaskReadRunOutputArgsValidator, async (_event, outputRef) => {
-    return runStore.readOutput(outputRef);
+    return outputStore.read(outputRef);
   });
 }

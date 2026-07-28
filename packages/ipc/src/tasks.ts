@@ -1,6 +1,11 @@
 import type { Static } from 'typebox';
 
-import type { AgentRunsListResultSchema, TaskListRunsPayloadSchema, TaskRunPayloadSchema } from './schemas/tasks';
+import type {
+  AgentRunsListResultSchema,
+  TaskListRunsPayloadSchema,
+  TaskReadRunOutputResultSchema,
+  TaskRunPayloadSchema
+} from './schemas/tasks';
 
 /** tasks.run 的请求 payload。 */
 export type TaskRunPayload = Static<typeof TaskRunPayloadSchema>;
@@ -16,3 +21,6 @@ export type AgentRunsListPayload = Static<typeof TaskListRunsPayloadSchema>;
 
 /** tasks.listRuns 的返回结果。 */
 export type AgentRunsListResult = Static<typeof AgentRunsListResultSchema>;
+
+/** tasks.readRunOutput 的非空返回结果。 */
+export type TaskReadRunOutputResult = Static<typeof TaskReadRunOutputResultSchema>;

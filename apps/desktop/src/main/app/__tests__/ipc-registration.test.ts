@@ -185,8 +185,17 @@ function createContext(): AppContext {
     sessionRepository: {},
     modelService: {},
     agentRuntime: {},
+    contextFileService: {},
     promptFileService: {},
     commandService: {},
+    taskService: { start: async () => ({ status: 'cancelled', runId: 'run-1' }), cancel: () => undefined },
+    runStore: { list: async () => ({ records: [], diagnostics: [] }) },
+    taskOutputStore: {
+      saveSuccess: async () => '.chaptale/reviews/run-1.json',
+      saveFailure: async () => '.chaptale/runs/outputs/run-1.json',
+      read: async () => null,
+      remove: async () => undefined
+    },
     todoStore: { onChange: () => () => undefined, remove: async () => undefined },
     subagentPool: { onEvent: () => () => undefined, listActive: () => [], cancel: () => undefined },
     memoryPendingStore: { onChange: () => () => undefined, list: async () => ({ proposals: [], diagnostics: [] }) },

@@ -92,6 +92,12 @@ describe('CompactCoord', () => {
         persona,
         trigger: 'ui-action',
         parentSessionId: 'session-1',
+        memoryRefs: [
+          'author:preferences',
+          'workspace:设定/创作守则.md',
+          'workspace:.chaptale/memory/summaries/recent.md',
+          'workspace:.chaptale/memory/notes/'
+        ],
         brief: expect.stringContaining('创作会话检查点'),
         text: expect.stringContaining('上一轮会话检查点')
       })

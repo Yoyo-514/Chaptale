@@ -11,6 +11,8 @@ export type TaskPersonaSpec = {
   systemPrompt: string;
   /** 工具白名单子集；[] = 纯分析零工具（审查类）。 */
   tools: string[];
+  /** 只加载 persona 明确绑定的 skill，避免 task session 获得无关指令。 */
+  skills: string[];
   /** persona 声明与角色类型安全上限求交后的可检索域。 */
   memoryReadDomains: IndexDomain[];
   /**
@@ -45,8 +47,9 @@ export function resolveTaskSpec(persona: PersonaDefinition, toolCatalog: ToolCat
   return {
     personaId: persona.id,
     systemPrompt: persona.body,
-    // 未声明 tools 视为纯分析（最小权限默认）；显式声明才开工具。
+    // 未声明 tools/skills 均按最小能力处理；显式声明才注入。
     tools,
+    skills: [...(persona.skills ?? [])],
     memoryReadDomains,
     ...(persona.model?.preference ? { modelPreference: persona.model.preference } : {})
   };

@@ -35,6 +35,8 @@ import {
   AgentRunsListResultValidator,
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
+  TaskReadRunOutputResponseValidator,
+  TaskReadRunOutputResultValidator,
   TaskRunArgsValidator,
   TodosGetArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
@@ -247,6 +249,16 @@ describe('IPC 参数 Schema', () => {
     expect(TaskListRunsArgsValidator.Check([{ limit: 1.5 }])).toBe(false);
   });
 
+  it('校验任务输出读取结果：接受 raw/review 信封，拒绝错字段，并允许 API 语义上的 null', () => {
+    expect(TaskReadRunOutputResultValidator.Check({ kind: 'raw', runId: 'r1', rawText: 'text' })).toBe(true);
+    expect(TaskReadRunOutputResultValidator.Check({ kind: 'review', runId: 'r2', output: { issues: [] } })).toBe(true);
+    expect(TaskReadRunOutputResultValidator.Check({ kind: 'review', runId: 'r2', rawText: 'wrong' })).toBe(false);
+
+    expect(TaskReadRunOutputResponseValidator.Check(null)).toBe(true);
+    expect(TaskReadRunOutputResponseValidator.Check({ kind: 'raw', runId: 'r3', rawText: 'next' })).toBe(true);
+    expect(TaskReadRunOutputResponseValidator.Check({ kind: 'raw', runId: 'r3' })).toBe(false);
+  });
+
   it('校验运行列表结果：接受合法记录列表与诊断信息', () => {
     expect(
       AgentRunsListResultValidator.Check({
@@ -279,7 +291,7 @@ describe('IPC 参数 Schema', () => {
             trigger: 'delegate',
             parentSessionId: 's1',
             promptTemplateHash: 'h',
-            inputDigest: { files: ['a.md'] },
+            inputDigest: { files: ['a.md'], packId: 'pack-1' },
             outputRef: '.chaptale/runs/outputs/run-2.json',
             memoryRefs: ['m1'],
             status: 'timeout',

@@ -1,12 +1,14 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
+import { TaskOutputRouter } from '../../../../app/task-output-router';
 import { estimateTextTokens } from '../../../../core/context/token-counter';
 import { createDefaultToolCatalog } from '../../../../core/tool-protocol/catalog';
+import { ReviewOutputStore } from '../../../../features/reviews/store';
 import { AgentRunStore } from '../../../../features/runs/store';
 import { renderTaskPrompt, renderTaskPromptWithinBudget, TaskRunner } from '../task-runner';
 
@@ -20,10 +22,28 @@ const persona: PersonaDefinition = {
   source: 'builtin'
 };
 
-const validOutput = JSON.stringify({
-  issues: [{ id: 'i1', severity: 'high', location: '第 3 章', description: '时间线冲突' }],
+const validStructuredValue = {
+  issues: [
+    {
+      agentType: 'continuity',
+      type: 'timeline',
+      severity: 'high',
+      quote: '第三天，他第一次来到这里。',
+      reason: '上一章已说这是第五天。',
+      suggestion: '统一时间线。'
+    }
+  ],
   summary: '发现 1 个高危问题'
-});
+};
+const validOutput = JSON.stringify(validStructuredValue);
+
+async function fsReaddirOrEmpty(dirPath: string): Promise<string[]> {
+  try {
+    return await readdir(dirPath);
+  } catch {
+    return [];
+  }
+}
 
 function createSession(responses: string[]) {
   let index = -1;
@@ -42,10 +62,14 @@ function createSession(responses: string[]) {
 describe('TaskRunner', () => {
   let cwd: string;
   let runStore: AgentRunStore;
+  let reviewStore: ReviewOutputStore;
+  let outputStore: TaskOutputRouter;
 
   beforeEach(async () => {
     cwd = await mkdtemp(path.join(os.tmpdir(), 'chaptale-task-runner-'));
     runStore = new AgentRunStore({ resolveCwd: () => cwd });
+    reviewStore = new ReviewOutputStore({ resolveCwd: () => cwd });
+    outputStore = new TaskOutputRouter({ runStore, reviewStore });
   });
 
   afterEach(async () => {
@@ -53,15 +77,29 @@ describe('TaskRunner', () => {
   });
 
   function createRunner(session: ReturnType<typeof createSession>) {
-    const factory = { createTaskSession: vi.fn(async () => session as any) };
-    return { runner: new TaskRunner(factory, runStore, createDefaultToolCatalog()), factory };
+    const factory = {
+      createTaskSession: vi.fn(async (_spec, _cwd, onMemoryRead?: (refs: readonly string[]) => void) => {
+        onMemoryRead?.(['workspace:设定/城市.md@2026-07-28T01:00:00.000Z']);
+        return session as any;
+      })
+    };
+    return { runner: new TaskRunner(factory, runStore, outputStore, createDefaultToolCatalog()), factory };
   }
 
   it('succeeds on a valid structured output and records the run', async () => {
     const session = createSession([`分析完成。\n<output>${validOutput}</output>`]);
     const { runner } = createRunner(session);
 
-    const result = await runner.run({ persona, cwd, brief: '审查连贯性', text: '第一章……', trigger: 'ui-action' });
+    const result = await runner.run({
+      persona,
+      cwd,
+      brief: '审查连贯性',
+      text: '第一章……',
+      files: ['正文/第一章.md'],
+      packId: 'pack-001',
+      memoryRefs: ['workspace:角色/林晚.md@2026-07-28T00:00:00.000Z'],
+      trigger: 'ui-action'
+    });
 
     expect(result.status).toBe('success');
     expect(session.prompt).toHaveBeenCalledOnce();
@@ -73,13 +111,22 @@ describe('TaskRunner', () => {
       personaId: 'continuity-reviewer',
       execution: 'task',
       trigger: 'ui-action',
+      inputDigest: { brief: '审查连贯性', files: ['正文/第一章.md'], packId: 'pack-001' },
+      memoryRefs: [
+        'workspace:角色/林晚.md@2026-07-28T00:00:00.000Z',
+        'workspace:设定/城市.md@2026-07-28T01:00:00.000Z'
+      ],
       status: 'success',
       usage: { inputTokens: 100, outputTokens: 50 }
     });
     expect(records[0]!.promptTemplateHash).toMatch(/^[0-9a-f]{40}$/);
 
+    expect(records[0]!.outputRef).toMatch(/^\.chaptale\/reviews\/.+\.json$/);
     const saved = JSON.parse(await readFile(path.join(cwd, records[0]!.outputRef!), 'utf8'));
-    expect(saved.rawText).toContain('<output>');
+    expect(saved).toEqual(validStructuredValue);
+    await expect(
+      readFile(path.join(cwd, '.chaptale', 'runs', 'outputs', `${result.runId}.json`), 'utf8')
+    ).rejects.toThrow();
   });
 
   it('binds task session, output and run record to the request cwd', async () => {
@@ -95,9 +142,10 @@ describe('TaskRunner', () => {
       trigger: 'ui-action'
     });
 
-    expect(factory.createTaskSession).toHaveBeenCalledWith(expect.any(Object), boundCwd);
+    expect(factory.createTaskSession).toHaveBeenCalledWith(expect.any(Object), boundCwd, expect.any(Function));
     if (result.status !== 'success') throw new Error('unreachable');
-    await expect(readFile(path.join(boundCwd, result.outputRef), 'utf8')).resolves.toContain('<output>');
+    expect(result.outputRef).toMatch(/^\.chaptale\/reviews\/.+\.json$/);
+    expect(JSON.parse(await readFile(path.join(boundCwd, result.outputRef), 'utf8'))).toEqual(validStructuredValue);
     const runFile = path.join(
       boundCwd,
       '.chaptale',
@@ -130,11 +178,40 @@ describe('TaskRunner', () => {
     expect(session.prompt).toHaveBeenCalledTimes(3);
 
     if (result.status !== 'failed') throw new Error('unreachable');
+    expect(result.outputRef).toMatch(/^\.chaptale\/runs\/outputs\/.+\.json$/);
     const saved = JSON.parse(await readFile(path.join(cwd, result.outputRef), 'utf8'));
     expect(saved.rawText).toBe('没有输出标签的回答');
 
     const { records } = await runStore.list();
     expect(records[0]!.status).toBe('failed');
+  });
+
+  it('cleans saved output and rejects when AgentRun append fails', async () => {
+    const session = createSession([`<output>${validOutput}</output>`]);
+    const { runner } = createRunner(session);
+    vi.spyOn(runStore, 'append').mockRejectedValueOnce(new Error('append failed'));
+
+    await expect(runner.run({ persona, cwd, brief: '审查', text: '正文', trigger: 'ui-action' })).rejects.toThrow(
+      'append failed'
+    );
+
+    const reviewFiles = await fsReaddirOrEmpty(path.join(cwd, '.chaptale', 'reviews'));
+    expect(reviewFiles).toEqual([]);
+    await expect(runStore.list()).resolves.toMatchObject({ records: [] });
+  });
+
+  it('cleans failed raw output and rejects when AgentRun append fails', async () => {
+    const session = createSession(['没有输出标签的回答']);
+    const { runner } = createRunner(session);
+    vi.spyOn(runStore, 'append').mockRejectedValueOnce(new Error('append failed'));
+
+    await expect(runner.run({ persona, cwd, brief: '审查', text: '正文', trigger: 'ui-action' })).rejects.toThrow(
+      'append failed'
+    );
+
+    const rawFiles = await fsReaddirOrEmpty(path.join(cwd, '.chaptale', 'runs', 'outputs'));
+    expect(rawFiles).toEqual([]);
+    await expect(runStore.list()).resolves.toMatchObject({ records: [] });
   });
 
   it('returns cancelled when the signal aborts before prompting', async () => {

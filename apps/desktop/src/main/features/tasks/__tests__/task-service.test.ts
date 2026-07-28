@@ -85,6 +85,7 @@ describe('TaskService', () => {
     expect(taskRunner.run).toHaveBeenCalledWith(
       expect.objectContaining({
         text: '',
+        files: ['a.md', 'b.md'],
         contextPrompt: expect.stringContaining('<attached_context_files>')
       })
     );

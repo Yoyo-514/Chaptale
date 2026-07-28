@@ -39,6 +39,7 @@ type TaskPort = {
     text: string;
     trigger: 'ui-action';
     parentSessionId: string;
+    memoryRefs: string[];
     maxPromptTokens: number;
     signal?: AbortSignal;
   }): Promise<
@@ -78,6 +79,7 @@ export class CompactCoord {
       text: renderInput(input, sections),
       trigger: 'ui-action',
       parentSessionId: input.sessionId,
+      memoryRefs,
       maxPromptTokens: input.maxInputTokens,
       ...(input.signal ? { signal: input.signal } : {})
     });

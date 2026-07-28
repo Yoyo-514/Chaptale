@@ -30,6 +30,7 @@ export type TaskToolContext = {
   spec: TaskPersonaSpec;
   cwd: string;
   memorySearchService: Pick<MemorySearchService, 'search'>;
+  onMemoryRead?: (refs: readonly string[]) => void;
 };
 
 /** 主对话自定义工具的唯一注册点；会话工厂只负责 persona 白名单与 pi 适配。 */
@@ -74,7 +75,8 @@ export async function buildTaskSessionTools(context: TaskToolContext): Promise<T
         createMemorySearchTool({
           service: context.memorySearchService,
           resolveCwd: () => context.cwd,
-          allowedDomains: context.spec.memoryReadDomains
+          allowedDomains: context.spec.memoryReadDomains,
+          onRead: context.onMemoryRead
         })
       ]
     : [];

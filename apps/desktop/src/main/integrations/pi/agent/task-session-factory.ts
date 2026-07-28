@@ -20,16 +20,22 @@ import { composeSystemPrompt } from '../../../features/prompts/compose-system-pr
 import type { TaskSessionFactoryPort } from '../../../features/tasks/runner-port';
 import type { PiModelService } from '../models/service';
 import { createPermissionGateExtension } from '../permissions/gate-extension';
+import type { SkillsProvider } from '../skills/provider';
 import { toPiToolDefinition } from '../tools/adapter';
 
 /** task 自定义工具仍受 spec.tools 白名单约束，builder 不能越权扩大 persona 能力。 */
-export type TaskSessionToolBuilder = (spec: TaskPersonaSpec, cwd: string) => Promise<ToolDefinition[]>;
+export type TaskSessionToolBuilder = (
+  spec: TaskPersonaSpec,
+  cwd: string,
+  onMemoryRead?: (refs: readonly string[]) => void
+) => Promise<ToolDefinition[]>;
 
 export type TaskSessionFactoryOptions = {
   settingsService: SettingsService;
   modelService: PiModelService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
+  skillsProvider: SkillsProvider;
   buildTaskTools: TaskSessionToolBuilder;
 };
 
@@ -39,22 +45,27 @@ export type TaskSessionFactoryOptions = {
  * 与主对话路径的差异：
  * - session 文件落在 taskSessionsDir（不在历史扫描范围）；
  * - 逐次新建不缓存，工具 schema 天然每次重算；
- * - 系统提示词仅含 persona 正文，不受用户 SYSTEM.md/APPEND_SYSTEM.md 与 skills 影响
- *   （task 行为由 persona 定义，不被全局自定义劫持）；
+ * - 系统提示词仅含 persona 正文，不受用户 SYSTEM.md/APPEND_SYSTEM.md 影响；
+ *   skills 只加载 persona 明确绑定项，作品级同名覆盖仍由 SkillsProvider 处理；
  *   memory 写协议不注入；只读检索由显式工具 schema 自描述，避免给纯分析任务加入无关协议；
  * - 工具为 spec 白名单子集（[] = 纯分析），自定义工具也不能越过该白名单；模型按 spec 偏好解析，缺省跟随全局默认。
  */
 export class TaskSessionFactory implements TaskSessionFactoryPort<AgentSession> {
   constructor(private readonly options: TaskSessionFactoryOptions) {}
 
-  async createTaskSession(spec: TaskPersonaSpec, cwdOverride?: string): Promise<AgentSession> {
-    const { settingsService, modelService, permissionBroker, permissionRuleStore, buildTaskTools } = this.options;
+  async createTaskSession(
+    spec: TaskPersonaSpec,
+    cwdOverride?: string,
+    onMemoryRead?: (refs: readonly string[]) => void
+  ): Promise<AgentSession> {
+    const { settingsService, modelService, permissionBroker, permissionRuleStore, skillsProvider, buildTaskTools } =
+      this.options;
     const cwd = cwdOverride ?? (await settingsService.getCurrentCwd());
     await fs.mkdir(settingsService.taskSessionsDir, { recursive: true });
     const sessionManager = SessionManager.create(cwd, settingsService.taskSessionsDir);
     const settingsManager = SettingsManager.create(cwd, settingsService.agentDir);
     const declaredTools = new Set(spec.tools);
-    const taskTools = (await buildTaskTools(spec, cwd)).filter(tool => declaredTools.has(tool.name));
+    const taskTools = (await buildTaskTools(spec, cwd, onMemoryRead)).filter(tool => declaredTools.has(tool.name));
     const customTools = taskTools.map(toPiToolDefinition);
     const customRiskLevels = Object.fromEntries(
       taskTools.map(tool => [tool.name, tool.riskLevel ?? 'mutating'])
@@ -71,7 +82,11 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<AgentSession> 
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      skillsOverride: () => ({ skills: [], diagnostics: [] }),
+      skillsOverride: () => {
+        const loaded = skillsProvider.load(cwd, spec.personaId);
+        const selected = new Set(spec.skills);
+        return { ...loaded, skills: loaded.skills.filter(skill => selected.has(skill.name)) };
+      },
       // task 会话无人值守：闸门仍拦截，但 ask 一律按拒绝处理，不会挂起等待授权。
       extensionFactories: [
         createPermissionGateExtension({

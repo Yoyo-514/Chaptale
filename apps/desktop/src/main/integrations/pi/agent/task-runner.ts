@@ -8,6 +8,7 @@ import type { ToolCatalog } from '../../../core/tool-protocol/catalog';
 import { resolveTaskSpec } from '../../../features/personas/task-spec';
 import type { AgentRunRecord } from '../../../features/runs/record';
 import type { AgentRunStore } from '../../../features/runs/store';
+import type { TaskOutputStorePort } from '../../../features/tasks/output-port';
 import type {
   TaskRunnerPort,
   TaskRunRequest,
@@ -31,20 +32,24 @@ export class TaskRunner implements TaskRunnerPort {
   constructor(
     private readonly sessionFactory: TaskSessionFactoryPort<AgentSession>,
     private readonly runStore: AgentRunStore,
+    private readonly outputStore: TaskOutputStorePort,
     private readonly toolCatalog: ToolCatalog
   ) {}
 
   async run(request: TaskRunRequest): Promise<TaskRunResult> {
     const runId = randomUUID();
     const createdAt = new Date().toISOString();
-    const spec = resolveTaskSpec(request.persona, this.toolCatalog);
     const schemaId = request.persona.output;
 
     if (!schemaId) {
       throw new Error(`task persona 缺少输出 schema 声明：${request.persona.id}`);
     }
 
-    const session = await this.sessionFactory.createTaskSession(spec, request.cwd);
+    const spec = resolveTaskSpec(request.persona, this.toolCatalog);
+    const memoryRefs = new Set(request.memoryRefs ?? []);
+    const session = await this.sessionFactory.createTaskSession(spec, request.cwd, refs => {
+      for (const ref of refs) memoryRefs.add(ref);
+    });
     const onAbort = () => void Promise.resolve(session.abort()).catch(() => undefined);
     request.signal?.addEventListener('abort', onAbort, { once: true });
 
@@ -55,18 +60,38 @@ export class TaskRunner implements TaskRunnerPort {
 
       const outcome = await this.promptWithRepair(session, request, schemaId);
       if (request.signal?.aborted) {
-        await this.record(runId, request, spec, createdAt, 'cancelled', session);
+        await this.record(runId, request, spec, createdAt, 'cancelled', session, memoryRefs);
         return { status: 'cancelled', runId, usage: readUsage(session) };
       }
 
-      const outputRef = await this.runStore.saveOutput(runId, outcome.rawText, request.cwd);
-
       if (outcome.ok) {
-        await this.record(runId, request, spec, createdAt, 'success', session, outputRef);
+        const outputRef = await this.outputStore.saveSuccess({
+          runId,
+          isReview: request.persona.type === 'review',
+          output: outcome.value,
+          rawText: outcome.rawText,
+          cwd: request.cwd
+        });
+
+        try {
+          await this.record(runId, request, spec, createdAt, 'success', session, memoryRefs, outputRef);
+        } catch (error) {
+          await this.outputStore.remove(outputRef, request.cwd).catch(() => undefined);
+          throw error;
+        }
+
         return { status: 'success', runId, output: outcome.value, outputRef, usage: readUsage(session) };
       }
 
-      await this.record(runId, request, spec, createdAt, 'failed', session, outputRef);
+      const outputRef = await this.outputStore.saveFailure({ runId, rawText: outcome.rawText, cwd: request.cwd });
+
+      try {
+        await this.record(runId, request, spec, createdAt, 'failed', session, memoryRefs, outputRef);
+      } catch (error) {
+        await this.outputStore.remove(outputRef, request.cwd).catch(() => undefined);
+        throw error;
+      }
+
       return { status: 'failed', runId, errors: outcome.errors, outputRef, usage: readUsage(session) };
     } finally {
       request.signal?.removeEventListener('abort', onAbort);
@@ -123,6 +148,7 @@ export class TaskRunner implements TaskRunnerPort {
     createdAt: string,
     status: AgentRunRecord['status'],
     session: AgentSession,
+    memoryRefs: ReadonlySet<string>,
     outputRef?: string
   ): Promise<void> {
     const record: AgentRunRecord = {
@@ -132,17 +158,20 @@ export class TaskRunner implements TaskRunnerPort {
       trigger: request.trigger,
       ...(request.parentSessionId ? { parentSessionId: request.parentSessionId } : {}),
       promptTemplateHash: createHash('sha1').update(spec.systemPrompt).digest('hex'),
-      inputDigest: { brief: request.brief },
+      inputDigest: {
+        brief: request.brief,
+        ...(request.files?.length ? { files: [...request.files] } : {}),
+        ...(request.packId ? { packId: request.packId } : {})
+      },
       ...(outputRef ? { outputRef } : {}),
-      memoryRefs: [],
+      memoryRefs: [...memoryRefs],
       status,
       usage: readUsage(session),
       createdAt,
       completedAt: new Date().toISOString()
     };
 
-    // 记录落盘失败不应吞掉任务结果本身。
-    await this.runStore.append(record, request.cwd).catch(() => undefined);
+    await this.runStore.append(record, request.cwd);
   }
 }
 

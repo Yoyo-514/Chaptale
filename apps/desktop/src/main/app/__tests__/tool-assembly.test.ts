@@ -124,18 +124,42 @@ describe('tool-registry', () => {
     );
   });
 
-  it('registers task custom tools through the same registry', async () => {
+  it('registers task custom tools and reports memory refs actually returned to the task', async () => {
+    const onMemoryRead = vi.fn();
     const tools = await buildTaskSessionTools({
       spec: {
         personaId: 'planner',
         systemPrompt: '规划',
         tools: ['memory_search'],
+        skills: [],
         memoryReadDomains: ['canon', 'summaries']
       },
       cwd: '/workspace',
-      memorySearchService: { search: vi.fn() }
+      memorySearchService: {
+        search: vi.fn(async () => ({
+          level: 'l2' as const,
+          attempts: [{ level: 'l2' as const, outcome: 'success' as const }],
+          excludedDomains: [],
+          diagnostics: [],
+          results: [
+            {
+              chunkId: 'chunk-1',
+              sourcePath: '角色/林晚.md',
+              domain: 'canon' as const,
+              title: '林晚',
+              headingPath: [],
+              body: '角色资料',
+              matchedTerms: ['林晚'],
+              score: 1
+            }
+          ]
+        }))
+      },
+      onMemoryRead
     });
 
     expect(tools.map(tool => tool.name)).toEqual(['memory_search']);
+    await tools[0]!.execute({ query: '林晚' }, new AbortController().signal);
+    expect(onMemoryRead).toHaveBeenCalledWith(['角色/林晚.md']);
   });
 });

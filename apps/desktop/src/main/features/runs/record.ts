@@ -11,6 +11,7 @@ export type AgentRunStatus = 'success' | 'failed' | 'cancelled' | 'timeout';
 export type AgentRunInputDigest = {
   brief?: string;
   files?: string[];
+  packId?: string;
 };
 
 /** token 消耗统计，用于成本复盘与 usage 汇总。 */

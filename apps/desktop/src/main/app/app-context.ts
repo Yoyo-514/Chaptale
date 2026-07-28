@@ -13,6 +13,7 @@ import { MemoryService } from '../features/memory/service';
 import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
 import { PromptFileService } from '../features/prompts/file-service';
+import { ReviewOutputStore } from '../features/reviews/store';
 import { AgentRunStore } from '../features/runs/store';
 import { IndexService } from '../features/search/index-service';
 import { LiteralSearchProvider } from '../features/search/literal-search-provider';
@@ -20,6 +21,7 @@ import { MemorySearchService } from '../features/search/memory-search-service';
 import { WorkspaceIndexSourceResolver } from '../features/search/source-resolver';
 import { materializeBuiltinSkills } from '../features/skills/builtin-materializer';
 import { SubagentPool } from '../features/subagent/pool';
+import type { TaskOutputStorePort } from '../features/tasks/output-port';
 import { TaskService } from '../features/tasks/service';
 import { TodoStore } from '../features/todo/store';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
@@ -36,6 +38,7 @@ import { PiModelService } from '../integrations/pi/models/service';
 import { PiSessionRepository } from '../integrations/pi/sessions/repository';
 import { SkillsProvider } from '../integrations/pi/skills/provider';
 import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
+import { TaskOutputRouter } from './task-output-router';
 import { buildChatSessionTools, buildTaskSessionTools } from './tool-assembly';
 
 export type AppContext = {
@@ -48,6 +51,7 @@ export type AppContext = {
   commandService: SlashCommandService;
   taskService: TaskService;
   runStore: AgentRunStore;
+  taskOutputStore: TaskOutputStorePort;
   todoStore: TodoStore;
   subagentPool: SubagentPool;
   memoryPendingStore: MemoryPendingStore;
@@ -115,16 +119,19 @@ export function createAppContext(): AppContext {
     literalSearch: new LiteralSearchProvider({ resolver: indexSourceResolver, parseFrontmatter: piParseFrontmatter }),
     sourceResolver: indexSourceResolver
   });
-  // runs 归属工作区（<workspace>/.chaptale/runs）：审查历史是创作产物，随作品同步。
+  // runs/reviews 归属工作区：审查历史是创作产物，随作品同步。
   const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
+  const reviewStore = new ReviewOutputStore({ resolveCwd: () => settingsService.getCurrentCwd() });
+  const taskOutputStore = new TaskOutputRouter({ runStore, reviewStore });
   const taskSessionFactory = new TaskSessionFactory({
     settingsService,
     modelService,
     permissionBroker,
     permissionRuleStore,
-    buildTaskTools: (spec, cwd) => buildTaskSessionTools({ spec, cwd, memorySearchService })
+    skillsProvider,
+    buildTaskTools: (spec, cwd, onMemoryRead) => buildTaskSessionTools({ spec, cwd, memorySearchService, onMemoryRead })
   });
-  const taskRunner = new TaskRunner(taskSessionFactory, runStore, toolCatalog);
+  const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
   const compactCoord = new CompactCoord({
     personas: personaRegistry,
@@ -180,6 +187,7 @@ export function createAppContext(): AppContext {
     commandService,
     taskService,
     runStore,
+    taskOutputStore,
     todoStore,
     subagentPool,
     memoryPendingStore,

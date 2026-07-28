@@ -39,6 +39,29 @@ export const TaskListRunsArgsValidator = Compile(TaskListRunsArgsSchema);
 export const TaskReadRunOutputArgsSchema = Type.Tuple([Type.String({ minLength: 1 })]);
 export const TaskReadRunOutputArgsValidator = Compile(TaskReadRunOutputArgsSchema);
 
+export const TaskReadRunOutputResultSchema = Type.Union([
+  Type.Object(
+    {
+      kind: Type.Literal('raw'),
+      runId: Type.String(),
+      rawText: Type.String()
+    },
+    { additionalProperties: false }
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal('review'),
+      runId: Type.String(),
+      output: Type.Unknown()
+    },
+    { additionalProperties: false }
+  )
+]);
+export const TaskReadRunOutputResultValidator = Compile(TaskReadRunOutputResultSchema);
+
+export const TaskReadRunOutputResponseSchema = Type.Union([TaskReadRunOutputResultSchema, Type.Null()]);
+export const TaskReadRunOutputResponseValidator = Compile(TaskReadRunOutputResponseSchema);
+
 /** 单次 persona 运行的可追溯记录；字段与 main 侧 AgentRunRecord 结构对齐。 */
 export const AgentRunRecordSchema = Type.Object(
   {
@@ -52,7 +75,8 @@ export const AgentRunRecordSchema = Type.Object(
     inputDigest: Type.Object(
       {
         brief: Type.Optional(Type.String()),
-        files: Type.Optional(Type.Array(Type.String()))
+        files: Type.Optional(Type.Array(Type.String())),
+        packId: Type.Optional(Type.String())
       },
       { additionalProperties: false }
     ),

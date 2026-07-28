@@ -50,7 +50,7 @@ export function registerApplicationIpc(context: AppContext): void {
   registerModelsIpc(context.modelService);
   registerAgentIpc({ runtime: context.agentRuntime, contextFileService: context.contextFileService, ui });
   registerSlashCommandIpc(context.commandService);
-  registerTaskIpc(context.taskService, context.runStore);
+  registerTaskIpc(context.taskService, context.runStore, context.taskOutputStore);
   registerTodoIpc(context.todoStore, ui);
   registerSubagentIpc(context.subagentPool, ui);
   registerMemoryIpc(context.memoryPendingStore, ui, { resolveCwd: context.getMemoryPendingCwd });

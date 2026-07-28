@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import type { PersonaDefinition } from '@chaptale/shared';
 
 import type { ContextFileService } from '../../core/context/service';
@@ -63,6 +65,9 @@ export class TaskService {
         brief: request.brief,
         text: request.text,
         contextPrompt,
+        ...(request.contextFilePaths?.length
+          ? { files: request.contextFilePaths.map(filePath => path.basename(filePath)) }
+          : {}),
         trigger: 'ui-action',
         signal: controller.signal
       });

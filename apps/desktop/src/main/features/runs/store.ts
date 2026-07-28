@@ -1,7 +1,11 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import { writeJsonAtomically } from '../../infra/filesystem/atomic-json';
+import { prepareSafeOutputFile, resolveExistingDirectJsonFile } from '../../infra/filesystem/safe-output-file';
 import type { AgentRunRecord } from './record';
+
+const RAW_OUTPUT_DIRECTORY = ['.chaptale', 'runs', 'outputs'];
 
 export type AgentRunStoreOptions = {
   /** 解析当前 workspace 根目录（作品文件夹）；每次落盘/读取时求值，跟随工作区切换。 */
@@ -49,15 +53,24 @@ export class AgentRunStore {
 
   /** 落盘输出体；cwdOverride 与 append 共用，避免工作区切换把同一 run 拆开。 */
   async saveOutput(runId: string, rawText: string, cwdOverride?: string): Promise<string> {
-    const relativePath = path.join('.chaptale', 'runs', 'outputs', `${runId}.json`);
     const cwd = cwdOverride ?? (await this.options.resolveCwd());
-    const filePath = path.join(cwd, relativePath);
+    const target = await prepareSafeOutputFile(cwd, RAW_OUTPUT_DIRECTORY, runId);
 
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, `${JSON.stringify({ runId, rawText }, null, 2)}\n`, 'utf8');
+    await writeJsonAtomically(target.filePath, { runId, rawText });
 
     // 统一用正斜杠，保证引用路径跨平台一致（Windows 本机与网盘同步端一致）。
-    return relativePath.split(path.sep).join('/');
+    return target.outputRef;
+  }
+
+  /** 安全删除 raw output；非法 ref 与文件缺失都按幂等成功处理。 */
+  async removeOutput(outputRef: string, cwdOverride?: string): Promise<void> {
+    const filePath = await this.resolveOutputFile(outputRef, cwdOverride);
+
+    if (!filePath) {
+      return;
+    }
+
+    await fs.rm(filePath, { force: true });
   }
 
   /**
@@ -67,11 +80,9 @@ export class AgentRunStore {
    * 落在 outputs 目录内，阻断路径穿越读任意文件。
    */
   async readOutput(outputRef: string): Promise<{ runId: string; rawText: string } | null> {
-    const cwd = await this.options.resolveCwd();
-    const outputsDir = path.resolve(cwd, '.chaptale', 'runs', 'outputs');
-    const filePath = path.resolve(cwd, outputRef);
+    const filePath = await this.resolveOutputFile(outputRef);
 
-    if (filePath !== outputsDir && !filePath.startsWith(outputsDir + path.sep)) {
+    if (!filePath) {
       return null;
     }
 
@@ -151,6 +162,13 @@ export class AgentRunStore {
     }
 
     return { records: filtered, diagnostics };
+  }
+
+  private async resolveOutputFile(outputRef: string, cwdOverride?: string): Promise<string | null> {
+    const cwd = cwdOverride ?? (await this.options.resolveCwd());
+    const resolved = await resolveExistingDirectJsonFile(cwd, outputRef, RAW_OUTPUT_DIRECTORY);
+
+    return resolved?.filePath ?? null;
   }
 
   /** 由 ISO 时间串定位月份文件路径（UTC 月份，与 toISOString 一致）。 */

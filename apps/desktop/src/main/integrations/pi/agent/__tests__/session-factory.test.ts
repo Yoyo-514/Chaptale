@@ -276,19 +276,31 @@ describe('ChatSessionFactory', () => {
         // null 哨兵表示"未配置"；不能用 undefined，否则触发默认参数。
         getDefaultPiModel: vi.fn(async () => (model === null ? undefined : model))
       };
-      let buildTaskTools: (spec: any, cwd: string) => Promise<any[]> = vi.fn(async () => []);
+      let buildTaskTools: (spec: any, cwd: string, onMemoryRead?: (refs: readonly string[]) => void) => Promise<any[]> =
+        vi.fn(async () => []);
+      const skillsProvider = {
+        load: vi.fn(() => ({
+          skills: [
+            { name: 'review-checklist', description: '审查清单', filePath: '/review/SKILL.md' },
+            { name: 'unbound-skill', description: '未绑定', filePath: '/other/SKILL.md' }
+          ],
+          diagnostics: []
+        }))
+      };
       const factory = new TaskSessionFactory({
         settingsService: settingsService as any,
         modelService: modelService as any,
         permissionBroker: { ask: vi.fn(), onAsk: vi.fn(), rejectSession: vi.fn() } as any,
         permissionRuleStore: { collect: vi.fn(async () => []), clearSession: vi.fn() } as any,
-        buildTaskTools: (spec, cwd) => buildTaskTools(spec as any, cwd as any)
+        skillsProvider: skillsProvider as any,
+        buildTaskTools: (spec, cwd, onMemoryRead) => buildTaskTools(spec as any, cwd as any, onMemoryRead)
       });
 
       return {
         factory,
         session,
         settingsService,
+        skillsProvider,
         setTaskTools: (builder: any) => {
           buildTaskTools = builder;
         }
@@ -299,6 +311,7 @@ describe('ChatSessionFactory', () => {
       personaId: 'test-reviewer',
       systemPrompt: '你是测试审查专员。',
       tools: [],
+      skills: [],
       memoryReadDomains: []
     };
 
@@ -365,13 +378,23 @@ describe('ChatSessionFactory', () => {
 
       await factory.createTaskSession(searchSpec);
 
-      expect(buildTaskTools).toHaveBeenCalledWith(searchSpec, rootDir);
+      expect(buildTaskTools).toHaveBeenCalledWith(searchSpec, rootDir, undefined);
       expect(sdkMocks.createAgentSession).toHaveBeenLastCalledWith(
         expect.objectContaining({
           tools: ['memory_search'],
           customTools: [expect.objectContaining({ name: 'memory_search' })]
         })
       );
+    });
+
+    it('loads only skills explicitly bound by the task persona', async () => {
+      const { factory, skillsProvider } = createTaskFactory();
+      await factory.createTaskSession({ ...spec, skills: ['review-checklist'] });
+
+      const loaded = (sdkMocks.loaderOptions as any).skillsOverride();
+
+      expect(skillsProvider.load).toHaveBeenCalledWith(rootDir, 'test-reviewer');
+      expect(loaded.skills.map((skill: { name: string }) => skill.name)).toEqual(['review-checklist']);
     });
 
     it('builds the system prompt from the persona body, immune to user SYSTEM.md', async () => {
