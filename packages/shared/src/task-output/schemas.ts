@@ -1,6 +1,8 @@
 import { Type, type Static, type TSchema } from 'typebox';
 import { Check, Errors } from 'typebox/value';
 
+import { CharacterIssuesSchema, ContinuityIssuesSchema, StyleIssuesSchema } from '../reviews';
+
 /**
  * 任务输出 schema 注册表。
  *
@@ -20,31 +22,6 @@ export function getOutputSchema(id: string): TSchema | undefined {
   return outputSchemaRegistry.get(id);
 }
 
-/**
- * 连续性问题清单的输出契约：审校类任务产出的问题列表 + 总结。
- */
-export const ContinuityIssuesSchema = Type.Object(
-  {
-    issues: Type.Array(
-      Type.Object(
-        {
-          id: Type.String(),
-          // 显式元组写法：.map() 产生普通数组会让 Static 丢失字面量联合类型。
-          severity: Type.Union([Type.Literal('high'), Type.Literal('medium'), Type.Literal('low')]),
-          location: Type.String(),
-          description: Type.String(),
-          suggestion: Type.Optional(Type.String())
-        },
-        { additionalProperties: false }
-      )
-    ),
-    summary: Type.String()
-  },
-  { additionalProperties: false }
-);
-
-export type ContinuityIssues = Static<typeof ContinuityIssuesSchema>;
-
 /** 创作会话检查点；字段分离后由代码确定性渲染为 compaction 摘要。 */
 export const CreativeCheckpointSchema = Type.Object(
   {
@@ -63,6 +40,8 @@ export const CreativeCheckpointSchema = Type.Object(
 export type CreativeCheckpoint = Static<typeof CreativeCheckpointSchema>;
 
 registerOutputSchema('continuity-issues', ContinuityIssuesSchema);
+registerOutputSchema('character-issues', CharacterIssuesSchema);
+registerOutputSchema('style-issues', StyleIssuesSchema);
 registerOutputSchema('creative-checkpoint', CreativeCheckpointSchema);
 
 /** 校验结果：成功携带（类型收窄后的）值，失败携带人类可读的错误列表。 */

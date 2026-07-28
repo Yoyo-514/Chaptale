@@ -1,5 +1,6 @@
 export * from './chat';
 export * from './personas';
+export * from './reviews';
 export * from './task-output';
 export * from './todos';
 export * from './memory';

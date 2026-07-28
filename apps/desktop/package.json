@@ -25,6 +25,7 @@
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@node-rs/jieba": "catalog:",
+    "atomically": "catalog:",
     "klona": "catalog:",
     "marked": "catalog:",
     "minisearch": "catalog:",

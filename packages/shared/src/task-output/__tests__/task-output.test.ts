@@ -89,8 +89,10 @@ describe('输出 schema 注册表', () => {
     expect(getOutputSchema('nonexistent-schema')).toBeUndefined();
   });
 
-  it('内置 continuity-issues schema 默认已注册', () => {
+  it('三个 reviewer schema 默认已注册', () => {
     expect(getOutputSchema('continuity-issues')).toBeDefined();
+    expect(getOutputSchema('character-issues')).toBeDefined();
+    expect(getOutputSchema('style-issues')).toBeDefined();
   });
 
   it('内置 creative-checkpoint schema 默认已注册', () => {
@@ -99,54 +101,88 @@ describe('输出 schema 注册表', () => {
 });
 
 describe('validateOutput', () => {
-  const validPayload = {
+  const continuityPayload = {
     issues: [
       {
-        id: 'issue-1',
+        agentType: 'continuity',
         severity: 'high',
-        location: '第三章第二节',
-        description: '主角眼睛颜色前后不一致',
-        suggestion: '统一为金色'
-      },
-      {
-        id: 'issue-2',
-        severity: 'low',
-        location: '第五章',
-        description: '时间线略有偏差'
+        type: 'timeline',
+        quote: '第三天，他第一次来到这里。',
+        reason: '前文已说明角色第一天到达。',
+        suggestion: '统一抵达时间。',
+        position: { start: 12, end: 26 }
       }
     ],
-    summary: '共发现 2 处连续性问题'
+    summary: '发现一处时间线冲突。'
   };
 
-  it('合法数据校验通过并返回原值', () => {
-    const result = validateOutput('continuity-issues', validPayload);
-    expect(result).toEqual({ ok: true, value: validPayload });
+  const characterPayload = {
+    issues: [
+      {
+        agentType: 'character',
+        severity: 'medium',
+        characterId: 'hero',
+        type: 'weak_motivation',
+        quote: '他决定立刻离开。',
+        reason: '前文尚未建立离开的动机。',
+        suggestion: '补足离开的触发事件。',
+        expectedBehavior: '角色应先表现犹豫，再因线索推动离开。',
+        position: { start: 5, end: 13 }
+      }
+    ],
+    summary: '发现一处人物动机问题。'
+  };
+
+  const stylePayload = {
+    issues: [
+      {
+        agentType: 'style',
+        severity: 'low',
+        type: 'over_explaining',
+        quote: '她非常非常伤心，因为她的心情非常不好。',
+        reason: '解释性重复过多，削弱情绪力度。',
+        suggestion: '压缩解释，保留更直接的情绪呈现。',
+        rewriteSuggestion: '她喉间发紧，话到嘴边又咽了回去。',
+        position: { start: 20, end: 39 }
+      }
+    ],
+    summary: '发现一处文风拖沓问题。'
+  };
+
+  it('合法 reviewer 数据校验通过并返回原值', () => {
+    expect(validateOutput('continuity-issues', continuityPayload)).toEqual({ ok: true, value: continuityPayload });
+    expect(validateOutput('character-issues', characterPayload)).toEqual({ ok: true, value: characterPayload });
+    expect(validateOutput('style-issues', stylePayload)).toEqual({ ok: true, value: stylePayload });
   });
 
-  it('severity 非法字面量时校验失败', () => {
-    const invalid = {
-      issues: [{ id: 'x', severity: 'critical', location: 'l', description: 'd' }],
-      summary: 's'
-    };
-    const result = validateOutput('continuity-issues', invalid);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some(e => e.includes('/issues/0/severity'))).toBe(true);
+  it('按 schema id 执行对应 reviewer schema', () => {
+    const cases = [
+      {
+        schemaId: 'continuity-issues',
+        payload: {
+          ...continuityPayload,
+          issues: [{ ...continuityPayload.issues[0], expectedBehavior: '角色应保持一致的时间线行为。' }]
+        }
+      },
+      {
+        schemaId: 'character-issues',
+        payload: {
+          ...characterPayload,
+          issues: [{ ...characterPayload.issues[0], rewriteSuggestion: '他站在门口，迟迟没有迈步。' }]
+        }
+      },
+      {
+        schemaId: 'style-issues',
+        payload: {
+          ...stylePayload,
+          issues: [{ ...stylePayload.issues[0], characterId: 'hero' }]
+        }
+      }
+    ] as const;
+
+    for (const { schemaId, payload } of cases) {
+      expect(validateOutput(schemaId, payload).ok).toBe(false);
     }
-  });
-
-  it('缺少必填字段时错误信息带路径', () => {
-    const result = validateOutput('continuity-issues', { issues: [] });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errors.some(e => e.includes('summary'))).toBe(true);
-    }
-  });
-
-  it('多余字段被拒绝', () => {
-    const result = validateOutput('continuity-issues', { ...validPayload, extra: true });
-    expect(result.ok).toBe(false);
   });
 
   it('创作检查点要求分离事实、约束与未决事项', () => {
