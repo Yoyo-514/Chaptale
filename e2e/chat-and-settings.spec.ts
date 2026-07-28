@@ -11,12 +11,16 @@ async function installDesktopMock(page: Page) {
       cancelledRuns: string[];
       streamOptions: any[];
       imageReads: any[];
+      taskRuns: any[];
+      outputReads: string[];
     } = {
       settingsUpdates: [],
       promptUpdates: [],
       cancelledRuns: [],
       streamOptions: [],
-      imageReads: []
+      imageReads: [],
+      taskRuns: [],
+      outputReads: []
     };
     let promptSettings = {
       systemPrompt: 'Chaptale 默认系统提示',
@@ -24,6 +28,62 @@ async function installDesktopMock(page: Page) {
       defaultSystemPrompt: 'Chaptale 默认系统提示',
       systemPromptPath: 'C:/Users/Test/.chaptale/agent/SYSTEM.md',
       appendSystemPromptPath: 'C:/Users/Test/.chaptale/agent/APPEND_SYSTEM.md'
+    };
+
+    const reviewFixtures = {
+      'continuity-reviewer': {
+        runId: 'run-continuity-reviewer',
+        outputRef: '.chaptale/reviews/run-continuity-reviewer.json',
+        output: {
+          summary: '连贯性审查摘要',
+          issues: [
+            {
+              agentType: 'continuity',
+              type: 'timeline',
+              severity: 'high',
+              quote: '旧门在上一段已经关闭',
+              reason: '前后状态冲突',
+              suggestion: '统一门的开闭顺序'
+            }
+          ]
+        }
+      },
+      'character-reviewer': {
+        runId: 'run-character-reviewer',
+        outputRef: '.chaptale/reviews/run-character-reviewer.json',
+        output: {
+          summary: '人物审查摘要',
+          issues: [
+            {
+              agentType: 'character',
+              type: 'ooc',
+              severity: 'medium',
+              quote: '她忽然失控大笑',
+              reason: '行为动机不足',
+              suggestion: '补足情绪铺垫',
+              expectedBehavior: '保持克制'
+            }
+          ]
+        }
+      },
+      'style-reviewer': {
+        runId: 'run-style-reviewer',
+        outputRef: '.chaptale/reviews/run-style-reviewer.json',
+        output: {
+          summary: '文风审查摘要',
+          issues: [
+            {
+              agentType: 'style',
+              type: 'flat_rhythm',
+              severity: 'low',
+              quote: '他走进屋里。他坐下。',
+              reason: '句式节奏单一',
+              suggestion: '调整句长变化',
+              rewriteSuggestion: '把动作拆成轻重不同的节拍'
+            }
+          ]
+        }
+      }
     };
 
     function settingsState() {
@@ -172,10 +232,29 @@ async function installDesktopMock(page: Page) {
         onPendingChanged: () => () => undefined
       },
       tasks: {
-        run: async () => ({ status: 'cancelled', runId: 'run-e2e' }),
+        run: async (payload: any) => {
+          calls.taskRuns.push(payload);
+          const fixture = reviewFixtures[payload.personaId as keyof typeof reviewFixtures];
+          if (!fixture) {
+            return { status: 'cancelled', runId: 'run-e2e' };
+          }
+          return {
+            status: 'success',
+            runId: fixture.runId,
+            outputRef: fixture.outputRef,
+            output: { summary: `不应使用 inline ${payload.personaId}`, issues: [] }
+          };
+        },
         cancel: async () => undefined,
         listRuns: async () => ({ records: [], diagnostics: [] }),
-        readRunOutput: async () => null
+        readRunOutput: async (outputRef: string) => {
+          calls.outputReads.push(outputRef);
+          const fixture = Object.values(reviewFixtures).find(item => item.outputRef === outputRef);
+          if (!fixture || fixture.outputRef === '.chaptale/reviews/run-character-reviewer.json') {
+            return null;
+          }
+          return { kind: 'review', runId: fixture.runId, output: fixture.output };
+        }
       },
       models: {
         list: async () => ({ providers: [], models: [], defaultModel: undefined }),
@@ -397,6 +476,66 @@ test('mixed attachments keep compact tiles in the input while sent images render
   await expect.poll(() => page.evaluate(() => (window as any).chaptaleE2E.imageReads.length)).toBe(3);
   // 依赖升级后首轮冷缓存会拖慢 lightbox 模块编译，放宽等待窗口避免一次性 flaky。
   await expect(page.getByText('1 / 9')).toBeVisible({ timeout: 15000 });
+});
+
+test('three-lane review reads persisted outputs independently for each persona', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByPlaceholder('描述你的创作需求...').fill('旧门刚刚合上，她忽然失控大笑。他走进屋里。他坐下。');
+  await page.getByRole('button', { name: '三维审查' }).click();
+
+  const reviewStrip = page.locator('[aria-label="三维审查结果"]');
+  await expect(reviewStrip).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        taskRuns: (window as any).chaptaleE2E.taskRuns.length,
+        outputReads: (window as any).chaptaleE2E.outputReads.length
+      }))
+    )
+    .toEqual({ taskRuns: 3, outputReads: 3 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as any).chaptaleE2E.taskRuns.map((payload: any) => payload.personaId).toSorted())
+    )
+    .toEqual(['character-reviewer', 'continuity-reviewer', 'style-reviewer']);
+  await expect
+    .poll(() => page.evaluate(() => (window as any).chaptaleE2E.outputReads.toSorted()))
+    .toEqual([
+      '.chaptale/reviews/run-character-reviewer.json',
+      '.chaptale/reviews/run-continuity-reviewer.json',
+      '.chaptale/reviews/run-style-reviewer.json'
+    ]);
+
+  const getCurrentPanel = async () => {
+    const panelId = await reviewStrip.getByRole('tab', { selected: true }).getAttribute('aria-controls');
+    expect(panelId).toBeTruthy();
+    return reviewStrip.locator(`[role="tabpanel"][id="${panelId}"]`);
+  };
+
+  await reviewStrip.getByRole('tab', { name: /连贯性/ }).click();
+  const continuityPanel = await getCurrentPanel();
+  await expect(continuityPanel).toContainText('连贯性审查摘要');
+  await expect(continuityPanel).toContainText('旧门在上一段已经关闭');
+  await expect(continuityPanel).not.toContainText('人物审查摘要');
+  await expect(continuityPanel).not.toContainText('文风审查摘要');
+  await expect(continuityPanel).not.toContainText('把动作拆成轻重不同的节拍');
+  await expect(continuityPanel).not.toContainText('她忽然失控大笑');
+
+  await reviewStrip.getByRole('tab', { name: /人物/ }).click();
+  const characterPanel = await getCurrentPanel();
+  await expect(characterPanel).toContainText('审查结果读取失败：输出不是 review 信封');
+  await expect(characterPanel).not.toContainText('连贯性审查摘要');
+  await expect(characterPanel).not.toContainText('文风审查摘要');
+
+  await reviewStrip.getByRole('tab', { name: /文风/ }).click();
+  const stylePanel = await getCurrentPanel();
+  await expect(stylePanel).toContainText('文风审查摘要');
+  await expect(stylePanel).toContainText('把动作拆成轻重不同的节拍');
+  await expect(stylePanel).not.toContainText('连贯性审查摘要');
+  await expect(stylePanel).not.toContainText('人物审查摘要');
+  await expect(stylePanel).not.toContainText('旧门在上一段已经关闭');
+  await expect(stylePanel).not.toContainText('她忽然失控大笑');
 });
 
 test('prompt settings edit pi files and restore the built-in system prompt', async ({ page }) => {

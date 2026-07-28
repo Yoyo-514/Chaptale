@@ -10,8 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggleWebSearch: [];
   addContextFiles: [];
-  /** 参数化任务入口：新增任务型 persona 只需加按钮/菜单项，链路不变。 */
-  runTask: [personaId: string];
+  runReview: [];
 }>();
 </script>
 
@@ -36,10 +35,10 @@ const emit = defineEmits<{
         <span>{{ props.contextFileCount > 0 ? `${props.contextFileCount} 个文件` : '添加文件' }}</span>
       </AppButton>
     </AppTooltip>
-    <AppTooltip text="对当前输入或附件的文本做连贯性审查" side="bottom">
-      <AppButton variant="ghost" size="xs" type="button" @click="emit('runTask', 'continuity-reviewer')">
+    <AppTooltip text="对当前输入或附件的文本做三维审查" side="bottom">
+      <AppButton variant="ghost" size="xs" type="button" aria-label="三维审查" @click="emit('runReview')">
         <span class="i-mingcute-eye-line size-4" aria-hidden="true" />
-        <span>审查连贯性</span>
+        <span>三维审查</span>
       </AppButton>
     </AppTooltip>
   </div>

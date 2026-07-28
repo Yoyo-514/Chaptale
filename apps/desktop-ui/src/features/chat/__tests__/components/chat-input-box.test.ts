@@ -142,6 +142,18 @@ describe('ChatInputBox', () => {
     expect(wrapper.emitted('toggleWebSearch')).toHaveLength(1);
   });
 
+  it('starts the three-lane review from the toolbar without persona parameters', async () => {
+    const wrapper = mountInput();
+    const reviewButton = wrapper.find('button[aria-label="三维审查"]');
+
+    expect(reviewButton.text()).toContain('三维审查');
+    expect(wrapper.text()).not.toContain('审查连贯性');
+
+    await reviewButton.trigger('click');
+
+    expect(wrapper.emitted('runReview')).toEqual([[]]);
+  });
+
   it('renders the status bar below the input container and opens settings sections', async () => {
     const wrapper = mountInput();
     const statusItems = wrapper.findAll('.chat-status-item');

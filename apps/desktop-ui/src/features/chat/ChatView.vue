@@ -5,7 +5,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { MemoryPendingCard, useMemoryPending } from '@/features/memory-review';
 import { PermissionRequestCard, usePermissionRequests } from '@/features/permissions';
-import { ReviewResultCard, useContinuityReview } from '@/features/reviews';
+import { ReviewResultStrip, useReviewLanes } from '@/features/reviews';
 import { useSessionStore } from '@/features/sessions';
 import { SubagentTaskCard, useSubagentTasks } from '@/features/subagent-tasks';
 import { TodoProgressCard, useTodoProgress } from '@/features/todo-progress';
@@ -32,17 +32,10 @@ const contextCompaction = useContextCompaction(
     await Promise.all([sessionStore.loadSessions(), chat.reloadCurrentSessionMessages()]);
   }
 );
-const review = useContinuityReview(
+const review = useReviewLanes(
   () => chat.state.input,
   () => chat.state.contextFiles.map(file => file.path)
 );
-
-/** 任务入口分发：后续任务型 persona 在此按 personaId 接入。 */
-function handleRunTask(personaId: string) {
-  if (personaId === 'continuity-reviewer') {
-    void review.start();
-  }
-}
 
 const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
 const search = useChatSearch(() => chat.state.messages);
@@ -55,6 +48,13 @@ watch(
     if (updatedAt && updatedAt !== previousUpdatedAt) {
       void contextCompaction.refresh();
     }
+  }
+);
+
+watch(
+  () => subagentTasks.tasks.value,
+  tasks => {
+    void review.attachSubagentTasks(tasks).catch(error => console.warn('同步审查结果失败', error));
   }
 );
 
@@ -181,9 +181,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       @decide="permissionRequests.decide"
     />
 
-    <ReviewResultCard
+    <ReviewResultStrip
       class="chat-input-topbar"
-      :state="review.state"
+      :lanes="review.lanes"
+      @retry-read="review.retryRead"
       @cancel="review.cancel"
       @dismiss="review.dismiss"
     />
@@ -212,7 +213,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       @drop-context-files="chat.handleDropContextFiles"
       @remove-context-file="chat.handleRemoveContextFile"
       @open-settings="chat.handleOpenSettings"
-      @run-task="handleRunTask"
+      @run-review="review.startAll"
     />
   </main>
 </template>

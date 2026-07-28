@@ -45,8 +45,19 @@ async function toggleOutput(task: SubagentTaskEntry) {
     return;
   }
 
-  const output = await getDesktopApi().tasks.readRunOutput(task.outputRef);
-  expandedText.value = output?.rawText ?? '（结果文件不可读）';
+  try {
+    const output = await getDesktopApi().tasks.readRunOutput(task.outputRef);
+    if (output === null) {
+      expandedText.value = '（结果文件不可读）';
+    } else if (output.kind === 'raw') {
+      expandedText.value = output.rawText;
+    } else {
+      expandedText.value = JSON.stringify(output.output, null, 2);
+    }
+  } catch {
+    expandedText.value = '（结果文件不可读）';
+  }
+
   expandedRequestId.value = task.requestId;
 }
 </script>
