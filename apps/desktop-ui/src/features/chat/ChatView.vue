@@ -3,9 +3,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
-import { ReviewResultCard, useContinuityReview } from '@/features/continuity-review';
 import { MemoryPendingCard, useMemoryPending } from '@/features/memory-review';
 import { PermissionRequestCard, usePermissionRequests } from '@/features/permissions';
+import { ReviewResultCard, useContinuityReview } from '@/features/reviews';
 import { useSessionStore } from '@/features/sessions';
 import { SubagentTaskCard, useSubagentTasks } from '@/features/subagent-tasks';
 import { TodoProgressCard, useTodoProgress } from '@/features/todo-progress';
