@@ -10,7 +10,10 @@ import type { ContextFileService } from '../../../core/context/service';
 import { decodeMemoryMessage } from '../../../features/memory/message-codec';
 
 /** 普通 prompt 与 steer 共享的文本、会话和附件输入。 */
-export type AgentInputOptions = Pick<AgentRunOptions, 'query' | 'sessionId' | 'contextFilePaths' | 'reuseUserEntryId'>;
+export type AgentInputOptions = Pick<
+  AgentRunOptions,
+  'query' | 'sessionId' | 'signal' | 'contextFilePaths' | 'reuseUserEntryId'
+>;
 
 export type ReusedUserEntryContext = {
   promptPrefix: string;
@@ -42,7 +45,10 @@ export class InputAssembler {
     const skillInvocation = input.skillInvocation ?? parseSkillInvocation(options.query);
     const resolvedContext = reusedContext
       ? undefined
-      : await this.deps.contextFileService.resolve(options.contextFilePaths);
+      : await this.deps.contextFileService.resolve(options.contextFilePaths, {
+          query: options.query,
+          signal: options.signal
+        });
     // 上下文信封单独解码（其正则锚定行首）；复用的历史前缀可能自带 memory 信封，先剔除再解。
     const contextPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
     const decodedContext = decodeContextMessage(decodeMemoryMessage(contextPrefix).text);

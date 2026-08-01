@@ -50,15 +50,20 @@ export class TaskService {
       throw new Error(`重复的任务请求：${request.requestId}`);
     }
 
-    // 附件文本复用对话流的上下文解析（同一套大小/类型约束），信封原样传入提示词。
-    const contextPrompt = request.contextFilePaths?.length
-      ? (await this.options.contextFileService.resolve(request.contextFilePaths)).promptPrefix
-      : undefined;
-
     const controller = new AbortController();
     this.activeRuns.set(request.requestId, controller);
 
     try {
+      // 附件文本复用对话流的上下文解析；解析阶段同样受 requestId 取消链路约束。
+      const contextPrompt = request.contextFilePaths?.length
+        ? (
+            await this.options.contextFileService.resolve(request.contextFilePaths, {
+              query: request.brief,
+              signal: controller.signal
+            })
+          ).promptPrefix
+        : undefined;
+
       return await this.options.taskRunner.run({
         persona,
         cwd,

@@ -9,6 +9,8 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   protobufjs: true
+  # OCR 永久禁用；显式阻止其安装脚本，避免 pnpm 将未审批脚本视为配置错误。
+  tesseract.js: false
   vue-demi: true
 
 catalog:
@@ -56,6 +58,7 @@ catalog:
   vue: ^3.5.40
   vue-router: ^5.2.0
   vue-tsc: ^3.3.8
+  officeparser: ^7.5.1
 
 minimumReleaseAgeExclude:
   - "@oxfmt/binding-android-arm-eabi"

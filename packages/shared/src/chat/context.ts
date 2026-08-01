@@ -12,5 +12,13 @@ export type ChatContextFile = {
   previewDataUrl?: string;
   imageWidth?: number;
   imageHeight?: number;
-  skippedReason?: 'file-too-large' | 'image-too-large' | 'file-unavailable';
+  skippedReason?:
+    | 'file-too-large'
+    | 'image-too-large'
+    | 'file-unavailable'
+    | 'document-format-unsupported'
+    | 'document-parse-failed'
+    | 'document-no-text'
+    | 'document-too-large'
+    | 'document-text-too-large';
 };

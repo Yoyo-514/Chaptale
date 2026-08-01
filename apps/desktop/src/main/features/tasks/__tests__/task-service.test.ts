@@ -81,7 +81,10 @@ describe('TaskService', () => {
 
     await service.start(startRequest({ text: '', contextFilePaths: ['/a.md', '/b.md'] }));
 
-    expect(contextFileService.resolve).toHaveBeenCalledWith(['/a.md', '/b.md']);
+    expect(contextFileService.resolve).toHaveBeenCalledWith(['/a.md', '/b.md'], {
+      query: '审查',
+      signal: expect.any(AbortSignal)
+    });
     expect(taskRunner.run).toHaveBeenCalledWith(
       expect.objectContaining({
         text: '',
@@ -98,6 +101,33 @@ describe('TaskService', () => {
 
     expect(contextFileService.resolve).not.toHaveBeenCalled();
     expect(taskRunner.run).toHaveBeenCalledWith(expect.objectContaining({ contextPrompt: undefined }));
+  });
+
+  it('cancel interrupts context document parsing before the runner starts', async () => {
+    const settingsService = { getCurrentCwd: vi.fn(async () => '/cwd') };
+    const personaRegistry = { load: vi.fn(async () => ({ personas: [taskPersona], diagnostics: [] })) };
+    const taskRunner = { run: vi.fn() };
+    const contextFileService = {
+      resolve: vi.fn(
+        (_paths: string[], options?: { signal?: AbortSignal }) =>
+          new Promise<never>((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true });
+          })
+      )
+    };
+    const service = new TaskService({
+      settingsService: settingsService as any,
+      personaRegistry: personaRegistry as any,
+      taskRunner: taskRunner as any,
+      contextFileService
+    });
+
+    const starting = service.start(startRequest({ contextFilePaths: ['/slow.pdf'] }));
+    await vi.waitFor(() => expect(contextFileService.resolve).toHaveBeenCalledOnce());
+    service.cancel('req-1');
+
+    await expect(starting).rejects.toMatchObject({ name: 'AbortError' });
+    expect(taskRunner.run).not.toHaveBeenCalled();
   });
 
   it('rejects a duplicate requestId while the first run is still active', async () => {

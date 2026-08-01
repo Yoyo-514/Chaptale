@@ -5,17 +5,37 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../constants', async importOriginal => ({
   ...(await importOriginal<typeof import('../constants')>()),
-  MAX_DIRECT_FILE_INPUT_BYTES: 10,
-  MAX_DIRECT_FILE_INPUT_TOTAL_BYTES: 10
+  MAX_DIRECT_BYTES: 10,
+  MAX_DIRECT_TOTAL_BYTES: 10
 }));
 
+import type { AttachedFileSearchPort } from '../attached-file-search-port';
+import type { DocumentParserPort } from '../document-parser-port';
 import type { ContextFilePlatform } from '../platform';
-import { ContextFileService } from '../service';
+import { ContextFileService as ProductionContextFileService } from '../service';
 
 const platform: ContextFilePlatform = {
   selectContextFilePaths: async () => [],
   createImagePreview: async () => undefined
 };
+
+const documentParser: DocumentParserPort = {
+  supports: () => false,
+  parse: async () => ({ text: '', warnings: [] })
+};
+const fileSearch: AttachedFileSearchPort = {
+  search: async () => []
+};
+
+class ContextFileService extends ProductionContextFileService {
+  constructor(
+    contextFilePlatform: ContextFilePlatform,
+    parser: DocumentParserPort = documentParser,
+    search: AttachedFileSearchPort = fileSearch
+  ) {
+    super(contextFilePlatform, parser, search);
+  }
+}
 
 const tempDirs: string[] = [];
 
@@ -37,6 +57,48 @@ describe('ContextFileService direct text budget', () => {
 
     expect(boundaryResult.promptPrefix).toContain('handling="file-input-text"');
     expect(oversizedResult.promptPrefix).toContain('handling="file-search-placeholder"');
+  });
+
+  it('injects local search snippets when oversized text has relevant matches', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-context-budget-'));
+    tempDirs.push(tempDir);
+    const filePath = path.join(tempDir, 'searchable.txt');
+    await writeFile(filePath, '12345678901', 'utf8');
+    const search: AttachedFileSearchPort = {
+      search: vi.fn(async () => [{ headingPath: ['命中'], body: '相关片段', startOffset: 2, endOffset: 6 }])
+    };
+
+    const result = await new ContextFileService(platform, documentParser, search).resolve([filePath], {
+      query: '查找相关内容'
+    });
+
+    expect(result.promptPrefix).toContain('handling="file-search-results"');
+    expect(result.promptPrefix).toContain('heading="命中"');
+    expect(result.promptPrefix).toContain('相关片段');
+    expect(search.search).toHaveBeenCalledWith(
+      expect.objectContaining({ sourcePath: filePath, text: '12345678901', query: '查找相关内容', maxTokens: 8_000 })
+    );
+  });
+
+  it('searches extracted document text instead of asking the model to read binary files', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-context-budget-'));
+    tempDirs.push(tempDir);
+    const filePath = path.join(tempDir, 'searchable.pdf');
+    await writeFile(filePath, 'binary', 'utf8');
+    const parser: DocumentParserPort = {
+      supports: () => true,
+      parse: vi.fn(async () => ({ text: '12345678901', warnings: [] }))
+    };
+    const search: AttachedFileSearchPort = {
+      search: vi.fn(async () => [{ headingPath: [], body: '文档命中片段', startOffset: 0, endOffset: 6 }])
+    };
+
+    const result = await new ContextFileService(platform, parser, search).resolve([filePath], { query: '文档问题' });
+
+    expect(result.promptPrefix).toContain('handling="file-search-results"');
+    expect(result.promptPrefix).toContain('kind="document"');
+    expect(result.promptPrefix).toContain('文档命中片段');
+    expect(result.promptPrefix).not.toContain('read/grep/find/ls');
   });
 
   it('uses the remaining per-message budget across multiple text files', async () => {

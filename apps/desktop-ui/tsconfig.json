@@ -20,10 +20,10 @@
   "include": ["src", "vite.config.ts", "uno.config.ts"],
   "references": [
     {
-      "path": "../../packages/shared"
+      "path": "../../packages/shared/tsconfig.json"
     },
     {
-      "path": "../../packages/ipc"
+      "path": "../../packages/ipc/tsconfig.json"
     }
   ]
 }

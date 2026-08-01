@@ -48,7 +48,12 @@ function getSkippedLabel(file: ChatContextFile) {
   const labels: Record<NonNullable<ChatContextFile['skippedReason']>, string> = {
     'file-too-large': '文件过大，未发送',
     'image-too-large': '图片超过 20 MB，未发送',
-    'file-unavailable': '文件无法读取，未发送'
+    'file-unavailable': '文件无法读取，未发送',
+    'document-format-unsupported': '文档格式不受支持，未发送',
+    'document-parse-failed': '文档解析失败，未发送',
+    'document-no-text': '文档没有可提取文本，未发送',
+    'document-too-large': '文档超过解析上限，未发送',
+    'document-text-too-large': '文档正文超过上下文预算，未发送'
   };
 
   return file.skippedReason ? labels[file.skippedReason] : '';

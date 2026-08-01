@@ -2,16 +2,16 @@
   "files": [],
   "references": [
     {
-      "path": "./packages/shared"
+      "path": "./packages/shared/tsconfig.json"
     },
     {
-      "path": "./packages/ipc"
+      "path": "./packages/ipc/tsconfig.json"
     },
     {
-      "path": "./apps/desktop-ui"
+      "path": "./apps/desktop-ui/tsconfig.json"
     },
     {
-      "path": "./apps/desktop"
+      "path": "./apps/desktop/tsconfig.json"
     }
   ]
 }

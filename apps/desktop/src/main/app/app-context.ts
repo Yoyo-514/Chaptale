@@ -15,6 +15,7 @@ import { PermissionRuleStore } from '../features/permissions/rule-store';
 import { PromptFileService } from '../features/prompts/file-service';
 import { ReviewOutputStore } from '../features/reviews/store';
 import { AgentRunStore } from '../features/runs/store';
+import { AttachedFileSearchService } from '../features/search/attached-file-search-service';
 import { IndexService } from '../features/search/index-service';
 import { LiteralSearchProvider } from '../features/search/literal-search-provider';
 import { MemorySearchService } from '../features/search/memory-search-service';
@@ -26,6 +27,7 @@ import { TaskService } from '../features/tasks/service';
 import { TodoStore } from '../features/todo/store';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
+import { OfficeDocumentParser } from '../integrations/officeparser/parser';
 import { ChatSessionFactory } from '../integrations/pi/agent/chat-session-factory';
 import { createCompactExt } from '../integrations/pi/agent/compact-extension';
 import { piParseFrontmatter } from '../integrations/pi/agent/frontmatter';
@@ -76,7 +78,11 @@ export function createAppContext(): AppContext {
     console.error('内置 skills 物化失败:', error);
   }
 
-  const contextFileService = new ContextFileService(new ElectronContextFilePlatform());
+  const contextFileService = new ContextFileService(
+    new ElectronContextFilePlatform(),
+    new OfficeDocumentParser(),
+    new AttachedFileSearchService()
+  );
   // createElectronThumbnail 失败时抛错，保留 attachments 层“跳过此图”分支。
   const imageAttachmentService = new ImageAttachmentService((data, mimeType) => {
     const thumbnail = createElectronThumbnail(data, mimeType);

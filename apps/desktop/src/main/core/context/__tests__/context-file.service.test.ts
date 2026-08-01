@@ -3,8 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { AttachedFileSearchPort } from '../attached-file-search-port';
+import type { DocumentParserPort } from '../document-parser-port';
 import type { ContextFilePlatform } from '../platform';
-import { ContextFileService } from '../service';
+import { ContextFileService as ProductionContextFileService } from '../service';
 
 function createFakePlatform(overrides: Partial<ContextFilePlatform> = {}) {
   return {
@@ -12,6 +14,31 @@ function createFakePlatform(overrides: Partial<ContextFilePlatform> = {}) {
     createImagePreview: vi.fn(async () => ({ dataUrl: 'data:image/png;base64,dGh1bWI=', width: 1920, height: 1080 })),
     ...overrides
   } satisfies ContextFilePlatform;
+}
+
+function createFakeDocumentParser(overrides: Partial<DocumentParserPort> = {}): DocumentParserPort {
+  return {
+    supports: vi.fn(() => true),
+    parse: vi.fn(async filePath => ({ text: `解析后的文档正文：${path.basename(filePath)}`, warnings: [] })),
+    ...overrides
+  };
+}
+
+function createFakeFileSearch(overrides: Partial<AttachedFileSearchPort> = {}): AttachedFileSearchPort {
+  return {
+    search: vi.fn(async () => []),
+    ...overrides
+  };
+}
+
+class ContextFileService extends ProductionContextFileService {
+  constructor(
+    platform: ContextFilePlatform,
+    documentParser: DocumentParserPort = createFakeDocumentParser(),
+    fileSearch: AttachedFileSearchPort = createFakeFileSearch()
+  ) {
+    super(platform, documentParser, fileSearch);
+  }
 }
 
 describe('ContextFileService', () => {
@@ -77,9 +104,9 @@ describe('ContextFileService', () => {
     ['draft.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     ['slides.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
     ['sheet.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
-  ])('treats %s as metadata-only document input', async (fileName, mimeType) => {
+  ])('extracts native text from %s document input', async (fileName, mimeType) => {
     const filePath = path.join(tempDir, fileName);
-    await writeFile(filePath, Buffer.from('mock document body'));
+    await writeFile(filePath, Buffer.from('mock binary document body'));
 
     const [inspected] = await new ContextFileService(createFakePlatform()).inspectFiles([filePath]);
     const result = await new ContextFileService(createFakePlatform()).resolve([filePath]);
@@ -87,9 +114,65 @@ describe('ContextFileService', () => {
     expect(inspected).toMatchObject({ kind: 'document', mimeType });
     expect(result.promptPrefix).toContain('handling="document-file-input"');
     expect(result.promptPrefix).toContain(mimeType);
-    expect(result.promptPrefix).toContain('当前消息包含文件元数据与本地路径');
-    expect(result.promptPrefix).not.toContain('<content');
-    expect(result.promptPrefix).not.toContain('mock document body');
+    expect(result.promptPrefix).toContain('不包含图片 OCR 结果');
+    expect(result.promptPrefix).toContain(`<content>\n解析后的文档正文：${fileName}\n</content>`);
+    expect(result.promptPrefix).not.toContain('mock binary document body');
+  });
+
+  it('marks legacy Office binaries as unsupported instead of pretending they were parsed', async () => {
+    const filePath = path.join(tempDir, 'legacy.ppt');
+    await writeFile(filePath, Buffer.from('legacy binary'));
+    const parser = createFakeDocumentParser({ supports: vi.fn(() => false) });
+
+    const result = await new ContextFileService(createFakePlatform(), parser).resolve([filePath]);
+
+    expect(result.promptPrefix).toContain('reason="document-format-unsupported"');
+    expect(result.promptPrefix).toContain('另存为 PDF、DOCX、PPTX 或 XLSX');
+    expect(parser.parse).not.toHaveBeenCalled();
+  });
+
+  it('marks scanned or image-only documents when no native text can be extracted', async () => {
+    const filePath = path.join(tempDir, 'scan.pdf');
+    await writeFile(filePath, Buffer.from('scan'));
+    const parser = createFakeDocumentParser({ parse: vi.fn(async () => ({ text: '  ', warnings: [] })) });
+
+    const result = await new ContextFileService(createFakePlatform(), parser).resolve([filePath]);
+
+    expect(result.promptPrefix).toContain('reason="document-no-text"');
+    expect(result.promptPrefix).toContain('永久禁用 OCR');
+  });
+
+  it('keeps a document parse failure explicit without aborting other attachments', async () => {
+    const brokenPath = path.join(tempDir, 'broken.docx');
+    const validPath = path.join(tempDir, 'valid.txt');
+    await writeFile(brokenPath, Buffer.from('broken'));
+    await writeFile(validPath, '仍然可用的正文', 'utf8');
+    const parser = createFakeDocumentParser({ parse: vi.fn(async () => Promise.reject(new Error('invalid zip'))) });
+
+    const result = await new ContextFileService(createFakePlatform(), parser).resolve([brokenPath, validPath]);
+
+    expect(result.promptPrefix).toContain('reason="document-parse-failed"');
+    expect(result.promptPrefix).toContain('仍然可用的正文');
+  });
+
+  it('propagates caller cancellation instead of converting it to a parse failure', async () => {
+    const filePath = path.join(tempDir, 'slow.pdf');
+    await writeFile(filePath, Buffer.from('slow'));
+    const parser = createFakeDocumentParser({
+      parse: vi.fn((_filePath, signal) => {
+        signal?.throwIfAborted();
+        return new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+        });
+      })
+    });
+    const service = new ContextFileService(createFakePlatform(), parser);
+    const controller = new AbortController();
+    const resolving = service.resolve([filePath], { signal: controller.signal });
+
+    controller.abort();
+
+    await expect(resolving).rejects.toMatchObject({ name: 'AbortError' });
   });
 
   it('sends supported images as native pi image blocks without a file envelope', async () => {
@@ -194,18 +277,19 @@ describe('ContextFileService', () => {
     expect(result.promptPrefix).toBe('');
   });
 
-  it('accepts a document exactly at 512 MB and skips one byte over the boundary', async () => {
+  it('accepts a document exactly at 50 MB and skips one byte over the parser boundary', async () => {
     const boundaryPath = path.join(tempDir, 'boundary.pdf');
     const oversizedPath = path.join(tempDir, 'oversized.pdf');
     await writeFile(boundaryPath, '');
     await writeFile(oversizedPath, '');
-    await truncate(boundaryPath, 512 * 1024 * 1024);
-    await truncate(oversizedPath, 512 * 1024 * 1024 + 1);
+    await truncate(boundaryPath, 50 * 1024 * 1024);
+    await truncate(oversizedPath, 50 * 1024 * 1024 + 1);
 
     const result = await new ContextFileService(createFakePlatform()).resolve([boundaryPath, oversizedPath]);
 
     expect(result.promptPrefix).toContain(`path="${boundaryPath}" handling="document-file-input"`);
-    expect(result.promptPrefix).toContain(`path="${oversizedPath}" skipped="true" reason="file-too-large"`);
+    expect(result.promptPrefix).toContain(`path="${oversizedPath}" kind="document"`);
+    expect(result.promptPrefix).toContain('reason="document-too-large"');
   });
 
   it('skips oversized prompt images with an explicit context note', async () => {

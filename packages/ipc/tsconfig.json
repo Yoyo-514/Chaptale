@@ -13,7 +13,7 @@
   "include": ["src"],
   "references": [
     {
-      "path": "../shared"
+      "path": "../shared/tsconfig.json"
     }
   ]
 }

@@ -2,19 +2,43 @@ import path from 'node:path';
 
 import { escapeXmlAttribute, escapeXmlText, formatFileSize } from '@chaptale/shared';
 
-import { MAX_CONTEXT_FILE_BYTES, MAX_DIRECT_FILE_INPUT_TOTAL_BYTES, MAX_TEXT_DOCUMENT_TOKENS } from './constants';
+import type { AttachedFileSearchSnippet } from './attached-file-search-port';
+import { MAX_CONTEXT_FILE_BYTES, MAX_DIRECT_TOKENS } from './constants';
 
-export function buildFileSearchPlaceholderBlock(filePath: string, stats: { size: number }) {
-  // TODO: 实现 OpenAI File Search 风格的最小索引流程：解析文本 -> 分块 -> 关键词/语义检索 -> rerank -> 仅把相关片段注入上下文。
+export function buildSearchPlaceholder(filePath: string, stats: { size: number }) {
   return `<file path="${escapeXmlAttribute(filePath)}" handling="file-search-placeholder" size="${escapeXmlAttribute(formatFileSize(stats.size))}">
 <summary>
-该文本未作为基础 File input 全文注入：文件大小或本次上传总量已超出 ${formatFileSize(MAX_DIRECT_FILE_INPUT_TOTAL_BYTES)} 的直接输入预算。当前版本尚未建立向量索引，agent 应使用 read/grep/find/ls 等文件工具按需读取原文件，不能声称已完整逐字阅读全文。
+该文本未作为基础 File input 全文注入，且本次本地关键词检索未能提供片段。agent 应使用 read/grep/find/ls 等文件工具按需读取原文件，不能声称已完整逐字阅读全文。
 </summary>
 <metadata>
 文件名：${escapeXmlText(path.basename(filePath))}
 文件大小：${escapeXmlText(formatFileSize(stats.size))}
-参考限制：OpenAI 文件上传硬上限 ${escapeXmlText(formatFileSize(MAX_CONTEXT_FILE_BYTES))}；文本/文档目标上限约 ${MAX_TEXT_DOCUMENT_TOKENS.toLocaleString()} tokens。
+参考限制：OpenAI 文件上传硬上限 ${escapeXmlText(formatFileSize(MAX_CONTEXT_FILE_BYTES))}；文本/文档目标上限约 ${MAX_DIRECT_TOKENS.toLocaleString()} tokens。
 </metadata>
+</file>`;
+}
+
+export function buildSearchResult(
+  filePath: string,
+  stats: { size: number },
+  snippets: AttachedFileSearchSnippet[],
+  options: { kind: 'text' | 'document'; mimeType?: string }
+) {
+  const mimeType = options.mimeType ? ` mimeType="${escapeXmlAttribute(options.mimeType)}"` : '';
+  const excerpts = snippets
+    .map((snippet, index) => {
+      const heading = snippet.headingPath.length
+        ? ` heading="${escapeXmlAttribute(snippet.headingPath.join(' / '))}"`
+        : '';
+      return `<excerpt index="${index + 1}"${heading} startOffset="${snippet.startOffset}" endOffset="${snippet.endOffset}">${escapeXmlText(snippet.body)}</excerpt>`;
+    })
+    .join('\n');
+
+  return `<file path="${escapeXmlAttribute(filePath)}" handling="file-search-results" kind="${options.kind}"${mimeType} size="${escapeXmlAttribute(formatFileSize(stats.size))}">
+<summary>全文超过直接上下文预算。以下内容是应用根据当前请求通过本地关键词索引选出的原文片段，不代表完整文件。</summary>
+<excerpts>
+${excerpts}
+</excerpts>
 </file>`;
 }
 

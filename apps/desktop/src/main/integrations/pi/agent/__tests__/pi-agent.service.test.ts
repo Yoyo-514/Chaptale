@@ -98,10 +98,17 @@ function createService(
       reset: vi.fn()
     } as any);
   const assemblerDeps: any = {
-    contextFileService: new ContextFileService({
-      selectContextFilePaths: async () => [],
-      createImagePreview: async () => undefined
-    }),
+    contextFileService: new ContextFileService(
+      {
+        selectContextFilePaths: async () => [],
+        createImagePreview: async () => undefined
+      },
+      {
+        supports: () => false,
+        parse: async () => ({ text: '', warnings: [] })
+      },
+      { search: async () => [] }
+    ),
     imageAttachmentService
   };
   const service = new PiAgentService({
@@ -297,7 +304,10 @@ describe('PiAgentService', () => {
       })
     );
 
-    expect(contextFileService.resolve).toHaveBeenCalledWith(['C:/novel/outline.md', ...imagePaths]);
+    expect(contextFileService.resolve).toHaveBeenCalledWith(['C:/novel/outline.md', ...imagePaths], {
+      query: '请分析附件',
+      signal: expect.any(AbortSignal)
+    });
     expect(imageAttachmentService.createPresentation).toHaveBeenCalledWith(
       [
         { ...images[0], blockIndex: 1 },
@@ -339,7 +349,10 @@ describe('PiAgentService', () => {
       contextFilePaths: ['C:/novel/character.md', 'C:/novel/cover.png']
     });
 
-    expect(contextFileService.resolve).toHaveBeenCalledWith(['C:/novel/character.md', 'C:/novel/cover.png']);
+    expect(contextFileService.resolve).toHaveBeenCalledWith(['C:/novel/character.md', 'C:/novel/cover.png'], {
+      query: '调整人物动机',
+      signal: expect.any(AbortSignal)
+    });
     expect(session.steer).toHaveBeenCalledWith(
       '<attached_context_files>人物资料</attached_context_files>\n\n调整人物动机',
       images

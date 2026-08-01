@@ -9,7 +9,16 @@ function isContextFileKind(value: string | undefined): value is ChatContextFile[
 }
 
 function isSkippedReason(value: string | undefined): value is NonNullable<ChatContextFile['skippedReason']> {
-  return value === 'file-too-large' || value === 'image-too-large' || value === 'file-unavailable';
+  return (
+    value === 'file-too-large' ||
+    value === 'image-too-large' ||
+    value === 'file-unavailable' ||
+    value === 'document-format-unsupported' ||
+    value === 'document-parse-failed' ||
+    value === 'document-no-text' ||
+    value === 'document-too-large' ||
+    value === 'document-text-too-large'
+  );
 }
 
 function getFileName(filePath: string) {

@@ -64,6 +64,29 @@ describe('context message codec', () => {
     ]);
   });
 
+  it('preserves searched-document metadata and parser skip reasons', () => {
+    const prompt = `<attached_context_files>\n<file path="C:/novel/reference.pdf" handling="file-search-results" kind="document" mimeType="application/pdf" size="4 KB">片段</file>\n<file path="C:/novel/scan.pdf" kind="document" skipped="true" reason="document-no-text" size="2 KB">无文本</file>\n</attached_context_files>\n\n继续`;
+
+    expect(decodeContextMessage(prompt).contextFiles).toEqual([
+      {
+        path: 'C:/novel/reference.pdf',
+        name: 'reference.pdf',
+        size: 4096,
+        kind: 'document',
+        mimeType: 'application/pdf',
+        skippedReason: undefined
+      },
+      {
+        path: 'C:/novel/scan.pdf',
+        name: 'scan.pdf',
+        size: 2048,
+        kind: 'document',
+        mimeType: undefined,
+        skippedReason: 'document-no-text'
+      }
+    ]);
+  });
+
   it('leaves ordinary and malformed messages untouched', () => {
     expect(decodeContextMessage('普通消息')).toEqual({ text: '普通消息', promptPrefix: '', contextFiles: [] });
     expect(decodeContextMessage('<attached_context_files>未闭合')).toEqual({

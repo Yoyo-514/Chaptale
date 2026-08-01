@@ -5,6 +5,7 @@ import { InputAssembler } from '../input-assembler';
 const passthroughImages = {
   createPresentation: vi.fn(() => ({ attachments: [] }))
 };
+const signal = new AbortController().signal;
 
 describe('InputAssembler', () => {
   it('places memory prefix before context files and keeps decoded context metadata', async () => {
@@ -18,16 +19,17 @@ describe('InputAssembler', () => {
     const assembler = new InputAssembler({ contextFileService, imageAttachmentService: passthroughImages });
 
     const result = await assembler.assemble({
-      options: { sessionId: 's1', query: '继续', contextFilePaths: ['a.txt'] }
+      options: { sessionId: 's1', query: '继续', signal, contextFilePaths: ['a.txt'] }
     });
 
     expect(result.promptText).toBe(
       '<attached_context_files>\n<file path="a.txt">正文</file>\n</attached_context_files>\n\n继续'
     );
     expect((result.userMessage as any).contextFiles).toHaveLength(1);
+    expect(contextFileService.resolve).toHaveBeenCalledWith(['a.txt'], { query: '继续', signal });
 
     const withMemory = await assembler.assemble({
-      options: { sessionId: 's1', query: '继续', contextFilePaths: ['a.txt'] },
+      options: { sessionId: 's1', query: '继续', signal, contextFilePaths: ['a.txt'] },
       memoryPrefix: '<memory>m</memory>\n\n'
     });
 
@@ -40,7 +42,7 @@ describe('InputAssembler', () => {
     const assembler = new InputAssembler({ contextFileService, imageAttachmentService: passthroughImages });
 
     const result = await assembler.assemble({
-      options: { sessionId: 's1', query: '/skill:novel arg', reuseUserEntryId: 'u1' },
+      options: { sessionId: 's1', query: '/skill:novel arg', signal, reuseUserEntryId: 'u1' },
       reusedContext: {
         promptPrefix: '<attached_context_files>\n<file path="old.txt">旧</file>\n</attached_context_files>\n\n',
         imageBlocks: []
@@ -66,7 +68,7 @@ describe('InputAssembler', () => {
     const assembler = new InputAssembler({ contextFileService, imageAttachmentService });
 
     const result = await assembler.assemble({
-      options: { sessionId: 's1', query: '看图', contextFilePaths: ['/work/cover.png'] }
+      options: { sessionId: 's1', query: '看图', signal, contextFilePaths: ['/work/cover.png'] }
     });
 
     expect(result.promptImages).toEqual([image]);
@@ -88,7 +90,7 @@ describe('InputAssembler', () => {
     });
 
     await assembler.assemble({
-      options: { sessionId: 's1', query: '再看一次', reuseUserEntryId: 'entry-9' },
+      options: { sessionId: 's1', query: '再看一次', signal, reuseUserEntryId: 'entry-9' },
       reusedContext: {
         promptPrefix: '',
         imageBlocks: [{ type: 'image', data: 'aW1n', mimeType: 'image/png', blockIndex: 3 }]
