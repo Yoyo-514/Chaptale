@@ -134,7 +134,9 @@ function handleDrop(event: DragEvent) {
 
 <style scoped lang="scss">
 .chat-input-section {
-  @apply mx-auto w-full md:w-3xl z-$z-content-raised shrink-0;
+  @apply z-$z-content-raised mx-auto max-w-3xl shrink-0;
+
+  width: calc(100% - 1rem);
 }
 
 .chat-input-container {

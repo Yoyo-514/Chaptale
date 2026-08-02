@@ -162,7 +162,7 @@ async function deleteSelectedSessions() {
 }
 
 .history-toolbar-shell {
-  @apply sticky top-0 z-$z-sticky-surface shrink-0 border-b px-4 pt-3 pb-4;
+  @apply sticky top-0 z-$z-sticky-surface shrink-0 border-b px-3 pt-2 pb-3;
 
   background: var(--mica-background);
   border-color: var(--border-subtle);
@@ -173,6 +173,6 @@ async function deleteSelectedSessions() {
 }
 
 .history-content :deep(.history-content-viewport) {
-  @apply px-4 pb-8;
+  @apply px-3 pb-6;
 }
 </style>

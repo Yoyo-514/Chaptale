@@ -179,6 +179,8 @@ function handleKeydown(event: KeyboardEvent) {
   box-sizing: border-box;
 
   color: var(--input-foreground);
+  font-size: var(--chat-content-font-size, 1rem);
+  line-height: var(--chat-content-line-height, 1.25);
 }
 
 .chat-input-field::placeholder {

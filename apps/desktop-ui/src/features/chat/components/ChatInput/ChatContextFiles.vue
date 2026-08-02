@@ -137,6 +137,10 @@ function getSkippedLabel(file: ChatContextFile) {
   color: var(--muted-foreground);
 }
 
+.chat-context-attachments-input .chat-context-file-card {
+  @apply w-full;
+}
+
 .chat-context-file-thumb {
   @apply size-9 shrink-0 rounded-md object-cover;
 }

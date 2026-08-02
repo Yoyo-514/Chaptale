@@ -220,7 +220,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
 
 <style scoped lang="scss">
 .chat-main {
-  @apply flex min-h-0 flex-1 flex-col overflow-hidden pt-3 pb-4;
+  @apply flex min-h-0 flex-1 flex-col overflow-hidden py-1;
 }
 
 .chat-main-welcome {
@@ -232,7 +232,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
 }
 
 .chat-messages-section-welcome {
-  @apply mx-auto justify-center gap-8 px-4 pb-6 md:w-3xl;
+  @apply mx-auto max-w-3xl justify-center gap-8 px-4 pb-6;
 }
 
 .chat-search-trigger {
@@ -242,7 +242,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
 }
 
 .chat-input-topbar {
-  // 宽度对齐输入框，紧贴其上方。
-  @apply mx-auto mb-2 w-full md:w-3xl;
+  // 宽度对齐输入框，紧贴其上方，并为辅助栏边缘保留操作空间。
+  @apply mx-auto mb-2 max-w-3xl;
+
+  width: calc(100% - 1rem);
 }
 </style>

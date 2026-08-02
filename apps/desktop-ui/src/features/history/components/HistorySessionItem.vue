@@ -40,22 +40,25 @@ function handleMainClick() {
 
 <template>
   <div
-    :class="cn('history-item', props.isActive && 'history-item-active', props.isSelected && 'history-item-selected')"
+    :class="
+      cn(
+        'history-item',
+        props.isActive && 'history-item-active',
+        props.isSelected && 'history-item-selected',
+        props.isSelectionMode && 'history-item-selection'
+      )
+    "
     role="listitem"
   >
     <AppCheckbox
       v-if="props.isSelectionMode"
-      size="md"
+      size="sm"
       :model-value="props.isSelected"
       :aria-label="`选择 ${getSessionTitle(props.session)}`"
       @update:model-value="emit('toggleSelect', props.session.id)"
     />
 
     <button class="history-item-select" type="button" @click="handleMainClick">
-      <span class="history-item-icon" aria-hidden="true">
-        <span class="i-mingcute-chat-3-line" />
-      </span>
-
       <span class="history-item-body">
         <span class="history-item-main">
           <span class="history-item-title">{{ getSessionTitle(props.session) }}</span>
@@ -96,7 +99,7 @@ function handleMainClick() {
 
 <style scoped lang="scss">
 .history-item {
-  @apply relative flex w-full items-center gap-2 overflow-hidden border p-2 transition-all duration-150;
+  @apply relative flex w-full items-center gap-1.5 overflow-hidden border p-1.5 transition-all duration-150;
 
   border-color: transparent;
   border-radius: var(--radius-control);
@@ -118,47 +121,39 @@ function handleMainClick() {
 }
 
 .history-item-select {
-  @apply flex min-w-0 flex-1 items-center gap-3 p-1 pr-12 text-left outline-none;
+  @apply flex min-w-0 flex-1 items-center gap-2 p-1 text-left outline-none;
 }
 
 .history-item-select:focus-visible {
   box-shadow: var(--input-focus-shadow);
 }
 
-.history-item-icon {
-  @apply flex-center size-10 shrink-0 border text-lg;
-
-  background: var(--surface-muted);
-  border-radius: var(--radius-control);
-  color: var(--primary-solid);
-}
-
 .history-item-body {
-  @apply flex min-w-0 flex-1 flex-col gap-1;
+  @apply flex min-w-0 flex-1 flex-col gap-0.5;
 }
 
 .history-item-main {
-  @apply flex min-w-0 items-center justify-between gap-4;
+  @apply flex min-w-0 items-center justify-between gap-2;
 }
 
 .history-item-title {
-  @apply truncate text-sm font-semibold;
+  @apply truncate text-xs font-medium;
 }
 
 .history-item-time {
-  @apply shrink-0 text-xs;
+  @apply shrink-0 text-[0.65rem];
 
   color: var(--muted-foreground);
 }
 
 .history-item-preview {
-  @apply truncate text-xs;
+  @apply truncate text-[0.7rem];
 
   color: var(--muted-foreground);
 }
 
 .history-item-workspace {
-  @apply flex min-w-0 items-center gap-1 text-[0.7rem];
+  @apply flex min-w-0 items-center gap-1 text-[0.65rem];
 
   color: var(--muted-foreground);
 }
@@ -168,29 +163,23 @@ function handleMainClick() {
 }
 
 .history-item-stats {
-  @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.7rem];
+  @apply flex min-w-0 flex-nowrap items-center overflow-hidden text-[0.65rem];
 
   color: var(--muted-foreground);
 }
 
 .history-item-stats span {
-  @apply rounded-full px-2 py-0.5;
+  @apply flex shrink-0 items-center;
+}
 
-  background: var(--surface-acrylic-subtle);
+.history-item-stats span + span::before {
+  @apply mx-1;
+
+  content: '·';
 }
 
 .history-item-arrow {
-  @apply absolute right-3 top-3 shrink-0 text-xl transition-all duration-200 ease-out;
-
-  color: var(--muted-foreground);
-  opacity: 0;
-  transform: translateX(0.35rem) scale(0.9);
-}
-
-.history-item:hover .history-item-arrow,
-.history-item:focus-within .history-item-arrow {
-  opacity: 1;
-  transform: translateX(0) scale(1);
+  @apply hidden;
 }
 
 .history-item :deep(.history-rename-button) {

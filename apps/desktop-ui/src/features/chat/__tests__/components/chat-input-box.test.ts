@@ -134,6 +134,7 @@ describe('ChatInputBox', () => {
     const wrapper = mountInput({ isEnabledWebSearch: false });
     const toggle = wrapper.find('button[aria-pressed="false"]');
 
+    expect(toggle.attributes('aria-label')).toBe('开启联网搜索');
     expect(toggle.attributes('aria-pressed')).toBe('false');
     expect(toggle.text()).toContain('离线');
 
@@ -144,8 +145,10 @@ describe('ChatInputBox', () => {
 
   it('starts the three-lane review from the toolbar without persona parameters', async () => {
     const wrapper = mountInput();
+    const addContextButton = wrapper.find('button[aria-label="添加上下文文件"]');
     const reviewButton = wrapper.find('button[aria-label="三维审查"]');
 
+    expect(addContextButton.exists()).toBe(true);
     expect(reviewButton.text()).toContain('三维审查');
     expect(wrapper.text()).not.toContain('审查连贯性');
 

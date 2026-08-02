@@ -19,7 +19,9 @@ const emit = defineEmits<{
     <div class="history-selection-bar-inner">
       <p class="history-selection-count">已选 {{ props.selectedCount }}/{{ props.totalCount }} 项</p>
       <div class="history-selection-actions">
-        <AppButton type="button" :disabled="props.selectedCount === 0" @click="emit('clear')"> 清除选择 </AppButton>
+        <AppButton size="xs" type="button" :disabled="props.selectedCount === 0" @click="emit('clear')">
+          清除选择
+        </AppButton>
 
         <HistoryDeleteSessionDialog
           variant="bulk"
@@ -34,18 +36,18 @@ const emit = defineEmits<{
 
 <style scoped lang="scss">
 .history-selection-bar {
-  @apply shrink-0 border-t px-4 py-3;
+  @apply shrink-0 border-t px-3 py-2;
 
   background: var(--mica-background);
   border-color: var(--border-subtle);
 }
 
 .history-selection-bar-inner {
-  @apply mx-auto flex w-full max-w-4xl items-center justify-between gap-4;
+  @apply mx-auto flex w-full max-w-4xl items-center justify-between gap-2;
 }
 
 .history-selection-count {
-  @apply m-0 text-sm;
+  @apply m-0 text-xs;
 
   color: var(--muted-foreground);
 }

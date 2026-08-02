@@ -5,8 +5,7 @@ import { useRouter } from 'vue-router';
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useNotificationStore } from '@/features/notifications';
-import { SessionRenameDialog } from '@/features/sessions';
-import { useSessionStore } from '@/features/sessions';
+import { SessionRenameDialog, useSessionStore } from '@/features/sessions';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
@@ -99,7 +98,7 @@ async function handleExportSession() {
 
 <style scoped lang="scss">
 .chat-toolbar {
-  @apply flex min-w-0 items-center justify-between gap-2 border-b px-1 pb-2;
+  @apply flex min-w-0 items-center justify-between gap-2 border-b px-2 pb-1;
 
   border-color: var(--border-subtle);
 }

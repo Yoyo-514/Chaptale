@@ -51,7 +51,7 @@ function handleKeydown(event: KeyboardEvent) {
     <span class="i-mingcute-search-line chat-search-icon" aria-hidden="true" />
     <AppInput v-model="query" class="chat-search-input" placeholder="搜索会话内容..." aria-label="搜索会话内容" />
     <span class="chat-search-count" aria-live="polite">
-      {{ props.matchCount > 0 ? `${props.activeMatchIndex + 1} / ${props.matchCount}` : '无结果' }}
+      {{ props.matchCount > 0 ? `${props.activeMatchIndex + 1} / ${props.matchCount}` : '' }}
     </span>
     <AppButton icon variant="ghost" size="xs" type="button" aria-label="上一个结果" @click="emit('previous')">
       <span class="i-mingcute-up-line size-4" aria-hidden="true" />
@@ -60,15 +60,16 @@ function handleKeydown(event: KeyboardEvent) {
       <span class="i-mingcute-down-line size-4" aria-hidden="true" />
     </AppButton>
     <AppButton icon variant="ghost" size="xs" type="button" aria-label="关闭搜索" @click="emit('close')">
-      <span class="i-mingcute-close-line size-4" aria-hidden="true" />
+      <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
     </AppButton>
   </div>
 </template>
 
 <style scoped lang="scss">
 .chat-search-bar {
-  @apply mx-auto mb-2 flex w-full items-center gap-1.5 rounded-xl border p-1.5 pl-3 shadow-$shadow-float md:w-3xl;
+  @apply mx-auto mb-2 flex max-w-3xl items-center gap-1.5 rounded-lg border p-1.5 pl-3 shadow-$shadow-float;
 
+  width: calc(100% - 1rem);
   background: var(--popover);
   border-color: var(--border-subtle);
 }
@@ -84,7 +85,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .chat-search-count {
-  @apply shrink-0 whitespace-nowrap px-1 text-xs tabular-nums;
+  @apply shrink-0 whitespace-nowrap text-xs tabular-nums;
 
   color: var(--muted-foreground);
 }

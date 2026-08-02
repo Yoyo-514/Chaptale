@@ -66,7 +66,7 @@ const emit = defineEmits<{
 
 .history-error,
 .history-empty {
-  @apply mt-5 flex items-center justify-center gap-2 rounded-2xl border p-8 text-sm;
+  @apply mt-3 flex items-center justify-center gap-2 rounded-lg border p-4 text-center text-xs;
 
   background: var(--surface-acrylic-subtle);
   border-color: var(--border-subtle);
@@ -80,6 +80,6 @@ const emit = defineEmits<{
 }
 
 .history-list {
-  @apply mt-4 flex flex-col gap-2;
+  @apply mt-2 flex flex-col gap-1;
 }
 </style>

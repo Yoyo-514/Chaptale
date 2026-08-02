@@ -14,7 +14,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="chat-status-bar">
-    <AppTooltip text="打开模型设置" side="bottom">
+    <AppTooltip text="打开模型设置" side="top">
       <AppButton
         variant="ghost"
         size="xs"
@@ -28,7 +28,7 @@ const emit = defineEmits<{
       </AppButton>
     </AppTooltip>
     <span class="chat-status-divider" aria-hidden="true" />
-    <AppTooltip text="打开工作区设置" side="bottom">
+    <AppTooltip text="打开工作区设置" side="top">
       <AppButton
         variant="ghost"
         size="xs"
@@ -46,17 +46,17 @@ const emit = defineEmits<{
 
 <style scoped lang="scss">
 .chat-status-bar {
-  @apply mt-1.5 flex select-none items-center gap-1 px-2 text-xs;
+  @apply mt-1.5 flex select-none items-center gap-1 px-1 text-xs;
 
   color: var(--muted-foreground);
 }
 
 .chat-status-item {
-  @apply min-w-0;
+  @apply min-w-0 flex-1 justify-start;
 }
 
 .chat-status-text {
-  @apply max-w-72 truncate;
+  @apply min-w-0 truncate;
 }
 
 .chat-status-divider {

@@ -43,6 +43,8 @@ const emit = defineEmits<{
   @apply grid w-full cursor-pointer grid-cols-[minmax(10rem,auto)_1fr_auto] items-center gap-3 rounded-md px-3 py-2 text-left text-sm;
 
   color: var(--foreground);
+  font-size: var(--chat-content-font-size, 0.875rem);
+  line-height: 1.5;
 }
 
 .chat-slash-command-item:hover {
@@ -69,5 +71,19 @@ const emit = defineEmits<{
   @apply text-xs;
 
   color: var(--muted-foreground);
+}
+
+@container agent-panel (max-width: 20rem) {
+  .chat-slash-command-item {
+    @apply grid-cols-[minmax(0,1fr)_auto] gap-2;
+  }
+
+  .chat-slash-command-name {
+    @apply truncate;
+  }
+
+  .chat-slash-command-description {
+    @apply hidden;
+  }
 }
 </style>

@@ -80,7 +80,7 @@ function selectSortMode(value: string) {
         <AppButton
           icon
           variant="ghost"
-          size="md"
+          size="sm"
           class="history-back-button"
           type="button"
           aria-label="返回"
@@ -88,16 +88,18 @@ function selectSortMode(value: string) {
         >
           <span class="i-mingcute-left-line size-5" aria-hidden="true" />
         </AppButton>
-        <h1 id="history-title" class="history-title">历史记录</h1>
+        <h2 id="history-title" class="history-title">历史记录</h2>
       </div>
       <AppButton
         type="button"
         variant="outline"
+        size="xs"
         class="history-selection-mode-button"
+        :aria-label="props.isSelectionMode ? '退出多选模式' : '进入多选模式'"
         @click="emit('toggleSelectionMode')"
       >
         <span class="i-mingcute-list-check-line size-4" aria-hidden="true" />
-        <span>{{ props.isSelectionMode ? '退出多选' : '多选模式' }}</span>
+        <span>{{ props.isSelectionMode ? '完成' : '多选' }}</span>
       </AppButton>
     </div>
 
@@ -105,10 +107,10 @@ function selectSortMode(value: string) {
       v-model="searchQuery"
       class="history-search"
       type="search"
-      size="md"
+      size="sm"
       variant="muted"
       aria-label="搜索历史记录"
-      placeholder="模糊搜索历史记录..."
+      placeholder="搜索历史记录..."
     >
       <template #prefix>
         <span class="i-mingcute-search-line size-4" aria-hidden="true" />
@@ -137,8 +139,14 @@ function selectSortMode(value: string) {
         @update:model-value="selectScopeFilter"
       >
         <template #trigger="{ triggerClass, disabled, dataDisabled }">
-          <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
-            <span class="history-control-label">工作区</span>
+          <button
+            :class="triggerClass"
+            type="button"
+            :disabled="disabled"
+            :data-disabled="dataDisabled"
+            :aria-label="`范围：${getScopeLabel(scopeFilter)}`"
+          >
+            <span class="history-control-label">范围</span>
             <span class="history-control-value">{{ getScopeLabel(scopeFilter) }}</span>
             <span class="i-mingcute-down-line history-control-icon" aria-hidden="true" />
           </button>
@@ -156,7 +164,13 @@ function selectSortMode(value: string) {
         @update:model-value="selectSortMode"
       >
         <template #trigger="{ triggerClass, disabled, dataDisabled }">
-          <button :class="triggerClass" type="button" :disabled="disabled" :data-disabled="dataDisabled">
+          <button
+            :class="triggerClass"
+            type="button"
+            :disabled="disabled"
+            :data-disabled="dataDisabled"
+            :aria-label="`排序：${getSortLabel(sortMode)}`"
+          >
             <span class="history-control-label">排序</span>
             <span class="history-control-value">{{ getSortLabel(sortMode) }}</span>
             <span class="i-mingcute-down-line history-control-icon" aria-hidden="true" />
@@ -172,25 +186,25 @@ function selectSortMode(value: string) {
 
 <style scoped lang="scss">
 .history-toolbar {
-  @apply mx-auto flex w-full max-w-4xl flex-col gap-3;
+  @apply mx-auto flex w-full max-w-4xl flex-col gap-2;
 }
 
 .history-toolbar-title-row {
-  @apply flex items-center justify-between gap-4;
+  @apply flex items-center justify-between gap-2;
 }
 
 .history-title-group {
-  @apply flex min-w-0 items-center gap-2;
+  @apply flex min-w-0 items-center gap-1;
 }
 
 .history-title {
-  @apply m-0 text-xl font-semibold;
+  @apply m-0 text-sm font-semibold;
 
   color: var(--foreground);
 }
 
 .history-selection-mode-button {
-  @apply rounded-full py-1;
+  @apply rounded-full;
 
   background: var(--surface-acrylic-strong);
   color: var(--muted-foreground);
@@ -213,11 +227,11 @@ function selectSortMode(value: string) {
 }
 
 .history-controls {
-  @apply grid grid-cols-2 gap-3;
+  @apply grid grid-cols-2 gap-2;
 }
 
 .history-control {
-  @apply gap-3 px-3 py-2 text-sm;
+  @apply gap-1.5 px-2 py-1.5 text-xs;
 
   background: var(--surface-acrylic-subtle);
   border-color: var(--border-subtle);

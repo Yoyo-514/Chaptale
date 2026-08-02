@@ -2,7 +2,7 @@
 import { SettingsPanel } from '@/features/settings';
 import { ActivityBar, StatusBar, TitleBar } from '@/features/shell';
 
-import AgentPanel from './AgentPanel.vue';
+import WorkbenchLayout from './WorkbenchLayout.vue';
 </script>
 
 <template>
@@ -10,7 +10,7 @@ import AgentPanel from './AgentPanel.vue';
     <TitleBar />
     <div class="basic-layout-body">
       <ActivityBar />
-      <AgentPanel />
+      <WorkbenchLayout />
     </div>
     <StatusBar />
     <SettingsPanel />

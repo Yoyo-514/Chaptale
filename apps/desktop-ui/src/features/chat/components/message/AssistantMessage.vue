@@ -58,7 +58,10 @@ onBeforeUnmount(() => {
 }
 
 .assistant-reasoning {
-  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic text-sm text-muted-foreground shadow-$shadow-inset-highlight;
+  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic text-muted-foreground shadow-$shadow-inset-highlight;
+
+  font-size: var(--chat-secondary-font-size, 0.875rem);
+  line-height: 1.55;
 }
 
 .assistant-reasoning[open] {

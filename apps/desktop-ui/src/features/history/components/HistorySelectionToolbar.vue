@@ -32,11 +32,11 @@ const checkedState = computed(() => {
 
 <style scoped lang="scss">
 .history-selection-toolbar {
-  @apply mx-auto mt-3 flex w-full max-w-4xl items-center;
+  @apply mx-auto mt-2 flex w-full max-w-4xl items-center;
 }
 
 .history-select-all {
-  @apply inline-flex items-center gap-2 border-0 bg-transparent p-0 text-sm outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
 
   color: var(--muted-foreground);
 }

@@ -48,9 +48,11 @@ const emit = defineEmits<{
 }
 
 .chat-empty-tip {
-  @apply mt-3 mb-0 text-sm leading-6;
+  @apply mt-3 mb-0;
 
   color: var(--muted-foreground);
+  font-size: var(--chat-content-font-size, 0.875rem);
+  line-height: var(--chat-content-line-height, 1.5rem);
 }
 
 .chat-recent-section {

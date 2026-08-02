@@ -223,7 +223,7 @@ defineExpose({ scrollToBottom, scrollToIndex });
 }
 
 .chat-message-list-spacer {
-  @apply relative mx-auto w-full md:w-3xl;
+  @apply relative mx-auto w-full max-w-3xl;
 }
 
 .chat-message-list-row {
