@@ -20,12 +20,6 @@ async function useGlobalStorage() {
   await sessionStore.loadStorageDebugInfo();
   await sessionStore.loadSessions();
 }
-
-async function selectWorkspaceDir() {
-  await settingsStore.selectWorkspaceDir();
-  await sessionStore.loadStorageDebugInfo();
-  await sessionStore.loadSessions();
-}
 </script>
 
 <template>
@@ -54,9 +48,6 @@ async function selectWorkspaceDir() {
 
     <div class="settings-actions">
       <AppButton type="button" :disabled="settingsStore.isLoading" @click="useGlobalStorage">使用 Global</AppButton>
-      <AppButton variant="primary" type="button" :disabled="settingsStore.isLoading" @click="selectWorkspaceDir">
-        选择工作区
-      </AppButton>
     </div>
   </SettingsSection>
 </template>

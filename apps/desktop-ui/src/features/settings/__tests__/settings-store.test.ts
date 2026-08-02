@@ -181,7 +181,7 @@ describe('settings store', () => {
     expect(store.isOpen).toBe(false);
   });
 
-  it('updates workspace settings, selects a workspace, and opens the config directory', async () => {
+  it('updates workspace settings and opens the config directory', async () => {
     const api = installDesktopApi();
     const store = useSettingsStore();
     const sessionStore = useSessionStore();
@@ -192,15 +192,14 @@ describe('settings store', () => {
     await expect(store.updateWebAccess({ webSearchEnabled: false })).resolves.toBe(true);
     expect(store.state).toStrictEqual(updatedState);
 
-    await store.selectWorkspaceDir();
     await store.useGlobalStorage();
     await store.openConfigDir();
 
     expect(api.settings.updateWebAccess).toHaveBeenCalledWith({ webSearchEnabled: false });
-    expect(api.settings.selectWorkspaceDir).toHaveBeenCalled();
+    expect(api.settings.selectWorkspaceDir).not.toHaveBeenCalled();
     expect(api.settings.update).toHaveBeenCalledWith({ storage: { mode: 'global' } });
-    expect(bindCwd).toHaveBeenNthCalledWith(1, 'E:/workspace-b');
-    expect(bindCwd).toHaveBeenNthCalledWith(2, 'agent/global');
+    expect(bindCwd).toHaveBeenCalledOnce();
+    expect(bindCwd).toHaveBeenCalledWith('agent/global');
     expect(api.settings.openConfigDir).toHaveBeenCalled();
   });
 
@@ -220,36 +219,6 @@ describe('settings store', () => {
       kind: 'error',
       title: '更新联网设置失败',
       description: 'save failed'
-    });
-  });
-
-  it('surfaces workspace rebind failures and does not expose the previous cwd session', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const workspaceB = 'E:/workspace-b';
-    const api = installDesktopApi();
-    api.session.list.mockRejectedValue(new Error('list failed'));
-    api.settings.selectWorkspaceDir.mockResolvedValue({
-      canceled: false,
-      state: createSettingsState(false, workspaceB, { mode: 'workspace', workspacePath: workspaceB })
-    });
-    const store = useSettingsStore();
-    const sessionStore = useSessionStore();
-    const notifications = useNotificationStore();
-    sessionStore.sessions = [createSession('session-a', { cwd: workspaceA, scope: 'workspace' })];
-    sessionStore.activeCwd = workspaceA;
-    sessionStore.currentSessionId = 'session-a';
-
-    await expect(store.selectWorkspaceDir()).resolves.toBeUndefined();
-
-    expect(store.state?.paths.currentCwd).toBe(workspaceB);
-    expect(sessionStore.activeCwd).toBe(workspaceB);
-    expect(sessionStore.currentSessionId).toBe('');
-    expect(api.session.create).not.toHaveBeenCalled();
-    expect(store.error).toBe('list failed');
-    expect(notifications.items.at(-1)).toMatchObject({
-      kind: 'error',
-      title: '绑定会话目录失败',
-      description: 'list failed'
     });
   });
 

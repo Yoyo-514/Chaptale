@@ -11,6 +11,10 @@ import type { SettingsStoreContext } from './types';
 
 /** 应用设置与 Web Access 的读写动作；每次成功响应都整体替换状态快照。 */
 export const workspaceSettingsActions = {
+  applyStateSnapshot(this: SettingsStoreContext, state: ChaptaleSettingsState) {
+    this.state = state;
+  },
+
   async load(this: SettingsStoreContext) {
     this.isLoading = true;
 
@@ -50,20 +54,6 @@ export const workspaceSettingsActions = {
 
       this.state = state;
       return true;
-    } finally {
-      this.isLoading = false;
-    }
-  },
-
-  async selectWorkspaceDir(this: SettingsStoreContext) {
-    this.isLoading = true;
-
-    try {
-      const result = await this.runAction('选择工作区失败', () => getDesktopApi().settings.selectWorkspaceDir());
-      if (result && !result.canceled && result.state) {
-        this.state = result.state;
-        await bindSessionCwd(this, result.state);
-      }
     } finally {
       this.isLoading = false;
     }

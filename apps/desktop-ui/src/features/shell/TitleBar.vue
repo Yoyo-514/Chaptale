@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import appIconUrl from '../../../public/favicon.ico?url';
+import TitleBarMenu from './TitleBarMenu.vue';
 import { useWindowControls } from './useWindowControls';
 
 const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowControls();
@@ -7,10 +9,12 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
 <template>
   <header class="titlebar">
     <div class="titlebar-drag-region" @dblclick="toggleMaximize">
-      <div class="titlebar-brand">
-        <img class="titlebar-icon" src="/favicon.ico" alt="Chaptale" />
-        <span class="titlebar-text">Chaptale</span>
+      <div class="titlebar-leading" role="group" aria-label="Chaptale 应用菜单" @dblclick.stop>
+        <img class="titlebar-icon" :src="appIconUrl" alt="" aria-hidden="true" />
+        <TitleBarMenu />
       </div>
+
+      <div class="titlebar-document-title">Chaptale</div>
 
       <div class="titlebar-controls" aria-label="窗口控制" @dblclick.stop>
         <button class="titlebar-control" type="button" :disabled="!isDesktop" aria-label="最小化" @click="minimize">
@@ -41,29 +45,37 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
 
 <style scoped lang="scss">
 .titlebar {
-  @apply h-9 shrink-0 select-none border-b border-titlebar-border bg-titlebar text-titlebar-foreground;
+  @apply relative h-9 shrink-0 select-none border-b border-titlebar-border bg-titlebar text-titlebar-foreground;
 }
 
 .titlebar-drag-region {
-  @apply box-border flex h-full items-center justify-between pl-3;
+  @apply box-border flex h-full items-center pl-2;
 
   -webkit-app-region: drag;
   app-region: drag;
 }
 
-.titlebar-brand {
-  @apply flex items-center gap-1.5;
+.titlebar-leading {
+  @apply flex min-w-0 items-center gap-1;
 
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
 
 .titlebar-icon {
-  @apply h-5 w-5;
+  @apply mx-1 shrink-0;
+
+  width: 18px;
+  height: 18px;
 }
 
-.titlebar-text {
-  @apply text-[13px] text-titlebar-foreground;
+.titlebar-document-title {
+  @apply pointer-events-none absolute truncate text-xs;
+
+  left: 50%;
+  max-width: 28rem;
+  transform: translateX(-50%);
+  color: var(--muted-foreground);
 }
 
 .titlebar-controls {
@@ -79,5 +91,11 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
 
 .titlebar-control-close {
   @apply hover:bg-destructive-background hover:text-destructive-background-foreground;
+}
+
+@media (max-width: 900px) {
+  .titlebar-document-title {
+    @apply hidden;
+  }
 }
 </style>
