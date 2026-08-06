@@ -46,7 +46,6 @@ describe('chunkMarkdownDocument', () => {
     }
     for (let index = 1; index < chunks.length; index += 1) {
       expect(chunks[index].startOffset).toBeLessThan(chunks[index - 1].endOffset);
-      expect(chunks[index].startOffset).toBeLessThanOrEqual(chunks[index - 1].endOffset);
     }
 
     const firstContentOffset = body.indexOf('中');

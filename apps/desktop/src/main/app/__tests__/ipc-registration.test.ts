@@ -227,17 +227,20 @@ describe('renderer → main IPC 注册边界', () => {
     expect(classifiedChannels.toSorted()).toEqual(allRequestChannels.toSorted());
   });
 
-  it('调用应用注册表时按原顺序为每个频道选择 trusted 或对应 validator', () => {
+  it('调用应用注册表时为每个频道选择 trusted 或对应 validator', () => {
     const context = createContext();
 
     registerApplicationIpc(context);
 
-    expect(registrationMock.registrations).toHaveLength(expectedRegistrations.length);
+    const actualByChannel = new Map(
+      registrationMock.registrations.map(registration => [registration.channel, registration])
+    );
+    expect(actualByChannel.size).toBe(expectedRegistrations.length);
 
-    expectedRegistrations.forEach((expected, index) => {
-      const actual = registrationMock.registrations[index];
+    // 只比对频道→机制/validator 契约，不绑定注册顺序（顺序是实现细节）。
+    for (const expected of expectedRegistrations) {
+      const actual = actualByChannel.get(expected.channel);
 
-      expect(actual?.channel).toBe(expected.channel);
       expect(actual?.kind).toBe(expected.kind);
 
       if (expected.kind === 'validated') {
@@ -247,7 +250,7 @@ describe('renderer → main IPC 注册边界', () => {
           expect(actual.validator).toBe(expected.validator);
         }
       }
-    });
+    }
 
     expect(memoryIpcMock.registerMemoryIpc).toHaveBeenCalledTimes(1);
     expect(memoryIpcMock.registerMemoryIpc).toHaveBeenCalledWith(

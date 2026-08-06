@@ -63,11 +63,12 @@ describe('history compact components', () => {
     });
 
     expect(wrapper.classes()).toContain('history-item-selection');
-    expect(wrapper.find('.history-item-icon').exists()).toBe(false);
-    expect(wrapper.get('.history-item-title').text()).toBe('第一章讨论');
-    expect(wrapper.get('.history-item-stats').text()).toContain('12.3K token');
+    // 选中模式用 checkbox 接管主点击；标题/统计用用户可见内容定位。
+    expect(wrapper.find('[aria-label="选择 第一章讨论"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('第一章讨论');
+    expect(wrapper.get('[aria-label="会话统计"]').text()).toContain('12.3K token');
 
-    await wrapper.get('.history-item-select').trigger('click');
+    await wrapper.get('.history-item-title').trigger('click');
 
     expect(wrapper.emitted('toggleSelect')).toEqual([['session-1']]);
     expect(wrapper.emitted('select')).toBeUndefined();

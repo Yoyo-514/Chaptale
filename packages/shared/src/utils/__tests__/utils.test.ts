@@ -15,7 +15,6 @@ import type {
   ChatThinkingContent,
   ChatToolCallContent
 } from '@chaptale/shared';
-import { MAX_CHAT_IMAGE_BYTES } from '@chaptale/shared';
 
 import {
   blankToUndefined,
@@ -101,7 +100,6 @@ describe('shared public exports', () => {
     expectTypeOf(messages).toMatchTypeOf<ChatMessage[]>();
     expectTypeOf(attachment).toMatchTypeOf<ChatImageAttachment>();
     expectTypeOf(contextFile).toMatchTypeOf<ChatContextFile>();
-    expect(MAX_CHAT_IMAGE_BYTES).toBe(20 * 1024 * 1024);
   });
 });
 

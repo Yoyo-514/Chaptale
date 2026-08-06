@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  CharacterIssuesSchema,
-  ContinuityIssuesSchema,
-  StyleIssuesSchema,
-  decodeReviewIssues,
-  validateOutput
-} from '@chaptale/shared';
+import { decodeReviewIssues, validateOutput } from '@chaptale/shared';
 
 const continuityPayload = {
   issues: [
@@ -57,12 +51,6 @@ const stylePayload = {
 } as const;
 
 describe('review schemas', () => {
-  it('导出三个 reviewer schema', () => {
-    expect(ContinuityIssuesSchema).toBeDefined();
-    expect(CharacterIssuesSchema).toBeDefined();
-    expect(StyleIssuesSchema).toBeDefined();
-  });
-
   it('decodeReviewIssues 返回 continuity v1 结果', () => {
     expect(decodeReviewIssues('continuity', continuityPayload)).toEqual(continuityPayload);
   });

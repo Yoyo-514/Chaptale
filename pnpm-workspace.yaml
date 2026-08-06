@@ -16,14 +16,14 @@ allowBuilds:
 catalog:
   "@capacitor/cli": ^8.4.1
   "@capacitor/core": ^8.4.1
-  "@earendil-works/pi-coding-agent": ^0.83.0
-  "@earendil-works/pi-ai": ^0.83.0
-  pi-web-access: ^0.15.0
-  "@iconify-json/mingcute": ^1.2.7
+  "@earendil-works/pi-coding-agent": ^0.84.0
+  "@earendil-works/pi-ai": ^0.84.0
+  pi-web-access: ^0.18.0
+  "@iconify-json/mingcute": ^1.2.8
   "@node-rs/jieba": ^2.0.1
   "@types/node": ^26.1.2
   atomically: ^2.1.1
-  "@playwright/test": ^1.62.0
+  "@playwright/test": ^1.62.1
   "@vitest/coverage-v8": ^4.1.10
   "@vue/test-utils": ^2.4.11
   "@unocss/preset-icons": ^66.7.5
@@ -32,32 +32,32 @@ catalog:
   "@tanstack/vue-virtual": ^3.13.35
   clsx: ^2.1.1
   cross-env: ^10.1.0
-  electron: ^43.2.0
+  electron: ^43.3.0
   electron-builder: ^26.15.7
-  vite-plugin-electron: ^1.1.0
+  vite-plugin-electron: ^1.1.1
   happy-dom: ^20.11.1
   husky: ^9.1.7
-  lint-staged: ^17.2.0
+  lint-staged: ^17.3.0
   klona: ^2.0.6
-  marked: ^18.0.7
+  marked: ^18.0.9
   minisearch: ^7.2.0
   npm-run-all: ^4.1.5
   pinyin-pro: ^3.28.2
-  oxfmt: ^0.61.0
-  oxlint: ^1.76.0
+  oxfmt: ^0.62.0
+  oxlint: ^1.77.0
   radash: ^12.1.1
   reka-ui: ^2.10.1
   sass: ^1.102.0
-  turbo: ^2.10.7
-  typebox: ^1.3.8
+  turbo: ^2.10.8
+  typebox: ^1.3.11
   typescript: ^6.0.3
   unocss: ^66.7.5
   pinia: ^4.0.2
-  vite: ^8.1.5
+  vite: ^8.2.1
   vitest: ^4.1.10
-  vue: ^3.5.40
+  vue: ^3.5.41
   vue-router: ^5.2.0
-  vue-tsc: ^3.3.8
+  vue-tsc: ^3.3.9
   officeparser: ^7.5.1
 
 minimumReleaseAgeExclude:
@@ -118,3 +118,6 @@ minimumReleaseAgeExclude:
   - "@earendil-works/pi-coding-agent"
   - "@earendil-works/pi-tui"
   - pinia
+  - "@earendil-works/pi-client"
+  - "@earendil-works/pi-protocol"
+  - "@earendil-works/pi-telemetry"

@@ -20,7 +20,9 @@ describe('TitleBar', () => {
     const wrapper = mount(TitleBar, { attachTo: document.body });
 
     expect(wrapper.get('[role="menubar"]').attributes('aria-label')).toBe('应用菜单');
-    expect(wrapper.findAll('.app-menubar-trigger').map(trigger => trigger.text())).toEqual([
+    // 菜单项经 reka-ui 渲染为 menuitem；不断言具体 class 名。
+    const menuTriggers = wrapper.findAll('[role="menubar"] [role="menuitem"]');
+    expect(menuTriggers.map(trigger => trigger.text()).filter(Boolean)).toEqual([
       '文件',
       '编辑',
       '视图',
@@ -37,7 +39,7 @@ describe('TitleBar', () => {
     const workspaceStore = useWorkspaceStore();
     const openWorkspaceAction = vi.spyOn(workspaceStore, 'openWorkspace').mockResolvedValue(true);
     const wrapper = mount(TitleBar, { attachTo: document.body });
-    const fileTrigger = wrapper.findAll('.app-menubar-trigger')[0];
+    const fileTrigger = wrapper.findAll('[role="menubar"] [role="menuitem"]')[0];
 
     await fileTrigger?.trigger('keydown', { key: 'Enter' });
     await nextTick();

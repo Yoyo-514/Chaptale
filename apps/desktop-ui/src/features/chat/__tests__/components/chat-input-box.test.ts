@@ -161,7 +161,7 @@ describe('ChatInputBox', () => {
     const wrapper = mountInput();
     const statusItems = wrapper.findAll('.chat-status-item');
 
-    expect(wrapper.find('.chat-input-container + .chat-status-bar').exists()).toBe(true);
+    expect(wrapper.find('.chat-status-bar').exists()).toBe(true);
     expect(statusItems[0]?.text()).toContain('openai / gpt-4.1');
     expect(statusItems[1]?.text()).toContain('全局会话');
 

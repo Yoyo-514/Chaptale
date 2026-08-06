@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { ContextFileService } from '../../../../core/context/service';
+import { DEFAULT_CONTEXT_PRESSURE_THRESHOLD_PERCENT } from '../../../../features/memory/context-pressure';
 import { InputAssembler } from '../input-assembler';
 import { PiAgentService } from '../service';
 
@@ -690,7 +691,7 @@ describe('PiAgentService', () => {
       tokens: 72_000,
       contextWindow: 100_000,
       percent: 72,
-      thresholdPercent: 70,
+      thresholdPercent: DEFAULT_CONTEXT_PRESSURE_THRESHOLD_PERCENT,
       shouldPrompt: true
     });
   });

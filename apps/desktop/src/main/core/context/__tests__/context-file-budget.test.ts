@@ -10,6 +10,7 @@ vi.mock('../constants', async importOriginal => ({
 }));
 
 import type { AttachedFileSearchPort } from '../attached-file-search-port';
+import { MAX_SEARCH_TOKENS } from '../constants';
 import type { DocumentParserPort } from '../document-parser-port';
 import type { ContextFilePlatform } from '../platform';
 import { ContextFileService as ProductionContextFileService } from '../service';
@@ -76,7 +77,12 @@ describe('ContextFileService direct text budget', () => {
     expect(result.promptPrefix).toContain('heading="命中"');
     expect(result.promptPrefix).toContain('相关片段');
     expect(search.search).toHaveBeenCalledWith(
-      expect.objectContaining({ sourcePath: filePath, text: '12345678901', query: '查找相关内容', maxTokens: 8_000 })
+      expect.objectContaining({
+        sourcePath: filePath,
+        text: '12345678901',
+        query: '查找相关内容',
+        maxTokens: MAX_SEARCH_TOKENS
+      })
     );
   });
 

@@ -37,7 +37,7 @@ describe('WorkbenchLayout', () => {
     const wrapper = mount(WorkbenchLayout, {
       global: { stubs: splitterStubs }
     });
-    const tabs = wrapper.findAll('.workbench-auxiliary-tab');
+    const tabs = wrapper.findAll('.workbench-auxiliary-bar [role="tab"]');
 
     expect(tabs.map(tab => tab.text())).toEqual(['Agent', '参考', '审查']);
     expect(tabs[0]?.attributes('aria-selected')).toBe('true');

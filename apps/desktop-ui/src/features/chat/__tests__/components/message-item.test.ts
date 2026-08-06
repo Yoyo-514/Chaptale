@@ -190,17 +190,18 @@ describe('MessageItem', () => {
       content: [{ type: 'text', text: '写到一半' }],
       stopReason: 'aborted'
     });
-    expect(aborted.find('.message-stop-notice').text()).toContain('已手动停止');
+    expect(aborted.text()).toContain('已手动停止');
 
     const truncated = mountMessage({
       role: 'assistant',
       content: [{ type: 'text', text: '太长了' }],
       stopReason: 'length'
     });
-    expect(truncated.find('.message-stop-notice').text()).toContain('达到输出长度上限');
+    expect(truncated.text()).toContain('达到输出长度上限');
 
     const normal = mountMessage({ role: 'assistant', content: [{ type: 'text', text: '完整' }], stopReason: 'stop' });
-    expect(normal.find('.message-stop-notice').exists()).toBe(false);
+    expect(normal.text()).not.toContain('已手动停止');
+    expect(normal.text()).not.toContain('达到输出长度上限');
   });
 
   it('shows timestamp and token usage in the hover meta line', () => {
@@ -211,17 +212,17 @@ describe('MessageItem', () => {
       usage: { inputTokens: 900, outputTokens: 300, totalTokens: 1200, cost: 0.0042 }
     });
 
-    const meta = wrapper.find('.message-meta').text();
+    const meta = wrapper.text();
     expect(meta).toContain('1.2K tokens');
     expect(meta).toContain('$0.0042');
 
     const noUsage = mountMessage({ role: 'assistant', content: [{ type: 'text', text: '回答' }] });
-    expect(noUsage.find('.message-meta').exists()).toBe(false);
+    expect(noUsage.text()).not.toContain('tokens');
   });
 
   it('shows pending steer state and allows queued editing while busy', async () => {
     const queued = mountMessage({ role: 'user', content: '调整方向' }, { isBusy: true, deliveryState: 'queued' });
-    expect(queued.find('.message-meta').text()).toContain('待处理');
+    expect(queued.text()).toContain('待处理');
     expect(queued.find('.edit').attributes('disabled')).toBeUndefined();
     await queued.find('.edit').trigger('click');
     expect(queued.emitted('editUser')).toEqual([['display-1']]);
@@ -230,7 +231,7 @@ describe('MessageItem', () => {
       { role: 'user', content: '正在提交' },
       { isBusy: true, deliveryState: 'submitting' }
     );
-    expect(submitting.find('.message-meta').text()).toContain('发送中');
+    expect(submitting.text()).toContain('发送中');
     expect(submitting.find('.edit').attributes('disabled')).toBeDefined();
   });
 
@@ -240,10 +241,9 @@ describe('MessageItem', () => {
       { compactionBefore: { summary: '之前讨论了大纲。', tokensBefore: 32000 } }
     );
 
-    const notice = wrapper.find('.message-compaction');
-    expect(notice.exists()).toBe(true);
-    expect(notice.text()).toContain('32.0K');
-    expect(notice.text()).toContain('之前讨论了大纲。');
+    const notice = wrapper.text();
+    expect(notice).toContain('32.0K');
+    expect(notice).toContain('之前讨论了大纲。');
   });
 
   it('renders inline images from assistant and tool result messages', () => {

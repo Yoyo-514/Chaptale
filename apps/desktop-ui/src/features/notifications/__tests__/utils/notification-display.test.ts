@@ -10,8 +10,14 @@ describe('notification-display', () => {
   });
 
   it('formats timestamps as a short user-visible time', () => {
-    const formatted = formatNotificationTime(new Date('2026-07-06T08:05:00Z').getTime());
+    const timestamp = new Date('2026-07-06T08:05:00Z').getTime();
+    const expected = new Date(timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
-    expect(formatted).toMatch(/\d{1,2}:\d{2}/);
+    // 必须输出与 hour/minute 选项一致的短时间（时区无关，避免 CI 与本地时区差异）。
+    expect(formatNotificationTime(timestamp)).toBe(expected);
+    expect(formatNotificationTime(timestamp)).toMatch(/\d{1,2}:\d{2}/);
   });
 });

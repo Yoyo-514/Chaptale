@@ -164,7 +164,19 @@ describe('ChatSessionFactory', () => {
     expect(bound.session).toEqual(expect.objectContaining({ id: 'agent-session' }));
   });
 
-  it('applies the companion whitelist and binds security context to the session workspace', async () => {
+  /** 共享 setup：创建带 companion persona 的 factory，返回相关 mock 句柄。 */
+  async function createCompanionFactory(
+    rootDir: string,
+    companion: PersonaDefinition,
+    tools: Array<{
+      name: string;
+      label: string;
+      description: string;
+      riskLevel: 'readonly' | 'mutating';
+      parameters: unknown;
+      execute: () => Promise<{ text: string }>;
+    }> = []
+  ) {
     const sessionCwd = path.join(rootDir, 'workspace-a');
     const sessionDir = path.join(rootDir, 'sessions', 'workspace-a');
     const sessionPath = path.join(sessionDir, 'session-1.jsonl');
@@ -174,16 +186,6 @@ describe('ChatSessionFactory', () => {
     sdkMocks.open.mockReturnValue({ id: 'manager' });
     sdkMocks.settingsCreate.mockReturnValue({ id: 'settings' });
     sdkMocks.createAgentSession.mockResolvedValue({ session: { id: 'agent-session' } });
-    const companion: PersonaDefinition = {
-      id: 'companion',
-      name: '受限伙伴',
-      type: 'chat' as const,
-      execution: 'chat' as const,
-      body: '受限伙伴提示词',
-      source: 'workspace' as const,
-      tools: ['memory_search'],
-      memory: { read: ['canon'], write: [], propose: [] }
-    };
     const settingsService = {
       rootDir,
       agentDir: path.join(rootDir, 'agent'),
@@ -193,23 +195,7 @@ describe('ChatSessionFactory', () => {
     };
     const personaRegistry = { get: vi.fn(async () => companion) };
     const skillsProvider = { load: vi.fn(() => ({ skills: [], diagnostics: [] })) };
-    const buildTools = vi.fn(async () => [
-      {
-        name: 'memory_search',
-        label: '检索作品记忆',
-        description: 'search',
-        riskLevel: 'readonly' as const,
-        parameters: Type.Object({ query: Type.String() }),
-        execute: vi.fn(async () => ({ text: 'result' }))
-      },
-      {
-        name: 'memory_save',
-        label: '保存记忆',
-        description: 'save',
-        parameters: Type.Object({}),
-        execute: vi.fn(async () => ({ text: 'saved' }))
-      }
-    ]);
+    const buildTools = vi.fn(async () => tools);
     const factory = new ChatSessionFactory({
       settingsService: settingsService as any,
       modelService: { getModelRuntime: vi.fn(async () => ({ id: 'runtime' })) } as any,
@@ -222,6 +208,43 @@ describe('ChatSessionFactory', () => {
       buildChatTools: buildTools as any,
       buildCompactExt: () => noCompactExt as any
     });
+    return { sessionCwd, sessionPath, settingsService, personaRegistry, skillsProvider, buildTools, factory };
+  }
+
+  it('applies the companion whitelist and binds security context to the session workspace', async () => {
+    const companion: PersonaDefinition = {
+      id: 'companion',
+      name: '受限伙伴',
+      type: 'chat' as const,
+      execution: 'chat' as const,
+      body: '受限伙伴提示词',
+      source: 'workspace' as const,
+      tools: ['memory_search'],
+      memory: { read: ['canon'], write: [], propose: [] }
+    };
+    const toolDefinitions = [
+      {
+        name: 'memory_search',
+        label: '检索作品记忆',
+        description: 'search',
+        riskLevel: 'readonly' as const,
+        parameters: Type.Object({ query: Type.String() }),
+        execute: vi.fn(async () => ({ text: 'result' }))
+      },
+      {
+        name: 'memory_save',
+        label: '保存记忆',
+        description: 'save',
+        riskLevel: 'mutating' as const,
+        parameters: Type.Object({}),
+        execute: vi.fn(async () => ({ text: 'saved' }))
+      }
+    ];
+    const { sessionCwd, personaRegistry, skillsProvider, buildTools, factory } = await createCompanionFactory(
+      rootDir,
+      companion,
+      toolDefinitions
+    );
 
     await factory.create('session-1');
 
@@ -233,9 +256,41 @@ describe('ChatSessionFactory', () => {
     expect(options.cwd).toBe(sessionCwd);
     expect(options.tools).toEqual(['memory_search']);
     expect(options.customTools).toEqual([expect.objectContaining({ name: 'memory_search' })]);
+  });
 
-    personaRegistry.get.mockResolvedValue({ ...companion, tools: undefined });
+  it('falls back to the default tool set when the persona declares no tools', async () => {
+    const companion: PersonaDefinition = {
+      id: 'companion',
+      name: '受限伙伴',
+      type: 'chat' as const,
+      execution: 'chat' as const,
+      body: '受限伙伴提示词',
+      source: 'workspace' as const,
+      tools: undefined,
+      memory: { read: ['canon'], write: [], propose: [] }
+    };
+    const toolDefinitions = [
+      {
+        name: 'memory_search',
+        label: '检索作品记忆',
+        description: 'search',
+        riskLevel: 'readonly' as const,
+        parameters: Type.Object({ query: Type.String() }),
+        execute: vi.fn(async () => ({ text: 'result' }))
+      },
+      {
+        name: 'memory_save',
+        label: '保存记忆',
+        description: 'save',
+        riskLevel: 'mutating' as const,
+        parameters: Type.Object({}),
+        execute: vi.fn(async () => ({ text: 'saved' }))
+      }
+    ];
+    const { personaRegistry, factory } = await createCompanionFactory(rootDir, companion, toolDefinitions);
+
     await factory.create('session-1');
+
     const defaultOptions = sdkMocks.createAgentSession.mock.calls.at(-1)?.[0];
     expect(defaultOptions.tools).toEqual(
       expect.arrayContaining(['read', 'grep', 'web_search', 'memory_search', 'memory_save'])
@@ -244,6 +299,21 @@ describe('ChatSessionFactory', () => {
       'memory_search',
       'memory_save'
     ]);
+    expect(personaRegistry.get).toHaveBeenCalled();
+  });
+
+  it('rejects sessions whose persisted workspace is empty without touching the current cwd', async () => {
+    const companion: PersonaDefinition = {
+      id: 'companion',
+      name: '受限伙伴',
+      type: 'chat' as const,
+      execution: 'chat' as const,
+      body: '受限伙伴提示词',
+      source: 'workspace' as const,
+      tools: ['memory_search'],
+      memory: { read: ['canon'], write: [], propose: [] }
+    };
+    const { sessionPath, settingsService, factory } = await createCompanionFactory(rootDir, companion);
 
     sdkMocks.listAll.mockResolvedValue([{ id: 'session-1', cwd: '', path: sessionPath }]);
     settingsService.getCurrentCwd.mockClear();

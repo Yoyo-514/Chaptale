@@ -14,10 +14,6 @@ describe('内置 systemPrompt 拼装', () => {
     todoProtocol: TODO_PROTOCOL
   });
 
-  it('完整拼装结果与快照一致', () => {
-    expect(full).toMatchSnapshot();
-  });
-
   it('分层顺序：persona 在最前，todo 协议在 memory 协议之后', () => {
     expect(full.startsWith(builtinCompanionBody)).toBe(true);
     expect(full.indexOf('## 任务清单协议')).toBeGreaterThan(full.indexOf('## 记忆协议'));

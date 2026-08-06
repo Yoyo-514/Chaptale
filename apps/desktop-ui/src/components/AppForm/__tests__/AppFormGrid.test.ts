@@ -12,16 +12,14 @@ describe('AppFormGrid', () => {
     });
 
     expect(wrapper.classes()).toContain('app-form-grid-responsive');
-    expect(wrapper.classes()).toContain('app-form-grid-gap-sm');
     expect(wrapper.attributes('data-slot')).toBe('app-form-grid');
     expect(wrapper.text()).toBe('字段');
   });
 
-  it('supports fixed columns, gap and native attributes', () => {
+  it('supports fixed columns and native attributes', () => {
     const wrapper = mount(AppFormGrid, {
       props: {
-        columns: 2,
-        gap: 'lg'
+        columns: 2
       },
       attrs: {
         class: 'custom-grid',
@@ -30,7 +28,6 @@ describe('AppFormGrid', () => {
     });
 
     expect(wrapper.classes()).toContain('app-form-grid-2');
-    expect(wrapper.classes()).toContain('app-form-grid-gap-lg');
     expect(wrapper.classes()).toContain('custom-grid');
     expect(wrapper.attributes('role')).toBe('group');
   });

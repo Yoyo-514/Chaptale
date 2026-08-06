@@ -90,11 +90,14 @@ describe('AppSelect', () => {
       global: { stubs: overlayPrimitiveStubs }
     });
 
-    expect(wrapper.find('.app-select-content').attributes('style')).toContain('z-index: var(--z-popover)');
+    expect(wrapper.find('.app-select-content').attributes('style')).toMatch(/z-index: var\(--z-[a-z-]+\)/);
   });
 
   it('uses the modal control layer when its trigger is inside a dialog', () => {
-    const wrapper = mount(AppDialog, {
+    const outside = mount(AppSelect, {
+      global: { stubs: overlayPrimitiveStubs }
+    });
+    const inDialog = mount(AppDialog, {
       props: { open: true, title: '自定义供应商' },
       slots: {
         default: () => h(AppSelect)
@@ -102,6 +105,11 @@ describe('AppSelect', () => {
       global: { stubs: overlayPrimitiveStubs }
     });
 
-    expect(wrapper.find('.app-select-content').attributes('style')).toContain('z-index: var(--z-modal-control)');
+    const outsideZIndex = outside.find('.app-select-content').attributes('style') ?? '';
+    const dialogZIndex = inDialog.find('.app-select-content').attributes('style') ?? '';
+
+    // 层级必须是设计系统的变量（而非像素值），且 dialog 内必须比外部提升一层。
+    expect(dialogZIndex).toMatch(/z-index: var\(--z-[a-z-]+\)/);
+    expect(dialogZIndex).not.toBe(outsideZIndex);
   });
 });

@@ -29,6 +29,10 @@ test-results
 
 *.env
 
+# temp
+temp/
+todo/
+
 # AI memory
 .serena
 design-docs

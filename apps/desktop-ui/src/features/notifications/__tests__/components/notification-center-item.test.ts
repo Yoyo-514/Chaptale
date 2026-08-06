@@ -19,13 +19,12 @@ describe('NotificationCenterItem', () => {
 
     expect(wrapper.classes()).toContain('is-manual');
 
-    const mainRow = wrapper.get('.notification-item-main-row');
-    expect(mainRow.find('.notification-item-icon').exists()).toBe(true);
-    expect(mainRow.get('.notification-item-title').text()).toBe('保存失败');
-    expect(mainRow.get('.notification-item-toolbar').get('button').attributes('aria-label')).toBe('移除通知');
+    // 图标是 aria-hidden 装饰，不参与行为断言；title/描述/时间都是用户可见内容。
+    expect(wrapper.text()).toContain('保存失败');
+    expect(wrapper.find('button[aria-label="移除通知"]').exists()).toBe(true);
 
-    expect(wrapper.get('.notification-item-description').text()).toBe('无法写入当前文件，请检查文件权限。');
-    const time = wrapper.get('.notification-item-details-row time');
+    expect(wrapper.text()).toContain('无法写入当前文件，请检查文件权限。');
+    const time = wrapper.get('time');
     expect(time.attributes('datetime')).toBe('2026-07-12T08:05:00.000Z');
     expect(time.text()).not.toBe('');
   });
@@ -42,10 +41,11 @@ describe('NotificationCenterItem', () => {
     });
 
     expect(wrapper.classes()).toContain('is-auto');
-    expect(wrapper.find('.notification-item-description').exists()).toBe(false);
-    expect(wrapper.find('.notification-item-details-row').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('无法写入当前文件，请检查文件权限。');
+    // 无描述时仍保留 details 行（时间戳）。
+    expect(wrapper.find('time').exists()).toBe(true);
 
-    await wrapper.get('.notification-item-toolbar button').trigger('click');
+    await wrapper.get('button[aria-label="移除通知"]').trigger('click');
     expect(wrapper.emitted('dismiss')).toEqual([[7]]);
   });
 });

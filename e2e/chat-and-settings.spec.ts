@@ -453,7 +453,7 @@ test('mixed attachments keep compact tiles in the input while sent images render
 }) => {
   await page.goto('/');
 
-  await page.getByRole('button', { name: '添加文件' }).click();
+  await page.getByRole('button', { name: '添加上下文文件' }).click();
   await expect(page.getByText('outline.md')).toBeVisible();
   await expect(page.locator('.chat-context-attachments-input .app-image-thumbnail-grid')).toBeVisible();
   await expect(page.locator('.chat-context-attachments-input .app-image-thumbnail-item')).toHaveCount(9);
@@ -573,7 +573,7 @@ test('web search toggle updates settings and stays in sync with the settings pan
     .toEqual({ webSearchEnabled: false });
 
   await page.getByLabel('打开设置').click();
-  await page.getByRole('button', { name: /联网/ }).click();
+  await page.getByRole('button', { name: '联网 搜索、提取与 API Key' }).click();
 
   await expect(page.getByRole('heading', { name: '联网与内容提取' })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: /启用联网搜索/ })).toHaveAttribute('aria-checked', 'false');

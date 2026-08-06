@@ -59,7 +59,9 @@ describe('SkillsProvider', () => {
     const result = provider.load(cwd);
 
     expect(result.skills.map(skill => skill.name)).toEqual(['valid-skill']);
+    // 无效技能必须产出可操作的诊断（指向问题文件），而不是被静默丢弃。
     expect(result.diagnostics.length).toBeGreaterThan(0);
+    expect(result.diagnostics.some(diagnostic => diagnostic.path?.includes('Invalid Skill'))).toBe(true);
   });
 
   it('loads builtin skills with the lowest precedence', async () => {

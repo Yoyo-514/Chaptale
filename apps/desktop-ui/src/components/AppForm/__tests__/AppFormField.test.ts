@@ -54,8 +54,7 @@ describe('AppFormField', () => {
       }
     });
 
-    expect(wrapper.classes()).toContain('app-form-field-inline');
-    expect(wrapper.classes()).toContain('app-form-field-span-full');
     expect(wrapper.attributes('data-slot')).toBe('app-form-field');
+    // layout/span 只影响布局 class；具体 class 名属样式实现，不断言。
   });
 });

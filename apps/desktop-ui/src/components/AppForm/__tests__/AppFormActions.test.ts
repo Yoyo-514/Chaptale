@@ -16,11 +16,10 @@ describe('AppFormActions', () => {
     expect(wrapper.find('[data-slot="app-form-actions-main"] button').text()).toBe('保存');
   });
 
-  it('supports leading actions, compact spacing and sticky mode', () => {
+  it('supports leading actions and sticky mode', () => {
     const wrapper = mount(AppFormActions, {
       props: {
         align: 'between',
-        compact: true,
         sticky: true
       },
       attrs: {
@@ -34,7 +33,6 @@ describe('AppFormActions', () => {
     });
 
     expect(wrapper.classes()).toContain('app-form-actions-between');
-    expect(wrapper.classes()).toContain('app-form-actions-compact');
     expect(wrapper.classes()).toContain('app-form-actions-sticky');
     expect(wrapper.classes()).toContain('custom-actions');
     expect(wrapper.attributes('aria-label')).toBe('表单操作');

@@ -72,7 +72,7 @@ describe('chat message components', () => {
     expect(cards).toHaveLength(1);
     expect(cards[0]?.text()).toContain('outline.md');
     expect(cards[0]?.attributes('title')).toBe('outline.md');
-    expect(wrapper.find('.app-image-gallery-image').attributes()).toMatchObject({
+    expect(wrapper.find('[data-slot="app-image-gallery"] img').attributes()).toMatchObject({
       src: 'data:image/png;base64,YWJj',
       loading: 'lazy',
       decoding: 'async'
@@ -100,10 +100,11 @@ describe('chat message components', () => {
       }
     });
 
-    expect(wrapper.find('.app-image-thumbnail-grid').exists()).toBe(true);
-    expect(wrapper.findAll('.app-image-thumbnail-item')).toHaveLength(9);
+    // 图片瓦片是共享组件 AppImageThumbnailGrid 的渲染结果；按语义（预览按钮）计数，不断言内部 class。
+    expect(wrapper.find('[data-slot="app-image-thumbnail-grid"]').exists()).toBe(true);
+    expect(wrapper.findAll('[data-slot="app-image-thumbnail-grid"] button[aria-label^="预览 "]')).toHaveLength(9);
     expect(wrapper.findAll('.chat-context-file-card')).toHaveLength(2);
-    expect(wrapper.find('.app-image-thumbnail-grid .chat-context-file-card').exists()).toBe(false);
+    expect(wrapper.find('[data-slot="app-image-thumbnail-grid"] .chat-context-file-card').exists()).toBe(false);
   });
 
   it('renders assistant reasoning, answer markdown, and streaming indicator', async () => {
