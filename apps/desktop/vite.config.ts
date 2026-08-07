@@ -4,7 +4,7 @@ import UnoCSS from 'unocss/vite';
 import { defineConfig } from 'vite';
 import electron from 'vite-plugin-electron/simple';
 
-const desktopRoot = __dirname;
+const desktopRoot = import.meta.dirname;
 const rendererRoot = path.resolve(desktopRoot, '../desktop-ui');
 const ipcPackageRoot = path.resolve(desktopRoot, '../../packages/ipc/src');
 

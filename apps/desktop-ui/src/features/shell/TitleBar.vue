@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import appIconUrl from '../../../public/favicon.ico?url';
 import TitleBarMenu from './TitleBarMenu.vue';
 import { useWindowControls } from './useWindowControls';
+
+// public 目录资源按根路径引用；动态绑定可避免 plugin-vue 将其作为模块导入（vitest 环境会解析失败）
+const appIconUrl = '/favicon.ico';
 
 const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowControls();
 </script>

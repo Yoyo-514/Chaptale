@@ -7,7 +7,7 @@ export const vitestProjects = [
     plugins: [vue()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './apps/desktop-ui/src')
+        '@': path.resolve(import.meta.dirname, './apps/desktop-ui/src')
       }
     },
     test: {

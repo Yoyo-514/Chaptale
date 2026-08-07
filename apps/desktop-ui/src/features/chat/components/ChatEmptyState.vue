@@ -3,6 +3,9 @@ import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
 import { formatSessionTime, getSessionTitle } from '@/utils/session-display';
 
+// public 目录资源按根路径引用；动态绑定可避免 plugin-vue 将其作为模块导入（vitest 环境会解析失败）
+const appIconUrl = '/favicon.ico';
+
 const props = defineProps<{
   recentSessions: ChaptaleSessionListItem[];
 }>();
@@ -14,7 +17,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="chat-empty-state">
-    <img class="chat-empty-icon" src="/favicon.ico" alt="Chaptale" />
+    <img class="chat-empty-icon" :src="appIconUrl" alt="Chaptale" />
     <p class="chat-empty-tip">今天想写什么？</p>
 
     <div v-if="props.recentSessions.length > 0" class="chat-recent-section">
