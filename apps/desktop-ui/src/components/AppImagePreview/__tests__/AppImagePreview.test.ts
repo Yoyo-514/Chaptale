@@ -51,6 +51,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function scaleOfStyle(style: string) {
+  return Number(style.match(/scale\(([\d.]+)\)/)?.[1] ?? 1);
+}
+
 describe('AppImagePreview', () => {
   it('renders compact lazy thumbnails without opening the lightbox', () => {
     const items = createItems(9);
@@ -189,43 +193,42 @@ describe('AppImagePreview', () => {
     await flushPromises();
 
     const imageStyle = () => wrapper.find('.app-image-lightbox-image').attributes('style') ?? '';
-    const scaleOf = (style: string) => Number(style.match(/scale\(([\d.]+)\)/)?.[1] ?? 1);
-    expect(scaleOf(imageStyle())).toBe(1);
+    expect(scaleOfStyle(imageStyle())).toBe(1);
 
     // 滚轮放大（相对断言，不绑定步进常量）
     await wrapper.find('.app-image-lightbox-viewport').trigger('wheel', { deltaY: -100 });
-    const wheelScale = scaleOf(imageStyle());
+    const wheelScale = scaleOfStyle(imageStyle());
     expect(wheelScale).toBeGreaterThan(1);
     expect(wrapper.find('.app-image-lightbox-zoom-value').text()).toBe(`${Math.round(wheelScale * 100)}%`);
 
     // 按钮放大后继续变大，缩小后回到滚轮后的档位
     await wrapper.find('[aria-label="放大"]').trigger('click');
-    expect(scaleOf(imageStyle())).toBeGreaterThan(wheelScale);
+    expect(scaleOfStyle(imageStyle())).toBeGreaterThan(wheelScale);
 
     await wrapper.find('[aria-label="缩小"]').trigger('click');
-    expect(scaleOf(imageStyle())).toBe(wheelScale);
+    expect(scaleOfStyle(imageStyle())).toBe(wheelScale);
 
     await wrapper.find('[aria-label="重置缩放"]').trigger('click');
-    expect(scaleOf(imageStyle())).toBe(1);
+    expect(scaleOfStyle(imageStyle())).toBe(1);
 
     // 双击在 1x 与固定倍数间切换；再双击回到 1x
     await wrapper.find('.app-image-lightbox-image').trigger('dblclick');
-    const doubleClickScale = scaleOf(imageStyle());
+    const doubleClickScale = scaleOfStyle(imageStyle());
     expect(doubleClickScale).toBeGreaterThan(1);
     await wrapper.find('.app-image-lightbox-image').trigger('dblclick');
-    expect(scaleOf(imageStyle())).toBe(1);
+    expect(scaleOfStyle(imageStyle())).toBe(1);
 
     // 键盘 + 放大、0 复位
     await wrapper.find('.dialog-content-stub').trigger('keydown', { key: '+' });
-    expect(scaleOf(imageStyle())).toBeGreaterThan(1);
+    expect(scaleOfStyle(imageStyle())).toBeGreaterThan(1);
     await wrapper.find('.dialog-content-stub').trigger('keydown', { key: '0' });
-    expect(scaleOf(imageStyle())).toBe(1);
+    expect(scaleOfStyle(imageStyle())).toBe(1);
 
     // 切图复位缩放
     await wrapper.find('.app-image-lightbox-viewport').trigger('wheel', { deltaY: -100 });
     await wrapper.find('[aria-label="下一张图片"]').trigger('click');
     await flushPromises();
-    expect(scaleOf(imageStyle())).toBe(1);
+    expect(scaleOfStyle(imageStyle())).toBe(1);
   });
 
   it('emits removal without opening the lightbox', async () => {

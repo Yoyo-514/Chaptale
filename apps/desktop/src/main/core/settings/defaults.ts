@@ -1,32 +1,14 @@
 import { klona } from 'klona';
 
-import type { ChaptaleSettings, PiWebAccessSettings, UpdatePiWebAccessSettingsPayload } from '@chaptale/ipc-contract';
+import type { ChaptaleSettings, UpdateWebToolsSettingsPayload, WebToolsSettings } from '@chaptale/ipc-contract';
 
 export const SETTINGS_VERSION = 1;
 
-export const DEFAULT_WEB_ACCESS_SETTINGS: PiWebAccessSettings = {
-  webSearchEnabled: true,
-  provider: 'auto',
-  workflow: 'none',
-  allowBrowserCookies: false,
-  curatorTimeoutSeconds: 20,
-  githubClone: {
-    enabled: true,
-    maxRepoSizeMB: 350,
-    cloneTimeoutSeconds: 30
-  },
-  youtube: {
-    enabled: true,
-    preferredModel: 'gemini-3-flash-preview'
-  },
-  video: {
-    enabled: true,
-    preferredModel: 'gemini-3-flash-preview',
-    maxSizeMB: 50
-  },
-  ssrf: {
-    allowRanges: []
-  }
+export const DEFAULT_WEB_TOOLS_SETTINGS: WebToolsSettings = {
+  search: { enabled: true, provider: 'duckduckgo' },
+  keys: {},
+  fetch: { timeoutSeconds: 30, maxBytes: 2 * 1024 * 1024 },
+  ssrf: { allowRanges: [] }
 };
 
 export const DEFAULT_SETTINGS: ChaptaleSettings = {
@@ -39,6 +21,10 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
 /** 返回隔离的默认配置，避免调用方修改共享常量后污染后续初始化。 */
 export function cloneDefaultSettings(): ChaptaleSettings {
   return klona(DEFAULT_SETTINGS);
+}
+
+export function cloneDefaultWebToolsSettings(): WebToolsSettings {
+  return klona(DEFAULT_WEB_TOOLS_SETTINGS);
 }
 
 /**
@@ -57,45 +43,28 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
 }
 
 /**
- * 按字段合并 Web Access 设置，使新增选项可以在不重写用户密钥和嵌套 provider 配置的情况下获得默认值。
+ * 嵌套分组合并联网设置；未提交的分组保持现值，使部分更新不会覆盖其余选项。
  */
-export function mergeWebAccessSettings(value: UpdatePiWebAccessSettingsPayload | undefined): PiWebAccessSettings {
+export function mergeWebToolsSettings(
+  current: WebToolsSettings,
+  payload: UpdateWebToolsSettingsPayload
+): WebToolsSettings {
   return {
-    webSearchEnabled: value?.webSearchEnabled ?? DEFAULT_WEB_ACCESS_SETTINGS.webSearchEnabled,
-    provider: value?.provider ?? DEFAULT_WEB_ACCESS_SETTINGS.provider,
-    workflow: value?.workflow ?? DEFAULT_WEB_ACCESS_SETTINGS.workflow,
-    openaiApiKey: value?.openaiApiKey ?? DEFAULT_WEB_ACCESS_SETTINGS.openaiApiKey,
-    braveApiKey: value?.braveApiKey ?? DEFAULT_WEB_ACCESS_SETTINGS.braveApiKey,
-    exaApiKey: value?.exaApiKey ?? DEFAULT_WEB_ACCESS_SETTINGS.exaApiKey,
-    parallelApiKey: value?.parallelApiKey ?? DEFAULT_WEB_ACCESS_SETTINGS.parallelApiKey,
-    tavilyApiKey: value?.tavilyApiKey ?? DEFAULT_WEB_ACCESS_SETTINGS.tavilyApiKey,
-    perplexityApiKey: value?.perplexityApiKey ?? DEFAULT_WEB_ACCESS_SETTINGS.perplexityApiKey,
-    geminiApiKey: value?.geminiApiKey ?? DEFAULT_WEB_ACCESS_SETTINGS.geminiApiKey,
-    geminiBaseUrl: value?.geminiBaseUrl ?? DEFAULT_WEB_ACCESS_SETTINGS.geminiBaseUrl,
-    cloudflareApiKey: value?.cloudflareApiKey ?? DEFAULT_WEB_ACCESS_SETTINGS.cloudflareApiKey,
-    allowBrowserCookies: value?.allowBrowserCookies ?? DEFAULT_WEB_ACCESS_SETTINGS.allowBrowserCookies,
-    chromeProfile: value?.chromeProfile ?? DEFAULT_WEB_ACCESS_SETTINGS.chromeProfile,
-    searchModel: value?.searchModel ?? DEFAULT_WEB_ACCESS_SETTINGS.searchModel,
-    summaryModel: value?.summaryModel ?? DEFAULT_WEB_ACCESS_SETTINGS.summaryModel,
-    curatorTimeoutSeconds: value?.curatorTimeoutSeconds ?? DEFAULT_WEB_ACCESS_SETTINGS.curatorTimeoutSeconds,
-    githubClone: {
-      enabled: value?.githubClone?.enabled ?? DEFAULT_WEB_ACCESS_SETTINGS.githubClone.enabled,
-      maxRepoSizeMB: value?.githubClone?.maxRepoSizeMB ?? DEFAULT_WEB_ACCESS_SETTINGS.githubClone.maxRepoSizeMB,
-      cloneTimeoutSeconds:
-        value?.githubClone?.cloneTimeoutSeconds ?? DEFAULT_WEB_ACCESS_SETTINGS.githubClone.cloneTimeoutSeconds,
-      clonePath: value?.githubClone?.clonePath ?? DEFAULT_WEB_ACCESS_SETTINGS.githubClone.clonePath
+    search: {
+      ...current.search,
+      ...payload.search
     },
-    youtube: {
-      enabled: value?.youtube?.enabled ?? DEFAULT_WEB_ACCESS_SETTINGS.youtube.enabled,
-      preferredModel: value?.youtube?.preferredModel ?? DEFAULT_WEB_ACCESS_SETTINGS.youtube.preferredModel
+    keys: {
+      ...current.keys,
+      ...payload.keys
     },
-    video: {
-      enabled: value?.video?.enabled ?? DEFAULT_WEB_ACCESS_SETTINGS.video.enabled,
-      preferredModel: value?.video?.preferredModel ?? DEFAULT_WEB_ACCESS_SETTINGS.video.preferredModel,
-      maxSizeMB: value?.video?.maxSizeMB ?? DEFAULT_WEB_ACCESS_SETTINGS.video.maxSizeMB
+    fetch: {
+      ...current.fetch,
+      ...payload.fetch
     },
     ssrf: {
-      allowRanges: value?.ssrf?.allowRanges ?? DEFAULT_WEB_ACCESS_SETTINGS.ssrf?.allowRanges ?? []
+      ...current.ssrf,
+      ...payload.ssrf
     }
   };
 }

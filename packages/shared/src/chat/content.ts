@@ -1,24 +1,17 @@
-import type { ChatImageContent } from './image';
+import type { ChatImageAttachment } from './image';
 
-export type ChatTextContent = {
+/** 用户消息文本段（OpenAI content part 形状）。 */
+export type ChatTextPart = {
   type: 'text';
   text: string;
-  textSignature?: string;
 };
 
-export type ChatThinkingContent = {
-  type: 'thinking';
-  thinking: string;
-  thinkingSignature?: string;
-  redacted?: boolean;
-};
+/** 用户消息内容：纯文本或分段（文本 + 轻量图片附件）。 */
+export type ChatUserContent = string | Array<ChatTextPart | ChatImageAttachment>;
 
-export type ChatToolCallContent = {
-  type: 'toolCall';
+/** assistant 消息上的工具调用（扁平数组，OpenAI tool_calls 形状）。 */
+export type ChatToolCall = {
   id: string;
   name: string;
-  arguments: Record<string, any>;
-  thoughtSignature?: string;
+  arguments: Record<string, unknown>;
 };
-
-export type ChatContentBlock = ChatTextContent | ChatThinkingContent | ChatImageContent | ChatToolCallContent;

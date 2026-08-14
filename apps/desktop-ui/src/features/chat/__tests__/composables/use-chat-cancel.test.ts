@@ -34,15 +34,10 @@ function createDeferred<T>() {
 function installDesktopMock(cancel: ReturnType<typeof vi.fn>) {
   const settings = {
     settings: { version: 1, storage: { mode: 'global' as const }, lastSessionId: 'session-1' },
-    webAccess: {
-      webSearchEnabled: true,
-      provider: 'auto' as const,
-      workflow: 'none' as const,
-      allowBrowserCookies: false,
-      curatorTimeoutSeconds: 20,
-      githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
-      youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
-      video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
+    webTools: {
+      search: { enabled: true, provider: 'duckduckgo' as const },
+      keys: {},
+      fetch: { timeoutSeconds: 30, maxBytes: 2 * 1024 * 1024 },
       ssrf: { allowRanges: [] }
     },
     paths: {}
@@ -58,7 +53,7 @@ function installDesktopMock(cancel: ReturnType<typeof vi.fn>) {
     settings: {
       getState: vi.fn().mockResolvedValue(settings),
       update: vi.fn().mockResolvedValue(settings),
-      updateWebAccess: vi.fn().mockResolvedValue(settings)
+      updateWebTools: vi.fn().mockResolvedValue(settings)
     },
     slashCommands: { list: vi.fn().mockResolvedValue([]) },
     models: { list: vi.fn().mockResolvedValue({ providers: [], models: [], defaultModel: undefined }) },

@@ -2,10 +2,9 @@ import type { Static } from 'typebox';
 
 import type {
   ChaptaleStorageModeSchema,
-  PiWebAccessProviderSchema,
-  PiWebAccessWorkflowSchema,
   UpdateChaptaleSettingsPayloadSchema,
-  UpdatePiWebAccessSettingsPayloadSchema
+  UpdateWebToolsSettingsPayloadSchema,
+  WebToolsProviderSchema
 } from './schemas/settings';
 
 export type ChaptaleStorageMode = Static<typeof ChaptaleStorageModeSchema>;
@@ -16,45 +15,25 @@ export type ChaptaleStorageSettings = {
   workspacePath?: string;
 };
 
-export type PiWebAccessProvider = Static<typeof PiWebAccessProviderSchema>;
+export type WebToolsProvider = Static<typeof WebToolsProviderSchema>;
 
-export type PiWebAccessWorkflow = Static<typeof PiWebAccessWorkflowSchema>;
-
-/** Chaptale 使用的完整 Web Access 设置快照；更新 payload 则允许只提交部分字段。 */
-export type PiWebAccessSettings = {
-  webSearchEnabled: boolean;
-  provider: PiWebAccessProvider;
-  workflow: PiWebAccessWorkflow;
-  openaiApiKey?: string;
-  braveApiKey?: string;
-  exaApiKey?: string;
-  parallelApiKey?: string;
-  tavilyApiKey?: string;
-  perplexityApiKey?: string;
-  geminiApiKey?: string;
-  geminiBaseUrl?: string;
-  cloudflareApiKey?: string;
-  allowBrowserCookies: boolean;
-  chromeProfile?: string;
-  searchModel?: string;
-  summaryModel?: string;
-  curatorTimeoutSeconds: number;
-  githubClone: {
+/** 聊天联网能力设置快照；更新 payload 允许只提交部分字段。 */
+export type WebToolsSettings = {
+  search: {
+    /** 聊天输入框的联网开关；关闭后 web_search 报错提示，fetch/get 不受影响。 */
     enabled: boolean;
-    maxRepoSizeMB: number;
-    cloneTimeoutSeconds: number;
-    clonePath?: string;
+    provider: WebToolsProvider;
   };
-  youtube: {
-    enabled: boolean;
-    preferredModel?: string;
+  keys: {
+    braveApiKey?: string;
+    tavilyApiKey?: string;
+    exaApiKey?: string;
   };
-  video: {
-    enabled: boolean;
-    preferredModel?: string;
-    maxSizeMB: number;
+  fetch: {
+    timeoutSeconds: number;
+    maxBytes: number;
   };
-  ssrf?: {
+  ssrf: {
     allowRanges: string[];
   };
 };
@@ -73,7 +52,7 @@ export type ChaptaleSettingsPaths = {
   piSettingsPath: string;
   piModelsPath: string;
   piAuthPath: string;
-  piWebAccessConfigPath: string;
+  webToolsConfigPath: string;
   sessionsRootDir: string;
   effectiveSessionDir: string;
   /** Renderer 绑定会话时使用的权威 cwd；避免前端自行推导 workspace 安全边界。 */
@@ -83,12 +62,12 @@ export type ChaptaleSettingsPaths = {
 export type ChaptaleSettingsState = {
   /** Chaptale 应用自身设置，持久化到 settings.json。 */
   settings: ChaptaleSettings;
-  /** pi-web-access 设置，持久化到 web-search.json。 */
-  webAccess: PiWebAccessSettings;
+  /** 联网能力设置，持久化到 web-tools.json。 */
+  webTools: WebToolsSettings;
   paths: ChaptaleSettingsPaths;
 };
 
-export type UpdatePiWebAccessSettingsPayload = Static<typeof UpdatePiWebAccessSettingsPayloadSchema>;
+export type UpdateWebToolsSettingsPayload = Static<typeof UpdateWebToolsSettingsPayloadSchema>;
 
 /** `lastSessionId` 传 null 表示清除已记忆的会话。 */
 export type UpdateChaptaleSettingsPayload = Static<typeof UpdateChaptaleSettingsPayloadSchema>;

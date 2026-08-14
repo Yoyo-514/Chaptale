@@ -104,9 +104,7 @@ function findMessageMatches(displayMessage: ChatDisplayMessage, index: number, k
     {
       id: displayMessage.id,
       index,
-      ...(message.role === 'toolResult'
-        ? { toolTarget: { callId: message.toolCallId, section: 'result' as const } }
-        : {})
+      ...(message.role === 'tool' ? { toolTarget: { callId: message.toolCallId, section: 'result' as const } } : {})
     }
   ];
 }

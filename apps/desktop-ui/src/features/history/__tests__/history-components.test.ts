@@ -18,8 +18,7 @@ function createSession(): ChaptaleSessionListItem {
     createdAt: '2026-07-04T00:00:00.000Z',
     updatedAt: '2026-07-04T08:05:00.000Z',
     scope: 'workspace',
-    totalTokens: 12_300,
-    totalCost: 0.12
+    totalTokens: 12_300
   };
 }
 

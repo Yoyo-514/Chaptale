@@ -62,47 +62,34 @@ function createSettingsStore() {
 }
 
 describe('LLM settings composables', () => {
-  it('derives visible provider/model state and switches model groups', async () => {
+  it('derives provider/model state and selects a provider', async () => {
     const store = createSettingsStore();
     const state = useLlmSettingsState(store);
 
-    expect(state.builtinCount.value).toBe(1);
-    expect(state.customCount.value).toBe(1);
+    expect(state.models.value).toHaveLength(2);
     expect(state.defaultModelLabel.value).toContain('GPT 4.1');
-    expect(state.selectedProviderId.value).toBe('openai');
+    expect(state.selectedProviderId.value).toBeTruthy();
 
-    state.setModelGroup('custom');
-    await Promise.resolve();
-    expect(state.visibleModels.value).toHaveLength(1);
-    expect(state.providerViews.value[0]?.provider).toBe('custom');
-    state.selectProvider(state.providerViews.value[0]!);
+    const customView = state.providerViews.value.find(view => view.provider === 'custom');
+    expect(customView).toBeTruthy();
+    state.selectProvider(customView!);
     expect(state.selectedProviderModels.value[0]?.id).toBe('custom-model');
   });
 
-  it('submits provider API keys for builtin and custom groups and clears successful input', async () => {
+  it('submits provider API keys and clears successful input', async () => {
     const store = createSettingsStore();
     const notification = { error: vi.fn(), success: vi.fn() } as any;
-    const activeModelGroup = ref<'builtin' | 'custom'>('builtin');
-    const auth = useLlmProviderAuth(store, notification, activeModelGroup);
+    const auth = useLlmProviderAuth(store, notification);
 
     expect(auth.getApiKeyPlaceholder({ authConfigured: true } as any)).toBe('••••••••••••');
-    auth.providerApiKeys.openai = ' sk-openai ';
-    await auth.submitProviderApiKey('openai');
-    expect(store.setProviderApiKey).toHaveBeenCalledWith('openai', 'sk-openai');
-    expect(auth.providerApiKeys.openai).toBe('');
-
-    activeModelGroup.value = 'custom';
-    auth.providerApiKeys.custom = 'sk-custom';
+    auth.providerApiKeys.custom = ' sk-custom ';
     await auth.submitProviderApiKey('custom');
     expect(store.setCustomProviderApiKey).toHaveBeenCalledWith('custom', 'sk-custom');
+    expect(auth.providerApiKeys.custom).toBe('');
     expect(auth.isApiKeySaving('custom')).toBe(false);
 
     await auth.removeProviderApiKey('custom');
     expect(store.removeCustomProviderApiKey).toHaveBeenCalledWith('custom');
-
-    activeModelGroup.value = 'builtin';
-    await auth.removeProviderApiKey('openai');
-    expect(store.removeProviderApiKey).toHaveBeenCalledWith('openai');
 
     auth.providerApiKeys.empty = ' ';
     await auth.submitProviderApiKey('empty');
@@ -112,18 +99,11 @@ describe('LLM settings composables', () => {
   it('fetches custom model lists and submits custom provider/model drafts', async () => {
     const store = createSettingsStore();
     const notification = { success: vi.fn(), error: vi.fn() } as any;
-    const activeModelGroup = ref<'builtin' | 'custom'>('builtin');
     const selectedProviderId = ref('');
     const selectedProviderModels = computed(() =>
       store.models.models.filter((model: any) => model.provider === 'custom')
     );
-    const forms = useLlmCustomModelForms(
-      store,
-      notification,
-      activeModelGroup,
-      selectedProviderId,
-      selectedProviderModels as any
-    );
+    const forms = useLlmCustomModelForms(store, notification, selectedProviderId, selectedProviderModels as any);
 
     forms.customProvider.provider = ' custom ';
     forms.customProvider.providerName = 'Custom';
@@ -176,7 +156,6 @@ describe('LLM settings composables', () => {
         ]
       })
     );
-    expect(activeModelGroup.value).toBe('custom');
     expect(selectedProviderId.value).toBe('custom');
     expect(store.clearFetchedCustomModels).toHaveBeenCalled();
     expect(forms.isCustomFormOpen.value).toBe(false);

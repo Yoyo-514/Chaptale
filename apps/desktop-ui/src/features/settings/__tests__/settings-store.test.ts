@@ -86,7 +86,7 @@ function installDesktopApi() {
     settings: {
       getState: vi.fn().mockResolvedValue(settingsState),
       update: vi.fn().mockResolvedValue(settingsState),
-      updateWebAccess: vi.fn().mockResolvedValue(settingsState),
+      updateWebTools: vi.fn().mockResolvedValue(settingsState),
       selectWorkspaceDir: vi.fn().mockResolvedValue({
         canceled: false,
         state: createSettingsState(false, 'E:/workspace-b', { mode: 'workspace', workspacePath: 'E:/workspace-b' })
@@ -187,15 +187,15 @@ describe('settings store', () => {
     const sessionStore = useSessionStore();
     const bindCwd = vi.spyOn(sessionStore, 'bindCwd').mockResolvedValue(undefined);
     const updatedState = createSettingsState(false, 'agent/global');
-    api.settings.updateWebAccess.mockResolvedValue(updatedState);
+    api.settings.updateWebTools.mockResolvedValue(updatedState);
 
-    await expect(store.updateWebAccess({ webSearchEnabled: false })).resolves.toBe(true);
+    await expect(store.updateWebTools({ search: { enabled: false } })).resolves.toBe(true);
     expect(store.state).toStrictEqual(updatedState);
 
     await store.useGlobalStorage();
     await store.openConfigDir();
 
-    expect(api.settings.updateWebAccess).toHaveBeenCalledWith({ webSearchEnabled: false });
+    expect(api.settings.updateWebTools).toHaveBeenCalledWith({ search: { enabled: false } });
     expect(api.settings.selectWorkspaceDir).not.toHaveBeenCalled();
     expect(api.settings.update).toHaveBeenCalledWith({ storage: { mode: 'global' } });
     expect(bindCwd).toHaveBeenCalledOnce();
@@ -209,9 +209,9 @@ describe('settings store', () => {
     const notifications = useNotificationStore();
     const beforeState = createSettingsState(true);
     store.state = beforeState as any;
-    api.settings.updateWebAccess.mockRejectedValue(new Error('save failed'));
+    api.settings.updateWebTools.mockRejectedValue(new Error('save failed'));
 
-    await expect(store.updateWebAccess({ webSearchEnabled: false })).resolves.toBe(false);
+    await expect(store.updateWebTools({ search: { enabled: false } })).resolves.toBe(false);
 
     expect(store.state).toStrictEqual(beforeState);
     expect(store.error).toBe('save failed');

@@ -55,7 +55,7 @@ import type {
   ChaptaleSettingsState,
   SelectWorkspaceDirResult,
   UpdateChaptaleSettingsPayload,
-  UpdatePiWebAccessSettingsPayload
+  UpdateWebToolsSettingsPayload
 } from './settings';
 import type { SlashCommand } from './slash-command';
 import type {
@@ -98,7 +98,7 @@ export type ChaptaleDesktopApi = {
   settings: {
     getState: () => Promise<ChaptaleSettingsState>;
     update: (payload: UpdateChaptaleSettingsPayload) => Promise<ChaptaleSettingsState>;
-    updateWebAccess: (payload: UpdatePiWebAccessSettingsPayload) => Promise<ChaptaleSettingsState>;
+    updateWebTools: (payload: UpdateWebToolsSettingsPayload) => Promise<ChaptaleSettingsState>;
     selectWorkspaceDir: () => Promise<SelectWorkspaceDirResult>;
     openConfigDir: () => Promise<void>;
   };

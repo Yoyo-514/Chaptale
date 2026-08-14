@@ -1,19 +1,16 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type {
-  ChatContentBlock,
   ChatContextFile,
   ChatImageAttachment,
-  ChatImageContent,
   ChatImageSource,
   ChatMessage,
   ChatMessageUsage,
   ChatRetryState,
   ChatSkillInvocation,
   ChatStopReason,
-  ChatTextContent,
-  ChatThinkingContent,
-  ChatToolCallContent
+  ChatTextPart,
+  ChatToolCall
 } from '@chaptale/shared';
 
 import {
@@ -39,14 +36,7 @@ import {
 
 describe('shared public exports', () => {
   it('keeps chat domain types and constants available from the package root', () => {
-    const text: ChatTextContent = { type: 'text', text: 'hello', textSignature: 'signature' };
-    const thinking: ChatThinkingContent = {
-      type: 'thinking',
-      thinking: 'reasoning',
-      thinkingSignature: 'signature',
-      redacted: false
-    };
-    const image: ChatImageContent = { type: 'image', data: 'base64', mimeType: 'image/png' };
+    const text: ChatTextPart = { type: 'text', text: 'hello' };
     const imageSource: ChatImageSource = {
       type: 'session-entry',
       sessionId: 'session-id',
@@ -63,14 +53,11 @@ describe('shared public exports', () => {
       thumbnailDataUrl: 'data:image/png;base64,base64',
       source: imageSource
     };
-    const toolCall: ChatToolCallContent = {
-      type: 'toolCall',
+    const toolCall: ChatToolCall = {
       id: 'tool-call-id',
       name: 'read',
-      arguments: { path: '/tmp/example.txt' },
-      thoughtSignature: 'signature'
+      arguments: { path: '/tmp/example.txt' }
     };
-    const contentBlocks: ChatContentBlock[] = [text, thinking, image, toolCall];
     const contextFile: ChatContextFile = {
       path: '/tmp/example.txt',
       name: 'example.txt',
@@ -81,8 +68,7 @@ describe('shared public exports', () => {
     const usage: ChatMessageUsage = {
       inputTokens: 10,
       outputTokens: 20,
-      totalTokens: 30,
-      cost: 0.01
+      totalTokens: 30
     };
     const stopReason: ChatStopReason = 'toolUse';
     const retry: ChatRetryState = { status: 'retrying', attempt: 1, maxAttempts: 3 };
@@ -93,8 +79,14 @@ describe('shared public exports', () => {
         contextFiles: [contextFile],
         skillInvocation
       },
-      { role: 'assistant', content: contentBlocks, stopReason, retry, usage },
-      { role: 'toolResult', toolCallId: toolCall.id, toolName: toolCall.name, content: [text, image] }
+      { role: 'assistant', content: [text], toolCalls: [toolCall], stopReason, retry, usage },
+      {
+        role: 'tool',
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        output: { ok: true },
+        details: { ok: true }
+      }
     ];
 
     expectTypeOf(messages).toMatchTypeOf<ChatMessage[]>();

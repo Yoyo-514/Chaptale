@@ -3,9 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChaptaleModelInfo, ChaptaleProviderInfo, FetchedCustomProviderModel } from '@chaptale/ipc-contract';
 
 import {
-  countModelsByGroup,
   createProviderViews,
-  filterModelsByGroup,
   getDefaultModelLabel,
   getFetchedModelOptions,
   getProviderModels,
@@ -39,18 +37,6 @@ function createProvider(overrides: Partial<ChaptaleProviderInfo>): ChaptaleProvi
 }
 
 describe('llm-settings helpers', () => {
-  it('filters and counts builtin/custom models', () => {
-    const models = [
-      createModel({ id: 'builtin-a', isCustom: false }),
-      createModel({ id: 'custom-a', isCustom: true }),
-      createModel({ id: 'custom-b', isCustom: true })
-    ];
-
-    expect(filterModelsByGroup(models, 'builtin').map(model => model.id)).toEqual(['builtin-a']);
-    expect(filterModelsByGroup(models, 'custom').map(model => model.id)).toEqual(['custom-a', 'custom-b']);
-    expect(countModelsByGroup(models)).toEqual({ builtin: 1, custom: 2 });
-  });
-
   it('creates provider views ordered by auth status then provider name', () => {
     const models = [
       createModel({ provider: 'zeta', providerName: 'Zeta', id: 'zeta-a' }),

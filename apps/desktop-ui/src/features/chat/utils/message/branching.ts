@@ -25,7 +25,7 @@ export function buildDisplayMessagesFromEntries(entries: ChaptaleSessionTreeEntr
       continue;
     }
 
-    if (entry.type !== 'message' && entry.type !== 'custom_message') {
+    if (entry.type !== 'message') {
       continue;
     }
 
@@ -73,11 +73,9 @@ function getUserBranchControl(
   entry: Extract<ChaptaleSessionTreeEntry, { type: 'message' | 'custom_message' }>
 ): MessageBranchControl | undefined {
   const siblingUsers = entries
-    .filter((candidate): candidate is Extract<ChaptaleSessionTreeEntry, { type: 'message' | 'custom_message' }> =>
+    .filter((candidate): candidate is Extract<ChaptaleSessionTreeEntry, { type: 'message' }> =>
       Boolean(
-        (candidate.type === 'message' || candidate.type === 'custom_message') &&
-        candidate.parentId === entry.parentId &&
-        candidate.message.role === 'user'
+        candidate.type === 'message' && candidate.parentId === entry.parentId && candidate.message.role === 'user'
       )
     )
     .toSorted((left, right) => left.timestamp.localeCompare(right.timestamp));

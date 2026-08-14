@@ -15,8 +15,7 @@ function createSession(id: string, scope: 'global' | 'workspace', cwd: string): 
     leafId: null,
     messageCount: 1,
     scope,
-    totalTokens: 0,
-    totalCost: 0
+    totalTokens: 0
   };
 }
 

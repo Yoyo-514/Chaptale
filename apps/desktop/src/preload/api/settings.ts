@@ -3,17 +3,17 @@ import { ipcRenderer } from 'electron';
 import type {
   ChaptaleDesktopApi,
   UpdateChaptaleSettingsPayload,
-  UpdatePiWebAccessSettingsPayload
+  UpdateWebToolsSettingsPayload
 } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 
-/** 为 Renderer 提供应用设置与 Web Access 配置的类型化 IPC 门面。 */
+/** 为 Renderer 提供应用设置与 联网能力配置的类型化 IPC 门面。 */
 export function createSettingsApi(): ChaptaleDesktopApi['settings'] {
   return {
     getState: () => ipcRenderer.invoke(IPC_CHANNELS.settings.getState),
     update: (payload: UpdateChaptaleSettingsPayload) => ipcRenderer.invoke(IPC_CHANNELS.settings.update, payload),
-    updateWebAccess: (payload: UpdatePiWebAccessSettingsPayload) =>
-      ipcRenderer.invoke(IPC_CHANNELS.settings.updateWebAccess, payload),
+    updateWebTools: (payload: UpdateWebToolsSettingsPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.settings.updateWebTools, payload),
     selectWorkspaceDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.selectWorkspaceDir),
     openConfigDir: () => ipcRenderer.invoke(IPC_CHANNELS.settings.openConfigDir) as Promise<void>
   };

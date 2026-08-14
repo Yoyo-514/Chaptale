@@ -102,13 +102,14 @@ describe('MessageItem', () => {
 
     const toolCall = mountMessage({
       role: 'assistant',
-      content: [{ type: 'toolCall', id: '1', name: 'web_search', arguments: { query: 'q' } }]
+      content: '',
+      toolCalls: [{ id: '1', name: 'web_search', arguments: { query: 'q' } }]
     });
     expect(toolCall.text()).toContain('web_search');
 
     const retry = mountMessage({
       role: 'assistant',
-      content: [],
+      content: '',
       stopReason: 'error',
       errorMessage: '失败',
       retry: { status: 'retrying', attempt: 1, maxAttempts: 3, delayMs: 1200, errorMessage: '失败' }
@@ -120,10 +121,10 @@ describe('MessageItem', () => {
     const notificationStore = useNotificationStore();
     vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error('denied'));
     const wrapper = mountMessage({
-      role: 'toolResult',
+      role: 'tool',
       toolCallId: '1',
       toolName: 'fetch_content',
-      content: [{ type: 'text', text: '结果' }]
+      output: '结果'
     });
 
     expect(wrapper.text()).toContain('fetch_content 结果');
@@ -163,17 +164,17 @@ describe('MessageItem', () => {
   });
 
   it('does not render empty messages', () => {
-    const wrapper = mountMessage({ role: 'assistant', content: [] });
+    const wrapper = mountMessage({ role: 'assistant', content: '' });
     expect(wrapper.html()).toBe('<!--v-if-->');
   });
 
   it('renders mixed replay content with text and every tool call', () => {
     const wrapper = mountMessage({
       role: 'assistant',
-      content: [
-        { type: 'text', text: '我先搜索再读取。' },
-        { type: 'toolCall', id: 't1', name: 'web_search', arguments: { query: 'a' } },
-        { type: 'toolCall', id: 't2', name: 'fetch_content', arguments: { urls: [] } }
+      content: '我先搜索再读取。',
+      toolCalls: [
+        { id: 't1', name: 'web_search', arguments: { query: 'a' } },
+        { id: 't2', name: 'fetch_content', arguments: { urls: [] } }
       ]
     });
 
@@ -187,7 +188,7 @@ describe('MessageItem', () => {
   it('marks aborted and truncated replies', () => {
     const aborted = mountMessage({
       role: 'assistant',
-      content: [{ type: 'text', text: '写到一半' }],
+      content: '写到一半',
       stopReason: 'aborted'
     });
     expect(aborted.text()).toContain('已手动停止');
@@ -209,12 +210,11 @@ describe('MessageItem', () => {
       role: 'assistant',
       content: [{ type: 'text', text: '回答' }],
       timestamp: new Date('2026-07-11T08:30:00').getTime(),
-      usage: { inputTokens: 900, outputTokens: 300, totalTokens: 1200, cost: 0.0042 }
+      usage: { inputTokens: 900, outputTokens: 300, totalTokens: 1200 }
     });
 
     const meta = wrapper.text();
     expect(meta).toContain('1.2K tokens');
-    expect(meta).toContain('$0.0042');
 
     const noUsage = mountMessage({ role: 'assistant', content: [{ type: 'text', text: '回答' }] });
     expect(noUsage.text()).not.toContain('tokens');
@@ -246,22 +246,34 @@ describe('MessageItem', () => {
     expect(notice).toContain('之前讨论了大纲。');
   });
 
-  it('renders inline images from assistant and tool result messages', () => {
-    const assistant = mountMessage({
-      role: 'assistant',
-      content: [{ type: 'image', data: 'YWJj', mimeType: 'image/png' }]
-    });
-    expect(assistant.find('.stub-image-preview').text()).toBe('1');
-
+  it('renders inline images from tool result messages', () => {
     const toolResult = mountMessage({
-      role: 'toolResult',
+      role: 'tool',
       toolCallId: '1',
       toolName: 'render_chart',
-      content: [
-        { type: 'text', text: '图表已生成' },
-        { type: 'image', data: 'YWJj', mimeType: 'image/png' },
-        { type: 'image', data: 'ZGVm', mimeType: 'image/jpeg' }
-      ]
+      output: '图表已生成',
+      details: {
+        images: [
+          {
+            type: 'imageAttachment',
+            id: 'img-1',
+            mimeType: 'image/png',
+            originalBytes: 3,
+            width: 100,
+            height: 80,
+            thumbnailDataUrl: 'data:image/png;base64,YWJj'
+          },
+          {
+            type: 'imageAttachment',
+            id: 'img-2',
+            mimeType: 'image/jpeg',
+            originalBytes: 3,
+            width: 100,
+            height: 80,
+            thumbnailDataUrl: 'data:image/jpeg;base64,ZGVm'
+          }
+        ]
+      }
     });
     expect(toolResult.find('.stub-image-preview').text()).toBe('2');
   });

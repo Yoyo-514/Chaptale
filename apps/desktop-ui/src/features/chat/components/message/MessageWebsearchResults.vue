@@ -1,14 +1,27 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { getHostname, parseSearchResult } from '../../utils/message/websearch-results';
+import { getHostname, parseSearchResult, type SearchCitation } from '../../utils/message/websearch-results';
 
 const props = defineProps<{
   content: string;
+  /** 新版 web_search 工具的结构化结果；存在时优先于文本解析。 */
+  results?: { title: string; url: string; snippet: string }[];
 }>();
 
 const showAll = ref(false);
-const parsedResult = computed(() => parseSearchResult(props.content));
+const structured = computed<SearchCitation[]>(() =>
+  (props.results ?? []).map(item => ({
+    title: item.title,
+    link: item.url,
+    description: item.snippet || undefined
+  }))
+);
+const parsedResult = computed(() =>
+  structured.value.length > 0
+    ? { queries: [], summary: '', citations: structured.value, statusNotes: [] }
+    : parseSearchResult(props.content)
+);
 const citations = computed(() => parsedResult.value.citations);
 const displayedResults = computed(() => (showAll.value ? citations.value : citations.value.slice(0, 5)));
 const hasMore = computed(() => citations.value.length > displayedResults.value.length || showAll.value);

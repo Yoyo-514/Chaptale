@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/vue-virtual';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type { ChatDisplayMessage, ChatSearchMatch } from '../types';
-import { getAssistantToolCalls } from '../utils/message/message-content';
+import { getAssistantText, getAssistantToolCalls } from '../utils/message/message-content';
 import MessageItem from './message/MessageItem.vue';
 import ToolCallGroup from './message/ToolCallGroup.vue';
 
@@ -46,7 +46,7 @@ const rows = computed<ChatMessageRow[]>(() => {
   for (const displayMessage of props.messages) {
     const message = displayMessage.message;
 
-    if (message.role === 'toolResult') {
+    if (message.role === 'tool') {
       toolMessages.push(displayMessage);
       continue;
     }
@@ -55,28 +55,28 @@ const rows = computed<ChatMessageRow[]>(() => {
       const toolCalls = getAssistantToolCalls(message);
 
       if (toolCalls.length > 0) {
-        const nonToolContent = message.content.filter(block => block.type !== 'toolCall');
+        const hasText = getAssistantText(message).trim().length > 0 || Boolean(message.errorMessage || message.retry);
 
-        if (nonToolContent.length > 0 || message.errorMessage || message.retry) {
+        if (hasText) {
           flushToolMessages();
           result.push({
             type: 'message',
             key: displayMessage.id,
-            message: { ...displayMessage, message: { ...message, content: nonToolContent } }
+            message: { ...displayMessage, message: { ...message, toolCalls: undefined } }
           });
         }
 
         toolMessages.push({
           ...displayMessage,
-          id: nonToolContent.length > 0 ? `${displayMessage.id}-tools` : displayMessage.id,
-          compactionBefore: nonToolContent.length > 0 ? undefined : displayMessage.compactionBefore,
+          id: hasText ? `${displayMessage.id}-tools` : displayMessage.id,
+          compactionBefore: hasText ? undefined : displayMessage.compactionBefore,
           message: {
             ...message,
-            content: toolCalls,
+            content: '',
             errorMessage: undefined,
             retry: undefined,
             // 拆分出文本行时用量归文本行展示，工具分组只统计纯工具消息，避免重复计入。
-            usage: nonToolContent.length > 0 ? undefined : message.usage
+            usage: hasText ? undefined : message.usage
           }
         });
         continue;

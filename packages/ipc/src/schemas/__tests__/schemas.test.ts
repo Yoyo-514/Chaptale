@@ -41,7 +41,7 @@ import {
   TodosGetArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
-  UpdatePiWebAccessSettingsArgsValidator,
+  UpdateWebToolsSettingsArgsValidator,
   UpdatePromptSettingsArgsValidator
 } from '../../index';
 
@@ -136,7 +136,7 @@ describe('IPC 参数 Schema', () => {
     expect(SetSessionLeafArgsValidator.Check([{ sessionId: 's1', leafId: 'e1' }])).toBe(true);
   });
 
-  it('校验应用和 Web Access 设置更新参数', () => {
+  it('校验应用和联网能力设置更新参数', () => {
     expectStrictObject(UpdateChaptaleSettingsArgsValidator, {});
     expect(UpdateChaptaleSettingsArgsValidator.Check([{ storage: { mode: 'workspace', workspacePath: '' } }])).toBe(
       true
@@ -144,22 +144,19 @@ describe('IPC 参数 Schema', () => {
     expect(UpdateChaptaleSettingsArgsValidator.Check([{ storage: { mode: 'global', extra: true } }])).toBe(false);
     expect(UpdateChaptaleSettingsArgsValidator.Check([{ lastSessionId: null }])).toBe(true);
 
-    expectStrictObject(UpdatePiWebAccessSettingsArgsValidator, {});
+    expectStrictObject(UpdateWebToolsSettingsArgsValidator, {});
     expect(
-      UpdatePiWebAccessSettingsArgsValidator.Check([
+      UpdateWebToolsSettingsArgsValidator.Check([
         {
-          provider: 'auto',
-          workflow: 'none',
-          openaiApiKey: '',
-          curatorTimeoutSeconds: 0,
-          githubClone: { enabled: false, maxRepoSizeMB: 0, cloneTimeoutSeconds: 0, clonePath: '' },
-          youtube: { enabled: true, preferredModel: '' },
-          video: { enabled: true, preferredModel: '', maxSizeMB: 0 },
+          search: { enabled: true, provider: 'duckduckgo' },
+          keys: { braveApiKey: '', tavilyApiKey: '', exaApiKey: '' },
+          fetch: { timeoutSeconds: 0, maxBytes: 0 },
           ssrf: { allowRanges: [] }
         }
       ])
     ).toBe(true);
-    expect(UpdatePiWebAccessSettingsArgsValidator.Check([{ githubClone: { extra: true } }])).toBe(false);
+    expect(UpdateWebToolsSettingsArgsValidator.Check([{ search: { provider: 'google' } }])).toBe(false);
+    expect(UpdateWebToolsSettingsArgsValidator.Check([{ keys: { openaiApiKey: 'x' } }])).toBe(false);
   });
 
   it('校验提示词更新参数', () => {

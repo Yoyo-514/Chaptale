@@ -1,9 +1,9 @@
-import { parseFrontmatter } from '@earendil-works/pi-coding-agent';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { parseFrontmatter } from '../../../core/frontmatter/parse';
 import { LiteralSearchProvider } from '../literal-search-provider';
 import type { SearchProviderInput } from '../memory-search-service';
 import { WorkspaceIndexSourceResolver } from '../source-resolver';

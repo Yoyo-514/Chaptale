@@ -4,13 +4,7 @@ import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 import { AppCheckbox } from '@/components/AppCheckbox';
 import { SessionRenameDialog } from '@/features/sessions';
 import { cn } from '@/utils';
-import {
-  formatSessionCost,
-  formatSessionScope,
-  formatSessionTime,
-  formatTokenCount,
-  getSessionTitle
-} from '@/utils/session-display';
+import { formatSessionScope, formatSessionTime, formatTokenCount, getSessionTitle } from '@/utils/session-display';
 
 import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 
@@ -75,7 +69,6 @@ function handleMainClick() {
           <span>{{ formatSessionScope(props.session.scope) }}</span>
           <span>{{ props.session.messageCount }} 条</span>
           <span>{{ formatTokenCount(props.session.totalTokens) }} token</span>
-          <span>{{ formatSessionCost(props.session.totalCost) }}</span>
         </span>
       </span>
 

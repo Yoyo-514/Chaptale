@@ -60,20 +60,20 @@ describe('useChatSearch', () => {
         id: 'assistant-tools',
         message: {
           role: 'assistant',
-          content: [
-            { type: 'text', text: '准备修改文件' },
-            { type: 'toolCall', id: 'call-1', name: 'edit', arguments: { path: 'src/example.ts' } },
-            { type: 'toolCall', id: 'call-2', name: 'read', arguments: { path: 'package.json' } }
+          content: '准备修改文件',
+          toolCalls: [
+            { id: 'call-1', name: 'edit', arguments: { path: 'src/example.ts' } },
+            { id: 'call-2', name: 'read', arguments: { path: 'package.json' } }
           ]
         }
       },
       {
         id: 'result-1',
         message: {
-          role: 'toolResult',
+          role: 'tool',
           toolCallId: 'call-1',
           toolName: 'edit',
-          content: [{ type: 'text', text: 'Successfully replaced content' }]
+          output: 'Successfully replaced content'
         }
       }
     ]);

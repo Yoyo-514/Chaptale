@@ -91,11 +91,11 @@ export function createDefaultToolCatalog(): ToolCatalog {
     { name: 'ls', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
     { name: 'write', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
     { name: 'edit', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
-    { name: 'web_search', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
-    { name: 'fetch_content', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
+    { name: 'web_search', runtime: 'custom', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
+    { name: 'fetch_content', runtime: 'custom', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
     {
       name: 'get_search_content',
-      runtime: 'pi',
+      runtime: 'custom',
       scopes: ['chat', 'task'],
       riskLevel: 'readonly',
       defaultForChat: true

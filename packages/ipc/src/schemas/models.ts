@@ -43,12 +43,19 @@ export const FetchCustomProviderModelsPayloadSchema = Type.Object(
 export const FetchCustomProviderModelsArgsSchema = Type.Tuple([FetchCustomProviderModelsPayloadSchema]);
 export const FetchCustomProviderModelsArgsValidator = Compile(FetchCustomProviderModelsArgsSchema);
 
+export const ModelParamsSchema = {
+  maxTokens: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+  temperature: Type.Optional(Type.Number({ minimum: 0, maximum: 2 })),
+  topP: Type.Optional(Type.Number({ minimum: 0, maximum: 1 }))
+};
+
 export const AddCustomProviderModelPayloadSchema = Type.Object(
   {
     modelId: Type.String(),
     modelName: Type.Optional(Type.String()),
     input: Type.Array(ChaptaleModelInputSchema),
-    contextWindow: Type.Optional(Type.Number())
+    contextWindow: Type.Optional(Type.Number()),
+    ...ModelParamsSchema
   },
   { additionalProperties: false }
 );
@@ -73,7 +80,8 @@ export const AddCustomModelPayloadSchema = Type.Object(
     modelId: Type.String(),
     modelName: Type.Optional(Type.String()),
     input: Type.Array(ChaptaleModelInputSchema),
-    contextWindow: Type.Optional(Type.Number())
+    contextWindow: Type.Optional(Type.Number()),
+    ...ModelParamsSchema
   },
   { additionalProperties: false }
 );

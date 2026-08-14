@@ -30,17 +30,15 @@ describe('buildSessionHtml', () => {
       }),
       messageEntry('a1', {
         role: 'assistant',
-        content: [
-          { type: 'text', text: '结构上有三个问题。' },
-          { type: 'toolCall', id: 't1', name: 'web_search', arguments: { query: '三幕结构' } }
-        ],
+        content: '结构上有三个问题。',
+        toolCalls: [{ id: 't1', name: 'web_search', arguments: { query: '三幕结构' } }],
         stopReason: 'length'
       }),
       messageEntry('r1', {
-        role: 'toolResult',
+        role: 'tool',
         toolCallId: 't1',
         toolName: 'web_search',
-        content: [{ type: 'text', text: '搜索结果内容' }]
+        output: '搜索结果内容'
       }),
       {
         type: 'compaction',

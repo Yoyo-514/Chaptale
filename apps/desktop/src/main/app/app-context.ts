@@ -2,16 +2,18 @@ import path from 'node:path';
 
 import { ImageAttachmentService } from '../core/attachments/service';
 import { ContextFileService } from '../core/context/service';
+import { parseFrontmatter } from '../core/frontmatter/parse';
+import { ModelService } from '../core/models/service';
 import { SettingsService } from '../core/settings/service';
 import { createDefaultToolCatalog } from '../core/tool-protocol/catalog';
+import { createChatRuntimeBundle, createBrokerPermissionGate } from '../features/agent/chat-bundle';
+import { AgentService } from '../features/agent/service';
+import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { SlashCommandService } from '../features/commands/service';
-import { CompactCoord } from '../features/memory/compact-coord';
-import { CompactionSummaryStore } from '../features/memory/compaction-summary-store';
-import { createMemoryInjector } from '../features/memory/injector';
 import { MemoryPendingStore } from '../features/memory/pending-store';
-import { MemoryService } from '../features/memory/service';
 import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
+import { createDefaultPersonaRegistry } from '../features/personas/persona-registry-factory';
 import { PromptFileService } from '../features/prompts/file-service';
 import { ReviewOutputStore } from '../features/reviews/store';
 import { AgentRunStore } from '../features/runs/store';
@@ -20,34 +22,27 @@ import { IndexService } from '../features/search/index-service';
 import { LiteralSearchProvider } from '../features/search/literal-search-provider';
 import { MemorySearchService } from '../features/search/memory-search-service';
 import { WorkspaceIndexSourceResolver } from '../features/search/source-resolver';
+import { CoreSessionRepository } from '../features/sessions/core-repository';
 import { materializeBuiltinSkills } from '../features/skills/builtin-materializer';
+import { SkillsProvider } from '../features/skills/skills-provider';
 import { SubagentPool } from '../features/subagent/pool';
 import type { TaskOutputStorePort } from '../features/tasks/output-port';
 import { TaskService } from '../features/tasks/service';
+import { TaskRunner } from '../features/tasks/task-runner';
+import { TaskSessionFactory } from '../features/tasks/task-session-factory';
 import { TodoStore } from '../features/todo/store';
+import { WebToolsSettingsAdapter } from '../features/web-tools/adapter';
+import { WebToolsSettingsStore } from '../features/web-tools/settings';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { OfficeDocumentParser } from '../integrations/officeparser/parser';
-import { ChatSessionFactory } from '../integrations/pi/agent/chat-session-factory';
-import { createCompactExt } from '../integrations/pi/agent/compact-extension';
-import { piParseFrontmatter } from '../integrations/pi/agent/frontmatter';
-import { InputAssembler } from '../integrations/pi/agent/input-assembler';
-import { createDefaultPersonaRegistry } from '../integrations/pi/agent/persona-registry-factory';
-import { PiAgentService } from '../integrations/pi/agent/service';
-import { TaskRunner } from '../integrations/pi/agent/task-runner';
-import { TaskSessionFactory } from '../integrations/pi/agent/task-session-factory';
-import { PiModelService } from '../integrations/pi/models/service';
-import { PiSessionRepository } from '../integrations/pi/sessions/repository';
-import { SkillsProvider } from '../integrations/pi/skills/provider';
-import { PiWebAccessAdapter } from '../integrations/pi/web-access/config-mapper';
 import { TaskOutputRouter } from './task-output-router';
-import { buildChatSessionTools, buildTaskSessionTools } from './tool-assembly';
 
 export type AppContext = {
   settingsService: SettingsService;
-  sessionRepository: PiSessionRepository;
-  modelService: PiModelService;
-  agentRuntime: PiAgentService;
+  sessionRepository: CoreSessionRepository;
+  modelService: ModelService;
+  agentRuntime: AgentService;
   contextFileService: ContextFileService;
   promptFileService: PromptFileService;
   commandService: SlashCommandService;
@@ -67,11 +62,10 @@ export type AppContext = {
 };
 
 export function createAppContext(): AppContext {
-  const webAccessAdapter = new PiWebAccessAdapter();
-  const settingsService = new SettingsService(webAccessAdapter);
+  const settingsService = new SettingsService(new WebToolsSettingsAdapter());
+  const webToolsSettingsStore = new WebToolsSettingsStore({ configPath: settingsService.webToolsConfigPath });
 
-  // 内置 skills 先于任何会话创建物化到磁盘（pi 目录扫描与模型 read 都需要真实文件）；
-  // 失败只影响内置 skills 可用性，不阻塞应用启动。
+  // 内置 skills 先于任何会话创建物化到磁盘；失败只影响内置 skills 可用性，不阻塞启动。
   try {
     materializeBuiltinSkills(settingsService.builtinSkillsDir);
   } catch (error) {
@@ -93,17 +87,15 @@ export function createAppContext(): AppContext {
 
     return thumbnail;
   });
-  const sessionRepository = new PiSessionRepository(
-    {
-      rootDir: settingsService.agentDir,
-      cwd: () => settingsService.getCurrentCwd(),
-      sessionDir: () => settingsService.getCurrentSessionDir(),
-      sessionsRootDir: settingsService.sessionsRootDir,
-      getStorageContext: () => settingsService.getStorageContext()
-    },
+  const sessionRepository = new CoreSessionRepository({
+    rootDir: settingsService.agentDir,
+    cwd: () => settingsService.getCurrentCwd(),
+    sessionDir: () => settingsService.getCurrentSessionDir(),
+    sessionsRootDir: settingsService.sessionsRootDir,
+    getStorageContext: () => settingsService.getStorageContext(),
     imageAttachmentService
-  );
-  const modelService = new PiModelService(settingsService);
+  });
+  const modelService = new ModelService({ modelsPath: settingsService.piModelsPath });
   const promptFileService = new PromptFileService(settingsService.agentDir);
   const personaRegistry = createDefaultPersonaRegistry(settingsService);
   const toolCatalog = createDefaultToolCatalog();
@@ -113,74 +105,53 @@ export function createAppContext(): AppContext {
   const permissionRuleStore = new PermissionRuleStore({ globalDir: settingsService.rootDir });
   const commandService = new SlashCommandService(settingsService, skillsProvider);
   const subagentPool = new SubagentPool();
-  const memoryPendingStore = new MemoryPendingStore({ parseFrontmatter: piParseFrontmatter });
+  const memoryPendingStore = new MemoryPendingStore({ parseFrontmatter });
   const indexSourceResolver = new WorkspaceIndexSourceResolver();
   const indexService = new IndexService({
     resolver: indexSourceResolver,
-    parseFrontmatter: piParseFrontmatter,
+    parseFrontmatter,
     cacheRoot: path.join(settingsService.rootDir, 'cache')
   });
   const memorySearchService = new MemorySearchService({
     indexSearch: (cwd, query, options) => indexService.search(cwd, query, options),
-    literalSearch: new LiteralSearchProvider({ resolver: indexSourceResolver, parseFrontmatter: piParseFrontmatter }),
+    literalSearch: new LiteralSearchProvider({ resolver: indexSourceResolver, parseFrontmatter }),
     sourceResolver: indexSourceResolver
   });
   // runs/reviews 归属工作区：审查历史是创作产物，随作品同步。
   const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   const reviewStore = new ReviewOutputStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   const taskOutputStore = new TaskOutputRouter({ runStore, reviewStore });
+
+  // task 链路（pi 过渡）：TaskSessionFactory/TaskRunner 逻辑不变，P2-d 后续批次翻转为自有 engine。
   const taskSessionFactory = new TaskSessionFactory({
     settingsService,
     modelService,
-    permissionBroker,
-    permissionRuleStore,
-    skillsProvider,
     buildTaskTools: (spec, cwd, onMemoryRead) => buildTaskSessionTools({ spec, cwd, memorySearchService, onMemoryRead })
   });
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
-  const compactCoord = new CompactCoord({
-    personas: personaRegistry,
-    tasks: taskRunner,
-    memory: new MemoryService({ chaptaleRootDir: settingsService.rootDir }),
-    summaries: new CompactionSummaryStore()
-  });
-  const chatSessionFactory = new ChatSessionFactory({
-    settingsService,
-    modelService,
-    skillsProvider,
-    todoStore,
-    permissionBroker,
-    permissionRuleStore,
+
+  // chat 链路（自有）：P2-c 产物的装配入口；systemPrompt 经 persona 三层覆盖解析。
+  const runtimeBundle = createChatRuntimeBundle({
     personaRegistry,
+    taskRunner,
+    skillsProvider,
     toolCatalog,
-    // 工具注册统一由 features/tools 管理；此处只注入运行时依赖。
-    buildChatTools: context =>
-      buildChatSessionTools({
-        ...context,
-        todoStore,
-        getSessionId: () => context.sessionId,
-        subagentPool,
-        taskRunner,
-        personaRegistry,
-        memoryPendingStore,
-        memorySearchService
-      }),
-    // manual/threshold/overflow 共用此扩展；检查点失败时显式 cancel，禁止回退 coding 摘要。
-    buildCompactExt: (sessionId, cwd) =>
-      createCompactExt({
-        sessionId,
-        cwd,
-        coord: compactCoord,
-        onError: (error, reason) => console.error(`创作会话压缩失败（${reason}）:`, error)
-      })
+    todoStore,
+    subagentPool,
+    memoryPendingStore,
+    memorySearchService,
+    webToolsSettingsStore,
+    modelService
   });
-  const agentRuntime = new PiAgentService({
-    chatFactory: chatSessionFactory,
+  const agentRuntime = new AgentService({
+    sessionRepository,
     modelService,
-    memoryInjector: createMemoryInjector(settingsService.rootDir),
-    permissionBroker,
-    inputAssembler: new InputAssembler({ contextFileService, imageAttachmentService })
+    runtimeBundle,
+    gate: createBrokerPermissionGate(permissionBroker),
+    contextFileService,
+    imageAttachmentService,
+    compactPrompt: '请把以下对话压缩为保留关键事实与决策的摘要，供后续创作参考。'
   });
 
   return {

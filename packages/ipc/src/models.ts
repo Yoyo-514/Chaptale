@@ -29,6 +29,12 @@ export type ChaptaleModelInfo = {
   reasoning: boolean;
   input: ChaptaleModelInput[];
   contextWindow: number;
+  /** 单次回复最大输出 tokens。 */
+  maxTokens?: number;
+  /** 采样温度（0–2）。 */
+  temperature?: number;
+  /** 核采样阈值（0–1）。 */
+  topP?: number;
   isCustom: boolean;
   authConfigured: boolean;
   isDefault: boolean;

@@ -17,7 +17,15 @@ describe('custom-model-draft', () => {
 
     resetCustomModelDraft(draft);
 
-    expect(draft).toEqual({ modelId: '', modelName: '', contextWindow: '128000', supportsImageInput: false });
+    expect(draft).toEqual({
+      modelId: '',
+      modelName: '',
+      contextWindow: '128000',
+      supportsImageInput: false,
+      maxTokens: '',
+      temperature: '',
+      topP: ''
+    });
   });
 
   it('parses context window only when the user entered a positive finite number', () => {

@@ -86,11 +86,9 @@ function renderUserMessage(message: Extract<ChatMessage, { role: 'user' }>) {
 
 function renderAssistantMessage(message: Extract<ChatMessage, { role: 'assistant' }>) {
   const blocks: string[] = [];
-  const text = message.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('\n');
-  const toolCalls = message.content.filter(block => block.type === 'toolCall');
+  const content = message.content ?? [];
+  const text = typeof content === 'string' ? content : content.map(part => part.text).join('\n');
+  const toolCalls = message.toolCalls ?? [];
 
   if (text.trim()) {
     blocks.push(renderMarkdownText(text));
@@ -111,12 +109,10 @@ function renderAssistantMessage(message: Extract<ChatMessage, { role: 'assistant
   return blocks;
 }
 
-function renderToolResult(message: Extract<ChatMessage, { role: 'toolResult' }>) {
-  const text = message.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('\n')
-    .trim();
+function renderToolResult(message: Extract<ChatMessage, { role: 'tool' }>) {
+  const text = (
+    typeof message.output === 'string' ? message.output : JSON.stringify(message.output ?? null, null, 2)
+  ).trim();
 
   if (!text) {
     return [];
@@ -136,7 +132,7 @@ function renderMessage(message: ChatMessage) {
     return { role: '助手', blocks: renderAssistantMessage(message), timestamp: message.timestamp };
   }
 
-  if (message.role === 'toolResult') {
+  if (message.role === 'tool') {
     return { role: '', blocks: renderToolResult(message), timestamp: undefined };
   }
 
@@ -230,7 +226,7 @@ export function buildSessionHtml(options: { name: string; entries: ChaptaleSessi
       continue;
     }
 
-    if (entry.type !== 'message' && entry.type !== 'custom_message') {
+    if (entry.type !== 'message') {
       continue;
     }
 

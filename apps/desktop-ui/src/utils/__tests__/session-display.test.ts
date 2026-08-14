@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
-import {
-  formatSessionCost,
-  formatSessionScope,
-  formatSessionTime,
-  formatTokenCount,
-  getSessionTitle
-} from '../session-display';
+import { formatSessionScope, formatSessionTime, formatTokenCount, getSessionTitle } from '../session-display';
 
 function createSession(overrides: Partial<ChaptaleSessionListItem>): ChaptaleSessionListItem {
   const session = {
@@ -23,15 +17,13 @@ function createSession(overrides: Partial<ChaptaleSessionListItem>): ChaptaleSes
     updatedAt: '2026-07-04T00:00:00.000Z',
     scope: 'global' as const,
     totalTokens: 0,
-    totalCost: 0,
     ...overrides
   };
 
   return {
     ...session,
     scope: session.scope ?? 'global',
-    totalTokens: session.totalTokens ?? 0,
-    totalCost: session.totalCost ?? 0
+    totalTokens: session.totalTokens ?? 0
   };
 }
 
@@ -51,12 +43,9 @@ describe('session-display', () => {
     expect(formatSessionTime('2026-07-04T08:05:00.000Z')).toMatch(/\d{2}\/\d{2}.*\d{2}:\d{2}/);
   });
 
-  it('formats token and cost summaries with compact user-readable units', () => {
+  it('formats token summaries with compact user-readable units', () => {
     expect(formatTokenCount(999)).toBe('999');
     expect(formatTokenCount(12_300)).toBe('12.3K');
     expect(formatTokenCount(1_200_000)).toBe('1.2M');
-    expect(formatSessionCost(0)).toBe('$0');
-    expect(formatSessionCost(0.005)).toBe('<$0.01');
-    expect(formatSessionCost(1.234)).toBe('$1.23');
   });
 });

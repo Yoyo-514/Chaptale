@@ -14,7 +14,7 @@ describe('ConfigFilesSettings', () => {
     const settingsStore = useSettingsStore();
     settingsStore.state = {
       settings: { version: 1, storage: { mode: 'global' } },
-      webAccess: {} as any,
+      webTools: {} as any,
       paths: {
         rootDir: 'root',
         agentDir: 'agent',
@@ -22,7 +22,7 @@ describe('ConfigFilesSettings', () => {
         piSettingsPath: 'agent/settings.json',
         piModelsPath: 'agent/models.json',
         piAuthPath: 'agent/auth.json',
-        piWebAccessConfigPath: 'agent/web-search.json',
+        webToolsConfigPath: 'agent/web-tools.json',
         sessionsRootDir: 'agent/sessions',
         effectiveSessionDir: 'agent/sessions/global'
       }
@@ -31,7 +31,7 @@ describe('ConfigFilesSettings', () => {
 
     const wrapper = mount(ConfigFilesSettings);
     expect(wrapper.text()).toContain('settings.json');
-    expect(wrapper.text()).toContain('agent/web-search.json');
+    expect(wrapper.text()).toContain('agent/web-tools.json');
 
     await wrapper.get('button').trigger('click');
     expect(openConfigDir).toHaveBeenCalled();

@@ -23,7 +23,7 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
     icon: 'i-mingcute-edit-3-line'
   },
   {
-    id: 'webAccess',
+    id: 'webTools',
     title: '联网',
     description: '搜索、提取与 API Key',
     icon: 'i-mingcute-earth-line'

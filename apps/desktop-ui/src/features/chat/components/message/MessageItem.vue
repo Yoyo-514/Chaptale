@@ -5,18 +5,17 @@ import { AppImagePreview } from '@/components/AppImagePreview';
 import { useNotificationStore } from '@/features/notifications';
 import { cn } from '@/utils';
 import { toErrorMessage } from '@/utils/desktop-api';
-import { formatMessageCost, formatMessageTime, formatTokenCount } from '@/utils/session-display';
+import { formatMessageTime, formatTokenCount } from '@/utils/session-display';
 
 import type { ChatDisplayMessage } from '../../types';
 import { toInlineImageItems } from '../../utils/message/inline-images';
 import {
-  getAssistantImages,
+  formatUnknownToolPayload,
   getAssistantReasoning,
   getAssistantReasoningStatus,
   getAssistantText,
   getAssistantToolCalls,
   getMessagePlainText,
-  getTextBlocks,
   getToolResultImages,
   getUserContextFiles,
   getUserDisplayText,
@@ -76,22 +75,11 @@ const assistantToolCalls = computed(() =>
 const showAssistantBody = computed(() =>
   Boolean(assistantContent.value || assistantReasoning.value || assistantPartial.value)
 );
-const assistantImageItems = computed(() =>
-  message.value.role === 'assistant'
-    ? toInlineImageItems(getAssistantImages(message.value), props.displayMessage.id)
-    : []
-);
 const toolResultImageItems = computed(() =>
-  message.value.role === 'toolResult'
-    ? toInlineImageItems(getToolResultImages(message.value), props.displayMessage.id)
-    : []
+  message.value.role === 'tool' ? toInlineImageItems(getToolResultImages(message.value), props.displayMessage.id) : []
 );
 const toolResultContent = computed(() =>
-  message.value.role === 'toolResult'
-    ? getTextBlocks(message.value.content)
-        .map(block => block.text)
-        .join('\n')
-    : ''
+  message.value.role === 'tool' ? formatUnknownToolPayload(message.value.output) : ''
 );
 const stopNotice = computed(() => {
   if (message.value.role !== 'assistant' || message.value.partial) {
@@ -126,11 +114,6 @@ const messageMeta = computed(() => {
 
   if (message.value.role === 'assistant' && message.value.usage) {
     parts.push(`${formatTokenCount(message.value.usage.totalTokens)} tokens`);
-    const cost = formatMessageCost(message.value.usage.cost);
-
-    if (cost) {
-      parts.push(cost);
-    }
   }
 
   return parts.join(' · ');
@@ -245,17 +228,13 @@ async function copyRawText() {
           :args="toolCall.arguments"
         />
 
-        <div v-if="assistantImageItems.length" class="message-inline-images">
-          <AppImagePreview variant="large" :items="assistantImageItems" />
-        </div>
-
         <p v-if="stopNotice" class="message-stop-notice">
           <span class="i-mingcute-alert-line size-3.5" aria-hidden="true" />
           {{ stopNotice }}
         </p>
       </template>
 
-      <template v-else-if="message.role === 'toolResult'">
+      <template v-else-if="message.role === 'tool'">
         <ToolCallResult :name="message.toolName" :content="toolResultContent" />
         <div v-if="toolResultImageItems.length" class="message-inline-images">
           <AppImagePreview variant="large" :items="toolResultImageItems" />

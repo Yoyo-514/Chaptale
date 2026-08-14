@@ -1,6 +1,6 @@
-import type { ChatContentBlock, ChatTextContent } from './content';
+import type { ChatTextPart, ChatToolCall, ChatUserContent } from './content';
 import type { ChatContextFile, ChatSkillInvocation } from './context';
-import type { ChatImageAttachment, ChatImageContent } from './image';
+import type { ChatImageAttachment, ChatImageSource } from './image';
 
 export type ChatStopReason = 'stop' | 'length' | 'toolUse' | 'error' | 'aborted';
 
@@ -17,25 +17,31 @@ export type ChatMessageUsage = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
-  /** 本条消息的费用（美元）。 */
-  cost: number;
 };
 
 /**
- * 应用内部及 IPC 共用的聊天消息联合。
- * 用户消息使用轻量附件描述，助手消息保留流式与模型元数据，工具结果通过 toolCallId 与调用配对。
+ * 聊天消息（OpenAI Chat Messages 形状；store、engine、UI 三方同形状，映射层归零）。
+ *
+ * - user：文本 + 轻量图片附件（缩略图 + 原图 source 定位）；
+ * - assistant：文本段 + 扁平 toolCalls 数组 + usage/流式元数据；
+ * - tool：工具结果（output 原始载荷，details 供 UI 结构化渲染）；
+ * - system：不进 UI 消息流（会话树保留原样）。
  */
 export type ChatMessage =
   | {
       role: 'user';
-      content: string | (ChatTextContent | ChatImageAttachment)[];
+      content: ChatUserContent;
       contextFiles?: ChatContextFile[];
       skillInvocation?: ChatSkillInvocation;
       timestamp?: number;
     }
   | {
       role: 'assistant';
-      content: ChatContentBlock[];
+      content?: string | ChatTextPart[];
+      /** 思考过程（reasoning 模型独有；流式增量拼接）。 */
+      reasoning?: string;
+      toolCalls?: ChatToolCall[];
+      usage?: ChatMessageUsage;
       partial?: boolean;
       stopReason?: ChatStopReason;
       errorMessage?: string;
@@ -44,14 +50,23 @@ export type ChatMessage =
       provider?: string;
       model?: string;
       responseId?: string;
-      usage?: ChatMessageUsage;
       timestamp?: number;
     }
   | {
-      role: 'toolResult';
+      role: 'tool';
       toolCallId: string;
       toolName: string;
-      content: (ChatTextContent | ChatImageContent)[];
+      /** 工具原始输出（模型回传与 UI 结构化渲染共用）。 */
+      output: unknown;
+      /** UI 结构化载荷（如 web_search 结果列表）。 */
+      details?: unknown;
       isError?: boolean;
       timestamp?: number;
+    }
+  | {
+      role: 'system';
+      content: string;
+      timestamp?: number;
     };
+
+export type { ChatImageAttachment, ChatImageSource };

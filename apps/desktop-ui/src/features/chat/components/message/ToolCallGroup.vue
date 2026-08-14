@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
-import type { ChatMessage, ChatToolCallContent } from '@chaptale/shared';
+import type { ChatMessage, ChatToolCall } from '@chaptale/shared';
 
 import { AppCollapsible } from '@/components/AppCollapsible';
 import { AppImagePreview } from '@/components/AppImagePreview';
@@ -15,8 +15,8 @@ import ToolCallItem from './ToolCallItem.vue';
 
 type ToolExecution = {
   key: string;
-  call?: ChatToolCallContent;
-  result?: Extract<ChatMessage, { role: 'toolResult' }>;
+  call?: ChatToolCall;
+  result?: Extract<ChatMessage, { role: 'tool' }>;
   resultDisplayId?: string;
   sourceIds: string[];
 };
@@ -49,7 +49,7 @@ const executions = computed<ToolExecution[]>(() => {
       continue;
     }
 
-    if (message.role === 'toolResult') {
+    if (message.role === 'tool') {
       const execution = byCallId.get(message.toolCallId);
 
       if (execution) {

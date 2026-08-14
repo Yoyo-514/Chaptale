@@ -1,10 +1,10 @@
 import {
   IPC_CHANNELS,
   UpdateChaptaleSettingsArgsValidator,
-  UpdatePiWebAccessSettingsArgsValidator,
+  UpdateWebToolsSettingsArgsValidator,
   type SelectWorkspaceDirResult,
   type UpdateChaptaleSettingsPayload,
-  type UpdatePiWebAccessSettingsPayload
+  type UpdateWebToolsSettingsPayload
 } from '@chaptale/ipc-contract';
 
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
@@ -34,9 +34,9 @@ export function registerSettingsIpc(settingsService: SettingsService, ui: UiShel
   );
 
   handleValidatedIpc(
-    IPC_CHANNELS.settings.updateWebAccess,
-    UpdatePiWebAccessSettingsArgsValidator,
-    (_event, payload: UpdatePiWebAccessSettingsPayload) => settingsService.updateWebAccess(payload)
+    IPC_CHANNELS.settings.updateWebTools,
+    UpdateWebToolsSettingsArgsValidator,
+    (_event, payload: UpdateWebToolsSettingsPayload) => settingsService.updateWebTools(payload)
   );
 
   handleTrustedIpc(IPC_CHANNELS.settings.selectWorkspaceDir, async (event): Promise<SelectWorkspaceDirResult> => {

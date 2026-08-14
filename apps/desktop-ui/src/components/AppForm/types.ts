@@ -2,7 +2,7 @@ export type AppFormFieldLayout = 'stacked' | 'inline';
 
 export type AppFormFieldSpan = 1 | 2 | 'full';
 
-export type AppFormGridColumns = 1 | 2 | 'responsive';
+export type AppFormGridColumns = 1 | 2 | 3 | 'responsive';
 
 export type AppFormGap = 'sm' | 'md' | 'lg';
 

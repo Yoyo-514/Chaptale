@@ -6,14 +6,14 @@ import type {
   ChaptaleSettings,
   ChaptaleSettingsState,
   ChaptaleStorageSettings,
-  PiWebAccessSettings,
   UpdateChaptaleSettingsPayload,
-  UpdatePiWebAccessSettingsPayload
+  UpdateWebToolsSettingsPayload,
+  WebToolsSettings
 } from '@chaptale/ipc-contract';
 
 import { readJsonFile, writeJsonFile } from '../../infra/filesystem/files';
-import { DEFAULT_WEB_ACCESS_SETTINGS, mergeSettings, mergeWebAccessSettings } from './defaults';
-import type { WebAccessAdapter } from './web-access-adapter';
+import { DEFAULT_WEB_TOOLS_SETTINGS, mergeSettings } from './defaults';
+import type { WebToolsAdapter } from './web-tools-adapter';
 import { toWorkspaceSessionDirName } from './workspace-session-directory';
 
 export type SettingsServiceOptions = {
@@ -30,7 +30,7 @@ export class SettingsService {
   readonly piSettingsPath: string;
   readonly piModelsPath: string;
   readonly piAuthPath: string;
-  readonly piWebAccessConfigPath: string;
+  readonly webToolsConfigPath: string;
   readonly sessionsRootDir: string;
   /** task 型子任务 session 目录；不在 sessionsRootDir 扫描范围，天然不进历史 UI。 */
   readonly taskSessionsDir: string;
@@ -41,7 +41,7 @@ export class SettingsService {
   private settingsQueue: Promise<unknown> = Promise.resolve();
 
   constructor(
-    private readonly webAccessAdapter: WebAccessAdapter,
+    private readonly webToolsAdapter: WebToolsAdapter,
     options: SettingsServiceOptions = {}
   ) {
     this.rootDir = options.rootDir ?? path.join(os.homedir(), '.chaptale');
@@ -51,7 +51,7 @@ export class SettingsService {
     this.piSettingsPath = path.join(this.agentDir, 'settings.json');
     this.piModelsPath = path.join(this.agentDir, 'models.json');
     this.piAuthPath = path.join(this.agentDir, 'auth.json');
-    this.piWebAccessConfigPath = path.join(this.agentDir, 'web-search.json');
+    this.webToolsConfigPath = path.join(this.agentDir, 'web-tools.json');
     this.sessionsRootDir = path.join(this.agentDir, 'sessions');
     this.taskSessionsDir = path.join(this.agentDir, 'task-sessions');
     this.todosDir = path.join(this.agentDir, 'todos');
@@ -61,7 +61,7 @@ export class SettingsService {
     const settings = await this.readSettings();
     await this.ensureBaseDirs(settings);
 
-    return this.createState(settings, await this.readWebAccessSettings());
+    return this.createState(settings, await this.readWebToolsSettings());
   }
 
   async update(payload: UpdateChaptaleSettingsPayload): Promise<ChaptaleSettingsState> {
@@ -89,10 +89,10 @@ export class SettingsService {
     return this.getState();
   }
 
-  async updateWebAccess(payload: UpdatePiWebAccessSettingsPayload): Promise<ChaptaleSettingsState> {
+  async updateWebTools(payload: UpdateWebToolsSettingsPayload): Promise<ChaptaleSettingsState> {
     await this.enqueue(async () => {
-      const current = await this.readWebAccessSettingsUnsafe();
-      await this.writeWebAccessConfig(this.webAccessAdapter.mergeUpdate(current, payload));
+      const current = await this.readWebToolsSettingsUnsafe();
+      await this.writeWebToolsConfig(this.webToolsAdapter.mergeUpdate(current, payload));
     });
 
     return this.getState();
@@ -123,7 +123,7 @@ export class SettingsService {
       await writeJsonFile(this.settingsPath, settings ?? mergeSettings(undefined));
     }
 
-    await this.ensureWebAccessConfigFile(DEFAULT_WEB_ACCESS_SETTINGS);
+    await this.ensureWebToolsConfigFile(DEFAULT_WEB_TOOLS_SETTINGS);
   }
 
   async getCurrentSessionDir() {
@@ -165,18 +165,19 @@ export class SettingsService {
     return readJsonFile<Partial<ChaptaleSettings>>(this.settingsPath);
   }
 
-  private async readWebAccessSettings(): Promise<PiWebAccessSettings> {
-    return this.enqueue(() => this.readWebAccessSettingsUnsafe());
+  private async readWebToolsSettings(): Promise<WebToolsSettings> {
+    return this.enqueue(() => this.readWebToolsSettingsUnsafe());
   }
 
-  private async readWebAccessSettingsUnsafe(): Promise<PiWebAccessSettings> {
-    return mergeWebAccessSettings(await this.readWebAccessConfig());
+  private async readWebToolsSettingsUnsafe(): Promise<WebToolsSettings> {
+    const payload = await this.readWebToolsConfig();
+    return this.webToolsAdapter.mergeUpdate(DEFAULT_WEB_TOOLS_SETTINGS, payload);
   }
 
-  private createState(settings: ChaptaleSettings, webAccess: PiWebAccessSettings): ChaptaleSettingsState {
+  private createState(settings: ChaptaleSettings, webTools: WebToolsSettings): ChaptaleSettingsState {
     return {
       settings,
-      webAccess,
+      webTools,
       paths: {
         rootDir: this.rootDir,
         agentDir: this.agentDir,
@@ -184,7 +185,7 @@ export class SettingsService {
         piSettingsPath: this.piSettingsPath,
         piModelsPath: this.piModelsPath,
         piAuthPath: this.piAuthPath,
-        piWebAccessConfigPath: this.piWebAccessConfigPath,
+        webToolsConfigPath: this.webToolsConfigPath,
         sessionsRootDir: this.sessionsRootDir,
         effectiveSessionDir: this.getSessionDir(settings.storage),
         currentCwd: this.getCurrentCwdFromStorage(settings.storage)
@@ -201,10 +202,10 @@ export class SettingsService {
     return path.join(this.agentDir, 'global');
   }
 
-  private async readWebAccessConfig(): Promise<UpdatePiWebAccessSettingsPayload> {
+  private async readWebToolsConfig(): Promise<UpdateWebToolsSettingsPayload> {
     try {
-      const config = (await readJsonFile<Record<string, unknown>>(this.piWebAccessConfigPath)) ?? {};
-      return this.webAccessAdapter.fromConfig(config);
+      const config = (await readJsonFile<Record<string, unknown>>(this.webToolsConfigPath)) ?? {};
+      return this.webToolsAdapter.fromConfig(config);
     } catch (error) {
       if (isMissingFileError(error)) {
         return {};
@@ -214,21 +215,21 @@ export class SettingsService {
     }
   }
 
-  private async ensureWebAccessConfigFile(settings: PiWebAccessSettings) {
+  private async ensureWebToolsConfigFile(settings: WebToolsSettings) {
     try {
-      await fs.access(this.piWebAccessConfigPath);
+      await fs.access(this.webToolsConfigPath);
     } catch (error) {
       if (!isMissingFileError(error)) {
         throw error;
       }
 
-      await this.writeWebAccessConfig(settings);
+      await this.writeWebToolsConfig(settings);
     }
   }
 
-  private async writeWebAccessConfig(settings: PiWebAccessSettings) {
-    const config = this.webAccessAdapter.toConfig(settings);
-    await writeJsonFile(this.piWebAccessConfigPath, config);
+  private async writeWebToolsConfig(settings: WebToolsSettings) {
+    const config = this.webToolsAdapter.toConfig(settings);
+    await writeJsonFile(this.webToolsConfigPath, config);
   }
 
   /** 串行化设置读写；单次失败只影响调用方，不得阻塞队列中的后续操作。 */

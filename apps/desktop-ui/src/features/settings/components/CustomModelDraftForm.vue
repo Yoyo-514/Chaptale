@@ -132,6 +132,47 @@ function selectFetchedModel(modelId: string) {
         </template>
       </AppFormField>
     </AppFormGrid>
+
+    <div class="model-draft-advanced">
+      <span class="model-draft-advanced-title">高级参数（可选，留空使用服务端默认）</span>
+      <AppFormGrid :columns="3">
+        <AppFormField label="最大输出 tokens">
+          <template #default="{ controlAttrs }">
+            <AppInput
+              v-bind="controlAttrs"
+              v-model="props.draft.maxTokens"
+              inputmode="numeric"
+              placeholder="如 16384"
+              autocomplete="off"
+            />
+          </template>
+        </AppFormField>
+
+        <AppFormField label="temperature">
+          <template #default="{ controlAttrs }">
+            <AppInput
+              v-bind="controlAttrs"
+              v-model="props.draft.temperature"
+              inputmode="decimal"
+              placeholder="0 – 2"
+              autocomplete="off"
+            />
+          </template>
+        </AppFormField>
+
+        <AppFormField label="top_p">
+          <template #default="{ controlAttrs }">
+            <AppInput
+              v-bind="controlAttrs"
+              v-model="props.draft.topP"
+              inputmode="decimal"
+              placeholder="0 – 1"
+              autocomplete="off"
+            />
+          </template>
+        </AppFormField>
+      </AppFormGrid>
+    </div>
   </div>
 </template>
 
@@ -152,5 +193,17 @@ function selectFetchedModel(modelId: string) {
   @apply flex items-center gap-2 text-xs leading-5;
 
   color: var(--foreground);
+}
+
+.model-draft-advanced {
+  @apply flex flex-col gap-2 border-t pt-3;
+
+  border-color: var(--border-subtle);
+}
+
+.model-draft-advanced-title {
+  @apply text-[11px];
+
+  color: var(--muted-foreground);
 }
 </style>

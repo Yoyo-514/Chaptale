@@ -25,7 +25,7 @@ export function useChatCommands({ state }: { state: ChatState }) {
       await settingsStore.load();
     }
 
-    const webSearchEnabled = settingsStore.state?.webAccess.webSearchEnabled;
+    const webSearchEnabled = settingsStore.state?.webTools.search.enabled;
 
     if (typeof webSearchEnabled === 'boolean') {
       state.isEnabledWebSearch = webSearchEnabled;
@@ -41,7 +41,7 @@ export function useChatCommands({ state }: { state: ChatState }) {
       await settingsStore.load();
     }
 
-    await settingsStore.updateWebAccess({ webSearchEnabled: nextValue });
+    await settingsStore.updateWebTools({ search: { enabled: nextValue } });
 
     if (settingsStore.error) {
       state.isEnabledWebSearch = previousValue;
@@ -91,7 +91,7 @@ export function useChatCommands({ state }: { state: ChatState }) {
   );
 
   watch(
-    () => settingsStore.state?.webAccess.webSearchEnabled,
+    () => settingsStore.state?.webTools.search.enabled,
     webSearchEnabled => {
       if (typeof webSearchEnabled === 'boolean') {
         state.isEnabledWebSearch = webSearchEnabled;

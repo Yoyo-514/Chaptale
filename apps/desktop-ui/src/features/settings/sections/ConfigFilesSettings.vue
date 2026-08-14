@@ -26,7 +26,7 @@ const paths = computed(() => settingsStore.state?.paths);
       <SettingsPathCard label="agent 设置文件" :value="paths?.piSettingsPath" />
       <SettingsPathCard label="第三方模型配置文件" :value="paths?.piModelsPath" />
       <SettingsPathCard label="内置模型 API Key 配置文件" :value="paths?.piAuthPath" />
-      <SettingsPathCard label="联网能力配置文件" :value="paths?.piWebAccessConfigPath" />
+      <SettingsPathCard label="联网能力配置文件" :value="paths?.webToolsConfigPath" />
     </div>
   </SettingsSection>
 </template>

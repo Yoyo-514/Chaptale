@@ -40,30 +40,11 @@
   }
 
   .settings-summary-card {
-    @apply mb-3 flex items-center justify-between gap-3 px-3 py-2 text-xs;
-  }
-
-  .settings-group-tabs {
-    @apply mb-3 grid grid-cols-2 gap-2;
-  }
-
-  .settings-group-tab {
-    @apply border px-3 py-2 text-xs font-medium outline-none transition-colors duration-150;
+    @apply mb-3 flex items-center justify-between gap-3 px-3 py-2.5 text-xs;
 
     background: var(--surface-muted);
-    border-color: var(--border-subtle);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-control);
-    color: var(--foreground);
-  }
-
-  .settings-group-tab span {
-    color: var(--muted-foreground);
-  }
-
-  .settings-group-tab:hover,
-  .settings-group-tab.is-active {
-    background: var(--secondary);
-    color: var(--secondary-foreground);
   }
 
   .settings-model-layout {
@@ -157,7 +138,6 @@
   }
 
   .settings-provider-card:focus-visible,
-  .settings-group-tab:focus-visible,
   .settings-model-row:focus-visible {
     box-shadow: var(--input-focus-shadow);
   }

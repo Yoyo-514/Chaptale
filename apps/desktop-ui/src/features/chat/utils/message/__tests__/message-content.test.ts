@@ -36,10 +36,8 @@ describe('message-content', () => {
     };
     const assistant: Extract<ChatMessage, { role: 'assistant' }> = {
       role: 'assistant',
-      content: [
-        { type: 'thinking', thinking: '推理' },
-        { type: 'text', text: '答案' }
-      ],
+      content: '答案',
+      reasoning: '推理',
       partial: true
     };
 
@@ -48,6 +46,16 @@ describe('message-content', () => {
     expect(getAssistantReasoning(assistant)).toBe('推理');
     expect(getAssistantReasoningStatus(assistant)).toBe('streaming');
     expect(getAssistantReasoningStatus({ ...assistant, partial: false })).toBe('done');
+  });
+
+  it('strips the attached-context envelope from user display text', () => {
+    const user: Extract<ChatMessage, { role: 'user' }> = {
+      role: 'user',
+      content:
+        '<attached_context_files>\n<file path="C:/novel/outline.md" kind="text" size="128">\n…正文…\n</attached_context_files>\n\n帮我看看大纲'
+    };
+
+    expect(getUserDisplayText(user)).toBe('帮我看看大纲');
   });
 
   it('keeps skill display text compact while reconstructing the reusable slash command', () => {
@@ -64,29 +72,29 @@ describe('message-content', () => {
 
   it('decides renderability from visible user-facing content', () => {
     expect(hasRenderableMessage({ role: 'user', content: '   ' })).toBe(false);
-    expect(hasRenderableMessage({ role: 'assistant', content: [], partial: true })).toBe(true);
-    expect(hasRenderableMessage({ role: 'assistant', content: [], errorMessage: 'failed' })).toBe(true);
+    expect(hasRenderableMessage({ role: 'assistant', content: '', partial: true })).toBe(true);
+    expect(hasRenderableMessage({ role: 'assistant', content: '', errorMessage: 'failed' })).toBe(true);
     expect(
       hasRenderableMessage({
         role: 'assistant',
-        content: [],
+        content: '',
         retry: { status: 'retrying', attempt: 1, maxAttempts: 3 }
       })
     ).toBe(true);
     expect(
       hasRenderableMessage({
-        role: 'toolResult',
+        role: 'tool',
         toolCallId: '1',
         toolName: 'x',
-        content: [{ type: 'text', text: ' ' }]
+        output: ' '
       })
     ).toBe(false);
     expect(
       hasRenderableMessage({
-        role: 'toolResult',
+        role: 'tool',
         toolCallId: '1',
         toolName: 'x',
-        content: [{ type: 'text', text: 'done' }]
+        output: 'done'
       })
     ).toBe(true);
   });
@@ -94,18 +102,19 @@ describe('message-content', () => {
   it('uses tool calls and errors as plain-text fallbacks for copy/search', () => {
     const assistant: Extract<ChatMessage, { role: 'assistant' }> = {
       role: 'assistant',
-      content: [{ type: 'toolCall', id: 'call-1', name: 'web_search', arguments: { query: 'Chaptale' } }]
+      content: '',
+      toolCalls: [{ id: 'call-1', name: 'web_search', arguments: { query: 'Chaptale' } }]
     };
 
     expect(getPrimaryToolCall(assistant)?.name).toBe('web_search');
     expect(getMessagePlainText(assistant)).toContain('"query": "Chaptale"');
-    expect(getMessagePlainText({ role: 'assistant', content: [], errorMessage: 'AI 回复失败' })).toBe('AI 回复失败');
+    expect(getMessagePlainText({ role: 'assistant', content: '', errorMessage: 'AI 回复失败' })).toBe('AI 回复失败');
     expect(
       getMessagePlainText({
-        role: 'toolResult',
+        role: 'tool',
         toolCallId: '1',
         toolName: 'fetch_content',
-        content: [{ type: 'text', text: '网页正文' }]
+        output: '网页正文'
       })
     ).toBe('网页正文');
   });

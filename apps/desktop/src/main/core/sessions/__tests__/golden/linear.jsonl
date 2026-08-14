@@ -1,0 +1,9 @@
+{"type":"chaptale-session","version":1,"id":"golden-linear","timestamp":"2026-01-01T00:00:00.000Z","cwd":"/workspace/story"}
+{"type":"message","id":"m1","parentId":null,"timestamp":"2026-01-01T00:00:01.000Z","message":{"role":"user","content":"第一章写什么"}}
+{"type":"model_change","id":"c1","parentId":"m1","timestamp":"2026-01-01T00:00:02.000Z","provider":"anthropic","modelId":"claude-sonnet-4"}
+{"type":"message","id":"m2","parentId":"c1","timestamp":"2026-01-01T00:00:03.000Z","message":{"role":"assistant","content":"建议从雨夜开场。","toolCalls":[{"id":"call_1","name":"web_search","arguments":{"query":"雨夜场景写法"}}],"usage":{"inputTokens":100,"outputTokens":20,"totalTokens":120,"cost":0.001}}}
+{"type":"message","id":"m3","parentId":"m2","timestamp":"2026-01-01T00:00:04.000Z","message":{"role":"tool","toolCallId":"call_1","toolName":"web_search","output":{"results":[{"title":"示例","url":"https://example.com","snippet":"片段"}]}}}
+{"type":"message","id":"m4","parentId":"m3","timestamp":"2026-01-01T00:00:05.000Z","message":{"role":"assistant","content":"综合检索结果，开场建议如下……","usage":{"inputTokens":200,"outputTokens":80,"totalTokens":280,"cost":0.003}}}
+{"type":"compaction","id":"k1","parentId":"m4","timestamp":"2026-01-01T00:00:06.000Z","summary":"用户询问第一章方向，助手建议雨夜开场并检索了场景写法。","firstKeptEntryId":"m4","tokensBefore":400}
+{"type":"message","id":"m5","parentId":"k1","timestamp":"2026-01-01T00:00:07.000Z","message":{"role":"user","content":"继续"}}
+{"type":"session_info","id":"s1","parentId":"m5","timestamp":"2026-01-01T00:00:08.000Z","name":"雨夜开场"}

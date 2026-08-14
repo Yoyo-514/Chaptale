@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
-import type { ChatMessage, ChatToolCallContent } from '@chaptale/shared';
+import type { ChatMessage, ChatToolCall } from '@chaptale/shared';
 
 import { AppCollapsible } from '@/components/AppCollapsible';
 
-import { formatToolName, getTextBlocks, getToolResultImages } from '../../utils/message/message-content';
+import { formatToolName, formatUnknownToolPayload, getToolResultImages } from '../../utils/message/message-content';
 import ToolCallRequest from './ToolCallRequest.vue';
 import ToolCallResult from './ToolCallResult.vue';
 
 const props = defineProps<{
-  call?: ChatToolCallContent;
-  result?: Extract<ChatMessage, { role: 'toolResult' }>;
+  call?: ChatToolCall;
+  result?: Extract<ChatMessage, { role: 'tool' }>;
   isBusy?: boolean;
   searchSection?: 'call' | 'result';
 }>();
@@ -35,13 +35,8 @@ const status = computed(() => {
 });
 const target = computed(() => formatToolTarget(props.call?.arguments));
 const title = computed(() => [formatToolName(name.value), target.value].filter(Boolean).join(' · '));
-const resultContent = computed(() =>
-  props.result
-    ? getTextBlocks(props.result.content)
-        .map(block => block.text)
-        .join('\n')
-    : ''
-);
+const resultContent = computed(() => (props.result ? formatUnknownToolPayload(props.result.output) : ''));
+const resultDetails = computed(() => props.result?.details);
 const resultImageCount = computed(() => (props.result ? getToolResultImages(props.result).length : 0));
 
 function formatToolTarget(args?: Record<string, unknown>) {
@@ -88,6 +83,7 @@ function formatToolTarget(args?: Record<string, unknown>) {
         v-if="props.result"
         :name="props.result.toolName"
         :content="resultContent"
+        :details="resultDetails"
         :image-count="resultImageCount"
         :is-error="props.result.isError"
         :search-open="props.searchSection === 'result'"

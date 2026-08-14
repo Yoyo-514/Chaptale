@@ -29,27 +29,6 @@ export function formatTokenCount(tokens: number) {
   return String(tokens);
 }
 
-export function formatSessionCost(cost: number) {
-  if (cost <= 0) {
-    return '$0';
-  }
-
-  if (cost < 0.01) {
-    return '<$0.01';
-  }
-
-  return `$${cost.toFixed(2)}`;
-}
-
-/** 单条消息费用通常远小于 1 美分，保留更高精度。 */
-export function formatMessageCost(cost: number) {
-  if (cost <= 0) {
-    return '';
-  }
-
-  return cost < 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toFixed(2)}`;
-}
-
 export function formatMessageTime(timestamp?: number) {
   if (!timestamp) {
     return '';

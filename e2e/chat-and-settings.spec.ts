@@ -4,6 +4,12 @@ async function installDesktopMock(page: Page) {
   await page.addInitScript(() => {
     const now = new Date('2026-07-06T00:00:00Z').toISOString();
     let webSearchEnabled = true;
+    const webToolsState = () => ({
+      search: { enabled: webSearchEnabled },
+      keys: {},
+      fetch: { timeoutSeconds: 15, maxBytes: 2_000_000 },
+      ssrf: { allowRanges: [] }
+    });
     let entries: any[] = [];
     const calls: {
       settingsUpdates: any[];
@@ -92,17 +98,7 @@ async function installDesktopMock(page: Page) {
           version: 1,
           storage: { mode: 'global' }
         },
-        webAccess: {
-          webSearchEnabled,
-          provider: 'auto',
-          workflow: 'none',
-          allowBrowserCookies: false,
-          curatorTimeoutSeconds: 20,
-          githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
-          youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
-          video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
-          ssrf: { allowRanges: [] }
-        },
+        webTools: webToolsState(),
         paths: {
           rootDir: 'C:/Users/Test/.chaptale',
           agentDir: 'C:/Users/Test/.chaptale/agent',
@@ -175,10 +171,10 @@ async function installDesktopMock(page: Page) {
           calls.settingsUpdates.push(payload);
           return settingsState();
         },
-        updateWebAccess: async (payload: any) => {
+        updateWebTools: async (payload: any) => {
           calls.settingsUpdates.push(payload);
-          if (typeof payload.webSearchEnabled === 'boolean') {
-            webSearchEnabled = payload.webSearchEnabled;
+          if (typeof payload.search?.enabled === 'boolean') {
+            webSearchEnabled = payload.search.enabled;
           }
           return settingsState();
         },
@@ -570,13 +566,14 @@ test('web search toggle updates settings and stays in sync with the settings pan
 
   await expect
     .poll(() => page.evaluate(() => (window as any).chaptaleE2E.settingsUpdates.at(-1)))
-    .toEqual({ webSearchEnabled: false });
+    .toEqual({ search: { enabled: false } });
 
   await page.getByLabel('打开设置').click();
   await page.getByRole('button', { name: '联网 搜索、提取与 API Key' }).click();
 
+  // 新版联网面板不再有全局开关（enabled 由聊天栏 toggle 持有），验证面板加载与搜索配置可见。
   await expect(page.getByRole('heading', { name: '联网与内容提取' })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: /启用联网搜索/ })).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByText('搜索 Provider')).toBeVisible();
 });
 
 test('auto notification popup only shows unseen notifications after the center is opened', async ({ page }) => {

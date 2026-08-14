@@ -29,6 +29,7 @@ export type ChaptaleSessionTreeEntryBase = {
   timestamp: string;
 };
 
+/** v1 会话树节点（与 core/sessions entry 同形状；未知类型以 custom 透传，向前兼容）。 */
 export type ChaptaleMessageEntry = ChaptaleSessionTreeEntryBase & {
   type: 'message';
   message: ChatMessage;
@@ -40,15 +41,17 @@ export type ChaptaleCompactionEntry<T = unknown> = ChaptaleSessionTreeEntryBase 
   firstKeptEntryId: string;
   tokensBefore: number;
   details?: T;
-  fromHook?: boolean;
 };
 
-export type ChaptaleBranchSummaryEntry<T = unknown> = ChaptaleSessionTreeEntryBase & {
-  type: 'branch_summary';
-  fromId: string;
-  summary: string;
-  details?: T;
-  fromHook?: boolean;
+export type ChaptaleModelChangeEntry = ChaptaleSessionTreeEntryBase & {
+  type: 'model_change';
+  provider: string;
+  modelId: string;
+};
+
+export type ChaptaleBranchSelectedEntry = ChaptaleSessionTreeEntryBase & {
+  type: 'branch_selected';
+  targetId: string | null;
 };
 
 export type ChaptaleLabelEntry = ChaptaleSessionTreeEntryBase & {
@@ -68,24 +71,17 @@ export type ChaptaleCustomEntry<T = unknown> = ChaptaleSessionTreeEntryBase & {
   data: T;
 };
 
-export type ChaptaleCustomMessageEntry<T = unknown> = ChaptaleSessionTreeEntryBase & {
-  type: 'custom_message';
-  message: ChatMessage;
-  data?: T;
-};
-
 /**
- * Renderer 可识别的会话树节点联合。
- * custom 节点保留 pi 新增的未知条目，保证协议向前兼容而不丢失原始数据。
+ * Renderer 可识别的会话树节点联合（v1）。
  */
 export type ChaptaleSessionTreeEntry =
   | ChaptaleMessageEntry
   | ChaptaleCompactionEntry
-  | ChaptaleBranchSummaryEntry
+  | ChaptaleModelChangeEntry
+  | ChaptaleBranchSelectedEntry
   | ChaptaleLabelEntry
   | ChaptaleSessionInfoEntry
-  | ChaptaleCustomEntry
-  | ChaptaleCustomMessageEntry;
+  | ChaptaleCustomEntry;
 
 export type ChaptaleSessionMetadata = {
   id: string;
@@ -108,8 +104,6 @@ export type ChaptaleSessionListItem = ChaptaleSessionMetadata & {
   scope: ChaptaleSessionScope;
   /** 会话内 assistant 消息累计 token 消耗 */
   totalTokens: number;
-  /** 会话内 assistant 消息累计费用（美元） */
-  totalCost: number;
 };
 
 export type CreateSessionOptions = Static<typeof CreateSessionOptionsSchema>;

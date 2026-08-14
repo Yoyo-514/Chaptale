@@ -29,7 +29,7 @@ export const IPC_CHANNELS = {
   settings: {
     getState: 'settings:get-state',
     update: 'settings:update',
-    updateWebAccess: 'settings:update-web-access',
+    updateWebTools: 'settings:update-web-tools',
     selectWorkspaceDir: 'settings:select-workspace-dir',
     openConfigDir: 'settings:open-config-dir'
   },

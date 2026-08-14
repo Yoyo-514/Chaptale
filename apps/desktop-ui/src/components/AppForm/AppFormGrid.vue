@@ -49,6 +49,10 @@ const gridAttrs = computed(() => {
   @apply grid-cols-2;
 }
 
+.app-form-grid-3 {
+  @apply grid-cols-3;
+}
+
 .app-form-grid-responsive {
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 }

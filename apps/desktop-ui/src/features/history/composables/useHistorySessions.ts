@@ -7,7 +7,7 @@ import { getSessionTitle } from '@/utils/session-display';
 import { isSameWorkspacePath } from '@/utils/workspace-path';
 
 export type HistoryScopeFilter = 'all' | 'workspace' | 'global';
-export type HistorySortMode = 'latest' | 'oldest' | 'cost' | 'tokens';
+export type HistorySortMode = 'latest' | 'oldest' | 'tokens';
 
 /**
  * 生成历史页的筛选、搜索和排序投影，不修改 store 中的原始会话顺序。
@@ -78,10 +78,6 @@ function matchesSearch(session: ChaptaleSessionListItem, query: string) {
 function compareSessions(left: ChaptaleSessionListItem, right: ChaptaleSessionListItem, sortMode: HistorySortMode) {
   if (sortMode === 'oldest') {
     return left.updatedAt.localeCompare(right.updatedAt);
-  }
-
-  if (sortMode === 'cost') {
-    return right.totalCost - left.totalCost || right.updatedAt.localeCompare(left.updatedAt);
   }
 
   if (sortMode === 'tokens') {

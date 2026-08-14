@@ -41,7 +41,7 @@ import {
   TaskReadRunOutputArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
-  UpdatePiWebAccessSettingsArgsValidator,
+  UpdateWebToolsSettingsArgsValidator,
   UpdatePromptSettingsArgsValidator
 } from '@chaptale/ipc-contract';
 
@@ -116,7 +116,7 @@ const expectedRegistrations: Registration[] = [
 
   trusted(IPC_CHANNELS.settings.getState),
   validated(IPC_CHANNELS.settings.update, UpdateChaptaleSettingsArgsValidator),
-  validated(IPC_CHANNELS.settings.updateWebAccess, UpdatePiWebAccessSettingsArgsValidator),
+  validated(IPC_CHANNELS.settings.updateWebTools, UpdateWebToolsSettingsArgsValidator),
   trusted(IPC_CHANNELS.settings.selectWorkspaceDir),
   trusted(IPC_CHANNELS.settings.openConfigDir),
 

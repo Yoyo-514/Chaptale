@@ -14,15 +14,10 @@ function createSettingsState(webSearchEnabled = true) {
       version: 1,
       storage: { mode: 'global' }
     },
-    webAccess: {
-      webSearchEnabled,
-      provider: 'auto',
-      workflow: 'none',
-      allowBrowserCookies: false,
-      curatorTimeoutSeconds: 20,
-      githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
-      youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
-      video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
+    webTools: {
+      search: { enabled: webSearchEnabled, provider: 'duckduckgo' },
+      keys: {},
+      fetch: { timeoutSeconds: 30, maxBytes: 2 * 1024 * 1024 },
       ssrf: { allowRanges: [] }
     },
     paths: {
@@ -76,9 +71,9 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
     settings: {
       getState: vi.fn().mockResolvedValue(state),
       update: vi.fn().mockResolvedValue(state),
-      updateWebAccess: vi.fn().mockImplementation(async payload => {
-        if (typeof payload.webSearchEnabled === 'boolean') {
-          state.webAccess.webSearchEnabled = payload.webSearchEnabled;
+      updateWebTools: vi.fn().mockImplementation(async payload => {
+        if (typeof payload.search?.enabled === 'boolean') {
+          state.webTools.search.enabled = payload.search.enabled;
         }
         return state;
       }),
@@ -122,10 +117,10 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
         handlers.onMessage({
           role: 'assistant',
           partial: true,
-          content: [{ type: 'text', text: '草稿' }],
+          content: '草稿',
           timestamp: Date.now()
         });
-        handlers.onMessage({ role: 'assistant', content: [{ type: 'text', text: '最终回复' }], timestamp: Date.now() });
+        handlers.onMessage({ role: 'assistant', content: '最终回复', timestamp: Date.now() });
         handlers.onEnd({ status: 'completed' });
         return { runId: 'run-1' };
       }),
@@ -193,7 +188,7 @@ describe('useChatController', () => {
     expect(controller.state.messages.map(item => item.message.role)).toEqual(['user', 'assistant']);
     expect(controller.state.messages[1]?.message).toMatchObject({
       role: 'assistant',
-      content: [{ type: 'text', text: '最终回复' }]
+      content: '最终回复'
     });
     expect(controller.state.isReplying).toBe(false);
   });
@@ -272,7 +267,7 @@ describe('useChatController', () => {
       },
       {
         id: 'skill-assistant',
-        message: { role: 'assistant', content: [{ type: 'text', text: '审查结果' }] }
+        message: { role: 'assistant', content: '审查结果' }
       }
     ];
 
@@ -295,18 +290,19 @@ describe('useChatController', () => {
           handlers.onMessage({
             role: 'assistant',
             partial: true,
-            content: [{ type: 'text', text: '先修改文件。' }]
+            content: '先修改文件。'
           });
           handlers.onMessage({
             role: 'assistant',
             partial: true,
-            content: [{ type: 'toolCall', id: 'call-1', name: 'edit', arguments: { path: 'src/a.ts' } }]
+            content: '',
+            toolCalls: [{ id: 'call-1', name: 'edit', arguments: { path: 'src/a.ts' } }]
           });
           handlers.onMessage({
-            role: 'toolResult',
+            role: 'tool',
             toolCallId: 'call-1',
             toolName: 'edit',
-            content: [{ type: 'text', text: 'updated' }]
+            output: 'updated'
           });
           return { runId: 'run-tools' };
         }),
@@ -322,13 +318,11 @@ describe('useChatController', () => {
     controller.state.input = '修改文件';
     await controller.handleSend();
 
-    expect(controller.state.messages.map(item => item.message.role)).toEqual(['user', 'assistant', 'toolResult']);
+    expect(controller.state.messages.map(item => item.message.role)).toEqual(['user', 'assistant', 'tool']);
     expect(controller.state.messages[1]?.message).toMatchObject({
       role: 'assistant',
-      content: [
-        { type: 'text', text: '先修改文件。' },
-        { type: 'toolCall', id: 'call-1', name: 'edit', arguments: { path: 'src/a.ts' } }
-      ]
+      content: '先修改文件。',
+      toolCalls: [{ id: 'call-1', name: 'edit', arguments: { path: 'src/a.ts' } }]
     });
   });
 
@@ -693,7 +687,7 @@ describe('useChatController', () => {
     installDesktopMock();
     const controller = await mountController();
     const settingsStore = useSettingsStore();
-    vi.spyOn(settingsStore, 'updateWebAccess').mockImplementation(async () => {
+    vi.spyOn(settingsStore, 'updateWebTools').mockImplementation(async () => {
       settingsStore.error = '保存失败';
       return false;
     });

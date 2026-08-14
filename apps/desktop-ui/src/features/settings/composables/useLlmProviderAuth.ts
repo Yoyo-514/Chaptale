@@ -1,9 +1,9 @@
-import { reactive, ref, type Ref } from 'vue';
+import { reactive, ref } from 'vue';
 
 import type { useNotificationStore } from '@/features/notifications';
 
 import type { useSettingsStore } from '../store';
-import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
+import type { ProviderView } from '../utils/llm-settings.helpers';
 
 type NotificationStore = ReturnType<typeof useNotificationStore>;
 type SettingsStore = ReturnType<typeof useSettingsStore>;
@@ -12,11 +12,7 @@ function getApiKeyPlaceholder(provider?: ProviderView) {
   return provider?.authConfigured ? '••••••••••••' : '输入 API Key';
 }
 
-export function useLlmProviderAuth(
-  settingsStore: SettingsStore,
-  notificationStore: NotificationStore,
-  activeModelGroup: Ref<ModelGroup>
-) {
+export function useLlmProviderAuth(settingsStore: SettingsStore, notificationStore: NotificationStore) {
   const pendingApiKeyProvider = ref('');
   const providerApiKeys = reactive<Record<string, string>>({});
 
@@ -35,10 +31,7 @@ export function useLlmProviderAuth(
     pendingApiKeyProvider.value = provider;
 
     try {
-      const succeeded =
-        activeModelGroup.value === 'custom'
-          ? await settingsStore.setCustomProviderApiKey(provider, apiKey)
-          : await settingsStore.setProviderApiKey(provider, apiKey);
+      const succeeded = await settingsStore.setCustomProviderApiKey(provider, apiKey);
 
       if (succeeded) {
         providerApiKeys[provider] = '';
@@ -52,12 +45,7 @@ export function useLlmProviderAuth(
     pendingApiKeyProvider.value = provider;
 
     try {
-      if (activeModelGroup.value === 'custom') {
-        await settingsStore.removeCustomProviderApiKey(provider);
-        return;
-      }
-
-      await settingsStore.removeProviderApiKey(provider);
+      await settingsStore.removeCustomProviderApiKey(provider);
     } finally {
       pendingApiKeyProvider.value = '';
     }

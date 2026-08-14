@@ -248,8 +248,10 @@ export function useChatStreaming({
                 return;
               }
 
-              if (message.content.length === 0 && getAssistantReasoning(message)) {
+              if (message.content !== undefined && message.content === '' && getAssistantReasoning(message)) {
                 assistantStreaming.flush();
+                // partial 快照：累计 reasoning 直接替换（part-translator 发的是全量而非增量）。
+                assistantStreaming.replaceReasoning(getAssistantReasoning(message));
                 assistantStreaming.updateReasoningStatus('streaming');
                 return;
               }

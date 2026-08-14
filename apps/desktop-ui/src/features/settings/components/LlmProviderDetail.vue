@@ -4,13 +4,12 @@ import type { ChaptaleModelInfo } from '@chaptale/ipc-contract';
 import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
 
-import type { ModelGroup, ProviderView } from '../utils/llm-settings.helpers';
+import type { ProviderView } from '../utils/llm-settings.helpers';
 import LlmModelList from './LlmModelList.vue';
 import LlmProviderAuthPanel from './LlmProviderAuthPanel.vue';
 
 const props = defineProps<{
   provider: ProviderView;
-  activeModelGroup: ModelGroup;
   apiKey?: string;
   isApiKeySaving: boolean;
   apiKeyPlaceholder: string;
@@ -53,7 +52,7 @@ const emit = defineEmits<{
         @remove="emit('removeApiKey')"
       />
 
-      <div v-if="props.activeModelGroup === 'custom'" class="settings-actions compact">
+      <div class="settings-actions compact">
         <AppButton variant="primary" type="button" @click="emit('openCustomModelDialog')">添加模型</AppButton>
       </div>
 

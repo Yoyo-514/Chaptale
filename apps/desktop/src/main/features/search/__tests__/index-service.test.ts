@@ -1,9 +1,9 @@
-import { parseFrontmatter } from '@earendil-works/pi-coding-agent';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { parseFrontmatter } from '../../../core/frontmatter/parse';
 import type { IndexCacheEnvelope, IndexCachePort } from '../cache-store';
 import { IndexService } from '../index-service';
 import { WorkspaceIndexSourceResolver } from '../source-resolver';

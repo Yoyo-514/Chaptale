@@ -19,7 +19,7 @@ export class SlashCommandService {
 
   async list(): Promise<SlashCommand[]> {
     const cwd = await this.settingsService.getCurrentCwd();
-    const { skills } = this.skillsProvider.load(cwd);
+    const { skills } = await this.skillsProvider.load(cwd);
 
     return [
       SETTINGS_COMMAND,

@@ -1,0 +1,9 @@
+{"type":"chaptale-session","version":1,"id":"golden-branch","timestamp":"2026-01-01T00:00:00.000Z","cwd":"/workspace/story"}
+{"type":"message","id":"m1","parentId":null,"timestamp":"2026-01-01T00:00:01.000Z","message":{"role":"user","content":"结局 A 还是 B"}}
+{"type":"message","id":"m2","parentId":"m1","timestamp":"2026-01-01T00:00:02.000Z","message":{"role":"assistant","content":"结局 A：主角离开。"}}
+{"type":"message","id":"m3","parentId":"m2","timestamp":"2026-01-01T00:00:03.000Z","message":{"role":"user","content":"不满意，换一个"}}
+{"type":"message","id":"m4","parentId":"m3","timestamp":"2026-01-01T00:00:04.000Z","message":{"role":"assistant","content":"结局 B：主角留下。"}}
+{"type":"branch_selected","id":"b1","parentId":"m4","timestamp":"2026-01-01T00:00:05.000Z","targetId":"m1"}
+{"type":"message","id":"m5","parentId":"m1","timestamp":"2026-01-01T00:00:06.000Z","message":{"role":"assistant","content":"结局 C：开放式收尾。"}}
+{"type":"branch_selected","id":"b2","parentId":"m5","timestamp":"2026-01-01T00:00:07.000Z","targetId":null}
+{"type":"message","id":"m6","parentId":"m5","timestamp":"2026-01-01T00:00:08.000Z","message":{"role":"user","content":"就这个"}}

@@ -18,18 +18,11 @@ describe('ToolCatalog', () => {
     const catalog = createDefaultToolCatalog();
     const selected = catalog.selectSessionTools({ ...basePersona });
 
-    expect(selected.piToolNames).toEqual([
-      'read',
-      'grep',
-      'find',
-      'ls',
-      'write',
-      'edit',
+    expect(selected.piToolNames).toEqual(['read', 'grep', 'find', 'ls', 'write', 'edit']);
+    expect(selected.customToolNames).toEqual([
       'web_search',
       'fetch_content',
-      'get_search_content'
-    ]);
-    expect(selected.customToolNames).toEqual([
+      'get_search_content',
       'todo_write',
       'delegate',
       'memory_save',

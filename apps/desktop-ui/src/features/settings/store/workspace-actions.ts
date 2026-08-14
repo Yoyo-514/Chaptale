@@ -1,7 +1,7 @@
 import type {
   ChaptaleSettingsState,
   UpdateChaptaleSettingsPayload,
-  UpdatePiWebAccessSettingsPayload
+  UpdateWebToolsSettingsPayload
 } from '@chaptale/ipc-contract';
 
 import { useSessionStore } from '@/features/sessions';
@@ -43,11 +43,11 @@ export const workspaceSettingsActions = {
     }
   },
 
-  async updateWebAccess(this: SettingsStoreContext, payload: UpdatePiWebAccessSettingsPayload) {
+  async updateWebTools(this: SettingsStoreContext, payload: UpdateWebToolsSettingsPayload) {
     this.isLoading = true;
 
     try {
-      const state = await this.runAction('更新联网设置失败', () => getDesktopApi().settings.updateWebAccess(payload));
+      const state = await this.runAction('更新联网设置失败', () => getDesktopApi().settings.updateWebTools(payload));
       if (!state) {
         return false;
       }

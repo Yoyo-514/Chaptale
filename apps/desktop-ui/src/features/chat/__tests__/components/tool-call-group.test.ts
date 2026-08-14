@@ -9,16 +9,17 @@ const messages = [
     id: 'assistant-tool',
     message: {
       role: 'assistant' as const,
-      content: [{ type: 'toolCall' as const, id: 'call-1', name: 'read', arguments: { path: 'a.ts' } }]
+      content: '',
+      toolCalls: [{ id: 'call-1', name: 'read', arguments: { path: 'a.ts' } }]
     }
   },
   {
     id: 'tool-result',
     message: {
-      role: 'toolResult' as const,
+      role: 'tool' as const,
       toolCallId: 'call-1',
       toolName: 'read',
-      content: [{ type: 'text' as const, text: 'file content' }]
+      output: 'file content'
     }
   }
 ];
@@ -80,12 +81,13 @@ describe('ToolCallGroup', () => {
           id: 'parallel-tools',
           message: {
             role: 'assistant',
-            content: [
-              { type: 'toolCall', id: 'c1', name: 'read', arguments: {} },
-              { type: 'toolCall', id: 'c2', name: 'edit', arguments: {} },
-              { type: 'toolCall', id: 'c3', name: 'bash', arguments: {} },
-              { type: 'toolCall', id: 'c4', name: 'web_search', arguments: {} },
-              { type: 'toolCall', id: 'c5', name: 'read', arguments: {} }
+            content: '',
+            toolCalls: [
+              { id: 'c1', name: 'read', arguments: {} },
+              { id: 'c2', name: 'edit', arguments: {} },
+              { id: 'c3', name: 'bash', arguments: {} },
+              { id: 'c4', name: 'web_search', arguments: {} },
+              { id: 'c5', name: 'read', arguments: {} }
             ]
           }
         }
@@ -104,13 +106,31 @@ describe('ToolCallGroup', () => {
           {
             id: 'tool-result',
             message: {
-              role: 'toolResult' as const,
+              role: 'tool' as const,
               toolCallId: 'call-1',
               toolName: 'read',
-              content: [
-                { type: 'image' as const, data: 'YWJj', mimeType: 'image/png' },
-                { type: 'image' as const, data: 'ZGVm', mimeType: 'image/jpeg' }
-              ]
+              output: {
+                images: [
+                  {
+                    type: 'imageAttachment',
+                    id: 'img-1',
+                    mimeType: 'image/png',
+                    originalBytes: 3,
+                    width: 100,
+                    height: 80,
+                    thumbnailDataUrl: 'data:image/png;base64,YWJj'
+                  },
+                  {
+                    type: 'imageAttachment',
+                    id: 'img-2',
+                    mimeType: 'image/jpeg',
+                    originalBytes: 3,
+                    width: 100,
+                    height: 80,
+                    thumbnailDataUrl: 'data:image/jpeg;base64,ZGVm'
+                  }
+                ]
+              }
             }
           }
         ]
@@ -131,11 +151,11 @@ describe('ToolCallGroup', () => {
           {
             id: 'tool-result-error',
             message: {
-              role: 'toolResult',
+              role: 'tool',
               toolCallId: 'call-1',
               toolName: 'read',
               isError: true,
-              content: [{ type: 'text', text: 'edit failed' }]
+              output: 'edit failed'
             }
           }
         ]

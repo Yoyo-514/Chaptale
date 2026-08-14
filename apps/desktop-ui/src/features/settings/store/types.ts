@@ -4,11 +4,11 @@ import type {
   ListModelsResult,
   PromptSettingsState,
   UpdateChaptaleSettingsPayload,
-  UpdatePiWebAccessSettingsPayload,
+  UpdateWebToolsSettingsPayload,
   UpdatePromptSettingsPayload
 } from '@chaptale/ipc-contract';
 
-export type SettingsSection = 'workspace' | 'llm' | 'prompt' | 'webAccess' | 'permissions' | 'files';
+export type SettingsSection = 'workspace' | 'llm' | 'prompt' | 'webTools' | 'permissions' | 'files';
 
 export type SettingsStoreState = {
   state: ChaptaleSettingsState | undefined;
@@ -33,5 +33,5 @@ export type SettingsStoreContext = SettingsStoreState & {
   loadPromptSettings(): Promise<void>;
   updatePromptSettings(payload: UpdatePromptSettingsPayload): Promise<boolean>;
   update(payload: UpdateChaptaleSettingsPayload): Promise<void>;
-  updateWebAccess(payload: UpdatePiWebAccessSettingsPayload): Promise<boolean>;
+  updateWebTools(payload: UpdateWebToolsSettingsPayload): Promise<boolean>;
 };

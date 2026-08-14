@@ -22,17 +22,18 @@ function createHarness() {
 function toolCall(id: string, args: Record<string, unknown> = { path: 'a.ts' }): ChatMessage {
   return {
     role: 'assistant',
-    content: [{ type: 'toolCall', id, name: 'edit', arguments: args }],
+    content: '',
+    toolCalls: [{ id, name: 'edit', arguments: args }],
     stopReason: 'toolUse'
   };
 }
 
 function toolResult(id: string, text: string): ChatMessage {
   return {
-    role: 'toolResult',
+    role: 'tool',
     toolCallId: id,
     toolName: 'edit',
-    content: [{ type: 'text', text }]
+    output: text
   };
 }
 
@@ -49,10 +50,8 @@ describe('useAssistantStreamingMessages tool lifecycle', () => {
     expect(messages[0]?.id).toBe(displayId);
     expect(messages[0]?.message).toMatchObject({
       role: 'assistant',
-      content: [
-        { type: 'text', text: '先修改文件。' },
-        { type: 'toolCall', id: 'call-1', name: 'edit', arguments: { path: 'a.ts' } }
-      ]
+      content: '先修改文件。',
+      toolCalls: [{ id: 'call-1', name: 'edit', arguments: { path: 'a.ts' } }]
     });
   });
 
@@ -68,13 +67,13 @@ describe('useAssistantStreamingMessages tool lifecycle', () => {
     expect(messages).toHaveLength(2);
     expect(messages[0]?.message).toMatchObject({
       role: 'assistant',
-      content: [{ type: 'toolCall', id: 'call-1', arguments: { path: 'b.ts' } }]
+      toolCalls: [{ id: 'call-1', arguments: { path: 'b.ts' } }]
     });
     expect(messages[1]?.id).toBe(resultDisplayId);
     expect(messages[1]?.message).toMatchObject({
-      role: 'toolResult',
+      role: 'tool',
       toolCallId: 'call-1',
-      content: [{ type: 'text', text: 'final' }]
+      output: 'final'
     });
   });
 
@@ -87,7 +86,7 @@ describe('useAssistantStreamingMessages tool lifecycle', () => {
     streaming.appendOrReplaceAssistantMessage(toolResult('call-1', 'a done'));
 
     expect(messages).toHaveLength(4);
-    expect(messages.map(item => (item.message.role === 'toolResult' ? item.message.toolCallId : 'call'))).toEqual([
+    expect(messages.map(item => (item.message.role === 'tool' ? item.message.toolCallId : 'call'))).toEqual([
       'call',
       'call',
       'call-2',

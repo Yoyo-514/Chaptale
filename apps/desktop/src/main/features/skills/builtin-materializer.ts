@@ -14,6 +14,8 @@ export function materializeBuiltinSkills(targetDir: string): void {
   fs.mkdirSync(targetDir, { recursive: true });
 
   for (const skill of builtinSkillSources) {
-    fs.writeFileSync(path.join(targetDir, skill.fileName), skill.source, 'utf8');
+    const skillDir = path.join(targetDir, skill.dirName);
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skill.source, 'utf8');
   }
 }

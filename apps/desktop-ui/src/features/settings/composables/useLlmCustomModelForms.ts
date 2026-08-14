@@ -9,10 +9,11 @@ import {
   createCustomModelDraft,
   draftToInput,
   parseContextWindow,
+  parseOptionalNumber,
   resetCustomModelDraft,
   type CustomModelDraft
 } from '../utils/custom-model-draft';
-import { getFetchedModelOptions, type ModelGroup } from '../utils/llm-settings.helpers';
+import { getFetchedModelOptions } from '../utils/llm-settings.helpers';
 
 type NotificationStore = ReturnType<typeof useNotificationStore>;
 type SettingsStore = ReturnType<typeof useSettingsStore>;
@@ -22,6 +23,9 @@ type StagedCustomModel = {
   modelName?: string;
   input: ReturnType<typeof draftToInput>;
   contextWindow: number | undefined;
+  maxTokens?: number;
+  temperature?: number;
+  topP?: number;
 };
 
 function toStagedModel(draft: CustomModelDraft): StagedCustomModel {
@@ -29,7 +33,10 @@ function toStagedModel(draft: CustomModelDraft): StagedCustomModel {
     modelId: draft.modelId.trim(),
     modelName: draft.modelName.trim() || undefined,
     input: draftToInput(draft),
-    contextWindow: parseContextWindow(draft)
+    contextWindow: parseContextWindow(draft),
+    maxTokens: parseOptionalNumber(draft.maxTokens),
+    temperature: parseOptionalNumber(draft.temperature),
+    topP: parseOptionalNumber(draft.topP)
   };
 }
 
@@ -40,7 +47,6 @@ function toStagedModel(draft: CustomModelDraft): StagedCustomModel {
 export function useLlmCustomModelForms(
   settingsStore: SettingsStore,
   notificationStore: NotificationStore,
-  activeModelGroup: Ref<ModelGroup>,
   selectedProviderId: Ref<string>,
   selectedProviderModels: Readonly<Ref<ChaptaleModelInfo[]>>
 ) {
@@ -132,6 +138,9 @@ export function useLlmCustomModelForms(
     customModelDraft.modelName = model.name;
     customModelDraft.contextWindow = String(model.contextWindow);
     customModelDraft.supportsImageInput = model.input.includes('image');
+    customModelDraft.maxTokens = model.maxTokens !== undefined ? String(model.maxTokens) : '';
+    customModelDraft.temperature = model.temperature !== undefined ? String(model.temperature) : '';
+    customModelDraft.topP = model.topP !== undefined ? String(model.topP) : '';
     settingsStore.clearFetchedCustomModels();
     isCustomModelDialogOpen.value = true;
   }
@@ -142,7 +151,10 @@ export function useLlmCustomModelForms(
       modelId: customModelDraft.modelId,
       modelName: customModelDraft.modelName || undefined,
       input: draftToInput(customModelDraft),
-      contextWindow: parseContextWindow(customModelDraft)
+      contextWindow: parseContextWindow(customModelDraft),
+      maxTokens: parseOptionalNumber(customModelDraft.maxTokens),
+      temperature: parseOptionalNumber(customModelDraft.temperature),
+      topP: parseOptionalNumber(customModelDraft.topP)
     });
 
     if (succeeded) {
@@ -176,7 +188,6 @@ export function useLlmCustomModelForms(
 
     if (succeeded) {
       notificationStore.success('供应商已添加');
-      activeModelGroup.value = 'custom';
       selectedProviderId.value = providerId;
       customProvider.provider = '';
       customProvider.providerName = '';

@@ -4,7 +4,6 @@ import { useNotificationStore } from '@/features/notifications';
 
 import LlmAddCustomModelPanel from '../components/LlmAddCustomModelPanel.vue';
 import LlmCustomProviderForm from '../components/LlmCustomProviderForm.vue';
-import LlmModelGroupTabs from '../components/LlmModelGroupTabs.vue';
 import LlmProviderDetail from '../components/LlmProviderDetail.vue';
 import LlmProviderList from '../components/LlmProviderList.vue';
 import SettingsSection from '../components/SettingsSection.vue';
@@ -18,18 +17,14 @@ const notificationStore = useNotificationStore();
 const settingsStore = useSettingsStore();
 const {
   selectedProviderId,
-  activeModelGroup,
   providerViews,
   selectedProvider,
   selectedProviderModels,
-  builtinCount,
-  customCount,
   defaultModelLabel,
-  setModelGroup,
   selectProvider
 } = useLlmSettingsState(settingsStore);
 const { providerApiKeys, getApiKeyPlaceholder, isApiKeySaving, submitProviderApiKey, removeProviderApiKey } =
-  useLlmProviderAuth(settingsStore, notificationStore, activeModelGroup);
+  useLlmProviderAuth(settingsStore, notificationStore);
 const {
   isCustomFormOpen,
   isCustomModelDialogOpen,
@@ -50,13 +45,7 @@ const {
   openEditCustomModelDialog,
   submitCustomModelToProvider,
   submitCustomProvider
-} = useLlmCustomModelForms(
-  settingsStore,
-  notificationStore,
-  activeModelGroup,
-  selectedProviderId,
-  selectedProviderModels
-);
+} = useLlmCustomModelForms(settingsStore, notificationStore, selectedProviderId, selectedProviderModels);
 const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActions(settingsStore);
 </script>
 
@@ -65,7 +54,7 @@ const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActi
     class="llm-settings"
     title="模型服务"
     title-id="settings-provider-title"
-    description="管理内置模型与自定义模型。自定义模型的服务地址、模型 ID 与 API Key 会保存在模型配置中；内置模型的 API Key 会保存在 API Key 配置中。"
+    description="管理模型供应商：添加服务商、配置 API Key 与模型清单。所有配置保存在 models.json，可随时刷新同步。"
     :scrollable="false"
   >
     <template #actions>
@@ -82,18 +71,9 @@ const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActi
       <strong>{{ defaultModelLabel }}</strong>
     </div>
 
-    <LlmModelGroupTabs
-      :active-group="activeModelGroup"
-      :builtin-count="builtinCount"
-      :custom-count="customCount"
-      @select="setModelGroup"
-    />
-
     <div v-if="settingsStore.isModelsLoading" class="settings-empty-card">正在读取模型清单...</div>
     <div v-else-if="!providerViews.length" class="settings-empty-card">
-      {{
-        activeModelGroup === 'custom' ? '暂无自定义供应商。点击右上角添加供应商。' : '暂无内置模型。请稍后刷新重试。'
-      }}
+      暂无模型供应商。点击右上角「添加供应商」，填入服务地址与 API Key 即可开始使用。
     </div>
     <div v-else class="settings-model-layout">
       <LlmProviderList
@@ -105,7 +85,6 @@ const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActi
       <LlmProviderDetail
         v-if="selectedProvider"
         :provider="selectedProvider"
-        :active-model-group="activeModelGroup"
         :api-key="providerApiKeys[selectedProvider.provider]"
         :is-api-key-saving="isApiKeySaving(selectedProvider.provider)"
         :api-key-placeholder="getApiKeyPlaceholder(selectedProvider)"

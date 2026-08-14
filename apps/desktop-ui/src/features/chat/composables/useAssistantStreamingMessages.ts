@@ -58,7 +58,7 @@ export function useAssistantStreamingMessages(options: {
     const message: ChatMessage = {
       role: 'assistant',
       partial: true,
-      content: [],
+      content: '',
       timestamp: Date.now()
     };
     messages().push(options.createDisplayMessage(message));
@@ -73,13 +73,19 @@ export function useAssistantStreamingMessages(options: {
     }
   }
 
+  /** partial 快照语义：思维链累计文本直接覆盖（幂等，不叠加）。 */
+  function replaceReasoning(text: string) {
+    const message = ensureStreamingAssistant();
+    message.reasoning = text;
+  }
+
   /** 合并非 delta 消息；工具结果按 toolCallId 幂等更新，最终 assistant 消息替换当前流式占位。 */
   function appendOrReplaceAssistantMessage(message: ChatMessage) {
     const currentMessages = messages();
 
-    if (message.role === 'toolResult') {
+    if (message.role === 'tool') {
       const existingResult = currentMessages.find(
-        item => item.message.role === 'toolResult' && item.message.toolCallId === message.toolCallId
+        item => item.message.role === 'tool' && item.message.toolCallId === message.toolCallId
       );
 
       if (existingResult) {
@@ -101,9 +107,7 @@ export function useAssistantStreamingMessages(options: {
 
     if (lastDisplayMessage && lastMessage?.role === 'assistant' && lastMessage.partial) {
       lastDisplayMessage.message =
-        incomingToolCalls.length > 0
-          ? { ...message, content: mergeAssistantContent(lastMessage.content, message.content) }
-          : message;
+        incomingToolCalls.length > 0 ? { ...message, content: mergeAssistantContent(lastMessage, message) } : message;
       return;
     }
 
@@ -135,24 +139,12 @@ export function useAssistantStreamingMessages(options: {
     const message = ensureStreamingAssistant();
 
     if (target === 'reasoning') {
-      const lastBlock = message.content.at(-1);
-
-      if (lastBlock?.type === 'thinking') {
-        lastBlock.thinking += delta;
-      } else {
-        message.content.push({ type: 'thinking', thinking: delta, thinkingSignature: 'reasoning_content' });
-      }
-
+      message.reasoning = (message.reasoning ?? '') + delta;
       return;
     }
 
-    const lastBlock = message.content.at(-1);
-
-    if (lastBlock?.type === 'text') {
-      lastBlock.text += delta;
-    } else {
-      message.content.push({ type: 'text', text: delta });
-    }
+    message.content =
+      typeof message.content === 'string' ? message.content + delta : concatParts(message.content, delta);
   }
 
   function markStreamingAssistantComplete() {
@@ -182,6 +174,7 @@ export function useAssistantStreamingMessages(options: {
     reset,
     pushText,
     pushReasoning,
+    replaceReasoning,
     ensureStreamingAssistant,
     updateReasoningStatus,
     appendOrReplaceAssistantMessage,
@@ -193,36 +186,28 @@ export function useAssistantStreamingMessages(options: {
 function createAssistantErrorMessage(message: string): ChatMessage {
   return {
     role: 'assistant',
-    content: [],
+    content: '',
     stopReason: 'error',
     errorMessage: message,
     timestamp: Date.now()
   };
 }
 
-/** 保留已流式生成的内容，并按调用 ID 更新工具块，防止同一工具在终态事件中重复追加。 */
-function mergeAssistantContent(
-  previous: AssistantMessage['content'],
-  incoming: AssistantMessage['content']
-): AssistantMessage['content'] {
-  const merged = [...previous];
+/** 保留已流式生成的文本与 reasoning，按调用 ID 更新工具调用，防止终态事件重复追加。 */
+function mergeAssistantContent(previous: AssistantMessage, incoming: AssistantMessage): AssistantMessage['content'] {
+  const previousText = getAssistantText(previous);
+  const incomingText = getAssistantText(incoming);
+  const mergedText = incomingText || previousText;
 
-  for (const block of incoming) {
-    if (block.type !== 'toolCall') {
-      merged.push(block);
-      continue;
-    }
+  return mergedText === '' ? undefined : mergedText;
+}
 
-    const existingIndex = merged.findIndex(candidate => candidate.type === 'toolCall' && candidate.id === block.id);
-
-    if (existingIndex >= 0) {
-      merged.splice(existingIndex, 1, block);
-    } else {
-      merged.push(block);
-    }
+function concatParts(parts: AssistantMessage['content'], delta: string): AssistantMessage['content'] {
+  if (parts === undefined) {
+    return delta === '' ? undefined : delta;
   }
 
-  return merged;
+  return getAssistantText({ role: 'assistant', content: parts }) + delta;
 }
 
 function updateExistingToolCalls(
@@ -234,12 +219,11 @@ function updateExistingToolCalls(
   for (const incomingCall of incomingToolCalls) {
     for (const displayMessage of messages) {
       if (displayMessage.message.role !== 'assistant') continue;
-      const existingIndex = displayMessage.message.content.findIndex(
-        block => block.type === 'toolCall' && block.id === incomingCall.id
-      );
+      const existingCalls = getAssistantToolCalls(displayMessage.message);
+      const existingIndex = existingCalls.findIndex(call => call.id === incomingCall.id);
 
       if (existingIndex >= 0) {
-        displayMessage.message.content.splice(existingIndex, 1, incomingCall);
+        displayMessage.message.toolCalls = existingCalls.toSpliced(existingIndex, 1, incomingCall);
         updatedCount += 1;
         break;
       }

@@ -32,7 +32,6 @@ const scopeOptions = computed<{ value: HistoryScopeFilter; label: string }[]>(()
 const sortOptions: { value: HistorySortMode; label: string }[] = [
   { value: 'latest', label: '最新' },
   { value: 'oldest', label: '最旧' },
-  { value: 'cost', label: '费用' },
   { value: 'tokens', label: 'Token' }
 ];
 

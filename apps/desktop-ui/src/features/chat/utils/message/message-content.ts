@@ -1,40 +1,29 @@
 import { sift } from 'radash';
 
-import type {
-  ChatContentBlock,
-  ChatImageAttachment,
-  ChatImageContent,
-  ChatMessage,
-  ChatTextContent,
-  ChatThinkingContent,
-  ChatToolCallContent
-} from '@chaptale/shared';
+import type { ChatImageAttachment, ChatMessage, ChatTextPart, ChatToolCall } from '@chaptale/shared';
 import { formatSkillInvocation } from '@chaptale/shared';
 
-export function getTextBlocks(content: readonly { type: string }[]): ChatTextContent[] {
-  return content.filter((block): block is ChatTextContent => block.type === 'text');
-}
+/** 附件信封前缀：落盘保留给模型回放；展示层一律剥离（与 main 侧 context-message-codec 同款正则）。 */
+const CONTEXT_ENVELOPE_PATTERN = /^<attached_context_files>\r?\n([\s\S]*?)\r?\n<\/attached_context_files>\r?\n\r?\n?/;
 
-export function getImageBlocks(content: readonly { type: string }[]): ChatImageContent[] {
-  return content.filter((block): block is ChatImageContent => block.type === 'image');
-}
+/** pi 时代 skill 调用标签（防御性兜底：旧文件直读时剥离，正文元数据在迁移脚本里已转 skillInvocation）。 */
+const SKILL_TAG_PATTERN = /^<skill\s[^>]*>[\s\S]*?<\/skill>\r?\n?\s*/;
 
-export function getThinkingBlocks(content: ChatContentBlock[]) {
-  return content.filter((block): block is ChatThinkingContent => block.type === 'thinking');
-}
-
-export function getToolCallBlocks(content: ChatContentBlock[]) {
-  return content.filter((block): block is ChatToolCallContent => block.type === 'toolCall');
+function stripContextEnvelope(text: string): string {
+  return text.replace(CONTEXT_ENVELOPE_PATTERN, '').replace(SKILL_TAG_PATTERN, '');
 }
 
 export function getUserDisplayText(message: Extract<ChatMessage, { role: 'user' }>) {
   if (typeof message.content === 'string') {
-    return message.content;
+    return stripContextEnvelope(message.content);
   }
 
-  return getTextBlocks(message.content)
-    .map(block => block.text)
-    .join('\n');
+  return stripContextEnvelope(
+    message.content
+      .filter(part => part.type === 'text')
+      .map(part => part.text)
+      .join('\n')
+  );
 }
 
 export function getUserText(message: Extract<ChatMessage, { role: 'user' }>) {
@@ -60,51 +49,68 @@ export function getUserImages(message: Extract<ChatMessage, { role: 'user' }>) {
     return [];
   }
 
-  return message.content.filter((block): block is ChatImageAttachment => block.type === 'imageAttachment');
+  return message.content.filter(part => part.type === 'imageAttachment');
 }
 
 export function hasUserAttachments(message: Extract<ChatMessage, { role: 'user' }>) {
   return getUserContextFiles(message).length > 0 || getUserImages(message).length > 0;
 }
 
+/** assistant 文本：字符串直取，分段拼接。 */
 export function getAssistantText(message: Extract<ChatMessage, { role: 'assistant' }>) {
-  return getTextBlocks(message.content)
-    .map(block => block.text)
-    .join('\n');
+  if (typeof message.content === 'string') {
+    return message.content;
+  }
+
+  return (message.content ?? []).map(part => part.text).join('\n');
 }
 
 export function getAssistantReasoning(message: Extract<ChatMessage, { role: 'assistant' }>) {
-  return getThinkingBlocks(message.content)
-    .map(block => block.thinking)
-    .join('\n');
+  return message.reasoning ?? '';
 }
 
 export function getAssistantReasoningStatus(message: Extract<ChatMessage, { role: 'assistant' }>) {
-  if (message.partial && getAssistantReasoning(message)) {
+  if (message.partial && message.reasoning) {
     return 'streaming' as const;
   }
 
-  if (getAssistantReasoning(message)) {
+  if (message.reasoning) {
     return 'done' as const;
   }
 
   return undefined;
 }
 
+export function getAssistantToolCalls(message: Extract<ChatMessage, { role: 'assistant' }>): ChatToolCall[] {
+  return message.toolCalls ?? [];
+}
+
 export function getPrimaryToolCall(message: Extract<ChatMessage, { role: 'assistant' }>) {
-  return getToolCallBlocks(message.content)[0];
+  return getAssistantToolCalls(message)[0];
 }
 
-export function getAssistantToolCalls(message: Extract<ChatMessage, { role: 'assistant' }>) {
-  return getToolCallBlocks(message.content);
+/** 工具结果载荷中的图片（details.images 优先，兼容 output.images）。 */
+export function getToolResultImages(message: Extract<ChatMessage, { role: 'tool' }>) {
+  const carrier = (message.details as { images?: unknown } | undefined) ?? message.output;
+
+  return readImagesFromToolOutput(carrier);
 }
 
-export function getAssistantImages(message: Extract<ChatMessage, { role: 'assistant' }>) {
-  return getImageBlocks(message.content);
-}
+function readImagesFromToolOutput(output: unknown): ChatImageAttachment[] {
+  if (!output || typeof output !== 'object') {
+    return [];
+  }
 
-export function getToolResultImages(message: Extract<ChatMessage, { role: 'toolResult' }>) {
-  return getImageBlocks(message.content);
+  const candidate = output as { images?: unknown };
+
+  if (!Array.isArray(candidate.images)) {
+    return [];
+  }
+
+  return candidate.images.filter(
+    (image): image is ChatImageAttachment =>
+      Boolean(image) && typeof image === 'object' && (image as { type?: string }).type === 'imageAttachment'
+  );
 }
 
 /**
@@ -119,8 +125,7 @@ export function hasRenderableMessage(message: ChatMessage) {
       message.retry ||
       getAssistantText(message).trim() ||
       getAssistantReasoning(message).trim() ||
-      getPrimaryToolCall(message) ||
-      getAssistantImages(message).length > 0
+      getPrimaryToolCall(message)
     );
   }
 
@@ -132,8 +137,8 @@ export function hasRenderableMessage(message: ChatMessage) {
     );
   }
 
-  if (message.role === 'toolResult') {
-    return getTextBlocks(message.content).some(block => block.text.trim()) || getToolResultImages(message).length > 0;
+  if (message.role === 'tool') {
+    return getToolResultImages(message).length > 0 || formatUnknownToolPayload(message.output).trim().length > 0;
   }
 
   return true;
@@ -159,9 +164,11 @@ export function getMessagePlainText(message: ChatMessage) {
     return getAssistantText(message);
   }
 
-  return getTextBlocks(message.content)
-    .map(block => block.text)
-    .join('\n');
+  if (message.role === 'tool') {
+    return formatUnknownToolPayload(message.output);
+  }
+
+  return '';
 }
 
 export function formatToolName(name: string) {
@@ -195,3 +202,5 @@ export function formatMaybeJson(content: string) {
     return content;
   }
 }
+
+export type { ChatTextPart };
