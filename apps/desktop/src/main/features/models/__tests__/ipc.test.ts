@@ -53,15 +53,13 @@ describe('models IPC', () => {
     const modelService = {
       listModels: vi.fn().mockReturnValue({ models: [] }),
       setDefaultModel: vi.fn().mockResolvedValue({ defaultModelId: 'model-1' }),
-      setProviderApiKey: vi.fn().mockResolvedValue({ saved: true }),
       fetchCustomProviderModels: vi.fn().mockResolvedValue([{ id: 'remote-model' }]),
       addCustomProvider: vi.fn().mockResolvedValue({ providerId: 'custom' }),
       addCustomModel: vi.fn().mockResolvedValue({ modelId: 'custom-model' }),
       setCustomProviderApiKey: vi.fn().mockResolvedValue({ providerId: 'custom', saved: true }),
       removeCustomProviderApiKey: vi.fn().mockResolvedValue({ providerId: 'custom', removed: true }),
       updateCustomModelInput: vi.fn().mockResolvedValue({ modelId: 'custom-model', updated: true }),
-      removeCustomModel: vi.fn().mockResolvedValue({ modelId: 'custom-model', removed: true }),
-      removeProviderAuth: vi.fn().mockResolvedValue({ providerId: 'builtin', removed: true })
+      removeCustomModel: vi.fn().mockResolvedValue({ modelId: 'custom-model', removed: true })
     };
     const payload = { providerId: 'custom', modelId: 'custom-model' };
 
@@ -70,9 +68,6 @@ describe('models IPC', () => {
     expect(getTrustedHandler(IPC_CHANNELS.models.list)({})).toEqual({ models: [] });
     await expect(getValidatedHandler(IPC_CHANNELS.models.setDefault)({}, payload)).resolves.toEqual({
       defaultModelId: 'model-1'
-    });
-    await expect(getValidatedHandler(IPC_CHANNELS.models.setProviderApiKey)({}, payload)).resolves.toEqual({
-      saved: true
     });
     await expect(getValidatedHandler(IPC_CHANNELS.models.fetchCustomProviderModels)({}, payload)).resolves.toEqual([
       { id: 'remote-model' }
@@ -99,14 +94,9 @@ describe('models IPC', () => {
       modelId: 'custom-model',
       removed: true
     });
-    await expect(getValidatedHandler(IPC_CHANNELS.models.removeProviderAuth)({}, payload)).resolves.toEqual({
-      providerId: 'builtin',
-      removed: true
-    });
 
     expect(modelService.listModels).toHaveBeenCalledOnce();
     expect(modelService.setDefaultModel).toHaveBeenCalledWith(payload);
-    expect(modelService.setProviderApiKey).toHaveBeenCalledWith(payload);
     expect(modelService.fetchCustomProviderModels).toHaveBeenCalledWith(payload);
     expect(modelService.addCustomProvider).toHaveBeenCalledWith(payload);
     expect(modelService.addCustomModel).toHaveBeenCalledWith(payload);
@@ -114,6 +104,5 @@ describe('models IPC', () => {
     expect(modelService.removeCustomProviderApiKey).toHaveBeenCalledWith(payload);
     expect(modelService.updateCustomModelInput).toHaveBeenCalledWith(payload);
     expect(modelService.removeCustomModel).toHaveBeenCalledWith(payload);
-    expect(modelService.removeProviderAuth).toHaveBeenCalledWith(payload);
   });
 });

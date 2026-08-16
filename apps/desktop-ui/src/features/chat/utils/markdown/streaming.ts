@@ -1,4 +1,3 @@
-import { escapeHtml } from './escape';
 import { renderMarked } from './markdown';
 import { getFullLineEnd, scanStableOffset } from './scanner';
 import { renderStreamingTail } from './tail';
@@ -46,11 +45,6 @@ export function renderStreamingMarkdown(messageId: string, content: string) {
 
 export function clearStreamingMarkdownCache(messageId: string) {
   streamingCache.delete(messageId);
-}
-
-/** 保留给极端 fallback：纯文本流式渲染。 */
-export function renderStreamingText(content: string) {
-  return escapeHtml(content).replace(/\n/g, '<br>');
 }
 
 function createEmptyStreamingCache(): StreamingMarkdownCache {

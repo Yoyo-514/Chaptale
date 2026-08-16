@@ -23,6 +23,9 @@ import type { WebToolsSettingsStore } from '../web-tools/settings';
 import type { ChatRuntimeBundle } from './service';
 import { buildChatSessionTools } from './tool-assembly';
 
+/** 单份 SKILL.md 正文注入上限：防大技能每轮烧 token。 */
+const MAX_SKILL_BODY_CHARS = 16_000;
+
 /**
  * chat 运行时装配：persona 解析 → 工具求交 → 系统提示词拼装 → 模型解析。
  * 每轮 resolve 重读配置（无会话级缓存失效问题）。
@@ -128,7 +131,7 @@ export function createBrokerPermissionGate(broker: PermissionBroker): Permission
 /**
  * chat 系统提示词：标准四层 + 适用 skills 的 SKILL.md 正文。
  *
- * skills 与 pi 时代语义一致：三层目录（builtin < user < workspace）同名覆盖后按 persona 过滤，
+ * skills 三层目录（builtin < user < workspace）同名覆盖后按 persona 过滤，
  * 正文整篇拼入 system 尾部——skill 是流程指令，不是工具。
  */
 async function composeChatSystemPrompt(options: {
@@ -157,8 +160,13 @@ async function composeChatSystemPrompt(options: {
     const bodies = await Promise.all(
       skills.map(async skill => {
         const body = await readFile(skill.filePath, 'utf8').catch(() => '');
+        const trimmed = body.trim();
+        const bounded =
+          trimmed.length > MAX_SKILL_BODY_CHARS
+            ? `${trimmed.slice(0, MAX_SKILL_BODY_CHARS)}\n…（技能正文过长，已截断）`
+            : trimmed;
 
-        return body.trim() ? `<skill name="${skill.name}">\n${body.trim()}\n</skill>` : '';
+        return bounded ? `<skill name="${skill.name}">\n${bounded}\n</skill>` : '';
       })
     );
     const skillSection = bodies.filter(Boolean).join('\n\n');

@@ -143,8 +143,8 @@ export class CustomModelConfigService {
         throw new Error(`未找到自定义模型：${provider}/${modelId}`);
       }
 
-      // 没有模型和 override 的空供应商不再承载配置；仍有 override 时必须保留节点供 pi 合并。
-      if (nextModels.length === 0 && !providerConfig.modelOverrides) {
+      // 空供应商不再承载配置，直接移除节点。
+      if (nextModels.length === 0) {
         delete config.providers[provider];
       } else {
         providerConfig.models = nextModels;

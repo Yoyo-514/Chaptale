@@ -172,6 +172,10 @@ describe('session store', () => {
       createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
       createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
     ]);
+    // selectSession 已把跨域选择同步进当前域槽位。
+    api.settings.getState.mockResolvedValue({
+      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-a' }
+    });
     const store = useSessionStore();
     store.activeCwd = workspaceB;
     store.currentSessionId = 'session-a';
@@ -188,6 +192,90 @@ describe('session store', () => {
     expect(api.session.create).not.toHaveBeenCalled();
     expect(api.session.getEntries).toHaveBeenCalledWith('session-a');
     expect(store.currentSessionId).toBe('session-a');
+  });
+
+  it('restores the persisted cross-domain slot even when it is not in the current cwd candidates', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([
+      createSession('session-global', { cwd: workspaceA, scope: 'global' }),
+      createSession('session-a', { cwd: workspaceA, scope: 'workspace' })
+    ]);
+    api.settings.getState.mockResolvedValue({
+      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-global' }
+    });
+    const store = useSessionStore();
+    store.activeCwd = workspaceA;
+
+    await store.loadSessions();
+
+    // 槽位里的跨域会话在全量列表存活，不被 activeCwd 候选过滤丢弃。
+    expect(store.currentSessionId).toBe('session-global');
+  });
+
+  it('bindCwd keeps the current selection when the cwd is unchanged', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([createSession('session-a', { cwd: workspaceA, scope: 'workspace' })]);
+    const store = useSessionStore();
+    store.activeCwd = workspaceA;
+    store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
+    api.settings.getState.mockResolvedValue({
+      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-a' }
+    });
+
+    // 打开设置面板 → bindCwd 收到相同 cwd：选择不应被重置，也不应触发列表刷新。
+    await store.bindCwd(workspaceA);
+
+    expect(store.currentSessionId).toBe('session-a');
+    expect(api.session.list).not.toHaveBeenCalled();
+  });
+
+  it('bindCwd falls back to the target domain latest session and ignores a cross-domain slot on real switch', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const workspaceB = 'E:/workspace-b';
+    const globalCwd = 'E:/global';
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([
+      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
+      createSession('session-b', { cwd: workspaceB, scope: 'workspace' }),
+      createSession('session-global', { cwd: globalCwd, scope: 'global' })
+    ]);
+    // B 域槽位存的是跨域会话（曾在 B 里最后看过 global 会话）：切域时不应回跳它。
+    api.settings.getState.mockResolvedValue({
+      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-global' }
+    });
+    const store = useSessionStore();
+    store.activeCwd = workspaceA;
+    store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
+
+    await store.bindCwd(workspaceB);
+
+    // 切域后落在目标域的最新会话，而非槽位里的跨域会话。
+    expect(store.currentSessionId).toBe('session-b');
+    expect(store.activeCwd).toBe(workspaceB);
+  });
+
+  it('bindCwd keeps the restored selection on initial binding', async () => {
+    const workspaceA = 'E:/workspace-a';
+    const globalCwd = 'E:/global';
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([
+      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
+      createSession('session-global', { cwd: globalCwd, scope: 'global' })
+    ]);
+    const store = useSessionStore();
+    // 启动首次恢复已选中跨域会话，activeCwd 尚未绑定。
+    store.currentSessionId = 'session-global';
+    store.selectionRestored = true;
+
+    await store.bindCwd(workspaceA);
+
+    // 首次绑定不是切域：已恢复的选择保留。
+    expect(store.currentSessionId).toBe('session-global');
+    expect(store.activeCwd).toBe(workspaceA);
   });
 
   it('keeps an explicitly selected global session when the active cwd points to a sibling workspace', async () => {
@@ -234,7 +322,9 @@ describe('session store', () => {
       createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
     ]);
     const store = useSessionStore();
+    store.activeCwd = workspaceA;
     store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
 
     await store.bindCwd(workspaceB);
 
@@ -253,7 +343,9 @@ describe('session store', () => {
       .mockResolvedValueOnce([createSession('created', { cwd: workspaceB, scope: 'workspace' })]);
     api.session.create.mockResolvedValue(createSession('created', { cwd: workspaceB, scope: 'workspace' }));
     const store = useSessionStore();
+    store.activeCwd = workspaceA;
     store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
 
     await store.bindCwd(workspaceB);
 

@@ -27,10 +27,8 @@ import type {
   ListModelsResult,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
-  RemoveProviderAuthPayload,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
-  SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from './models';
 import type {
@@ -112,7 +110,6 @@ export type ChaptaleDesktopApi = {
   models: {
     list: () => Promise<ListModelsResult>;
     setDefault: (payload: SetDefaultModelPayload) => Promise<ListModelsResult>;
-    setProviderApiKey: (payload: SetProviderApiKeyPayload) => Promise<ListModelsResult>;
     fetchCustomProviderModels: (payload: FetchCustomProviderModelsPayload) => Promise<FetchCustomProviderModelsResult>;
     addCustomProvider: (payload: AddCustomProviderPayload) => Promise<ListModelsResult>;
     addCustomModel: (payload: AddCustomModelPayload) => Promise<ListModelsResult>;
@@ -120,7 +117,6 @@ export type ChaptaleDesktopApi = {
     removeCustomProviderApiKey: (payload: RemoveCustomProviderApiKeyPayload) => Promise<ListModelsResult>;
     updateCustomModelInput: (payload: UpdateCustomModelInputPayload) => Promise<ListModelsResult>;
     removeCustomModel: (payload: RemoveCustomModelPayload) => Promise<ListModelsResult>;
-    removeProviderAuth: (payload: RemoveProviderAuthPayload) => Promise<ListModelsResult>;
   };
   agent: {
     selectContextFiles: () => Promise<ChatContextFile[]>;

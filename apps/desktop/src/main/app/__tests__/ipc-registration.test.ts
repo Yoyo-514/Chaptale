@@ -25,12 +25,10 @@ import {
   ReadSessionImageArgsValidator,
   RemoveCustomModelArgsValidator,
   RemoveCustomProviderApiKeyArgsValidator,
-  RemoveProviderAuthArgsValidator,
   RenameSessionArgsValidator,
   SessionIdArgsValidator,
   SetCustomProviderApiKeyArgsValidator,
   SetDefaultModelArgsValidator,
-  SetProviderApiKeyArgsValidator,
   SetSessionLeafArgsValidator,
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
@@ -125,7 +123,6 @@ const expectedRegistrations: Registration[] = [
 
   trusted(IPC_CHANNELS.models.list),
   validated(IPC_CHANNELS.models.setDefault, SetDefaultModelArgsValidator),
-  validated(IPC_CHANNELS.models.setProviderApiKey, SetProviderApiKeyArgsValidator),
   validated(IPC_CHANNELS.models.fetchCustomProviderModels, FetchCustomProviderModelsArgsValidator),
   validated(IPC_CHANNELS.models.addCustomProvider, AddCustomProviderArgsValidator),
   validated(IPC_CHANNELS.models.addCustomModel, AddCustomModelArgsValidator),
@@ -133,7 +130,6 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.models.removeCustomProviderApiKey, RemoveCustomProviderApiKeyArgsValidator),
   validated(IPC_CHANNELS.models.updateCustomModelInput, UpdateCustomModelInputArgsValidator),
   validated(IPC_CHANNELS.models.removeCustomModel, RemoveCustomModelArgsValidator),
-  validated(IPC_CHANNELS.models.removeProviderAuth, RemoveProviderAuthArgsValidator),
 
   trusted(IPC_CHANNELS.agent.selectContextFiles),
   validated(IPC_CHANNELS.agent.inspectContextFiles, AgentInspectContextFilesArgsValidator),

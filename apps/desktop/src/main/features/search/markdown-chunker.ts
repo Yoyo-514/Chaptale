@@ -131,7 +131,7 @@ function chooseSemanticBoundary(body: string, start: number, maxEnd: number): nu
     if (tokenCursor > 0 && tokenCursor <= window.length) candidates.add(start + tokenCursor);
   }
 
-  const sentenceSegmenter = new Intl.Segmenter('zh-CN', { granularity: 'sentence' });
+  const sentenceSegmenter = sentenceSegmenterSingleton;
   for (const segment of sentenceSegmenter.segment(window)) {
     const end = segment.index + segment.segment.length;
     if (end > 0 && end <= window.length) candidates.add(start + end);
@@ -155,3 +155,6 @@ function positiveInteger(value: number | undefined, fallback: number): number {
   const normalized = Math.floor(value ?? fallback);
   return normalized > 0 ? normalized : fallback;
 }
+
+/** 中文断句器全局复用：避免每个超长 chunk 重新初始化。 */
+const sentenceSegmenterSingleton = new Intl.Segmenter('zh-CN', { granularity: 'sentence' });

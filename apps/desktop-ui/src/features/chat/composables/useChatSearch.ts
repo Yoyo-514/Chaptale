@@ -71,6 +71,23 @@ export function useChatSearch(getMessages: () => ChatDisplayMessage[]) {
   };
 }
 
+/** tool call 搜索串缓存：同一 call 只序列化一次；参数超大时截断，避免每次击键重复 stringify。 */
+const toolCallSearchCache = new Map<string, string>();
+const MAX_SEARCHABLE_ARG_CHARS = 4000;
+
+function getToolCallSearchable(call: { id: string; name: string; arguments?: unknown }): string {
+  let searchable = toolCallSearchCache.get(call.id);
+
+  if (searchable === undefined) {
+    const args =
+      call.arguments === undefined ? '' : JSON.stringify(call.arguments, null, 2).slice(0, MAX_SEARCHABLE_ARG_CHARS);
+    searchable = `${call.name}\n${args}`.toLowerCase();
+    toolCallSearchCache.set(call.id, searchable);
+  }
+
+  return searchable;
+}
+
 function findMessageMatches(displayMessage: ChatDisplayMessage, index: number, keyword: string): ChatSearchMatch[] {
   const message = displayMessage.message;
 
@@ -86,9 +103,7 @@ function findMessageMatches(displayMessage: ChatDisplayMessage, index: number, k
     }
 
     for (const call of getAssistantToolCalls(message)) {
-      const searchableCall = `${call.name}\n${JSON.stringify(call.arguments, null, 2)}`.toLowerCase();
-
-      if (searchableCall.includes(keyword)) {
+      if (getToolCallSearchable(call).includes(keyword)) {
         matches.push({ id: displayMessage.id, index, toolTarget: { callId: call.id, section: 'call' } });
       }
     }

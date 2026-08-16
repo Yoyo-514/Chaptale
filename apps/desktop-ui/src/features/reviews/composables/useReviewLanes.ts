@@ -131,6 +131,7 @@ function hasRecentId(store: RecentIdSet, id: string) {
   return store.values.has(id);
 }
 
+/** 仅供测试导出的 RecentIdSet 工具；生产代码不消费此对象。 */
 export const reviewLaneTestHelpers = {
   MAX_TRACKED_REVIEW_TASK_IDS,
   createRecentIdSet,

@@ -72,10 +72,39 @@ describe('SettingsService', () => {
 
     expect(state.webTools.search.enabled).toBe(false);
     expect(state.webTools.search.provider).toBe('tavily');
-    expect(state.webTools.keys.tavilyApiKey).toBe('tvly-test');
+    // 真实 key 不下发渲染进程，只回掩码占位（空串/undefined 表示未配置）。
+    expect(state.webTools.keys.tavilyApiKey).toBe('••••••••');
     expect(state.webTools.fetch.timeoutSeconds).toBe(15);
     expect(state.webTools.fetch.maxBytes).toBe(1048576);
     expect(state.webTools.ssrf.allowRanges).toEqual(['10.1.0.0/16']);
+  });
+
+  it('keeps real key when renderer submits the mask placeholder', async () => {
+    const service = createService();
+
+    await service.getState();
+    await service.updateWebTools({ keys: { braveApiKey: 'BSA_keep' } });
+
+    // 渲染进程拿到掩码，原样提交：应保留已存 key，不清除。
+    await service.updateWebTools({ keys: { braveApiKey: '••••••••' } });
+    const config = JSON.parse(await readFile(service.webToolsConfigPath, 'utf8')) as {
+      keys?: { braveApiKey?: string };
+    };
+    expect(config.keys?.braveApiKey).toBe('BSA_keep');
+  });
+
+  it('clears key when renderer submits empty string', async () => {
+    const service = createService();
+
+    await service.getState();
+    await service.updateWebTools({ keys: { braveApiKey: 'BSA_clear' } });
+    await service.updateWebTools({ keys: { braveApiKey: '' } });
+
+    const config = JSON.parse(await readFile(service.webToolsConfigPath, 'utf8')) as {
+      keys?: { braveApiKey?: string };
+    };
+    // 空串即清除信号；读取端 normalize 为空串 → 未配置。
+    expect(config.keys?.braveApiKey).toBe('');
   });
 
   it('falls back to global storage when workspace mode has no workspace path', async () => {
@@ -101,21 +130,56 @@ describe('SettingsService', () => {
     expect(state.paths.effectiveSessionDir).toContain('Story Workspace-');
   });
 
-  it('persists and clears the last opened session without changing storage settings', async () => {
+  it('persists and clears the last opened session per storage domain', async () => {
     const service = createService();
     const workspacePath = path.join(rootDir, 'Story Workspace');
+    const domainKey = `workspace:${workspacePath}`;
 
     await service.update({ storage: { mode: 'workspace', workspacePath } });
     const persisted = await service.update({ lastSessionId: 'session-2' });
 
-    expect(persisted.settings).toEqual({
-      version: 1,
-      storage: { mode: 'workspace', workspacePath },
-      lastSessionId: 'session-2'
-    });
+    // 合成视图按当前域返回；落盘只写域槽位。
+    expect(persisted.settings.lastSessionId).toBe('session-2');
+    expect(persisted.settings.lastSessions).toEqual({ [domainKey]: 'session-2' });
 
     const cleared = await service.update({ lastSessionId: null });
-    expect(cleared.settings).toEqual({ version: 1, storage: { mode: 'workspace', workspacePath } });
+    expect(cleared.settings.lastSessionId).toBeUndefined();
+    expect(cleared.settings.lastSessions).toBeUndefined();
+  });
+
+  it('clears workspacePath when switching back to global mode', async () => {
+    const service = createService();
+    const workspacePath = path.join(rootDir, 'Story Workspace');
+
+    await service.update({ storage: { mode: 'workspace', workspacePath } });
+    const state = await service.update({ storage: { mode: 'global' } });
+
+    expect(state.settings.storage).toEqual({ mode: 'global' });
+
+    const raw = JSON.parse(await readFile(service.settingsPath, 'utf8')) as { storage?: { workspacePath?: string } };
+    expect(raw.storage?.workspacePath).toBeUndefined();
+  });
+
+  it('isolates last session slots across storage domains', async () => {
+    const service = createService();
+    const workspaceA = path.join(rootDir, 'Story A');
+    const workspaceB = path.join(rootDir, 'Story B');
+
+    // global 域记一个槽。
+    await service.update({ lastSessionId: 'global-session' });
+
+    // 切到 A 记槽，再切到 B：B 无槽。
+    await service.update({ storage: { mode: 'workspace', workspacePath: workspaceA } });
+    await service.update({ lastSessionId: 'session-a' });
+    await service.update({ storage: { mode: 'workspace', workspacePath: workspaceB } });
+    expect((await service.getState()).settings.lastSessionId).toBeUndefined();
+
+    // 切回 A 恢复 A 槽；切回 global 恢复 global 槽。
+    await service.update({ storage: { mode: 'workspace', workspacePath: workspaceA } });
+    expect((await service.getState()).settings.lastSessionId).toBe('session-a');
+
+    await service.update({ storage: { mode: 'global' } });
+    expect((await service.getState()).settings.lastSessionId).toBe('global-session');
   });
 
   it('writes web-tools config when web tools settings are updated', async () => {
@@ -146,8 +210,14 @@ describe('SettingsService', () => {
     const state = await service.updateWebTools({ search: { provider: 'exa' }, keys: { exaApiKey: 'ek' } });
 
     expect(state.webTools.search.provider).toBe('exa');
-    expect(state.webTools.keys.exaApiKey).toBe('ek');
+    // 真实 key 落盘到配置文件，但下发渲染进程的状态只含掩码。
+    expect(state.webTools.keys.exaApiKey).toBe('••••••••');
     expect(state.webTools.search.enabled).toBe(true);
+
+    const config = JSON.parse(await readFile(service.webToolsConfigPath, 'utf8')) as {
+      keys?: { exaApiKey?: string };
+    };
+    expect(config.keys?.exaApiKey).toBe('ek');
   });
 });
 

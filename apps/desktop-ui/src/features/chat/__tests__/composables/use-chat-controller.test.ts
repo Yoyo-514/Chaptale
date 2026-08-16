@@ -24,10 +24,8 @@ function createSettingsState(webSearchEnabled = true) {
       rootDir: 'C:/Users/Test/.chaptale',
       agentDir: 'C:/Users/Test/.chaptale/agent',
       settingsPath: 'C:/Users/Test/.chaptale/settings.json',
-      piSettingsPath: 'C:/Users/Test/.chaptale/agent/settings.json',
-      piModelsPath: 'C:/Users/Test/.chaptale/agent/models.json',
-      piAuthPath: 'C:/Users/Test/.chaptale/agent/auth.json',
-      piWebAccessConfigPath: 'C:/Users/Test/.chaptale/agent/web-search.json',
+      modelsPath: 'C:/Users/Test/.chaptale/agent/models.json',
+      webToolsConfigPath: 'C:/Users/Test/.chaptale/agent/web-tools.json',
       sessionsRootDir: 'C:/Users/Test/.chaptale/agent/sessions',
       effectiveSessionDir: 'C:/Users/Test/.chaptale/agent/sessions/global'
     }

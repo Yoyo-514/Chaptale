@@ -9,10 +9,8 @@ import type {
   ListModelsResult,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
-  RemoveProviderAuthPayload,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
-  SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
@@ -23,8 +21,6 @@ export function createModelsApi(): ChaptaleDesktopApi['models'] {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.models.list) as Promise<ListModelsResult>,
     setDefault: (payload: SetDefaultModelPayload) =>
       ipcRenderer.invoke(IPC_CHANNELS.models.setDefault, payload) as Promise<ListModelsResult>,
-    setProviderApiKey: (payload: SetProviderApiKeyPayload) =>
-      ipcRenderer.invoke(IPC_CHANNELS.models.setProviderApiKey, payload) as Promise<ListModelsResult>,
     fetchCustomProviderModels: (payload: FetchCustomProviderModelsPayload) =>
       ipcRenderer.invoke(
         IPC_CHANNELS.models.fetchCustomProviderModels,
@@ -41,8 +37,6 @@ export function createModelsApi(): ChaptaleDesktopApi['models'] {
     updateCustomModelInput: (payload: UpdateCustomModelInputPayload) =>
       ipcRenderer.invoke(IPC_CHANNELS.models.updateCustomModelInput, payload) as Promise<ListModelsResult>,
     removeCustomModel: (payload: RemoveCustomModelPayload) =>
-      ipcRenderer.invoke(IPC_CHANNELS.models.removeCustomModel, payload) as Promise<ListModelsResult>,
-    removeProviderAuth: (payload: RemoveProviderAuthPayload) =>
-      ipcRenderer.invoke(IPC_CHANNELS.models.removeProviderAuth, payload) as Promise<ListModelsResult>
+      ipcRenderer.invoke(IPC_CHANNELS.models.removeCustomModel, payload) as Promise<ListModelsResult>
   };
 }

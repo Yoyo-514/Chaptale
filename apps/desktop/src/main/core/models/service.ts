@@ -8,10 +8,8 @@ import type {
   ListModelsResult,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
-  RemoveProviderAuthPayload,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
-  SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
 
@@ -29,10 +27,8 @@ export type ModelServiceOptions = {
 /**
  * 自有模型服务：models.json 唯一事实源，listModels 结果只含自定义 providers。
  *
- * 与 pi 时代的语义差异：
  * - 无内置 provider 目录、无 OAuth——apiKey 即凭据（存在性 = authConfigured）；
- * - 默认模型存 models.json 顶层 defaultModel（不再写 pi settings.json）；
- * - setProviderApiKey / removeProviderAuth 收敛为 models.json 同义操作（P2-d 前 UI 面兼容）。
+ * - 默认模型存 models.json 顶层 defaultModel。
  */
 export class ModelService {
   private readonly repository: ModelConfigRepository;
@@ -147,19 +143,6 @@ export class ModelService {
     }
 
     return this.listModels();
-  }
-
-  /** pi 面兼容：内置 provider 凭据操作收敛为 models.json 同义操作。 */
-  async setProviderApiKey(payload: SetProviderApiKeyPayload): Promise<ListModelsResult> {
-    return this.setCustomProviderApiKey({
-      provider: payload.provider,
-      apiKey: payload.apiKey
-    });
-  }
-
-  /** pi 面兼容：登出 = 清除 models.json 内的 key。 */
-  async removeProviderAuth(payload: RemoveProviderAuthPayload): Promise<ListModelsResult> {
-    return this.removeCustomProviderApiKey({ provider: payload.provider });
   }
 
   private async buildModelsResult(config: ModelsConfig): Promise<ListModelsResult> {

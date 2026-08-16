@@ -10,11 +10,11 @@ export type ModelConfigRepositoryOptions = {
 };
 
 /**
- * models.json 的持久化边界（自 integrations/pi/models/config-repository.ts 平移，格式不变）。
+ * models.json 的持久化边界。
  *
  * 所有 read-modify-write 变更在进程内串行执行，并通过同目录临时文件 rename 替换目标，
  * 避免并发设置请求互相覆盖或让读取方看到写入一半的 JSON。
- * defaultModel 为顶层可选字段：剥离 pi settings.json 后默认模型的唯一事实源。
+ * defaultModel 为顶层可选字段：默认模型的唯一事实源。
  */
 export class ModelConfigRepository {
   private mutationQueue = Promise.resolve();
@@ -52,20 +52,6 @@ export class ModelConfigRepository {
         delete config.defaultModel;
       }
     });
-  }
-
-  /** 一次性合并默认模型（pi settings.json → models.json 迁移用）；已有值不覆盖。 */
-  async mergeDefaultModelOnce(ref: ModelRef): Promise<boolean> {
-    let merged = false;
-
-    await this.update(config => {
-      if (!config.defaultModel) {
-        config.defaultModel = { ...ref };
-        merged = true;
-      }
-    });
-
-    return merged;
   }
 
   findCustomModel(config: ModelsConfig, provider: string, modelId: string) {

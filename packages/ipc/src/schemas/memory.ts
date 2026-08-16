@@ -5,11 +5,11 @@ import { Compile } from 'typebox/compile';
 export const MemoryListPendingArgsSchema = Type.Tuple([]);
 export const MemoryListPendingArgsValidator = Compile(MemoryListPendingArgsSchema);
 
-/** 处理提议：id + accept/reject。 */
+/** 处理提议：id + accept/reject。id 只允许安全字符集，阻断经文件名拼接的路径穿越。 */
 export const MemoryResolvePendingArgsSchema = Type.Tuple([
   Type.Object(
     {
-      id: Type.String({ minLength: 1 }),
+      id: Type.String({ minLength: 1, maxLength: 80, pattern: '^[A-Za-z0-9_-]+$' }),
       action: Type.Union([Type.Literal('accept'), Type.Literal('reject')])
     },
     { additionalProperties: false }

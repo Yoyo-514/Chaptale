@@ -53,13 +53,15 @@ export const PermissionsRemoveRuleArgsSchema = Type.Tuple([
 ]);
 export const PermissionsRemoveRuleArgsValidator = Compile(PermissionsRemoveRuleArgsSchema);
 
+import { SessionIdSchema } from './sessions';
+
 const RiskLevelSchema = Type.Union([Type.Literal('readonly'), Type.Literal('mutating'), Type.Literal('destructive')]);
 
 /** 待授权请求推送事件的运行时边界；结构与 PermissionAskEvent 对齐。 */
 export const PermissionAskEventSchema = Type.Object(
   {
     requestId: Type.String(),
-    sessionId: Type.String(),
+    sessionId: SessionIdSchema,
     toolName: Type.String(),
     riskLevel: RiskLevelSchema,
     subject: Type.Optional(Type.String())

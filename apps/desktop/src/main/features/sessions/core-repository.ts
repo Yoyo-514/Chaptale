@@ -37,7 +37,7 @@ export type SessionRepositoryOptions = {
 /**
  * 自有会话仓储：v1 append-only store 之上实现应用层 SessionRepository 端口。
  *
- * 契约即 v1 形状（OpenAI Chat Messages）：store / engine / UI 同形状贯通，
+ * 契约即 OpenAI Chat Messages 形状：store / engine / UI 同形状贯通，
  * 本层仅做两处呈现级转换——user 图片 → 轻量附件（缩略图）；entry 类型枚举对齐。
  */
 export class CoreSessionRepository implements SessionRepository {

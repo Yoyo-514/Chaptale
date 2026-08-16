@@ -1,6 +1,8 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+import { SessionIdSchema } from './sessions';
+
 /** Agent 运行的唯一终态；失败信息必须完整，便于 Renderer 做确定性处理。 */
 export const RunEndSchema = Type.Union([
   Type.Object({ status: Type.Literal('completed') }, { additionalProperties: false }),
@@ -59,7 +61,7 @@ export const AgentStartPayloadSchema = Type.Object(
   {
     runId: Type.String(),
     query: Type.String(),
-    sessionId: Type.Optional(Type.String()),
+    sessionId: Type.Optional(SessionIdSchema),
     branchFromEntryId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     contextFilePaths: Type.Optional(Type.Array(Type.String())),
     reuseUserEntryId: Type.Optional(Type.String())

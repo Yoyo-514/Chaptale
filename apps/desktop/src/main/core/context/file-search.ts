@@ -46,6 +46,11 @@ export function buildUnavailableFileBlock(filePath: string, kind: 'text' | 'docu
   return `<file path="${escapeXmlAttribute(filePath)}" kind="${kind}" skipped="true" reason="file-unavailable">发送消息时无法读取该文件，未发送给模型。文件可能已被移动、删除或占用，请重新选择后重试。</file>`;
 }
 
+/** 路径未经过本次运行期的文件选择确认（inspect/select）时注入的占位块。 */
+export function buildUnauthorizedFileBlock(filePath: string, kind: 'text' | 'document' | 'image') {
+  return `<file path="${escapeXmlAttribute(filePath)}" kind="${kind}" skipped="true" reason="file-not-authorized">该文件未经过本次会话的文件选择确认，未发送给模型。请重新拖入或通过文件选择器添加后重试。</file>`;
+}
+
 export function buildOversizedFileBlock(filePath: string, stats: { size: number }) {
   return `<file path="${escapeXmlAttribute(filePath)}" skipped="true" reason="file-too-large" size="${escapeXmlAttribute(formatFileSize(stats.size))}">文件超过 ${formatFileSize(MAX_CONTEXT_FILE_BYTES)} 的参考上传上限，未发送给模型。请拆分、压缩，或选择更小的文件。</file>`;
 }

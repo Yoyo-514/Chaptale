@@ -47,7 +47,11 @@ export function decodeImageBase64(image: Pick<ImageBlock, 'data' | 'mimeType'>) 
 export class ImageAttachmentService {
   private readonly thumbnailCache = new Map<string, ThumbnailResult>();
 
-  constructor(private readonly createThumbnail: ThumbnailFactory) {}
+  constructor(
+    private readonly createThumbnail: ThumbnailFactory,
+    /** context-file 原图读取的授权端口（inspect/select 入池）；缺省不校验（仅测试直连场景）。 */
+    private readonly authorization?: { isAuthorized(filePath: string): Promise<boolean> }
+  ) {}
 
   private getThumbnail(data: Buffer, mimeType: string, source?: ChatImageSource) {
     const cacheKey =
@@ -153,6 +157,10 @@ export class ImageAttachmentService {
   }
 
   async readContextFile(filePath: string) {
+    if (this.authorization && !(await this.authorization.isAuthorized(filePath))) {
+      throw new Error('图片文件未经过本次会话的文件选择确认，请重新拖入或通过文件选择器添加');
+    }
+
     const stats = await fs.stat(filePath);
 
     if (!stats.isFile() || getFileKind(filePath) !== 'image' || stats.size > MAX_CHAT_IMAGE_BYTES) {

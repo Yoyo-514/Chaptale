@@ -95,7 +95,8 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
           toolCallId: part.toolCallId,
           toolName: part.toolName,
           output: part.output,
-          isError: false
+          // 保留 SDK 的失败标记（部分 SDK 版本该字段在结果 part 上可缺省）。
+          isError: 'isError' in part ? part.isError === true : false
         });
       } else if (part.type === 'finish-step') {
         stepUsage = normalizeUsage(part.usage);

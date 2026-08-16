@@ -28,10 +28,8 @@ function createSettingsState(workspacePath = 'E:/workspace-b') {
       rootDir: 'root',
       agentDir: 'agent',
       settingsPath: 'settings.json',
-      piSettingsPath: 'agent/settings.json',
-      piModelsPath: 'agent/models.json',
-      piAuthPath: 'agent/auth.json',
-      piWebAccessConfigPath: 'agent/web-search.json',
+      modelsPath: 'agent/models.json',
+      webToolsConfigPath: 'agent/web-tools.json',
       sessionsRootDir: 'agent/sessions',
       effectiveSessionDir: `${workspacePath}/.chaptale/sessions`,
       currentCwd: workspacePath

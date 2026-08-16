@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AttachedFileSearchPort } from '../attached-file-search-port';
+import { ContextFileAuthorizationRegistry } from '../authorization';
 import type { DocumentParserPort } from '../document-parser-port';
 import type { ContextFilePlatform } from '../platform';
 import { ContextFileService as ProductionContextFileService } from '../service';
@@ -35,9 +36,10 @@ class ContextFileService extends ProductionContextFileService {
   constructor(
     platform: ContextFilePlatform,
     documentParser: DocumentParserPort = createFakeDocumentParser(),
-    fileSearch: AttachedFileSearchPort = createFakeFileSearch()
+    fileSearch: AttachedFileSearchPort = createFakeFileSearch(),
+    authorization?: ContextFileAuthorizationRegistry
   ) {
-    super(platform, documentParser, fileSearch);
+    super(platform, documentParser, fileSearch, authorization);
   }
 }
 
@@ -64,6 +66,41 @@ describe('ContextFileService', () => {
     expect(result.promptPrefix).toContain('第一章 开始');
     expect(result.promptPrefix).toContain('正文内容');
     expect(result.promptPrefix).not.toContain('long-text-context-pack');
+  });
+
+  it('拒绝未经 inspect/select 授权的文件并注入占位块', async () => {
+    const filePath = path.join(tempDir, 'note.txt');
+    await writeFile(filePath, '机密正文', 'utf8');
+
+    const registry = new ContextFileAuthorizationRegistry();
+    const service = new ContextFileService(createFakePlatform(), undefined, undefined, registry);
+
+    // 未授权直接 resolve：占位块，不读内容。
+    const denied = await service.resolve([filePath]);
+    expect(denied.promptPrefix).toContain('reason="file-not-authorized"');
+    expect(denied.promptPrefix).not.toContain('机密正文');
+
+    // inspect 后放行。
+    await service.inspectFiles([filePath]);
+    const allowed = await service.resolve([filePath]);
+    expect(allowed.promptPrefix).toContain('handling="file-input-text"');
+    expect(allowed.promptPrefix).toContain('机密正文');
+  });
+
+  it('selectFiles 授权后可直接 resolve', async () => {
+    const filePath = path.join(tempDir, 'note.txt');
+    await writeFile(filePath, '选择器正文', 'utf8');
+    const registry = new ContextFileAuthorizationRegistry();
+    const service = new ContextFileService(
+      createFakePlatform({ selectContextFilePaths: vi.fn(async () => [filePath]) }),
+      undefined,
+      undefined,
+      registry
+    );
+
+    await service.selectFiles();
+    const allowed = await service.resolve([filePath]);
+    expect(allowed.promptPrefix).toContain('选择器正文');
   });
 
   it('uses basic text file input for large novels within direct input budget', async () => {

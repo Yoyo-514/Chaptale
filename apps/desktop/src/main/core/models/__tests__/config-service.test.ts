@@ -279,7 +279,7 @@ describe('CustomModelConfigService', () => {
     const { repository, getConfig } = createRepository({
       providers: {
         custom: { name: 'Custom', models: [{ id: 'model-a' }, { id: 'model-b' }] },
-        overridden: { name: 'Overridden', modelOverrides: { keep: {} }, models: [{ id: 'model-c' }] }
+        overridden: { name: 'Overridden', models: [{ id: 'model-c' }] }
       }
     });
     const service = new CustomModelConfigService(repository as unknown as ModelConfigRepository);
@@ -291,7 +291,7 @@ describe('CustomModelConfigService', () => {
     expect(getConfig().providers.custom).toBeUndefined();
 
     await service.removeModel({ provider: 'overridden', modelId: 'model-c' });
-    expect(getConfig().providers.overridden).toMatchObject({ modelOverrides: { keep: {} }, models: [] });
+    expect(getConfig().providers.overridden).toBeUndefined();
   });
 
   it('throws user-readable errors when custom provider or model is missing', async () => {

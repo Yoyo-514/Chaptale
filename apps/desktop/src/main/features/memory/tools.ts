@@ -1,3 +1,4 @@
+import { writeFile } from 'atomically';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Type } from 'typebox';
@@ -64,7 +65,7 @@ export function createMemorySaveTool(context: MemoryToolContext): ToolDefinition
         ''
       ].join('\n');
 
-      await fs.writeFile(path.join(notesDir, fileName), `${frontmatter}${params.content.trimEnd()}\n`, 'utf8');
+      await writeFile(path.join(notesDir, fileName), `${frontmatter}${params.content.trimEnd()}\n`, 'utf8');
 
       return { text: `笔记已保存：${relativePath}`, details: { path: relativePath } };
     }

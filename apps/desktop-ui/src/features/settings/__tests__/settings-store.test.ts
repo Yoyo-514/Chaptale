@@ -33,10 +33,8 @@ function createSettingsState(
       rootDir: 'root',
       agentDir: 'agent',
       settingsPath: 'settings.json',
-      piSettingsPath: 'agent/settings.json',
-      piModelsPath: 'agent/models.json',
-      piAuthPath: 'agent/auth.json',
-      piWebAccessConfigPath: 'agent/web-search.json',
+      modelsPath: 'agent/models.json',
+      webToolsConfigPath: 'agent/web-tools.json',
       sessionsRootDir: 'agent/sessions',
       effectiveSessionDir: 'agent/sessions/global',
       currentCwd
@@ -146,7 +144,8 @@ describe('settings store', () => {
     const workspaceA = 'E:/workspace-a';
     const workspaceB = 'E:/workspace-b';
     const api = installDesktopApi();
-    const state = createSettingsState(true, workspaceB, { mode: 'workspace', workspacePath: workspaceB }, 'session-a');
+    // B 域槽位为空：绑定 B 后应回退 B 域候选第一个，而不是沿用旧全局单槽里的 A 域会话。
+    const state = createSettingsState(true, workspaceB, { mode: 'workspace', workspacePath: workspaceB }, '');
     api.settings.getState.mockResolvedValue(state);
     api.session.list.mockResolvedValue([
       createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
@@ -227,7 +226,6 @@ describe('settings store', () => {
     const store = useSettingsStore();
 
     await expect(store.setDefaultModel('openai', 'gpt-4.1')).resolves.toBe(true);
-    await expect(store.setProviderApiKey('openai', 'sk-test')).resolves.toBe(true);
     await expect(
       store.addCustomProvider({
         provider: 'custom',
@@ -242,13 +240,10 @@ describe('settings store', () => {
     await expect(store.removeCustomProviderApiKey('custom')).resolves.toBe(true);
     await expect(store.updateCustomModelInput('custom', 'm2', ['text', 'image'])).resolves.toBe(true);
     await expect(store.removeCustomModel('custom', 'm2')).resolves.toBe(true);
-    await expect(store.removeProviderApiKey('openai')).resolves.toBe(true);
 
     expect(api.models.setDefault).toHaveBeenCalledWith({ provider: 'openai', modelId: 'gpt-4.1' });
-    expect(api.models.setProviderApiKey).toHaveBeenCalledWith({ provider: 'openai', apiKey: 'sk-test' });
     expect(api.models.addCustomProvider).toHaveBeenCalled();
     expect(api.models.addCustomModel).toHaveBeenCalledWith({ provider: 'custom', modelId: 'm2', input: ['text'] });
-    expect(api.models.removeProviderAuth).toHaveBeenCalledWith({ provider: 'openai' });
     expect(store.models).toEqual(createModelsResult({ provider: 'openai', modelId: 'gpt-4.1' }));
     expect(store.isModelsLoading).toBe(false);
   });

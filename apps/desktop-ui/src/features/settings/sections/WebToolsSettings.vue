@@ -24,7 +24,7 @@ const sections = reactive({ keys: false, advanced: false });
   <SettingsSection
     title="联网与内容提取"
     title-id="settings-web-tools-title"
-    description="配置联网搜索与网页内容抓取。DuckDuckGo 无需任何配置即可使用；API Key 保存在本机配置文件中，仅供桌面端运行时使用。"
+    description="配置联网搜索与网页内容抓取。DuckDuckGo 无需任何配置即可使用；API Key 保存在本机配置文件中，仅供桌面端运行时使用（界面只回显掩码占位，不显示真实 Key）。"
   >
     <AppForm class="web-tools-form" @submit="save">
       <div class="web-tools-card">

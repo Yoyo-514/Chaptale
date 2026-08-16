@@ -5,10 +5,8 @@ import {
   IPC_CHANNELS,
   RemoveCustomModelArgsValidator,
   RemoveCustomProviderApiKeyArgsValidator,
-  RemoveProviderAuthArgsValidator,
   SetCustomProviderApiKeyArgsValidator,
   SetDefaultModelArgsValidator,
-  SetProviderApiKeyArgsValidator,
   UpdateCustomModelInputArgsValidator
 } from '@chaptale/ipc-contract';
 import type {
@@ -17,10 +15,8 @@ import type {
   FetchCustomProviderModelsPayload,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
-  RemoveProviderAuthPayload,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
-  SetProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
 
@@ -36,12 +32,6 @@ export function registerModelsIpc(modelService: ModelService) {
     IPC_CHANNELS.models.setDefault,
     SetDefaultModelArgsValidator,
     (_event, payload: SetDefaultModelPayload) => modelService.setDefaultModel(payload)
-  );
-
-  handleValidatedIpc(
-    IPC_CHANNELS.models.setProviderApiKey,
-    SetProviderApiKeyArgsValidator,
-    (_event, payload: SetProviderApiKeyPayload) => modelService.setProviderApiKey(payload)
   );
 
   handleValidatedIpc(
@@ -84,11 +74,5 @@ export function registerModelsIpc(modelService: ModelService) {
     IPC_CHANNELS.models.removeCustomModel,
     RemoveCustomModelArgsValidator,
     (_event, payload: RemoveCustomModelPayload) => modelService.removeCustomModel(payload)
-  );
-
-  handleValidatedIpc(
-    IPC_CHANNELS.models.removeProviderAuth,
-    RemoveProviderAuthArgsValidator,
-    (_event, payload: RemoveProviderAuthPayload) => modelService.removeProviderAuth(payload)
   );
 }

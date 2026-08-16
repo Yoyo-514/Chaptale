@@ -41,7 +41,12 @@ export type WebToolsSettings = {
 export type ChaptaleSettings = {
   version: 1;
   storage: ChaptaleStorageSettings;
-  /** 应用关闭前最后打开的会话；不存在或已删除时由 Renderer 回退。 */
+  /**
+   * 按存储域记忆的最近会话（global 槽 + 每工作区一槽）。
+   * 落盘字段；lastSessionId 为按当前域合成的视图。
+   */
+  lastSessions?: Record<string, string>;
+  /** 当前存储域的最近会话（合成值，不落盘）；不存在或已删除时由 Renderer 回退。 */
   lastSessionId?: string;
 };
 
@@ -49,9 +54,7 @@ export type ChaptaleSettingsPaths = {
   rootDir: string;
   agentDir: string;
   settingsPath: string;
-  piSettingsPath: string;
-  piModelsPath: string;
-  piAuthPath: string;
+  modelsPath: string;
   webToolsConfigPath: string;
   sessionsRootDir: string;
   effectiveSessionDir: string;

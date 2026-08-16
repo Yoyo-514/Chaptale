@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { ImageAttachmentService } from '../core/attachments/service';
+import { ContextFileAuthorizationRegistry } from '../core/context/authorization';
 import { ContextFileService } from '../core/context/service';
 import { parseFrontmatter } from '../core/frontmatter/parse';
 import { ModelService } from '../core/models/service';
@@ -10,6 +11,7 @@ import { createChatRuntimeBundle, createBrokerPermissionGate } from '../features
 import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { SlashCommandService } from '../features/commands/service';
+import { createMemoryInjector } from '../features/memory/injector';
 import { MemoryPendingStore } from '../features/memory/pending-store';
 import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
@@ -72,10 +74,12 @@ export function createAppContext(): AppContext {
     console.error('内置 skills 物化失败:', error);
   }
 
+  const contextFileAuthorization = new ContextFileAuthorizationRegistry();
   const contextFileService = new ContextFileService(
     new ElectronContextFilePlatform(),
     new OfficeDocumentParser(),
-    new AttachedFileSearchService()
+    new AttachedFileSearchService(),
+    contextFileAuthorization
   );
   // createElectronThumbnail 失败时抛错，保留 attachments 层“跳过此图”分支。
   const imageAttachmentService = new ImageAttachmentService((data, mimeType) => {
@@ -86,7 +90,7 @@ export function createAppContext(): AppContext {
     }
 
     return thumbnail;
-  });
+  }, contextFileAuthorization);
   const sessionRepository = new CoreSessionRepository({
     rootDir: settingsService.agentDir,
     cwd: () => settingsService.getCurrentCwd(),
@@ -95,7 +99,7 @@ export function createAppContext(): AppContext {
     getStorageContext: () => settingsService.getStorageContext(),
     imageAttachmentService
   });
-  const modelService = new ModelService({ modelsPath: settingsService.piModelsPath });
+  const modelService = new ModelService({ modelsPath: settingsService.modelsPath });
   const promptFileService = new PromptFileService(settingsService.agentDir);
   const personaRegistry = createDefaultPersonaRegistry(settingsService);
   const toolCatalog = createDefaultToolCatalog();
@@ -122,7 +126,7 @@ export function createAppContext(): AppContext {
   const reviewStore = new ReviewOutputStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   const taskOutputStore = new TaskOutputRouter({ runStore, reviewStore });
 
-  // task 链路（pi 过渡）：TaskSessionFactory/TaskRunner 逻辑不变，P2-d 后续批次翻转为自有 engine。
+  // task 链路：TaskSessionFactory/TaskRunner 承接结构化任务会话。
   const taskSessionFactory = new TaskSessionFactory({
     settingsService,
     modelService,
@@ -151,6 +155,7 @@ export function createAppContext(): AppContext {
     gate: createBrokerPermissionGate(permissionBroker),
     contextFileService,
     imageAttachmentService,
+    memoryInjector: createMemoryInjector(settingsService.agentDir),
     compactPrompt: '请把以下对话压缩为保留关键事实与决策的摘要，供后续创作参考。'
   });
 

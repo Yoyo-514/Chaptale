@@ -19,9 +19,7 @@ describe('ConfigFilesSettings', () => {
         rootDir: 'root',
         agentDir: 'agent',
         settingsPath: 'settings.json',
-        piSettingsPath: 'agent/settings.json',
-        piModelsPath: 'agent/models.json',
-        piAuthPath: 'agent/auth.json',
+        modelsPath: 'agent/models.json',
         webToolsConfigPath: 'agent/web-tools.json',
         sessionsRootDir: 'agent/sessions',
         effectiveSessionDir: 'agent/sessions/global'
@@ -31,6 +29,7 @@ describe('ConfigFilesSettings', () => {
 
     const wrapper = mount(ConfigFilesSettings);
     expect(wrapper.text()).toContain('settings.json');
+    expect(wrapper.text()).toContain('agent/models.json');
     expect(wrapper.text()).toContain('agent/web-tools.json');
 
     await wrapper.get('button').trigger('click');

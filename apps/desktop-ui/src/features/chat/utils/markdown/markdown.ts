@@ -37,7 +37,9 @@ function isSafeUrl(href: string, protocols: Set<string>) {
 type MarkedParseResult = string | Promise<string>;
 
 const markdownCache = new Map<string, string>();
-const MAX_CACHE_SIZE = 300;
+/** 缓存按总字符数设限（源串 + HTML 双份），避免长会话内存膨胀。 */
+const MAX_CACHE_CHARS = 2 * 1024 * 1024;
+let cachedChars = 0;
 
 marked.setOptions({
   async: false,
@@ -54,11 +56,22 @@ export function renderMarkdown(content: string) {
   }
 
   const html = renderMarked(content);
-  markdownCache.set(content, html);
 
-  if (markdownCache.size > MAX_CACHE_SIZE) {
-    const [firstKey] = markdownCache.keys();
-    markdownCache.delete(firstKey);
+  // 超长内容不入缓存（单条已接近预算）；常规内容入缓存并按总字符数淘汰最旧条目。
+  if (content.length + html.length < MAX_CACHE_CHARS) {
+    markdownCache.set(content, html);
+    cachedChars += content.length + html.length;
+
+    while (cachedChars > MAX_CACHE_CHARS && markdownCache.size > 0) {
+      const [firstKey] = markdownCache.keys();
+      const evicted = markdownCache.get(firstKey);
+
+      if (evicted !== undefined) {
+        cachedChars -= firstKey.length + evicted.length;
+      }
+
+      markdownCache.delete(firstKey);
+    }
   }
 
   return html;

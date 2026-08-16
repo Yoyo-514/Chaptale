@@ -6,6 +6,7 @@ import type { ChatContextFile } from '@chaptale/shared';
 import { getDocumentMimeType, getFileKind, getImageMimeType } from '../../infra/filesystem/file-kind';
 import type { ImageBlock } from '../attachments/service';
 import type { AttachedFileSearchPort } from './attached-file-search-port';
+import type { ContextFileAuthorizationPort } from './authorization';
 import { toChatContextFile } from './chat-context-file';
 import {
   MAX_CONTEXT_FILE_BYTES,
@@ -32,7 +33,8 @@ import {
   buildSearchResult,
   buildOversizedFileBlock,
   buildOversizedImageBlock,
-  buildUnavailableFileBlock
+  buildUnavailableFileBlock,
+  buildUnauthorizedFileBlock
 } from './file-search';
 import type { ContextFilePlatform } from './platform';
 import { estimateTextTokens, isTextWithinTokenLimit } from './token-counter';
@@ -61,7 +63,9 @@ export class ContextFileService {
   constructor(
     private readonly platform: ContextFilePlatform,
     private readonly parser: DocumentParserPort,
-    private readonly searcher: AttachedFileSearchPort
+    private readonly searcher: AttachedFileSearchPort,
+    /** 文件授权端口（运行期 inspect/select 入池）；缺省不校验（仅测试直连场景）。 */
+    private readonly authorization?: ContextFileAuthorizationPort
   ) {}
 
   async selectFiles(owner?: unknown): Promise<ChatContextFile[]> {
@@ -70,7 +74,10 @@ export class ContextFileService {
 
     for (const filePath of selectedPaths) {
       const file = await toChatContextFile(filePath, this.platform);
-      if (file.kind !== 'unsupported') selected.push(file);
+      if (file.kind !== 'unsupported') {
+        selected.push(file);
+        await this.authorization?.authorize(filePath);
+      }
     }
 
     return selected;
@@ -82,7 +89,10 @@ export class ContextFileService {
 
     for (const filePath of unique(filePaths)) {
       const file = await toChatContextFile(filePath, this.platform).catch(() => undefined);
-      if (file && file.kind !== 'unsupported') inspected.push(file);
+      if (file && file.kind !== 'unsupported') {
+        inspected.push(file);
+        await this.authorization?.authorize(filePath);
+      }
     }
 
     return inspected;
@@ -105,6 +115,12 @@ export class ContextFileService {
       signal?.throwIfAborted();
       const kind = getFileKind(filePath);
       if (kind === 'unsupported') continue;
+
+      // 授权检查：只允许本次运行期经拖入/对话框确认过的文件进入注入或读取。
+      if (this.authorization && !(await this.authorization.isAuthorized(filePath))) {
+        blocks.push(buildUnauthorizedFileBlock(filePath, kind));
+        continue;
+      }
 
       const stats = await fs.stat(filePath).catch(() => undefined);
       if (!stats?.isFile()) {

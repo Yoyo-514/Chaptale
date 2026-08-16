@@ -43,6 +43,14 @@ const readParameters = Type.Object(
 
 const READ_DEFAULT_LIMIT = 500;
 const MAX_LINE_LENGTH = 2000;
+/** 单文件整体读取上限：read/grep 对超大文件只读头部预算，避免内存爆炸。 */
+const MAX_TOOL_FILE_BYTES = 100 * 1024 * 1024;
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${bytes} B`;
+}
 
 /** read：分页读文本文件；二进制拒读；超长行截断；带行号输出。 */
 export function createReadTool(cwd: string): ToolDefinition<typeof readParameters> {
@@ -53,7 +61,7 @@ export function createReadTool(cwd: string): ToolDefinition<typeof readParameter
     description: '读取文本文件内容，带行号分页输出。二进制文件（PDF/图片等）不支持直接读取。',
     parameters: readParameters,
     async execute(params) {
-      const filePath = resolveWithinCwd(cwd, params.path);
+      const filePath = await resolveWithinCwd(cwd, params.path);
 
       let stat;
 
@@ -65,6 +73,12 @@ export function createReadTool(cwd: string): ToolDefinition<typeof readParameter
 
       if (!stat.isFile()) {
         return { text: `不是文件：${params.path}` };
+      }
+
+      if (stat.size > MAX_TOOL_FILE_BYTES) {
+        return {
+          text: `文件过大（${formatBytes(stat.size)}，上限 ${formatBytes(MAX_TOOL_FILE_BYTES)}），不支持直接读取：${params.path}`
+        };
       }
 
       const buffer = await fs.readFile(filePath);
@@ -119,46 +133,68 @@ export function createGrepTool(cwd: string): ToolDefinition<typeof grepParameter
     description: '在文件内容中搜索文本或正则，返回文件名、行号与命中行。',
     parameters: grepParameters,
     async execute(params, signal) {
-      const root = resolveWithinCwd(cwd, params.path ?? '.');
+      const root = await resolveWithinCwd(cwd, params.path ?? '.');
       const matcher = createMatcher(params.pattern, params.regex ?? false);
       const include = params.include ? new RegExp(`^${globToRegExp(params.include).source.slice(1, -1)}$`) : undefined;
       const maxResults = params.maxResults ?? GREP_DEFAULT_MAX;
 
       const hits: string[] = [];
       let scannedFiles = 0;
+      let skippedLargeFiles = 0;
       let truncated = false;
 
-      await walk(root, signal, async filePath => {
-        if (include && !include.test(path.basename(filePath))) {
-          return;
-        }
-
-        const buffer = await fs.readFile(filePath).catch(() => undefined);
-
-        if (!buffer || isBinaryContent(buffer)) {
-          return;
-        }
-
-        scannedFiles += 1;
-        const lines = buffer.toString('utf8').split('\n');
-
-        for (const [index, line] of lines.entries()) {
-          if (matcher(line)) {
-            if (hits.length >= maxResults) {
-              truncated = true;
-              return;
-            }
-
-            hits.push(`${path.relative(cwd, filePath).replace(/\\/g, '/')}:${index + 1}: ${line.trim().slice(0, 300)}`);
+      await walk(
+        root,
+        signal,
+        async filePath => {
+          if (include && !include.test(path.basename(filePath))) {
+            return;
           }
-        }
-      });
+
+          const stat = await fs.stat(filePath).catch(() => undefined);
+
+          if (!stat?.isFile() || stat.size > MAX_TOOL_FILE_BYTES) {
+            if (stat && stat.size > MAX_TOOL_FILE_BYTES) {
+              skippedLargeFiles += 1;
+            }
+            return;
+          }
+
+          const buffer = await fs.readFile(filePath).catch(() => undefined);
+
+          if (!buffer || isBinaryContent(buffer)) {
+            return;
+          }
+
+          scannedFiles += 1;
+          const lines = buffer.toString('utf8').split('\n');
+
+          for (const [index, line] of lines.entries()) {
+            if (matcher(line)) {
+              if (hits.length >= maxResults) {
+                truncated = true;
+                return;
+              }
+
+              hits.push(
+                `${path.relative(cwd, filePath).replace(/\\/g, '/')}:${index + 1}: ${line.trim().slice(0, 300)}`
+              );
+            }
+          }
+        },
+        () => hits.length >= maxResults
+      );
 
       if (hits.length === 0) {
-        return { text: `未找到匹配：${params.pattern}（扫描 ${scannedFiles} 个文件）` };
+        const skippedNote = skippedLargeFiles > 0 ? `（跳过 ${skippedLargeFiles} 个超大文件）` : '';
+        return { text: `未找到匹配：${params.pattern}（扫描 ${scannedFiles} 个文件${skippedNote}）` };
       }
 
-      const footer = truncated ? `\n（已达 ${maxResults} 条上限，命中被截断）` : '';
+      const footer = truncated
+        ? `\n（已达 ${maxResults} 条上限，命中被截断${skippedLargeFiles > 0 ? `；跳过 ${skippedLargeFiles} 个超大文件` : ''}）`
+        : skippedLargeFiles > 0
+          ? `\n（跳过 ${skippedLargeFiles} 个超大文件）`
+          : '';
 
       return { text: `${hits.join('\n')}${footer}` };
     }
@@ -201,25 +237,30 @@ export function createFindTool(cwd: string): ToolDefinition<typeof findParameter
     description: '按文件名 glob 递归查找文件，返回相对路径列表。',
     parameters: findParameters,
     async execute(params, signal) {
-      const root = resolveWithinCwd(cwd, params.path ?? '.');
+      const root = await resolveWithinCwd(cwd, params.path ?? '.');
       const matcher = globToRegExp(params.pattern.replace(/\\/g, '/'));
       const maxResults = params.maxResults ?? FIND_DEFAULT_MAX;
 
       const results: string[] = [];
       let truncated = false;
 
-      await walk(root, signal, async filePath => {
-        const relative = path.relative(cwd, filePath).replace(/\\/g, '/');
+      await walk(
+        root,
+        signal,
+        async filePath => {
+          const relative = path.relative(cwd, filePath).replace(/\\/g, '/');
 
-        if (matcher.test(relative) || matcher.test(path.basename(filePath))) {
-          if (results.length >= maxResults) {
-            truncated = true;
-            return;
+          if (matcher.test(relative) || matcher.test(path.basename(filePath))) {
+            if (results.length >= maxResults) {
+              truncated = true;
+              return;
+            }
+
+            results.push(relative);
           }
-
-          results.push(relative);
-        }
-      });
+        },
+        () => results.length >= maxResults
+      );
 
       if (results.length === 0) {
         return { text: `未找到匹配文件：${params.pattern}` };
@@ -248,7 +289,7 @@ export function createLsTool(cwd: string): ToolDefinition<typeof lsParameters> {
     description: '列出目录内容；目录以 / 结尾标记。',
     parameters: lsParameters,
     async execute(params) {
-      const dir = resolveWithinCwd(cwd, params.path ?? '.');
+      const dir = await resolveWithinCwd(cwd, params.path ?? '.');
       let entries;
 
       try {
@@ -286,7 +327,7 @@ export function createWriteTool(cwd: string): ToolDefinition<typeof writeParamet
     description: '把内容整体写入文件（覆盖已有内容），父目录不存在时自动创建。',
     parameters: writeParameters,
     async execute(params) {
-      const filePath = resolveWithinCwd(cwd, params.path);
+      const filePath = await resolveWithinCwd(cwd, params.path);
       const bytes = Buffer.byteLength(params.content, 'utf8');
 
       await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -318,7 +359,7 @@ export function createEditTool(cwd: string): ToolDefinition<typeof editParameter
     description: '精确文本替换：oldText 必须在文件中恰好出现一次，否则报错并给出出现次数。',
     parameters: editParameters,
     async execute(params) {
-      const filePath = resolveWithinCwd(cwd, params.path);
+      const filePath = await resolveWithinCwd(cwd, params.path);
 
       let content: string;
 
@@ -377,7 +418,8 @@ function countOccurrences(content: string, needle: string): number {
 async function walk(
   root: string,
   signal: AbortSignal | undefined,
-  visit: (filePath: string) => Promise<void>
+  visit: (filePath: string) => Promise<void>,
+  shouldStop?: () => boolean
 ): Promise<void> {
   let entries;
 
@@ -395,7 +437,7 @@ async function walk(
   }
 
   for (const entry of entries) {
-    if (signal?.aborted) {
+    if (signal?.aborted || shouldStop?.()) {
       return;
     }
 
@@ -406,9 +448,14 @@ async function walk(
         continue;
       }
 
-      await walk(full, signal, visit);
+      await walk(full, signal, visit, shouldStop);
     } else if (entry.isFile()) {
       await visit(full);
+
+      // visit 可能刚把计数推到上限：立即停止，避免继续扫描剩余目录树。
+      if (shouldStop?.()) {
+        return;
+      }
     }
   }
 }

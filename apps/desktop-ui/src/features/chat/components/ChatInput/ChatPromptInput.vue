@@ -161,13 +161,24 @@ function handleKeydown(event: KeyboardEvent) {
       :class="cn('chat-send-button', isInputDisabled && 'chat-send-button-disabled')"
       type="button"
       :disabled="isInputDisabled"
+      :aria-label="
+        props.isSubmittingSteer
+          ? '正在发送调整'
+          : isSteerReady
+            ? '发送调整'
+            : props.isReplying
+              ? '中断'
+              : props.isConnecting
+                ? '正在连接'
+                : '发送'
+      "
       @click="handleSubmit"
     >
-      <span v-if="props.isSubmittingSteer" class="i-mingcute-loading-line animate-spin" aria-label="正在发送调整" />
-      <span v-else-if="isSteerReady" class="i-mingcute-send-plane-line" aria-label="发送调整" />
-      <span v-else-if="props.isReplying" class="i-mingcute-stop-line" aria-label="中断" />
-      <span v-else-if="props.isConnecting" class="i-mingcute-loading-line animate-spin" aria-label="正在连接" />
-      <span v-else class="i-mingcute-send-plane-line" aria-label="发送" />
+      <span v-if="props.isSubmittingSteer" class="i-mingcute-loading-line animate-spin" />
+      <span v-else-if="isSteerReady" class="i-mingcute-send-plane-line" />
+      <span v-else-if="props.isReplying" class="i-mingcute-stop-line" />
+      <span v-else-if="props.isConnecting" class="i-mingcute-loading-line animate-spin" />
+      <span v-else class="i-mingcute-send-plane-line" />
     </button>
   </div>
 </template>

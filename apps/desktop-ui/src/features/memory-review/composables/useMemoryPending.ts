@@ -21,8 +21,13 @@ export function useMemoryPending() {
   }
 
   async function refresh() {
-    const result = await getDesktopApi().memory.listPending();
-    proposals.value = result.proposals;
+    try {
+      const result = await getDesktopApi().memory.listPending();
+      proposals.value = result.proposals;
+    } catch {
+      // 主进程异常时回到空列表，避免面板静默假死；错误细节交给全局兜底。
+      proposals.value = [];
+    }
   }
 
   async function resolve(id: string, action: MemoryPendingAction) {

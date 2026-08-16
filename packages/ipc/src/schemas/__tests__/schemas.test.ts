@@ -25,12 +25,10 @@ import {
   ReadSessionImageArgsValidator,
   RemoveCustomModelArgsValidator,
   RemoveCustomProviderApiKeyArgsValidator,
-  RemoveProviderAuthArgsValidator,
   RenameSessionArgsValidator,
   SessionIdArgsValidator,
   SetCustomProviderApiKeyArgsValidator,
   SetDefaultModelArgsValidator,
-  SetProviderApiKeyArgsValidator,
   SetSessionLeafArgsValidator,
   AgentRunsListResultValidator,
   TaskCancelArgsValidator,
@@ -69,7 +67,7 @@ describe('IPC 参数 Schema', () => {
         {
           runId: 'r1',
           query: '',
-          sessionId: '',
+          sessionId: 's1',
           branchFromEntryId: null,
           contextFilePaths: [],
           reuseUserEntryId: ''
@@ -78,6 +76,9 @@ describe('IPC 参数 Schema', () => {
     ).toBe(true);
     expect(AgentStartArgsValidator.Check([{ runId: '', query: 1 }])).toBe(false);
     expect(AgentStartArgsValidator.Check([{ runId: 'r1', query: 'hello', extra: true }])).toBe(false);
+    // 空或含路径分隔符的 sessionId 必须被拒绝（拼接会话文件路径的入口）。
+    expect(AgentStartArgsValidator.Check([{ runId: 'r1', query: 'hello', sessionId: '' }])).toBe(false);
+    expect(AgentStartArgsValidator.Check([{ runId: 'r1', query: 'hello', sessionId: '../escape' }])).toBe(false);
   });
 
   it('校验 Agent 取消与文件检查参数', () => {
@@ -113,8 +114,11 @@ describe('IPC 参数 Schema', () => {
   it('校验会话创建、ID 和图片读取参数', () => {
     expect(CreateSessionArgsValidator.Check([])).toBe(true);
     expect(CreateSessionArgsValidator.Check([undefined])).toBe(true);
-    expect(CreateSessionArgsValidator.Check([{ id: '', name: '', cwd: '', parentSessionPath: '' }])).toBe(true);
+    expect(CreateSessionArgsValidator.Check([{ name: '', cwd: '', parentSessionPath: '' }])).toBe(true);
     expect(CreateSessionArgsValidator.Check([{ id: 's1', extra: true }])).toBe(false);
+    // 空 id / 含路径分隔符的 id 必须拒绝（id 直接拼进会话文件名）。
+    expect(CreateSessionArgsValidator.Check([{ id: '', name: '' }])).toBe(false);
+    expect(CreateSessionArgsValidator.Check([{ id: '../escape', name: '' }])).toBe(false);
 
     expect(SessionIdArgsValidator.Check(['s1'])).toBe(true);
     expect(SessionIdArgsValidator.Check([1])).toBe(false);
@@ -166,7 +170,6 @@ describe('IPC 参数 Schema', () => {
 
   it('校验模型供应商和模型修改参数', () => {
     expectStrictObject(SetDefaultModelArgsValidator, { provider: '', modelId: '' });
-    expectStrictObject(SetProviderApiKeyArgsValidator, { provider: '', apiKey: '' });
     expectStrictObject(FetchCustomProviderModelsArgsValidator, {});
     expect(
       FetchCustomProviderModelsArgsValidator.Check([
@@ -203,7 +206,6 @@ describe('IPC 参数 Schema', () => {
     expectStrictObject(RemoveCustomProviderApiKeyArgsValidator, { provider: '' });
     expectStrictObject(UpdateCustomModelInputArgsValidator, { provider: '', modelId: '', input: [] });
     expectStrictObject(RemoveCustomModelArgsValidator, { provider: '', modelId: '' });
-    expectStrictObject(RemoveProviderAuthArgsValidator, { provider: '' });
 
     expect(UpdateCustomModelInputArgsValidator.Check([{ provider: '', modelId: '', input: ['audio'] }])).toBe(false);
   });

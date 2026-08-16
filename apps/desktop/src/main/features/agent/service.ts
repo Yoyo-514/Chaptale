@@ -48,6 +48,8 @@ export type AgentServiceOptions = {
   imageAttachmentService?: Pick<import('../../core/attachments/service').ImageAttachmentService, 'createPresentation'>;
   /** 运行级压缩钩子（检查点与 memory 先写，装配层注入）。 */
   onCompact?: (sessionId: string, result: CompactResult) => Promise<void>;
+  /** 跨会话记忆注入端口（挂 user message 前缀；内容未变化时返回空串）；缺省不注入。 */
+  memoryInjector?: { resolvePrefix(sessionId: string, cwd: string): Promise<string> };
   /** 压缩提示词（装配层注入）。 */
   compactPrompt: string;
   /** 单轮 step 上限；默认 32。 */
@@ -71,6 +73,12 @@ export class AgentService implements AgentRuntime {
 
     // 惰性 generator 防：steer 需在首次 next() 前就能登记活跃 run。
     const run = this.ensureRun(sessionId);
+
+    // 同会话并发运行防护：running 中拒绝新 run，避免两条流交错写 JSONL 造成上下文污染。
+    if (run.running) {
+      throw new Error(`会话正在运行中，无法启动新的运行：${sessionId}`);
+    }
+
     run.steering = [];
     run.running = true;
 
@@ -117,23 +125,25 @@ export class AgentService implements AgentRuntime {
     query: string;
     contextFilePaths?: string[];
     sessionId: string;
+    cwd: string;
     signal: AbortSignal;
   }): Promise<{
     entry: import('../../core/sessions/entry').SessionMessage;
     echo: ChatMessage;
   }> {
-    const { query, contextFilePaths, sessionId, signal } = input;
+    const { query, contextFilePaths, sessionId, cwd, signal } = input;
+    const memoryPrefix = await this.resolveMemoryPrefix(sessionId, cwd);
 
     if (!this.options.contextFileService || !contextFilePaths?.length) {
       return {
-        entry: { role: 'user', content: query },
+        entry: { role: 'user', content: `${memoryPrefix}${query}` },
         echo: { role: 'user', content: query, timestamp: Date.now() }
       };
     }
 
     const resolved = await this.options.contextFileService.resolve(contextFilePaths, { query, signal });
     const decoded = decodeContextMessage(resolved.promptPrefix);
-    const promptText = `${resolved.promptPrefix}${query}`;
+    const promptText = `${memoryPrefix}${resolved.promptPrefix}${query}`;
     const imageParts = resolved.images.map(image => ({
       type: 'image' as const,
       data: image.data,
@@ -185,9 +195,13 @@ export class AgentService implements AgentRuntime {
     onMessage: (message: ChatMessage) => void;
   }): Promise<void> {
     const { sessionId, store, run, signal, options, query, onMessage } = input;
+    const memoryPrefix = await this.resolveMemoryPrefix(sessionId, store.header.cwd);
 
     // 首轮附件：文本信封 + 图片进 content（模型回放完整），contextFiles 元数据随行；复用/分支轮不重解析。
-    let userEntry: import('../../core/sessions/entry').SessionMessage = { role: 'user', content: query };
+    let userEntry: import('../../core/sessions/entry').SessionMessage = {
+      role: 'user',
+      content: `${memoryPrefix}${query}`
+    };
     let echoMessage: ChatMessage = { role: 'user', content: query, timestamp: Date.now() };
 
     if (this.options.contextFileService && options.contextFilePaths?.length && !options.reuseUserEntryId) {
@@ -196,10 +210,10 @@ export class AgentService implements AgentRuntime {
         signal
       });
       const decoded = decodeContextMessage(resolved.promptPrefix);
-      const promptText = `${resolved.promptPrefix}${query}`;
+      const promptText = `${memoryPrefix}${resolved.promptPrefix}${query}`;
 
       if (resolved.images.length > 0) {
-        // 图片以 base64 内联进 content（与 pi 时代同构：[信封文本, ...images]，模型与回放共用）。
+        // 图片以 base64 内联进 content（[信封文本, ...images]，模型与回放共用）。
         const imageParts = resolved.images.map(image => ({
           type: 'image' as const,
           data: image.data,
@@ -288,6 +302,7 @@ export class AgentService implements AgentRuntime {
           query: steerRequest.query,
           contextFilePaths: steerRequest.contextFilePaths,
           sessionId,
+          cwd: store.header.cwd,
           signal
         });
         await store.appendMessage(steerEntry.entry);
@@ -401,6 +416,11 @@ export class AgentService implements AgentRuntime {
   /** 设置变更时失效运行时缓存（v1：每轮重读配置，无需动作；保留端口对齐 ipc-registry）。 */
   invalidateSessions(): void {
     // 有意留空：runtimeBundle.resolve 每轮重读 models.json 与 persona，天然生效。
+  }
+
+  /** run 内按会话 cwd 取记忆注入前缀；未装配注入器时返回空串。 */
+  private async resolveMemoryPrefix(sessionId: string, cwd: string): Promise<string> {
+    return (await this.options.memoryInjector?.resolvePrefix(sessionId, cwd)) ?? '';
   }
 
   private ensureRun(sessionId: string): ActiveRun {

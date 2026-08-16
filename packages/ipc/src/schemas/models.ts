@@ -21,16 +21,6 @@ export const SetDefaultModelPayloadSchema = Type.Object(
 export const SetDefaultModelArgsSchema = Type.Tuple([SetDefaultModelPayloadSchema]);
 export const SetDefaultModelArgsValidator = Compile(SetDefaultModelArgsSchema);
 
-export const SetProviderApiKeyPayloadSchema = Type.Object(
-  {
-    provider: Type.String(),
-    apiKey: Type.String()
-  },
-  { additionalProperties: false }
-);
-export const SetProviderApiKeyArgsSchema = Type.Tuple([SetProviderApiKeyPayloadSchema]);
-export const SetProviderApiKeyArgsValidator = Compile(SetProviderApiKeyArgsSchema);
-
 export const FetchCustomProviderModelsPayloadSchema = Type.Object(
   {
     provider: Type.Optional(Type.String()),
@@ -125,10 +115,3 @@ export const RemoveCustomModelPayloadSchema = Type.Object(
 );
 export const RemoveCustomModelArgsSchema = Type.Tuple([RemoveCustomModelPayloadSchema]);
 export const RemoveCustomModelArgsValidator = Compile(RemoveCustomModelArgsSchema);
-
-export const RemoveProviderAuthPayloadSchema = Type.Object(
-  { provider: Type.String() },
-  { additionalProperties: false }
-);
-export const RemoveProviderAuthArgsSchema = Type.Tuple([RemoveProviderAuthPayloadSchema]);
-export const RemoveProviderAuthArgsValidator = Compile(RemoveProviderAuthArgsSchema);

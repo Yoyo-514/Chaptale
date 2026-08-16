@@ -16,20 +16,62 @@ import { DEFAULT_WEB_TOOLS_SETTINGS, mergeSettings } from './defaults';
 import type { WebToolsAdapter } from './web-tools-adapter';
 import { toWorkspaceSessionDirName } from './workspace-session-directory';
 
+/** WebTools API Key 下发给 Renderer 时的占位掩码；提交时被忽略（保留原值），空串表示显式清除。 */
+const KEY_MASK = '••••••••';
+
+/** 真实 key 只在主进程配置文件中停留，下发状态一律掩码化。 */
+function maskWebToolsKeys(keys: WebToolsSettings['keys']): WebToolsSettings['keys'] {
+  const masked: WebToolsSettings['keys'] = {};
+
+  for (const [name, value] of Object.entries(keys)) {
+    if (value) {
+      masked[name as keyof WebToolsSettings['keys']] = KEY_MASK;
+    }
+  }
+
+  return masked;
+}
+
+/** 提交前清洗 keys：掩码占位忽略（保留原值）；空串保留（显式清除）；其余为真实更新。 */
+function sanitizeWebToolsKeysPayload(payload: UpdateWebToolsSettingsPayload): UpdateWebToolsSettingsPayload {
+  if (!payload.keys) {
+    return payload;
+  }
+
+  const keys: WebToolsSettings['keys'] = {};
+
+  for (const [name, value] of Object.entries(payload.keys)) {
+    if (value === KEY_MASK) {
+      continue;
+    }
+
+    keys[name as keyof WebToolsSettings['keys']] = value;
+  }
+
+  return Object.keys(keys).length > 0 ? { ...payload, keys } : { ...payload, keys: undefined };
+}
+
+/** 存储域槽位 key：global 单槽；workspace 按 resolve 后的路径各占一槽。 */
+function storageDomainKey(storage: ChaptaleStorageSettings): string {
+  if (storage.mode === 'workspace' && storage.workspacePath) {
+    return `workspace:${path.resolve(storage.workspacePath)}`;
+  }
+
+  return 'global';
+}
+
 export type SettingsServiceOptions = {
   rootDir?: string;
 };
 
-/** 集中定义应用与 Pi 集成使用的配置路径，并负责应用设置、Web Access 配置及会话目录选择的持久化。 */
+/** 集中定义应用配置路径，并负责应用设置、Web Access 配置及会话目录选择的持久化。 */
 export class SettingsService {
   readonly rootDir: string;
   readonly agentDir: string;
   /** 内置 skills 的物化目标；可重建缓存，每次启动全量重写。 */
   readonly builtinSkillsDir: string;
   readonly settingsPath: string;
-  readonly piSettingsPath: string;
-  readonly piModelsPath: string;
-  readonly piAuthPath: string;
+  readonly modelsPath: string;
   readonly webToolsConfigPath: string;
   readonly sessionsRootDir: string;
   /** task 型子任务 session 目录；不在 sessionsRootDir 扫描范围，天然不进历史 UI。 */
@@ -48,9 +90,7 @@ export class SettingsService {
     this.agentDir = path.join(this.rootDir, 'agent');
     this.builtinSkillsDir = path.join(this.rootDir, 'cache', 'builtin-skills');
     this.settingsPath = path.join(this.rootDir, 'settings.json');
-    this.piSettingsPath = path.join(this.agentDir, 'settings.json');
-    this.piModelsPath = path.join(this.agentDir, 'models.json');
-    this.piAuthPath = path.join(this.agentDir, 'auth.json');
+    this.modelsPath = path.join(this.agentDir, 'models.json');
     this.webToolsConfigPath = path.join(this.agentDir, 'web-tools.json');
     this.sessionsRootDir = path.join(this.agentDir, 'sessions');
     this.taskSessionsDir = path.join(this.agentDir, 'task-sessions');
@@ -67,20 +107,39 @@ export class SettingsService {
   async update(payload: UpdateChaptaleSettingsPayload): Promise<ChaptaleSettingsState> {
     await this.enqueue(async () => {
       const current = await this.readSettingsUnsafe();
-      const lastSessionId =
-        payload.lastSessionId === null ? undefined : (payload.lastSessionId ?? current.lastSessionId);
       const next: ChaptaleSettings = {
         version: current.version,
         storage: {
           ...current.storage,
           ...payload.storage
         },
-        ...(lastSessionId ? { lastSessionId } : {})
+        ...(current.lastSessions && Object.keys(current.lastSessions).length > 0
+          ? { lastSessions: { ...current.lastSessions } }
+          : {})
       };
 
       // workspace 模式必须绑定有效路径；不完整的设置回退到 global，避免生成不可定位的会话目录。
       if (next.storage.mode === 'workspace' && !next.storage.workspacePath) {
         next.storage.mode = 'global';
+      }
+
+      // 切回 global 时清掉工作区路径：避免设置面板残留显示，保持落盘数据与模式一致。
+      if (next.storage.mode === 'global') {
+        delete next.storage.workspacePath;
+      }
+
+      // lastSessionId：null=清除当前域槽位；string=写当前域槽位；undefined=保持不动。
+      if (payload.lastSessionId !== undefined) {
+        const slots = { ...next.lastSessions };
+        const domainKey = storageDomainKey(next.storage);
+
+        if (payload.lastSessionId === null) {
+          delete slots[domainKey];
+        } else if (payload.lastSessionId) {
+          slots[domainKey] = payload.lastSessionId;
+        }
+
+        next.lastSessions = Object.keys(slots).length > 0 ? slots : undefined;
       }
 
       await writeJsonFile(this.settingsPath, next);
@@ -92,7 +151,7 @@ export class SettingsService {
   async updateWebTools(payload: UpdateWebToolsSettingsPayload): Promise<ChaptaleSettingsState> {
     await this.enqueue(async () => {
       const current = await this.readWebToolsSettingsUnsafe();
-      await this.writeWebToolsConfig(this.webToolsAdapter.mergeUpdate(current, payload));
+      await this.writeWebToolsConfig(this.webToolsAdapter.mergeUpdate(current, sanitizeWebToolsKeysPayload(payload)));
     });
 
     return this.getState();
@@ -176,15 +235,17 @@ export class SettingsService {
 
   private createState(settings: ChaptaleSettings, webTools: WebToolsSettings): ChaptaleSettingsState {
     return {
-      settings,
-      webTools,
+      settings: {
+        ...settings,
+        // 合成视图：按当前 storage 域取槽位；不落盘（落盘只写 lastSessions）。
+        lastSessionId: settings.lastSessions?.[storageDomainKey(settings.storage)]
+      },
+      webTools: { ...webTools, keys: maskWebToolsKeys(webTools.keys) },
       paths: {
         rootDir: this.rootDir,
         agentDir: this.agentDir,
         settingsPath: this.settingsPath,
-        piSettingsPath: this.piSettingsPath,
-        piModelsPath: this.piModelsPath,
-        piAuthPath: this.piAuthPath,
+        modelsPath: this.modelsPath,
         webToolsConfigPath: this.webToolsConfigPath,
         sessionsRootDir: this.sessionsRootDir,
         effectiveSessionDir: this.getSessionDir(settings.storage),

@@ -40,7 +40,7 @@ async function useGlobalStorage() {
     />
 
     <SettingsPathCard
-      v-if="storage?.workspacePath"
+      v-if="storage?.mode === 'workspace' && storage?.workspacePath"
       label="工作区路径"
       :value="storage.workspacePath"
       class="settings-path-card-spacing"

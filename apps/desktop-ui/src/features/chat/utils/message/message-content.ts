@@ -6,11 +6,8 @@ import { formatSkillInvocation } from '@chaptale/shared';
 /** 附件信封前缀：落盘保留给模型回放；展示层一律剥离（与 main 侧 context-message-codec 同款正则）。 */
 const CONTEXT_ENVELOPE_PATTERN = /^<attached_context_files>\r?\n([\s\S]*?)\r?\n<\/attached_context_files>\r?\n\r?\n?/;
 
-/** pi 时代 skill 调用标签（防御性兜底：旧文件直读时剥离，正文元数据在迁移脚本里已转 skillInvocation）。 */
-const SKILL_TAG_PATTERN = /^<skill\s[^>]*>[\s\S]*?<\/skill>\r?\n?\s*/;
-
 function stripContextEnvelope(text: string): string {
-  return text.replace(CONTEXT_ENVELOPE_PATTERN, '').replace(SKILL_TAG_PATTERN, '');
+  return text.replace(CONTEXT_ENVELOPE_PATTERN, '');
 }
 
 export function getUserDisplayText(message: Extract<ChatMessage, { role: 'user' }>) {

@@ -6,7 +6,7 @@ import type { SkillLoadResult, SkillProvider } from './provider';
 
 /**
  * 自有 SkillsProvider：三层目录（builtin < 用户 < 工作区）同名覆盖 + appliesTo 过滤。
- * 同名覆盖后过滤以最终生效文件的声明为准（与 pi 时代语义一致）。
+ * 同名覆盖后过滤以最终生效文件的声明为准。
  */
 export class SkillsProvider implements SkillProvider {
   constructor(private readonly settingsService: SettingsService) {}

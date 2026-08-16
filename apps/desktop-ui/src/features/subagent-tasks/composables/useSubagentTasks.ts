@@ -40,15 +40,22 @@ export function useSubagentTasks(getSessionId: () => string) {
       return;
     }
 
-    const snapshots = await getDesktopApi().subagent.listActive(sessionId);
+    try {
+      const snapshots = await getDesktopApi().subagent.listActive(sessionId);
 
-    // 等待响应期间会话可能已切换，晚到的旧响应不落地。
-    if (getSessionId() === sessionId) {
-      tasks.value = snapshots.map((snapshot: SubagentSlotSnapshot) => ({
-        requestId: snapshot.requestId,
-        personaId: snapshot.personaId,
-        state: snapshot.state
-      }));
+      // 等待响应期间会话可能已切换，晚到的旧响应不落地。
+      if (getSessionId() === sessionId) {
+        tasks.value = snapshots.map((snapshot: SubagentSlotSnapshot) => ({
+          requestId: snapshot.requestId,
+          personaId: snapshot.personaId,
+          state: snapshot.state
+        }));
+      }
+    } catch {
+      // 主进程异常时回到空列表，避免面板静默假死；错误细节交给全局兜底。
+      if (getSessionId() === sessionId) {
+        tasks.value = [];
+      }
     }
   }
 

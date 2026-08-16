@@ -103,10 +103,8 @@ async function installDesktopMock(page: Page) {
           rootDir: 'C:/Users/Test/.chaptale',
           agentDir: 'C:/Users/Test/.chaptale/agent',
           settingsPath: 'C:/Users/Test/.chaptale/settings.json',
-          piSettingsPath: 'C:/Users/Test/.chaptale/agent/settings.json',
-          piModelsPath: 'C:/Users/Test/.chaptale/agent/models.json',
-          piAuthPath: 'C:/Users/Test/.chaptale/agent/auth.json',
-          piWebAccessConfigPath: 'C:/Users/Test/.chaptale/agent/web-search.json',
+          modelsPath: 'C:/Users/Test/.chaptale/agent/models.json',
+          webToolsConfigPath: 'C:/Users/Test/.chaptale/agent/web-tools.json',
           sessionsRootDir: 'C:/Users/Test/.chaptale/agent/sessions',
           effectiveSessionDir: 'C:/Users/Test/.chaptale/agent/sessions/global'
         }
@@ -534,7 +532,7 @@ test('three-lane review reads persisted outputs independently for each persona',
   await expect(stylePanel).not.toContainText('她忽然失控大笑');
 });
 
-test('prompt settings edit pi files and restore the built-in system prompt', async ({ page }) => {
+test('prompt settings edit agent prompt files and restore the built-in system prompt', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('打开设置').click();
   await page.getByRole('button', { name: /Prompt/ }).click();

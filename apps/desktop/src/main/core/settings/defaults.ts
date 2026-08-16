@@ -29,17 +29,34 @@ export function cloneDefaultWebToolsSettings(): WebToolsSettings {
 
 /**
  * 根据磁盘内容重建当前版本的应用设置顶层结构，并为 storage 补齐默认值。
- * 这样旧配置缺少存储字段时仍可读取，同时统一写出当前 SETTINGS_VERSION。
+ * 顶层 lastSessionId 不落盘（由 getState 按域合成），只清洗按域槽位。
  */
 export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): ChaptaleSettings {
+  const lastSessions = sanitizeLastSessionSlots(value?.lastSessions);
+
   return {
     version: SETTINGS_VERSION,
     storage: {
       ...DEFAULT_SETTINGS.storage,
       ...value?.storage
     },
-    ...(value?.lastSessionId ? { lastSessionId: value.lastSessionId } : {})
+    ...(Object.keys(lastSessions).length > 0 ? { lastSessions } : {})
   };
+}
+
+/** 清洗按域槽位：仅保留非空字符串。 */
+function sanitizeLastSessionSlots(raw: unknown): Record<string, string> {
+  const slots: Record<string, string> = {};
+
+  if (raw && typeof raw === 'object') {
+    for (const [domainKey, sessionId] of Object.entries(raw)) {
+      if (typeof sessionId === 'string' && sessionId) {
+        slots[domainKey] = sessionId;
+      }
+    }
+  }
+
+  return slots;
 }
 
 /**

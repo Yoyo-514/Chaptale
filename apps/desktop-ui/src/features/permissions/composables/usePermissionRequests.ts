@@ -29,11 +29,18 @@ export function usePermissionRequests(getSessionId: () => string) {
       return;
     }
 
-    const fetched = await getDesktopApi().permissions.getPending(sessionId);
+    try {
+      const fetched = await getDesktopApi().permissions.getPending(sessionId);
 
-    // 等待响应期间会话可能已切换，晚到的旧响应不落地。
-    if (getSessionId() === sessionId) {
-      requests.value = fetched;
+      // 等待响应期间会话可能已切换，晚到的旧响应不落地。
+      if (getSessionId() === sessionId) {
+        requests.value = fetched;
+      }
+    } catch {
+      // 主进程异常时回到空队列，避免面板静默假死；错误细节交给全局兜底。
+      if (getSessionId() === sessionId) {
+        requests.value = [];
+      }
     }
   }
 

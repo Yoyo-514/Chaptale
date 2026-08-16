@@ -36,10 +36,13 @@ export type SubagentPoolOptions = {
   maxConcurrency?: number;
   /** 单任务超时；到点后 abort 并立即判 timeout，不等 executor 返回。 */
   timeoutMs?: number;
+  /** 排队任务容量上限；防单次 run 内 delegate 失控堆积 LLM 会话。 */
+  maxPending?: number;
 };
 
 const DEFAULT_MAX_CONCURRENCY = 3;
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_MAX_PENDING = 32;
 
 type Entry<T extends SubagentOutcome> = {
   requestId: string;
@@ -56,13 +59,14 @@ type Entry<T extends SubagentOutcome> = {
 /**
  * 子任务槽位池：并发上限 + FIFO 排队 + 超时/取消兜底 + 状态机事件。
  *
- * 池对执行内容零感知（pi-free）：executor 以 AbortSignal 为唯一契约。
+ * 池对执行内容零感知：executor 以 AbortSignal 为唯一契约。
  * 取消与超时都由池侧立即终结并释放槽位——executor 无视 signal 也不会
  * 产生僵尸占位，其后台工作由 signal 传导到底层会话自行中止。
  */
 export class SubagentPool {
   private readonly maxConcurrency: number;
   private readonly timeoutMs: number;
+  private readonly maxPending: number;
   private readonly pending: Entry<SubagentOutcome>[] = [];
   private readonly running = new Map<string, Entry<SubagentOutcome>>();
   private readonly queued = new Map<string, Entry<SubagentOutcome>>();
@@ -71,6 +75,7 @@ export class SubagentPool {
   constructor(options: SubagentPoolOptions = {}) {
     this.maxConcurrency = Math.max(1, options.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.maxPending = Math.max(0, options.maxPending ?? DEFAULT_MAX_PENDING);
   }
 
   /** 订阅槽位状态机事件；返回退订函数。 */
@@ -97,6 +102,10 @@ export class SubagentPool {
   run<T extends SubagentOutcome>(request: SubagentRunRequest<T>): Promise<SubagentRunResult<T>> {
     if (this.queued.has(request.requestId) || this.running.has(request.requestId)) {
       throw new Error(`重复的子任务请求：${request.requestId}`);
+    }
+
+    if (this.pending.length >= this.maxPending) {
+      throw new Error(`子任务排队已满（上限 ${this.maxPending}），请等待当前任务完成`);
     }
 
     return new Promise<SubagentRunResult<T>>(resolve => {

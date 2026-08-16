@@ -67,13 +67,12 @@ export const useSessionStore = defineStore('session', {
       try {
         const desktopApi = getDesktopApi();
         this.sessions = await desktopApi.session.list();
-        // 首次加载才读取持久化选择；之后刷新列表必须保留用户在当前运行期刚完成的切换。
-        const persistedSessionId = this.selectionRestored
-          ? ''
-          : await desktopApi.settings
-              .getState()
-              .then(state => state.settings.lastSessionId ?? '')
-              .catch(() => '');
+        // 每次加载都读当前域的持久化槽位；运行期选择优先级高于槽位（resolveSessionSelection 内保证），
+        // 使 bindCwd 切换域后能恢复新域的最近会话，而不总是回退候选第一个。
+        const persistedSessionId = await desktopApi.settings
+          .getState()
+          .then(state => state.settings.lastSessionId ?? '')
+          .catch(() => '');
         const selection = resolveSessionSelection({
           candidates: this.cwdSessions,
           allSessions: this.sessions,
@@ -113,9 +112,20 @@ export const useSessionStore = defineStore('session', {
     },
 
     async bindCwd(cwd: string) {
+      // cwd 未变化：打开设置面板等场景不应重置用户当前选择（含跨域会话）。
+      if (this.activeCwd && isSameWorkspacePath(this.activeCwd, cwd)) {
+        return;
+      }
+
+      // 首次绑定（启动后第一次从设置拿到 cwd）：保留已恢复的选择；真切换才清空。
+      const isInitialBinding = !this.activeCwd;
       this.activeCwd = cwd;
-      // 绑定新 cwd 后旧选择不再可信；加载失败也不能重新暴露旧 workspace 的会话。
-      this.currentSessionId = '';
+
+      if (!isInitialBinding) {
+        // 绑定新 cwd 后旧选择不再可信；加载失败也不能重新暴露旧 workspace 的会话。
+        this.currentSessionId = '';
+      }
+
       const loaded = await this.loadSessions();
 
       if (!loaded) {

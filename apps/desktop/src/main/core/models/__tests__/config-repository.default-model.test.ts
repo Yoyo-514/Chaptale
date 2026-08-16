@@ -40,21 +40,6 @@ describe('defaultModel 迁移与读写', () => {
     await expect(repository.getDefaultModel()).resolves.toBeUndefined();
   });
 
-  it('mergeDefaultModelOnce：首次写入返回 true，已有值不覆盖返回 false', async () => {
-    const repository = new ModelConfigRepository({ modelsPath });
-
-    await expect(repository.mergeDefaultModelOnce({ provider: 'pi-legacy', modelId: 'old-model' })).resolves.toBe(true);
-    // 第二次（模拟 pi settings 迁移重放）不覆盖用户已选值。
-    await expect(repository.mergeDefaultModelOnce({ provider: 'pi-legacy', modelId: 'old-model' })).resolves.toBe(
-      false
-    );
-
-    await expect(repository.getDefaultModel()).resolves.toEqual({
-      provider: 'pi-legacy',
-      modelId: 'old-model'
-    });
-  });
-
   it('defaultModel 与 providers 同文件持久化（单一事实源）', async () => {
     const repository = new ModelConfigRepository({ modelsPath });
 

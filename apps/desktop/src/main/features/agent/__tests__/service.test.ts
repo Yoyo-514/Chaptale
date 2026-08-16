@@ -324,6 +324,82 @@ describe('AgentService.stream', () => {
     expect(contents).toContain('第二问');
     expect(contents).toContain('第二轮响应');
   });
+
+  it('同会话运行中拒绝新的 stream（防 JSONL 交错写入）', async () => {
+    let releaseFirst!: () => void;
+    const firstRoundGate = new Promise<void>(resolve => {
+      releaseFirst = resolve;
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(sse({ id: '1', choices: [{ index: 0, delta: { content: '首轮' } }] })));
+            void firstRoundGate.then(() => {
+              controller.enqueue(
+                encoder.encode(
+                  sse({
+                    id: '1',
+                    choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+                    usage: { prompt_tokens: 1, completion_tokens: 1 }
+                  })
+                )
+              );
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
+            });
+          }
+        });
+
+        return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+      })
+    );
+
+    const first = service.stream(runOptions('第一问'));
+    const firstMessage = await first.next();
+    expect(firstMessage.value).toMatchObject({ role: 'user', content: '第一问' });
+
+    // 首轮仍挂起（gate 未释放），第二个 stream 同会话应被拒绝。
+    const second = service.stream(runOptions('第二问'));
+    await expect(second.next()).rejects.toThrow(/正在运行中/);
+
+    releaseFirst();
+    await first.return?.(undefined).catch(() => undefined);
+  });
+
+  it('memory 注入器前缀进入落盘内容，UI 回显保持纯净', async () => {
+    mockModelSequence([textRound('回答。')]);
+
+    const memoryService = new AgentService({
+      sessionRepository: repository,
+      modelService: {} as never,
+      runtimeBundle: createBundle(),
+      gate: { check: async () => ({ outcome: 'allow-once' }) },
+      compactPrompt: '请压缩',
+      memoryInjector: {
+        resolvePrefix: async () => '【记忆：林晚左臂为义肢】\n\n'
+      }
+    });
+
+    const messages: ChatMessage[] = [];
+
+    for await (const message of memoryService.stream(runOptions('继续写'))) {
+      messages.push(message);
+    }
+
+    // 落盘内容含记忆前缀（模型每轮可见），且与用户文本同一条消息。
+    const store = await SessionStore.open(path.join(dir, 'sessions', 'global', 's1.jsonl'));
+    const first = store.buildContextMessages()[0];
+    expect(first).toMatchObject({ role: 'user', content: expect.stringContaining('【记忆：林晚左臂为义肢】') });
+    expect(first).toMatchObject({ role: 'user', content: expect.stringContaining('继续写') });
+
+    // UI 回显不含记忆前缀，聊天面板保持纯净。
+    const echo = messages.find(message => message.role === 'user');
+    expect(echo?.content).toBe('继续写');
+  });
 });
 
 describe('AgentService 其余端口', () => {

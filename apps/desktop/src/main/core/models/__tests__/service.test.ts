@@ -138,15 +138,3 @@ describe('ModelService.checkAuth 三态', () => {
     await expect(service.checkAuth('deepseek')).resolves.toBe(undefined);
   });
 });
-
-describe('pi 面兼容方法', () => {
-  it('setProviderApiKey / removeProviderAuth 收敛为 models.json 操作', async () => {
-    const service = await createService();
-
-    await service.setProviderApiKey({ provider: 'no-key', apiKey: 'sk-legacy' });
-    expect((await service.listModels()).providers.find(p => p.provider === 'no-key')?.authConfigured).toBe(true);
-
-    await service.removeProviderAuth({ provider: 'no-key' });
-    expect((await service.listModels()).providers.find(p => p.provider === 'no-key')?.authConfigured).toBe(false);
-  });
-});

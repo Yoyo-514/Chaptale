@@ -29,7 +29,7 @@ export type ChaptaleSessionTreeEntryBase = {
   timestamp: string;
 };
 
-/** v1 会话树节点（与 core/sessions entry 同形状；未知类型以 custom 透传，向前兼容）。 */
+/** v1 会话树节点（与 core/sessions entry 同形状；未知类型以 custom 透传）。 */
 export type ChaptaleMessageEntry = ChaptaleSessionTreeEntryBase & {
   type: 'message';
   message: ChatMessage;

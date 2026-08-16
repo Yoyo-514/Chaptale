@@ -42,13 +42,46 @@ describe('resolveSessionSelection', () => {
     expect(result).toEqual({ nextSessionId: 'a', shouldPersist: true });
   });
 
-  it('已恢复：当前选择仍存在于全量列表则保留（跨 workspace 显式选择不回退）', () => {
+  it('首次恢复：跨域槽位在全量列表存活则保留（不被 cwd 候选过滤误伤）', () => {
+    const result = resolveSessionSelection({
+      candidates: [session('a')],
+      allSessions: [session('a'), session('other-ws')],
+      currentSessionId: '',
+      selectionRestored: false,
+      persistedSessionId: 'other-ws'
+    });
+    expect(result).toEqual({ nextSessionId: 'other-ws', shouldPersist: false });
+  });
+
+  it('已恢复：当前选择仍存在于全量列表则保留（不依赖槽位同步）', () => {
     const result = resolveSessionSelection({
       candidates: [session('a')],
       allSessions: [session('a'), session('other-ws')],
       currentSessionId: 'other-ws',
       selectionRestored: true,
       persistedSessionId: ''
+    });
+    expect(result).toEqual({ nextSessionId: 'other-ws', shouldPersist: false });
+  });
+
+  it('已恢复：切域清空选择后不沿用槽位兑底（跨域槽位不回跳）', () => {
+    const result = resolveSessionSelection({
+      candidates: [session('a')],
+      allSessions: [session('a'), session('other-ws')],
+      currentSessionId: '',
+      selectionRestored: true,
+      persistedSessionId: 'other-ws'
+    });
+    expect(result).toEqual({ nextSessionId: 'a', shouldPersist: true });
+  });
+
+  it('已恢复：当前选择与槽位一致时无需再持久化', () => {
+    const result = resolveSessionSelection({
+      candidates: [session('a')],
+      allSessions: [session('a'), session('other-ws')],
+      currentSessionId: 'other-ws',
+      selectionRestored: true,
+      persistedSessionId: 'other-ws'
     });
     expect(result).toEqual({ nextSessionId: 'other-ws', shouldPersist: false });
   });
@@ -60,6 +93,17 @@ describe('resolveSessionSelection', () => {
       currentSessionId: 'deleted',
       selectionRestored: true,
       persistedSessionId: ''
+    });
+    expect(result).toEqual({ nextSessionId: 'a', shouldPersist: true });
+  });
+
+  it('运行期选择与槽位都失效时回退候选第一个', () => {
+    const result = resolveSessionSelection({
+      candidates: [session('a')],
+      allSessions: [session('a')],
+      currentSessionId: 'deleted',
+      selectionRestored: true,
+      persistedSessionId: 'gone'
     });
     expect(result).toEqual({ nextSessionId: 'a', shouldPersist: true });
   });

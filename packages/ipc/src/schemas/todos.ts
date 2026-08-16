@@ -3,7 +3,9 @@ import { Compile } from 'typebox/compile';
 
 import { TodoItemSchema } from '@chaptale/shared';
 
-export const TodosGetArgsSchema = Type.Tuple([Type.String({ minLength: 1 })]);
+import { SessionIdSchema } from './sessions';
+
+export const TodosGetArgsSchema = Type.Tuple([SessionIdSchema]);
 export const TodosGetArgsValidator = Compile(TodosGetArgsSchema);
 
 /** todo 清单整表推送事件的运行时边界；复用 shared 的 TodoItemSchema 避免结构漂移。 */

@@ -27,7 +27,7 @@ export function useChatController() {
 
   const isWelcome = computed(() => !state.isLoadingMessages && state.messages.length === 0);
   const currentModelLabel = computed(() => {
-    // 默认模型持久化在 pi settingsManager（models.setDefault），所以这里必须读 models 列表的 defaultModel。
+    // 默认模型持久化于 models.json（models.setDefault），这里读 models 列表的 defaultModel。
     const defaultModel = settingsStore.models?.defaultModel;
 
     if (defaultModel) {

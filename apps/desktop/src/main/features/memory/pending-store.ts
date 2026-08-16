@@ -1,3 +1,4 @@
+import { writeFile } from 'atomically';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -125,7 +126,7 @@ export class MemoryPendingStore {
 
     const pendingDir = resolveWorkspaceMemoryPaths(resolved.cwd).pendingDir;
     await fs.mkdir(pendingDir, { recursive: true });
-    await fs.writeFile(path.join(pendingDir, `${proposal.id}.md`), renderProposalFile(proposal), 'utf8');
+    await writeFile(path.join(pendingDir, `${proposal.id}.md`), renderProposalFile(proposal), 'utf8');
 
     this.emitChange();
     return proposal;
@@ -211,7 +212,7 @@ export class MemoryPendingStore {
       }
 
       await fs.mkdir(path.dirname(resolved.absolute), { recursive: true });
-      await fs.writeFile(resolved.absolute, ensureTrailingNewline(proposal.content), 'utf8');
+      await writeFile(resolved.absolute, ensureTrailingNewline(proposal.content), 'utf8');
       return { status: 'applied' };
     }
 
@@ -228,11 +229,11 @@ export class MemoryPendingStore {
     }
 
     if (proposal.proposalType === 'update') {
-      await fs.writeFile(resolved.absolute, ensureTrailingNewline(proposal.content), 'utf8');
+      await writeFile(resolved.absolute, ensureTrailingNewline(proposal.content), 'utf8');
       return { status: 'applied' };
     }
 
-    await fs.writeFile(resolved.absolute, setFrontmatterStatusArchived(current), 'utf8');
+    await writeFile(resolved.absolute, setFrontmatterStatusArchived(current), 'utf8');
     return { status: 'applied' };
   }
 
@@ -243,7 +244,7 @@ export class MemoryPendingStore {
     const original = await fs.readFile(filePath, 'utf8');
     const stamped = `${original.trimEnd()}\n\n<!-- resolution: ${resolution} at ${new Date().toISOString()} -->\n`;
 
-    await fs.writeFile(path.join(archivedDir, path.basename(filePath)), stamped, 'utf8');
+    await writeFile(path.join(archivedDir, path.basename(filePath)), stamped, 'utf8');
     await fs.rm(filePath, { force: true });
   }
 

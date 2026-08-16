@@ -39,12 +39,6 @@ export const modelSettingsActions = {
     return this.runModelsAction('设置默认模型失败', () => getDesktopApi().models.setDefault({ provider, modelId }));
   },
 
-  setProviderApiKey(this: SettingsStoreContext, provider: string, apiKey: string) {
-    return this.runModelsAction('保存 API Key 失败', () =>
-      getDesktopApi().models.setProviderApiKey({ provider, apiKey })
-    );
-  },
-
   async fetchCustomProviderModels(this: SettingsStoreContext, payload: FetchCustomProviderModelsPayload) {
     this.isFetchingCustomModels = true;
 
@@ -105,9 +99,5 @@ export const modelSettingsActions = {
     } finally {
       this.isModelsLoading = false;
     }
-  },
-
-  removeProviderApiKey(this: SettingsStoreContext, provider: string) {
-    return this.runModelsAction('移除 API Key 失败', () => getDesktopApi().models.removeProviderAuth({ provider }));
   }
 };
