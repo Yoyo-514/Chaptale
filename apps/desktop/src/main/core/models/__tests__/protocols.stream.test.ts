@@ -133,7 +133,7 @@ describe('openai-completions 网关端到端', () => {
     });
   });
 
-  it('图像输入：image part → 请求体 image_url base64', async () => {
+  it('图像输入：file part → 请求体 image_url base64', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
@@ -152,7 +152,8 @@ describe('openai-completions 网关端到端', () => {
           role: 'user',
           content: [
             { type: 'text', text: '这张图是什么' },
-            { type: 'image', image: new Uint8Array([1, 2, 3]), mediaType: 'image/png' }
+            // AI SDK v7 起 ImagePart 已弃用；FilePart 的 data 为 base64 字符串（[1,2,3] → AQID）。
+            { type: 'file', data: 'AQID', mediaType: 'image/png' }
           ]
         }
       ]
@@ -218,7 +219,7 @@ describe('anthropic-messages 网关端到端', () => {
           baseUrl: 'https://api.anthropic.com',
           apiKey: 'sk-ant'
         },
-        'claude-sonnet-4'
+        'claude-sonnet-4-20250514'
       ),
       messages: [{ role: 'user', content: '写一句夜景' }]
     });

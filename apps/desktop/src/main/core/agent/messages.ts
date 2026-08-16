@@ -49,10 +49,10 @@ function toUserPart(part: SessionContentPart) {
     return { type: 'text' as const, text: part.text };
   }
 
-  // store 的 image part：base64 data + mimeType → AI SDK DataContent(base64 字符串) + mediaType。
+  // store 的 image part：base64 data + mimeType → AI SDK FilePart（v7 起 ImagePart 已弃用）。
   return {
-    type: 'image' as const,
-    image: part.data,
+    type: 'file' as const,
+    data: part.data,
     mediaType: part.mimeType
   };
 }
@@ -173,6 +173,14 @@ export function fromResponseMessages(messages: ModelMessage[]): SessionMessage[]
             type: 'image',
             mimeType: part.mediaType ?? 'application/octet-stream',
             data: typeof part.image === 'string' ? part.image : ''
+          });
+        } else if (part.type === 'file') {
+          // AI SDK v7 内部会把 image part 规范为 file part；回读时兼容两种形状。
+          // data 可能是 URL 或二进制形态，store 载荷只内联 base64 字符串，其余置空。
+          parts.push({
+            type: 'image',
+            mimeType: part.mediaType ?? 'application/octet-stream',
+            data: typeof part.data === 'string' ? part.data : ''
           });
         }
       }
