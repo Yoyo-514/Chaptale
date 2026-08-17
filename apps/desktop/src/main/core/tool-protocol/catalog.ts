@@ -1,7 +1,7 @@
 import type { PersonaDefinition, RiskLevel } from '@chaptale/shared';
 
-/** 工具运行时来源：pi 为 SDK 内置与 package extension 工具，custom 为 Chaptale 自定义工具。 */
-export type ToolRuntime = 'pi' | 'custom';
+/** 工具运行时来源：builtin 为 Chaptale 内置工具；custom 为扩展注册工具（预留接口，默认目录无条目）。 */
+export type ToolRuntime = 'builtin' | 'custom';
 export type ToolScope = 'chat' | 'task';
 
 export type ToolCatalogEntry = {
@@ -14,7 +14,7 @@ export type ToolCatalogEntry = {
 };
 
 export type SelectedSessionTools = {
-  piToolNames: string[];
+  builtinToolNames: string[];
   customToolNames: string[];
 };
 
@@ -72,7 +72,7 @@ export class ToolCatalog {
     const scoped = this.entries().filter(entry => entry.scopes.includes(scope) && allowed.has(entry.name));
 
     return {
-      piToolNames: scoped.filter(entry => entry.runtime === 'pi').map(entry => entry.name),
+      builtinToolNames: scoped.filter(entry => entry.runtime === 'builtin').map(entry => entry.name),
       customToolNames: scoped.filter(entry => entry.runtime === 'custom').map(entry => entry.name)
     };
   }
@@ -82,28 +82,35 @@ export class ToolCatalog {
  * Chaptale 的默认工具目录。
  *
  * bash 不在目录内：非代码创作软件不默认暴露任意命令执行能力。
+ * custom 运行时为扩展注册预留：扩展工具经目录登记（含 scopes/riskLevel）后才对 persona 白名单可见。
  */
 export function createDefaultToolCatalog(): ToolCatalog {
   return new ToolCatalog([
-    { name: 'read', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'grep', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'find', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'ls', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'write', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
-    { name: 'edit', runtime: 'pi', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
-    { name: 'web_search', runtime: 'custom', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
-    { name: 'fetch_content', runtime: 'custom', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
+    { name: 'read', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
+    { name: 'grep', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
+    { name: 'find', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
+    { name: 'ls', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true },
+    { name: 'write', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
+    { name: 'edit', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
+    { name: 'web_search', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'mutating', defaultForChat: true },
+    {
+      name: 'fetch_content',
+      runtime: 'builtin',
+      scopes: ['chat', 'task'],
+      riskLevel: 'mutating',
+      defaultForChat: true
+    },
     {
       name: 'get_search_content',
-      runtime: 'custom',
+      runtime: 'builtin',
       scopes: ['chat', 'task'],
       riskLevel: 'readonly',
       defaultForChat: true
     },
-    { name: 'todo_write', runtime: 'custom', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'delegate', runtime: 'custom', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'memory_save', runtime: 'custom', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'memory_propose', runtime: 'custom', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'memory_search', runtime: 'custom', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true }
+    { name: 'todo_write', runtime: 'builtin', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
+    { name: 'delegate', runtime: 'builtin', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
+    { name: 'memory_save', runtime: 'builtin', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
+    { name: 'memory_propose', runtime: 'builtin', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
+    { name: 'memory_search', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true }
   ]);
 }

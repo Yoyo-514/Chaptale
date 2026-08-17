@@ -38,7 +38,7 @@ export type TaskToolContext = {
   onMemoryRead?: (refs: readonly string[]) => void;
 };
 
-/** 主对话自定义工具的唯一注册点；会话工厂只负责 persona 白名单与 pi 适配。 */
+/** 主对话内置工具的唯一注册点；会话工厂只负责 persona 白名单与工具适配。 */
 export async function buildChatSessionTools(context: ChatToolContext): Promise<ToolDefinition[]> {
   const resolveCwd = async () => context.cwd;
   const memoryMatrix = context.persona.memory;
@@ -75,7 +75,7 @@ export async function buildChatSessionTools(context: ChatToolContext): Promise<T
   ];
 }
 
-/** task 自定义工具与 chat 共用注册模块，但仍由 spec.tools 和已收窄 memory 域决定是否挂载。 */
+/** task 内置工具与 chat 共用注册模块，但仍由 spec.tools 和已收窄 memory 域决定是否挂载。 */
 export async function buildTaskSessionTools(context: TaskToolContext): Promise<ToolDefinition[]> {
   return context.spec.tools.includes('memory_search') && context.spec.memoryReadDomains.length > 0
     ? [

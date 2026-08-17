@@ -18,8 +18,13 @@ describe('ToolCatalog', () => {
     const catalog = createDefaultToolCatalog();
     const selected = catalog.selectSessionTools({ ...basePersona });
 
-    expect(selected.piToolNames).toEqual(['read', 'grep', 'find', 'ls', 'write', 'edit']);
-    expect(selected.customToolNames).toEqual([
+    expect(selected.builtinToolNames).toEqual([
+      'read',
+      'grep',
+      'find',
+      'ls',
+      'write',
+      'edit',
       'web_search',
       'fetch_content',
       'get_search_content',
@@ -29,15 +34,16 @@ describe('ToolCatalog', () => {
       'memory_propose',
       'memory_search'
     ]);
+    expect(selected.customToolNames).toEqual([]);
     expect(catalog.entries().map(entry => entry.name)).not.toContain('bash');
   });
 
-  it('显式 tools 同时收窄 pi 与 custom 工具并剔除未登记工具', () => {
+  it('显式 tools 收窄工具集并剔除未登记工具', () => {
     const catalog = createDefaultToolCatalog();
 
     expect(catalog.selectSessionTools({ ...basePersona, tools: ['read', 'memory_search', 'bash'] })).toEqual({
-      piToolNames: ['read'],
-      customToolNames: ['memory_search']
+      builtinToolNames: ['read', 'memory_search'],
+      customToolNames: []
     });
   });
 
@@ -63,7 +69,7 @@ describe('ToolCatalog', () => {
 
     expect(catalog.resolveAllowed({ ...basePersona, execution: 'task' })).toEqual([]);
     expect(catalog.selectSessionTools({ ...basePersona, execution: 'task' }, 'task')).toEqual({
-      piToolNames: [],
+      builtinToolNames: [],
       customToolNames: []
     });
   });
@@ -74,8 +80,8 @@ describe('ToolCatalog', () => {
     expect(
       catalog.selectSessionTools({ ...basePersona, execution: 'task', tools: ['read', 'memory_search'] }, 'task')
     ).toEqual({
-      piToolNames: ['read'],
-      customToolNames: ['memory_search']
+      builtinToolNames: ['read', 'memory_search'],
+      customToolNames: []
     });
   });
 });

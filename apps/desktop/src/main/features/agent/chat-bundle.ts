@@ -70,10 +70,12 @@ export function createChatRuntimeBundle(deps: {
         webToolsSettingsStore: deps.webToolsSettingsStore
       });
 
-      const tools: ToolDefinition[] = registered.filter(tool => selectedTools.customToolNames.includes(tool.name));
+      // persona 白名单按 runtime 并集求值：内置工具与（未来的）扩展注册工具同过同一治理。
+      const allowedToolNames = new Set([...selectedTools.builtinToolNames, ...selectedTools.customToolNames]);
+      const tools: ToolDefinition[] = registered.filter(tool => allowedToolNames.has(tool.name));
 
-      // 文件六工具：catalog 中 runtime=pi 的六件套在此翻转为自有实现。
-      tools.push(...createFileTools(input.cwd).filter(tool => selectedTools.customToolNames.includes(tool.name)));
+      // 文件六工具：catalog 中 runtime=builtin 的六件套在此绑定为自有实现。
+      tools.push(...createFileTools(input.cwd).filter(tool => allowedToolNames.has(tool.name)));
 
       const system = await composeChatSystemPrompt({
         personaBody,
