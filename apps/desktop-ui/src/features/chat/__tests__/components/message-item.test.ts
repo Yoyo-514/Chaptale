@@ -143,7 +143,7 @@ describe('MessageItem', () => {
     expect(wrapper.find('.edit').attributes('disabled')).toBeDefined();
   });
 
-  it('renders native pi image-only user messages', () => {
+  it('renders native image-only user messages', () => {
     const wrapper = mountMessage({
       role: 'user',
       content: [

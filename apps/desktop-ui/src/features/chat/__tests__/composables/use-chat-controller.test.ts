@@ -733,7 +733,7 @@ describe('useChatController', () => {
     });
   });
 
-  it('reuses the persisted Pi user entry when editing and regenerating attachment messages', async () => {
+  it('reuses the persisted user entry when editing and regenerating attachment messages', async () => {
     const api = installDesktopMock();
     const controller = await mountController();
     const userMessage = {

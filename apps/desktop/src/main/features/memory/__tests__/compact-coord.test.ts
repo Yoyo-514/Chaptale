@@ -80,7 +80,7 @@ const input = {
 };
 
 describe('CompactCoord', () => {
-  it('先蒸馏并保存 memory 检查点，再返回可交给 pi 的摘要', async () => {
+  it('先蒸馏并保存 memory 检查点，再返回可交给会话压缩的摘要', async () => {
     const order: string[] = [];
     const { coord, deps } = createCoord(order);
 

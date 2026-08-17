@@ -1,6 +1,6 @@
 const OMIT_MARKER = '\n…（已按 token 预算省略内容）…\n';
 
-/** 参考 pi 的 chars/4；非 ASCII 按一字符一 token，避免严重低估中文创作文本。 */
+/** ASCII 按四字符一 token 估算；非 ASCII 按一字符一 token，避免严重低估中文创作文本。 */
 export function estimateTextTokens(text: string): number {
   // Context File 的百万 token 边界常是纯 ASCII；先走原生正则快路径，避免逐字符扫描。
   if (isAsciiText(text)) return Math.ceil(text.length / 4);

@@ -38,7 +38,7 @@ describe('buildDisplayMessagesFromEntries', () => {
     ]);
   });
 
-  it('builds current branch and user branch navigation from pi entry parent ids', () => {
+  it('builds current branch and user branch navigation from entry parent ids', () => {
     const entries: ChaptaleSessionTreeEntry[] = [
       {
         type: 'session_info',

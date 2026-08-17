@@ -30,7 +30,7 @@ const NOTES_LIST_LIMIT = 30;
  *
  * 所有读取对"目录/文件不存在"静默降级为空——memory 从未初始化是常态；
  * 目录本身惰性创建（首次真正写入时由写方 mkdir），本服务不做启动铺目录。
- * 零 pi 依赖；写路径（notes 直写协议）走 agent 的 write 工具，不经本服务。
+ * 写路径（notes 直写协议）走 agent 的 write 工具，不经本服务。
  */
 export class MemoryService {
   constructor(private readonly options: MemoryServiceOptions) {}

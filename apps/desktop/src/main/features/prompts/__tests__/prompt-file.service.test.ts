@@ -17,7 +17,7 @@ describe('PromptFileService', () => {
     await fs.rm(agentDir, { recursive: true, force: true });
   });
 
-  it('exposes the built-in prompt without creating files when pi prompt files are absent', async () => {
+  it('exposes the built-in prompt without creating files when user prompt files are absent', async () => {
     const service = new PromptFileService(agentDir);
 
     await expect(service.getState()).resolves.toEqual({
@@ -48,7 +48,7 @@ describe('PromptFileService', () => {
     await expect(service.getState()).resolves.toMatchObject({ systemPrompt: builtinCompanionBody });
   });
 
-  it('writes and reads pi-native prompt files without changing their content', async () => {
+  it('writes and reads prompt files without changing their content', async () => {
     const service = new PromptFileService(agentDir);
     const payload = {
       systemPrompt: '自定义系统提示\n保留原始换行',

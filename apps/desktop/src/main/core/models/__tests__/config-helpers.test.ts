@@ -9,7 +9,7 @@ import {
   validateContextWindow
 } from '../config-helpers';
 
-describe('pi-model-config helpers', () => {
+describe('custom-model-config helpers', () => {
   it('normalizes known custom provider APIs and rejects unsupported API values', () => {
     expect(normalizeCustomProviderApi('openai-responses')).toBe('openai-responses');
     expect(normalizeCustomProviderApi('google-generative-ai')).toBe('google-generative-ai');

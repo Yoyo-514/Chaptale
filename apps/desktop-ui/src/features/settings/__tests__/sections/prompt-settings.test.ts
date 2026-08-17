@@ -23,7 +23,7 @@ function installPromptState() {
 }
 
 describe('PromptSettings', () => {
-  it('edits both pi prompt files and saves their exact draft content', async () => {
+  it('edits both prompt files and saves their exact draft content', async () => {
     const settingsStore = installPromptState();
     const updatePromptSettings = vi.spyOn(settingsStore, 'updatePromptSettings').mockResolvedValue(true);
     const wrapper = mount(PromptSettings);

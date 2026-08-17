@@ -9,7 +9,7 @@ import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-ap
  * 会话水位提示与作者确认压缩流程。
  *
  * 水位以主进程/SDK 为事实源；Renderer 只记当前会话的“稍后”选择，切换会话后重置。
- * 压缩成功后由调用方重载会话树，使 pi 写入的 compaction 分支立即显示。
+ * 压缩成功后由调用方重载会话树，使压缩写入的 compaction 分支立即显示。
  */
 export function useContextCompaction(getSessionId: () => string, onCompacted: () => Promise<void> | void) {
   const notificationStore = useNotificationStore();

@@ -26,8 +26,8 @@ export type SaveCompactionSummaryResult = {
 /**
  * 会话压缩前的创作检查点存储。
  *
- * 检查点先于 pi compaction 落盘：它负责跨会话检索与追溯，随后同一摘要才写入
- * 会话树。checkpointId 参与固定文件名，pi 写入失败后的重试不会制造重复副本。
+ * 检查点先于会话压缩落盘：它负责跨会话检索与追溯，随后同一摘要才写入
+ * 会话树。checkpointId 参与固定文件名，会话压缩写入失败后的重试不会制造重复副本。
  */
 export class CompactionSummaryStore {
   async save(input: SaveCompactionSummaryInput): Promise<SaveCompactionSummaryResult> {

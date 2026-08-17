@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeSkillMessage } from '../message-codec';
 
 describe('skill message codec', () => {
-  it('restores compact UI metadata from native pi-expanded skill text', () => {
+  it('restores compact UI metadata from native expanded skill text', () => {
     const expanded = `<skill name="review" location="C:/skills/review/SKILL.md">\nReferences are relative to C:/skills/review.\n\n先检查人物一致性。\n</skill>\n\n检查第一章`;
 
     expect(decodeSkillMessage(expanded)).toEqual({

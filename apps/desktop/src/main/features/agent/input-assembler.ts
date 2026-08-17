@@ -54,7 +54,7 @@ export class InputAssembler {
     // 记忆信封排在最前：它是变化频率最低的前缀，有利于 provider 前缀缓存。
     const promptPrefix = `${memoryPrefix}${contextPrefix}`;
     // 复用历史消息时保留原始 content 下标，保证 session-entry source 与 readOriginal 对齐；
-    // 新发送时 pi 会把消息持久化为 [text, ...images]，图片真实下标从 1 开始。
+    // 新发送时消息持久化为 [text, ...images]，图片真实下标从 1 开始。
     const imageBlocks = reusedContext
       ? reusedContext.imageBlocks
       : (resolvedContext?.images ?? []).map((image, index) => ({
@@ -88,7 +88,7 @@ export class InputAssembler {
         ? [...(displayText ? [{ type: 'text' as const, text: displayText }] : []), ...presentation.attachments]
         : displayText;
 
-    // pi 只在文本以 /skill: 开头时执行原生展开；附件信封因此作为命令参数注入，而不是放在命令前。
+    // 命令展开只发生在文本以 /skill: 开头时；附件信封因此作为命令参数注入，而不是放在命令前。
     const promptText = skillInvocation
       ? formatSkillInvocation({
           ...skillInvocation,

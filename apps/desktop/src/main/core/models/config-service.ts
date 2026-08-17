@@ -21,7 +21,7 @@ import type { ModelConfigRepository } from './config-repository';
 import type { ModelDefinition, ModelsConfig, ModelProviderConfig } from './config-types';
 import type { FetchModelsSource } from './provider-model-fetcher';
 
-/** 管理 agentDir/models.json 中的自定义供应商与模型配置（自 integrations/pi 平移，语义不变）。 */
+/** 管理 agentDir/models.json 中的自定义供应商与模型配置。 */
 export class CustomModelConfigService {
   constructor(private readonly repository: ModelConfigRepository) {}
 

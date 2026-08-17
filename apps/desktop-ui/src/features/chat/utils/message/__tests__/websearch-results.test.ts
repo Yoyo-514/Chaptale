@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { parseSearchResult } from '../websearch-results';
 
 describe('websearch-results', () => {
-  it('parses pi web access markdown with query, summary, and sources', () => {
+  it('parses web access markdown with query, summary, and sources', () => {
     const result = parseSearchResult(`## Query: "AC 自动机"
 
 AC 自动机常用于多模式字符串匹配。

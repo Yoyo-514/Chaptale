@@ -212,7 +212,7 @@ describe('ContextFileService', () => {
     await expect(resolving).rejects.toMatchObject({ name: 'AbortError' });
   });
 
-  it('sends supported images as native pi image blocks without a file envelope', async () => {
+  it('sends supported images as native image blocks without a file envelope', async () => {
     const filePath = path.join(tempDir, 'cover.png');
     await writeFile(filePath, Buffer.from('image-data'));
 

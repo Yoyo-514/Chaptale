@@ -38,7 +38,7 @@ export type AgentRunListResult = {
  *   追加写不改历史，天然适合审计与网盘同步；
  * - 大输出体落 `runs/outputs/<runId>.json` 独立文件，记录里只留相对路径引用；
  * - 读取只扫当月 + 上月两份文件——近期复盘是主场景，更久远的记录留给未来的索引层。
- * 零 pi 依赖，纯 Node 实现。
+ * 纯 Node 实现。
  */
 export class AgentRunStore {
   constructor(private readonly options: AgentRunStoreOptions) {}

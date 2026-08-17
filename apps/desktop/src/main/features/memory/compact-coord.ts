@@ -13,7 +13,7 @@ export type CompactInput = {
   /** 会话创建时绑定的工作区，不能在压缩时改读全局 currentCwd。 */
   cwd: string;
   reason: CompactReason;
-  /** pi 选出的首条保留 entry；同时作为检查点幂等标识。 */
+  /** 首条保留 entry；同时作为检查点幂等标识。 */
   checkpointId: string;
   tokensBefore: number;
   conversation: string;
@@ -57,8 +57,8 @@ type CompactDeps = {
 };
 
 /**
- * 创作压缩协调器：在 pi 丢弃旧上下文前先生成并持久化检查点。
- * 此模块只依赖领域端口，不接触 pi message、extension 或 session 类型。
+ * 创作压缩协调器：在旧上下文被丢弃前先生成并持久化检查点。
+ * 此模块只依赖领域端口，不接触运行时内部类型。
  */
 export class CompactCoord {
   constructor(private readonly deps: CompactDeps) {}

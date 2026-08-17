@@ -77,7 +77,7 @@ export function usePendingUserMessages(state: ChatState): PendingUserMessages {
     if (displayMessage) {
       const optimisticMessage = displayMessage.message;
 
-      // Pi message_start 不携带应用图片展示元数据；保留乐观内容，仅采用规范时间戳与解码字段。
+      // 流起始事件不携带应用图片展示元数据；保留乐观内容，仅采用规范时间戳与解码字段。
       displayMessage.message =
         optimisticMessage.role === 'user' && message.role === 'user'
           ? {

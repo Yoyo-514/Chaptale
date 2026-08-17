@@ -19,7 +19,6 @@ export type SessionStorageOptions = {
 
 /**
  * 会话存储的路径解析与文件系统操作：目录定位、枚举与带安全校验的删除。
- * 自 integrations/pi/sessions/storage.ts 平移，语义不变。
  */
 export class SessionStorageResolver {
   constructor(private readonly options: SessionStorageOptions) {}

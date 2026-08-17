@@ -9,7 +9,7 @@ import {
 } from '../token-counter';
 
 describe('token-counter', () => {
-  it('沿用 pi 的 ASCII 四字符约一 token 估算', () => {
+  it('ASCII 按四字符约一 token 估算', () => {
     expect(estimateTextTokens('12345678')).toBe(2);
     expect(estimateTextTokens('12345')).toBe(2);
     expect(estimateTextTokens('')).toBe(0);

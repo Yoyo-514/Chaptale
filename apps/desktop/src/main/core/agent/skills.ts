@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 /**
- * 自有 SKILL.md 加载器（替代 pi loadSkillsFromDir）。
+ * 自有 SKILL.md 加载器。
  *
  * 目录约定：<dir>/<skill-name>/SKILL.md（Kebab-case，与目录名一致）；
  * frontmatter 仅支持单行标量 name/description 与内联数组 appliesTo——

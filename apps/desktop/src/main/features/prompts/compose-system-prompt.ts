@@ -8,12 +8,12 @@
  *      记忆数据走 user message 前缀注入，绝不进 systemPrompt（保护 prompt cache）。
  *
  * 缓存约束：本函数对同一输入完全确定，不得引入任何随轮次变化的动态内容。
- * APPEND_SYSTEM.md 不经此函数——由 pi 原生发现并追加在最终提示词末尾。
+ * APPEND_SYSTEM.md 不经此函数——由装配层发现并追加在最终提示词末尾。
  */
 export type ComposeSystemPromptOptions = {
   /** persona 文件正文（系统提示词模板）。 */
   personaBody: string;
-  /** pi 发现的用户 SYSTEM.md 内容；非空时整体替换 persona 层。 */
+  /** 自动发现的用户 SYSTEM.md 内容；非空时整体替换 persona 层。 */
   discoveredSystemMd?: string;
   /** 产品职责层内容；当前无内容，参数先行保证拼装顺序被测试锁定。 */
   productDuty?: string;

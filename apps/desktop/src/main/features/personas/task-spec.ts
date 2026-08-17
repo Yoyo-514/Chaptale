@@ -4,7 +4,7 @@ import type { ToolCatalog } from '../../core/tool-protocol/catalog';
 import type { IndexDomain } from '../search/types';
 import { resolveReadableIndexDomains } from './memory-access';
 
-/** task 执行规格：由 persona 定义派生的、与 pi 无关的执行参数。 */
+/** task 执行规格：由 persona 定义派生的执行参数。 */
 export type TaskPersonaSpec = {
   personaId: string;
   /** persona 正文，即 task session 的系统提示词。 */
@@ -40,7 +40,7 @@ export function resolveTaskSpec(persona: PersonaDefinition, toolCatalog: ToolCat
   const memoryReadDomains = resolveReadableIndexDomains(persona);
   const selected = toolCatalog.selectSessionTools(persona, 'task');
   // memory_search 同时要求工具声明与至少一个可读索引域，避免把未注册工具名传给 runtime。
-  const tools = [...selected.piToolNames, ...selected.customToolNames].filter(
+  const tools = [...selected.builtinToolNames, ...selected.customToolNames].filter(
     tool => tool !== 'memory_search' || memoryReadDomains.length > 0
   );
 

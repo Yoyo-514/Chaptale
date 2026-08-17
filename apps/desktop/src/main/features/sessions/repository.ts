@@ -10,7 +10,7 @@ import type {
 } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
-/** 会话树与文件持久化的应用层仓储端口；隐藏 Pi 会话格式，调用方不直接依赖 Pi。 */
+/** 会话树与文件持久化的应用层仓储端口；隐藏会话存储格式，调用方不直接依赖底层实现。 */
 export interface SessionRepository {
   list(): Promise<ChaptaleSessionListItem[]>;
   create(options?: CreateSessionOptions): Promise<ChaptaleSessionMetadata>;

@@ -42,7 +42,7 @@ export type StreamAgentOptions = Pick<AgentStartPayload, 'branchFromEntryId' | '
 /** Preload 发送 steer 时允许附带的应用选项。 */
 export type SteerAgentOptions = Pick<AgentSteerPayload, 'contextFilePaths'>;
 
-/** Runtime 清空队列后返回的项目级消息集合，不包含 Pi SDK 类型。 */
+/** Runtime 清空队列后返回的项目级消息集合，不包含底层 SDK 类型。 */
 export type AgentClearedQueue = Static<typeof AgentClearedQueueSchema>;
 
 /** IPC 清空队列的确认结果。 */
@@ -72,8 +72,8 @@ export type AgentSteerOptions = Omit<AgentSteerPayload, 'runId'> & AgentRunScope
 /**
  * Agent 运行时抽象（原 @chaptale/agent-core）。
  *
- * desktop 由 pi SDK 实现；未来其他端可由 HTTP/WebSocket/native runtime 实现。
- * 不包含 Electron、Node fs 或 pi SDK 类型。
+ * desktop 由自有运行时实现；未来其他端可由 HTTP/WebSocket/native runtime 实现。
+ * 不包含 Electron、Node fs 或底层 SDK 类型。
  */
 export interface AgentRuntime {
   /** 启动并产出一条 Agent 消息流。 */

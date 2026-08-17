@@ -1,5 +1,5 @@
 /**
- * 最小 YAML 子集解析器：自有 FrontmatterParser 端口实现（替代 pi parseFrontmatter）。
+ * 最小 YAML 子集解析器：自有 FrontmatterParser 端口实现。
  *
  * 支持语法（文档约定的全部格式，不支持即解析失败——宁可拒绝也不静默丢字段）：
  * - 单行标量：`key: value`（字符串 / 布尔 / 数字；值可带单双引号）
