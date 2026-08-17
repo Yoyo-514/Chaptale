@@ -41,6 +41,7 @@
     "typebox": "catalog:"
   },
   "devDependencies": {
+    "@electron/fuses": "catalog:",
     "@iconify-json/mingcute": "catalog:",
     "@types/node": "catalog:",
     "@types/turndown": "catalog:",
