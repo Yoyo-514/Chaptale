@@ -13,7 +13,7 @@ import type {
 } from '@chaptale/shared';
 
 import type { FrontmatterParser } from '../../../core/frontmatter/types';
-import { resolveWorkspaceMemoryPaths } from '../paths';
+import { resolveWorkspaceMemoryPaths } from '../../../core/memory-layout/paths';
 import {
   ensureTrailingNewline,
   hashContent,

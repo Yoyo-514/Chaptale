@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import { resolveAuthorMemoryPaths, resolveWorkspaceMemoryPaths } from '../../core/memory-layout/paths';
 import { readOptionalTextFile } from '../../infra/filesystem/files';
-import { resolveAuthorMemoryPaths, resolveWorkspaceMemoryPaths } from './paths';
 
 export type MemorySections = {
   /** ① 作者偏好要点：MEMORY.md 头部 + preferences 摘录。 */

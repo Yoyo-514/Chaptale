@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
-import { resolveWorkspaceMemoryPaths } from '../paths';
+import { resolveWorkspaceMemoryPaths } from '../../../core/memory-layout/paths';
 
 export type SaveCompactionSummaryInput = {
   sessionId: string;

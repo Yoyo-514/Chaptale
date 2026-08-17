@@ -10,8 +10,10 @@ const featuresRoot = path.join(mainRoot, 'features');
  *
  * 约束：
  * - 新增跨 feature 导入必须在此显式登记并通过评审；陈旧条目同样报错；
- * - 所有边必须保持无运行时环：当前唯一反向运行时边是 search -> memory/paths，
- *   memory -> personas 与 personas -> search 均为 type-only，不构成运行时环。
+ * - 所有边必须保持无运行时环。反向运行时边现已归零：memory 目录布局（纯 path.join、
+ *   零 feature 依赖、被 memory 与 search 共用）已上提到 core/memory-layout，
+ *   原先唯一的 search -> memory/paths 因此消失；memory -> personas 与
+ *   personas -> search 均为 type-only。
  */
 const crossFeatureAllowlist = [
   // agent 运行时装配（chat-bundle / tool-assembly / service）按职责引用各 feature 的端口与工具。
@@ -32,7 +34,6 @@ const crossFeatureAllowlist = [
   'agent -> prompts/product-duty',
   'agent -> search/memory/service',
   'agent -> search/memory/tool',
-  'agent -> sessions/repository',
   'agent -> skills/provider-port',
   'agent -> subagent/delegate-tool',
   'agent -> subagent/pool',
@@ -47,7 +48,6 @@ const crossFeatureAllowlist = [
   'memory -> personas/registry',
   'personas -> search/types',
   'prompts -> personas/builtin',
-  'search -> memory/paths',
   'subagent -> personas/registry',
   'subagent -> tasks/runner-port',
   'tasks -> personas/registry',
@@ -75,6 +75,23 @@ describe('Main 跨 feature 依赖白名单', () => {
         if (isInside(resolved, path.join(mainRoot, 'app'))) {
           violations.push(`${toPosix(path.relative(mainRoot, file))}::${specifier}`);
         }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  /**
+   * core = 领域实现，零传输层；每个对 renderer 的 IPC 面都在 features/<域>/ipc.ts。
+   * 此前 core/settings/ipc.ts 是唯一例外，让「ipc.ts 归哪层」这件事每次都要重新判断。
+   */
+  it('core 层不注册任何 IPC 频道', async () => {
+    const files = await collectProductionFiles(path.join(mainRoot, 'core'));
+    const violations: string[] = [];
+    for (const file of files) {
+      const source = await fs.readFile(file, 'utf8');
+      if (/\bipcMain\b|\bhandleTrustedIpc\b|\bhandleValidatedIpc\b/.test(source)) {
+        violations.push(toPosix(path.relative(mainRoot, file)));
       }
     }
 

@@ -21,6 +21,7 @@ import { parseSessionContent } from '../../core/sessions/reader';
 import type { SessionStorageContext } from '../../core/sessions/storage';
 import { SessionStorageResolver } from '../../core/sessions/storage';
 import { SessionStore } from '../../core/sessions/store';
+import type { SessionStoreProvider } from '../../core/sessions/store-provider-port';
 import { deriveSessionSummary } from '../../core/sessions/summary';
 import { buildSessionHtml } from './html-renderer';
 import type { SessionRepository } from './repository-port';
@@ -40,8 +41,9 @@ export type SessionRepositoryOptions = {
  *
  * 契约即 OpenAI Chat Messages 形状：store / engine / UI 同形状贯通，
  * 本层仅做两处呈现级转换——user 图片 → 轻量附件（缩略图）；entry 类型枚举对齐。
+ * 同时实现 core 的 SessionStoreProvider：运行时只经那个窄端口取 store，不认识本类。
  */
-export class JsonlSessionRepository implements SessionRepository {
+export class JsonlSessionRepository implements SessionRepository, SessionStoreProvider {
   private readonly storage: SessionStorageResolver;
   private readonly stores = new Map<string, SessionStore>();
 

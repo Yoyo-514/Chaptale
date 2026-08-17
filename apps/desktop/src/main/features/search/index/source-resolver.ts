@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
-import { resolveWorkspaceMemoryPaths } from '../../memory/paths';
+import { resolveWorkspaceMemoryPaths } from '../../../core/memory-layout/paths';
 import type { IndexDiagnostic, IndexSourceResolver, IndexSourceRoot } from '../types';
 
 const DEFAULT_ASSET_DIRS = {
