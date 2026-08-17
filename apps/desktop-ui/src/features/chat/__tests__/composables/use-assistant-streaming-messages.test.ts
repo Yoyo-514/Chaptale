@@ -19,7 +19,10 @@ function createHarness() {
   return { messages, streaming };
 }
 
-function toolCall(id: string, args: Record<string, unknown> = { path: 'a.ts' }): ChatMessage {
+function toolCall(
+  id: string,
+  args: Record<string, unknown> = { path: 'a.ts' }
+): Extract<ChatMessage, { role: 'assistant' }> {
   return {
     role: 'assistant',
     content: '',
@@ -92,5 +95,42 @@ describe('useAssistantStreamingMessages tool lifecycle', () => {
       'call-2',
       'call-1'
     ]);
+  });
+
+  it('carries step usage onto the existing tool card instead of dropping it', () => {
+    // 回归：工具卡片在 tool-call 时就已建卡，usage 要到 finish-step 才随定稿消息到达；
+    // 旧实现只替换同 ID 的调用体就提前 return，纯工具步的 token 消耗永远显示不出来。
+    const { messages, streaming } = createHarness();
+
+    streaming.appendOrReplaceAssistantMessage(toolCall('call-1'));
+    streaming.appendOrReplaceAssistantMessage({
+      ...toolCall('call-1'),
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+    });
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.message).toMatchObject({ usage: { totalTokens: 15 } });
+  });
+
+  it('attributes one step usage to a single card when calls run in parallel', () => {
+    const { messages, streaming } = createHarness();
+
+    streaming.appendOrReplaceAssistantMessage(toolCall('call-1', { path: 'a.ts' }));
+    streaming.appendOrReplaceAssistantMessage(toolCall('call-2', { path: 'b.ts' }));
+    streaming.appendOrReplaceAssistantMessage({
+      role: 'assistant',
+      content: '',
+      toolCalls: [
+        { id: 'call-1', name: 'edit', arguments: { path: 'a.ts' } },
+        { id: 'call-2', name: 'edit', arguments: { path: 'b.ts' } }
+      ],
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+    });
+
+    // ToolCallGroup 按消息求和展示，usage 只能落在一条上，否则整步用量翻倍。
+    const totals = messages.map(item =>
+      item.message.role === 'assistant' ? item.message.usage?.totalTokens : undefined
+    );
+    expect(totals).toEqual([15, undefined]);
   });
 });

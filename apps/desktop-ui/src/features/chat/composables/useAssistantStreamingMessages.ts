@@ -111,7 +111,7 @@ export function useAssistantStreamingMessages(options: {
       return;
     }
 
-    if (incomingToolCalls.length > 0 && updateExistingToolCalls(currentMessages, incomingToolCalls)) {
+    if (incomingToolCalls.length > 0 && updateExistingToolCalls(currentMessages, message)) {
       return;
     }
 
@@ -210,27 +210,44 @@ function concatParts(parts: AssistantMessage['content'], delta: string): Assista
   return getAssistantText({ role: 'assistant', content: parts }) + delta;
 }
 
-function updateExistingToolCalls(
-  messages: ChatDisplayMessage[],
-  incomingToolCalls: ReturnType<typeof getAssistantToolCalls>
-) {
+/**
+ * 把终态 assistant 消息并入已存在的工具卡片。
+ *
+ * 工具调用在 tool-call 事件时就先亮卡片（partial），本步的 usage 要到 finish-step
+ * 才随定稿消息到达。定稿消息的 toolCalls 与已有卡片同 ID，若只替换调用体就会把 usage
+ * 一起丢掉——纯工具步的 token 消耗因此永远显示不出来（ToolCallGroup 按 usage 汇总）。
+ * usage 属于整步，只挂到首个命中的消息上，避免并行调用分散在多条消息时被重复计入。
+ */
+function updateExistingToolCalls(messages: ChatDisplayMessage[], incoming: AssistantMessage) {
+  const incomingToolCalls = getAssistantToolCalls(incoming);
   let updatedCount = 0;
+  let usageHost: AssistantMessage | undefined;
 
   for (const incomingCall of incomingToolCalls) {
     for (const displayMessage of messages) {
       if (displayMessage.message.role !== 'assistant') continue;
-      const existingCalls = getAssistantToolCalls(displayMessage.message);
+      const existing = displayMessage.message;
+      const existingCalls = getAssistantToolCalls(existing);
       const existingIndex = existingCalls.findIndex(call => call.id === incomingCall.id);
 
       if (existingIndex >= 0) {
-        displayMessage.message.toolCalls = existingCalls.toSpliced(existingIndex, 1, incomingCall);
+        existing.toolCalls = existingCalls.toSpliced(existingIndex, 1, incomingCall);
+        usageHost ??= existing;
         updatedCount += 1;
         break;
       }
     }
   }
 
-  return updatedCount === incomingToolCalls.length;
+  if (updatedCount !== incomingToolCalls.length) {
+    return false;
+  }
+
+  if (incoming.usage && usageHost && !usageHost.usage) {
+    usageHost.usage = incoming.usage;
+  }
+
+  return true;
 }
 
 function hasAssistantPayload(message: AssistantMessage) {
