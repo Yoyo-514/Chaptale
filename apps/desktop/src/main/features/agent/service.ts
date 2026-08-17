@@ -12,12 +12,12 @@ import type { CompactResult } from '../../core/agent/compact';
 import { runAgentLoop } from '../../core/agent/engine';
 import { AsyncMessageQueue } from '../../core/agent/queue';
 import type { PermissionGatePort } from '../../core/agent/types';
-import { decodeContextMessage } from '../../core/context/context-message-codec';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
 import type { SessionContentPart, SessionMessage } from '../../core/sessions/entry';
 import { evaluateContextPressure } from '../memory/context-pressure';
 import type { CoreSessionRepository } from '../sessions/core-repository';
+import { InputAssembler } from './input-assembler';
 import { createPartTranslator } from './part-translator';
 
 /**
@@ -30,10 +30,17 @@ import { createPartTranslator } from './part-translator';
  */
 
 export type ChatRuntimeBundle = {
+  /**
+   * 轻路径：只解析模型。上下文压力与压缩只要 contextWindow，
+   * 走 resolve 会白装配全部工具、创建 delegate 工具并读遍 SKILL.md 正文。
+   */
+  resolveModel: () => Promise<ResolvedModel>;
   resolve: (input: { sessionId: string; cwd: string; personaId?: string }) => Promise<{
     model: ResolvedModel;
     system: string;
     tools: Parameters<typeof runAgentLoop>[0]['tools'];
+    /** 按轮绑定会话安全上下文的权限闸门；缺省回落到装配层注入的 options.gate。 */
+    gate?: PermissionGatePort;
   }>;
 };
 
@@ -41,7 +48,8 @@ export type AgentServiceOptions = {
   sessionRepository: CoreSessionRepository;
   modelService: ModelService;
   runtimeBundle: ChatRuntimeBundle;
-  gate: PermissionGatePort;
+  /** 兜底权限闸门；正常由 runtimeBundle 按轮产出（带会话 cwd），此处仅覆盖 bundle 未装配授权的场景。 */
+  gate?: PermissionGatePort;
   /** 文件附件解析（文本信封 + 图片进 content，元数据落盘）；缺省不解析。 */
   contextFileService?: Pick<import('../../core/context/service').ContextFileService, 'resolve'>;
   /** 图片附件呈现端口（UI 回显缩略图）；缺省回显纯文本。 */
@@ -64,8 +72,14 @@ type ActiveRun = {
 
 export class AgentService implements AgentRuntime {
   private readonly active = new Map<string, ActiveRun>();
+  private readonly inputAssembler: InputAssembler;
 
-  constructor(private readonly options: AgentServiceOptions) {}
+  constructor(private readonly options: AgentServiceOptions) {
+    this.inputAssembler = new InputAssembler({
+      contextFileService: options.contextFileService,
+      imageAttachmentService: options.imageAttachmentService
+    });
+  }
 
   async *stream(options: AgentRunOptions): AsyncGenerator<ChatMessage> {
     const { signal, query, sessionId } = options;
@@ -120,71 +134,6 @@ export class AgentService implements AgentRuntime {
   }
 
   /** 轮次驱动：首轮 query，后续吸收 steer；任何一轮异常都不吞（由 stream 统一上抛）。 */
-  /** steer 轮附件组装（与首轮同构；无附件时退化为纯文本）。 */
-  private async assembleSteerUserMessage(input: {
-    query: string;
-    contextFilePaths?: string[];
-    sessionId: string;
-    cwd: string;
-    signal: AbortSignal;
-  }): Promise<{
-    entry: import('../../core/sessions/entry').SessionMessage;
-    echo: ChatMessage;
-  }> {
-    const { query, contextFilePaths, sessionId, cwd, signal } = input;
-    const memoryPrefix = await this.resolveMemoryPrefix(sessionId, cwd);
-
-    if (!this.options.contextFileService || !contextFilePaths?.length) {
-      return {
-        entry: { role: 'user', content: `${memoryPrefix}${query}` },
-        echo: { role: 'user', content: query, timestamp: Date.now() }
-      };
-    }
-
-    const resolved = await this.options.contextFileService.resolve(contextFilePaths, { query, signal });
-    const decoded = decodeContextMessage(resolved.promptPrefix);
-    const promptText = `${memoryPrefix}${resolved.promptPrefix}${query}`;
-    const imageParts = resolved.images.map(image => ({
-      type: 'image' as const,
-      data: image.data,
-      mimeType: image.mimeType
-    }));
-
-    const entry: import('../../core/sessions/entry').SessionMessage = {
-      role: 'user',
-      content: imageParts.length > 0 ? [{ type: 'text', text: promptText }, ...imageParts] : promptText,
-      ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {})
-    };
-
-    let echo: ChatMessage = {
-      role: 'user',
-      content: query,
-      ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {}),
-      timestamp: Date.now()
-    };
-
-    if (imageParts.length > 0 && this.options.imageAttachmentService) {
-      const presentation = this.options.imageAttachmentService.createPresentation(
-        imageParts.map((image, index) => ({
-          type: image.type,
-          data: image.data,
-          mimeType: image.mimeType,
-          blockIndex: index + 1
-        })),
-        blockIndex => ({ type: 'session-entry', sessionId, entryId: '', blockIndex })
-      );
-
-      echo = {
-        role: 'user',
-        content: [{ type: 'text', text: query }, ...presentation.attachments],
-        ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {}),
-        timestamp: Date.now()
-      };
-    }
-
-    return { entry, echo };
-  }
-
   private async driveRounds(input: {
     sessionId: string;
     store: import('../../core/sessions/store').SessionStore;
@@ -195,83 +144,9 @@ export class AgentService implements AgentRuntime {
     onMessage: (message: ChatMessage) => void;
   }): Promise<void> {
     const { sessionId, store, run, signal, options, query, onMessage } = input;
-    const memoryPrefix = await this.resolveMemoryPrefix(sessionId, store.header.cwd);
 
-    // 首轮附件：文本信封 + 图片进 content（模型回放完整），contextFiles 元数据随行；复用/分支轮不重解析。
-    let userEntry: import('../../core/sessions/entry').SessionMessage = {
-      role: 'user',
-      content: `${memoryPrefix}${query}`
-    };
-    let echoMessage: ChatMessage = { role: 'user', content: query, timestamp: Date.now() };
-
-    if (this.options.contextFileService && options.contextFilePaths?.length && !options.reuseUserEntryId) {
-      const resolved = await this.options.contextFileService.resolve(options.contextFilePaths, {
-        query,
-        signal
-      });
-      const decoded = decodeContextMessage(resolved.promptPrefix);
-      const promptText = `${memoryPrefix}${resolved.promptPrefix}${query}`;
-
-      if (resolved.images.length > 0) {
-        // 图片以 base64 内联进 content（[信封文本, ...images]，模型与回放共用）。
-        const imageParts = resolved.images.map(image => ({
-          type: 'image' as const,
-          data: image.data,
-          mimeType: image.mimeType
-        }));
-        userEntry = {
-          role: 'user',
-          content: [{ type: 'text', text: promptText }, ...imageParts],
-          ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {})
-        };
-
-        // UI 回显：图片经附件端口转轻量附件（缩略图 + 原图 source），文本剥信封。
-        if (this.options.imageAttachmentService) {
-          const presentation = this.options.imageAttachmentService.createPresentation(
-            imageParts.map((image, index) => ({
-              type: image.type,
-              data: image.data,
-              mimeType: image.mimeType,
-              blockIndex: index + 1
-            })),
-            blockIndex => ({
-              type: 'session-entry',
-              sessionId,
-              entryId: '',
-              blockIndex
-            })
-          );
-
-          echoMessage = {
-            role: 'user',
-            content: [{ type: 'text', text: query }, ...presentation.attachments],
-            ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {}),
-            timestamp: Date.now()
-          };
-        } else {
-          echoMessage = {
-            role: 'user',
-            content: query,
-            ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {}),
-            timestamp: Date.now()
-          };
-        }
-      } else {
-        userEntry = {
-          role: 'user',
-          content: promptText,
-          ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {})
-        };
-        echoMessage = {
-          role: 'user',
-          content: query,
-          ...(decoded.contextFiles.length > 0 ? { contextFiles: decoded.contextFiles } : {}),
-          timestamp: Date.now()
-        };
-      }
-    }
-
-    // 复用历史条目：切 leaf 到被复用节点；分支重生成：切到目标节点。两者都不重复落盘 user 消息。
+    // 复用历史条目：切 leaf 到被复用节点；分支重生成：切到目标节点。
+    // 两者都不重新组装、不重复落盘 user 消息，也不重发回显（UI 已有该条）。
     if (options.reuseUserEntryId) {
       await store.setLeafId(options.reuseUserEntryId);
     } else {
@@ -279,12 +154,14 @@ export class AgentService implements AgentRuntime {
         await store.setLeafId(options.branchFromEntryId);
       }
 
-      await store.appendMessage(userEntry);
-    }
-
-    // 复用历史时不重发用户消息回显（UI 已有该条）。
-    if (!options.reuseUserEntryId) {
-      onMessage(echoMessage);
+      await this.appendUserRound({
+        sessionId,
+        store,
+        query,
+        contextFilePaths: options.contextFilePaths,
+        signal,
+        onMessage
+      });
     }
 
     let firstRound = true;
@@ -297,16 +174,15 @@ export class AgentService implements AgentRuntime {
 
         const steerRequest = run.steering.shift()!;
 
-        // steer 附件与首轮同构：图片内联 content + 元数据落盘 + UI 附件回显。
-        const steerEntry = await this.assembleSteerUserMessage({
+        // steer 与首轮同构：同一条组装路径，任何形态差异都是 bug。
+        await this.appendUserRound({
+          sessionId,
+          store,
           query: steerRequest.query,
           contextFilePaths: steerRequest.contextFilePaths,
-          sessionId,
-          cwd: store.header.cwd,
-          signal
+          signal,
+          onMessage
         });
-        await store.appendMessage(steerEntry.entry);
-        onMessage(steerEntry.echo);
       }
 
       firstRound = false;
@@ -320,7 +196,8 @@ export class AgentService implements AgentRuntime {
         system: bundle.system,
         messages: store.buildContextMessages(),
         tools: bundle.tools,
-        gate: this.options.gate,
+        // 每轮闸门绑定本会话 cwd（workspace 级规则据此定位 .chaptale/permissions.json）。
+        gate: bundle.gate ?? this.options.gate,
         maxSteps: this.options.maxSteps,
         abortSignal: signal,
         onPart: envelope => translator.consume(envelope.part),
@@ -331,6 +208,27 @@ export class AgentService implements AgentRuntime {
         }
       });
     }
+  }
+
+  /** 组装 → 落盘 → 回显。回显必须在落盘后构造：图片 source 要指向真实 entryId。 */
+  private async appendUserRound(input: {
+    sessionId: string;
+    store: import('../../core/sessions/store').SessionStore;
+    query: string;
+    contextFilePaths?: string[];
+    signal: AbortSignal;
+    onMessage: (message: ChatMessage) => void;
+  }): Promise<void> {
+    const assembled = await this.inputAssembler.assemble({
+      sessionId: input.sessionId,
+      query: input.query,
+      contextFilePaths: input.contextFilePaths,
+      memoryPrefix: await this.resolveMemoryPrefix(input.sessionId, input.store.header.cwd),
+      signal: input.signal
+    });
+
+    const entry = await input.store.appendMessage(assembled.entry);
+    input.onMessage(assembled.createEcho(entry.id));
   }
 
   async steer(options: AgentSteerOptions): Promise<void> {
@@ -359,10 +257,11 @@ export class AgentService implements AgentRuntime {
 
   async getContextPressure(sessionId: string): Promise<MemoryContextPressureStatus> {
     const store = await this.options.sessionRepository.open(sessionId);
-    const bundle = await this.options.runtimeBundle.resolve({ sessionId, cwd: store.header.cwd });
+    // 只要 contextWindow：走 resolve 会白装配全部工具并读遍 SKILL.md。
+    const model = await this.options.runtimeBundle.resolveModel();
     const messages = store.buildContextMessages();
 
-    const contextWindow = bundle.model.contextWindow;
+    const contextWindow = model.contextWindow;
     const tokens = messages.reduce((total, message) => total + estimateTokens(message), 0);
     const percent = contextWindow > 0 ? Math.round((tokens / contextWindow) * 100) : null;
 
@@ -377,10 +276,10 @@ export class AgentService implements AgentRuntime {
     }
 
     const store = await this.options.sessionRepository.open(sessionId);
-    const bundle = await this.options.runtimeBundle.resolve({ sessionId, cwd: store.header.cwd });
+    const model = await this.options.runtimeBundle.resolveModel();
 
     const { compactSession } = await import('../../core/agent/compact');
-    const result = await compactSession({ model: bundle.model, store, prompt: this.options.compactPrompt });
+    const result = await compactSession({ model, store, prompt: this.options.compactPrompt });
 
     await this.options.onCompact?.(sessionId, result);
 

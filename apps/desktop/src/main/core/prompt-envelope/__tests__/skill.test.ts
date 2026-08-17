@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decodeSkillMessage } from '../message-codec';
+import { decodeSkillMessage } from '../skill';
 
 describe('skill message codec', () => {
   it('restores compact UI metadata from native expanded skill text', () => {

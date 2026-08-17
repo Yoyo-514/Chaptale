@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decodeMemoryMessage } from '../message-codec';
+import { decodeMemoryMessage } from '../memory';
 
 describe('decodeMemoryMessage', () => {
   const envelope = '<memory summary="test">\n## 作者偏好要点\n- 喜欢短句\n</memory>\n\n';

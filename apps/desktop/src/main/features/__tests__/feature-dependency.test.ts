@@ -17,11 +17,13 @@ const crossFeatureAllowlist = [
   // agent 运行时装配（chat-bundle / tool-assembly / service）按职责引用各 feature 的端口与工具。
   'agent -> file-tools/tools',
   'agent -> memory/context-pressure',
-  'agent -> memory/message-codec',
   'agent -> memory/pending-store',
   'agent -> memory/protocol',
   'agent -> memory/tools',
   'agent -> permissions/broker',
+  // 闸门在 chat-bundle 内做「三层规则求值 → broker 兜底」，因此同时依赖规则库与求值器。
+  'agent -> permissions/engine',
+  'agent -> permissions/rule-store',
   'agent -> personas/builtin',
   'agent -> personas/memory-access',
   'agent -> personas/registry',
@@ -52,7 +54,9 @@ const crossFeatureAllowlist = [
   'tasks -> prompts/compose-system-prompt',
   'tasks -> personas/task-spec',
   'tasks -> runs/record',
-  'tasks -> runs/store'
+  'tasks -> runs/store',
+  // task 侧改用与 chat 同一个 SkillsProvider（此前自拼 user+workspace 两层，漏了 builtin）；type-only。
+  'tasks -> skills/provider'
 ] as const;
 
 describe('Main 跨 feature 依赖白名单', () => {

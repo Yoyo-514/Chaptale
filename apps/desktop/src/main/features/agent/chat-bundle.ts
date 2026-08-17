@@ -5,12 +5,15 @@ import type { RiskLevel } from '@chaptale/shared';
 import type { PermissionGatePort } from '../../core/agent/types';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
+import type { SessionCtx } from '../../core/session-ctx/types';
 import type { ToolCatalog } from '../../core/tool-protocol/catalog';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import { createFileTools } from '../file-tools/tools';
 import type { MemoryPendingStore } from '../memory/pending-store';
 import { MEMORY_PROTOCOL } from '../memory/protocol';
 import type { PermissionBroker } from '../permissions/broker';
+import { evaluatePermission } from '../permissions/engine';
+import type { PermissionRuleStore } from '../permissions/rule-store';
 import { builtinCompanionBody } from '../personas/builtin';
 import type { PersonaRegistry } from '../personas/registry';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
@@ -42,8 +45,12 @@ export function createChatRuntimeBundle(deps: {
   memorySearchService: MemorySearchService;
   webToolsSettingsStore: WebToolsSettingsStore;
   modelService: ModelService;
+  /** 授权仲裁；缺省时不产出闸门，由装配层兜底。 */
+  permissionBroker?: Pick<PermissionBroker, 'ask'>;
+  permissionRuleStore?: Pick<PermissionRuleStore, 'collect'>;
 }): ChatRuntimeBundle {
   return {
+    resolveModel: () => resolveDefaultModel(deps.modelService),
     resolve: async input => {
       const companion = (await deps.personaRegistry.get(input.cwd, 'companion')) ?? {
         id: 'companion',
@@ -85,7 +92,25 @@ export function createChatRuntimeBundle(deps: {
 
       const model = await resolveDefaultModel(deps.modelService);
 
-      return { model, system, tools };
+      return {
+        model,
+        system,
+        tools,
+        // 闸门按轮绑定会话安全上下文：cwd 决定 workspace 级规则读哪个 .chaptale/permissions.json。
+        ...(deps.permissionBroker && deps.permissionRuleStore
+          ? {
+              gate: createBrokerPermissionGate({
+                broker: deps.permissionBroker,
+                ruleStore: deps.permissionRuleStore,
+                ctx: {
+                  sessionId: input.sessionId,
+                  cwd: input.cwd,
+                  scope: input.cwd.trim() ? 'workspace' : 'global'
+                }
+              })
+            }
+          : {})
+      };
     }
   };
 }
@@ -102,24 +127,55 @@ async function resolveDefaultModel(modelService: ModelService): Promise<Resolved
   return modelService.runtime.resolveModel(ref.provider, ref.modelId);
 }
 
-/** PermissionBroker → core/agent 权限闸门端口（readonly 直行、mutating 走 broker ask）。 */
-export function createBrokerPermissionGate(broker: PermissionBroker): PermissionGatePort {
+/**
+ * 参数摘要：规则 `tool(参数前缀*)` 形式按此比对，因此必须是工具的**主参数**而非整包 JSON
+ * （整包 JSON 会让参数级规则永远匹配不上）。按工具族的主参数名依次探测，兜底截断 JSON。
+ */
+const SUBJECT_KEYS = ['path', 'file_path', 'filePath', 'url', 'query', 'command'] as const;
+
+export function toPermissionSubject(args: Record<string, unknown>): string {
+  for (const key of SUBJECT_KEYS) {
+    const value = args[key];
+
+    if (typeof value === 'string' && value.trim()) {
+      return value.slice(0, 200);
+    }
+  }
+
+  return JSON.stringify(args).slice(0, 200);
+}
+
+/**
+ * PermissionBroker + 规则库 → core/agent 权限闸门端口。
+ *
+ * 求值顺序是三层规则先行、broker 兜底：allow 直行、deny 直接拒绝、ask 才弹授权卡片——
+ * 否则「本工作区始终允许」落库后依然每次弹卡，deny 规则与 destructive 默认拒绝也永不生效。
+ * ctx 必须是发起本次调用的会话上下文（cwd 决定读哪个工作区的 permissions.json），
+ * 不能用 UI 当前工作区，也不能留空。
+ */
+export function createBrokerPermissionGate(deps: {
+  broker: Pick<PermissionBroker, 'ask'>;
+  ruleStore: Pick<PermissionRuleStore, 'collect'>;
+  ctx: SessionCtx;
+}): PermissionGatePort {
   return {
     check: async input => {
-      if (input.riskLevel === 'readonly') {
+      const request = {
+        toolName: input.toolName,
+        riskLevel: input.riskLevel as RiskLevel,
+        subject: toPermissionSubject(input.args)
+      };
+      const action = evaluatePermission(request, await deps.ruleStore.collect(deps.ctx));
+
+      if (action === 'allow') {
         return { outcome: 'allow-once' };
       }
 
-      const decision = await broker.ask({
-        ctx: {
-          sessionId: input.sessionId,
-          cwd: '',
-          scope: 'global'
-        },
-        toolName: input.toolName,
-        riskLevel: input.riskLevel as RiskLevel,
-        subject: JSON.stringify(input.args).slice(0, 200)
-      });
+      if (action === 'deny') {
+        return { outcome: 'deny', reason: `已被授权规则拒绝：${input.toolName}` };
+      }
+
+      const decision = await deps.broker.ask({ ctx: deps.ctx, ...request });
 
       if (decision.outcome === 'deny') {
         return { outcome: 'deny', reason: decision.reason };

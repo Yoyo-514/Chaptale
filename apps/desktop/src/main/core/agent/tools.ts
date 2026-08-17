@@ -10,8 +10,8 @@ import type { PermissionGatePort } from './types';
  * 参数：TypeBox 产物即标准 JSON Schema，经 jsonSchema() 直通（零 zod）；
  * 工具：dynamicTool——schema 在装配期运行时确定（定义来自 catalog 而非编译期字面量），
  * execute 入参为 unknown，由 definition.parameters 的静态类型在调用侧收窄；
- * 闸门：gate 存在且 riskLevel = mutating 时包装 execute——deny 返回模型可见的
- * 拒绝载荷（可改道）；readonly 直行（风险分级事实源在 catalog）。
+ * 闸门：gate 存在且 riskLevel 非 readonly 时包装 execute——deny 返回模型可见的
+ * 拒绝载荷（可改道）；显式 readonly 直行（风险分级事实源在 catalog）。
  */
 export function toAiSdkTools(
   definitions: ToolDefinition[],
@@ -28,7 +28,9 @@ export function toAiSdkTools(
 
 function createGatedTool(definition: ToolDefinition, options: { sessionId: string; gate?: PermissionGatePort }) {
   const { sessionId, gate } = options;
-  const needsGate = Boolean(gate) && definition.riskLevel === 'mutating';
+  // 只有显式 readonly 才免闸门：riskLevel 缺省的契约是「按 mutating 保守处理」
+  // （definition.ts），destructive 更不该绕过。
+  const needsGate = Boolean(gate) && definition.riskLevel !== 'readonly';
 
   return dynamicTool({
     description: definition.description,
@@ -40,7 +42,7 @@ function createGatedTool(definition: ToolDefinition, options: { sessionId: strin
         const decision = await gate!.check({
           sessionId,
           toolName: definition.name,
-          riskLevel: definition.riskLevel!,
+          riskLevel: definition.riskLevel ?? 'mutating',
           args
         });
 

@@ -1,111 +1,126 @@
-import type { AgentRunOptions } from '@chaptale/ipc-contract';
-import type { ChatMessage, SkillInvocation } from '@chaptale/shared';
+import type { ChatMessage, ChatTextPart, ChatUserContent, SkillInvocation } from '@chaptale/shared';
 import { formatSkillInvocation, parseSkillInvocation } from '@chaptale/shared';
 
 import type { ImageAttachmentService } from '../../core/attachments/service';
-import { decodeContextMessage } from '../../core/context/context-message-codec';
 import type { ContextFileService } from '../../core/context/service';
-import { decodeMemoryMessage } from '../memory/message-codec';
+import { decodeContextMessage } from '../../core/prompt-envelope/context';
+import type { SessionImagePart, SessionMessage } from '../../core/sessions/entry';
 
-/** 普通 prompt 与 steer 共享的文本、会话和附件输入。 */
-export type AgentInputOptions = Pick<
-  AgentRunOptions,
-  'query' | 'sessionId' | 'signal' | 'contextFilePaths' | 'reuseUserEntryId'
->;
+export type UserChatMessage = Extract<ChatMessage, { role: 'user' }>;
+export type UserSessionMessage = Extract<SessionMessage, { role: 'user' }>;
 
-export type ReusedUserEntryContext = {
-  promptPrefix: string;
-  imageBlocks: Array<{ type: 'image'; data: string; mimeType: string; blockIndex: number }>;
-};
-
-export type AgentRunContext = {
-  userMessage: ChatMessage;
-  promptText: string;
-  /** 随行图片：base64 data + mimeType（与 SessionImagePart 同构）。 */
-  promptImages: Array<{ type: 'image'; data: string; mimeType: string }>;
+export type AssembledUserInput = {
+  /** 落盘条目：memory/context 信封 + 内联图片，模型回放看到的完整形态。 */
+  entry: UserSessionMessage;
+  /**
+   * UI 回显构造器。
+   *
+   * 必须在 entry 落盘之后调用：图片附件的 source 要指向真实 entryId，
+   * readSessionImage 据此回读原图（此前写死空串，点开原图必然抛「找不到图片所属的会话消息」）。
+   */
+  createEcho: (entryId: string) => UserChatMessage;
 };
 
 export type InputAssemblerDeps = {
-  contextFileService: Pick<ContextFileService, 'resolve'>;
-  imageAttachmentService: Pick<ImageAttachmentService, 'createPresentation'>;
+  /** 缺省时不解析附件，退化为纯文本输入。 */
+  contextFileService?: Pick<ContextFileService, 'resolve'>;
+  /** 缺省时图片不回显缩略图（仍然落盘并进模型上下文）。 */
+  imageAttachmentService?: Pick<ImageAttachmentService, 'createPresentation'>;
 };
 
-/** 解析上下文文件与图片附件，产出用户消息、最终 prompt 文本与随行图片。 */
+/**
+ * 用户输入组装：附件解析 + 信封拼装 + skill 展开 + 回显投影。
+ *
+ * 首轮与 steer 轮共用同一条路径——两者的差异只有「谁来调」，任何形态差异都是 bug。
+ * 复用历史条目（reuseUserEntryId）不走这里：不重解析、不重落盘、不重回显。
+ */
 export class InputAssembler {
   constructor(private readonly deps: InputAssemblerDeps) {}
 
   async assemble(input: {
-    options: AgentInputOptions;
+    sessionId: string;
+    query: string;
+    contextFilePaths?: string[];
+    /** 记忆注入前缀（含尾随空行）；空串表示本轮不注入。 */
     memoryPrefix?: string;
-    skillInvocation?: SkillInvocation;
-    reusedContext?: ReusedUserEntryContext;
-  }): Promise<AgentRunContext> {
-    const { options, reusedContext, memoryPrefix = '' } = input;
-    const skillInvocation = input.skillInvocation ?? parseSkillInvocation(options.query);
-    const resolvedContext = reusedContext
-      ? undefined
-      : await this.deps.contextFileService.resolve(options.contextFilePaths, {
-          query: options.query,
-          signal: options.signal
-        });
-    // 上下文信封单独解码（其正则锚定行首）；复用的历史前缀可能自带 memory 信封，先剔除再解。
-    const contextPrefix = reusedContext?.promptPrefix ?? resolvedContext!.promptPrefix;
-    const decodedContext = decodeContextMessage(decodeMemoryMessage(contextPrefix).text);
+    signal?: AbortSignal;
+  }): Promise<AssembledUserInput> {
+    const memoryPrefix = input.memoryPrefix ?? '';
+    const skillInvocation = parseSkillInvocation(input.query);
+    const resolved =
+      this.deps.contextFileService && input.contextFilePaths?.length
+        ? await this.deps.contextFileService.resolve(input.contextFilePaths, {
+            query: input.query,
+            signal: input.signal
+          })
+        : undefined;
+
+    const contextPrefix = resolved?.promptPrefix ?? '';
+    const { contextFiles } = decodeContextMessage(contextPrefix);
     // 记忆信封排在最前：它是变化频率最低的前缀，有利于 provider 前缀缓存。
     const promptPrefix = `${memoryPrefix}${contextPrefix}`;
-    // 复用历史消息时保留原始 content 下标，保证 session-entry source 与 readOriginal 对齐；
-    // 新发送时消息持久化为 [text, ...images]，图片真实下标从 1 开始。
-    const imageBlocks = reusedContext
-      ? reusedContext.imageBlocks
-      : (resolvedContext?.images ?? []).map((image, index) => ({
-          type: image.type,
-          data: image.data,
-          mimeType: image.mimeType,
-          blockIndex: index + 1
-        }));
-    const promptImages = imageBlocks.map(image => ({
-      type: image.type,
+    const promptText = buildPromptText(promptPrefix, input.query, skillInvocation);
+    const imageParts: SessionImagePart[] = (resolved?.images ?? []).map(image => ({
+      type: 'image',
       data: image.data,
       mimeType: image.mimeType
     }));
-    const imagePaths = resolvedContext?.imagePaths ?? [];
-    const presentation = this.deps.imageAttachmentService.createPresentation(imageBlocks, blockIndex => {
-      if (options.reuseUserEntryId) {
-        return {
-          type: 'session-entry',
-          sessionId: options.sessionId,
-          entryId: options.reuseUserEntryId,
-          blockIndex
-        };
-      }
 
-      const imagePath = imagePaths[blockIndex - 1];
-      return imagePath ? { type: 'context-file', path: imagePath } : undefined;
-    });
-    const displayText = skillInvocation?.arguments ?? options.query;
-    const userContent =
-      presentation.attachments.length > 0
-        ? [...(displayText ? [{ type: 'text' as const, text: displayText }] : []), ...presentation.attachments]
-        : displayText;
-
-    // 命令展开只发生在文本以 /skill: 开头时；附件信封因此作为命令参数注入，而不是放在命令前。
-    const promptText = skillInvocation
-      ? formatSkillInvocation({
-          ...skillInvocation,
-          arguments: `${promptPrefix}${skillInvocation.arguments}`.trim()
-        })
-      : `${promptPrefix}${options.query}`;
+    const entry: UserSessionMessage = {
+      role: 'user',
+      content: imageParts.length > 0 ? [{ type: 'text', text: promptText }, ...imageParts] : promptText,
+      ...(contextFiles.length > 0 ? { contextFiles } : {})
+    };
+    const displayText = skillInvocation?.arguments ?? input.query;
 
     return {
-      userMessage: {
+      entry,
+      createEcho: entryId => ({
         role: 'user',
-        content: userContent,
-        ...(decodedContext.contextFiles.length > 0 ? { contextFiles: decodedContext.contextFiles } : {}),
+        content: this.buildEchoContent(displayText, imageParts, input.sessionId, entryId),
+        ...(contextFiles.length > 0 ? { contextFiles } : {}),
         ...(skillInvocation ? { skillInvocation } : {}),
         timestamp: Date.now()
-      },
-      promptText,
-      promptImages
+      })
     };
   }
+
+  private buildEchoContent(
+    displayText: string,
+    imageParts: SessionImagePart[],
+    sessionId: string,
+    entryId: string
+  ): ChatUserContent {
+    if (imageParts.length === 0 || !this.deps.imageAttachmentService) {
+      return displayText;
+    }
+
+    // blockIndex = 落盘 content 的真实下标：content 形如 [text, ...images]，图片从 1 起。
+    const { attachments } = this.deps.imageAttachmentService.createPresentation(
+      imageParts.map((image, index) => ({ ...image, blockIndex: index + 1 })),
+      blockIndex => ({ type: 'session-entry', sessionId, entryId, blockIndex })
+    );
+
+    if (attachments.length === 0) {
+      return displayText;
+    }
+
+    const textPart: ChatTextPart[] = displayText ? [{ type: 'text', text: displayText }] : [];
+    return [...textPart, ...attachments];
+  }
+}
+
+/**
+ * skill 展开：`/skill:name` 必须留在行首，因此信封作为**命令参数**注入而非拼在命令之前。
+ * 无 skill 调用时就是前缀 + 原文。
+ */
+function buildPromptText(promptPrefix: string, query: string, skillInvocation: SkillInvocation | undefined): string {
+  if (!skillInvocation) {
+    return `${promptPrefix}${query}`;
+  }
+
+  return formatSkillInvocation({
+    ...skillInvocation,
+    arguments: `${promptPrefix}${skillInvocation.arguments}`.trim()
+  });
 }

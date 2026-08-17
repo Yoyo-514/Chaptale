@@ -1,6 +1,5 @@
-import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
-import { loadSkillsFromDir } from '../../core/agent/skills';
 import type { PermissionGatePort } from '../../core/agent/types';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
@@ -8,6 +7,7 @@ import type { SettingsService } from '../../core/settings/service';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import type { TaskPersonaSpec } from '../personas/task-spec';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
+import type { SkillProvider } from '../skills/provider';
 import type { TaskSessionFactoryPort } from './runner-port';
 import { createTaskSession, type TaskSession } from './task-session';
 
@@ -22,6 +22,8 @@ export type TaskSessionFactoryOptions = {
   settingsService: SettingsService;
   modelService: ModelService;
   buildTaskTools: TaskSessionToolBuilder;
+  /** skills 查找端口；缺省不注入 skills 摘要。与 chat 侧共用同一 provider，保证三层目录一致。 */
+  skillsProvider?: Pick<SkillProvider, 'load'>;
 };
 
 /**
@@ -48,11 +50,12 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
     const taskTools = (await buildTaskTools(spec, cwd, onMemoryRead)).filter(tool => declaredTools.has(tool.name));
 
     const model = await resolveTaskModel(modelService, spec.modelPreference);
-    const system = await composeTaskSystemPrompt(this.options.settingsService, cwd, spec);
+    const system = await composeTaskSystemPrompt(this.options.skillsProvider, cwd, spec);
     const gate = createUnattendedGate();
 
     return createTaskSession({
-      sessionId: `task-${Date.now()}`,
+      // 并发子任务默认 3，同毫秒创建会撞 id，因此不能用时间戳。
+      sessionId: `task-${randomUUID()}`,
       model,
       system,
       tools: taskTools,
@@ -83,16 +86,16 @@ async function resolveTaskModel(modelService: ModelService, preference: string |
   return modelService.runtime.resolveModel(ref.provider, ref.modelId);
 }
 
-/** task 系统提示词：persona 正文 + 绑定 skills 的名称/描述摘要（user 层同名覆盖 workspace 层）。 */
+/** task 系统提示词：persona 正文 + 绑定 skills 的名称/描述摘要。 */
 async function composeTaskSystemPrompt(
-  settingsService: SettingsService,
+  skillsProvider: Pick<SkillProvider, 'load'> | undefined,
   cwd: string,
   spec: TaskPersonaSpec
 ): Promise<string> {
   const layers = [composeSystemPrompt({ personaBody: spec.systemPrompt })];
 
-  if (spec.skills.length > 0) {
-    const selected = await loadSkillsForTask(settingsService, cwd, spec);
+  if (skillsProvider && spec.skills.length > 0) {
+    const selected = await loadSkillsForTask(skillsProvider, cwd, spec);
 
     if (selected.length > 0) {
       const skillLines = selected.map(skill => `- ${skill.name}：${skill.description}`);
@@ -103,17 +106,20 @@ async function composeTaskSystemPrompt(
   return layers.join('\n\n');
 }
 
-/** spec 绑定 skills 的名称/描述摘要（user 层同名覆盖 workspace 层）。 */
+/**
+ * spec 绑定 skills 的名称/描述摘要。
+ *
+ * 走与 chat 侧同一个 SkillsProvider——此前这里自己拼 user + workspace 两层，
+ * 漏掉了 builtin 层，内置创作 skills 对 task/subagent persona 不可见。
+ * 不传 personaId：spec.skills 是显式声明，优先于 appliesTo 过滤。
+ */
 async function loadSkillsForTask(
-  settingsService: SettingsService,
+  skillsProvider: Pick<SkillProvider, 'load'>,
   cwd: string,
   spec: TaskPersonaSpec
 ): Promise<Array<{ name: string; description: string }>> {
-  const [user, workspace] = await Promise.all([
-    loadSkillsFromDir(path.join(settingsService.rootDir, 'skills'), 'user'),
-    loadSkillsFromDir(path.join(cwd, '.chaptale', 'skills'), 'project')
-  ]);
-  const byName = new Map([...user.skills, ...workspace.skills].map(skill => [skill.name, skill]));
+  const { skills } = await skillsProvider.load(cwd);
+  const byName = new Map(skills.map(skill => [skill.name, skill]));
 
   return spec.skills.flatMap(name => {
     const skill = byName.get(name);

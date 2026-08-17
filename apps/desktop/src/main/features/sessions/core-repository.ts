@@ -15,6 +15,7 @@ import type {
 import type { ChatImageAttachment, ChatMessage, ChatTextPart } from '@chaptale/shared';
 
 import type { ImageAttachmentService } from '../../core/attachments/service';
+import { decodeUserMessage } from '../../core/prompt-envelope/decode-user-message';
 import type { SessionEntry, SessionMessage } from '../../core/sessions/entry';
 import { parseSessionContent } from '../../core/sessions/reader';
 import type { SessionStorageContext } from '../../core/sessions/storage';
@@ -366,20 +367,33 @@ export class CoreSessionRepository implements SessionRepository {
         return null;
 
       case 'user': {
+        // 落盘内容含 memory/context/skill 信封（只服务模型）；UI、历史与导出一律只看作者原文。
+        // 信封只出现在首个文本块上（写入形态固定为 [text, ...images]）。
+        const firstText =
+          typeof message.content === 'string'
+            ? message.content
+            : (message.content.find(part => part.type === 'text')?.text ?? '');
+        const decoded = decodeUserMessage(firstText);
+        // 老会话可能没有随行 contextFiles 元数据，此时回落到信封里恢复出的那份。
+        const contextFiles =
+          message.contextFiles ?? (decoded.contextFiles.length > 0 ? decoded.contextFiles : undefined);
+        const common = {
+          ...(contextFiles ? { contextFiles } : {}),
+          ...(decoded.skillInvocation ? { skillInvocation: decoded.skillInvocation } : {}),
+          timestamp: 0
+        };
+
         if (typeof message.content === 'string') {
-          return {
-            role: 'user',
-            content: message.content,
-            ...(message.contextFiles ? { contextFiles: message.contextFiles } : {}),
-            timestamp: 0
-          };
+          return { role: 'user', content: decoded.text, ...common };
         }
 
         const parts: Array<ChatTextPart | ChatImageAttachment> = [];
+        let textSeen = false;
 
         for (const [index, part] of message.content.entries()) {
           if (part.type === 'text') {
-            parts.push({ type: 'text', text: part.text });
+            parts.push({ type: 'text', text: textSeen ? part.text : decoded.text });
+            textSeen = true;
           } else if (options.imageAttachmentService) {
             const presented = options.imageAttachmentService.createPresentation(
               [{ type: 'image', data: part.data, mimeType: part.mimeType, blockIndex: index }],
@@ -395,12 +409,7 @@ export class CoreSessionRepository implements SessionRepository {
           }
         }
 
-        return {
-          role: 'user',
-          content: parts,
-          ...(message.contextFiles ? { contextFiles: message.contextFiles } : {}),
-          timestamp: 0
-        };
+        return { role: 'user', content: parts, ...common };
       }
 
       case 'assistant': {

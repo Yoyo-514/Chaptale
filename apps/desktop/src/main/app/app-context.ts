@@ -7,7 +7,7 @@ import { parseFrontmatter } from '../core/frontmatter/parse';
 import { ModelService } from '../core/models/service';
 import { SettingsService } from '../core/settings/service';
 import { createDefaultToolCatalog } from '../core/tool-protocol/catalog';
-import { createChatRuntimeBundle, createBrokerPermissionGate } from '../features/agent/chat-bundle';
+import { createChatRuntimeBundle } from '../features/agent/chat-bundle';
 import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { SlashCommandService } from '../features/commands/service';
@@ -130,6 +130,7 @@ export function createAppContext(): AppContext {
   const taskSessionFactory = new TaskSessionFactory({
     settingsService,
     modelService,
+    skillsProvider,
     buildTaskTools: (spec, cwd, onMemoryRead) => buildTaskSessionTools({ spec, cwd, memorySearchService, onMemoryRead })
   });
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
@@ -146,13 +147,15 @@ export function createAppContext(): AppContext {
     memoryPendingStore,
     memorySearchService,
     webToolsSettingsStore,
-    modelService
+    modelService,
+    // 闸门由 bundle 按轮产出：只有它同时握有会话 cwd 与三层规则，能让 workspace 级授权真正命中。
+    permissionBroker,
+    permissionRuleStore
   });
   const agentRuntime = new AgentService({
     sessionRepository,
     modelService,
     runtimeBundle,
-    gate: createBrokerPermissionGate(permissionBroker),
     contextFileService,
     imageAttachmentService,
     memoryInjector: createMemoryInjector(settingsService.agentDir),

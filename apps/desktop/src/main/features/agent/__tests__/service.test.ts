@@ -108,6 +108,7 @@ const echoTool: ToolDefinition = {
 
 function createBundle(tools: ToolDefinition[] = [echoTool]): ChatRuntimeBundle {
   return {
+    resolveModel: async () => createModel(),
     resolve: async () => ({
       model: createModel(),
       system: '你是助手',
@@ -135,13 +136,22 @@ describe('AgentService.stream', () => {
       messages.push(message);
     }
 
-    // 首条 user 回显，随后 assistant 定稿。
+    // 首条 user 回显；文本先以增量 partial 流出（UI 侧 pushText 追加语义），finish-step 再全量定稿。
     expect(messages[0]).toMatchObject({ role: 'user', content: '第一章怎么写' });
     expect(messages[1]).toMatchObject({
       role: 'assistant',
-      content: '雨夜开场建议。'
+      content: '雨夜开场建议。',
+      partial: true
     });
-    expect(messages[1]).toHaveProperty('usage');
+
+    const settled = messages.at(-1)!;
+
+    expect(settled).toMatchObject({
+      role: 'assistant',
+      content: '雨夜开场建议。',
+      partial: false
+    });
+    expect(settled).toHaveProperty('usage');
 
     // 落盘验证：重开会话回放一致。
     const store = await SessionStore.open(path.join(dir, 'sessions', 'global', 's1.jsonl'));
@@ -186,14 +196,22 @@ describe('AgentService.stream', () => {
     }
 
     const roles = messages.map(message => message.role);
-    expect(roles).toEqual(['user', 'assistant', 'tool', 'assistant']);
+
+    // 工具卡片在执行前先亮（partial），结果紧随其后，本步再定稿；末轮文本同样先增量后定稿。
+    expect(roles).toEqual(['user', 'assistant', 'tool', 'assistant', 'assistant', 'assistant']);
 
     expect(messages[1]).toMatchObject({
       role: 'assistant',
+      partial: true,
       toolCalls: [{ id: 'call_1', name: 'echo', arguments: { text: '你好' } }]
     });
     expect(messages[2]).toMatchObject({ role: 'tool', toolCallId: 'call_1', toolName: 'echo' });
-    expect(messages[3]).toMatchObject({ role: 'assistant', content: '已回显完毕。' });
+    expect(messages[3]).toMatchObject({
+      role: 'assistant',
+      partial: false,
+      toolCalls: [{ id: 'call_1', name: 'echo' }]
+    });
+    expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: '已回显完毕。', partial: false });
 
     // 落盘：assistant(toolCalls) / tool / assistant 三组 + 首条 user。
     const store = await SessionStore.open(path.join(dir, 'sessions', 'global', 's1.jsonl'));

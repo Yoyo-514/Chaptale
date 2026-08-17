@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decodeContextMessage } from '../context-message-codec';
+import { decodeContextMessage } from '../context';
 
 describe('context message codec', () => {
   it('extracts text and document metadata from the Chaptale prompt envelope', () => {
