@@ -74,8 +74,6 @@ export class SettingsService {
   readonly modelsPath: string;
   readonly webToolsConfigPath: string;
   readonly sessionsRootDir: string;
-  /** task 型子任务 session 目录；不在 sessionsRootDir 扫描范围，天然不进历史 UI。 */
-  readonly taskSessionsDir: string;
   /** 会话级 todo 清单存储目录；随会话删除一同清理。 */
   readonly todosDir: string;
 
@@ -93,7 +91,6 @@ export class SettingsService {
     this.modelsPath = path.join(this.agentDir, 'models.json');
     this.webToolsConfigPath = path.join(this.agentDir, 'web-tools.json');
     this.sessionsRootDir = path.join(this.agentDir, 'sessions');
-    this.taskSessionsDir = path.join(this.agentDir, 'task-sessions');
     this.todosDir = path.join(this.agentDir, 'todos');
   }
 

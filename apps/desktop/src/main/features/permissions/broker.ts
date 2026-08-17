@@ -14,6 +14,8 @@ export type PermissionPending = {
 interface PendingEntry extends PermissionPending {
   resolve: (decision: PermissionDecision) => void;
   timer: NodeJS.Timeout;
+  /** 解绑取消监听；不解绑会让已终结的请求把监听器留在长寿命 signal 上。 */
+  dispose?: () => void;
 }
 
 interface PermissionBrokerOptions {
@@ -46,7 +48,13 @@ export class PermissionBroker {
     toolName: string;
     riskLevel: RiskLevel;
     subject?: string;
+    /** 发起本次工具调用的运行信号；取消运行即作废挂起的授权，不让工具执行等到超时。 */
+    signal?: AbortSignal;
   }): Promise<PermissionDecision> {
+    if (input.signal?.aborted) {
+      return Promise.resolve({ outcome: 'deny', reason: '运行已取消，未发起授权请求' });
+    }
+
     // cwd 是 Main 侧安全上下文，只保存在 broker 内部；renderer 只拿 sessionId 和工具摘要。
     const event: PermissionAskEvent = {
       requestId: randomUUID(),
@@ -60,8 +68,19 @@ export class PermissionBroker {
       const timer = setTimeout(() => {
         this.settle(event.requestId, { outcome: 'deny', reason: '授权请求超时，未获得用户确认' });
       }, this.timeoutMs);
+      const onAbort = () => {
+        this.settle(event.requestId, { outcome: 'deny', reason: '运行已取消，授权请求随之作废' });
+      };
 
-      this.pending.set(event.requestId, { resolve, timer, event, ctx: input.ctx });
+      input.signal?.addEventListener('abort', onAbort, { once: true });
+
+      this.pending.set(event.requestId, {
+        resolve,
+        timer,
+        event,
+        ctx: input.ctx,
+        dispose: () => input.signal?.removeEventListener('abort', onAbort)
+      });
 
       for (const listener of this.askListeners) {
         listener(event);
@@ -106,6 +125,7 @@ export class PermissionBroker {
 
     this.pending.delete(requestId);
     clearTimeout(entry.timer);
+    entry.dispose?.();
     entry.resolve(decision);
     return true;
   }

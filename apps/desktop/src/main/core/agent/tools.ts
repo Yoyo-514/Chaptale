@@ -43,7 +43,9 @@ function createGatedTool(definition: ToolDefinition, options: { sessionId: strin
           sessionId,
           toolName: definition.name,
           riskLevel: definition.riskLevel ?? 'mutating',
-          args
+          args,
+          // 取消运行时挂起的授权要随之作废，否则本次执行会一直等到授权超时。
+          ...(executionOptions?.abortSignal ? { signal: executionOptions.abortSignal } : {})
         });
 
         if (decision.outcome === 'deny') {

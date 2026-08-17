@@ -175,7 +175,12 @@ export function createBrokerPermissionGate(deps: {
         return { outcome: 'deny', reason: `已被授权规则拒绝：${input.toolName}` };
       }
 
-      const decision = await deps.broker.ask({ ctx: deps.ctx, ...request });
+      const decision = await deps.broker.ask({
+        ctx: deps.ctx,
+        ...request,
+        // 取消运行时授权随之作废；否则被闸门挂起的工具会一直等到 broker 超时。
+        ...(input.signal ? { signal: input.signal } : {})
+      });
 
       if (decision.outcome === 'deny') {
         return { outcome: 'deny', reason: decision.reason };

@@ -64,4 +64,53 @@ describe('PermissionBroker', () => {
     expect(broker.listPending('s1').map(event => event.toolName)).toEqual(['write', 'bash']);
     expect(broker.listPending('other')).toEqual([]);
   });
+
+  it('取消运行时立即作废挂起的授权，不等超时', async () => {
+    // 回归：剥离 pi 时丢了「会话中断释放挂起授权」这条链路，取消后被闸门挂起的
+    // 工具执行要一直等到 5 分钟超时才以拒绝收尾。
+    const { broker } = createBroker();
+    const controller = new AbortController();
+    const pending = broker.ask({
+      ctx: SESSION_CTX,
+      toolName: 'write',
+      riskLevel: 'mutating',
+      signal: controller.signal
+    });
+
+    controller.abort();
+
+    await expect(pending).resolves.toMatchObject({ outcome: 'deny' });
+    expect(broker.listPending()).toEqual([]);
+  });
+
+  it('已取消的运行不再发起授权请求', async () => {
+    const { broker, asks } = createBroker();
+
+    await expect(
+      broker.ask({
+        ctx: SESSION_CTX,
+        toolName: 'write',
+        riskLevel: 'mutating',
+        signal: AbortSignal.abort()
+      })
+    ).resolves.toMatchObject({ outcome: 'deny' });
+    expect(asks).toEqual([]);
+  });
+
+  it('请求终结后解绑取消监听，长寿命 signal 不积累监听器', async () => {
+    const { broker, asks } = createBroker();
+    const controller = new AbortController();
+    const pending = broker.ask({
+      ctx: SESSION_CTX,
+      toolName: 'write',
+      riskLevel: 'mutating',
+      signal: controller.signal
+    });
+
+    broker.decide(asks[0]!.requestId, { outcome: 'allow-once' });
+    await expect(pending).resolves.toEqual({ outcome: 'allow-once' });
+
+    // 决策后再取消不应触发任何二次结算（settle 对未知 requestId 幂等，此处验证不抛错）。
+    expect(() => controller.abort()).not.toThrow();
+  });
 });

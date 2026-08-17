@@ -11,6 +11,13 @@ export type PermissionGatePort = {
     toolName: string;
     riskLevel: RiskLevel;
     args: Record<string, unknown>;
+    /**
+     * 本次工具调用的取消信号。
+     *
+     * 授权是会挂起的：运行被取消时必须让挂起的请求立刻以拒绝收尾，
+     * 否则工具执行与授权卡片会一起等到 broker 的 5 分钟超时。
+     */
+    signal?: AbortSignal;
   }): Promise<PermissionDecision>;
 };
 
