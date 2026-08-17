@@ -1,6 +1,6 @@
 import type { NativeDialogPort } from '../../core/ipc-ports';
 import { writeTextFile } from '../../infra/filesystem/files';
-import type { SessionRepository } from './repository';
+import type { SessionRepository } from './repository-port';
 
 /** 弹出保存对话框并把会话 HTML 落盘；用户取消时返回 null。 */
 export async function exportSessionHtmlToFile(

@@ -22,10 +22,10 @@ import type {
 
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import type { ModelService } from './service';
+import type { ModelServicePort } from './service-port';
 
-/** 归属模型与认证配置频道；IPC 层负责 sender 信任及参数结构校验，业务与持久化语义交给 ModelService。 */
-export function registerModelsIpc(modelService: ModelService) {
+/** 归属模型与认证配置频道；IPC 层负责 sender 信任及参数结构校验，业务与持久化语义交给 ModelServicePort 实现。 */
+export function registerModelsIpc(modelService: ModelServicePort) {
   handleTrustedIpc(IPC_CHANNELS.models.list, () => modelService.listModels());
 
   handleValidatedIpc(

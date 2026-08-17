@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { exportSessionHtmlToFile } from '../export';
-import type { SessionRepository } from '../repository';
+import type { SessionRepository } from '../repository-port';
 
 const pickSavePath = vi.fn();
 const writeTextFile = vi.hoisted(() => vi.fn());

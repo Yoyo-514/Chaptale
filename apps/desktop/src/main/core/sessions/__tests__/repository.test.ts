@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { ChatMessage } from '@chaptale/shared';
 
-import { CoreSessionRepository } from '../../../features/sessions/core-repository';
+import { JsonlSessionRepository } from '../../../features/sessions/repository';
 
 function flattenMessages(list: ChatMessage[]): string {
   return list
@@ -28,11 +28,11 @@ function flattenMessages(list: ChatMessage[]): string {
 }
 
 let root: string;
-let repository: CoreSessionRepository;
+let repository: JsonlSessionRepository;
 
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), 'chaptale-session-repo-'));
-  repository = new CoreSessionRepository({
+  repository = new JsonlSessionRepository({
     rootDir: root,
     cwd: '/workspace',
     sessionDir: path.join(root, 'agent', 'sessions', 'global'),
@@ -44,7 +44,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('CoreSessionRepository', () => {
+describe('JsonlSessionRepository', () => {
   it('create → append → list 全链路：名字/leaf/计数/累计 token', async () => {
     const meta = await repository.create({ name: '雨夜构思' });
     expect(meta.cwd).toBe('/workspace');
@@ -94,7 +94,7 @@ describe('CoreSessionRepository', () => {
   it('跨 scope 目录也能按 sessionId 打开（global 会话在 workspace 模式下可读）', async () => {
     // 另一个仓储实例（sessionDir 指向 archive-scope）创建会话。
     const archiveDir = path.join(root, 'agent', 'sessions', 'archive-scope');
-    const archiveRepo = new CoreSessionRepository({
+    const archiveRepo = new JsonlSessionRepository({
       rootDir: root,
       cwd: '/workspace',
       sessionDir: archiveDir,

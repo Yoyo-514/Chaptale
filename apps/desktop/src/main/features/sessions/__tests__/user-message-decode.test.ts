@@ -3,18 +3,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { CoreSessionRepository } from '../core-repository';
+import { JsonlSessionRepository } from '../repository';
 
 const MEMORY = '<memory>\n林晚左臂为义肢\n</memory>\n\n';
 const CONTEXT =
   '<attached_context_files>\n<file path="设定/人物.md" kind="text" size="1 KB" />\n</attached_context_files>\n\n';
 
 let dir: string;
-let repository: CoreSessionRepository;
+let repository: JsonlSessionRepository;
 
 beforeEach(async () => {
   dir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-session-decode-'));
-  repository = new CoreSessionRepository({
+  repository = new JsonlSessionRepository({
     rootDir: dir,
     cwd: '/workspace',
     sessionDir: path.join(dir, 'sessions', 'global'),

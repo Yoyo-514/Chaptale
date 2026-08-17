@@ -10,17 +10,17 @@ import { createProtocolLanguageModel } from '../../../core/models/protocols';
 import type { ResolvedModel } from '../../../core/models/runtime';
 import { SessionStore } from '../../../core/sessions/store';
 import type { ToolDefinition } from '../../../core/tool-protocol/definition';
-import { CoreSessionRepository } from '../../sessions/core-repository';
+import { JsonlSessionRepository } from '../../sessions/repository';
 import { AgentService, type ChatRuntimeBundle } from '../service';
 
 let dir: string;
-let repository: CoreSessionRepository;
+let repository: JsonlSessionRepository;
 let service: AgentService;
 let abortController: AbortController;
 
 beforeEach(async () => {
   dir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-agent-service-'));
-  repository = new CoreSessionRepository({
+  repository = new JsonlSessionRepository({
     rootDir: dir,
     cwd: '/workspace',
     sessionDir: path.join(dir, 'sessions', 'global'),

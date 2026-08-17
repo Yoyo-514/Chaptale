@@ -16,8 +16,8 @@ const featuresRoot = path.join(mainRoot, 'features');
 const crossFeatureAllowlist = [
   // agent 运行时装配（chat-bundle / tool-assembly / service）按职责引用各 feature 的端口与工具。
   'agent -> file-tools/tools',
-  'agent -> memory/context-pressure',
-  'agent -> memory/pending-store',
+  'agent -> memory/compaction/pressure',
+  'agent -> memory/pending/store',
   'agent -> memory/protocol',
   'agent -> memory/tools',
   'agent -> permissions/broker',
@@ -30,10 +30,10 @@ const crossFeatureAllowlist = [
   'agent -> personas/task-spec',
   'agent -> prompts/compose-system-prompt',
   'agent -> prompts/product-duty',
-  'agent -> search/memory-search-service',
-  'agent -> search/memory-search-tool',
-  'agent -> sessions/core-repository',
-  'agent -> skills/provider',
+  'agent -> search/memory/service',
+  'agent -> search/memory/tool',
+  'agent -> sessions/repository',
+  'agent -> skills/provider-port',
   'agent -> subagent/delegate-tool',
   'agent -> subagent/pool',
   'agent -> tasks/runner-port',
@@ -43,7 +43,7 @@ const crossFeatureAllowlist = [
   'agent -> web-tools/content-store',
   'agent -> web-tools/settings',
   'agent -> web-tools/tools',
-  'commands -> skills/provider',
+  'commands -> skills/provider-port',
   'memory -> personas/registry',
   'personas -> search/types',
   'prompts -> personas/builtin',
@@ -51,12 +51,12 @@ const crossFeatureAllowlist = [
   'subagent -> personas/registry',
   'subagent -> tasks/runner-port',
   'tasks -> personas/registry',
-  'tasks -> prompts/compose-system-prompt',
   'tasks -> personas/task-spec',
+  'tasks -> prompts/compose-system-prompt',
   'tasks -> runs/record',
   'tasks -> runs/store',
   // task 侧改用与 chat 同一个 SkillsProvider（此前自拼 user+workspace 两层，漏了 builtin）；type-only。
-  'tasks -> skills/provider'
+  'tasks -> skills/provider-port'
 ] as const;
 
 describe('Main 跨 feature 依赖白名单', () => {

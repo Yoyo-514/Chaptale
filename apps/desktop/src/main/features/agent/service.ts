@@ -15,8 +15,8 @@ import type { PermissionGatePort } from '../../core/agent/types';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
 import type { SessionContentPart, SessionMessage } from '../../core/sessions/entry';
-import { evaluateContextPressure } from '../memory/context-pressure';
-import type { CoreSessionRepository } from '../sessions/core-repository';
+import { evaluateContextPressure } from '../memory/compaction/pressure';
+import type { JsonlSessionRepository } from '../sessions/repository';
 import { InputAssembler } from './input-assembler';
 import { createPartTranslator } from './part-translator';
 
@@ -45,7 +45,7 @@ export type ChatRuntimeBundle = {
 };
 
 export type AgentServiceOptions = {
-  sessionRepository: CoreSessionRepository;
+  sessionRepository: JsonlSessionRepository;
   modelService: ModelService;
   runtimeBundle: ChatRuntimeBundle;
   /** 兜底权限闸门；正常由 runtimeBundle 按轮产出（带会话 cwd），此处仅覆盖 bundle 未装配授权的场景。 */

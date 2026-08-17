@@ -12,26 +12,26 @@ import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { SlashCommandService } from '../features/commands/service';
 import { createMemoryInjector } from '../features/memory/injector';
-import { MemoryPendingStore } from '../features/memory/pending-store';
+import { MemoryPendingStore } from '../features/memory/pending/store';
 import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
 import { createDefaultPersonaRegistry } from '../features/personas/persona-registry-factory';
 import { PromptFileService } from '../features/prompts/file-service';
 import { ReviewOutputStore } from '../features/reviews/store';
 import { AgentRunStore } from '../features/runs/store';
-import { AttachedFileSearchService } from '../features/search/attached-file-search-service';
-import { IndexService } from '../features/search/index-service';
-import { LiteralSearchProvider } from '../features/search/literal-search-provider';
-import { MemorySearchService } from '../features/search/memory-search-service';
-import { WorkspaceIndexSourceResolver } from '../features/search/source-resolver';
-import { CoreSessionRepository } from '../features/sessions/core-repository';
+import { AttachedFileSearchService } from '../features/search/attached-file-service';
+import { LiteralSearchProvider } from '../features/search/index/literal-provider';
+import { IndexService } from '../features/search/index/service';
+import { WorkspaceIndexSourceResolver } from '../features/search/index/source-resolver';
+import { MemorySearchService } from '../features/search/memory/service';
+import { JsonlSessionRepository } from '../features/sessions/repository';
 import { materializeBuiltinSkills } from '../features/skills/builtin-materializer';
-import { SkillsProvider } from '../features/skills/skills-provider';
+import { SkillsProvider } from '../features/skills/provider';
 import { SubagentPool } from '../features/subagent/pool';
 import type { TaskOutputStorePort } from '../features/tasks/output-port';
+import { TaskRunner } from '../features/tasks/runner';
 import { TaskService } from '../features/tasks/service';
-import { TaskRunner } from '../features/tasks/task-runner';
-import { TaskSessionFactory } from '../features/tasks/task-session-factory';
+import { TaskSessionFactory } from '../features/tasks/session-factory';
 import { TodoStore } from '../features/todo/store';
 import { WebToolsSettingsAdapter } from '../features/web-tools/adapter';
 import { WebToolsSettingsStore } from '../features/web-tools/settings';
@@ -42,7 +42,7 @@ import { TaskOutputRouter } from './task-output-router';
 
 export type AppContext = {
   settingsService: SettingsService;
-  sessionRepository: CoreSessionRepository;
+  sessionRepository: JsonlSessionRepository;
   modelService: ModelService;
   agentRuntime: AgentService;
   contextFileService: ContextFileService;
@@ -91,7 +91,7 @@ export function createAppContext(): AppContext {
 
     return thumbnail;
   }, contextFileAuthorization);
-  const sessionRepository = new CoreSessionRepository({
+  const sessionRepository = new JsonlSessionRepository({
     rootDir: settingsService.agentDir,
     cwd: () => settingsService.getCurrentCwd(),
     sessionDir: () => settingsService.getCurrentSessionDir(),

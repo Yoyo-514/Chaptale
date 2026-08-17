@@ -1,6 +1,5 @@
 import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
 
-import { registerSettingsIpc } from '../core/settings/ipc';
 import { registerAgentIpc } from '../features/agent/ipc';
 import { registerSlashCommandIpc } from '../features/commands/ipc';
 import { registerMemoryIpc } from '../features/memory/ipc';
@@ -8,6 +7,7 @@ import { registerModelsIpc } from '../features/models/ipc';
 import { registerPermissionsIpc } from '../features/permissions/ipc';
 import { registerPromptSettingsIpc } from '../features/prompts/ipc';
 import { registerSessionIpc } from '../features/sessions/ipc';
+import { registerSettingsIpc } from '../features/settings/ipc';
 import { registerSubagentIpc } from '../features/subagent/ipc';
 import { registerTaskIpc } from '../features/tasks/ipc';
 import { registerTodoIpc } from '../features/todo/ipc';

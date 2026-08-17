@@ -9,7 +9,7 @@ import type { SessionCtx } from '../../core/session-ctx/types';
 import type { ToolCatalog } from '../../core/tool-protocol/catalog';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import { createFileTools } from '../file-tools/tools';
-import type { MemoryPendingStore } from '../memory/pending-store';
+import type { MemoryPendingStore } from '../memory/pending/store';
 import { MEMORY_PROTOCOL } from '../memory/protocol';
 import type { PermissionBroker } from '../permissions/broker';
 import { evaluatePermission } from '../permissions/engine';
@@ -18,7 +18,7 @@ import { builtinCompanionBody } from '../personas/builtin';
 import type { PersonaRegistry } from '../personas/registry';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
 import { PRODUCT_DUTY } from '../prompts/product-duty';
-import type { MemorySearchService } from '../search/memory-search-service';
+import type { MemorySearchService } from '../search/memory/service';
 import type { SubagentPool } from '../subagent/pool';
 import { TODO_PROTOCOL } from '../todo/protocol';
 import type { TodoStore } from '../todo/store';
@@ -37,7 +37,7 @@ export function createChatRuntimeBundle(deps: {
   personaRegistry: PersonaRegistry;
   taskRunner: import('../tasks/runner-port').TaskRunnerPort;
   /** skills 注入（SKILL.md 正文拼进 system 尾部）；缺省不注入。 */
-  skillsProvider?: Pick<import('../skills/provider').SkillProvider, 'load'>;
+  skillsProvider?: Pick<import('../skills/provider-port').SkillProvider, 'load'>;
   toolCatalog: ToolCatalog;
   todoStore: TodoStore;
   subagentPool: SubagentPool;
@@ -195,7 +195,7 @@ export function createBrokerPermissionGate(deps: {
 async function composeChatSystemPrompt(options: {
   personaBody: string;
   cwd: string;
-  skillsProvider?: Pick<import('../skills/provider').SkillProvider, 'load'>;
+  skillsProvider?: Pick<import('../skills/provider-port').SkillProvider, 'load'>;
 }): Promise<string> {
   const base = composeSystemPrompt({
     personaBody: options.personaBody,

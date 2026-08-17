@@ -23,7 +23,7 @@ import type { UiShell } from '../../core/ipc-ports';
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import { exportSessionHtmlToFile } from './export';
-import type { SessionRepository } from './repository';
+import type { SessionRepository } from './repository-port';
 
 /** 归属会话读写、导出与存储目录频道；IPC 层负责信任及参数结构校验，持久化语义交给仓储。 */
 export function registerSessionIpc(

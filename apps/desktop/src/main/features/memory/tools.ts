@@ -5,7 +5,7 @@ import { Type } from 'typebox';
 
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import { resolveWorkspaceMemoryPaths } from './paths';
-import type { MemoryPendingStore } from './pending-store';
+import type { MemoryPendingStore } from './pending/store';
 
 export type MemoryToolContext = {
   resolveCwd: () => Promise<string> | string;

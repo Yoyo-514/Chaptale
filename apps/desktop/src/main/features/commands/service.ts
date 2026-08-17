@@ -1,7 +1,7 @@
 import type { SlashCommand } from '@chaptale/ipc-contract';
 
 import type { SettingsService } from '../../core/settings/service';
-import type { SkillProvider } from '../skills/provider';
+import type { SkillProvider } from '../skills/provider-port';
 
 const SETTINGS_COMMAND: SlashCommand = {
   name: 'settings',

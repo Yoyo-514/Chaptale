@@ -6,7 +6,7 @@ import {
 
 import type { IpcBroadcaster } from '../../core/ipc-ports';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
-import type { MemoryPendingStore } from './pending-store';
+import type { MemoryPendingStore } from './pending/store';
 
 /**
  * pending 提议的查询/处理与变更通知。

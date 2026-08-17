@@ -17,6 +17,7 @@ import type {
   AgentEndEvent,
   AgentMessageEvent,
   AgentRunScope,
+  AgentRuntime,
   AgentStartPayload,
   AgentSteerPayload
 } from '@chaptale/ipc-contract';
@@ -27,7 +28,6 @@ import type { IpcOwnerResolver } from '../../core/ipc-ports';
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import { AgentRunManager } from './run-manager';
-import type { AgentRuntime } from './runtime';
 
 class WebContentsSendError extends Error {
   constructor(readonly sendError: unknown) {
