@@ -11,8 +11,11 @@ import { createChatRuntimeBundle } from '../features/agent/chat-bundle';
 import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { SlashCommandService } from '../features/commands/service';
-import { createMemoryInjector } from '../features/memory/injector';
+import { CompactCoord } from '../features/memory/compaction/coord';
+import { CompactionSummaryStore } from '../features/memory/compaction/summary-store';
+import { MemoryInjector } from '../features/memory/injector';
 import { MemoryPendingStore } from '../features/memory/pending/store';
+import { MemoryService } from '../features/memory/service';
 import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
 import { createDefaultPersonaRegistry } from '../features/personas/persona-registry-factory';
@@ -136,6 +139,16 @@ export function createAppContext(): AppContext {
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
 
+  // 会话压缩 = 创作检查点管线（设计文档 05 §4.4）：memory-distiller 蒸馏出结构化
+  // 检查点并原子落盘，同一正文才写入会话流；任一步失败即取消压缩，不留半截状态。
+  const memoryService = new MemoryService({ chaptaleRootDir: settingsService.agentDir });
+  const compactCoord = new CompactCoord({
+    personas: personaRegistry,
+    tasks: taskRunner,
+    memory: memoryService,
+    summaries: new CompactionSummaryStore()
+  });
+
   // chat 链路（自有）：P2-c 产物的装配入口；systemPrompt 经 persona 三层覆盖解析。
   const runtimeBundle = createChatRuntimeBundle({
     personaRegistry,
@@ -158,8 +171,8 @@ export function createAppContext(): AppContext {
     runtimeBundle,
     contextFileService,
     imageAttachmentService,
-    memoryInjector: createMemoryInjector(settingsService.agentDir),
-    compactPrompt: '请把以下对话压缩为保留关键事实与决策的摘要，供后续创作参考。'
+    memoryInjector: new MemoryInjector(memoryService),
+    compactSummarizer: input => compactCoord.run(input)
   });
 
   return {

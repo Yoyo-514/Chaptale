@@ -8,7 +8,7 @@ import type {
 } from '@chaptale/ipc-contract';
 import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus } from '@chaptale/shared';
 
-import type { CompactResult } from '../../core/agent/compact';
+import type { CompactSummarizer } from '../../core/agent/compact';
 import { runAgentLoop } from '../../core/agent/engine';
 import { AsyncMessageQueue } from '../../core/agent/queue';
 import type { PermissionGatePort } from '../../core/agent/types';
@@ -54,12 +54,15 @@ export type AgentServiceOptions = {
   contextFileService?: Pick<import('../../core/context/service').ContextFileService, 'resolve'>;
   /** 图片附件呈现端口（UI 回显缩略图）；缺省回显纯文本。 */
   imageAttachmentService?: Pick<import('../../core/attachments/service').ImageAttachmentService, 'createPresentation'>;
-  /** 运行级压缩钩子（检查点与 memory 先写，装配层注入）。 */
-  onCompact?: (sessionId: string, result: CompactResult) => Promise<void>;
+  /**
+   * 摘要生产者：装配层注入创作检查点管线（先落检查点，失败即取消压缩）。
+   *
+   * 必填且无兜底：留降级路径会让接线断掉时无人察觉——检查点管线此前整个悬空
+   * 却单测全绿，正是因为没有任何一处会因缺少它而报错。
+   */
+  compactSummarizer: CompactSummarizer;
   /** 跨会话记忆注入端口（挂 user message 前缀；内容未变化时返回空串）；缺省不注入。 */
   memoryInjector?: { resolvePrefix(sessionId: string, cwd: string): Promise<string> };
-  /** 压缩提示词（装配层注入）。 */
-  compactPrompt: string;
   /** 单轮 step 上限；默认 32。 */
   maxSteps?: number;
 };
@@ -279,14 +282,15 @@ export class AgentService implements AgentRuntime {
     const model = await this.options.runtimeBundle.resolveModel();
 
     const { compactSession } = await import('../../core/agent/compact');
-    const result = await compactSession({ model, store, prompt: this.options.compactPrompt });
-
-    await this.options.onCompact?.(sessionId, result);
+    const result = await compactSession({ sessionId, model, store, summarize: this.options.compactSummarizer });
 
     return {
       sessionId,
       tokensBefore: result.tokensBefore,
-      summaryRef: result.summary.slice(0, 200)
+      estimatedTokensAfter: result.estimatedTokensAfter,
+      // 契约要求 summaryRef 必然存在（检查点落盘是压缩前置条件）；
+      // 摘要生产者未给出引用时退回正文预览，至少不谎称成一个不存在的路径。
+      summaryRef: result.summaryRef ?? result.summary.slice(0, 200)
     };
   }
 

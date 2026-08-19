@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChatMessage } from '@chaptale/shared';
 
+import type { CompactSummarizer } from '../../../core/agent/compact';
 import { createProtocolLanguageModel } from '../../../core/models/protocols';
 import type { ResolvedModel } from '../../../core/models/runtime';
 import { SessionStore } from '../../../core/sessions/store';
@@ -31,7 +32,7 @@ beforeEach(async () => {
     modelService: {} as never,
     runtimeBundle: createBundle(),
     gate: { check: async () => ({ outcome: 'allow-once' }) },
-    compactPrompt: '请压缩'
+    compactSummarizer: stubSummarizer
   });
   abortController = new AbortController();
 });
@@ -40,6 +41,14 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   await rm(dir, { recursive: true, force: true });
+});
+
+/** 压缩摘要生产者替身：生产装配的是创作检查点管线，此处只需一个合法产物。 */
+const stubSummarizer: CompactSummarizer = async () => ({
+  summary: '会话摘要',
+  summaryRef: '.chaptale/memory/summaries/compactions/stub.md',
+  runId: 'run-stub',
+  memoryRefs: []
 });
 
 function sseResponse(chunks: string[]) {
@@ -396,7 +405,7 @@ describe('AgentService.stream', () => {
       modelService: {} as never,
       runtimeBundle: createBundle(),
       gate: { check: async () => ({ outcome: 'allow-once' }) },
-      compactPrompt: '请压缩',
+      compactSummarizer: stubSummarizer,
       memoryInjector: {
         resolvePrefix: async () => '【记忆：林晚左臂为义肢】\n\n'
       }

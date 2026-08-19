@@ -46,7 +46,3 @@ export class MemoryInjector {
     this.lastInjectedHash.clear();
   }
 }
-
-export function createMemoryInjector(chaptaleRootDir: string): MemoryInjector {
-  return new MemoryInjector(new MemoryService({ chaptaleRootDir }));
-}

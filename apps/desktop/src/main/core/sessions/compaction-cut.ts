@@ -40,9 +40,15 @@ export function resolveCompactionCutPoint(
   let cutIndex = resolveBudgetCut(entries, keepRecentTokens);
 
   // 全部都在预算内：预算说"不必压缩"，但压缩是用户明确点的。
-  // 退回"只保留最后一轮"，让手动压缩总能真的做点什么。
+  // 逐级退让，保证手动压缩总能真的做点什么：
+  //   ① 只保留最后一轮；
+  //   ② 整段就是一轮（末轮起点即首条）时，退到只保留最后一条。
   if (cutIndex === 0) {
     cutIndex = lastTurnStart(entries);
+  }
+
+  if (cutIndex === 0) {
+    cutIndex = entries.length - 1;
   }
 
   cutIndex = backOffInvalidCut(entries, cutIndex);
