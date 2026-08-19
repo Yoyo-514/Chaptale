@@ -33,7 +33,7 @@ export function resolveNaturalLeafId(entries: SessionEntry[]): string | null {
 /**
  * 解析当前 leaf：顺序折叠全部 entry，与 SessionStore 写入行为严格镜像——
  * 非 branch entry → 活动 leaf 前移；branch_selected(target) → 活动 leaf 切换；
- * branch_selected(null) → 回到当时的自然 leaf（此前最后一条非 branch entry）。
+ * branch_selected(null) → 回到当时的自然 leaf（该 marker 入流前最后一条非 branch entry）。
  * 切换后再 append 的新分支自然接管活动 leaf，不会停留在旧 marker 上。
  */
 export function resolveLeafId(entries: SessionEntry[]): string | null {

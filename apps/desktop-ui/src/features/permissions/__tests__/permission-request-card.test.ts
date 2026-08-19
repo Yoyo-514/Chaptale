@@ -29,7 +29,7 @@ function clickButton(wrapper: ReturnType<typeof mountCard>, label: string) {
 
 describe('PermissionRequestCard', () => {
   it('提供参数级规则：默认授到所在目录而不是整个工具', async () => {
-    // 回归：卡片此前只会生成裸工具名，参数级规则只能手写进 permissions.json。
+    // 只生成裸工具名的话，参数级规则就只能手写进 permissions.json。
     const wrapper = mountCard();
     await clickButton(wrapper, '始终允许');
 

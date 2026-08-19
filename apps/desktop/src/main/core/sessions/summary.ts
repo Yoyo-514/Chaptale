@@ -6,7 +6,7 @@ const PREVIEW_MAX_LENGTH = 80;
 
 /**
  * 从解析结果推导列表项摘要（会话名/时间/leaf/预览/累计 token 与费用）。
- * 供 P2-d 的 SessionRepository.list() 组装；纯函数，无 IO。
+ * 供 SessionRepository.list() 组装；纯函数，无 IO。
  */
 export function deriveSessionSummary(
   file: ParsedSessionFile,

@@ -66,8 +66,8 @@ describe('PermissionBroker', () => {
   });
 
   it('取消运行时立即作废挂起的授权，不等超时', async () => {
-    // 回归：剥离 pi 时丢了「会话中断释放挂起授权」这条链路，取消后被闸门挂起的
-    // 工具执行要一直等到 5 分钟超时才以拒绝收尾。
+    // 缺了「会话中断释放挂起授权」这条链路，取消后被闸门挂起的工具执行
+    // 要一直等到 5 分钟超时才以拒绝收尾。
     const { broker } = createBroker();
     const controller = new AbortController();
     const pending = broker.ask({

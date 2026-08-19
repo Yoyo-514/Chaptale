@@ -1,11 +1,11 @@
 import type { ChaptaleSessionScope } from '@chaptale/ipc-contract';
 
 /**
- * 自有会话存储 v1 条目类型。
+ * 自有会话存储条目类型。
  *
  * 消息载荷采用 OpenAI Chat Messages 形状（AI SDK ModelMessage 兼容子集）：
  * store、engine、gateway 三方共用同一形状，映射层归零。
- * 与 @chaptale/shared 的 ChatMessage 是两个独立类型——P2-d 切换时才统一，此前互不波及。
+ * 与 @chaptale/shared 的 ChatMessage 是两个独立类型，互不波及。
  */
 
 export type SessionHeader = {

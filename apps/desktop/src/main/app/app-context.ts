@@ -139,8 +139,8 @@ export function createAppContext(): AppContext {
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
 
-  // 会话压缩 = 创作检查点管线（设计文档 05 §4.4）：memory-distiller 蒸馏出结构化
-  // 检查点并原子落盘，同一正文才写入会话流；任一步失败即取消压缩，不留半截状态。
+  // 会话压缩 = 创作检查点管线：memory-distiller 蒸馏出结构化检查点并原子落盘，
+  // 同一正文才写入会话流；任一步失败即取消压缩，不留半截状态。
   const memoryService = new MemoryService({ chaptaleRootDir: settingsService.agentDir });
   const compactCoord = new CompactCoord({
     personas: personaRegistry,
@@ -149,7 +149,7 @@ export function createAppContext(): AppContext {
     summaries: new CompactionSummaryStore()
   });
 
-  // chat 链路（自有）：P2-c 产物的装配入口；systemPrompt 经 persona 三层覆盖解析。
+  // chat 链路（自有）：systemPrompt 经 persona 三层覆盖解析。
   const runtimeBundle = createChatRuntimeBundle({
     personaRegistry,
     taskRunner,

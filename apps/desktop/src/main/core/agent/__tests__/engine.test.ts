@@ -10,7 +10,7 @@ import type { PermissionGatePort } from '../types';
 
 /**
  * 引擎验收：mock SSE → streamText → 事件透传 / step 落盘 / 闸门 / 多步工具链。
- * 复用 P2-b 验证过的真实 AI SDK 工厂管线。
+ * 走真实 AI SDK 工厂管线，不桩掉 provider 适配层。
  */
 
 afterEach(() => {
@@ -394,9 +394,8 @@ function toolMessagesOf(fetchMock: ReturnType<typeof vi.fn>, index: number) {
 /**
  * 错误路径验收。
  *
- * 这一组对应「运行时没有错误路径」那两条 P0：AI SDK 把失败编码成 `error` /
- * `tool-error` 两类流事件而不是抛异常，只实现 happy path 的消费者会静默失效。
- * 每条都钉住一个曾经真实发生的失败模式。
+ * AI SDK 把失败编码成 `error` / `tool-error` 两类流事件而不是抛异常，
+ * 只实现 happy path 的消费者会静默失效。每条都钉住一个真实的失败模式。
  */
 describe('runAgentLoop 错误路径', () => {
   const throwingTool: ToolDefinition = {

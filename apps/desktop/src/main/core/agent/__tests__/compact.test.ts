@@ -55,7 +55,7 @@ function stubSummarizer(summary: string) {
   return { summarize, seen };
 }
 
-/** 检查点落盘失败的替身：设计文档 05 §4.4 要求此时整个压缩取消。 */
+/** 检查点落盘失败的替身：此时整个压缩必须取消。 */
 const failingSummarizer: CompactSummarizer = async () => {
   throw new Error('memory 检查点落盘失败：磁盘只读');
 };
@@ -178,7 +178,7 @@ describe('compactSession', () => {
       compactSession({ sessionId: 'session-1', model: createModel(), store, summarize: failingSummarizer })
     ).rejects.toThrow(/磁盘只读/);
 
-    // 设计文档 05 §4.4：检查点落盘失败必须取消压缩，不能留下半截状态。
+    // 检查点落盘失败必须取消压缩，不能留下半截状态。
     expect(store.entries).toHaveLength(entriesBefore);
   });
 

@@ -2,8 +2,8 @@
  * 由授权请求的参数摘要推导一条「够用但不过宽」的规则 pattern。
  *
  * 主进程的求值器支持 `tool(前缀*)` 与 `tool(精确值)` 两种参数级形式
- * （见 main/features/permissions/engine.ts），但此前授权卡片只会生成裸工具名，
- * 于是「始终允许」永远是「这个工具的所有调用都放行」——参数级规则只能手写进
+ * （见 main/features/permissions/engine.ts）。卡片若只生成裸工具名，
+ * 「始终允许」就等于「这个工具的所有调用都放行」——参数级规则只能手写进
  * .chaptale/permissions.json，普通作者根本用不上。
  *
  * 收窄策略按摘要形态分三种：

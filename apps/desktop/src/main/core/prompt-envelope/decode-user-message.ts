@@ -20,7 +20,7 @@ export type DecodedUserMessage = {
  * 这些前缀只服务模型，**UI 展示、历史回放与导出都不该看到**——读回路径漏调解码器，
  * 历史里的每条用户消息就会带着完整注入块显示。
  *
- * 兼容两种 skill 形态：pi 时代的 `<skill>` 展开信封，与现在的 `/skill:name` 紧凑命令。
+ * 兼容两种 skill 形态：`<skill>` 展开信封与 `/skill:name` 紧凑命令。
  */
 export function decodeUserMessage(raw: string): DecodedUserMessage {
   const legacySkill = decodeSkillMessage(raw);

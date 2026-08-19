@@ -10,9 +10,9 @@ import { DEFAULT_IGNORED_DIRS, globToRegExp, isBinaryContent, resolveWithinCwd }
  * 文件六工具装配：全部绑定同一会话 cwd，共享越界守卫。
  *
  * 执行异常不在此层吞掉：抛出后由 AI SDK 转 `tool-error`，引擎统一落盘为
- * `isError: true` 的配对结果（`core/agent/engine.ts`）。此前这里有一层
- * `wrapWithErrorText` 把异常转成"成功但正文是错误文本"的结果——模型能看懂，
- * 但失败标记被抹平，UI 与历史里这六个工具永远显示为成功。
+ * `isError: true` 的配对结果（`core/agent/engine.ts`）。就地把异常转成
+ * "成功但正文是错误文本"的结果虽然模型也能看懂，但失败标记会被抹平，
+ * UI 与历史里这六个最常用的工具将永远显示为成功。
  */
 export function createFileTools(cwd: string): ToolDefinition[] {
   return [

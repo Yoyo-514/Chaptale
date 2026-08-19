@@ -1,11 +1,4 @@
-import type {
-  AgentClearedQueue,
-  AgentRunOptions,
-  AgentRuntime,
-  AgentSteerOptions,
-  RunEnd,
-  StreamAgentHandlers
-} from '@chaptale/ipc-contract';
+import type { AgentClearedQueue, AgentRunOptions, AgentRuntime, AgentSteerOptions } from '@chaptale/ipc-contract';
 import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus } from '@chaptale/shared';
 
 import type { CompactSummarizer } from '../../core/agent/compact';
@@ -57,8 +50,8 @@ export type AgentServiceOptions = {
   /**
    * 摘要生产者：装配层注入创作检查点管线（先落检查点，失败即取消压缩）。
    *
-   * 必填且无兜底：留降级路径会让接线断掉时无人察觉——检查点管线此前整个悬空
-   * 却单测全绿，正是因为没有任何一处会因缺少它而报错。
+   * 必填且无兜底：留降级路径会让接线断掉时无人察觉，而模块内部的单测
+   * 一条都不会因此变红。
    */
   compactSummarizer: CompactSummarizer;
   /** 跨会话记忆注入端口（挂 user message 前缀；内容未变化时返回空串）；缺省不注入。 */
@@ -294,29 +287,7 @@ export class AgentService implements AgentRuntime {
     };
   }
 
-  /** 供 IPC 层直接消费的流式封装（handlers 回调风格）。 */
-  async streamWithHandlers(options: AgentRunOptions, handlers: StreamAgentHandlers): Promise<void> {
-    let end: RunEnd;
-
-    try {
-      for await (const message of this.stream(options)) {
-        handlers.onMessage(message);
-      }
-
-      end = { status: options.signal.aborted ? 'cancelled' : 'completed' };
-    } catch (error) {
-      end = {
-        status: 'failed',
-        code: 'RUNTIME_ERROR',
-        message: (error as Error).message,
-        retryable: true
-      };
-    }
-
-    handlers.onEnd?.(end);
-  }
-
-  /** 设置变更时失效运行时缓存（v1：每轮重读配置，无需动作；保留端口对齐 ipc-registry）。 */
+  /** 设置变更时失效运行时缓存（每轮重读配置，无需动作；保留端口对齐 ipc-registry）。 */
   invalidateSessions(): void {
     // 有意留空：runtimeBundle.resolve 每轮重读 models.json 与 persona，天然生效。
   }

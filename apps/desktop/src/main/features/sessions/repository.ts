@@ -37,7 +37,7 @@ export type SessionRepositoryOptions = {
 };
 
 /**
- * 自有会话仓储：v1 append-only store 之上实现应用层 SessionRepository 端口。
+ * 自有会话仓储：append-only store 之上实现应用层 SessionRepository 端口。
  *
  * 契约即 OpenAI Chat Messages 形状：store / engine / UI 同形状贯通，
  * 本层仅做两处呈现级转换——user 图片 → 轻量附件（缩略图）；entry 类型枚举对齐。
@@ -299,7 +299,7 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
     }
   }
 
-  /** v1 entry → 树 entry（类型枚举对齐 + user 图片附件化；无跨形状翻译）。 */
+  /** store entry → 树 entry（类型枚举对齐 + user 图片附件化；无跨形状翻译）。 */
   private async toTreeEntry(entry: SessionEntry, sessionId: string): Promise<ChaptaleSessionTreeEntry | null> {
     const base = { id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp };
 
@@ -449,7 +449,7 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
           toolCallId: message.toolCallId,
           toolName: message.toolName,
           output: message.output,
-          // 失败标记透传：历史回放里工具卡片的失败态此前永不可达。
+          // 失败标记透传：不带它，历史回放里工具卡片的失败态不可达。
           ...(message.isError === true ? { isError: true } : {}),
           timestamp: 0
         };

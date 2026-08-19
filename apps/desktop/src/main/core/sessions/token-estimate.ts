@@ -4,13 +4,12 @@ import type { SessionContentPart, SessionMessage } from './entry';
 /**
  * 会话消息的 token 估算：上下文压力提示与压缩前后对比共用同一口径。
  *
- * 此前 `features/agent/service.ts` 与 `core/agent/compact.ts` 各自内联了
- * `Math.ceil(length / 2)`——对纯中文正文比 `estimateTextTokens` **低估一倍**。
- * 压力阈值是 70%，于是提示要等真实占用约 140% 时才触发，早就溢出了；
+ * 口径必须统一且**不低估中文**。按 `length / 2` 估算对纯中文正文会低估一倍，
+ * 而压力阈值是 70%：提示要等真实占用约 140% 时才触发，早就溢出了，
  * 对中文长篇创作 IDE 而言等于"上下文压力提示不存在"。
  *
  * 精确 tokenize 需要按 provider 加载词表并做一次额外往返，代价与收益不成比例；
- * 这里要的是**不低估**，宁可略保守。
+ * 这里要的是不低估，宁可略保守。
  */
 
 /**

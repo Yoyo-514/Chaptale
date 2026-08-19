@@ -1,4 +1,4 @@
-import type { AssistantModelMessage, JSONValue, ModelMessage, ToolCallPart, ToolResultPart } from 'ai';
+import type { AssistantModelMessage, JSONValue, ModelMessage, ToolResultPart } from 'ai';
 
 import type { SessionContentPart, SessionMessage } from '../sessions/entry';
 import type { AssistantStepRecord, ToolResultRecord } from './types';
@@ -95,7 +95,7 @@ function toUserPart(part: SessionContentPart) {
     return { type: 'text' as const, text: part.text };
   }
 
-  // store 的 image part：base64 data + mimeType → AI SDK FilePart（v7 起 ImagePart 已弃用）。
+  // store 的 image part：base64 data + mimeType → AI SDK FilePart（ImagePart 已弃用）。
   return {
     type: 'file' as const,
     data: part.data,
@@ -164,79 +164,4 @@ export function stepRecordsToSessionMessages(
   }
 
   return messages;
-}
-
-/** AI SDK 响应消息（恢复/导出场景）→ store 载荷。 */
-export function fromResponseMessages(messages: ModelMessage[]): SessionMessage[] {
-  return messages.map((message): SessionMessage => {
-    if (message.role === 'assistant') {
-      const content = Array.isArray(message.content) ? message.content : [];
-      const text = content
-        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-        .map(part => part.text)
-        .join('\n');
-      const toolCalls = content
-        .filter((part): part is ToolCallPart => part.type === 'tool-call')
-        .map(part => ({
-          id: part.toolCallId,
-          name: part.toolName,
-          arguments: (part.input ?? {}) as Record<string, unknown>
-        }));
-
-      return {
-        role: 'assistant',
-        content: text || undefined,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined
-      } satisfies SessionMessage;
-    }
-
-    if (message.role === 'tool') {
-      const first = (Array.isArray(message.content) ? message.content : []).find(
-        (part): part is ToolResultPart => part.type === 'tool-result'
-      );
-
-      if (!first) {
-        return { role: 'tool', toolCallId: '', toolName: '', output: null };
-      }
-
-      return {
-        role: 'tool',
-        toolCallId: first.toolCallId,
-        toolName: first.toolName,
-        output: first.output
-      };
-    }
-
-    if (message.role === 'user') {
-      if (typeof message.content === 'string') {
-        return { role: 'user', content: message.content };
-      }
-
-      const parts: SessionContentPart[] = [];
-
-      for (const part of message.content) {
-        if (part.type === 'text') {
-          parts.push({ type: 'text', text: part.text });
-        } else if (part.type === 'image') {
-          parts.push({
-            type: 'image',
-            mimeType: part.mediaType ?? 'application/octet-stream',
-            data: typeof part.image === 'string' ? part.image : ''
-          });
-        } else if (part.type === 'file') {
-          // AI SDK v7 内部会把 image part 规范为 file part；回读时兼容两种形状。
-          // data 可能是 URL 或二进制形态，store 载荷只内联 base64 字符串，其余置空。
-          parts.push({
-            type: 'image',
-            mimeType: part.mediaType ?? 'application/octet-stream',
-            data: typeof part.data === 'string' ? part.data : ''
-          });
-        }
-      }
-
-      return { role: 'user', content: parts };
-    }
-
-    return { role: 'system', content: String(message.content) };
-  });
 }

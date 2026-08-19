@@ -35,7 +35,7 @@ const NOTES_LIST_LIMIT = 30;
 export class MemoryService {
   constructor(private readonly options: MemoryServiceOptions) {}
 
-  /** 读取注入块的四个数据节（v0：无资产快照节）。 */
+  /** 读取注入块的四个数据节。 */
   async readSections(cwd: string): Promise<MemorySections> {
     const authorPaths = resolveAuthorMemoryPaths(this.options.chaptaleRootDir);
     const workspacePaths = resolveWorkspaceMemoryPaths(cwd);

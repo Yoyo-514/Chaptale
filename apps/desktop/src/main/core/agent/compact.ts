@@ -38,8 +38,8 @@ export type CompactSummary = {
  *
  * **必填，且有意不提供兜底实现**：装配层注入的是创作检查点管线
  * （`features/memory/compaction`），它先把检查点原子落盘、失败即抛，
- * 压缩才继续。留一个"就地 generateText"的降级路径会让接线断掉时无人察觉——
- * 这正是该管线此前整个悬空却单测全绿的成因。
+ * 压缩才继续。留一个"就地 generateText"的降级路径会让接线断掉时无人察觉，
+ * 而模块内部的单测一条都不会因此变红。
  */
 export type CompactSummarizer = (input: CompactSummaryInput) => Promise<CompactSummary>;
 
@@ -76,9 +76,8 @@ export type CompactResult = {
 /**
  * 会话压缩：求切点 → 折叠区间交摘要生产者 → appendCompaction 落流。
  *
- * 顺序是契约的一部分（设计文档 05 §4.4）：检查点必须先于会话流落盘，
- * **落盘失败即取消压缩**。因此摘要生产者若抛错，本函数不写任何 entry——
- * 会话保持原样，用户重试即可。
+ * 顺序是契约的一部分：检查点必须先于会话流落盘，**落盘失败即取消压缩**。
+ * 因此摘要生产者若抛错，本函数不写任何 entry——会话保持原样，用户重试即可。
  */
 export async function compactSession(options: CompactOptions): Promise<CompactResult> {
   const { sessionId, model, store, summarize, reason = 'manual', abortSignal } = options;

@@ -7,7 +7,7 @@ import { createProtocolLanguageModel } from '../protocols';
 /**
  * 真实 AI SDK 工厂 + mock fetch 的端到端网关验证：
  * SSE 字节进 → streamText 事件出，覆盖流式文本、tool-call、图像输入与错误码四类场景。
- * 此处验证的 SSE 形状即生产网关对接的真实协议，P2-c 引擎测试可复用本 helper。
+ * 此处验证的 SSE 形状即生产网关对接的真实协议，引擎测试可复用本 helper。
  */
 
 afterEach(() => {
@@ -78,7 +78,7 @@ describe('openai-completions 网关端到端', () => {
   it('tool-call：SSE 工具调用 → toolCalls 完整聚合（引擎真实形状：带 TypeBox inputSchema）', async () => {
     // 注：分片 arguments（'"{"query":"' + '"雨夜}"'）的跨块聚合属 AI SDK 核心层职责，
     // 其时序在测试环境下不稳定；网关测试只背书透传与 schema 解析，故用单块全量形状
-    //（DeepSeek/兼容站常见），跨块聚合留待 P2-c 引擎的 mock 模型测试覆盖。
+    //（DeepSeek/兼容站常见），跨块聚合留给引擎的 mock 模型测试覆盖。
     const fetchMock = vi.fn().mockResolvedValue(
       sseResponse([
         openaiSse({
@@ -118,7 +118,7 @@ describe('openai-completions 网关端到端', () => {
       }
     });
 
-    // AI SDK v7：response.messages 为 content parts 形状，tool-call 已聚合完整入参。
+    // response.messages 为 content parts 形状，tool-call 已聚合完整入参。
     const toolCall = (await result.response).messages
       .flatMap((message: { content?: unknown }) => (Array.isArray(message.content) ? message.content : []))
       .find((part: { type?: string }) => part.type === 'tool-call') as
@@ -152,7 +152,7 @@ describe('openai-completions 网关端到端', () => {
           role: 'user',
           content: [
             { type: 'text', text: '这张图是什么' },
-            // AI SDK v7 起 ImagePart 已弃用；FilePart 的 data 为 base64 字符串（[1,2,3] → AQID）。
+            // AI SDK 的 ImagePart 已弃用；FilePart 的 data 为 base64 字符串（[1,2,3] → AQID）。
             { type: 'file', data: 'AQID', mediaType: 'image/png' }
           ]
         }

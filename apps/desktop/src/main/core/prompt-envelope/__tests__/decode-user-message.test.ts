@@ -33,7 +33,7 @@ describe('decodeUserMessage', () => {
     expect(decoded.contextFiles).toHaveLength(1);
   });
 
-  it('还原 pi 时代的 <skill> 展开信封', () => {
+  it('还原 <skill> 展开信封', () => {
     const decoded = decodeUserMessage('<skill name="review">\n技能正文\n</skill>\n\n检查第一章');
 
     expect(decoded.text).toBe('检查第一章');

@@ -16,7 +16,8 @@ export type AssembledUserInput = {
    * UI 回显构造器。
    *
    * 必须在 entry 落盘之后调用：图片附件的 source 要指向真实 entryId，
-   * readSessionImage 据此回读原图（此前写死空串，点开原图必然抛「找不到图片所属的会话消息」）。
+   * readSessionImage 据此回读原图。source 为空时点开原图必然抛
+   * 「找不到图片所属的会话消息」。
    */
   createEcho: (entryId: string) => UserChatMessage;
 };

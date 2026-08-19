@@ -109,8 +109,8 @@ async function composeTaskSystemPrompt(
 /**
  * spec 绑定 skills 的名称/描述摘要。
  *
- * 走与 chat 侧同一个 SkillsProvider——此前这里自己拼 user + workspace 两层，
- * 漏掉了 builtin 层，内置创作 skills 对 task/subagent persona 不可见。
+ * 走与 chat 侧同一个 SkillsProvider：自行拼 user + workspace 两层会漏掉 builtin，
+ * 内置创作 skills 将对 task/subagent persona 不可见。
  * 不传 personaId：spec.skills 是显式声明，优先于 appliesTo 过滤。
  */
 async function loadSkillsForTask(

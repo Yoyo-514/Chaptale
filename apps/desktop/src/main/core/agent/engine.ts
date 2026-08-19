@@ -40,7 +40,7 @@ export type AgentLoopResult = {
  * 落盘：引擎在 finish-step 边界把本轮 assistant + tool 结果交 onStepPersist
  * （收集器自聚合，不依赖 SDK 内部聚合时序）；崩溃丢失上限 = 当前 step。
  *
- * **错误即值**：AI SDK v7 不抛异常，失败以 `error` / `tool-error` 两类 part 出现。
+ * **错误即值**：AI SDK 不抛异常，失败以 `error` / `tool-error` 两类 part 出现。
  * 两者都必须有分支——漏掉 `tool-error` 会落盘出没有配对结果的 tool_call，
  * 该会话此后每次请求都被 `AI_MissingToolResultsError` 挡在网络层之前；
  * 漏掉 `error` 则 provider 故障（401/429/500/断网）被静默吞掉、运行报告成功。
@@ -104,7 +104,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
           toolCallId: part.toolCallId,
           toolName: part.toolName,
           output: part.output,
-          // 保留 SDK 的失败标记（部分 SDK 版本该字段在结果 part 上可缺省）。
+          // 保留 SDK 的失败标记（该字段在结果 part 上可缺省）。
           isError: 'isError' in part ? part.isError === true : false
         });
       } else if (part.type === 'tool-error') {

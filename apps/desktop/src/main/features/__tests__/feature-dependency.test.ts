@@ -55,7 +55,7 @@ const crossFeatureAllowlist = [
   'tasks -> prompts/compose-system-prompt',
   'tasks -> runs/record',
   'tasks -> runs/store',
-  // task 侧改用与 chat 同一个 SkillsProvider（此前自拼 user+workspace 两层，漏了 builtin）；type-only。
+  // task 侧与 chat 共用同一个 SkillsProvider，自拼两层会漏 builtin；type-only。
   'tasks -> skills/provider-port'
 ] as const;
 
@@ -83,7 +83,7 @@ describe('Main 跨 feature 依赖白名单', () => {
 
   /**
    * core = 领域实现，零传输层；每个对 renderer 的 IPC 面都在 features/<域>/ipc.ts。
-   * 此前 core/settings/ipc.ts 是唯一例外，让「ipc.ts 归哪层」这件事每次都要重新判断。
+   * 留任何例外都会让「ipc.ts 归哪层」这件事每次重新判断一遍。
    */
   it('core 层不注册任何 IPC 频道', async () => {
     const files = await collectProductionFiles(path.join(mainRoot, 'core'));

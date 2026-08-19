@@ -31,7 +31,7 @@ const SECTION_PRIORITY: SectionSpec[] = [
 ];
 
 /**
- * 组装 memory 注入块 v0（确定性纯函数：同输入必同输出）。
+ * 组装 memory 注入块（确定性纯函数：同输入必同输出）。
  *
  * 输出为挂在 user message 前缀的 XML 信封（不进 systemPrompt，保护 prompt cache）；
  * 全部节为空时返回 undefined，调用方不注入空块。

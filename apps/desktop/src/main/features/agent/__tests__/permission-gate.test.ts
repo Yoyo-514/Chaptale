@@ -28,7 +28,7 @@ function check(gate: ReturnType<typeof createGate>['gate'], overrides: Partial<P
 
 describe('createBrokerPermissionGate 规则前置', () => {
   it('命中 allow 规则时直行，不再弹授权卡片', async () => {
-    // 回归：闸门此前从不读规则库，「本工作区始终允许」落库后依然每次弹卡。
+    // 闸门不读规则库的话，「本工作区始终允许」落库后依然每次弹卡。
     const { gate, ask } = createGate([{ pattern: 'write', action: 'allow' }]);
 
     await expect(check(gate)).resolves.toEqual({ outcome: 'allow-once' });

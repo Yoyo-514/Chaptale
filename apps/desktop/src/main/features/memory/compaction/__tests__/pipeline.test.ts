@@ -17,9 +17,8 @@ import { CompactionSummaryStore } from '../summary-store';
 /**
  * 压缩管线接缝验收：AgentService → compactSession → CompactCoord → 真实检查点落盘。
  *
- * 这条测试的存在理由是本管线**曾经整个悬空**——实现完整、单测齐备、依赖就位，
- * 但零生产引用，实际跑的是一个硬编码提示词的裸 generateText。模块内部的单测
- * 一条都不会失败，因为没有任何一处会因接线断掉而报错。
+ * 接缝断裂时模块内部的单测一条都不会变红——实现完整、依赖就位，只是没人调用它。
+ * 因此这条测试盯的是装配而不是模块：检查点必须真的落到磁盘上。
  */
 
 let dir: string;

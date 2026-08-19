@@ -6,7 +6,7 @@ import { estimateMessagesTokens, estimateMessageTokens } from '../token-estimate
 /**
  * 估算口径。
  *
- * 关键性质是**不低估中文**：此前两处内联的 `length / 2` 对纯中文正文低估一倍，
+ * 关键性质是**不低估中文**：按 `length / 2` 估算会低估一倍，
  * 而压力阈值是 70%——提示要等真实占用约 140% 时才触发，等于不存在。
  */
 

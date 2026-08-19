@@ -5,8 +5,8 @@ import { estimateMessageTokens } from './token-estimate';
  * 压缩切点：从最新往回累积 token 到"保留近期"预算，落在合法切点上。
  *
  * `SessionCompactionEntry.firstKeptEntryId` 的语义是**保留区间的首条**，
- * 它之前的 message 折进摘要。此前赋的是压缩时刻的 leaf——也就是最后一条 entry，
- * 于是区间退化成 1：压缩后上下文只剩 `[摘要, 最后一条消息]`，近期原文全部丢弃。
+ * 它之前的 message 折进摘要。切点若取成最后一条 entry，区间就退化为 1：
+ * 压缩后上下文只剩 `[摘要, 最后一条消息]`，近期原文全部丢弃。
  *
  * 合法切点只有一条硬约束：**不得落在 tool 结果上**。声明它的 assistant 一旦被折进
  * 摘要，这条结果就成了无主的孤儿——`tool-pairing` 会在读取侧丢弃它（否则 provider
