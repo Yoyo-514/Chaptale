@@ -538,6 +538,61 @@ describe('runAgentLoop 错误路径', () => {
     ).rejects.toThrow();
   });
 
+  it('非法工具参数不得进入 execute，且会话仍可继续', async () => {
+    const executeSpy = vi.fn(readTool.execute);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        sseResponse([
+          sse({
+            id: '1',
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'call_1',
+                      type: 'function',
+                      // schema 要求 { path: string } 且 additionalProperties: false。
+                      function: { name: 'read', arguments: '{"wrong_key":123}' }
+                    }
+                  ]
+                }
+              }
+            ]
+          }),
+          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+          'data: [DONE]\n\n'
+        ])
+      )
+      .mockResolvedValueOnce(sseResponse(openaiTextStep('抱歉，我用错了参数')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const persisted: SessionMessage[][] = [];
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读点什么' }],
+      tools: [{ ...readTool, execute: executeSpy }],
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    // 修复前：工具照常执行，内部拿到 undefined。
+    expect(executeSpy).not.toHaveBeenCalled();
+
+    // 诊断必须对模型可见，且落盘配对——否则这一步反而成了新的会话杀手。
+    const result = persisted[0]?.[1] as { role: string; output: unknown; isError?: boolean } | undefined;
+    expect(result).toMatchObject({ role: 'tool', isError: true });
+    expect(String(result?.output)).toContain('wrong_key');
+    expect(requestBody(fetchMock, 1)).toContain('wrong_key');
+  });
+
   it('取消不算失败：aborted 置位且不抛异常', async () => {
     let releaseStream!: () => void;
     const gated = new Promise<void>(resolve => {

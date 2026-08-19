@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { validateToolArguments } from '../../../core/tool-protocol/validation';
 import {
   createEditTool,
   createFileTools,
@@ -65,6 +66,25 @@ describe('安全边界（六工具共用）', () => {
     const result = await createReadTool(cwd).execute({ path: 'ok.txt' });
 
     expect(result.text).toContain('内容');
+  });
+
+  it('六个 schema 都能编译，且放行各自的正常调用', () => {
+    // 入参校验是装配期才接上的（core/agent/tools.ts），生产 schema 若有 Compile
+    // 编译不了的形状，或严格到连正常调用都拦，都要在这里暴露而不是等运行时。
+    const payloads: Record<string, unknown> = {
+      read: { path: 'a.md' },
+      grep: { pattern: '林晚' },
+      find: { pattern: '*.md' },
+      ls: { path: '.' },
+      write: { path: 'a.md', content: '正文' },
+      edit: { path: 'a.md', oldText: '旧', newText: '新' }
+    };
+
+    for (const definition of createFileTools(cwd)) {
+      const result = validateToolArguments(definition.name, definition.parameters, payloads[definition.name]);
+
+      expect(result.ok, `${definition.name}: ${result.ok === false ? result.message : ''}`).toBe(true);
+    }
   });
 });
 
