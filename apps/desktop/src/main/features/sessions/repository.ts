@@ -449,6 +449,8 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
           toolCallId: message.toolCallId,
           toolName: message.toolName,
           output: message.output,
+          // 失败标记透传：历史回放里工具卡片的失败态此前永不可达。
+          ...(message.isError === true ? { isError: true } : {}),
           timestamp: 0
         };
     }

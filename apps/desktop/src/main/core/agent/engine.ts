@@ -1,7 +1,10 @@
 import { stepCountIs, streamText } from 'ai';
 
+import { errorToMessage } from '@chaptale/shared';
+
 import type { ResolvedModel } from '../models/runtime';
 import type { SessionMessage } from '../sessions/entry';
+import { INTERRUPTED_TOOL_RESULT_TEXT } from '../sessions/tool-pairing';
 import { stepRecordsToSessionMessages, toModelMessages } from './messages';
 import { toAiSdkTools } from './tools';
 import type { AgentStreamEnvelope, PermissionGatePort, ToolResultRecord } from './types';
@@ -36,6 +39,11 @@ export type AgentLoopResult = {
  * 事件透传：fullStream part → onPart 原样转发（{sessionId, seq, part} 信封）；
  * 落盘：引擎在 finish-step 边界把本轮 assistant + tool 结果交 onStepPersist
  * （收集器自聚合，不依赖 SDK 内部聚合时序）；崩溃丢失上限 = 当前 step。
+ *
+ * **错误即值**：AI SDK v7 不抛异常，失败以 `error` / `tool-error` 两类 part 出现。
+ * 两者都必须有分支——漏掉 `tool-error` 会落盘出没有配对结果的 tool_call，
+ * 该会话此后每次请求都被 `AI_MissingToolResultsError` 挡在网络层之前；
+ * 漏掉 `error` 则 provider 故障（401/429/500/断网）被静默吞掉、运行报告成功。
  */
 export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentLoopResult> {
   const {
@@ -74,6 +82,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
   let aborted = false;
   let finishReason = 'unknown';
   let totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  let streamError: unknown;
 
   try {
     for await (const part of result.fullStream) {
@@ -98,6 +107,20 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
           // 保留 SDK 的失败标记（部分 SDK 版本该字段在结果 part 上可缺省）。
           isError: 'isError' in part ? part.isError === true : false
         });
+      } else if (part.type === 'tool-error') {
+        // 与 tool-result 同等落盘：工具失败也是一条结果，缺了它 tool_call 就悬空。
+        // 触发面比"工具自己抛错"宽——模型调用不存在的工具、参数 JSON 被 token
+        // 上限截断导致 SDK 拒绝执行，走的都是这条。
+        stepToolResults.push({
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          output: `工具执行失败：${errorToMessage(part.error)}`,
+          isError: true
+        });
+      } else if (part.type === 'error') {
+        // provider 故障（401/429/500/断网）与 SDK 前置校验失败都走这里。
+        // 不能就地抛：先跳出循环把已收集内容落盘，再由调用方感知失败。
+        streamError = part.error;
       } else if (part.type === 'finish-step') {
         stepUsage = normalizeUsage(part.usage);
         await persistStep();
@@ -116,8 +139,14 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     aborted = true;
   }
 
-  // 流异常中断时尽力落盘已收集内容。
+  // 流异常中断时尽力落盘已收集内容（未配对的 tool call 在此补合成结果）。
   await persistStep();
+
+  // 取消是用户意图，不算失败；其余 error part 必须以异常抵达调用方，
+  // 否则 IPC 会发出 { status: 'completed' } 而界面上什么都没有。
+  if (streamError !== undefined && !aborted) {
+    throw streamError instanceof Error ? streamError : new Error(errorToMessage(streamError));
+  }
 
   return { finishReason, totalUsage, aborted };
 
@@ -137,7 +166,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
         toolCalls: stepToolCalls,
         usage: stepUsage
       },
-      stepToolResults
+      withSyntheticResults(stepToolCalls, stepToolResults)
     );
 
     await onStepPersist(stepMessages);
@@ -147,6 +176,38 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     stepToolResults = [];
     stepUsage = undefined;
   }
+}
+
+/**
+ * 为没有结果的 tool call 补合成结果。
+ *
+ * 正常 step 里 SDK 保证 finish-step 前所有工具已结算，此函数是恒等的；
+ * 真正生效的是中断路径：用户在工具执行途中点「停止」时流里只有 tool-call、
+ * 没有 tool-result，而引擎仍会尽力落盘——不补就写出悬空 tool_call。
+ *
+ * 写入侧与读取侧（`core/sessions/tool-pairing.ts`）两道都要有：读取侧能救活
+ * 已经写坏的历史，写入侧保证文件本身自洽——历史面板与 HTML 导出直接读 entry，
+ * 不经上下文投影。
+ */
+export function withSyntheticResults(
+  toolCalls: { id: string; name: string }[],
+  results: ToolResultRecord[]
+): ToolResultRecord[] {
+  if (toolCalls.length === 0) {
+    return results;
+  }
+
+  const settled = new Set(results.map(result => result.toolCallId));
+  const synthetic = toolCalls
+    .filter(call => !settled.has(call.id))
+    .map((call): ToolResultRecord => ({
+      toolCallId: call.id,
+      toolName: call.name,
+      output: INTERRUPTED_TOOL_RESULT_TEXT,
+      isError: true
+    }));
+
+  return synthetic.length > 0 ? [...results, ...synthetic] : results;
 }
 
 function normalizeUsage(usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number }) {

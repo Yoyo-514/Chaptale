@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@chaptale/shared';
+import { errorToMessage } from '@chaptale/shared';
 
 /**
  * AI SDK fullStream part → UI ChatMessage 的聚合翻译层。
@@ -9,8 +10,11 @@ import type { ChatMessage } from '@chaptale/shared';
  * - reasoning-delta：推送累计**快照**（UI 侧 replaceReasoning 是覆盖语义）；
  * - tool-call：立即推送带该调用的 partial assistant，让工具卡片在执行前就可见；
  *   只带本次调用（UI 按调用 ID 幂等更新，带全量会重复渲染已有调用）；
- * - tool-result：整条立即推送（assistant 卡片已在 tool-call 时先行推送）；
+ * - tool-result / tool-error：整条立即推送（assistant 卡片已在 tool-call 时先行推送）；
  * - 其余 part（start/finish/abort 等）不产生 UI 消息。
+ *
+ * `error` part 不在此翻译：provider 故障由引擎抛出，经 IPC 的 `{status:'failed'}`
+ * 走错误通道，避免同一次失败在聊天流与运行终态里各出现一次。
  *
  * step 边界即消息边界：连续 text-delta 属于同一条 assistant 消息。
  */
@@ -108,6 +112,7 @@ export function createPartTranslator(emit: (message: ChatMessage) => void): Part
             toolCallId: string;
             toolName: string;
             output?: unknown;
+            isError?: boolean;
           };
 
           emit({
@@ -115,6 +120,27 @@ export function createPartTranslator(emit: (message: ChatMessage) => void): Part
             toolCallId: result.toolCallId,
             toolName: result.toolName,
             output: result.output,
+            ...(result.isError === true ? { isError: true } : {}),
+            timestamp: Date.now()
+          });
+          break;
+        }
+
+        case 'tool-error': {
+          // 与 tool-result 同等推送：缺了这条，工具卡片会永远停在"执行中"，
+          // 且本轮 assistant 定稿后再无任何消息说明它为什么没有结果。
+          const failure = part as {
+            toolCallId: string;
+            toolName: string;
+            error?: unknown;
+          };
+
+          emit({
+            role: 'tool',
+            toolCallId: failure.toolCallId,
+            toolName: failure.toolName,
+            output: `工具执行失败：${errorToMessage(failure.error)}`,
+            isError: true,
             timestamp: Date.now()
           });
           break;

@@ -1,4 +1,5 @@
 import type { ParsedSessionFile, SessionEntry, SessionMessage } from './entry';
+import { repairToolCallPairing } from './tool-pairing';
 
 /**
  * 状态回放：append-only 事件流 → 当前 leaf 路径 → 模型上下文消息。
@@ -90,13 +91,16 @@ export function buildReplay(file: ParsedSessionFile): ReplayResult {
  *
  * 路径上最后一条 compaction 生效：firstKeptEntryId 之前的 message 折叠为一条
  * user 角色摘要消息；其余 message 原样输出。非 message entry 不进上下文。
+ *
+ * 出口统一过工具配对修复：历史里可能存在中断留下的悬空 tool_call，
+ * 或压缩切点切断的孤儿 tool 结果，两者都会让 provider 在发请求前拒绝整个上下文。
  */
 export function buildContextMessages(file: ParsedSessionFile): SessionMessage[] {
   const path = getPathToRoot(file);
   const compaction = findEffectiveCompaction(path);
 
   if (!compaction) {
-    return path.filter(isMessageEntry).map(entry => entry.message);
+    return repairToolCallPairing(path.filter(isMessageEntry).map(entry => entry.message));
   }
 
   const keptIndex = path.findIndex(entry => entry.id === compaction.firstKeptEntryId);
@@ -121,7 +125,7 @@ export function buildContextMessages(file: ParsedSessionFile): SessionMessage[] 
     messages.push(entry.message);
   }
 
-  return messages;
+  return repairToolCallPairing(messages);
 }
 
 function findEffectiveCompaction(path: SessionEntry[]): Extract<SessionEntry, { type: 'compaction' }> | undefined {

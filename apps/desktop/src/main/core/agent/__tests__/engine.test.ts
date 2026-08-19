@@ -5,7 +5,7 @@ import { createProtocolLanguageModel } from '../../models/protocols';
 import type { ResolvedModel } from '../../models/runtime';
 import type { SessionMessage } from '../../sessions/entry';
 import type { ToolDefinition } from '../../tool-protocol/definition';
-import { runAgentLoop } from '../engine';
+import { runAgentLoop, withSyntheticResults } from '../engine';
 import type { PermissionGatePort } from '../types';
 
 /**
@@ -369,5 +369,233 @@ describe('runAgentLoop', () => {
     });
 
     expect(gate.check).not.toHaveBeenCalled();
+  });
+});
+
+function requestBody(fetchMock: ReturnType<typeof vi.fn>, index: number): string {
+  const call = fetchMock.mock.calls[index] as unknown[] | undefined;
+  return String((call?.[1] as RequestInit | undefined)?.body ?? '');
+}
+
+/**
+ * 取请求体里的 tool 角色消息。
+ *
+ * provider 的 `switch (output.type)` 没有 default 分支，未归一化的 output 会让
+ * content 整个消失（键不存在）而不是变成空串——只断言整体字符串包含正文抓不住这条。
+ */
+function toolMessagesOf(fetchMock: ReturnType<typeof vi.fn>, index: number) {
+  const body = JSON.parse(requestBody(fetchMock, index)) as {
+    messages: { role: string; content?: unknown }[];
+  };
+
+  return body.messages.filter(message => message.role === 'tool');
+}
+
+/**
+ * 错误路径验收。
+ *
+ * 这一组对应「运行时没有错误路径」那两条 P0：AI SDK 把失败编码成 `error` /
+ * `tool-error` 两类流事件而不是抛异常，只实现 happy path 的消费者会静默失效。
+ * 每条都钉住一个曾经真实发生的失败模式。
+ */
+describe('runAgentLoop 错误路径', () => {
+  const throwingTool: ToolDefinition = {
+    ...readTool,
+    execute: async () => {
+      throw new Error('文件不存在：ghost.txt');
+    }
+  };
+
+  it('工具抛错：落盘 assistant 与 tool 必须配对，且带 isError', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+      .mockResolvedValueOnce(sseResponse(openaiTextStep('那我换个思路')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const persisted: SessionMessage[][] = [];
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 ghost.txt' }],
+      tools: [throwingTool],
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    const step1 = persisted[0] ?? [];
+    expect(step1[0]).toMatchObject({ role: 'assistant', toolCalls: [{ id: 'call_1' }] });
+    expect(step1[1]).toMatchObject({ role: 'tool', toolCallId: 'call_1', isError: true });
+    expect(String((step1[1] as { output: unknown }).output)).toContain('ghost.txt');
+  });
+
+  it('落盘产物重建上下文后必须能再次发起请求（悬空 tool_call 会让会话永久失效）', async () => {
+    const firstFetch = vi
+      .fn()
+      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+      .mockResolvedValueOnce(sseResponse(openaiTextStep('好的')));
+    vi.stubGlobal('fetch', firstFetch);
+
+    const persisted: SessionMessage[][] = [];
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 ghost.txt' }],
+      tools: [throwingTool],
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    // 第二次使用该会话：把落盘产物当历史喂回去（等价于关掉重开再发一条）。
+    const replayed: SessionMessage[] = [
+      { role: 'user', content: '读 ghost.txt' },
+      ...persisted.flat(),
+      { role: 'user', content: '那算了，直接写吧' }
+    ];
+
+    const secondFetch = vi.fn().mockResolvedValue(sseResponse(openaiTextStep('这就写')));
+    vi.stubGlobal('fetch', secondFetch);
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: replayed,
+      tools: [throwingTool]
+    });
+
+    // 修复前这里是 0 次请求、finishReason 'unknown'、且不抛异常——静默失效的全部特征。
+    expect(secondFetch).toHaveBeenCalledTimes(1);
+    expect(result.finishReason).toBe('stop');
+
+    // 且工具结果正文必须真的抵达 provider：落盘存的是 execute 原始返回值，
+    // 转模型消息时若不归一化成标签联合，provider 侧 content 会整个消失。
+    const toolMessages = toolMessagesOf(secondFetch, 0);
+    expect(toolMessages).toHaveLength(1);
+    expect(toolMessages[0]?.content).toContain('ghost.txt');
+  });
+
+  it('成功的工具结果同样要能回放（normalize 后模型看得到正文）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+        .mockResolvedValueOnce(sseResponse(openaiTextStep('读完了')))
+    );
+
+    const persisted: SessionMessage[][] = [];
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [readTool],
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    const secondFetch = vi.fn().mockResolvedValue(sseResponse(openaiTextStep('继续')));
+    vi.stubGlobal('fetch', secondFetch);
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }, ...persisted.flat(), { role: 'user', content: '总结一下' }],
+      tools: [readTool]
+    });
+
+    expect(requestBody(secondFetch, 0)).toContain('内容 of a.txt');
+  });
+  it('provider 错误必须以异常抵达调用方，而不是报告成功', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'invalid api key' } }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+    );
+
+    await expect(
+      runAgentLoop({
+        sessionId: 's1',
+        model: createModel(),
+        system: '你是助手',
+        messages: [{ role: 'user', content: '你好' }],
+        tools: []
+      })
+    ).rejects.toThrow();
+  });
+
+  it('取消不算失败：aborted 置位且不抛异常', async () => {
+    let releaseStream!: () => void;
+    const gated = new Promise<void>(resolve => {
+      releaseStream = resolve;
+    });
+    const encoder = new TextEncoder();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => {
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(sse({ id: '1', choices: [{ index: 0, delta: { content: '部分' } }] })));
+            void gated.then(() => controller.close());
+          }
+        });
+
+        return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+      })
+    );
+
+    const abortController = new AbortController();
+    const loopPromise = runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '长文' }],
+      tools: [],
+      abortSignal: abortController.signal
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+    abortController.abort();
+    releaseStream();
+
+    await expect(loopPromise).resolves.toMatchObject({ aborted: true });
+  });
+});
+
+describe('withSyntheticResults', () => {
+  it('全部已结算时恒等（正常 step 不受影响）', () => {
+    const calls = [{ id: 'call_1', name: 'read' }];
+    const results = [{ toolCallId: 'call_1', toolName: 'read', output: { text: 'ok' }, isError: false }];
+
+    expect(withSyntheticResults(calls, results)).toBe(results);
+  });
+
+  it('中断留下的未结算调用补合成结果，已有结果保持不变', () => {
+    const calls = [
+      { id: 'call_1', name: 'write' },
+      { id: 'call_2', name: 'write' }
+    ];
+    const results = [{ toolCallId: 'call_1', toolName: 'write', output: { text: '已写入' }, isError: false }];
+
+    const merged = withSyntheticResults(calls, results);
+
+    expect(merged).toHaveLength(2);
+    expect(merged[0]).toBe(results[0]);
+    expect(merged[1]).toMatchObject({ toolCallId: 'call_2', isError: true });
   });
 });

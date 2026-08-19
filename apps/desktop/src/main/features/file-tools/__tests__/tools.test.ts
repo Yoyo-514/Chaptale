@@ -23,7 +23,7 @@ afterEach(async () => {
   await rm(cwd, { recursive: true, force: true });
 });
 
-/** 装配后的生产工具面：异常已统一包装为模型可见文本。 */
+/** 装配后的生产工具面。 */
 function assembledTool(name: string) {
   const found = createFileTools(cwd).find(item => item.name === name);
 
@@ -36,7 +36,10 @@ function assembledTool(name: string) {
 
 describe('安全边界（六工具共用）', () => {
   it('越界路径一律拒绝（../ 逃逸与绝对路径）', async () => {
-    // 装配层包装后：越界异常转为模型可见文本，不冒泡。
+    // 装配层不再吞异常：抛出后由 AI SDK 转 tool-error，引擎落盘为 isError: true 的
+    // 配对结果并把原因交给模型。此前这里有一层 wrapWithErrorText 把异常转成
+    // "成功但正文是错误文本"，模型能看懂，但失败标记被抹平——UI 与历史里这六个
+    // 最常用的工具永远显示为成功。
     for (const name of ['read', 'write', 'edit', 'ls', 'find', 'grep']) {
       const target = assembledTool(name);
       const payload =
@@ -52,8 +55,7 @@ describe('安全边界（六工具共用）', () => {
                   ? { pattern: '*.txt', path: '../..' }
                   : { path: '../..' };
 
-      const result = await target.execute(payload as never);
-      expect(result.text, name).toMatch(/工作区之外/);
+      await expect(target.execute(payload as never), name).rejects.toThrow(/工作区之外/);
     }
   });
 

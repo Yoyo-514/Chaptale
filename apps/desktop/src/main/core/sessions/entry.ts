@@ -57,7 +57,19 @@ export type SessionMessage =
       toolCalls?: SessionToolCall[];
       usage?: SessionUsage;
     }
-  | { role: 'tool'; toolCallId: string; toolName: string; output: unknown }
+  | {
+      role: 'tool';
+      toolCallId: string;
+      toolName: string;
+      /** 工具原始输出（execute 返回值原样；转模型消息时才归一化为 AI SDK 标签联合）。 */
+      output: unknown;
+      /**
+       * 失败标记：工具抛错、参数非法、或运行中断后补的合成结果。
+       *
+       * 缺省视为成功——历史文件写于本字段之前，不做迁移。
+       */
+      isError?: boolean;
+    }
   | { role: 'system'; content: string };
 
 export type SessionEntryBase = {
