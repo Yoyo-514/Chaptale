@@ -3,7 +3,14 @@ import { promises as fs } from 'node:fs';
 
 import type { ParsedSessionFile, SessionEntry, SessionHeader, SessionMessage, SessionMessageEntry } from './entry';
 import { readSessionFile } from './reader';
-import { buildContextMessages, getPathToRoot, resolveLeafId, resolveNaturalLeafId } from './replay';
+import type { ContextProjection } from './replay';
+import {
+  buildContextMessages,
+  buildContextProjection,
+  getPathToRoot,
+  resolveLeafId,
+  resolveNaturalLeafId
+} from './replay';
 
 /** 分布式 Omit：对联合类型逐分支生效（普通 Omit 会折叠成交集）。 */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -147,6 +154,11 @@ export class SessionStore {
   /** 当前生效分支的模型上下文消息（compaction 折叠后）。 */
   buildContextMessages(): SessionMessage[] {
     return buildContextMessages(this.file);
+  }
+
+  /** 同上，但保留 entry 身份——压缩需要按 entry id 定位切点。 */
+  buildContextProjection(): ContextProjection {
+    return buildContextProjection(this.file);
   }
 
   private async append(data: SessionEntryDraft): Promise<SessionEntry> {

@@ -1,4 +1,4 @@
-import type { ParsedSessionFile, SessionEntry, SessionMessage } from './entry';
+import type { ParsedSessionFile, SessionEntry, SessionMessage, SessionMessageEntry } from './entry';
 import { repairToolCallPairing } from './tool-pairing';
 
 /**
@@ -87,6 +87,38 @@ export function buildReplay(file: ParsedSessionFile): ReplayResult {
 }
 
 /**
+ * 上下文投影：保留区间的 message entry（带 id）+ 生效摘要。
+ *
+ * 与 `buildContextMessages` 同源，区别是保留 entry 身份——压缩要按 entry id
+ * 定位切点，而消息序列经折叠与配对修复后下标已经和 entry 路径对不上了。
+ */
+export type ContextProjection = {
+  /** 生效 compaction 的摘要正文；无则 undefined。 */
+  summary?: string;
+  /** 保留区间内的 message entry，根 → leaf 顺序。 */
+  entries: SessionMessageEntry[];
+};
+
+export function buildContextProjection(file: ParsedSessionFile): ContextProjection {
+  const path = getPathToRoot(file);
+  const compaction = findEffectiveCompaction(path);
+
+  if (!compaction) {
+    return { entries: path.filter(isMessageEntry) };
+  }
+
+  const keptIndex = path.findIndex(entry => entry.id === compaction.firstKeptEntryId);
+  // 悬空引用（跨分支/截断）时退化为折叠 compaction 之前的全部 message。
+  const boundary = keptIndex >= 0 ? keptIndex : path.indexOf(compaction);
+  const summary = compaction.summary.trim();
+
+  return {
+    ...(summary ? { summary } : {}),
+    entries: path.filter((entry, index) => index >= boundary && isMessageEntry(entry)) as SessionMessageEntry[]
+  };
+}
+
+/**
  * 构建模型上下文消息序列。
  *
  * 路径上最后一条 compaction 生效：firstKeptEntryId 之前的 message 折叠为一条
@@ -96,32 +128,10 @@ export function buildReplay(file: ParsedSessionFile): ReplayResult {
  * 或压缩切点切断的孤儿 tool 结果，两者都会让 provider 在发请求前拒绝整个上下文。
  */
 export function buildContextMessages(file: ParsedSessionFile): SessionMessage[] {
-  const path = getPathToRoot(file);
-  const compaction = findEffectiveCompaction(path);
+  const projection = buildContextProjection(file);
+  const messages: SessionMessage[] = projection.summary ? [{ role: 'user', content: projection.summary }] : [];
 
-  if (!compaction) {
-    return repairToolCallPairing(path.filter(isMessageEntry).map(entry => entry.message));
-  }
-
-  const keptIndex = path.findIndex(entry => entry.id === compaction.firstKeptEntryId);
-  // 悬空引用（跨分支/截断）时退化为折叠 compaction 之前的全部 message。
-  const boundary = keptIndex >= 0 ? keptIndex : path.indexOf(compaction);
-
-  const messages: SessionMessage[] = [];
-
-  if (compaction.summary.trim()) {
-    messages.push({ role: 'user', content: compaction.summary });
-  }
-
-  for (const [index, entry] of path.entries()) {
-    if (!isMessageEntry(entry)) {
-      continue;
-    }
-
-    if (index < boundary) {
-      continue;
-    }
-
+  for (const entry of projection.entries) {
     messages.push(entry.message);
   }
 
@@ -140,6 +150,6 @@ function findEffectiveCompaction(path: SessionEntry[]): Extract<SessionEntry, { 
   return effective;
 }
 
-function isMessageEntry(entry: SessionEntry): entry is Extract<SessionEntry, { type: 'message' }> {
+function isMessageEntry(entry: SessionEntry): entry is SessionMessageEntry {
   return entry.type === 'message';
 }
