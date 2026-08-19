@@ -14,8 +14,8 @@ import { AsyncMessageQueue } from '../../core/agent/queue';
 import type { PermissionGatePort } from '../../core/agent/types';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
-import type { SessionContentPart, SessionMessage } from '../../core/sessions/entry';
 import type { SessionStoreProvider } from '../../core/sessions/store-provider-port';
+import { estimateMessagesTokens } from '../../core/sessions/token-estimate';
 import { evaluateContextPressure } from '../memory/compaction/pressure';
 import { InputAssembler } from './input-assembler';
 import { createPartTranslator } from './part-translator';
@@ -262,7 +262,7 @@ export class AgentService implements AgentRuntime {
     const messages = store.buildContextMessages();
 
     const contextWindow = model.contextWindow;
-    const tokens = messages.reduce((total, message) => total + estimateTokens(message), 0);
+    const tokens = estimateMessagesTokens(messages);
     const percent = contextWindow > 0 ? Math.round((tokens / contextWindow) * 100) : null;
 
     return evaluateContextPressure({ tokens, contextWindow, percent });
@@ -332,36 +332,4 @@ export class AgentService implements AgentRuntime {
 
     return run;
   }
-}
-
-/** 图片 token 估算：视觉模型按块计费（约 1–1.5k/图），base64 长度不代表 token 数。 */
-const IMAGE_TOKEN_ESTIMATE = 1_500;
-
-function estimateTokens(message: SessionMessage): number {
-  switch (message.role) {
-    case 'tool':
-      return Math.ceil(JSON.stringify(message.output ?? '').length / 2);
-
-    case 'system':
-      return Math.ceil(message.content.length / 2);
-
-    default:
-      return estimateContentTokens(message.content);
-  }
-}
-
-/** 文本按字符/2；图片按固定块估算——base64 数据不是 token。 */
-function estimateContentTokens(content: string | SessionContentPart[] | undefined): number {
-  if (typeof content === 'string') {
-    return Math.ceil(content.length / 2);
-  }
-
-  if (!content) {
-    return 0;
-  }
-
-  return content.reduce(
-    (total, part) => total + (part.type === 'text' ? Math.ceil(part.text.length / 2) : IMAGE_TOKEN_ESTIMATE),
-    0
-  );
 }

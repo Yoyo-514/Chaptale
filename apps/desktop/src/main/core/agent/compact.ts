@@ -2,6 +2,7 @@ import { generateText } from 'ai';
 
 import type { ResolvedModel } from '../models/runtime';
 import type { SessionStore } from '../sessions/store';
+import { estimateMessagesTokens } from '../sessions/token-estimate';
 
 export type CompactOptions = {
   model: ResolvedModel;
@@ -21,7 +22,7 @@ export type CompactResult = {
  * 会话压缩：generateText 总结当前分支 → appendCompaction 落流。
  *
  * firstKeptEntryId 语义：压缩时刻的 leaf（此后回放折叠它之前的 message）；
- * tokensBefore 取消息文本长度的一半估算（粗粒度代理，避免额外 tokenize 往返）。
+ * tokensBefore 与上下文压力提示共用 `estimateMessagesTokens` 口径。
  */
 export async function compactSession(options: CompactOptions): Promise<CompactResult> {
   const { model, store, prompt, abortSignal } = options;
@@ -66,16 +67,7 @@ export async function compactSession(options: CompactOptions): Promise<CompactRe
     throw new Error('压缩结果为空');
   }
 
-  const tokensBefore = contextMessages.reduce((total, message) => {
-    const body =
-      message.role === 'tool'
-        ? JSON.stringify(message.output)
-        : typeof message.content === 'string'
-          ? message.content
-          : JSON.stringify(message.content);
-
-    return total + Math.ceil(body.length / 2);
-  }, 0);
+  const tokensBefore = estimateMessagesTokens(contextMessages);
 
   await store.appendCompaction(summary, leafId ?? '', tokensBefore);
 
