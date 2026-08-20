@@ -59,8 +59,10 @@ export type AgentServiceOptions = {
   compactSummarizer: CompactSummarizer;
   /** 跨会话记忆注入端口（挂 user message 前缀；内容未变化时返回空串）；缺省不注入。 */
   memoryInjector?: { resolvePrefix(sessionId: string, cwd: string): Promise<string> };
-  /** 单轮 step 上限；默认 32。 */
+  /** 单轮 step 上限（引擎缺省 32）；正常由无工具调用自然停止，此值是失控护栏。 */
   maxSteps?: number;
+  /** run 级累计 token 预算（引擎缺省 200k）；超出即停，成本护栏。 */
+  maxTotalTokens?: number;
 };
 
 /** 会话级活跃状态：steer 队列 + 运行中标记。 */
@@ -198,6 +200,7 @@ export class AgentService implements AgentRuntime {
         // 每轮闸门绑定本会话 cwd（workspace 级规则据此定位 .chaptale/permissions.json）。
         gate: bundle.gate ?? this.options.gate,
         maxSteps: this.options.maxSteps,
+        maxTotalTokens: this.options.maxTotalTokens,
         abortSignal: signal,
         onPart: envelope => translator.consume(envelope.part),
         onStepPersist: async messages => {

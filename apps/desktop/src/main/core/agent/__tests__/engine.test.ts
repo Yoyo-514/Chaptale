@@ -412,6 +412,53 @@ describe('runAgentLoop', () => {
     expect(modelContent).not.toContain('markdown');
     expect(estimateTextTokens(modelContent)).toBeLessThanOrEqual(8_000);
   });
+
+  it('maxSteps 覆盖生效：到达上限即停，不再发起下一轮请求', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+      .mockResolvedValueOnce(sseResponse(openaiTextStep('不该被请求')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [readTool],
+      maxSteps: 1
+    });
+
+    // 第一步工具结算后达到上限：不再发起第二轮请求。
+    // 自然结束必以文本步收尾（finishReason 'stop'）；停在 'tool-calls' 即护栏截停的信号。
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.finishReason).toBe('tool-calls');
+  });
+
+  it('token 预算停止：累计 usage 触顶即停（成本护栏）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+      .mockResolvedValueOnce(sseResponse(openaiTextStep('不该被请求')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [readTool],
+      maxSteps: 10,
+      // 每步 usage 为 15（prompt 10 + completion 5）：第二步后累计 30 触顶，
+      // 第三步的文本响应不应被请求。
+      maxTotalTokens: 25
+    });
+
+    // 自然结束必以文本步收尾；停在 'tool-calls' 即护栏截停的信号。
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.finishReason).toBe('tool-calls');
+  });
 });
 
 function requestBody(fetchMock: ReturnType<typeof vi.fn>, index: number): string {

@@ -1,4 +1,5 @@
 import { stepCountIs, streamText } from 'ai';
+import type { StopCondition } from 'ai';
 
 import { errorToMessage } from '@chaptale/shared';
 
@@ -23,9 +24,20 @@ export type RunAgentLoopOptions = {
   /** 事件透传回调（IPC 信封已在调用方组装或此处直传 part）。 */
   onPart?: (envelope: AgentStreamEnvelope) => void;
   abortSignal?: AbortSignal;
-  /** 安全上限；正常由无 tool call 自然停止。 */
+  /** step 上限；正常由无 tool call 自然停止，此值是失控护栏。 */
   maxSteps?: number;
+  /** run 级累计 token 预算；超出即停（成本护栏）。 */
+  maxTotalTokens?: number;
 };
+
+/** 默认 step 上限：正常创作轮远用不到 32 步，此值是失控护栏。 */
+const DEFAULT_MAX_STEPS = 32;
+
+/**
+ * 默认 run 级 token 预算：约等于一次满上下文窗口的完整单轮。
+ * 正常创作轮在几万 tokens 量级，预算触发意味着工具链接近失控。
+ */
+const DEFAULT_MAX_TOTAL_TOKENS = 200_000;
 
 export type AgentLoopResult = {
   finishReason: string;
@@ -58,7 +70,8 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     onStepPersist,
     onPart,
     abortSignal,
-    maxSteps = 32
+    maxSteps = DEFAULT_MAX_STEPS,
+    maxTotalTokens = DEFAULT_MAX_TOTAL_TOKENS
   } = options;
 
   let seq = 0;
@@ -74,7 +87,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     system,
     messages: toModelMessages(messages),
     tools: toAiSdkTools(tools, { sessionId, gate, isOutputTruncated: () => outputTruncated }),
-    stopWhen: stepCountIs(maxSteps),
+    stopWhen: [stepCountIs(maxSteps), tokenBudgetIs(maxTotalTokens)],
     abortSignal,
     // 模型响应解析完毕、任何工具执行开始前触发。SDK 把整批工具推迟到 model-call-end
     // 才一起执行，而该回调正好在其之前——这是唯一还来得及拦下截断批次的时点，
@@ -225,4 +238,18 @@ function normalizeUsage(usage: { inputTokens?: number; outputTokens?: number; to
     outputTokens: usage.outputTokens ?? 0,
     totalTokens: usage.totalTokens ?? 0
   };
+}
+
+/**
+ * 每步 usage 累加到达预算时停止。
+ *
+ * SDK 在工具全部结算后检查 stopWhen（同 stepCountIs 通道），预算停在 step 边界，
+ * 不会写出悬空 tool_call。收尾与 stepCountIs 同态：自然结束必以文本步收尾，
+ * 护栏截停时 finishReason 停在最后一步的原始值（如 'tool-calls'）——
+ * 引擎返回值可据此辨认截停；UI 状态只关心 aborted，无感知差异。
+ * 预算被触发本身意味着工具链接近失控，安静地停比继续烧下去更安全；
+ * 若要“带理由的停止”，需要引擎自己驱动逐步循环（第二批工作）。
+ */
+function tokenBudgetIs(tokenBudget: number): StopCondition<any, any> {
+  return ({ steps }) => steps.reduce((total, step) => total + (step.usage.totalTokens ?? 0), 0) >= tokenBudget;
 }
