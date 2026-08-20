@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { OfficeParserAST, OfficeParserConfig } from 'officeparser';
+import type { OfficeParserAST, OfficeParserConfig, parseOffice } from 'officeparser';
 import { describe, expect, it, vi } from 'vitest';
 
 import { OfficeDocumentParser } from '../parser';
@@ -11,7 +11,7 @@ function createAst(text = '解析后的正文'): OfficeParserAST {
   } as unknown as OfficeParserAST;
 }
 
-type ParseOffice = typeof import('officeparser').parseOffice;
+type ParseOffice = typeof parseOffice;
 
 describe('OfficeDocumentParser', () => {
   it('只接受 officeparser 原生支持的文档扩展名', () => {

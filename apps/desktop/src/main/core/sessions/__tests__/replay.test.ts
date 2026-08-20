@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { readSessionFile } from '../reader';
+import { parseSessionContent, readSessionFile } from '../reader';
 import { buildContextMessages, getPathToRoot, resolveLeafId } from '../replay';
 
 const goldenDir = path.join(__dirname, 'golden');
@@ -82,7 +82,6 @@ describe('buildContextMessages', () => {
       '{"type":"message","id":"m3","parentId":"k2","timestamp":"2026-01-01T00:00:05.000Z","message":{"role":"user","content":"three"}}'
     ].join('\n');
 
-    const { parseSessionContent } = await import('../reader');
     const file = parseSessionContent(raw);
     const messages = buildContextMessages(file);
 
@@ -102,7 +101,6 @@ describe('buildContextMessages', () => {
       '{"type":"message","id":"m3","parentId":"k1","timestamp":"2026-01-01T00:00:04.000Z","message":{"role":"user","content":"three"}}'
     ].join('\n');
 
-    const { parseSessionContent } = await import('../reader');
     const file = parseSessionContent(raw);
 
     expect(buildContextMessages(file)).toEqual([

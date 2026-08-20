@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { ModelConfigRepository } from '../config-repository';
 import type { ModelsConfig } from '../config-types';
 import { ModelRuntime } from '../runtime';
 
@@ -38,7 +39,7 @@ function createConfig(): ModelsConfig {
 describe('ModelRuntime.resolveModel', () => {
   it('解析 provider 级协议与凭据；contextWindow/input 生效', async () => {
     await writeFile(modelsPath, JSON.stringify(createConfig()), 'utf8');
-    const runtime = new ModelRuntime(new (await import('../config-repository')).ModelConfigRepository({ modelsPath }));
+    const runtime = new ModelRuntime(new ModelConfigRepository({ modelsPath }));
 
     const resolved = await runtime.resolveModel('deepseek', 'deepseek-chat');
 
@@ -52,7 +53,6 @@ describe('ModelRuntime.resolveModel', () => {
 
   it('未填 contextWindow → 128k 估算；未填 input → [text]', async () => {
     await writeFile(modelsPath, JSON.stringify(createConfig()), 'utf8');
-    const { ModelConfigRepository } = await import('../config-repository');
     const runtime = new ModelRuntime(new ModelConfigRepository({ modelsPath }));
 
     const resolved = await runtime.resolveModel('deepseek', 'deepseek-reasoner');
@@ -71,7 +71,6 @@ describe('ModelRuntime.resolveModel', () => {
       }
     ];
     await writeFile(modelsPath, JSON.stringify(config), 'utf8');
-    const { ModelConfigRepository } = await import('../config-repository');
     const runtime = new ModelRuntime(new ModelConfigRepository({ modelsPath }));
 
     const resolved = await runtime.resolveModel('deepseek', 'special');
@@ -82,7 +81,6 @@ describe('ModelRuntime.resolveModel', () => {
 
   it('provider 或 model 缺失 → 明确报错', async () => {
     await writeFile(modelsPath, JSON.stringify(createConfig()), 'utf8');
-    const { ModelConfigRepository } = await import('../config-repository');
     const runtime = new ModelRuntime(new ModelConfigRepository({ modelsPath }));
 
     await expect(runtime.resolveModel('ghost', 'x')).rejects.toThrow('未找到供应商：ghost');

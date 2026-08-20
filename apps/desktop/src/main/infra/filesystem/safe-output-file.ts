@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { type Stats, promises as fs } from 'node:fs';
 import path from 'node:path';
 
 const SAFE_RUN_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -127,7 +127,7 @@ async function assertDirectoryRealpath(cwd: string, directorySegments: string[],
   }
 }
 
-async function lstatOptional(filePath: string): Promise<import('node:fs').Stats | null> {
+async function lstatOptional(filePath: string): Promise<Stats | null> {
   try {
     return await fs.lstat(filePath);
   } catch (error) {

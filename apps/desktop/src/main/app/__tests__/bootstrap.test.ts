@@ -91,6 +91,8 @@ describe('bootstrapDesktopApp', () => {
   });
 
   it('仅为开发模式启动时的首次窗口绑定 F12 监听', async () => {
+    // 必须动态导入：stubEnv(NODE_ENV) 与 vi.resetModules 要求每个用例重新求值模块，
+    // bootstrap 在模块求值期读 NODE_ENV，静态导入只求值一次、读不到各自的环境。
     const { bootstrapDesktopApp } = await import('../bootstrap');
 
     bootstrapDesktopApp();

@@ -1,11 +1,10 @@
+import type { Jieba } from '@node-rs/jieba';
+
 import type { IndexDiagnostic } from '../types';
 import { addFallbackTerms, addTerm, IntlSegmenterTermTokenizer, normalizeSearchText, type TermTokenizer } from './term';
 
-type JiebaInstance = InstanceType<typeof import('@node-rs/jieba').Jieba>;
-type JiebaModule = typeof import('@node-rs/jieba');
-
 type LoadedJieba = {
-  Jieba: JiebaModule['Jieba'];
+  Jieba: typeof Jieba;
   dict: Buffer;
 };
 
@@ -23,7 +22,7 @@ class JiebaTermTokenizer implements TermTokenizer {
   private readonly customTerms: string[];
 
   constructor(
-    private readonly jieba: JiebaInstance,
+    private readonly jieba: Jieba,
     customTerms: readonly string[]
   ) {
     this.customTerms = normalizeCustomTerms(customTerms);

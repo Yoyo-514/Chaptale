@@ -6,6 +6,7 @@ import { IPC_CHANNELS } from '@chaptale/ipc-contract';
 import type { AgentRunOptions, AgentRuntime, AgentStartPayload } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
+import { handleValidatedIpc } from '../../../infra/security/validated-ipc';
 import { registerAgentIpc } from '../ipc';
 
 type ValidatedHandler = (event: { sender: WebContents }, ...args: any[]) => unknown;
@@ -471,8 +472,6 @@ describe('Agent IPC lifecycle', () => {
   });
 
   it('unwraps thenable IPC results before running the response validator', async () => {
-    const { handleValidatedIpc } = await import('../../../infra/security/validated-ipc');
-
     class TestThenable {
       // oxlint-disable-next-line unicorn/no-thenable
       then(resolve: (value: { runId: string }) => void) {

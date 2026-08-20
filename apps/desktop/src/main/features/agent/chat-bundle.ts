@@ -19,7 +19,9 @@ import type { PersonaRegistry } from '../personas/registry';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
 import { PRODUCT_DUTY } from '../prompts/product-duty';
 import type { MemorySearchService } from '../search/memory/service';
+import type { SkillProvider } from '../skills/provider-port';
 import type { SubagentPool } from '../subagent/pool';
+import type { TaskRunnerPort } from '../tasks/runner-port';
 import { TODO_PROTOCOL } from '../todo/protocol';
 import type { TodoStore } from '../todo/store';
 import type { WebToolsSettingsStore } from '../web-tools/settings';
@@ -35,9 +37,9 @@ const MAX_SKILL_BODY_CHARS = 16_000;
  */
 export function createChatRuntimeBundle(deps: {
   personaRegistry: PersonaRegistry;
-  taskRunner: import('../tasks/runner-port').TaskRunnerPort;
+  taskRunner: TaskRunnerPort;
   /** skills 注入（SKILL.md 正文拼进 system 尾部）；缺省不注入。 */
-  skillsProvider?: Pick<import('../skills/provider-port').SkillProvider, 'load'>;
+  skillsProvider?: Pick<SkillProvider, 'load'>;
   toolCatalog: ToolCatalog;
   todoStore: TodoStore;
   subagentPool: SubagentPool;
@@ -200,7 +202,7 @@ export function createBrokerPermissionGate(deps: {
 async function composeChatSystemPrompt(options: {
   personaBody: string;
   cwd: string;
-  skillsProvider?: Pick<import('../skills/provider-port').SkillProvider, 'load'>;
+  skillsProvider?: Pick<SkillProvider, 'load'>;
 }): Promise<string> {
   const base = composeSystemPrompt({
     personaBody: options.personaBody,

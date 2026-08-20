@@ -1,4 +1,5 @@
 import type { ChaptaleSessionScope } from '@chaptale/ipc-contract';
+import type { ChatContextFile } from '@chaptale/shared';
 
 /**
  * 自有会话存储条目类型。
@@ -47,7 +48,7 @@ export type SessionMessage =
   | {
       role: 'user';
       content: string | SessionContentPart[];
-      contextFiles?: import('@chaptale/shared').ChatContextFile[];
+      contextFiles?: ChatContextFile[];
     }
   | {
       role: 'assistant';

@@ -1,12 +1,15 @@
 import type { AgentClearedQueue, AgentRunOptions, AgentRuntime, AgentSteerOptions } from '@chaptale/ipc-contract';
 import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus } from '@chaptale/shared';
 
-import type { CompactSummarizer } from '../../core/agent/compact';
+import { compactSession, type CompactSummarizer } from '../../core/agent/compact';
 import { runAgentLoop } from '../../core/agent/engine';
 import { AsyncMessageQueue } from '../../core/agent/queue';
 import type { PermissionGatePort } from '../../core/agent/types';
+import type { ImageAttachmentService } from '../../core/attachments/service';
+import type { ContextFileService } from '../../core/context/service';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
+import type { SessionStore } from '../../core/sessions/store';
 import type { SessionStoreProvider } from '../../core/sessions/store-provider-port';
 import { estimateMessagesTokens } from '../../core/sessions/token-estimate';
 import { evaluateContextPressure } from '../memory/compaction/pressure';
@@ -44,9 +47,9 @@ export type AgentServiceOptions = {
   /** 兜底权限闸门；正常由 runtimeBundle 按轮产出（带会话 cwd），此处仅覆盖 bundle 未装配授权的场景。 */
   gate?: PermissionGatePort;
   /** 文件附件解析（文本信封 + 图片进 content，元数据落盘）；缺省不解析。 */
-  contextFileService?: Pick<import('../../core/context/service').ContextFileService, 'resolve'>;
+  contextFileService?: Pick<ContextFileService, 'resolve'>;
   /** 图片附件呈现端口（UI 回显缩略图）；缺省回显纯文本。 */
-  imageAttachmentService?: Pick<import('../../core/attachments/service').ImageAttachmentService, 'createPresentation'>;
+  imageAttachmentService?: Pick<ImageAttachmentService, 'createPresentation'>;
   /**
    * 摘要生产者：装配层注入创作检查点管线（先落检查点，失败即取消压缩）。
    *
@@ -132,7 +135,7 @@ export class AgentService implements AgentRuntime {
   /** 轮次驱动：首轮 query，后续吸收 steer；任何一轮异常都不吞（由 stream 统一上抛）。 */
   private async driveRounds(input: {
     sessionId: string;
-    store: import('../../core/sessions/store').SessionStore;
+    store: SessionStore;
     run: ActiveRun;
     signal: AbortSignal;
     options: AgentRunOptions;
@@ -209,7 +212,7 @@ export class AgentService implements AgentRuntime {
   /** 组装 → 落盘 → 回显。回显必须在落盘后构造：图片 source 要指向真实 entryId。 */
   private async appendUserRound(input: {
     sessionId: string;
-    store: import('../../core/sessions/store').SessionStore;
+    store: SessionStore;
     query: string;
     contextFilePaths?: string[];
     signal: AbortSignal;
@@ -274,7 +277,6 @@ export class AgentService implements AgentRuntime {
     const store = await this.options.sessionRepository.open(sessionId);
     const model = await this.options.runtimeBundle.resolveModel();
 
-    const { compactSession } = await import('../../core/agent/compact');
     const result = await compactSession({ sessionId, model, store, summarize: this.options.compactSummarizer });
 
     return {
