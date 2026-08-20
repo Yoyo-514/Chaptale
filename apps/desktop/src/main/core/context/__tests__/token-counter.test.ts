@@ -39,6 +39,20 @@ describe('token-counter', () => {
     expect(fitTextToTokens('短文本 abc', 100)).toBe('短文本 abc');
   });
 
+  it('headRatio 控制首尾比例，omitMarker 可定制', () => {
+    const text = `${'a'.repeat(4_000)}${'中'.repeat(50)}`; // 1000 + 50 tokens
+
+    // headRatio=0：预算全给尾部，首部不保留。
+    const tailOnly = fitTextToTokens(text, 60, { headRatio: 0 });
+    expect(tailOnly).not.toContain('aaaa');
+    expect(tailOnly).toContain('中');
+
+    // 自定义省略标记替换默认文案。
+    const marked = fitTextToTokens(text, 60, { omitMarker: '…中间略…' });
+    expect(marked).toContain('…中间略…');
+    expect(marked).not.toContain('已按 token 预算省略内容');
+  });
+
   it('按预算无损连续切片且不拆分代理对', () => {
     const input = '林晚🙂abcdef机械师';
     const parts: string[] = [];

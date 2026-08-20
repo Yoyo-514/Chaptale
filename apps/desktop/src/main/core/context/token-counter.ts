@@ -38,19 +38,28 @@ export function takeTextTailToTokenBudget(text: string, tokenBudget: number): { 
   return { head: text.slice(0, text.length - tail.length), tail };
 }
 
+/** fitTextToTokens 的可选参数。 */
+export type FitTextOptions = {
+  /** 首部预算占比（默认 0.5，首尾各半）。工具输出适合 0.25：首部是触发上下文，尾部是结论。 */
+  headRatio?: number;
+  /** 省略标记（默认 OMIT_MARKER）。 */
+  omitMarker?: string;
+};
+
 /** 超预算时保留首尾；首部通常含原始目标，尾部通常含最近决策。 */
-export function fitTextToTokens(text: string, tokenBudget: number): string {
+export function fitTextToTokens(text: string, tokenBudget: number, options?: FitTextOptions): string {
+  const { headRatio = 0.5, omitMarker = OMIT_MARKER } = options ?? {};
   const budget = Math.max(0, Math.floor(tokenBudget));
   if (estimateTextTokens(text) <= budget) return text;
   if (budget === 0) return '';
 
-  const markerTokens = estimateTextTokens(OMIT_MARKER);
+  const markerTokens = estimateTextTokens(omitMarker);
   if (markerTokens >= budget) return take(text, budget, false);
 
   const keptBudget = budget - markerTokens;
-  const head = take(text, Math.ceil(keptBudget / 2), false);
-  const tail = take(text, Math.floor(keptBudget / 2), true);
-  const fitted = `${head}${OMIT_MARKER}${tail}`;
+  const head = take(text, Math.ceil(keptBudget * headRatio), false);
+  const tail = take(text, Math.floor(keptBudget * (1 - headRatio)), true);
+  const fitted = `${head}${omitMarker}${tail}`;
 
   return estimateTextTokens(fitted) <= budget ? fitted : take(fitted, budget, false);
 }

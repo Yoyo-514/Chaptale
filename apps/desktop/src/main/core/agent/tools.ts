@@ -3,6 +3,7 @@ import type { ToolSet } from 'ai';
 
 import type { ToolDefinition } from '../tool-protocol/definition';
 import { validateToolArguments } from '../tool-protocol/validation';
+import { toModelToolOutput } from './tool-output';
 import type { PermissionGatePort } from './types';
 
 /**
@@ -93,6 +94,10 @@ function createGatedTool(definition: ToolDefinition, options: ToolAssemblyOption
       }
 
       return definition.execute(checked.value, executionOptions?.abortSignal);
-    }
+    },
+    // 模型通道入口：SDK 在构建下一轮请求消息时经此把 execute 原始返回值
+    // 转成模型可见的输出（token 预算截断 + details 隔离）。落盘与 UI 走的
+    // fullStream tool-result part 仍是原始返回值，完整内容不受影响。
+    toModelOutput: ({ output }) => toModelToolOutput(output, false)
   });
 }

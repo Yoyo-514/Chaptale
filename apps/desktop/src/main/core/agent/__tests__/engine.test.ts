@@ -1,6 +1,7 @@
 import { Type } from 'typebox';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { estimateTextTokens } from '../../context/token-counter';
 import { createProtocolLanguageModel } from '../../models/protocols';
 import type { ResolvedModel } from '../../models/runtime';
 import type { SessionMessage } from '../../sessions/entry';
@@ -369,6 +370,47 @@ describe('runAgentLoop', () => {
     });
 
     expect(gate.check).not.toHaveBeenCalled();
+  });
+
+  it('超大工具输出：单轮内模型通道截断且 details 不进上下文，落盘保留原始完整值', async () => {
+    const hugeText = `开头证据-${'中'.repeat(10_000)}-结尾证据`;
+    const hugeReadTool: ToolDefinition = {
+      ...readTool,
+      execute: async () => ({ text: hugeText, details: { markdown: hugeText } })
+    };
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+      .mockResolvedValueOnce(sseResponse(openaiTextStep('已读完')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const persisted: SessionMessage[][] = [];
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [hugeReadTool],
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    // 落盘：execute 原始返回值原样保留（UI 与历史导出可读全文）。
+    const step1 = persisted[0] ?? [];
+    expect(step1[1]).toMatchObject({ role: 'tool', output: { text: hugeText, details: { markdown: hugeText } } });
+
+    // 第二轮请求：模型只拿到预算内的 text 窗口，details 不进上下文。
+    const toolMessages = toolMessagesOf(fetchMock, 1);
+    expect(toolMessages).toHaveLength(1);
+    const modelContent = String(toolMessages[0]?.content ?? '');
+    expect(modelContent).toContain('工具输出超出预算');
+    expect(modelContent).toContain('开头证据');
+    expect(modelContent).toContain('结尾证据');
+    expect(modelContent).not.toContain('markdown');
+    expect(estimateTextTokens(modelContent)).toBeLessThanOrEqual(8_000);
   });
 });
 
