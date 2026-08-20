@@ -8,6 +8,7 @@ import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import type { TaskPersonaSpec } from '../personas/task-spec';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
 import type { SkillProvider } from '../skills/provider-port';
+import { createSkillReadTool } from '../skills/skill-read-tool';
 import type { TaskSessionFactoryPort } from './runner-port';
 import { createTaskSession, type TaskSession } from './session';
 
@@ -49,6 +50,17 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
     const declaredTools = new Set(spec.tools);
     const taskTools = (await buildTaskTools(spec, cwd, onMemoryRead)).filter(tool => declaredTools.has(tool.name));
 
+    // skill_read 独立于 spec.tools 白名单：声明了 skills 的 persona 才能读正文，
+    // 且读取时按声明集合过滤（声明优先于 appliesTo，与 system 摘要注入同语义）。
+    const skillRead =
+      this.options.skillsProvider && spec.skills.length > 0
+        ? createSkillReadTool({
+            skillsProvider: this.options.skillsProvider,
+            allowedNames: spec.skills,
+            cwd
+          })
+        : undefined;
+
     const model = await resolveTaskModel(modelService, spec.modelPreference);
     const system = await composeTaskSystemPrompt(this.options.skillsProvider, cwd, spec);
     const gate = createUnattendedGate();
@@ -58,7 +70,7 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
       sessionId: `task-${randomUUID()}`,
       model,
       system,
-      tools: taskTools,
+      tools: skillRead ? [...taskTools, skillRead] : taskTools,
       gate
     });
   }

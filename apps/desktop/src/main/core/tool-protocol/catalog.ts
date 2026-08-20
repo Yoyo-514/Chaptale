@@ -111,6 +111,13 @@ export function createDefaultToolCatalog(): ToolCatalog {
     { name: 'delegate', runtime: 'builtin', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
     { name: 'memory_save', runtime: 'builtin', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
     { name: 'memory_propose', runtime: 'builtin', scopes: ['chat'], riskLevel: 'readonly', defaultForChat: true },
-    { name: 'memory_search', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true }
+    {
+      name: 'memory_search',
+      runtime: 'builtin',
+      scopes: ['chat', 'task'],
+      riskLevel: 'readonly',
+      defaultForChat: true
+    },
+    { name: 'skill_read', runtime: 'builtin', scopes: ['chat', 'task'], riskLevel: 'readonly', defaultForChat: true }
   ]);
 }

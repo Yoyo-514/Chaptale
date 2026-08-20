@@ -32,7 +32,8 @@ describe('ToolCatalog', () => {
       'delegate',
       'memory_save',
       'memory_propose',
-      'memory_search'
+      'memory_search',
+      'skill_read'
     ]);
     expect(selected.customToolNames).toEqual([]);
     expect(catalog.entries().map(entry => entry.name)).not.toContain('bash');

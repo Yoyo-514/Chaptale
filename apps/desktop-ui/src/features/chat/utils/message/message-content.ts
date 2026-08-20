@@ -172,7 +172,8 @@ export function formatToolName(name: string) {
   const labels: Record<string, string> = {
     web_search: '联网搜索',
     fetch_content: '读取网页',
-    get_search_content: '取回搜索内容'
+    get_search_content: '取回搜索内容',
+    skill_read: '读取技能'
   };
 
   if (labels[name]) {

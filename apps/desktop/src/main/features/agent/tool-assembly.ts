@@ -8,6 +8,8 @@ import type { PersonaRegistry } from '../personas/registry';
 import type { TaskPersonaSpec } from '../personas/task-spec';
 import type { MemorySearchService } from '../search/memory/service';
 import { createMemorySearchTool } from '../search/memory/tool';
+import type { SkillProvider } from '../skills/provider-port';
+import { createSkillReadTool } from '../skills/skill-read-tool';
 import { createDelegateTool, type DelegateToolContext } from '../subagent/delegate-tool';
 import type { SubagentPool } from '../subagent/pool';
 import type { TodoStore } from '../todo/store';
@@ -29,6 +31,8 @@ export type ChatToolContext = {
   memorySearchService: Pick<MemorySearchService, 'search'>;
   /** web 工具读取同一份 web-tools.json；缺省使用全局 fetch。 */
   webToolsSettingsStore: WebToolsSettingsStore;
+  /** skill_read 通道：resolve 已确认存在适用技能时才传入（有技能才挂工具）。 */
+  skillRead?: { provider: Pick<SkillProvider, 'load'>; personaId?: string };
 };
 
 export type TaskToolContext = {
@@ -69,6 +73,15 @@ export async function buildChatSessionTools(context: ChatToolContext): Promise<T
             service: context.memorySearchService,
             resolveCwd,
             allowedDomains: readableDomains
+          })
+        ]
+      : []),
+    ...(context.skillRead
+      ? [
+          createSkillReadTool({
+            skillsProvider: context.skillRead.provider,
+            personaId: context.skillRead.personaId,
+            cwd: context.cwd
           })
         ]
       : [])

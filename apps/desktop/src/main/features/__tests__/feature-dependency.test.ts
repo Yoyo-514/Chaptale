@@ -35,6 +35,8 @@ const crossFeatureAllowlist = [
   'agent -> search/memory/service',
   'agent -> search/memory/tool',
   'agent -> skills/provider-port',
+  // skill_read 工具：skill 正文在 ~/.chaptale 下，read 工具的 cwd 越界守卫读不到，需专用通道。
+  'agent -> skills/skill-read-tool',
   'agent -> subagent/delegate-tool',
   'agent -> subagent/pool',
   'agent -> tasks/runner-port',
@@ -45,6 +47,8 @@ const crossFeatureAllowlist = [
   'agent -> web-tools/settings',
   'agent -> web-tools/tools',
   'commands -> skills/provider-port',
+  // skill_read 的目录内读取复用 read 同一条越界守卫（词法 + realpath），不给 skill 开独立边界。
+  'skills -> file-tools/path-guard',
   'memory -> personas/registry',
   'personas -> search/types',
   'prompts -> personas/builtin',
@@ -56,7 +60,9 @@ const crossFeatureAllowlist = [
   'tasks -> runs/record',
   'tasks -> runs/store',
   // task 侧与 chat 共用同一个 SkillsProvider，自拼两层会漏 builtin；type-only。
-  'tasks -> skills/provider-port'
+  'tasks -> skills/provider-port',
+  // task 会话按 spec.skills 挂 skill_read：声明了技能的 persona 才能读正文（运行时边，有理由见注释）。
+  'tasks -> skills/skill-read-tool'
 ] as const;
 
 describe('Main 跨 feature 依赖白名单', () => {

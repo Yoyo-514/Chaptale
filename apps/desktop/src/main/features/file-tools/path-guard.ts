@@ -11,13 +11,13 @@ export async function resolveWithinCwd(cwd: string, target: string): Promise<str
   const normalizedCwd = path.resolve(cwd);
 
   if (resolved !== normalizedCwd && !resolved.startsWith(`${normalizedCwd}${path.sep}`)) {
-    throw new Error(`拒绝访问工作区之外的路径：${target}（会话目录：${normalizedCwd}）`);
+    throw new Error(`拒绝访问工作区之外的路径：${target}（边界目录：${normalizedCwd}）`);
   }
 
   const [realCwd, realTarget] = await Promise.all([fs.realpath(normalizedCwd), resolveWithRealAncestor(resolved)]);
 
   if (realTarget !== realCwd && !realTarget.startsWith(`${realCwd}${path.sep}`)) {
-    throw new Error(`拒绝访问工作区之外的路径（符号链接目标越界）：${target}（会话目录：${normalizedCwd}）`);
+    throw new Error(`拒绝访问工作区之外的路径（符号链接目标越界）：${target}（边界目录：${normalizedCwd}）`);
   }
 
   return resolved;

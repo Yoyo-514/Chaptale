@@ -19,7 +19,8 @@ import type { PersonaRegistry } from '../personas/registry';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
 import { PRODUCT_DUTY } from '../prompts/product-duty';
 import type { MemorySearchService } from '../search/memory/service';
-import type { SkillProvider } from '../skills/provider-port';
+import type { SkillProvider, SkillDescriptor } from '../skills/provider-port';
+import { SKILL_READ_TOOL_NAME } from '../skills/skill-read-tool';
 import type { SubagentPool } from '../subagent/pool';
 import type { TaskRunnerPort } from '../tasks/runner-port';
 import { TODO_PROTOCOL } from '../todo/protocol';
@@ -38,8 +39,14 @@ const MAX_SKILL_BODY_CHARS = 16_000;
 export function createChatRuntimeBundle(deps: {
   personaRegistry: PersonaRegistry;
   taskRunner: TaskRunnerPort;
-  /** skills 注入（SKILL.md 正文拼进 system 尾部）；缺省不注入。 */
+  /** skills 注入与 skill_read 通道；缺省不注入技能。 */
   skillsProvider?: Pick<SkillProvider, 'load'>;
+  /**
+   * skills 注入形态：
+   * - on-demand（缺省）：system 只放索引（name + description 一行一条），模型用 skill_read 按需取正文；
+   * - inline：SKILL.md 正文整篇拼入 system 尾部（历史形态，可回退）。
+   */
+  skillInjection?: 'inline' | 'on-demand';
   toolCatalog: ToolCatalog;
   todoStore: TodoStore;
   subagentPool: SubagentPool;
@@ -65,6 +72,9 @@ export function createChatRuntimeBundle(deps: {
       const personaBody = companion.body ?? builtinCompanionBody;
       const selectedTools = deps.toolCatalog.selectSessionTools(companion);
 
+      // 适用技能只加载一次：注入与 skill_read 通道共用同一份结果，避免两次 load 之间不一致。
+      const { skills } = await loadChatSkills(deps.skillsProvider, input.cwd);
+
       const registered = await buildChatSessionTools({
         sessionId: input.sessionId,
         cwd: input.cwd,
@@ -76,20 +86,28 @@ export function createChatRuntimeBundle(deps: {
         personaRegistry: deps.personaRegistry,
         memoryPendingStore: deps.memoryPendingStore,
         memorySearchService: deps.memorySearchService,
-        webToolsSettingsStore: deps.webToolsSettingsStore
+        webToolsSettingsStore: deps.webToolsSettingsStore,
+        // 有适用技能才挂 skill_read：模型拿得到正文，通道才有意义。
+        ...(deps.skillsProvider && skills.length > 0
+          ? { skillRead: { provider: deps.skillsProvider, personaId: 'companion' } }
+          : {})
       });
 
       // persona 白名单按 runtime 并集求值：内置工具与（未来的）扩展注册工具同过同一治理。
+      // skill_read 例外：可用集由 appliesTo 过滤（load 时已收窄）决定，白名单不约束它——
+      // 与 task 侧“声明了 skills 即获得读取通道”同语义，避免注入提示了工具却被白名单滤掉。
       const allowedToolNames = new Set([...selectedTools.builtinToolNames, ...selectedTools.customToolNames]);
-      const tools: ToolDefinition[] = registered.filter(tool => allowedToolNames.has(tool.name));
+      const tools: ToolDefinition[] = registered.filter(
+        tool => allowedToolNames.has(tool.name) || tool.name === SKILL_READ_TOOL_NAME
+      );
 
       // 文件六工具：catalog 中 runtime=builtin 的六件套在此绑定为自有实现。
       tools.push(...createFileTools(input.cwd).filter(tool => allowedToolNames.has(tool.name)));
 
-      const system = await composeChatSystemPrompt({
+      const system = composeChatSystemPrompt({
         personaBody,
-        cwd: input.cwd,
-        skillsProvider: deps.skillsProvider
+        skills,
+        mode: deps.skillInjection ?? 'on-demand'
       });
 
       const model = await resolveDefaultModel(deps.modelService);
@@ -193,17 +211,21 @@ export function createBrokerPermissionGate(deps: {
   };
 }
 
+/** chat 侧已加载并读入正文的技能（body 供 inline 注入；on-demand 只用索引字段）。 */
+export type ChatLoadedSkill = SkillDescriptor & { body: string };
+
 /**
- * chat 系统提示词：标准四层 + 适用 skills 的 SKILL.md 正文。
+ * chat 系统提示词：标准四层 + 适用 skills。
  *
- * skills 三层目录（builtin < user < workspace）同名覆盖后按 persona 过滤，
- * 正文整篇拼入 system 尾部——skill 是流程指令，不是工具。
+ * skills 三层目录（builtin < user < workspace）同名覆盖后按 companion 过滤。
+ * 两种形态见 skillInjection：on-demand 只注入索引（上下文友好），
+ * inline 注入正文（历史形态）。加载失败不阻塞对话，降级为空技能集。
  */
-async function composeChatSystemPrompt(options: {
+function composeChatSystemPrompt(options: {
   personaBody: string;
-  cwd: string;
-  skillsProvider?: Pick<SkillProvider, 'load'>;
-}): Promise<string> {
+  skills: ChatLoadedSkill[];
+  mode: 'inline' | 'on-demand';
+}): string {
   const base = composeSystemPrompt({
     personaBody: options.personaBody,
     productDuty: PRODUCT_DUTY,
@@ -211,21 +233,14 @@ async function composeChatSystemPrompt(options: {
     todoProtocol: TODO_PROTOCOL
   });
 
-  if (!options.skillsProvider) {
+  if (options.skills.length === 0) {
     return base;
   }
 
-  try {
-    const { skills } = await options.skillsProvider.load(options.cwd, 'companion');
-
-    if (skills.length === 0) {
-      return base;
-    }
-
-    const bodies = await Promise.all(
-      skills.map(async skill => {
-        const body = await readFile(skill.filePath, 'utf8').catch(() => '');
-        const trimmed = body.trim();
+  if (options.mode === 'inline') {
+    const skillSection = options.skills
+      .map(skill => {
+        const trimmed = skill.body.trim();
         const bounded =
           trimmed.length > MAX_SKILL_BODY_CHARS
             ? `${trimmed.slice(0, MAX_SKILL_BODY_CHARS)}\n…（技能正文过长，已截断）`
@@ -233,12 +248,39 @@ async function composeChatSystemPrompt(options: {
 
         return bounded ? `<skill name="${skill.name}">\n${bounded}\n</skill>` : '';
       })
-    );
-    const skillSection = bodies.filter(Boolean).join('\n\n');
+      .filter(Boolean)
+      .join('\n\n');
 
     return skillSection ? `${base}\n\n# Skills\n\n按需参考以下技能的流程约定：\n\n${skillSection}` : base;
+  }
+
+  const index = options.skills.map(skill => `- ${skill.name}：${skill.description}`).join('\n');
+
+  return `${base}\n\n# Skills\n\n可用技能（执行前用 skill_read 读取相关技能正文，再遵循其流程）：\n${index}`;
+}
+
+/** 适用技能加载：加载失败降级为空集（诊断由 SkillsProvider 内部记录），不阻塞对话。 */
+async function loadChatSkills(
+  skillsProvider: Pick<SkillProvider, 'load'> | undefined,
+  cwd: string
+): Promise<{ skills: ChatLoadedSkill[] }> {
+  if (!skillsProvider) {
+    return { skills: [] };
+  }
+
+  try {
+    const { skills } = await skillsProvider.load(cwd, 'companion');
+    const withBodies = await Promise.all(
+      skills.map(async skill => ({
+        name: skill.name,
+        description: skill.description,
+        filePath: skill.filePath,
+        body: await readFile(skill.filePath, 'utf8').catch(() => '')
+      }))
+    );
+
+    return { skills: withBodies };
   } catch {
-    // skills 加载失败不阻塞对话（诊断由 SkillsProvider 内部记录）。
-    return base;
+    return { skills: [] };
   }
 }
