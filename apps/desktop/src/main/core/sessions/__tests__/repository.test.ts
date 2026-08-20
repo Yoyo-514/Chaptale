@@ -185,6 +185,29 @@ describe('JsonlSessionRepository', () => {
     expect(read.mimeType).toBe('image/png');
   });
 
+  it('openOrCreate 新建的会话，list 报的 id 必须能再打开', async () => {
+    // 会话身份有两个载体：文件名（locateSessionFile / delete 拼 `${id}.jsonl`）
+    // 与 header.id（list 上报）。openOrCreate 不显式传 id 时 header 会落随机 UUID，
+    // 于是历史里列得出来、点开却 ENOENT。
+    const store = await repository.openOrCreate('fresh-session', '/workspace');
+    await store.appendMessage({ role: 'user', content: '未经 create 直接开跑' });
+
+    expect(store.header.id).toBe('fresh-session');
+
+    const listed = await repository.list();
+    expect(listed.map(item => item.id)).toEqual(['fresh-session']);
+
+    // 清掉实例内缓存，强制走文件定位——缓存命中会掩盖文件名与 id 的错位。
+    const reopened = new JsonlSessionRepository({
+      rootDir: root,
+      cwd: '/workspace',
+      sessionDir: path.join(root, 'agent', 'sessions', 'global'),
+      sessionsRootDir: path.join(root, 'agent', 'sessions')
+    });
+
+    await expect(reopened.getMessages(listed[0]!.id)).resolves.toHaveLength(1);
+  });
+
   it('delete / deleteMany / appendSessionInfo / exportHtml', async () => {
     const meta = await repository.create({ id: 's1' });
     const store = await repository.openOrCreate('s1', '/w');

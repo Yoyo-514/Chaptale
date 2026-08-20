@@ -44,6 +44,8 @@ export type AgentLoopResult = {
  * 两者都必须有分支——漏掉 `tool-error` 会落盘出没有配对结果的 tool_call，
  * 该会话此后每次请求都被 `AI_MissingToolResultsError` 挡在网络层之前；
  * 漏掉 `error` 则 provider 故障（401/429/500/断网）被静默吞掉、运行报告成功。
+ *
+ * **截断即作废**：模型输出撞 token 上限时整批工具调用一个都不执行（见 tools.ts）。
  */
 export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentLoopResult> {
   const {
@@ -65,14 +67,21 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
   let stepToolCalls: { id: string; name: string; arguments: Record<string, unknown> }[] = [];
   let stepToolResults: ToolResultRecord[] = [];
   let stepUsage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
+  let outputTruncated = false;
 
   const result = streamText({
     model: model.model,
     system,
     messages: toModelMessages(messages),
-    tools: toAiSdkTools(tools, { sessionId, gate }),
+    tools: toAiSdkTools(tools, { sessionId, gate, isOutputTruncated: () => outputTruncated }),
     stopWhen: stepCountIs(maxSteps),
     abortSignal,
+    // 模型响应解析完毕、任何工具执行开始前触发。SDK 把整批工具推迟到 model-call-end
+    // 才一起执行，而该回调正好在其之前——这是唯一还来得及拦下截断批次的时点，
+    // fullStream 的 finish part 到达时工具早已跑完。每次模型调用重新置位，不会残留。
+    onLanguageModelCallEnd: event => {
+      outputTruncated = event.finishReason === 'length';
+    },
     // 模型级参数：未配置时不传，交由服务端默认（temperature/topP 仅 OpenAI 兼容系生效，其余协议忽略）。
     ...(model.maxTokens !== undefined ? { maxOutputTokens: model.maxTokens } : {}),
     ...(model.temperature !== undefined ? { temperature: model.temperature } : {}),

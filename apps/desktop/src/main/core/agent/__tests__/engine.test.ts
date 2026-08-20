@@ -592,6 +592,83 @@ describe('runAgentLoop 错误路径', () => {
     expect(requestBody(fetchMock, 1)).toContain('wrong_key');
   });
 
+  /**
+   * 输出撞 token 上限：批次里被截断的那个调用由 SDK 判非法，
+   * 其余调用参数完整、照常会执行——于是"写两章"变成只写了第一章，
+   * 而这恰恰是多文件协调改写最不能接受的中间态。
+   */
+  it('输出被截断时整批工具调用都不执行，且各自留下配对结果', async () => {
+    const executeSpy = vi.fn(writeTool.execute);
+    const fetchMock = vi.fn().mockResolvedValue(
+      sseResponse([
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'write', arguments: '{"path":"第一章.md","content":"完整的第一章正文"}' }
+                  },
+                  {
+                    index: 1,
+                    id: 'call_2',
+                    type: 'function',
+                    // 参数 JSON 在此被 token 上限砍断。
+                    function: { name: 'write', arguments: '{"path":"第二章.md","con' }
+                  }
+                ]
+              }
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'length' }] }),
+        'data: [DONE]\n\n'
+      ])
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const persisted: SessionMessage[][] = [];
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '写第一章和第二章' }],
+      tools: [{ ...writeTool, execute: executeSpy }],
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    expect(result.aborted).toBe(false);
+    // 注意 result.finishReason 在这里是 'other' 而不是 'length'——run 级聚合值
+    // 认不出截断，所以判定只能取 onLanguageModelCallEnd 上的单次模型调用原因。
+    // 修复前：参数完整的 call_1 会写入，只有被截断的 call_2 报错。
+    expect(executeSpy).not.toHaveBeenCalled();
+
+    // 两个调用都要留下配对结果，否则本条修复反而制造悬空。
+    const step = persisted[0] ?? [];
+    const outputs = new Map(
+      step
+        .filter(message => message.role === 'tool')
+        .map(message => [
+          (message as { toolCallId: string }).toolCallId,
+          message as { output: unknown; isError?: boolean }
+        ])
+    );
+
+    expect([...outputs.keys()].toSorted()).toEqual(['call_1', 'call_2']);
+    expect([...outputs.values()].every(entry => entry.isError === true)).toBe(true);
+    // 参数完整的那个是被本次修复挡下的；被截断的那个由 SDK 判非法。
+    expect(String(outputs.get('call_1')?.output)).toContain('整体作废');
+    expect(String(outputs.get('call_2')?.output)).toContain('JSON');
+  });
+
   it('取消不算失败：aborted 置位且不抛异常', async () => {
     let releaseStream!: () => void;
     const gated = new Promise<void>(resolve => {

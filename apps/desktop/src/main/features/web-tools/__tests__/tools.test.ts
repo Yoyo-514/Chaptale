@@ -1,11 +1,31 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ContentStore } from '../content-store';
 import { WebToolsSettingsStore, normalizeSettings } from '../settings';
 import { createWebTools } from '../tools';
+
+/**
+ * fetch_content 走 SSRF 闸门，闸门对域名做真实 DNS 解析——桩掉 fetch 拦不住这一步。
+ *
+ * 本机若挂着 fake-IP 模式的代理，example.com 会被解析进 198.18.0.0/15（基准测试段），
+ * 闸门正确地拒绝，于是这些用例在有代理的机器上全红、无代理时才绿。
+ * 单测不该依赖宿主解析器，这里把域名固定到一个公网地址；
+ * 闸门自身的解析规则由 ssrf-guard.test.ts 用字面量地址覆盖。
+ */
+vi.mock('node:dns/promises', () => ({
+  default: {
+    lookup: async (hostname: string) => {
+      if (hostname === 'example.com' || hostname === 'example.org') {
+        return [{ address: '93.184.216.34', family: 4 }];
+      }
+
+      throw Object.assign(new Error(`ENOTFOUND ${hostname}`), { code: 'ENOTFOUND' });
+    }
+  }
+}));
 
 const tempDirs: string[] = [];
 

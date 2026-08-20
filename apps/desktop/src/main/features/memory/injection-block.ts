@@ -1,7 +1,7 @@
 import { estimateTextTokens } from '../../core/context/token-counter';
 import type { MemorySections } from './service';
 
-/** 注入块总预算（tokens）；接入 tokenizer 前用 chars/4 保守估算。 */
+/** 注入块总预算（tokens）；估算走 core/context 的共用口径，非 ASCII 一字符一 token。 */
 const DEFAULT_BUDGET_TOKENS = 2000;
 
 type SectionSpec = {

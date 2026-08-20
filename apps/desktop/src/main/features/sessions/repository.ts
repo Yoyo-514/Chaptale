@@ -282,6 +282,10 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
 
     const sessionDir = await this.storage.ensureSessionDir();
     const store = await SessionStore.openOrCreate(path.join(sessionDir, `${sessionId}.jsonl`), {
+      // id 必须显式传：会话按文件名定位（locateSessionFile / delete 都拼 `${id}.jsonl`），
+      // 而 list() 报的是 header.id。缺省会让 header 落一个随机 UUID，
+      // 于是这个会话在历史里列得出来、点开却找不到文件。
+      id: sessionId,
       cwd: cwd ?? (await this.storage.resolveCwd())
     });
     this.stores.set(sessionId, store);

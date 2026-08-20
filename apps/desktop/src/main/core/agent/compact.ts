@@ -47,8 +47,8 @@ export type CompactOptions = {
   /**
    * 会话标识：检查点文件名与 parentSessionId 的键。
    *
-   * 必须由调用方传入而不是读 `store.header.id`——会话文件经 `openOrCreate`
-   * 创建时不写入 id，header 里是一个与文件名无关的随机 UUID。
+   * 由调用方传入而不是读 `store.header.id`：会话身份归仓储管（文件名即 id），
+   * store 只负责单个文件的读写，不该成为这个键的事实源。
    */
   sessionId: string;
   model: ResolvedModel;
