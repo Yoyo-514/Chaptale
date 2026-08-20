@@ -21,8 +21,8 @@ import type {
   AgentStartPayload,
   AgentSteerPayload
 } from '@chaptale/ipc-contract';
-import { errorToMessage } from '@chaptale/shared';
 
+import { describeProviderFault } from '../../core/agent/error-classify';
 import type { ContextFileService } from '../../core/context/service';
 import type { IpcOwnerResolver } from '../../core/ipc-ports';
 import { handleTrustedIpc } from '../../infra/security/trusted-ipc';
@@ -211,13 +211,20 @@ export function registerAgentIpc(options: {
         return;
       }
 
+      // provider 故障分类：可操作提示 + 按成因给重试性（此前一律 false、文案与 401/断网/限流完全一致）。
+      const failure = describeProviderFault(error);
+      const code =
+        failure.kind === 'unknown'
+          ? 'AGENT_RUN_FAILED'
+          : `AGENT_RUN_FAILED_${failure.kind.replaceAll('-', '_').toUpperCase()}`;
+
       safeSend(webContents, IPC_CHANNELS.agent.end, {
         runId: payload.runId,
         end: {
           status: 'failed',
-          code: 'AGENT_RUN_FAILED',
-          message: errorToMessage(error),
-          retryable: false
+          code,
+          message: failure.message,
+          retryable: failure.retryable
         }
       } satisfies AgentEndEvent);
     }
