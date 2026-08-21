@@ -54,7 +54,7 @@ export type CompactOptions = {
   model: ResolvedModel;
   store: SessionStore;
   summarize: CompactSummarizer;
-  /** 触发来源；当前仅手动，阈值与溢出触发待接。 */
+  /** 触发来源：manual（作者点按钮）/ threshold（水位逼近窗口）/ overflow（撞墙后自救）。 */
   reason?: CompactReason;
   /** 保留近期原文的 token 预算；缺省按模型窗口推导。 */
   keepRecentTokens?: number;
@@ -90,7 +90,9 @@ export async function compactSession(options: CompactOptions): Promise<CompactRe
 
   const cut = resolveCompactionCutPoint(
     projection.entries,
-    options.keepRecentTokens ?? defaultKeepRecentTokens(model.contextWindow)
+    options.keepRecentTokens ?? defaultKeepRecentTokens(model.contextWindow),
+    // 手动压缩是作者点的按钮，什么都不做等于按钮坏了；自动触发没有这个义务。
+    { allowForcedCut: reason === 'manual' }
   );
 
   if (!cut) {

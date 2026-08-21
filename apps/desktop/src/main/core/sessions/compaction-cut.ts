@@ -28,10 +28,22 @@ export type CompactionCutPoint = {
   foldedCount: number;
 };
 
+export type CompactionCutOptions = {
+  /**
+   * 预算说"不必压"时是否仍然强行折叠。
+   *
+   * 手动压缩要开：作者明确点了按钮，什么都不做等于按钮坏了。
+   * 自动触发必须关：预算说不必压就是不必压，强折会让水位刚过线的会话
+   * 每轮都折一次最后一轮，越折越碎还白烧一次蒸馏。
+   */
+  allowForcedCut: boolean;
+};
+
 /** 解析切点；返回 undefined 表示当前上下文没有值得折叠的内容。 */
 export function resolveCompactionCutPoint(
   entries: SessionMessageEntry[],
-  keepRecentTokens: number
+  keepRecentTokens: number,
+  options: CompactionCutOptions = { allowForcedCut: true }
 ): CompactionCutPoint | undefined {
   if (entries.length < 2) {
     return undefined;
@@ -39,16 +51,15 @@ export function resolveCompactionCutPoint(
 
   let cutIndex = resolveBudgetCut(entries, keepRecentTokens);
 
-  // 全部都在预算内：预算说"不必压缩"，但压缩是用户明确点的。
-  // 逐级退让，保证手动压缩总能真的做点什么：
+  // 全部都在预算内：逐级退让，保证手动压缩总能真的做点什么：
   //   ① 只保留最后一轮；
   //   ② 整段就是一轮（末轮起点即首条）时，退到只保留最后一条。
-  if (cutIndex === 0) {
+  if (cutIndex === 0 && options.allowForcedCut) {
     cutIndex = lastTurnStart(entries);
-  }
 
-  if (cutIndex === 0) {
-    cutIndex = entries.length - 1;
+    if (cutIndex === 0) {
+      cutIndex = entries.length - 1;
+    }
   }
 
   cutIndex = backOffInvalidCut(entries, cutIndex);

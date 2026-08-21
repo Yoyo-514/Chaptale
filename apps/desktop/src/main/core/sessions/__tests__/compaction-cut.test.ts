@@ -63,6 +63,20 @@ describe('resolveCompactionCutPoint', () => {
     expect(entries[cut!.foldedCount]!.message).toMatchObject({ role: 'user', content: '丙' });
   });
 
+  /**
+   * 自动触发不做这种退让。
+   *
+   * 强折会让水位刚过线的会话每轮都折一次最后一轮：越折越碎，
+   * 还每轮白烧一次蒸馏——而预算本来就说了"不必压"。
+   */
+  it('自动触发时预算说不必压就不压', () => {
+    const entries = [user('甲'), assistant('乙'), user('丙'), assistant('丁')];
+
+    expect(resolveCompactionCutPoint(entries, 1_000_000, { allowForcedCut: false })).toBeUndefined();
+    // 同一份输入，手动仍然折得动。
+    expect(resolveCompactionCutPoint(entries, 1_000_000, { allowForcedCut: true })).toBeDefined();
+  });
+
   it('内容不足以折叠时返回 undefined，而不是折出一个空摘要', () => {
     expect(resolveCompactionCutPoint([], 1000)).toBeUndefined();
     expect(resolveCompactionCutPoint([user('只有一条')], 1000)).toBeUndefined();

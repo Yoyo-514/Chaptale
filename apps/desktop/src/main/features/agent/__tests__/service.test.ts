@@ -115,11 +115,11 @@ const echoTool: ToolDefinition = {
   execute: async params => ({ text: `回显：${(params as { text: string }).text}` })
 };
 
-function createBundle(tools: ToolDefinition[] = [echoTool]): ChatRuntimeBundle {
+function createBundle(tools: ToolDefinition[] = [echoTool], model = createModel()): ChatRuntimeBundle {
   return {
-    resolveModel: async () => createModel(),
+    resolveModel: async () => model,
     resolve: async () => ({
-      model: createModel(),
+      model,
       system: '你是助手',
       tools
     })
@@ -500,6 +500,132 @@ describe('AgentService.stream', () => {
     // UI 回显不含记忆前缀，聊天面板保持纯净。
     const echo = messages.find(message => message.role === 'user');
     expect(echo?.content).toBe('继续写');
+  });
+});
+
+/** 消费整条流并收集消息。 */
+async function drain(stream: AsyncGenerator<ChatMessage>) {
+  const messages: ChatMessage[] = [];
+
+  for await (const message of stream) {
+    messages.push(message);
+  }
+
+  return messages;
+}
+
+/**
+ * 自动压缩：设计文档的三触发里，manual 之外的两条。
+ *
+ * 阈值触发在开跑前折叠历史；溢出触发是撞墙后的自救。
+ * 两者都只动"模型看到的上下文"——作者屏幕上的记录不会消失，
+ * 压缩本身以 compaction entry 落进会话树，重开时在原位显示提示。
+ */
+describe('AgentService 自动压缩', () => {
+  /** 窗口大小同时决定两条线：自动压缩阈值（90%）与保留近期预算（25%）。 */
+  function modelWithWindow(contextWindow: number): ResolvedModel {
+    return { ...createModel(), contextWindow };
+  }
+
+  /** 约 770 tokens 的历史：够触发阈值（窗口 200），也够折叠（窗口 2000 时保留预算 500）。 */
+  async function seedLongSession() {
+    await repository.openOrCreate('s1', '/workspace');
+    const store = await repository.open('s1');
+
+    for (let index = 0; index < 6; index += 1) {
+      await store.appendMessage({ role: 'user', content: `第${index}问`.padEnd(60, '文') });
+      await store.appendMessage({ role: 'assistant', content: `第${index}答`.padEnd(60, '文') });
+    }
+  }
+
+  function serviceWith(options: { model: ResolvedModel; summarize?: CompactSummarizer }) {
+    return new AgentService({
+      sessionRepository: repository,
+      modelService: {} as never,
+      runtimeBundle: createBundle([echoTool], options.model),
+      gate: { check: async () => ({ outcome: 'allow-once' }) },
+      compactSummarizer: options.summarize ?? stubSummarizer
+    });
+  }
+
+  it('水位过线时开跑前先折叠历史，摘要落进会话树', async () => {
+    await seedLongSession();
+    mockModelSequence([textRound('接着写')]);
+
+    const summarize = vi.fn(stubSummarizer);
+    const compacting = serviceWith({ model: modelWithWindow(200), summarize });
+
+    await drain(compacting.stream(runOptions('继续')));
+
+    expect(summarize).toHaveBeenCalledTimes(1);
+    expect(summarize.mock.calls[0]?.[0]).toMatchObject({ reason: 'threshold' });
+
+    // 压缩后的上下文以摘要开头，近期原文仍在（不是退化成"摘要 + 最后一条"）。
+    const store = await repository.open('s1');
+    const context = store.buildContextMessages();
+    expect(JSON.stringify(context[0])).toContain('会话摘要');
+    expect(context.length).toBeGreaterThan(2);
+  });
+
+  it('水位未过线时不压缩（预算说不必压就是不必压）', async () => {
+    await repository.openOrCreate('s1', '/workspace');
+    mockModelSequence([textRound('好的')]);
+
+    const summarize = vi.fn(stubSummarizer);
+    const compacting = serviceWith({ model: createModel(), summarize });
+
+    await drain(compacting.stream(runOptions('随便聊聊')));
+
+    expect(summarize).not.toHaveBeenCalled();
+  });
+
+  it('撞上上下文窗口时折叠后重跑本轮，而不是把失败抛给作者', async () => {
+    await seedLongSession();
+
+    const fetchMock = vi.fn();
+    // 首次：provider 以上下文超限拒绝。
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: "This model's maximum context length is 8192 tokens" } }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+    fetchMock.mockResolvedValueOnce(sseResponse(textRound('压缩后重来一次')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const summarize = vi.fn(stubSummarizer);
+    // 窗口 2000：历史够折（保留预算 500），但够不到 90% 线——
+    // 阈值触发不会抢先，本例只验证撞墙自救这一条。
+    const compacting = serviceWith({ model: modelWithWindow(2_000), summarize });
+
+    const messages = await drain(compacting.stream(runOptions('继续写')));
+
+    expect(summarize).toHaveBeenCalledTimes(1);
+    expect(summarize.mock.calls[0]?.[0]).toMatchObject({ reason: 'overflow' });
+    expect(JSON.stringify(messages)).toContain('压缩后重来一次');
+  });
+
+  it('压不动就照实报错，不假装恢复', async () => {
+    await seedLongSession();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'maximum context length exceeded' } }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+    );
+
+    const compacting = serviceWith({
+      model: modelWithWindow(2_000),
+      summarize: async () => {
+        throw new Error('蒸馏失败');
+      }
+    });
+
+    await expect(drain(compacting.stream(runOptions('继续写')))).rejects.toThrow();
   });
 });
 
