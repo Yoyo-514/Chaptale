@@ -48,6 +48,22 @@ describe('createSkillReadTool', () => {
     expect(result).not.toHaveProperty('isError');
   });
 
+  /**
+   * 工具结果预算的截断形态是保留首尾、省略中间——流程文档被挖掉中间几步，
+   * 模型会照着读下去而不自知。技能正文因此自己先按头部优先截断。
+   */
+  it('超长正文按头部优先截断，不挖空中间', async () => {
+    const skill = await createSkillFile(`第一步：开头锚点\n${'流程正文。'.repeat(3_000)}\n最后一步：结尾锚点`);
+    const tool = createSkillReadTool({ skillsProvider: fakeProvider([skill]), cwd: '/cwd' });
+
+    const { text } = await tool.execute({ id: 'review-checklist' });
+
+    expect(text).toContain('第一步：开头锚点');
+    expect(text).toContain('正文超出单次读取预算');
+    // 尾部保留会让模型误以为读到了完整流程。
+    expect(text).not.toContain('最后一步：结尾锚点');
+  });
+
   it('id 不存在返回提示文本，不抛错', async () => {
     const tool = createSkillReadTool({ skillsProvider: fakeProvider([]), cwd: '/cwd' });
 

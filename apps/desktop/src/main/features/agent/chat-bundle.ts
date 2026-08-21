@@ -73,7 +73,8 @@ export function createChatRuntimeBundle(deps: {
       const selectedTools = deps.toolCatalog.selectSessionTools(companion);
 
       // 适用技能只加载一次：注入与 skill_read 通道共用同一份结果，避免两次 load 之间不一致。
-      const { skills } = await loadChatSkills(deps.skillsProvider, input.cwd);
+      const skillInjection = deps.skillInjection ?? 'on-demand';
+      const skills = await loadChatSkills(deps.skillsProvider, input.cwd, skillInjection);
 
       const registered = await buildChatSessionTools({
         sessionId: input.sessionId,
@@ -107,7 +108,7 @@ export function createChatRuntimeBundle(deps: {
       const system = composeChatSystemPrompt({
         personaBody,
         skills,
-        mode: deps.skillInjection ?? 'on-demand'
+        mode: skillInjection
       });
 
       const model = await resolveDefaultModel(deps.modelService);
@@ -211,8 +212,8 @@ export function createBrokerPermissionGate(deps: {
   };
 }
 
-/** chat 侧已加载并读入正文的技能（body 供 inline 注入；on-demand 只用索引字段）。 */
-export type ChatLoadedSkill = SkillDescriptor & { body: string };
+/** chat 侧已加载的技能；`body` 仅 inline 注入时读取，on-demand 下正文走 skill_read。 */
+export type ChatLoadedSkill = SkillDescriptor & { body?: string };
 
 /**
  * chat 系统提示词：标准四层 + 适用 skills。
@@ -240,7 +241,7 @@ function composeChatSystemPrompt(options: {
   if (options.mode === 'inline') {
     const skillSection = options.skills
       .map(skill => {
-        const trimmed = skill.body.trim();
+        const trimmed = (skill.body ?? '').trim();
         const bounded =
           trimmed.length > MAX_SKILL_BODY_CHARS
             ? `${trimmed.slice(0, MAX_SKILL_BODY_CHARS)}\n…（技能正文过长，已截断）`
@@ -259,28 +260,34 @@ function composeChatSystemPrompt(options: {
   return `${base}\n\n# Skills\n\n可用技能（执行前用 skill_read 读取相关技能正文，再遵循其流程）：\n${index}`;
 }
 
-/** 适用技能加载：加载失败降级为空集（诊断由 SkillsProvider 内部记录），不阻塞对话。 */
+/**
+ * 适用技能加载：加载失败降级为空集（诊断由 SkillsProvider 内部记录），不阻塞对话。
+ *
+ * 正文只在 inline 形态下预读。on-demand 的收益不止省 token——正文改由 skill_read
+ * 按需取，这里就不该每轮把所有 SKILL.md 都读一遍磁盘。
+ */
 async function loadChatSkills(
   skillsProvider: Pick<SkillProvider, 'load'> | undefined,
-  cwd: string
-): Promise<{ skills: ChatLoadedSkill[] }> {
+  cwd: string,
+  mode: 'inline' | 'on-demand'
+): Promise<ChatLoadedSkill[]> {
   if (!skillsProvider) {
-    return { skills: [] };
+    return [];
   }
 
   try {
     const { skills } = await skillsProvider.load(cwd, 'companion');
-    const withBodies = await Promise.all(
-      skills.map(async skill => ({
-        name: skill.name,
-        description: skill.description,
-        filePath: skill.filePath,
-        body: await readFile(skill.filePath, 'utf8').catch(() => '')
-      }))
-    );
 
-    return { skills: withBodies };
+    if (mode === 'on-demand') {
+      return skills;
+    }
+
+    return await Promise.all(
+      skills.map(async skill =>
+        Object.assign({}, skill, { body: await readFile(skill.filePath, 'utf8').catch(() => '') })
+      )
+    );
   } catch {
-    return { skills: [] };
+    return [];
   }
 }

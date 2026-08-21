@@ -2,7 +2,9 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from 'typebox';
 
+import { takeTextToTokenBudget } from '../../core/context/token-counter';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
+import { TOOL_RESULT_TOKEN_BUDGET } from '../../core/tool-protocol/model-output';
 import { isBinaryContent, resolveWithinCwd } from '../file-tools/path-guard';
 import type { SkillProvider } from './provider-port';
 
@@ -10,6 +12,16 @@ export const SKILL_READ_TOOL_NAME = 'skill_read';
 
 /** 目录清单最多列出的辅助文件数：防超大目录把清单本身变成噪音。 */
 const MAX_LISTED_FILES = 30;
+
+/**
+ * 技能文本的自限预算，留在工具结果预算之下。
+ *
+ * 工具结果预算的截断形态是保留首尾、省略中间——对流程文档这是最糟的形态，
+ * 丢掉的正好是中间那几步。技能文本因此在这里先按**头部优先**截断，
+ * 并明说"该拆成参考文件"：超长技能的失败方式既可读、也指得出修法。
+ * 差额留给目录清单与提示行。
+ */
+const SKILL_TEXT_TOKEN_BUDGET = TOOL_RESULT_TOKEN_BUDGET - 1_000;
 
 const skillReadParameters = Type.Object(
   {
@@ -44,7 +56,7 @@ export type SkillReadToolOptions = {
  * 注入采用渐进披露（索引常驻、正文按需），模型用本工具取 SKILL.md 全文；
  * 目录型技能（SKILL.md 之外的辅助文件）经 path 参数读取，越界复用
  * resolveWithinCwd 守卫（词法 + realpath 双查，与 read 同一条红线）。
- * 返回的 text 自动受工具结果 token 预算约束（core/agent/tool-output）。
+ * 返回的 text 先按头部优先自限（见 SKILL_TEXT_TOKEN_BUDGET），再受工具结果预算兜底。
  */
 export function createSkillReadTool(options: SkillReadToolOptions): ToolDefinition<typeof skillReadParameters> {
   const { skillsProvider, personaId, allowedNames, cwd } = options;
@@ -77,7 +89,7 @@ export function createSkillReadTool(options: SkillReadToolOptions): ToolDefiniti
 
       return {
         text:
-          (body.trim() || `技能「${skill.name}」的正文为空：${skill.filePath}`) +
+          (fitSkillText(body.trim()) || `技能「${skill.name}」的正文为空：${skill.filePath}`) +
           (listing.length > 0
             ? `\n\n（本技能目录内还有以下文件，可用 skill_read 的 path 参数读取：\n${listing.join('\n')}）`
             : ''),
@@ -115,7 +127,23 @@ async function readSkillFile(
     return { text: `二进制文件不支持读取：${target}` };
   }
 
-  return { text: buffer.toString('utf8') };
+  return { text: fitSkillText(buffer.toString('utf8')) };
+}
+
+/**
+ * 头部优先截断：超出部分整段丢弃，并告知余量与修法。
+ *
+ * 与工具结果预算的"保留首尾"相反，这里有意只留头——流程文档从前往后读才成立，
+ * 中间被挖空会让模型跳过步骤而不自知。
+ */
+function fitSkillText(text: string): string {
+  const { head, rest } = takeTextToTokenBudget(text, SKILL_TEXT_TOKEN_BUDGET);
+
+  if (!rest) {
+    return head;
+  }
+
+  return `${head}\n\n…（正文超出单次读取预算，此处截断；建议把该技能拆成目录内的参考文件，用 skill_read 的 path 参数分篇读取）`;
 }
 
 async function readTextFile(filePath: string): Promise<string> {
