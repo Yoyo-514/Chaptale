@@ -1,4 +1,5 @@
 import { estimateTextTokens } from '../context/token-counter';
+import { estimateModelToolOutputTokens } from '../tool-protocol/model-output';
 import type { SessionContentPart, SessionMessage } from './entry';
 
 /**
@@ -7,6 +8,10 @@ import type { SessionContentPart, SessionMessage } from './entry';
  * 口径必须统一且**不低估中文**。按 `length / 2` 估算对纯中文正文会低估一倍，
  * 而压力阈值是 70%：提示要等真实占用约 140% 时才触发，早就溢出了，
  * 对中文长篇创作 IDE 而言等于"上下文压力提示不存在"。
+ *
+ * 反过来也一样要防：工具结果落盘的是完整原文、进模型的只是预算窗口，
+ * 按原文量会把一次大 read 记成几倍真实占用。凡是落盘形态与模型形态不同的字段，
+ * 都必须量后者。
  *
  * 精确 tokenize 需要按 provider 加载词表并做一次额外往返，代价与收益不成比例；
  * 这里要的是不低估，宁可略保守。
@@ -41,7 +46,9 @@ function estimateBodyTokens(message: SessionMessage): number {
       return estimateTextTokens(message.content);
 
     case 'tool':
-      return estimateTextTokens(stringifyOutput(message.output));
+      // 量模型实际收到的那份（预算窗口内、不含 details），不是落盘的原文——
+      // 见 tool-protocol/model-output 的 estimateModelToolOutputTokens。
+      return estimateModelToolOutputTokens(message.output, message.isError === true);
 
     case 'user':
       return estimateContentTokens(message.content);

@@ -1,10 +1,10 @@
 import { Type } from 'typebox';
 import { describe, expect, it } from 'vitest';
 
+import { toAiSdkTools } from '../../agent/tools';
 import { estimateTextTokens } from '../../context/token-counter';
-import type { ToolDefinition } from '../../tool-protocol/definition';
-import { TOOL_RESULT_TOKEN_BUDGET, toModelToolOutput } from '../tool-output';
-import { toAiSdkTools } from '../tools';
+import type { ToolDefinition } from '../definition';
+import { estimateModelToolOutputTokens, TOOL_RESULT_TOKEN_BUDGET, toModelToolOutput } from '../model-output';
 
 const overBudgetText = '中'.repeat(10_000); // 10k tokens，超出 8k 预算。
 
@@ -57,6 +57,29 @@ describe('toModelToolOutput', () => {
       type: 'text',
       value: '一章正文'
     });
+  });
+});
+
+describe('estimateModelToolOutputTokens', () => {
+  /**
+   * 会话 token 估算必须量"模型收到的那份"。量落盘原文会把一次大 read 记成
+   * 几倍真实占用，压力提示提前报警、压缩保留区间被无谓压缩。
+   */
+  it('超预算输出按窗口计，不按原文计', () => {
+    const output = { text: overBudgetText, details: { markdown: overBudgetText } };
+
+    expect(estimateModelToolOutputTokens(output, false)).toBeLessThanOrEqual(TOOL_RESULT_TOKEN_BUDGET);
+    expect(estimateTextTokens(overBudgetText)).toBeGreaterThan(TOOL_RESULT_TOKEN_BUDGET);
+  });
+
+  it('预算内输出与直接估算 text 同量级，且不含 details', () => {
+    const tokens = estimateModelToolOutputTokens({ text: '一章正文', details: { markdown: overBudgetText } }, false);
+
+    expect(tokens).toBe(estimateTextTokens('一章正文'));
+  });
+
+  it('json 包装的输出按序列化后的整体计', () => {
+    expect(estimateModelToolOutputTokens({ denied: true }, false)).toBeGreaterThan(0);
   });
 });
 

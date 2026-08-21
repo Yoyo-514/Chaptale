@@ -59,6 +59,21 @@ describe('estimateMessageTokens', () => {
     expect(tokens).toBeGreaterThan(390);
     expect(tokens).toBeLessThan(430);
   });
+
+  it('tool 结果按模型实际收到的预算窗口计，不按落盘原文', () => {
+    // 落盘保留完整原文（UI 与导出要读），模型只拿到 8k 预算窗口且不含 details。
+    // 按原文量会把一次大 read 记成几倍真实占用：压力提示提前报警，
+    // 压缩保留区间被无谓压缩——与"低估中文"同型的口径分叉，方向相反。
+    const huge = '中'.repeat(60_000);
+    const tokens = estimateMessageTokens({
+      role: 'tool',
+      toolCallId: 'c1',
+      toolName: 'fetch_content',
+      output: { text: huge, details: { markdown: huge } }
+    });
+
+    expect(tokens).toBeLessThan(8_100);
+  });
 });
 
 describe('estimateMessagesTokens', () => {

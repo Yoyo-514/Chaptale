@@ -1,7 +1,7 @@
 import type { AssistantModelMessage, ModelMessage } from 'ai';
 
 import type { SessionContentPart, SessionMessage } from '../sessions/entry';
-import { toModelToolOutput } from './tool-output';
+import { toModelToolOutput } from '../tool-protocol/model-output';
 import type { AssistantStepRecord, ToolResultRecord } from './types';
 /**
  * SessionMessage（store 载荷，OpenAI 形状）↔ AI SDK ModelMessage 双向转换。

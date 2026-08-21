@@ -2,8 +2,8 @@ import { dynamicTool, jsonSchema } from 'ai';
 import type { ToolSet } from 'ai';
 
 import type { ToolDefinition } from '../tool-protocol/definition';
+import { toModelToolOutput } from '../tool-protocol/model-output';
 import { validateToolArguments } from '../tool-protocol/validation';
-import { toModelToolOutput } from './tool-output';
 import type { PermissionGatePort } from './types';
 
 /**

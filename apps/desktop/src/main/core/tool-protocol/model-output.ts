@@ -1,6 +1,7 @@
 import type { JSONValue, ToolResultPart } from 'ai';
 
 import { estimateTextTokens, fitTextToTokens } from '../context/token-counter';
+import type { ToolResult } from './definition';
 
 /**
  * 工具结果进入模型上下文的 token 预算。
@@ -63,16 +64,48 @@ function toTextOutput(text: string, isError: boolean): ToolResultPart['output'] 
  * 是否值得缩小范围续读。
  */
 function fitToolResultText(text: string): string {
-  const omitted = estimateTextTokens(text) - TOOL_RESULT_TOKEN_BUDGET;
+  const total = estimateTextTokens(text);
+
+  if (total <= TOOL_RESULT_TOKEN_BUDGET) {
+    return text;
+  }
 
   return fitTextToTokens(text, TOOL_RESULT_TOKEN_BUDGET, {
     headRatio: 0.25,
-    ...(omitted > 0 ? { omitMarker: `\n…（工具输出超出预算，中间省略约 ${omitted} tokens）…\n` } : {})
+    omitMarker: `\n…（工具输出超出预算，中间省略约 ${total - TOOL_RESULT_TOKEN_BUDGET} tokens）…\n`
   });
 }
 
+/**
+ * 落盘的工具结果进入模型上下文后占多少 token。
+ *
+ * 会话 token 估算（`core/sessions/token-estimate.ts`）必须走这里而不是量原始 output：
+ * 模型看到的是预算窗口且不含 details，按原文量会把一次大 read 记成几倍于真实占用，
+ * 于是压力提示提前报警、压缩保留区间被无谓压缩。口径分叉的代价与低估中文那次同型，
+ * 只是方向相反。
+ *
+ * 直接复用投影函数（而不是另写一套计数分支）是有意的：多切一次字符串换两条通道永不漂移。
+ */
+export function estimateModelToolOutputTokens(output: unknown, isError: boolean): number {
+  const projected = toModelToolOutput(output, isError);
+
+  if (projected.type === 'text' || projected.type === 'error-text') {
+    return estimateTextTokens(projected.value);
+  }
+
+  return estimateTextTokens(safeStringify(projected));
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value ?? '') ?? '';
+  } catch {
+    return String(value);
+  }
+}
+
 /** 项目工具契约（ToolDefinition.execute）的返回形状。 */
-function isToolResultShape(output: unknown): output is { text: string; details?: unknown } {
+function isToolResultShape(output: unknown): output is ToolResult {
   return typeof output === 'object' && output !== null && typeof (output as { text?: unknown }).text === 'string';
 }
 
