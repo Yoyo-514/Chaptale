@@ -69,14 +69,14 @@ const openaiToolStep = () => [
   'data: [DONE]\n\n'
 ];
 
-function createModel() {
+function createModel(modelId = 'test-model') {
   return {
     model: createProtocolLanguageModel(
       { providerId: 'test', api: 'openai-completions', baseUrl: 'https://test.local/v1', apiKey: 'k' },
-      'test-model'
+      modelId
     ),
     provider: 'test',
-    modelId: 'test-model',
+    modelId,
     contextWindow: 128_000,
     input: ['text'] as const,
     maxTokens: undefined
@@ -742,7 +742,9 @@ describe('runAgentLoop 错误路径', () => {
    */
   it('输出被截断时整批工具调用都不执行，且各自留下配对结果', async () => {
     const executeSpy = vi.fn(writeTool.execute);
-    const fetchMock = vi.fn().mockResolvedValue(
+    // 必须每次新建 Response：同一个实例的 body 流只能读一次，
+    // 复用会让第二步读到空流，finish_reason 随之丢失。
+    const fetchMock = vi.fn().mockImplementation(() =>
       sseResponse([
         sse({
           id: '1',
@@ -791,9 +793,9 @@ describe('runAgentLoop 错误路径', () => {
     expect(result.aborted).toBe(false);
     // 判定取单次模型调用的原始停止原因；流上的聚合值在这个场景里是 'other'，认不出截断。
     expect(result.finishReason).toBe('length');
-    // 整批已作废，继续下一步只会拿着同一份半截意图重来。
+    // 首次作废后给了一次重发机会，模型又撞了一次上限，这才停。
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.stopReason).toBe('output-truncated');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     // 修复前：参数完整的 call_1 会写入，只有被截断的 call_2 报错。
     expect(executeSpy).not.toHaveBeenCalled();
 
@@ -851,6 +853,200 @@ describe('runAgentLoop 错误路径', () => {
     releaseStream();
 
     await expect(loopPromise).resolves.toMatchObject({ aborted: true });
+  });
+});
+
+/**
+ * step 边界干预点。
+ *
+ * 把循环收回引擎，换来的就是这个原本不存在的时点：上一步已结算、下一步未发出。
+ * 作者中途插话、截断后自纠、按步换配置，全都落在这里。
+ */
+describe('runAgentLoop prepareStep', () => {
+  it('截断作废后给一次重发机会，模型改小即可继续', async () => {
+    const executeSpy = vi.fn(writeTool.execute);
+    const fetchMock = vi
+      .fn()
+      // 第一步：两个调用，第二个被 token 上限砍断 → 整批作废。
+      .mockImplementationOnce(() =>
+        sseResponse([
+          sse({
+            id: '1',
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'call_1',
+                      type: 'function',
+                      function: { name: 'write', arguments: '{"path":"第一章.md","content":"正文"}' }
+                    },
+                    {
+                      index: 1,
+                      id: 'call_2',
+                      type: 'function',
+                      function: { name: 'write', arguments: '{"path":"第二' }
+                    }
+                  ]
+                }
+              }
+            ]
+          }),
+          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'length' }] }),
+          'data: [DONE]\n\n'
+        ])
+      )
+      // 第二步：模型照提示拆小，只发一个完整调用。
+      .mockImplementationOnce(() =>
+        sseResponse([
+          sse({
+            id: '1',
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'call_3',
+                      type: 'function',
+                      function: { name: 'write', arguments: '{"path":"第一章.md","content":"正文"}' }
+                    }
+                  ]
+                }
+              }
+            ]
+          }),
+          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+          'data: [DONE]\n\n'
+        ])
+      )
+      .mockImplementationOnce(() => sseResponse(openaiTextStep('第一章写好了')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '写第一章和第二章' }],
+      tools: [{ ...writeTool, execute: executeSpy }]
+    });
+
+    // 作废那一批一个都没执行，重发的那一个正常执行——作者不必再说一句"继续"。
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(result.stopReason).toBe('natural');
+  });
+
+  it('作者中途插话在 step 边界生效，不必等整条工具链跑完', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => sseResponse(openaiToolStep()))
+      .mockImplementationOnce(() => sseResponse(openaiTextStep('好，改看第三章')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [readTool],
+      // 作者在第 0 步跑动时打字，第 1 步开始前才拿到。
+      prepareStep: async context =>
+        context.stepIndex === 1
+          ? { appendMessages: [{ role: 'user', content: '停，改看第三章' }], resume: true }
+          : undefined
+    });
+
+    // 第 0 步发出时还没有插话。
+    expect(requestBody(fetchMock, 0)).not.toContain('改看第三章');
+    // 插话必须接在已结算的工具结果之后：第 1 步的请求体里两者都在。
+    const body = requestBody(fetchMock, 1);
+    expect(body).toContain('内容 of a.txt');
+    expect(body).toContain('改看第三章');
+    expect(result.stopReason).toBe('natural');
+  });
+
+  it('插话可以推翻"模型已收尾"的停止决定', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => sseResponse(openaiTextStep('说完了')))
+      .mockImplementationOnce(() => sseResponse(openaiTextStep('那再补一点')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const seen: (string | undefined)[] = [];
+    let injected = false;
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '说点什么' }],
+      tools: [],
+      prepareStep: async context => {
+        seen.push(context.pendingStop);
+
+        if (context.pendingStop !== 'natural' || injected) {
+          return undefined;
+        }
+
+        injected = true;
+        return { appendMessages: [{ role: 'user', content: '再补一点' }], resume: true };
+      }
+    });
+
+    // 第二次调用时引擎已打算按 natural 收尾，插话把它接了下去；第三次没人再干预，才真的停。
+    expect(seen).toEqual([undefined, 'natural', 'natural']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('护栏截停不被插话推翻（resume 只对 natural 有意义时由调用方把关）', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => sseResponse(openaiToolStep()));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const seen: (string | undefined)[] = [];
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [readTool],
+      maxTotalTokens: 25,
+      prepareStep: async context => {
+        seen.push(context.pendingStop);
+        // 调用方看到护栏截停就不干预。
+        return undefined;
+      }
+    });
+
+    expect(seen.at(-1)).toBe('token-budget');
+    expect(result.stopReason).toBe('token-budget');
+  });
+
+  it('按步覆盖模型与工具集', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => sseResponse(openaiToolStep()))
+      .mockImplementationOnce(() => sseResponse(openaiTextStep('换模型收尾')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const finisher = createModel('finisher-model');
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [readTool],
+      prepareStep: async context =>
+        context.stepIndex === 0 ? undefined : { model: finisher, system: '收尾时只做总结', tools: [] }
+    });
+
+    const body = JSON.parse(requestBody(fetchMock, 1)) as { model: string; tools?: unknown[] };
+    expect(body.model).toBe('finisher-model');
+    expect(body.tools ?? []).toHaveLength(0);
   });
 });
 

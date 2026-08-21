@@ -9,6 +9,7 @@ import type { ImageAttachmentService } from '../../core/attachments/service';
 import type { ContextFileService } from '../../core/context/service';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
+import type { SessionMessage } from '../../core/sessions/entry';
 import type { SessionStore } from '../../core/sessions/store';
 import type { SessionStoreProvider } from '../../core/sessions/store-provider-port';
 import { estimateMessagesTokens } from '../../core/sessions/token-estimate';
@@ -21,7 +22,8 @@ import { createPartTranslator } from './part-translator';
  *
  * - 事件桥接：fullStream part → AsyncMessageQueue → AsyncGenerator<ChatMessage>
  *   （part-translator 聚合翻译，UI ChatMessage 协议零改动）；
- * - 轮次循环：首轮 query → runAgentLoop → finish 后吸收 steer 队列续跑；abort 即止；
+ * - 轮次循环：首轮 query → runAgentLoop；作者中途的插话由引擎的 step 边界钩子
+ *   即时接入（不必等整条工具链跑完），外层循环只兜住"引擎已返回、插话刚到"那个窗口；
  * - 压缩：core/agent/compact + 装配层检查点钩子。
  */
 
@@ -168,22 +170,8 @@ export class AgentService implements AgentRuntime {
     let firstRound = true;
 
     while (!signal.aborted) {
-      if (!firstRound) {
-        if (run.steering.length === 0) {
-          break;
-        }
-
-        const steerRequest = run.steering.shift()!;
-
-        // steer 与首轮同构：同一条组装路径，任何形态差异都是 bug。
-        await this.appendUserRound({
-          sessionId,
-          store,
-          query: steerRequest.query,
-          contextFilePaths: steerRequest.contextFilePaths,
-          signal,
-          onMessage
-        });
+      if (!firstRound && run.steering.length === 0) {
+        break;
       }
 
       firstRound = false;
@@ -207,12 +195,41 @@ export class AgentService implements AgentRuntime {
           for (const message of messages) {
             await store.appendMessage(message);
           }
+        },
+        prepareStep: async context => {
+          // 护栏截停不该被插话推翻：步数与预算是成本闸，不是"模型说完了"。
+          if (context.pendingStop !== undefined && context.pendingStop !== 'natural') {
+            return undefined;
+          }
+
+          const steerRequest = run.steering.shift();
+
+          if (!steerRequest) {
+            return undefined;
+          }
+
+          // step 边界是唯一安全的注入点：工具执行途中插入用户消息会写出悬空 tool_call。
+          // 交给引擎的必须是刚落盘的那一条，否则重开会话时上下文与本轮对不上。
+          const entry = await this.appendUserRound({
+            sessionId,
+            store,
+            query: steerRequest.query,
+            contextFilePaths: steerRequest.contextFilePaths,
+            signal,
+            onMessage
+          });
+
+          return { appendMessages: [entry], resume: true };
         }
       });
     }
   }
 
-  /** 组装 → 落盘 → 回显。回显必须在落盘后构造：图片 source 要指向真实 entryId。 */
+  /**
+   * 组装 → 落盘 → 回显，返回落盘的那一条。
+   *
+   * 回显必须在落盘后构造：图片 source 要指向真实 entryId。
+   */
   private async appendUserRound(input: {
     sessionId: string;
     store: SessionStore;
@@ -220,7 +237,7 @@ export class AgentService implements AgentRuntime {
     contextFilePaths?: string[];
     signal: AbortSignal;
     onMessage: (message: ChatMessage) => void;
-  }): Promise<void> {
+  }): Promise<SessionMessage> {
     const assembled = await this.inputAssembler.assemble({
       sessionId: input.sessionId,
       query: input.query,
@@ -231,6 +248,8 @@ export class AgentService implements AgentRuntime {
 
     const entry = await input.store.appendMessage(assembled.entry);
     input.onMessage(assembled.createEcho(entry.id));
+
+    return assembled.entry;
   }
 
   async steer(options: AgentSteerOptions): Promise<void> {

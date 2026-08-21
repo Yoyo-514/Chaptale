@@ -352,6 +352,80 @@ describe('AgentService.stream', () => {
     expect(contents).toContain('第二轮响应');
   });
 
+  /**
+   * 插话在 step 边界生效，不必等整条工具链跑完。
+   *
+   * 从前 steer 要等 runAgentLoop 跑完全部 step（最多 32）才被吸收：
+   * 作者在 10 步工具链中途说"停，改看第三章"，得等那 10 步全跑完。
+   */
+  it('steer：工具链中途插话在下一步就生效', async () => {
+    let releaseTool!: () => void;
+    const toolGate = new Promise<void>(resolve => {
+      releaseTool = resolve;
+    });
+
+    const fetchMock = vi.fn();
+    // 首步：调用工具（工具执行被 gate 卡住，作者在此期间插话）。
+    fetchMock.mockResolvedValueOnce(
+      sseResponse([
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  { index: 0, id: 'call_1', type: 'function', function: { name: 'echo', arguments: '{"text":"甲"}' } }
+                ]
+              }
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+        'data: [DONE]\n\n'
+      ])
+    );
+    fetchMock.mockResolvedValueOnce(sseResponse(textRound('好，改看第三章')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const slowTool: ToolDefinition = {
+      ...echoTool,
+      execute: async params => {
+        await toolGate;
+        return { text: `回显：${(params as { text: string }).text}` };
+      }
+    };
+
+    service = new AgentService({
+      sessionRepository: repository,
+      modelService: {} as never,
+      runtimeBundle: createBundle([slowTool]),
+      gate: { check: async () => ({ outcome: 'allow-once' }) },
+      compactSummarizer: stubSummarizer
+    });
+
+    const messages: ChatMessage[] = [];
+    const iterator = service.stream(runOptions('读一下甲'));
+    await iterator.next();
+
+    // 工具还在跑的时候插话，再放行工具。
+    await service.steer({ sessionId: 's1', query: '停，改看第三章', signal: abortController.signal });
+    releaseTool();
+
+    for (let message = await iterator.next(); !message.done; message = await iterator.next()) {
+      messages.push(message.value);
+    }
+
+    // 第二步的请求体里，插话必须接在已结算的工具结果之后——模型这一步就能改道。
+    const secondBody = String((fetchMock.mock.calls[1]?.[1] as RequestInit | undefined)?.body ?? '');
+    expect(secondBody).toContain('回显：甲');
+    expect(secondBody).toContain('改看第三章');
+
+    // 且插话必须真的落盘：否则重开会话时这句话就不见了。
+    const persisted = await repository.getMessages('s1');
+    expect(persisted.filter(message => message.role === 'user')).toHaveLength(2);
+  });
+
   it('同会话运行中拒绝新的 stream（防 JSONL 交错写入）', async () => {
     let releaseFirst!: () => void;
     const firstRoundGate = new Promise<void>(resolve => {

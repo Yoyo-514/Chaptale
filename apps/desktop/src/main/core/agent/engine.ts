@@ -28,6 +28,51 @@ export type RunAgentLoopOptions = {
   maxSteps?: number;
   /** run 级累计 token 预算；超出即停（成本护栏）。 */
   maxTotalTokens?: number;
+  /**
+   * 截断批次整体作废后，允许模型在同一 run 内重发的次数。
+   *
+   * 作废时模型已经拿到"请拆小后重发"的理由，多数情况下它自己就能改对；
+   * 让作者再说一句"继续"是把引擎的问题推给人。次数必须有限——
+   * 模型可能一再产出超长输出，那就不是重试能解决的了。
+   */
+  maxTruncationRetries?: number;
+  /**
+   * 每步开始前的干预点。
+   *
+   * 这是把循环收回引擎换来的东西：SDK 自驱多步时不存在这样一个
+   * 「上一步已结算、下一步未发出」的时点。三类用途共用它——
+   * 注入作者中途的插话、按步改配置、推翻引擎的停止决定。
+   *
+   * 只在 step 边界调用是硬约束：工具执行途中注入消息会写出悬空 tool_call。
+   */
+  prepareStep?: (context: PrepareStepContext) => Promise<PrepareStepResult | undefined>;
+};
+
+export type PrepareStepContext = {
+  /** 即将执行的步序号（0 起）。 */
+  stepIndex: number;
+  /** 若不干预，引擎将以此原因停止；undefined 表示本来就要继续。 */
+  pendingStop?: AgentStopReason;
+  /** 截至目前的累计 usage。 */
+  totalUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
+};
+
+export type PrepareStepResult = {
+  /**
+   * 追加进本 run 会话的消息（作者中途插话走这里）。
+   *
+   * 落盘与 UI 回显由调用方负责：引擎不认识 SessionStore，
+   * 而这条消息必须与落盘的是同一条，否则重开会话时上下文对不上。
+   */
+  appendMessages?: SessionMessage[];
+  /** 覆盖本步模型；缺省沿用 run 级配置。 */
+  model?: ResolvedModel;
+  /** 覆盖本步系统提示词；缺省沿用 run 级配置。 */
+  system?: string;
+  /** 覆盖本步工具集；缺省沿用 run 级配置。 */
+  tools?: Parameters<typeof toAiSdkTools>[0];
+  /** 即使引擎打算停止也继续跑；仅在 pendingStop 存在时有意义。 */
+  resume?: boolean;
 };
 
 /** 默认 step 上限：正常创作轮远用不到 32 步，此值是失控护栏。 */
@@ -38,6 +83,9 @@ const DEFAULT_MAX_STEPS = 32;
  * 正常创作轮在几万 tokens 量级，预算触发意味着工具链接近失控。
  */
 const DEFAULT_MAX_TOTAL_TOKENS = 200_000;
+
+/** 截断作废后的默认重发次数：给模型一次自纠机会，不给第二次。 */
+const DEFAULT_MAX_TRUNCATION_RETRIES = 1;
 
 /**
  * 循环停止原因。
@@ -72,11 +120,10 @@ export type AgentLoopResult = {
  * Agent 主循环：**引擎驱动逐步循环**，每步一次 `streamText`。
  *
  * SDK 的 `stopWhen` 固定为单步：它只负责"一次模型调用 + 本批工具执行"，
- * 要不要走下一步由引擎判断。这个所有权划分是后续能力的前提——
- * 按步换模型、工具级超时、steer 中途生效、截断后重试，都需要一个
- * 「SDK 交还控制权、引擎再决定」的时点，而多步交给 SDK 时这个时点不存在。
- * 代价只有每步重建一次 ToolSet（几个对象），换来的是停因可辨认：
- * 护栏截停不再是"安静地停"。
+ * 要不要走下一步由引擎判断。这个所有权划分换来的是一个原本不存在的时点——
+ * 「上一步已结算、下一步未发出」。按步换模型、作者中途插话、截断后自纠重发，
+ * 全都落在这个时点上（见 `prepareStep`）；停因也因此可辨认，
+ * 护栏截停不再是"安静地停"。代价只有每步重建一次 ToolSet。
  *
  * 会话推进用 `result.responseMessages`（SDK 自己生成的模型消息）而**不是**落盘投影：
  * 落盘形态有意丢弃 reasoning（它不进回放），而带思维链的模型在工具轮里
@@ -92,7 +139,8 @@ export type AgentLoopResult = {
  * 该会话此后每次请求都被 `AI_MissingToolResultsError` 挡在网络层之前；
  * 漏掉 `error` 则 provider 故障（401/429/500/断网）被静默吞掉、运行报告成功。
  *
- * **截断即作废**：模型输出撞 token 上限时整批工具调用一个都不执行（见 tools.ts）。
+ * **截断即作废**：模型输出撞 token 上限时整批工具调用一个都不执行（见 tools.ts），
+ * 随后给模型有限次数的重发机会。
  */
 export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentLoopResult> {
   const {
@@ -106,7 +154,9 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     onPart,
     abortSignal,
     maxSteps = DEFAULT_MAX_STEPS,
-    maxTotalTokens = DEFAULT_MAX_TOTAL_TOKENS
+    maxTotalTokens = DEFAULT_MAX_TOTAL_TOKENS,
+    maxTruncationRetries = DEFAULT_MAX_TRUNCATION_RETRIES,
+    prepareStep
   } = options;
 
   /** 本 run 的模型侧会话；每步追加 SDK 的响应消息后再发下一步。 */
@@ -116,15 +166,48 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
   let steps = 0;
   let aborted = false;
   let finishReason = 'unknown';
-  let stopReason: AgentStopReason | undefined;
+  let truncationRetries = 0;
   const totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
-  for (let index = 0; index < maxSteps && stopReason === undefined; index += 1) {
+  /**
+   * 引擎「若不干预就会以此停止」的倾向。
+   *
+   * 决定有意推迟到下一轮迭代的开头才执行：prepareStep 必须先有机会看到它、
+   * 并可能推翻它（作者中途插话就是这种情况——模型本已收尾，但话没说完）。
+   */
+  let pendingStop: AgentStopReason | undefined;
+  let stopReason: AgentStopReason | undefined;
+
+  let stepModel = model;
+  let stepSystem = system;
+  let stepTools = tools;
+
+  for (let index = 0; index < maxSteps; index += 1) {
     if (abortSignal?.aborted) {
       aborted = true;
       stopReason = 'aborted';
       break;
     }
+
+    const plan = await prepareStep?.({
+      stepIndex: index,
+      ...(pendingStop ? { pendingStop } : {}),
+      totalUsage: { ...totalUsage }
+    });
+
+    if (pendingStop !== undefined && plan?.resume !== true) {
+      stopReason = pendingStop;
+      break;
+    }
+
+    if (plan?.appendMessages?.length) {
+      conversation.push(...toModelMessages(plan.appendMessages));
+    }
+
+    stepModel = plan?.model ?? stepModel;
+    stepSystem = plan?.system ?? stepSystem;
+    stepTools = plan?.tools ?? stepTools;
+    pendingStop = undefined;
 
     steps += 1;
     const step = await runStep();
@@ -151,17 +234,20 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
 
     conversation.push(...step.responseMessages);
 
-    if (step.toolCalls.length === 0) {
-      stopReason = 'natural';
+    if (step.finishReason === 'length' && truncationRetries < maxTruncationRetries) {
+      // 整批已作废，模型手上已有"请拆小后重发"的理由；给它一次自纠的机会，
+      // 而不是让作者再说一句"继续"。
+      truncationRetries += 1;
     } else if (step.finishReason === 'length') {
-      // 整批已作废，继续下一步只会拿着同一份半截意图重来。
-      stopReason = 'output-truncated';
+      pendingStop = 'output-truncated';
+    } else if (step.toolCalls.length === 0) {
+      pendingStop = 'natural';
     } else if (totalUsage.totalTokens >= maxTotalTokens) {
-      stopReason = 'token-budget';
+      pendingStop = 'token-budget';
     }
   }
 
-  return { finishReason, totalUsage, aborted, stopReason: stopReason ?? 'step-limit', steps };
+  return { finishReason, totalUsage, aborted, stopReason: stopReason ?? pendingStop ?? 'step-limit', steps };
 
   /** 单步：一次模型调用 + 本批工具执行，SDK 结束后把控制权交还引擎。 */
   async function runStep(): Promise<StepOutcome> {
@@ -178,10 +264,10 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     let streamError: unknown;
 
     const result = streamText({
-      model: model.model,
-      system,
+      model: stepModel.model,
+      system: stepSystem,
       messages: conversation,
-      tools: toAiSdkTools(tools, { sessionId, gate, isOutputTruncated: () => outputTruncated }),
+      tools: toAiSdkTools(stepTools, { sessionId, gate, isOutputTruncated: () => outputTruncated }),
       // 单步：多步循环归引擎，SDK 不自行续跑。
       stopWhen: stepCountIs(1),
       abortSignal,
@@ -193,9 +279,9 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
         stepFinishReason = event.finishReason;
       },
       // 模型级参数：未配置时不传，交由服务端默认（temperature/topP 仅 OpenAI 兼容系生效，其余协议忽略）。
-      ...(model.maxTokens !== undefined ? { maxOutputTokens: model.maxTokens } : {}),
-      ...(model.temperature !== undefined ? { temperature: model.temperature } : {}),
-      ...(model.topP !== undefined ? { topP: model.topP } : {})
+      ...(stepModel.maxTokens !== undefined ? { maxOutputTokens: stepModel.maxTokens } : {}),
+      ...(stepModel.temperature !== undefined ? { temperature: stepModel.temperature } : {}),
+      ...(stepModel.topP !== undefined ? { topP: stepModel.topP } : {})
     });
 
     try {
