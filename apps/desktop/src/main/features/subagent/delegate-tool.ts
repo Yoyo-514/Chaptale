@@ -161,6 +161,9 @@ export async function createDelegateTool(context: DelegateToolContext): Promise<
     ].join('\n'),
     parameters: DelegateParams,
     riskLevel: 'readonly',
+    // 截止时间归子任务池：单路超时上限 30 分钟，且开跑前还可能排队。
+    // 引擎再套一层固定超时只会误杀正常的长任务，而池到点必定以终态收尾，不会挂住。
+    timeoutMs: null,
     execute: async (params, signal) => {
       const currentCwd = await context.resolveCwd();
       const available = listDelegatablePersonas((await context.personaRegistry.load(currentCwd)).personas);

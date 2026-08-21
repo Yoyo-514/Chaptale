@@ -854,6 +854,139 @@ describe('runAgentLoop 错误路径', () => {
   });
 });
 
+/**
+ * 工具级超时。
+ *
+ * 没有这道闸时，一个再也不返回的工具会把整轮停在那里，作者只能手动点停止。
+ */
+describe('runAgentLoop 工具超时', () => {
+  it('超时以失败结果收尾，会话可继续', async () => {
+    const hungTool: ToolDefinition = {
+      ...readTool,
+      timeoutMs: 20,
+      execute: () => new Promise(() => {})
+    };
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+      .mockResolvedValueOnce(sseResponse(openaiTextStep('那我换个办法')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const persisted: SessionMessage[][] = [];
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [hungTool],
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    // 超时不是终止：模型拿到"这个工具没回来"后自己改道。
+    expect(result.stopReason).toBe('natural');
+    const toolMessage = (persisted[0] ?? [])[1] as { output: unknown; isError?: boolean } | undefined;
+    expect(toolMessage).toMatchObject({ isError: true });
+    expect(String(toolMessage?.output)).toContain('仍未返回');
+  });
+
+  it('工具收得到超时信号，可以就地停手', async () => {
+    let observed: AbortSignal | undefined;
+    const observingTool: ToolDefinition = {
+      ...readTool,
+      timeoutMs: 20,
+      execute: (_params, signal) => {
+        observed = signal;
+        return new Promise(() => {});
+      }
+    };
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(sseResponse(openaiToolStep()))
+        .mockResolvedValueOnce(sseResponse(openaiTextStep('好')))
+    );
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [observingTool]
+    });
+
+    expect(observed?.aborted).toBe(true);
+  });
+
+  /**
+   * 闸门等的是人。把授权等待算进工具超时，会让"作者去倒杯水"变成一次工具失败——
+   * 所以超时只罩住 execute，不罩闸门。
+   */
+  it('闸门等待不计入工具超时', async () => {
+    const executed = vi.fn(async () => ({ text: '已写入' }));
+    const slowGate: PermissionGatePort = {
+      check: async () => {
+        await new Promise(resolve => setTimeout(resolve, 60));
+        return { outcome: 'allow-once' };
+      }
+    };
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          sseResponse([
+            sse({
+              id: '1',
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call_1',
+                        type: 'function',
+                        function: { name: 'write', arguments: '{"path":"b.txt","content":"x"}' }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }),
+            sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+            'data: [DONE]\n\n'
+          ])
+        )
+        .mockResolvedValueOnce(sseResponse(openaiTextStep('写好了')))
+    );
+
+    const persisted: SessionMessage[][] = [];
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '写 b.txt' }],
+      // 授权等待（60ms）远长于工具超时（30ms），但两者不该叠加。
+      tools: [{ ...writeTool, timeoutMs: 30, execute: executed }],
+      gate: slowGate,
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    expect(executed).toHaveBeenCalledTimes(1);
+    expect((persisted[0] ?? [])[1]).not.toHaveProperty('isError');
+  });
+});
+
 describe('withSyntheticResults', () => {
   it('全部已结算时恒等（正常 step 不受影响）', () => {
     const calls = [{ id: 'call_1', name: 'read' }];
