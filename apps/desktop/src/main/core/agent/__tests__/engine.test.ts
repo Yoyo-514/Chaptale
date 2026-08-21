@@ -123,6 +123,8 @@ describe('runAgentLoop', () => {
     });
 
     expect(result.finishReason).toBe('stop');
+    expect(result.stopReason).toBe('natural');
+    expect(result.steps).toBe(1);
     expect(result.totalUsage.totalTokens).toBeGreaterThan(0);
     expect(result.aborted).toBe(false);
 
@@ -430,9 +432,10 @@ describe('runAgentLoop', () => {
     });
 
     // 第一步工具结算后达到上限：不再发起第二轮请求。
-    // 自然结束必以文本步收尾（finishReason 'stop'）；停在 'tool-calls' 即护栏截停的信号。
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.finishReason).toBe('tool-calls');
+    // 护栏截停必须可辨认：finishReason 只说"模型想调工具"，说不出"是引擎不让它继续"。
+    expect(result.stopReason).toBe('step-limit');
   });
 
   it('token 预算停止：累计 usage 触顶即停（成本护栏）', async () => {
@@ -458,6 +461,57 @@ describe('runAgentLoop', () => {
     // 自然结束必以文本步收尾；停在 'tool-calls' 即护栏截停的信号。
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.finishReason).toBe('tool-calls');
+    expect(result.stopReason).toBe('token-budget');
+  });
+
+  /**
+   * 会话推进必须用 SDK 自己的响应消息，不能改用落盘投影。
+   *
+   * 落盘有意丢弃 reasoning（它不进历史回放），而带思维链的模型在工具轮里
+   * 需要原样收回自己的推理块——Anthropic 扩展思考更是要连签名一起回传，缺了直接报错。
+   * 用落盘投影推进会话在普通模型上看不出问题，只在 reasoning 模型上炸。
+   */
+  it('推理块随会话推进回传给下一步（落盘投影会把它丢掉）', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        sseResponse([
+          sse({ id: '1', choices: [{ index: 0, delta: { reasoning_content: '先读文件再判断' } }] }),
+          sse({
+            id: '1',
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'call_1',
+                      type: 'function',
+                      function: { name: 'read', arguments: '{"path":"a.txt"}' }
+                    }
+                  ]
+                }
+              }
+            ]
+          }),
+          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+          'data: [DONE]\n\n'
+        ])
+      )
+      .mockResolvedValueOnce(sseResponse(openaiTextStep('读完了')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [readTool]
+    });
+
+    // openai-compatible 协议把推理块回写成 reasoning_content。
+    expect(requestBody(fetchMock, 1)).toContain('先读文件再判断');
   });
 });
 
@@ -735,8 +789,11 @@ describe('runAgentLoop 错误路径', () => {
     });
 
     expect(result.aborted).toBe(false);
-    // 注意 result.finishReason 在这里是 'other' 而不是 'length'——run 级聚合值
-    // 认不出截断，所以判定只能取 onLanguageModelCallEnd 上的单次模型调用原因。
+    // 判定取单次模型调用的原始停止原因；流上的聚合值在这个场景里是 'other'，认不出截断。
+    expect(result.finishReason).toBe('length');
+    // 整批已作废，继续下一步只会拿着同一份半截意图重来。
+    expect(result.stopReason).toBe('output-truncated');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     // 修复前：参数完整的 call_1 会写入，只有被截断的 call_2 报错。
     expect(executeSpy).not.toHaveBeenCalled();
 
