@@ -86,3 +86,63 @@ describe('describeProviderFault', () => {
     expect(failure).toEqual({ kind: 'unknown', message: '非 Error 的未知失败', retryable: false });
   });
 });
+
+/**
+ * provider 的 message 常常不带数字状态码（"Internal Server Error"、"Unauthorized"
+ * 之外还有一堆自定义文案），只匹配 message 会让分类在真实故障上大面积落回 unknown。
+ * APICallError 把状态码与响应体单独带着，是比文本更可靠的证据。
+ */
+function apiCallError(fields: { message: string; statusCode?: number; responseBody?: string; isRetryable?: boolean }) {
+  return Object.assign(new Error(fields.message), {
+    ...(fields.statusCode === undefined ? {} : { statusCode: fields.statusCode }),
+    ...(fields.responseBody === undefined ? {} : { responseBody: fields.responseBody }),
+    ...(fields.isRetryable === undefined ? {} : { isRetryable: fields.isRetryable })
+  });
+}
+
+describe('describeProviderFault：结构化传输字段', () => {
+  it('message 认不出时按 statusCode 兜底', () => {
+    // 正则在 "Internal Server Error" 上无处下手：没有数字、没有关键词。
+    expect(describeProviderFault(apiCallError({ message: 'Internal Server Error', statusCode: 500 }))).toMatchObject({
+      kind: 'upstream',
+      retryable: true
+    });
+
+    expect(describeProviderFault(apiCallError({ message: '请求被拒绝', statusCode: 401 }))).toMatchObject({
+      kind: 'auth',
+      retryable: false
+    });
+
+    // 402 Payment Required：正文通常什么都不写，只有状态码能认出是账单问题。
+    expect(describeProviderFault(apiCallError({ message: '', statusCode: 402 }))).toMatchObject({ kind: 'quota' });
+  });
+
+  it('响应体参与分类：429 的配额文案压过状态码的限流默认值', () => {
+    const failure = describeProviderFault(
+      apiCallError({
+        message: 'Request failed',
+        statusCode: 429,
+        responseBody: '{"error":{"message":"You exceeded your current quota, please check your billing"}}'
+      })
+    );
+
+    // 按限流提示"稍后重试"会让用户反复撞同一堵墙。
+    expect(failure).toMatchObject({ kind: 'quota', retryable: false });
+  });
+
+  it('响应体只参与分类，不进用户可见消息', () => {
+    const failure = describeProviderFault(
+      apiCallError({ message: '上游异常', statusCode: 503, responseBody: '<html>整页错误页</html>'.repeat(500) })
+    );
+
+    expect(failure.kind).toBe('upstream');
+    expect(failure.message).not.toContain('整页错误页');
+  });
+
+  it('分类不出但 SDK 判定可瞬时重试时，采信 SDK', () => {
+    expect(describeProviderFault(apiCallError({ message: '未知抖动', isRetryable: true }))).toMatchObject({
+      kind: 'unknown',
+      retryable: true
+    });
+  });
+});
