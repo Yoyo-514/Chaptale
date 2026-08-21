@@ -206,19 +206,27 @@ describe('AgentService.stream', () => {
 
     const roles = messages.map(message => message.role);
 
-    // 工具卡片在执行前先亮（partial），结果紧随其后，本步再定稿；末轮文本同样先增量后定稿。
-    expect(roles).toEqual(['user', 'assistant', 'tool', 'assistant', 'assistant', 'assistant']);
+    // 工具名一到就亮卡片（参数尚空），参数解析完再覆盖同 ID 的卡片，
+    // 结果紧随其后，本步再定稿；末轮文本同样先增量后定稿。
+    expect(roles).toEqual(['user', 'assistant', 'assistant', 'tool', 'assistant', 'assistant', 'assistant']);
 
+    // 提前亮起的那张：有工具名，参数还没到。
     expect(messages[1]).toMatchObject({
+      role: 'assistant',
+      partial: true,
+      toolCalls: [{ id: 'call_1', name: 'echo', arguments: {} }]
+    });
+    expect(messages[2]).toMatchObject({
       role: 'assistant',
       partial: true,
       toolCalls: [{ id: 'call_1', name: 'echo', arguments: { text: '你好' } }]
     });
-    expect(messages[2]).toMatchObject({ role: 'tool', toolCallId: 'call_1', toolName: 'echo' });
-    expect(messages[3]).toMatchObject({
+    expect(messages[3]).toMatchObject({ role: 'tool', toolCallId: 'call_1', toolName: 'echo' });
+    expect(messages[4]).toMatchObject({
       role: 'assistant',
       partial: false,
-      toolCalls: [{ id: 'call_1', name: 'echo' }]
+      // 定稿只带一条调用：提前亮的那张与参数完整的那张是同一个 ID。
+      toolCalls: [{ id: 'call_1', name: 'echo', arguments: { text: '你好' } }]
     });
     expect(messages.at(-1)).toMatchObject({ role: 'assistant', content: '已回显完毕。', partial: false });
 
@@ -229,8 +237,69 @@ describe('AgentService.stream', () => {
     expect(roles2).toEqual(['user', 'assistant', 'tool', 'assistant']);
   });
 
+  /**
+   * 参数边生成边展示。
+   *
+   * 写一整章时参数要流很久：没有这条，作者会对着"正在调用 write"却不知道
+   * 动的是哪个文件，一直等到整章生成完。
+   */
+  it('工具参数流式预览：主参数一完整就显示出来', async () => {
+    const body = '雨'.repeat(400);
+    const argumentChunk = (fragment: string) =>
+      sse({
+        id: '1',
+        choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: fragment } }] } }]
+      });
+
+    mockModelSequence([
+      [
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'echo', arguments: '' } }]
+              }
+            }
+          ]
+        }),
+        // 参数分片到达：模型一个 token 一个 token 地写正文。
+        argumentChunk('{"text":"'),
+        ...Array.from({ length: 4 }, () => argumentChunk('雨'.repeat(100))),
+        argumentChunk('"}'),
+        sse({
+          id: '1',
+          choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 }
+        }),
+        'data: [DONE]\n\n'
+      ],
+      textRound('回显完毕')
+    ]);
+
+    const messages = await drain(service.stream(runOptions('回显一段长文')));
+
+    // 参数完整之前就该出现带部分正文的预览卡片。
+    const previews = messages.filter(
+      (message): message is Extract<ChatMessage, { role: 'assistant' }> =>
+        message.role === 'assistant' &&
+        message.partial === true &&
+        (message.toolCalls?.[0]?.arguments as { text?: string } | undefined)?.text !== undefined
+    );
+
+    expect(previews.length).toBeGreaterThan(0);
+    const firstPreview = previews[0]!.toolCalls![0]!.arguments as { text: string };
+    expect(firstPreview.text.length).toBeGreaterThan(0);
+    // 预览是补齐出来的半截，短于最终值。
+    expect(firstPreview.text.length).toBeLessThan(body.length);
+
+    // 最终仍以权威解析值定稿。
+    const settled = messages.filter(message => message.role === 'assistant' && message.partial === false);
+    expect(JSON.stringify(settled)).toContain(body);
+  });
+
   it('branchFromEntryId：切到历史节点重生成（新分支）', async () => {
-    // 预置历史：user A / assistant 答案一。
     const seed = await repository.openOrCreate('s1', '/w');
     const userEntry = await seed.appendMessage({ role: 'user', content: 'A' });
     await seed.appendMessage({ role: 'assistant', content: '答案一' });

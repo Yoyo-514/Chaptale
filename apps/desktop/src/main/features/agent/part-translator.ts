@@ -1,6 +1,8 @@
 import type { ChatMessage } from '@chaptale/shared';
 import { errorToMessage } from '@chaptale/shared';
 
+import { parsePartialJsonObject } from '../../core/agent/partial-json';
+
 /**
  * AI SDK fullStream part → UI ChatMessage 的聚合翻译层。
  *
@@ -8,9 +10,9 @@ import { errorToMessage } from '@chaptale/shared';
  * - text-delta：**增量**推送 partial assistant（UI 侧 pushText 是追加语义），
  *   同时本地聚合，finish-step 时以全量定稿覆盖那条 partial；
  * - reasoning-delta：推送累计**快照**（UI 侧 replaceReasoning 是覆盖语义）；
- * - tool-call：立即推送带该调用的 partial assistant，让工具卡片在执行前就可见；
- *   只带本次调用（UI 按调用 ID 幂等更新，带全量会重复渲染已有调用）；
- * - tool-result / tool-error：整条立即推送（assistant 卡片已在 tool-call 时先行推送）；
+ * - tool-input-start / delta：工具名一到就亮卡片，参数边生成边填（见下）；
+ * - tool-call：参数解析完毕，以权威值覆盖同 ID 的卡片；
+ * - tool-result / tool-error：整条立即推送（assistant 卡片已在更早时候推送）；
  * - 其余 part（start/finish/abort 等）不产生 UI 消息。
  *
  * `error` part 不在此翻译：provider 故障由引擎抛出，经 IPC 的 `{status:'failed'}`
@@ -18,6 +20,14 @@ import { errorToMessage } from '@chaptale/shared';
  *
  * step 边界即消息边界：连续 text-delta 属于同一条 assistant 消息。
  */
+
+/**
+ * 参数预览的重解析步长（字符）。
+ *
+ * 一章正文会产生上千个 delta，每个都全量重解析是 O(n²)。主参数（path/url/query）
+ * 通常在头几十个字符里就完整了，步长对"卡片多快显示出正在动哪个文件"几乎无影响。
+ */
+const PARTIAL_ARGS_PARSE_STRIDE = 64;
 
 export type PartTranslator = {
   consume(part: unknown): void;
@@ -28,6 +38,26 @@ export function createPartTranslator(emit: (message: ChatMessage) => void): Part
   let reasoning = '';
   let toolCalls: Array<{ type: 'toolCall'; id: string; name: string; arguments: Record<string, unknown> }> = [];
   let usage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
+  /** 本步正在流式生成参数的工具调用。 */
+  let pendingInputs = new Map<string, { name: string; raw: string; parsedAt: number }>();
+
+  const emitToolCall = (invocation: { id: string; name: string; arguments: Record<string, unknown> }) => {
+    const existing = toolCalls.findIndex(call => call.id === invocation.id);
+
+    if (existing >= 0) {
+      toolCalls[existing] = { type: 'toolCall', ...invocation };
+    } else {
+      toolCalls.push({ type: 'toolCall', ...invocation });
+    }
+
+    // 只带本次调用：UI 按调用 ID 更新，带全量会重复渲染已有调用。
+    emit({
+      role: 'assistant',
+      toolCalls: [invocation],
+      partial: true,
+      timestamp: Date.now()
+    } as ChatMessage);
+  };
 
   const flushAssistant = () => {
     if (text !== '' || reasoning !== '' || toolCalls.length > 0) {
@@ -49,6 +79,7 @@ export function createPartTranslator(emit: (message: ChatMessage) => void): Part
     reasoning = '';
     toolCalls = [];
     usage = undefined;
+    pendingInputs = new Map();
   };
 
   return {
@@ -87,22 +118,52 @@ export function createPartTranslator(emit: (message: ChatMessage) => void): Part
           break;
         }
 
+        case 'tool-input-start': {
+          // 工具名一到就亮卡片：写一整章时，参数要流很久才结束，
+          // 等 tool-call 才亮意味着作者要对着静止的界面等上千个 token。
+          const start = part as { id: string; toolName: string };
+
+          pendingInputs.set(start.id, { name: start.toolName, raw: '', parsedAt: 0 });
+          emitToolCall({ id: start.id, name: start.toolName, arguments: {} });
+          break;
+        }
+
+        case 'tool-input-delta': {
+          const chunk = part as { id: string; delta: string };
+          const pending = pendingInputs.get(chunk.id);
+
+          if (!pending) {
+            break;
+          }
+
+          pending.raw += chunk.delta;
+
+          // 并行批次跳过参数预览：渲染层对"最后一条 partial"是整体替换语义，
+          // 逐个刷新会让先到的卡片在另一个调用流参数期间一直消失。
+          if (pendingInputs.size > 1 || pending.raw.length - pending.parsedAt < PARTIAL_ARGS_PARSE_STRIDE) {
+            break;
+          }
+
+          pending.parsedAt = pending.raw.length;
+          const preview = parsePartialJsonObject(pending.raw);
+
+          if (preview) {
+            emitToolCall({ id: chunk.id, name: pending.name, arguments: preview });
+          }
+
+          break;
+        }
+
         case 'tool-call': {
           const call = part as { toolCallId: string; toolName: string; input?: unknown };
-          const invocation = {
+
+          // 参数解析完毕：以权威值覆盖流式预览（预览是补齐出来的，可能少字段）。
+          pendingInputs.delete(call.toolCallId);
+          emitToolCall({
             id: call.toolCallId,
             name: call.toolName,
             arguments: (call.input ?? {}) as Record<string, unknown>
-          };
-
-          toolCalls.push({ type: 'toolCall', ...invocation });
-          // 工具执行前先亮卡片；只带本次调用，UI 按调用 ID 幂等更新（带全量会重复渲染已有调用）。
-          emit({
-            role: 'assistant',
-            toolCalls: [invocation],
-            partial: true,
-            timestamp: Date.now()
-          } as ChatMessage);
+          });
           break;
         }
 
