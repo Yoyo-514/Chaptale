@@ -366,7 +366,7 @@ async function installDesktopMock(page: Page) {
               timestamp: now,
               message: { role: 'assistant', content: [{ type: 'text', text: `收到：${query}` }], timestamp: Date.now() }
             });
-            handlers.onEnd({ status: 'completed' });
+            handlers.onEnd({ status: 'completed', stopReason: 'natural' });
           }, 700);
           return { runId: 'run-1' };
         },

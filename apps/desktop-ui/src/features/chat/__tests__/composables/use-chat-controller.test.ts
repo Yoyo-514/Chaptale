@@ -119,7 +119,7 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
           timestamp: Date.now()
         });
         handlers.onMessage({ role: 'assistant', content: '最终回复', timestamp: Date.now() });
-        handlers.onEnd({ status: 'completed' });
+        handlers.onEnd({ status: 'completed', stopReason: 'natural' });
         return { runId: 'run-1' };
       }),
       steer: vi.fn().mockResolvedValue({ runId: 'run-1' }),
@@ -553,6 +553,44 @@ describe('useChatController', () => {
       title: 'AI 回复失败',
       description: '模型不可用'
     });
+  });
+
+  /**
+   * 护栏截停此前在界面上与"模型说完了"完全一致：回答断在半截，没有一个字解释。
+   */
+  it('explains a guardrail stop instead of ending the reply without a word', async () => {
+    installDesktopMock({
+      agent: {
+        stream: vi.fn().mockImplementation(async (_query, handlers) => {
+          handlers.onMessage({ role: 'assistant', content: '写了一半', timestamp: Date.now() });
+          handlers.onEnd({ status: 'completed', stopReason: 'step-limit' });
+          return { runId: 'run-capped' };
+        }),
+        cancel: vi.fn()
+      }
+    } as any);
+    const controller = await mountController();
+    const notificationStore = useNotificationStore();
+
+    controller.state.input = '写一章';
+    await controller.handleSend();
+
+    await vi.waitFor(() =>
+      expect(notificationStore.items.at(-1)).toMatchObject({ kind: 'info', title: '本轮已到步数上限' })
+    );
+  });
+
+  /** 对照组：模型自己收的尾没什么要解释的，恒发通知的实现会被这条拦下。 */
+  it('stays quiet when the model finished on its own', async () => {
+    installDesktopMock();
+    const controller = await mountController();
+    const notificationStore = useNotificationStore();
+
+    controller.state.input = '写一段';
+    await controller.handleSend();
+    await nextTick();
+
+    expect(notificationStore.items.some(item => item.title.includes('上限'))).toBe(false);
   });
 
   it('reloads persisted messages on error and removes undelivered steer projections', async () => {

@@ -81,7 +81,7 @@ describe('createAgentApi', () => {
   });
 
   it.each<RunEnd>([
-    { status: 'completed' },
+    { status: 'completed', stopReason: 'natural' },
     { status: 'cancelled' },
     { status: 'failed', code: 'AGENT_RUN_FAILED', message: 'run failure', retryable: false }
   ])('只转发相同 runId 的 $status 终态，并清理自己的 message/end 监听器', async end => {
@@ -126,7 +126,7 @@ describe('createAgentApi', () => {
 
     electronMock.emit(IPC_CHANNELS.agent.end, {
       runId: runA.runId,
-      end: { status: 'completed' }
+      end: { status: 'completed', stopReason: 'natural' }
     } satisfies AgentEndEvent);
 
     expect(onEndA).toHaveBeenCalledOnce();

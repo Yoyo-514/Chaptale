@@ -1,4 +1,10 @@
-import type { AgentClearedQueue, AgentRunOptions, AgentRuntime, AgentSteerOptions } from '@chaptale/ipc-contract';
+import type {
+  AgentClearedQueue,
+  AgentRunOptions,
+  AgentRunStopReason,
+  AgentRuntime,
+  AgentSteerOptions
+} from '@chaptale/ipc-contract';
 import type { ChatMessage, MemoryCompactionResult, MemoryContextPressureStatus } from '@chaptale/shared';
 
 import { compactSession, type CompactSummarizer } from '../../core/agent/compact';
@@ -92,7 +98,7 @@ export class AgentService implements AgentRuntime {
     });
   }
 
-  async *stream(options: AgentRunOptions): AsyncGenerator<ChatMessage> {
+  async *stream(options: AgentRunOptions): AsyncGenerator<ChatMessage, AgentRunStopReason> {
     const { signal, query, sessionId } = options;
     signal.throwIfAborted();
 
@@ -111,6 +117,8 @@ export class AgentService implements AgentRuntime {
 
     const queue = new AsyncMessageQueue<ChatMessage>();
     let loopFailure: Error | undefined;
+    // 取消是唯一"一轮都没跑完"的收场，故取它作初值。
+    let stopReason: AgentRunStopReason = 'aborted';
 
     const loop = this.driveRounds({
       sessionId,
@@ -121,6 +129,9 @@ export class AgentService implements AgentRuntime {
       query,
       onMessage: message => queue.push(message)
     })
+      .then(reason => {
+        stopReason = reason;
+      })
       .catch(error => {
         loopFailure = error instanceof Error ? error : new Error(String(error));
       })
@@ -142,9 +153,16 @@ export class AgentService implements AgentRuntime {
     } finally {
       run.running = false;
     }
+
+    return stopReason;
   }
 
-  /** 轮次驱动：首轮 query，后续吸收 steer；任何一轮异常都不吞（由 stream 统一上抛）。 */
+  /**
+   * 轮次驱动：首轮 query，后续吸收 steer；任何一轮异常都不吞（由 stream 统一上抛）。
+   *
+   * 返回最后一轮的停因——多轮时只有最后那次的收场对作者有意义，
+   * 中途各轮都是"还有 steer 要跑"，本就不该停。
+   */
   private async driveRounds(input: {
     sessionId: string;
     store: SessionStore;
@@ -153,7 +171,7 @@ export class AgentService implements AgentRuntime {
     options: AgentRunOptions;
     query: string;
     onMessage: (message: ChatMessage) => void;
-  }): Promise<void> {
+  }): Promise<AgentRunStopReason> {
     const { sessionId, store, run, signal, options, query, onMessage } = input;
 
     // 复用历史条目：切 leaf 到被复用节点；分支重生成：切到目标节点。
@@ -178,6 +196,8 @@ export class AgentService implements AgentRuntime {
     let firstRound = true;
     let overflowCompacted = false;
     let retryAfterOverflow = false;
+    // 与 stream 同一取舍：循环体一轮都没进，只可能是开跑前就被取消了。
+    let stopReason: AgentRunStopReason = 'aborted';
 
     // 水位逼近窗口时先折叠历史再开跑：撞墙后再补救，作者已经等了一次失败。
     await this.autoCompact(sessionId, store, 'threshold');
@@ -194,7 +214,7 @@ export class AgentService implements AgentRuntime {
       const translator = createPartTranslator(onMessage);
 
       try {
-        await runAgentLoop({
+        const outcome = await runAgentLoop({
           sessionId,
           model: bundle.model,
           system: bundle.system,
@@ -237,6 +257,8 @@ export class AgentService implements AgentRuntime {
             return { appendMessages: [entry], resume: true };
           }
         });
+
+        stopReason = outcome.stopReason;
       } catch (error) {
         // 上下文撞墙：折叠历史后重跑本轮。只补救一次——压完还溢出说明不是历史太长，
         // 而是单轮内容本身超窗，再压一次只会白烧一次蒸馏。
@@ -254,6 +276,8 @@ export class AgentService implements AgentRuntime {
         retryAfterOverflow = true;
       }
     }
+
+    return stopReason;
   }
 
   /**

@@ -3,9 +3,23 @@ import { Compile } from 'typebox/compile';
 
 import { SessionIdSchema } from './sessions';
 
+/**
+ * 运行停在这里的原因；只有 `natural` 是模型自己收的尾，其余三种都是引擎替它做的决定。
+ *
+ * 与 main 侧 `AgentStopReason` 同源，差别只在少一个 `aborted`——用户取消走 `cancelled`
+ * 终态，不占 `completed` 的位置。两侧取值一旦漂移，Main 把停因赋进本字段时即编译失败。
+ */
+export const RunStopReasonSchema = Type.Union([
+  Type.Literal('natural'),
+  Type.Literal('step-limit'),
+  Type.Literal('token-budget'),
+  Type.Literal('output-truncated')
+]);
+
 /** Agent 运行的唯一终态；失败信息必须完整，便于 Renderer 做确定性处理。 */
 export const RunEndSchema = Type.Union([
-  Type.Object({ status: Type.Literal('completed') }, { additionalProperties: false }),
+  // stopReason 必填：护栏截停与自然收尾在界面上是两件事，留可选就等于允许再次丢掉它。
+  Type.Object({ status: Type.Literal('completed'), stopReason: RunStopReasonSchema }, { additionalProperties: false }),
   Type.Object({ status: Type.Literal('cancelled') }, { additionalProperties: false }),
   Type.Object(
     {

@@ -89,7 +89,12 @@ describe('IPC 参数 Schema', () => {
   });
 
   it('校验 Agent 三种显式终态并拒绝不完整失败信息', () => {
-    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'completed' } })).toBe(true);
+    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'completed', stopReason: 'natural' } })).toBe(
+      true
+    );
+    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'completed', stopReason: 'step-limit' } })).toBe(
+      true
+    );
     expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'cancelled' } })).toBe(true);
     expect(
       AgentEndEventValidator.Check({
@@ -99,6 +104,12 @@ describe('IPC 参数 Schema', () => {
     ).toBe(true);
     expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'failed', message: 'x' } })).toBe(false);
     expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'cancelled', message: 'x' } })).toBe(false);
+    // 停因缺席即非法：它此前正是被一路丢到地上的那个值，留可选等于允许再丢一次。
+    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'completed' } })).toBe(false);
+    // 取消有自己的终态，不占 completed 的停因取值。
+    expect(AgentEndEventValidator.Check({ runId: 'r1', end: { status: 'completed', stopReason: 'aborted' } })).toBe(
+      false
+    );
   });
 
   it('校验 Agent steer 与清空待处理消息参数', () => {

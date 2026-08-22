@@ -10,7 +10,8 @@ import type {
   AgentRunResultSchema,
   AgentStartPayloadSchema,
   AgentSteerPayloadSchema,
-  RunEndSchema
+  RunEndSchema,
+  RunStopReasonSchema
 } from './schemas/agent';
 
 /** Renderer 发起 Agent 流式运行时传入的 IPC payload。 */
@@ -33,6 +34,17 @@ export type AgentMessageEvent = {
 
 /** Agent 运行的明确终态；failed 分支始终携带可机器处理的完整错误信息。 */
 export type RunEnd = Static<typeof RunEndSchema>;
+
+/** 运行正常收束时的停止原因；用户取消不在此列，它有自己的终态。 */
+export type RunStopReason = Static<typeof RunStopReasonSchema>;
+
+/**
+ * `stream()` 收束时交还的停因，比 `RunStopReason` 多一个 `aborted`。
+ *
+ * 取消也要能从这条通道出来：IPC 层据此把它分流到 `cancelled` 终态，
+ * 而不是让调用方另找地方判断"这次到底是停了还是被取消了"。
+ */
+export type AgentRunStopReason = RunStopReason | 'aborted';
 
 /** Main 推送的唯一 Agent 终态事件。 */
 export type AgentEndEvent = Static<typeof AgentEndEventSchema>;
@@ -76,8 +88,13 @@ export type AgentSteerOptions = Omit<AgentSteerPayload, 'runId'> & AgentRunScope
  * 不包含 Electron、Node fs 或底层 SDK 类型。
  */
 export interface AgentRuntime {
-  /** 启动并产出一条 Agent 消息流。 */
-  stream(options: AgentRunOptions): AsyncGenerator<ChatMessage>;
+  /**
+   * 启动并产出一条 Agent 消息流；收束时交还停因。
+   *
+   * 停因走返回值而非可选回调，是因为它此前正是**被丢在地上**的那个值：
+   * 返回值配合 `completed` 终态里必填的 `stopReason`，让漏接直接编译失败。
+   */
+  stream(options: AgentRunOptions): AsyncGenerator<ChatMessage, AgentRunStopReason>;
   /** 向当前活跃运行追加 steering message。 */
   steer(options: AgentSteerOptions): Promise<void>;
   /** 清空指定活跃运行中仍未消费的 steering 与 follow-up 消息。 */

@@ -172,32 +172,42 @@ export function registerAgentIpc(options: {
    * Abort、正常完成和真实异常必须保持可判别；发送通道自身失败仍交给 detached promise 回收。
    */
   async function streamAgentToRenderer(webContents: WebContents, payload: AgentStartPayload, signal: AbortSignal) {
-    try {
-      // start handler 已同步校验 sessionId；此处使用收窄后的值构造 Runtime 参数。
-      const sessionId = payload.sessionId!;
+    // start handler 已同步校验 sessionId；此处使用收窄后的值构造 Runtime 参数。
+    const sessionId = payload.sessionId!;
+    const stream = agentService.stream({
+      query: payload.query,
+      sessionId,
+      branchFromEntryId: payload.branchFromEntryId,
+      contextFilePaths: payload.contextFilePaths,
+      reuseUserEntryId: payload.reuseUserEntryId,
+      signal
+    });
 
-      for await (const message of agentService.stream({
-        query: payload.query,
-        sessionId,
-        branchFromEntryId: payload.branchFromEntryId,
-        contextFilePaths: payload.contextFilePaths,
-        reuseUserEntryId: payload.reuseUserEntryId,
-        signal
-      })) {
+    try {
+      // 手动迭代而非 for-await：停因是这条流的返回值，for-await 会把它丢掉。
+      while (true) {
+        const next = await stream.next();
+
+        if (next.done) {
+          const stopReason = next.value;
+
+          safeSend(webContents, IPC_CHANNELS.agent.end, {
+            runId: payload.runId,
+            end:
+              signal.aborted || stopReason === 'aborted' ? { status: 'cancelled' } : { status: 'completed', stopReason }
+          } satisfies AgentEndEvent);
+          return;
+        }
+
         const sent = safeSend(webContents, IPC_CHANNELS.agent.message, {
           runId: payload.runId,
-          message
+          message: next.value
         } satisfies AgentMessageEvent);
 
         if (!sent) {
           return;
         }
       }
-
-      safeSend(webContents, IPC_CHANNELS.agent.end, {
-        runId: payload.runId,
-        end: signal.aborted ? { status: 'cancelled' } : { status: 'completed' }
-      } satisfies AgentEndEvent);
     } catch (error) {
       if (error instanceof WebContentsSendError) {
         throw error.sendError;
@@ -227,6 +237,13 @@ export function registerAgentIpc(options: {
           retryable: failure.retryable
         }
       } satisfies AgentEndEvent);
+    } finally {
+      // for-await 会在提前 break 或抛错时替我们关掉 generator，手动迭代必须自己来：
+      // 漏掉这一句，AgentService 的 finally 不执行、run.running 永远为真，
+      // 该会话此后再也启动不了新运行。流已自然收束时本调用是无操作。
+      //
+      // 吞掉这里的失败是刻意的：generator 收尾若抛错，会顶替掉本该传播出去的原始异常。
+      await stream.return('aborted').catch(() => undefined);
     }
   }
 }

@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPC_CHANNELS } from '@chaptale/ipc-contract';
-import type { AgentRunOptions, AgentRuntime, AgentStartPayload } from '@chaptale/ipc-contract';
+import type { AgentRunOptions, AgentRunStopReason, AgentRuntime, AgentStartPayload } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
 import { handleValidatedIpc } from '../../../infra/security/validated-ipc';
@@ -159,7 +159,10 @@ function createStreamControl(): StreamControl {
   };
 }
 
-async function* controlledStream(control: StreamControl, options: AgentRunOptions) {
+async function* controlledStream(
+  control: StreamControl,
+  options: AgentRunOptions
+): AsyncGenerator<ChatMessage, AgentRunStopReason> {
   control.signal = options.signal;
   control.started.resolve();
 
@@ -169,6 +172,8 @@ async function* controlledStream(control: StreamControl, options: AgentRunOption
   } finally {
     control.finished.resolve();
   }
+
+  return 'natural';
 }
 
 /** 创建带可观察 steer/clear 方法的测试 Runtime。 */
@@ -353,7 +358,7 @@ describe('Agent IPC lifecycle', () => {
     const started = createDeferred();
     const sender = new FakeWebContents();
     const runtime: AgentRuntime = {
-      stream: vi.fn(async function* (options: AgentRunOptions) {
+      stream: vi.fn(async function* (options: AgentRunOptions): AsyncGenerator<ChatMessage, AgentRunStopReason> {
         started.resolve();
         await new Promise<void>(resolve => {
           if (options.signal.aborted) {
@@ -367,6 +372,8 @@ describe('Agent IPC lifecycle', () => {
         if (!options.signal.aborted) {
           yield { role: 'assistant', content: [] } satisfies ChatMessage;
         }
+
+        return 'aborted';
       }),
       steer: vi.fn(async () => undefined),
       clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] })),
@@ -557,9 +564,10 @@ describe('Agent IPC lifecycle', () => {
   it('sends a complete failed end for a real runtime exception', async () => {
     const sender = new FakeWebContents();
     const runtime = createRuntime(createStreamControl());
-    runtime.stream = vi.fn(async function* () {
+    runtime.stream = vi.fn(async function* (): AsyncGenerator<ChatMessage, AgentRunStopReason> {
       await new Promise<never>((_resolve, reject) => reject(new Error('runtime failed')));
       yield { role: 'assistant', content: [] } satisfies ChatMessage;
+      return 'natural';
     });
     registerAgentIpc({
       runtime: runtime,
@@ -612,7 +620,54 @@ describe('Agent IPC lifecycle', () => {
         IPC_CHANNELS.agent.message,
         { runId: 'run-1', message: { role: 'assistant', content: [{ type: 'text', text: 'reply' }] } }
       ],
-      [IPC_CHANNELS.agent.end, { runId: 'run-1', end: { status: 'completed' } }]
+      [IPC_CHANNELS.agent.end, { runId: 'run-1', end: { status: 'completed', stopReason: 'natural' } }]
     ]);
+  });
+
+  /**
+   * 上一条只跑 natural，硬编码 'natural' 的实现照样能绿；这条把非自然停因也钉在终态上。
+   */
+  it('把护栏停因原样交给终态事件', async () => {
+    const sender = new FakeWebContents();
+    const runtime = createRuntime(createStreamControl());
+    runtime.stream = vi.fn(async function* (): AsyncGenerator<ChatMessage, AgentRunStopReason> {
+      yield { role: 'assistant', content: [{ type: 'text', text: '写了一半' }] } satisfies ChatMessage;
+      return 'step-limit';
+    });
+    registerAgentIpc({
+      runtime,
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
+    });
+    const start = getValidatedHandler(IPC_CHANNELS.agent.start);
+
+    start({ sender: sender as unknown as WebContents }, createPayload());
+    await sender.waitForTerminalSend();
+
+    expect(sender.sent.at(-1)).toEqual([
+      IPC_CHANNELS.agent.end,
+      { runId: 'run-1', end: { status: 'completed', stopReason: 'step-limit' } }
+    ]);
+  });
+
+  /** 取消不占 completed 的停因取值：引擎交还 aborted 时终态必须是 cancelled。 */
+  it('把 aborted 分流到 cancelled 终态', async () => {
+    const sender = new FakeWebContents();
+    const runtime = createRuntime(createStreamControl());
+    runtime.stream = vi.fn(async function* (): AsyncGenerator<ChatMessage, AgentRunStopReason> {
+      yield { role: 'assistant', content: [{ type: 'text', text: '写了一半' }] } satisfies ChatMessage;
+      return 'aborted';
+    });
+    registerAgentIpc({
+      runtime,
+      contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
+      ui: { resolveOwner: vi.fn(() => undefined) }
+    });
+    const start = getValidatedHandler(IPC_CHANNELS.agent.start);
+
+    start({ sender: sender as unknown as WebContents }, createPayload());
+    await sender.waitForTerminalSend();
+
+    expect(sender.sent.at(-1)).toEqual([IPC_CHANNELS.agent.end, { runId: 'run-1', end: { status: 'cancelled' } }]);
   });
 });

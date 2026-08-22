@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Type } from 'typebox';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { AgentRunStopReason } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
 import type { CompactSummarizer } from '../../../core/agent/compact';
@@ -537,7 +538,7 @@ describe('AgentService.stream', () => {
     await expect(second.next()).rejects.toThrow(/正在运行中/);
 
     releaseFirst();
-    await first.return?.(undefined).catch(() => undefined);
+    await first.return?.('aborted').catch(() => undefined);
   });
 
   it('memory 注入器前缀进入落盘内容，UI 回显保持纯净', async () => {
@@ -570,7 +571,66 @@ describe('AgentService.stream', () => {
     const echo = messages.find(message => message.role === 'user');
     expect(echo?.content).toBe('继续写');
   });
+
+  /**
+   * 停因此前算得出来却没人接：`runAgentLoop` 的返回值被整条丢在 service 里，
+   * 于是步数上限、预算上限、输出截断在作者眼里全是"回答毫无征兆地断了"。
+   */
+  it('护栏截停的原因随流交还，不再停在引擎里', async () => {
+    // 每一步都调工具、永不自然收尾；步数上限压到 1，第二轮迭代开头即截停。
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          sse({
+            id: '1',
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    { index: 0, id: 'call_1', type: 'function', function: { name: 'echo', arguments: '{"text":"甲"}' } }
+                  ]
+                }
+              }
+            ]
+          }),
+          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+          'data: [DONE]\n\n'
+        ])
+      )
+    );
+
+    const guarded = new AgentService({
+      sessionRepository: repository,
+      modelService: {} as never,
+      runtimeBundle: createBundle(),
+      gate: { check: async () => ({ outcome: 'allow-once' }) },
+      compactSummarizer: stubSummarizer,
+      maxSteps: 1
+    });
+
+    await expect(runToStopReason(guarded.stream(runOptions('一直调工具')))).resolves.toBe('step-limit');
+  });
+
+  /** 对照组：不加这条，上面那条在"恒返回 step-limit"的实现下同样会绿。 */
+  it('模型自己收尾时交还 natural', async () => {
+    mockModelSequence([textRound('写完了。')]);
+
+    await expect(runToStopReason(service.stream(runOptions('写一段')))).resolves.toBe('natural');
+  });
 });
+
+/** 跑到收束并交还停因；`drain` 走 for-await，会把返回值丢掉。 */
+async function runToStopReason(stream: AsyncGenerator<ChatMessage, AgentRunStopReason>) {
+  let next = await stream.next();
+
+  while (!next.done) {
+    next = await stream.next();
+  }
+
+  return next.value;
+}
 
 /** 消费整条流并收集消息。 */
 async function drain(stream: AsyncGenerator<ChatMessage>) {

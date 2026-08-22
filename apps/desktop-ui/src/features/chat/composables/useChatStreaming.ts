@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue';
 
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import type { ChaptaleDesktopApi, RunStopReason } from '@chaptale/ipc-contract';
 import type { ChatContextFile } from '@chaptale/shared';
 
 import { useNotificationStore } from '@/features/notifications';
@@ -31,6 +31,27 @@ type UseChatStreamingOptions = {
   currentLeafId: Ref<string | null>;
   loadCurrentSessionMessages: () => Promise<void>;
   getDesktopApiOrNotify: () => ChaptaleDesktopApi | undefined;
+};
+
+/**
+ * 引擎替模型收尾时对作者的解释。
+ *
+ * `natural` 不在表内——模型自己说完了，没什么要解释的。其余三种都是护栏动作，
+ * 不说明的话作者只会看到回答毫无征兆地断在半截。
+ */
+const STOP_REASON_NOTICES: Record<Exclude<RunStopReason, 'natural'>, { title: string; description: string }> = {
+  'step-limit': {
+    title: '本轮已到步数上限',
+    description: '连续工具调用触到单轮护栏后停下了。回复可能没写完，说一句「继续」就能接着做。'
+  },
+  'token-budget': {
+    title: '本轮已到 token 预算上限',
+    description: '累计用量触到单轮成本护栏后停下了。回复可能没写完，说一句「继续」就能接着做。'
+  },
+  'output-truncated': {
+    title: '模型输出被长度上限截断',
+    description: '这一批工具调用已整体作废，以免写进被截断的内容。把任务拆小一些再试通常就好了。'
+  }
 };
 
 /** 按路径去重上下文文件，并保持第一次出现的顺序。 */
@@ -294,6 +315,12 @@ export function useChatStreaming({
 
             // completed/cancelled 都以 Main 持久化结果为准，取消请求本身绝不提前回载。
             trackTerminalReload(reloadPersistedSession().catch(() => undefined));
+
+            // 解释放在回载之后：作者的正文回来才是主线，这条只是附带说明。
+            if (end.status === 'completed' && end.stopReason !== 'natural') {
+              const notice = STOP_REASON_NOTICES[end.stopReason];
+              notificationStore.info(notice.title, notice.description);
+            }
           }
         },
         sessionId,
