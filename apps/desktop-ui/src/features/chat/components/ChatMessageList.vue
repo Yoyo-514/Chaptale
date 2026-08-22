@@ -62,7 +62,8 @@ const rows = computed<ChatMessageRow[]>(() => {
           result.push({
             type: 'message',
             key: displayMessage.id,
-            message: { ...displayMessage, message: { ...message, toolCalls: undefined } }
+            // 截停说明跟着工具行走：拆分后它在下面，而截停发生在整条消息之后。
+            message: { ...displayMessage, stopNoticeAfter: undefined, message: { ...message, toolCalls: undefined } }
           });
         }
 

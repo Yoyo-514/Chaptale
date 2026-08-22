@@ -100,6 +100,38 @@ export type SessionCompactionEntry = SessionEntryBase & {
   details?: unknown;
 };
 
+/**
+ * 引擎替模型收尾的原因。
+ *
+ * 只收护栏截停这三种：模型自己说完（`natural`）是常态，每轮都记一笔只是噪音；
+ * 用户取消在界面上另有表达，也不占这里的位置。
+ *
+ * 有意与 IPC 契约的 `RunStopReason` 各自定义而非派生：落盘的是历史事实，
+ * 契约日后增删取值不该让旧文件读不出来。两侧对齐由写入侧那次赋值兜住——
+ * 取值一旦漂移，把停因赋进本字段时即编译失败。
+ */
+export const SESSION_RUN_STOP_REASONS = ['step-limit', 'token-budget', 'output-truncated'] as const;
+
+export type SessionRunStopReason = (typeof SESSION_RUN_STOP_REASONS)[number];
+
+/** 历史文件里的取值未经校验（reader 只认 id/parentId），出核心层前据此挡掉脏值。 */
+export function isSessionRunStopReason(value: unknown): value is SessionRunStopReason {
+  return typeof value === 'string' && (SESSION_RUN_STOP_REASONS as readonly string[]).includes(value);
+}
+
+/**
+ * 一轮运行被护栏截停的记录。
+ *
+ * 单独成条而不是挂在最后那条 assistant 消息上：停因是**运行级**事实，
+ * 一轮跨多步多条消息，挂到其中一条本就错位；`step-limit` 更是压根不对应
+ * 任何一步的结束。何况停因的判定发生在该步落盘**之后**（落盘先于一切判断
+ * 是刻意的），届时那条消息早已 append，append-only 改不回去。
+ */
+export type SessionRunStopEntry = SessionEntryBase & {
+  type: 'run_stop';
+  reason: SessionRunStopReason;
+};
+
 /** leaf 切换入流；targetId 为 null 表示回到自然 leaf（最后一条 entry）。 */
 export type SessionBranchSelectedEntry = SessionEntryBase & {
   type: 'branch_selected';
@@ -128,6 +160,7 @@ export type SessionEntry =
   | SessionMessageEntry
   | SessionModelChangeEntry
   | SessionCompactionEntry
+  | SessionRunStopEntry
   | SessionBranchSelectedEntry
   | SessionSessionInfoEntry
   | SessionLabelEntry

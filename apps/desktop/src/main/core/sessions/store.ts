@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 
-import type { ParsedSessionFile, SessionEntry, SessionHeader, SessionMessage, SessionMessageEntry } from './entry';
+import type {
+  ParsedSessionFile,
+  SessionEntry,
+  SessionHeader,
+  SessionMessage,
+  SessionMessageEntry,
+  SessionRunStopReason
+} from './entry';
 import { readSessionFile } from './reader';
 import type { ContextProjection } from './replay';
 import {
@@ -123,6 +130,11 @@ export class SessionStore {
 
   async appendSessionInfo(name?: string): Promise<void> {
     await this.append({ type: 'session_info', name });
+  }
+
+  /** 记下本轮被护栏截停；模型自然收尾与用户取消都不写。 */
+  async appendRunStop(reason: SessionRunStopReason): Promise<void> {
+    await this.append({ type: 'run_stop', reason });
   }
 
   async appendLabel(targetId: string, label?: string): Promise<void> {

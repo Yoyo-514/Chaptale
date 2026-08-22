@@ -17,6 +17,7 @@ import type { ChatImageAttachment, ChatMessage, ChatTextPart } from '@chaptale/s
 import type { ImageAttachmentService } from '../../core/attachments/service';
 import { decodeUserMessage } from '../../core/prompt-envelope/decode-user-message';
 import type { SessionEntry, SessionMessage } from '../../core/sessions/entry';
+import { isSessionRunStopReason } from '../../core/sessions/entry';
 import { parseSessionContent } from '../../core/sessions/reader';
 import type { SessionStorageContext } from '../../core/sessions/storage';
 import { SessionStorageResolver } from '../../core/sessions/storage';
@@ -352,6 +353,11 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
           ...base,
           ...(entry.name !== undefined ? { name: entry.name } : {})
         };
+
+      case 'run_stop':
+        // 认不出的原因整条丢弃，而不是渲染一个作者读不懂的标签；
+        // 下游（界面与 HTML 导出）据此按封闭三值处理，无需各自再防一遍。
+        return isSessionRunStopReason(entry.reason) ? { type: 'run_stop', ...base, reason: entry.reason } : null;
 
       case 'label':
         return {

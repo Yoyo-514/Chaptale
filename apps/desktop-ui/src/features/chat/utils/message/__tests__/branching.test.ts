@@ -141,4 +141,55 @@ describe('buildDisplayMessagesFromEntries', () => {
     expect(messages[1].compactionBefore).toBeUndefined();
     expect(messages[2].compactionBefore).toEqual({ summary: '早期讨论摘要', tokensBefore: 12000 });
   });
+
+  it('attaches a guardrail stop to the message it interrupted', () => {
+    const entries: ChaptaleSessionTreeEntry[] = [
+      messageEntry('user-a', null, '2026-07-12T00:00:01.000Z', { role: 'user', content: '写一章' }),
+      messageEntry('assistant-a', 'user-a', '2026-07-12T00:00:02.000Z', {
+        role: 'assistant',
+        content: [{ type: 'text', text: '写到一半' }]
+      }),
+      {
+        type: 'run_stop',
+        id: 'stop-1',
+        parentId: 'assistant-a',
+        timestamp: '2026-07-12T00:00:03.000Z',
+        reason: 'step-limit'
+      }
+    ];
+
+    const messages = buildDisplayMessagesFromEntries(entries, 'stop-1');
+
+    // 截停记录本身不占消息行，但必须让它前面那条带上说明——否则重开会话时
+    // 作者只看到一段没写完的正文，没有任何交代。
+    expect(messages.map(message => message.entryId)).toEqual(['user-a', 'assistant-a']);
+    expect(messages[0].stopNoticeAfter).toBeUndefined();
+    expect(messages[1].stopNoticeAfter).toBe('step-limit');
+  });
+
+  it('keeps a later message clear of an earlier stop notice', () => {
+    const entries: ChaptaleSessionTreeEntry[] = [
+      messageEntry('user-a', null, '2026-07-12T00:01:01.000Z', { role: 'user', content: '写一章' }),
+      messageEntry('assistant-a', 'user-a', '2026-07-12T00:01:02.000Z', {
+        role: 'assistant',
+        content: [{ type: 'text', text: '写到一半' }]
+      }),
+      {
+        type: 'run_stop',
+        id: 'stop-1',
+        parentId: 'assistant-a',
+        timestamp: '2026-07-12T00:01:03.000Z',
+        reason: 'token-budget'
+      },
+      messageEntry('user-b', 'stop-1', '2026-07-12T00:01:04.000Z', { role: 'user', content: '继续' }),
+      messageEntry('assistant-b', 'user-b', '2026-07-12T00:01:05.000Z', {
+        role: 'assistant',
+        content: [{ type: 'text', text: '接着写完' }]
+      })
+    ];
+
+    const messages = buildDisplayMessagesFromEntries(entries, 'assistant-b');
+
+    expect(messages.map(message => message.stopNoticeAfter)).toEqual([undefined, 'token-budget', undefined, undefined]);
+  });
 });

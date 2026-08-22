@@ -1,3 +1,4 @@
+import type { RunStopRecordReason } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
 export type MessageBranchControl = {
@@ -30,4 +31,11 @@ export type ChatDisplayMessage = {
     summary: string;
     tokensBefore: number;
   };
+  /**
+   * 本轮在该消息之后被护栏截停，渲染时在消息下方插入说明。
+   *
+   * 与 `compactionBefore` 方向相反是必然的：压缩发生在后续内容之前，
+   * 而截停记录落在分支末尾，后面根本没有消息可供附着。
+   */
+  stopNoticeAfter?: RunStopRecordReason;
 };

@@ -259,6 +259,12 @@ export class AgentService implements AgentRuntime {
         });
 
         stopReason = outcome.stopReason;
+
+        // 护栏截停留痕，供重开会话时解释"为什么断在这里"；自然收尾与取消都不写。
+        // 窄化后的三值直接赋给 SessionRunStopReason，两处取值一旦漂移即编译失败。
+        if (outcome.stopReason !== 'natural' && outcome.stopReason !== 'aborted') {
+          await store.appendRunStop(outcome.stopReason);
+        }
       } catch (error) {
         // 上下文撞墙：折叠历史后重跑本轮。只补救一次——压完还溢出说明不是历史太长，
         // 而是单轮内容本身超窗，再压一次只会白烧一次蒸馏。

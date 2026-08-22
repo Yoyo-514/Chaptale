@@ -148,6 +148,30 @@ describe('JsonlSessionRepository', () => {
     expect(entries.map(entry => entry.type)).toEqual(['message', 'message', 'message']);
   });
 
+  it('run_stop 穿过 getEntries；认不出的原因整条丢弃', async () => {
+    const sessionDir = path.join(root, 'agent', 'sessions', 'global');
+    await mkdir(sessionDir, { recursive: true });
+    // 直接落文件而不是走 store：reader 只校验 id/parentId，取值本身没人管，
+    // 手改的文件与将来版本写下的文件都可能带来认不出的原因。挡在这条边界上，
+    // 界面与 HTML 导出才不用各自再防一遍。
+    await writeFile(
+      path.join(sessionDir, 's1.jsonl'),
+      [
+        '{"type":"chaptale-session","version":1,"id":"s1","timestamp":"2026-07-11T00:00:00.000Z","cwd":"/w"}',
+        '{"type":"message","id":"m1","parentId":null,"timestamp":"2026-07-11T00:00:01.000Z","message":{"role":"assistant","content":"写到一半"}}',
+        '{"type":"run_stop","id":"s-good","parentId":"m1","timestamp":"2026-07-11T00:00:02.000Z","reason":"step-limit"}',
+        '{"type":"run_stop","id":"s-bad","parentId":"s-good","timestamp":"2026-07-11T00:00:03.000Z","reason":"将来某个原因"}'
+      ].join('\n'),
+      'utf8'
+    );
+
+    const entries = await repository.getEntries('s1');
+
+    expect(entries.filter(entry => entry.type === 'run_stop')).toEqual([
+      expect.objectContaining({ id: 's-good', reason: 'step-limit' })
+    ]);
+  });
+
   it('setLeafId 分支切换反映到 getMessages；readImage 会话内 base64', async () => {
     const meta = await repository.create({ id: 's1' });
     const store = await repository.openOrCreate('s1', '/w');

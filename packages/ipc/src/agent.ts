@@ -46,6 +46,14 @@ export type RunStopReason = Static<typeof RunStopReasonSchema>;
  */
 export type AgentRunStopReason = RunStopReason | 'aborted';
 
+/**
+ * 会写进会话历史的停因：护栏截停三种。
+ *
+ * `natural` 不在内——模型自己收尾是常态，每轮都记一笔只是噪音；
+ * 取消同理，它在界面上另有表达。
+ */
+export type RunStopRecordReason = Exclude<RunStopReason, 'natural'>;
+
 /** Main 推送的唯一 Agent 终态事件。 */
 export type AgentEndEvent = Static<typeof AgentEndEventSchema>;
 

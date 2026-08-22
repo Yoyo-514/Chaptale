@@ -577,7 +577,44 @@ describe('AgentService.stream', () => {
    * 于是步数上限、预算上限、输出截断在作者眼里全是"回答毫无征兆地断了"。
    */
   it('护栏截停的原因随流交还，不再停在引擎里', async () => {
-    // 每一步都调工具、永不自然收尾；步数上限压到 1，第二轮迭代开头即截停。
+    mockNeverEndingToolCalls();
+
+    await expect(runToStopReason(guardedService().stream(runOptions('一直调工具')))).resolves.toBe('step-limit');
+  });
+
+  /** 对照组：不加这条，上面那条在"恒返回 step-limit"的实现下同样会绿。 */
+  it('模型自己收尾时交还 natural', async () => {
+    mockModelSequence([textRound('写完了。')]);
+
+    await expect(runToStopReason(service.stream(runOptions('写一段')))).resolves.toBe('natural');
+  });
+
+  /**
+   * 交还给流只够解释"当场"；作者第二天重开这个会话，仍要看得到当初为什么断在这里。
+   */
+  it('护栏截停在会话文件里留下记录', async () => {
+    mockNeverEndingToolCalls();
+
+    await runToStopReason(guardedService().stream(runOptions('一直调工具')));
+
+    const store = await SessionStore.open(path.join(dir, 'sessions', 'global', 's1.jsonl'));
+    expect(store.entries.filter(entry => entry.type === 'run_stop')).toEqual([
+      expect.objectContaining({ reason: 'step-limit' })
+    ]);
+  });
+
+  /** 对照组：自然收尾也记一笔的话，每次正常对话都会多出一条无意义的节点。 */
+  it('模型自己收尾时不写截停记录', async () => {
+    mockModelSequence([textRound('写完了。')]);
+
+    await runToStopReason(service.stream(runOptions('写一段')));
+
+    const store = await SessionStore.open(path.join(dir, 'sessions', 'global', 's1.jsonl'));
+    expect(store.entries.some(entry => entry.type === 'run_stop')).toBe(false);
+  });
+
+  /** 每步都调工具、永不自然收尾；配合压到 1 的步数上限，第二轮迭代开头即截停。 */
+  function mockNeverEndingToolCalls() {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -600,8 +637,10 @@ describe('AgentService.stream', () => {
         ])
       )
     );
+  }
 
-    const guarded = new AgentService({
+  function guardedService() {
+    return new AgentService({
       sessionRepository: repository,
       modelService: {} as never,
       runtimeBundle: createBundle(),
@@ -609,16 +648,7 @@ describe('AgentService.stream', () => {
       compactSummarizer: stubSummarizer,
       maxSteps: 1
     });
-
-    await expect(runToStopReason(guarded.stream(runOptions('一直调工具')))).resolves.toBe('step-limit');
-  });
-
-  /** 对照组：不加这条，上面那条在"恒返回 step-limit"的实现下同样会绿。 */
-  it('模型自己收尾时交还 natural', async () => {
-    mockModelSequence([textRound('写完了。')]);
-
-    await expect(runToStopReason(service.stream(runOptions('写一段')))).resolves.toBe('natural');
-  });
+  }
 });
 
 /** 跑到收束并交还停因；`drain` 走 for-await，会把返回值丢掉。 */

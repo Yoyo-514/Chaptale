@@ -1,4 +1,4 @@
-import type { ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
+import type { ChaptaleSessionTreeEntry, RunStopRecordReason } from '@chaptale/ipc-contract';
 import type { ChatMessage } from '@chaptale/shared';
 
 /**
@@ -9,6 +9,18 @@ import type { ChatMessage } from '@chaptale/shared';
  */
 const MARKED_CDN = 'https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js';
 const DOMPURIFY_CDN = 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js';
+
+/**
+ * 护栏截停在导出文档里的说明。
+ *
+ * 措辞与界面上那份有意不同：导出件是静态存档，读者手边没有输入框，
+ * 「说一句继续」这类指引在这里没有意义。
+ */
+const RUN_STOP_TEXT: Record<RunStopRecordReason, string> = {
+  'step-limit': '本轮触到步数上限后停止，回复可能未写完。',
+  'token-budget': '本轮触到 token 预算上限后停止，回复可能未写完。',
+  'output-truncated': '模型输出被长度上限截断，该批工具调用已整体作废。'
+};
 
 function escapeHtml(value: string) {
   return value
@@ -160,6 +172,7 @@ time { color: #98a2b3; font-size: 12px; }
 .tool summary:hover { color: #1f2328; }
 .tool pre { max-height: 480px; margin: 6px 0 0; padding: 10px 12px; overflow: auto; border-radius: 8px; background: #f2f4f7; font: 12px/1.6 Consolas, monospace; }
 .compaction { margin: 28px 0; padding: 10px 14px; border-left: 3px solid #9b8afb; color: #475467; font-size: 13px; white-space: pre-wrap; }
+.run-stop { margin: 12px 0 24px; padding: 8px 14px; border-left: 3px solid #f79009; color: #475467; font-size: 13px; }
 .attachments { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 figure { margin: 0; } figure img { display: block; max-width: 280px; max-height: 220px; border-radius: 8px; } figcaption { color: #98a2b3; font-size: 12px; }
 code { padding: 1px 5px; border-radius: 4px; background: #f2f4f7; font-family: Consolas, monospace; font-size: 0.9em; }
@@ -179,7 +192,7 @@ pre code { padding: 0; background: none; }
 .message-text a { color: #1570cd; }
 @media (prefers-color-scheme: dark) {
   body { background: #101418; color: #e6edf3; }
-  .doc-subtitle, .tool summary, .notice, .compaction { color: #adbac7; }
+  .doc-subtitle, .tool summary, .notice, .compaction, .run-stop { color: #adbac7; }
   .entry-header .role { color: #adbac7; }
   .entry.user .entry-header .role { color: #6cb2f5; }
   .entry.user .entry-body { border-left-color: #2c4a66; }
@@ -223,6 +236,11 @@ export function buildSessionHtml(options: { name: string; entries: ChaptaleSessi
       blocks.push(
         `<aside class="compaction"><strong>历史摘要（压缩前 ${entry.tokensBefore} tokens）</strong>\n${escapeHtml(entry.summary)}</aside>`
       );
+      continue;
+    }
+
+    if (entry.type === 'run_stop') {
+      blocks.push(`<aside class="run-stop">${escapeHtml(RUN_STOP_TEXT[entry.reason])}</aside>`);
       continue;
     }
 

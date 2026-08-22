@@ -11,6 +11,7 @@ import type { ChatDisplayMessage, ChatSearchMatch } from '../../types';
 import { toInlineImageItems } from '../../utils/message/inline-images';
 import { formatToolName, getAssistantToolCalls, getToolResultImages } from '../../utils/message/message-content';
 import MessageCompactionNotice from './MessageCompactionNotice.vue';
+import MessageRunStopNotice from './MessageRunStopNotice.vue';
 import ToolCallItem from './ToolCallItem.vue';
 
 type ToolExecution = {
@@ -129,6 +130,8 @@ const resultImages = computed(() =>
   )
 );
 const compaction = computed(() => props.messages.find(message => message.compactionBefore)?.compactionBefore);
+// 分组把多条消息折成一行，截停说明取最后出现的那条：它记录的是整组之后发生的事。
+const stopNotice = computed(() => props.messages.findLast(message => message.stopNoticeAfter)?.stopNoticeAfter);
 
 watch(
   containsSearchHit,
@@ -176,6 +179,8 @@ watch(
     <div v-if="resultImages.length" class="tool-call-group-images">
       <AppImagePreview variant="large" :items="resultImages" />
     </div>
+
+    <MessageRunStopNotice v-if="stopNotice" :reason="stopNotice" />
   </div>
 </template>
 

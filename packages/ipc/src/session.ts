@@ -2,6 +2,7 @@ import type { Static } from 'typebox';
 
 import type { ChatMessage } from '@chaptale/shared';
 
+import type { RunStopRecordReason } from './agent';
 import type {
   CreateSessionOptionsSchema,
   DeleteSessionPayloadSchema,
@@ -49,6 +50,12 @@ export type ChaptaleModelChangeEntry = ChaptaleSessionTreeEntryBase & {
   modelId: string;
 };
 
+/** 本轮被护栏截停的记录；模型自然收尾与用户取消都不产生此节点。 */
+export type ChaptaleRunStopEntry = ChaptaleSessionTreeEntryBase & {
+  type: 'run_stop';
+  reason: RunStopRecordReason;
+};
+
 export type ChaptaleBranchSelectedEntry = ChaptaleSessionTreeEntryBase & {
   type: 'branch_selected';
   targetId: string | null;
@@ -78,6 +85,7 @@ export type ChaptaleSessionTreeEntry =
   | ChaptaleMessageEntry
   | ChaptaleCompactionEntry
   | ChaptaleModelChangeEntry
+  | ChaptaleRunStopEntry
   | ChaptaleBranchSelectedEntry
   | ChaptaleLabelEntry
   | ChaptaleSessionInfoEntry

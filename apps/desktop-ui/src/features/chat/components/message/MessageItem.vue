@@ -29,6 +29,7 @@ import AssistantMessage from './AssistantMessage.vue';
 import ErrorMessage from './ErrorMessage.vue';
 import MessageActions from './MessageActions.vue';
 import MessageCompactionNotice from './MessageCompactionNotice.vue';
+import MessageRunStopNotice from './MessageRunStopNotice.vue';
 import ToolCallRequest from './ToolCallRequest.vue';
 import ToolCallResult from './ToolCallResult.vue';
 import UserBranchNavigator from './UserBranchNavigator.vue';
@@ -242,6 +243,10 @@ async function copyRawText() {
           <AppImagePreview variant="large" :items="toolResultImageItems" />
         </div>
       </template>
+
+      <!-- 置于各 role 分支之外：截停记录附着的可能是 tool 结果（截断作废那批就是这样），
+           挂进 assistant 分支会让那种会话什么都看不到。 -->
+      <MessageRunStopNotice v-if="displayMessage.stopNoticeAfter" :reason="displayMessage.stopNoticeAfter" />
 
       <div v-if="(showActions || branchControl) && !isEditing" class="message-footer">
         <!-- 用户消息这一行是 flex-row-reverse（整体右对齐），DOM 靠前 = 视觉靠右。 -->

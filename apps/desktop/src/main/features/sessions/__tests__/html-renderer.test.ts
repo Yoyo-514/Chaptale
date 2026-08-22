@@ -85,6 +85,25 @@ describe('buildSessionHtml', () => {
     expect(html).toContain('正文');
     expect(html).not.toContain('<span class="role">助手</span>');
   });
+
+  /** 导出件是静态存档：正文断在半截时，读者手边没有会话可查，说明必须随文走。 */
+  it('renders a guardrail stop alongside the message it interrupted', () => {
+    const entries: ChaptaleSessionTreeEntry[] = [
+      messageEntry('a1', { role: 'assistant', content: '写到一半' }),
+      {
+        type: 'run_stop',
+        id: 's1',
+        parentId: 'a1',
+        timestamp: '2026-07-11T00:02:00.000Z',
+        reason: 'token-budget'
+      }
+    ];
+
+    const html = buildSessionHtml({ name: '会话', entries });
+
+    expect(html).toContain('写到一半');
+    expect(html).toContain('本轮触到 token 预算上限后停止');
+  });
 });
 
 describe('toSafeFileName', () => {

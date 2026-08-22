@@ -28,7 +28,8 @@ export function resolveFallbackLeafId(entries: ChaptaleSessionTreeEntry[]): stri
 
 /**
  * 从会话树的指定叶子回溯出当前分支，并转换为可展示消息。
- * compaction 不单独占消息行，而是附着到其后的首条可展示消息；用户节点同时计算兄弟分支导航。
+ * compaction 与 run_stop 都不单独占消息行，而是附着到相邻的可展示消息——
+ * 前者挂在其后的首条，后者挂在其前的末条；用户节点同时计算兄弟分支导航。
  *
  * 入参是**全量**会话树：兄弟分支的判据是"同 parentId 下有几个 user 节点"，
  * 只喂当前分支时每层恒为一个节点，导航就永远算不出来。
@@ -48,6 +49,18 @@ export function buildDisplayMessagesFromEntries(entries: ChaptaleSessionTreeEntr
 
     if (entry.type === 'compaction') {
       pendingCompaction = { summary: entry.summary, tokensBefore: entry.tokensBefore };
+      continue;
+    }
+
+    if (entry.type === 'run_stop') {
+      // 附着到已经产出的最后一条：截停发生在它之后。分支上只有截停记录、
+      // 前面一条可展示消息都没有时无处可挂，那种会话本来也没有正文可解释。
+      const previous = displayMessages.at(-1);
+
+      if (previous) {
+        previous.stopNoticeAfter = entry.reason;
+      }
+
       continue;
     }
 
