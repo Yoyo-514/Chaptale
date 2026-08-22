@@ -22,6 +22,16 @@ const RUN_STOP_TEXT: Record<RunStopRecordReason, string> = {
   'output-truncated': '模型输出被长度上限截断，该批工具调用已整体作废。'
 };
 
+/**
+ * 源文件损坏在导出文档里的说明。
+ *
+ * 同样换了措辞：读者关心的是手上这份稿子缺了东西，而不是作者那边的文件状况，
+ * 更没有「模型也读不到」这回事。
+ */
+function renderDamageNotice(damagedEntryCount: number) {
+  return `<aside class="doc-damage">原会话文件有 ${damagedEntryCount} 条记录损坏，本文可能缺少更早的内容。</aside>`;
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll('&', '&amp;')
@@ -173,6 +183,7 @@ time { color: #98a2b3; font-size: 12px; }
 .tool pre { max-height: 480px; margin: 6px 0 0; padding: 10px 12px; overflow: auto; border-radius: 8px; background: #f2f4f7; font: 12px/1.6 Consolas, monospace; }
 .compaction { margin: 28px 0; padding: 10px 14px; border-left: 3px solid #9b8afb; color: #475467; font-size: 13px; white-space: pre-wrap; }
 .run-stop { margin: 12px 0 24px; padding: 8px 14px; border-left: 3px solid #f79009; color: #475467; font-size: 13px; }
+.doc-damage { margin: 10px 0 12px; padding: 8px 14px; border-left: 3px solid #f04438; color: #475467; font-size: 13px; }
 .attachments { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 figure { margin: 0; } figure img { display: block; max-width: 280px; max-height: 220px; border-radius: 8px; } figcaption { color: #98a2b3; font-size: 12px; }
 code { padding: 1px 5px; border-radius: 4px; background: #f2f4f7; font-family: Consolas, monospace; font-size: 0.9em; }
@@ -192,7 +203,7 @@ pre code { padding: 0; background: none; }
 .message-text a { color: #1570cd; }
 @media (prefers-color-scheme: dark) {
   body { background: #101418; color: #e6edf3; }
-  .doc-subtitle, .tool summary, .notice, .compaction, .run-stop { color: #adbac7; }
+  .doc-subtitle, .tool summary, .notice, .compaction, .run-stop, .doc-damage { color: #adbac7; }
   .entry-header .role { color: #adbac7; }
   .entry.user .entry-header .role { color: #6cb2f5; }
   .entry.user .entry-body { border-left-color: #2c4a66; }
@@ -226,8 +237,13 @@ const MARKDOWN_BOOTSTRAP = `
 /**
  * 把当前分支的可展示条目渲染为单文件 HTML，并忽略不属于聊天展示层的内部记录。
  * 工具结果附着在上下文中但不计入用户/助手消息总数，保持导出统计与界面语义一致。
+ * 源文件有损坏时随文声明：读者手上这份稿子可能是残的，而他没有别的途径知道。
  */
-export function buildSessionHtml(options: { name: string; entries: ChaptaleSessionTreeEntry[] }): string {
+export function buildSessionHtml(options: {
+  name: string;
+  entries: ChaptaleSessionTreeEntry[];
+  damagedEntryCount?: number;
+}): string {
   const blocks: string[] = [];
   let messageCount = 0;
 
@@ -279,6 +295,7 @@ export function buildSessionHtml(options: { name: string; entries: ChaptaleSessi
     '<body>',
     '<main>',
     `<h1 class="doc-title">${title}</h1>`,
+    ...(options.damagedEntryCount ? [renderDamageNotice(options.damagedEntryCount)] : []),
     `<p class="doc-subtitle">共 ${messageCount} 条消息 · 由 Chaptale 导出</p>`,
     blocks.join('\n'),
     '</main>',

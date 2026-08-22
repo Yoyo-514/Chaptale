@@ -41,7 +41,8 @@ export function deriveSessionSummary(
     lastMessagePreview: extractPreview(lastMessagePayload),
     totalTokens,
     scope: getSessionScope(sessionDir),
-    path: filePath
+    path: filePath,
+    ...(file.skippedMidLines > 0 ? { damagedEntryCount: file.skippedMidLines } : {})
   };
 }
 

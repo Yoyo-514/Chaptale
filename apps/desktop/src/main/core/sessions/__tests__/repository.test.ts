@@ -172,6 +172,26 @@ describe('JsonlSessionRepository', () => {
     ]);
   });
 
+  it('损坏的会话仍然列得出来，并报出读不回的记录数', async () => {
+    const sessionDir = path.join(root, 'agent', 'sessions', 'global');
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      path.join(sessionDir, 'broken.jsonl'),
+      [
+        '{"type":"chaptale-session","version":1,"id":"broken","timestamp":"2026-07-11T00:00:00.000Z","cwd":"/w"}',
+        '{"type":"message","id":"m1","parentId":null,"timestamp":"2026-07-11T00:00:01.000Z","message":{"role":"user","content":"开头"}}',
+        '{"type":"message","id":"m2","paren',
+        '{"type":"message","id":"m3","parentId":"m2","timestamp":"2026-07-11T00:00:03.000Z","message":{"role":"user","content":"结尾"}}'
+      ].join('\n'),
+      'utf8'
+    );
+
+    const items = await repository.list();
+
+    // 把坏文件从列表里藏掉比显示一条损坏提示更糟：作者会以为整个会话没了。
+    expect(items.find(item => item.id === 'broken')?.damagedEntryCount).toBe(1);
+  });
+
   it('setLeafId 分支切换反映到 getMessages；readImage 会话内 base64', async () => {
     const meta = await repository.create({ id: 's1' });
     const store = await repository.openOrCreate('s1', '/w');

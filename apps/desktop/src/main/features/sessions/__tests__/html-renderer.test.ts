@@ -104,6 +104,20 @@ describe('buildSessionHtml', () => {
     expect(html).toContain('写到一半');
     expect(html).toContain('本轮触到 token 预算上限后停止');
   });
+
+  /** 读者拿到的可能是一份残稿，而他没有别的途径知道源文件出过问题。 */
+  it('declares source-file damage ahead of the transcript', () => {
+    const entries: ChaptaleSessionTreeEntry[] = [messageEntry('u1', { role: 'user', content: '正文' })];
+
+    const damaged = buildSessionHtml({ name: '会话', entries, damagedEntryCount: 3 });
+
+    expect(damaged).toContain('原会话文件有 3 条记录损坏');
+    // 声明必须先于正文：读到一半才发现稿子是残的，前面那些已经当真了。
+    // 比的是 aside 标签而非 class 名——后者在 <style> 里恒存在，比了等于没比。
+    expect(damaged.indexOf('<aside class="doc-damage">')).toBeLessThan(damaged.indexOf('正文'));
+
+    expect(buildSessionHtml({ name: '会话', entries })).not.toContain('<aside class="doc-damage">');
+  });
 });
 
 describe('toSafeFileName', () => {

@@ -16,6 +16,7 @@ import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
 import ContextPressureCard from './components/ContextPressureCard.vue';
+import SessionDamageNotice from './components/SessionDamageNotice.vue';
 import { useChatController } from './composables/useChatController';
 import { useChatSearch } from './composables/useChatSearch';
 import { useContextCompaction } from './composables/useContextCompaction';
@@ -40,6 +41,9 @@ const review = useReviewLanes(
 const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
 const search = useChatSearch(() => chat.state.messages);
 const searchHit = computed(() => (search.isOpen.value ? search.activeMatch.value : undefined));
+// 会话文件的损坏计数来自列表项：list() 已经完整解析过文件，不必为它再读一次盘。
+// 排在提示区最上——同区其他卡片都有终态，处理完就消失，理应离输入框更近。
+const damagedEntryCount = computed(() => sessionStore.currentSession?.damagedEntryCount ?? 0);
 
 // 每轮终态会刷新会话列表 updatedAt；据此重查 SDK 的“当前上下文”水位，而非累计 token。
 watch(
@@ -150,6 +154,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
         />
       </template>
     </section>
+
+    <SessionDamageNotice
+      v-if="damagedEntryCount > 0"
+      class="chat-input-topbar"
+      :damaged-entry-count="damagedEntryCount"
+    />
 
     <SubagentTaskCard
       class="chat-input-topbar"

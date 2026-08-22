@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { readSessionFile } from '../reader';
+import { parseSessionContent, readSessionFile } from '../reader';
 import { deriveSessionSummary } from '../summary';
 
 const goldenDir = path.join(__dirname, 'golden');
@@ -77,5 +77,32 @@ describe('deriveSessionSummary', () => {
     expect(summary.leafId).toBeNull();
     expect(summary.lastMessagePreview).toBeUndefined();
     expect(summary.totalTokens).toBe(0);
+  });
+
+  it('中间坏行计入 damagedEntryCount；末行截断不计', () => {
+    const header =
+      '{"type":"chaptale-session","version":1,"id":"s1","timestamp":"2026-07-11T00:00:00.000Z","cwd":"/w"}';
+    const intact =
+      '{"type":"message","id":"m1","parentId":null,"timestamp":"2026-07-11T00:00:01.000Z","message":{"role":"user","content":"开头"}}';
+    const halfWritten = '{"type":"message","id":"m2","paren';
+    const dir = path.join('sessions', 'global');
+
+    // 中间行坏：单写者 append-only 下写完的行不该再变，出现即意味着有外因动过文件。
+    const damaged = deriveSessionSummary(
+      parseSessionContent([header, halfWritten, intact].join('\n')),
+      dir,
+      '/store/damaged.jsonl'
+    );
+
+    expect(damaged.damagedEntryCount).toBe(1);
+
+    // 末行写到一半：掉电留下的正常损耗，报出来只会让作者疑神疑鬼。
+    const truncated = deriveSessionSummary(
+      parseSessionContent([header, intact, halfWritten].join('\n')),
+      dir,
+      '/store/truncated.jsonl'
+    );
+
+    expect(truncated.damagedEntryCount).toBeUndefined();
   });
 });

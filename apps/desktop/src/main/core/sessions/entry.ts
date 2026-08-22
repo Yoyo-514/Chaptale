@@ -173,9 +173,16 @@ export type SessionFileLine = SessionHeader | SessionEntry;
 export type ParsedSessionFile = {
   header: SessionHeader;
   entries: SessionEntry[];
-  /** 中间坏行计数（跳过；进 storage debug info）。 */
+  /**
+   * 中间坏行计数。
+   *
+   * 单写者 append-only 下写完的行不会再被碰，所以这个数一旦非零就意味着有外因
+   * 动过文件（手工编辑、同步冲突、坏块）。后果不止「少一条」：丢掉的 entry 会让
+   * parentId 链断在那里，回溯与上下文构建都在断点停住，更早的历史既显示不出来，
+   * 也进不了模型。
+   */
   skippedMidLines: number;
-  /** 末行截断跳过计数（崩溃保护）。 */
+  /** 末行截断跳过计数：写到一半掉电的正常损耗，丢的是最后那条刚落的 entry。 */
   skippedTailLines: number;
 };
 
@@ -191,4 +198,11 @@ export type SessionSummary = {
   lastMessagePreview?: string;
   totalTokens: number;
   scope: ChaptaleSessionScope;
+  /**
+   * 文件里读不回来的记录数；无损坏时不带此字段。
+   *
+   * 只计中间坏行——末行截断是单写者 append-only 下的正常损耗，界面上「最后一句没了」
+   * 本身就是表达。哪一类该报警是本层的判断，不把两个数一起丢给渲染层去挑。
+   */
+  damagedEntryCount?: number;
 };

@@ -200,7 +200,7 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
     const name = findSessionName(store) ?? '未命名会话';
 
     return {
-      html: buildSessionHtml({ name, entries }),
+      html: buildSessionHtml({ name, entries, damagedEntryCount: store.skippedMidLines }),
       suggestedFileName: `${toSafeFileName(name)}.html`
     };
   }

@@ -112,6 +112,13 @@ export type ChaptaleSessionListItem = ChaptaleSessionMetadata & {
   scope: ChaptaleSessionScope;
   /** 会话内 assistant 消息累计 token 消耗 */
   totalTokens: number;
+  /**
+   * 会话文件里读不回来的记录数；文件完好时不带此字段。
+   *
+   * 丢掉的记录会让树上的父子链断在那里，断点更早的历史既显示不出来也进不了模型，
+   * 所以这不是「少一条」而是「少一段」。
+   */
+  damagedEntryCount?: number;
 };
 
 export type CreateSessionOptions = Static<typeof CreateSessionOptionsSchema>;
