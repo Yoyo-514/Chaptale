@@ -196,7 +196,7 @@ function normalizeWithMap(text: string): NormalizedChar[] {
       const mappedChar = mapEquivalentPunctuation(normalizedChar);
 
       if (isWhitespace(mappedChar)) {
-        const previousChar = normalizedChars[normalizedChars.length - 1];
+        const previousChar = normalizedChars.at(-1);
         if (previousChar?.char === ' ') {
           previousChar.end = end;
         } else {

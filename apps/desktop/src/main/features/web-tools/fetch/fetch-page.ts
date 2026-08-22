@@ -33,7 +33,8 @@ export async function fetchPage(url: string, client: FetchClient, options: Fetch
   const doFetch = client.fetch ?? globalThis.fetch;
   let current = await assertFetchableUrl(url, { allowRanges: options.allowRanges });
 
-  for (let hop = 0; ; hop++) {
+  // 上限写在循环条件里：跳数是这个循环唯一的终止保证，藏在循环体里读不出来。
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const response = await doFetch(current, {
       redirect: 'manual',
       headers: { 'user-agent': UA, accept: 'text/html,text/plain,application/json;q=0.9,*/*;q=0.5' },
@@ -45,10 +46,6 @@ export async function fetchPage(url: string, client: FetchClient, options: Fetch
 
       if (!location) {
         throw new Error(`重定向缺少 location（HTTP ${response.status}）`);
-      }
-
-      if (hop >= MAX_REDIRECTS) {
-        throw new Error(`重定向次数超过上限（${MAX_REDIRECTS}）`);
       }
 
       // 逐跳校验：新目标可能是内网地址或非 http 协议。
@@ -70,6 +67,9 @@ export async function fetchPage(url: string, client: FetchClient, options: Fetch
 
     return await readBody(response, current, contentType, options);
   }
+
+  // 跑满全部跳数还没等到非重定向响应。
+  throw new Error(`重定向次数超过上限（${MAX_REDIRECTS}）`);
 }
 
 async function readBody(
@@ -79,9 +79,9 @@ async function readBody(
   options: FetchPageOptions
 ): Promise<FetchedPage> {
   const maxBytes = options.maxBytes;
-  const reader = response.body?.getReader();
+  const stream = response.body;
 
-  if (!reader) {
+  if (!stream) {
     const text = await response.text();
     return {
       url: url.toString(),
@@ -97,26 +97,19 @@ async function readBody(
   let truncated = false;
   let body = '';
 
-  for (;;) {
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
-    }
-
-    received += value.byteLength;
+  // break 会替我们取消源流——手动持有 reader 时，那一句 cancel 得自己记得写。
+  for await (const chunk of stream) {
+    received += chunk.byteLength;
 
     if (received > maxBytes) {
       truncated = true;
       // 只保留限额内的字节；多读的这次分片按剩余预算截断。
       const overflow = received - maxBytes;
-      const slice = value.subarray(0, Math.max(value.byteLength - overflow, 0));
-      body += decoder.decode(slice, { stream: true });
-      await reader.cancel();
+      body += decoder.decode(chunk.subarray(0, Math.max(chunk.byteLength - overflow, 0)), { stream: true });
       break;
     }
 
-    body += decoder.decode(value, { stream: true });
+    body += decoder.decode(chunk, { stream: true });
   }
 
   body += decoder.decode();

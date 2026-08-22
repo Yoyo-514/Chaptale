@@ -25,14 +25,11 @@ export class AsyncMessageQueue<T> {
   }
 
   async *drain(): AsyncGenerator<T> {
-    while (true) {
+    // 「还没收尾，或者还有存货」——生产者 finish 之后仍要把队列里剩下的交出去。
+    while (!this.done || this.queue.length > 0) {
       if (this.queue.length > 0) {
         yield this.queue.shift()!;
         continue;
-      }
-
-      if (this.done) {
-        return;
       }
 
       await new Promise<void>(resolve => {

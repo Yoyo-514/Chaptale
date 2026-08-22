@@ -156,17 +156,13 @@ function getDeepestLeafId(entries: ChaptaleSessionTreeEntry[], rootId?: string) 
   }
 
   let leafId = rootId;
+  let children = childrenByParent.get(leafId);
 
   // 分支入口跳转到该子树最新的后代，使切换后直接落在一条完整可读的路径末端。
-  while (true) {
-    const children = (childrenByParent.get(leafId) ?? []).toSorted((left, right) =>
-      left.timestamp.localeCompare(right.timestamp)
-    );
-
-    if (children.length === 0) {
-      return leafId;
-    }
-
-    leafId = children.at(-1)!.id;
+  while (children?.length) {
+    leafId = children.toSorted((left, right) => left.timestamp.localeCompare(right.timestamp)).at(-1)!.id;
+    children = childrenByParent.get(leafId);
   }
+
+  return leafId;
 }

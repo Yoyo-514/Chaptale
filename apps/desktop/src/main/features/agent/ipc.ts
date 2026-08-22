@@ -185,20 +185,9 @@ export function registerAgentIpc(options: {
 
     try {
       // 手动迭代而非 for-await：停因是这条流的返回值，for-await 会把它丢掉。
-      while (true) {
-        const next = await stream.next();
+      let next = await stream.next();
 
-        if (next.done) {
-          const stopReason = next.value;
-
-          safeSend(webContents, IPC_CHANNELS.agent.end, {
-            runId: payload.runId,
-            end:
-              signal.aborted || stopReason === 'aborted' ? { status: 'cancelled' } : { status: 'completed', stopReason }
-          } satisfies AgentEndEvent);
-          return;
-        }
-
+      while (!next.done) {
         const sent = safeSend(webContents, IPC_CHANNELS.agent.message, {
           runId: payload.runId,
           message: next.value
@@ -207,7 +196,16 @@ export function registerAgentIpc(options: {
         if (!sent) {
           return;
         }
+
+        next = await stream.next();
       }
+
+      const stopReason = next.value;
+
+      safeSend(webContents, IPC_CHANNELS.agent.end, {
+        runId: payload.runId,
+        end: signal.aborted || stopReason === 'aborted' ? { status: 'cancelled' } : { status: 'completed', stopReason }
+      } satisfies AgentEndEvent);
     } catch (error) {
       if (error instanceof WebContentsSendError) {
         throw error.sendError;

@@ -153,15 +153,20 @@ function sanitizeFileName(title: string): string {
 
 /** 同名笔记不覆盖：追加序号直到可用（观察可能多次记录同一主题）。 */
 async function uniqueNoteFileName(notesDir: string, base: string): Promise<string> {
-  for (let index = 0; ; index += 1) {
-    const name = index === 0 ? `${base}.md` : `${base}-${index + 1}.md`;
-    const exists = await fs
-      .access(path.join(notesDir, name))
-      .then(() => true)
-      .catch(() => false);
+  let name = `${base}.md`;
+  let ordinal = 2;
 
-    if (!exists) {
-      return name;
-    }
+  while (await fileExists(path.join(notesDir, name))) {
+    name = `${base}-${ordinal}.md`;
+    ordinal += 1;
   }
+
+  return name;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  return fs.access(filePath).then(
+    () => true,
+    () => false
+  );
 }
