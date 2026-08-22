@@ -101,19 +101,17 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
     };
   }
 
+  /**
+   * 会话树全量节点（含当前分支之外的兄弟子树）。
+   *
+   * 必须是全量：UI 靠"同 parentId 下有几个 user 节点"判断该不该显示分支导航，
+   * 只给当前分支时每层恒为一个节点，导航就永远不出现。
+   * 当前分支的投影由调用方沿 parentId 自行回溯（leaf 见 `list()` 的 leafId）。
+   */
   async getEntries(sessionId: string): Promise<ChaptaleSessionTreeEntry[]> {
     const store = await this.open(sessionId);
-    const entries: ChaptaleSessionTreeEntry[] = [];
 
-    for (const entry of store.getPathToRoot()) {
-      const mapped = await this.toTreeEntry(entry, sessionId);
-
-      if (mapped) {
-        entries.push(mapped);
-      }
-    }
-
-    return entries;
+    return this.toTreeEntries(store.entries, sessionId);
   }
 
   async getMessages(sessionId: string): Promise<ChatMessage[]> {
@@ -196,7 +194,8 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
 
   async exportHtml(sessionId: string): Promise<{ html: string; suggestedFileName: string }> {
     const store = await this.open(sessionId);
-    const entries = await this.getEntries(sessionId);
+    // 导出的是作者当前看到的这条线，不是整棵树：被切走的分支不该出现在成稿里。
+    const entries = await this.toTreeEntries(store.getPathToRoot(), sessionId);
     const name = findSessionName(store) ?? '未命名会话';
 
     return {
@@ -301,6 +300,21 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
     } catch {
       return this.storage.resolveCwd();
     }
+  }
+
+  /** store entry 列表 → 树 entry 列表；不可展示的节点（system 消息）整条丢弃。 */
+  private async toTreeEntries(source: readonly SessionEntry[], sessionId: string): Promise<ChaptaleSessionTreeEntry[]> {
+    const entries: ChaptaleSessionTreeEntry[] = [];
+
+    for (const entry of source) {
+      const mapped = await this.toTreeEntry(entry, sessionId);
+
+      if (mapped) {
+        entries.push(mapped);
+      }
+    }
+
+    return entries;
   }
 
   /** store entry → 树 entry（类型枚举对齐 + user 图片附件化；无跨形状翻译）。 */

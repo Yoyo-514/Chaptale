@@ -41,11 +41,12 @@ const emit = defineEmits<{
 </template>
 
 <style scoped lang="scss">
+// 与同行的 message-actions 保持同一视觉重量：胶囊底色会让这一行出现一块突兀的浮块。
 .user-branch-navigator {
-  @apply mr-1 flex items-center rounded-full bg-surface-acrylic px-1 py-0.5 text-xs text-muted-foreground shadow-$shadow-inset-highlight;
+  @apply flex items-center text-muted-foreground;
 }
 
 .user-branch-count {
-  @apply min-w-10 text-center tabular-nums;
+  @apply min-w-8 text-center text-[11px] tabular-nums;
 }
 </style>

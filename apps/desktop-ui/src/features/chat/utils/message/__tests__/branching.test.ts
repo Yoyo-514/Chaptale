@@ -76,6 +76,41 @@ describe('buildDisplayMessagesFromEntries', () => {
     });
   });
 
+  it('ignores branch markers when no leaf is given', () => {
+    // 标记节点挂在"切换发生时"的 leaf 下。把它当兜底叶子，回溯出的是切换前那条路径。
+    const entries: ChaptaleSessionTreeEntry[] = [
+      messageEntry('user-a', null, '2026-07-20T00:00:01.000Z', { role: 'user', content: '原问题' }),
+      messageEntry('assistant-a', 'user-a', '2026-07-20T00:00:02.000Z', {
+        role: 'assistant',
+        content: [{ type: 'text', text: '原回答' }]
+      }),
+      messageEntry('user-b', null, '2026-07-20T00:00:03.000Z', { role: 'user', content: '改后问题' }),
+      messageEntry('assistant-b', 'user-b', '2026-07-20T00:00:04.000Z', {
+        role: 'assistant',
+        content: [{ type: 'text', text: '新回答' }]
+      }),
+      {
+        type: 'custom',
+        id: 'marker-1',
+        parentId: 'assistant-b',
+        timestamp: '2026-07-20T00:00:05.000Z',
+        name: 'branch_selected',
+        data: { targetId: 'assistant-a' }
+      }
+    ];
+
+    const messages = buildDisplayMessagesFromEntries(entries, null);
+
+    expect(messages.map(message => message.entryId)).toEqual(['user-b', 'assistant-b']);
+    // 兄弟入口也不能停在标记上，否则切过去后 leaf 是一个事件节点。
+    expect(messages[0].branch).toEqual({
+      current: 2,
+      total: 2,
+      previousLeafId: 'assistant-a',
+      nextLeafId: undefined
+    });
+  });
+
   it('attaches the pending compaction to the next renderable message', () => {
     const entries: ChaptaleSessionTreeEntry[] = [
       messageEntry('user-a', null, '2026-07-11T00:00:01.000Z', { role: 'user', content: '第一个问题' }),

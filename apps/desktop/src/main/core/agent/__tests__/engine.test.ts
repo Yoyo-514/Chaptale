@@ -1,6 +1,13 @@
 import { Type } from 'typebox';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  requestBody,
+  sseData as sse,
+  stubFetchOnce,
+  stubRepeatingSseFetch,
+  stubSseFetch
+} from '../../../__tests__/helpers/sse';
 import { estimateTextTokens } from '../../context/token-counter';
 import { createProtocolLanguageModel } from '../../models/protocols';
 import type { ResolvedModel } from '../../models/runtime';
@@ -17,25 +24,6 @@ import type { PermissionGatePort } from '../types';
 afterEach(() => {
   vi.unstubAllGlobals();
 });
-
-function sseResponse(chunks: string[]) {
-  const encoder = new TextEncoder();
-
-  return new Response(
-    new ReadableStream({
-      start(controller) {
-        for (const chunk of chunks) {
-          controller.enqueue(encoder.encode(chunk));
-        }
-
-        controller.close();
-      }
-    }),
-    { status: 200, headers: { 'content-type': 'text/event-stream' } }
-  );
-}
-
-const sse = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`;
 
 const openaiTextStep = (text: string, finish = 'stop') => [
   sse({ id: '1', choices: [{ index: 0, delta: { content: text } }] }),
@@ -103,7 +91,7 @@ const writeTool: ToolDefinition = {
 
 describe('runAgentLoop', () => {
   it('单步文本：事件透传序列 + step 落盘（含 usage）', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(openaiTextStep('你好，世界'))));
+    stubSseFetch(openaiTextStep('你好，世界'));
 
     const persisted: SessionMessage[][] = [];
     const envelopes: { seq: number; type: string }[] = [];
@@ -140,11 +128,7 @@ describe('runAgentLoop', () => {
   });
 
   it('两步工具链：tool-call → 执行 → 续答；assistant/tool 两组消息各自落盘', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('文件内容已读取完毕')));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch(openaiToolStep(), openaiTextStep('文件内容已读取完毕'));
 
     const persisted: SessionMessage[][] = [];
 
@@ -175,34 +159,31 @@ describe('runAgentLoop', () => {
   });
 
   it('mutating 工具走闸门：allow 后执行', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        sseResponse([
-          sse({
-            id: '1',
-            choices: [
-              {
-                index: 0,
-                delta: {
-                  tool_calls: [
-                    {
-                      index: 0,
-                      id: 'call_1',
-                      type: 'function',
-                      function: { name: 'write', arguments: '{"path":"b.txt","content":"x"}' }
-                    }
-                  ]
-                }
+    stubSseFetch(
+      [
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'write', arguments: '{"path":"b.txt","content":"x"}' }
+                  }
+                ]
               }
-            ]
-          }),
-          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
-          'data: [DONE]\n\n'
-        ])
-      )
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('写入完成')));
-    vi.stubGlobal('fetch', fetchMock);
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+        'data: [DONE]\n\n'
+      ],
+      openaiTextStep('写入完成')
+    );
 
     const gate: PermissionGatePort = { check: vi.fn().mockResolvedValue({ outcome: 'allow-once' }) };
     const persisted: SessionMessage[][] = [];
@@ -228,34 +209,31 @@ describe('runAgentLoop', () => {
   });
 
   it('gate deny：拒绝载荷对模型可见，工具不执行', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        sseResponse([
-          sse({
-            id: '1',
-            choices: [
-              {
-                index: 0,
-                delta: {
-                  tool_calls: [
-                    {
-                      index: 0,
-                      id: 'call_1',
-                      type: 'function',
-                      function: { name: 'write', arguments: '{"path":"b.txt","content":"x"}' }
-                    }
-                  ]
-                }
+    const fetchMock = stubSseFetch(
+      [
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'write', arguments: '{"path":"b.txt","content":"x"}' }
+                  }
+                ]
               }
-            ]
-          }),
-          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
-          'data: [DONE]\n\n'
-        ])
-      )
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('好的，我不写了')));
-    vi.stubGlobal('fetch', fetchMock);
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+        'data: [DONE]\n\n'
+      ],
+      openaiTextStep('好的，我不写了')
+    );
 
     const executeSpy = vi.fn(writeTool.execute);
     const gate: PermissionGatePort = {
@@ -329,35 +307,30 @@ describe('runAgentLoop', () => {
   });
 
   it('readonly 工具不过闸门', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(
-          sseResponse([
-            sse({
-              id: '1',
-              choices: [
-                {
-                  index: 0,
-                  delta: {
-                    tool_calls: [
-                      {
-                        index: 0,
-                        id: 'call_1',
-                        type: 'function',
-                        function: { name: 'read', arguments: '{"path":"a.txt"}' }
-                      }
-                    ]
+    stubSseFetch(
+      [
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'read', arguments: '{"path":"a.txt"}' }
                   }
-                }
-              ]
-            }),
-            sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
-            'data: [DONE]\n\n'
-          ])
-        )
-        .mockResolvedValueOnce(sseResponse(openaiTextStep('完成')))
+                ]
+              }
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+        'data: [DONE]\n\n'
+      ],
+      openaiTextStep('完成')
     );
 
     const gate: PermissionGatePort = { check: vi.fn().mockResolvedValue({ outcome: 'allow-once' }) };
@@ -381,11 +354,7 @@ describe('runAgentLoop', () => {
       execute: async () => ({ text: hugeText, details: { markdown: hugeText } })
     };
 
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('已读完')));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch(openaiToolStep(), openaiTextStep('已读完'));
 
     const persisted: SessionMessage[][] = [];
 
@@ -416,11 +385,7 @@ describe('runAgentLoop', () => {
   });
 
   it('maxSteps 覆盖生效：到达上限即停，不再发起下一轮请求', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('不该被请求')));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch(openaiToolStep(), openaiTextStep('不该被请求'));
 
     const result = await runAgentLoop({
       sessionId: 's1',
@@ -439,12 +404,7 @@ describe('runAgentLoop', () => {
   });
 
   it('token 预算停止：累计 usage 触顶即停（成本护栏）', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('不该被请求')));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch(openaiToolStep(), openaiToolStep(), openaiTextStep('不该被请求'));
 
     const result = await runAgentLoop({
       sessionId: 's1',
@@ -472,35 +432,32 @@ describe('runAgentLoop', () => {
    * 用落盘投影推进会话在普通模型上看不出问题，只在 reasoning 模型上炸。
    */
   it('推理块随会话推进回传给下一步（落盘投影会把它丢掉）', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        sseResponse([
-          sse({ id: '1', choices: [{ index: 0, delta: { reasoning_content: '先读文件再判断' } }] }),
-          sse({
-            id: '1',
-            choices: [
-              {
-                index: 0,
-                delta: {
-                  tool_calls: [
-                    {
-                      index: 0,
-                      id: 'call_1',
-                      type: 'function',
-                      function: { name: 'read', arguments: '{"path":"a.txt"}' }
-                    }
-                  ]
-                }
+    const fetchMock = stubSseFetch(
+      [
+        sse({ id: '1', choices: [{ index: 0, delta: { reasoning_content: '先读文件再判断' } }] }),
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'read', arguments: '{"path":"a.txt"}' }
+                  }
+                ]
               }
-            ]
-          }),
-          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
-          'data: [DONE]\n\n'
-        ])
-      )
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('读完了')));
-    vi.stubGlobal('fetch', fetchMock);
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+        'data: [DONE]\n\n'
+      ],
+      openaiTextStep('读完了')
+    );
 
     await runAgentLoop({
       sessionId: 's1',
@@ -514,11 +471,6 @@ describe('runAgentLoop', () => {
     expect(requestBody(fetchMock, 1)).toContain('先读文件再判断');
   });
 });
-
-function requestBody(fetchMock: ReturnType<typeof vi.fn>, index: number): string {
-  const call = fetchMock.mock.calls[index] as unknown[] | undefined;
-  return String((call?.[1] as RequestInit | undefined)?.body ?? '');
-}
 
 /**
  * 取请求体里的 tool 角色消息。
@@ -549,11 +501,7 @@ describe('runAgentLoop 错误路径', () => {
   };
 
   it('工具抛错：落盘 assistant 与 tool 必须配对，且带 isError', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('那我换个思路')));
-    vi.stubGlobal('fetch', fetchMock);
+    stubSseFetch(openaiToolStep(), openaiTextStep('那我换个思路'));
 
     const persisted: SessionMessage[][] = [];
 
@@ -575,11 +523,7 @@ describe('runAgentLoop 错误路径', () => {
   });
 
   it('落盘产物重建上下文后必须能再次发起请求（悬空 tool_call 会让会话永久失效）', async () => {
-    const firstFetch = vi
-      .fn()
-      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('好的')));
-    vi.stubGlobal('fetch', firstFetch);
+    stubSseFetch(openaiToolStep(), openaiTextStep('好的'));
 
     const persisted: SessionMessage[][] = [];
 
@@ -601,8 +545,7 @@ describe('runAgentLoop 错误路径', () => {
       { role: 'user', content: '那算了，直接写吧' }
     ];
 
-    const secondFetch = vi.fn().mockResolvedValue(sseResponse(openaiTextStep('这就写')));
-    vi.stubGlobal('fetch', secondFetch);
+    const secondFetch = stubSseFetch(openaiTextStep('这就写'));
 
     const result = await runAgentLoop({
       sessionId: 's1',
@@ -624,13 +567,7 @@ describe('runAgentLoop 错误路径', () => {
   });
 
   it('成功的工具结果同样要能回放（normalize 后模型看得到正文）', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-        .mockResolvedValueOnce(sseResponse(openaiTextStep('读完了')))
-    );
+    stubSseFetch(openaiToolStep(), openaiTextStep('读完了'));
 
     const persisted: SessionMessage[][] = [];
 
@@ -645,8 +582,7 @@ describe('runAgentLoop 错误路径', () => {
       }
     });
 
-    const secondFetch = vi.fn().mockResolvedValue(sseResponse(openaiTextStep('继续')));
-    vi.stubGlobal('fetch', secondFetch);
+    const secondFetch = stubSseFetch(openaiTextStep('继续'));
 
     await runAgentLoop({
       sessionId: 's1',
@@ -659,14 +595,12 @@ describe('runAgentLoop 错误路径', () => {
     expect(requestBody(secondFetch, 0)).toContain('内容 of a.txt');
   });
   it('provider 错误必须以异常抵达调用方，而不是报告成功', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
+    stubFetchOnce(
+      () =>
         new Response(JSON.stringify({ error: { message: 'invalid api key' } }), {
           status: 401,
           headers: { 'content-type': 'application/json' }
         })
-      )
     );
 
     await expect(
@@ -682,35 +616,32 @@ describe('runAgentLoop 错误路径', () => {
 
   it('非法工具参数不得进入 execute，且会话仍可继续', async () => {
     const executeSpy = vi.fn(readTool.execute);
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        sseResponse([
-          sse({
-            id: '1',
-            choices: [
-              {
-                index: 0,
-                delta: {
-                  tool_calls: [
-                    {
-                      index: 0,
-                      id: 'call_1',
-                      type: 'function',
-                      // schema 要求 { path: string } 且 additionalProperties: false。
-                      function: { name: 'read', arguments: '{"wrong_key":123}' }
-                    }
-                  ]
-                }
+    const fetchMock = stubSseFetch(
+      [
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    // schema 要求 { path: string } 且 additionalProperties: false。
+                    function: { name: 'read', arguments: '{"wrong_key":123}' }
+                  }
+                ]
               }
-            ]
-          }),
-          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
-          'data: [DONE]\n\n'
-        ])
-      )
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('抱歉，我用错了参数')));
-    vi.stubGlobal('fetch', fetchMock);
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+        'data: [DONE]\n\n'
+      ],
+      openaiTextStep('抱歉，我用错了参数')
+    );
 
     const persisted: SessionMessage[][] = [];
 
@@ -742,40 +673,35 @@ describe('runAgentLoop 错误路径', () => {
    */
   it('输出被截断时整批工具调用都不执行，且各自留下配对结果', async () => {
     const executeSpy = vi.fn(writeTool.execute);
-    // 必须每次新建 Response：同一个实例的 body 流只能读一次，
-    // 复用会让第二步读到空流，finish_reason 随之丢失。
-    const fetchMock = vi.fn().mockImplementation(() =>
-      sseResponse([
-        sse({
-          id: '1',
-          choices: [
-            {
-              index: 0,
-              delta: {
-                tool_calls: [
-                  {
-                    index: 0,
-                    id: 'call_1',
-                    type: 'function',
-                    function: { name: 'write', arguments: '{"path":"第一章.md","content":"完整的第一章正文"}' }
-                  },
-                  {
-                    index: 1,
-                    id: 'call_2',
-                    type: 'function',
-                    // 参数 JSON 在此被 token 上限砍断。
-                    function: { name: 'write', arguments: '{"path":"第二章.md","con' }
-                  }
-                ]
-              }
+    const fetchMock = stubRepeatingSseFetch([
+      sse({
+        id: '1',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'write', arguments: '{"path":"第一章.md","content":"完整的第一章正文"}' }
+                },
+                {
+                  index: 1,
+                  id: 'call_2',
+                  type: 'function',
+                  // 参数 JSON 在此被 token 上限砍断。
+                  function: { name: 'write', arguments: '{"path":"第二章.md","con' }
+                }
+              ]
             }
-          ]
-        }),
-        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'length' }] }),
-        'data: [DONE]\n\n'
-      ])
-    );
-    vi.stubGlobal('fetch', fetchMock);
+          }
+        ]
+      }),
+      sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'length' }] }),
+      'data: [DONE]\n\n'
+    ]);
 
     const persisted: SessionMessage[][] = [];
 
@@ -865,66 +791,61 @@ describe('runAgentLoop 错误路径', () => {
 describe('runAgentLoop prepareStep', () => {
   it('截断作废后给一次重发机会，模型改小即可继续', async () => {
     const executeSpy = vi.fn(writeTool.execute);
-    const fetchMock = vi
-      .fn()
+    stubSseFetch(
       // 第一步：两个调用，第二个被 token 上限砍断 → 整批作废。
-      .mockImplementationOnce(() =>
-        sseResponse([
-          sse({
-            id: '1',
-            choices: [
-              {
-                index: 0,
-                delta: {
-                  tool_calls: [
-                    {
-                      index: 0,
-                      id: 'call_1',
-                      type: 'function',
-                      function: { name: 'write', arguments: '{"path":"第一章.md","content":"正文"}' }
-                    },
-                    {
-                      index: 1,
-                      id: 'call_2',
-                      type: 'function',
-                      function: { name: 'write', arguments: '{"path":"第二' }
-                    }
-                  ]
-                }
+      [
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'write', arguments: '{"path":"第一章.md","content":"正文"}' }
+                  },
+                  {
+                    index: 1,
+                    id: 'call_2',
+                    type: 'function',
+                    function: { name: 'write', arguments: '{"path":"第二' }
+                  }
+                ]
               }
-            ]
-          }),
-          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'length' }] }),
-          'data: [DONE]\n\n'
-        ])
-      )
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'length' }] }),
+        'data: [DONE]\n\n'
+      ],
       // 第二步：模型照提示拆小，只发一个完整调用。
-      .mockImplementationOnce(() =>
-        sseResponse([
-          sse({
-            id: '1',
-            choices: [
-              {
-                index: 0,
-                delta: {
-                  tool_calls: [
-                    {
-                      index: 0,
-                      id: 'call_3',
-                      type: 'function',
-                      function: { name: 'write', arguments: '{"path":"第一章.md","content":"正文"}' }
-                    }
-                  ]
-                }
+      [
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_3',
+                    type: 'function',
+                    function: { name: 'write', arguments: '{"path":"第一章.md","content":"正文"}' }
+                  }
+                ]
               }
-            ]
-          }),
-          sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
-          'data: [DONE]\n\n'
-        ])
-      )
-      .mockImplementationOnce(() => sseResponse(openaiTextStep('第一章写好了')));
-    vi.stubGlobal('fetch', fetchMock);
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+        'data: [DONE]\n\n'
+      ],
+      openaiTextStep('第一章写好了')
+    );
 
     const result = await runAgentLoop({
       sessionId: 's1',
@@ -940,11 +861,7 @@ describe('runAgentLoop prepareStep', () => {
   });
 
   it('作者中途插话在 step 边界生效，不必等整条工具链跑完', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(() => sseResponse(openaiToolStep()))
-      .mockImplementationOnce(() => sseResponse(openaiTextStep('好，改看第三章')));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch(openaiToolStep(), openaiTextStep('好，改看第三章'));
 
     const result = await runAgentLoop({
       sessionId: 's1',
@@ -969,11 +886,7 @@ describe('runAgentLoop prepareStep', () => {
   });
 
   it('插话可以推翻"模型已收尾"的停止决定', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(() => sseResponse(openaiTextStep('说完了')))
-      .mockImplementationOnce(() => sseResponse(openaiTextStep('那再补一点')));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch(openaiTextStep('说完了'), openaiTextStep('那再补一点'));
 
     const seen: (string | undefined)[] = [];
     let injected = false;
@@ -1002,8 +915,7 @@ describe('runAgentLoop prepareStep', () => {
   });
 
   it('护栏截停不被插话推翻（resume 只对 natural 有意义时由调用方把关）', async () => {
-    const fetchMock = vi.fn().mockImplementation(() => sseResponse(openaiToolStep()));
-    vi.stubGlobal('fetch', fetchMock);
+    stubRepeatingSseFetch(openaiToolStep());
 
     const seen: (string | undefined)[] = [];
 
@@ -1026,11 +938,7 @@ describe('runAgentLoop prepareStep', () => {
   });
 
   it('按步覆盖模型与工具集', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(() => sseResponse(openaiToolStep()))
-      .mockImplementationOnce(() => sseResponse(openaiTextStep('换模型收尾')));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch(openaiToolStep(), openaiTextStep('换模型收尾'));
 
     const finisher = createModel('finisher-model');
 
@@ -1063,11 +971,7 @@ describe('runAgentLoop 工具超时', () => {
       execute: () => new Promise(() => {})
     };
 
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-      .mockResolvedValueOnce(sseResponse(openaiTextStep('那我换个办法')));
-    vi.stubGlobal('fetch', fetchMock);
+    stubSseFetch(openaiToolStep(), openaiTextStep('那我换个办法'));
 
     const persisted: SessionMessage[][] = [];
 
@@ -1100,13 +1004,7 @@ describe('runAgentLoop 工具超时', () => {
       }
     };
 
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(sseResponse(openaiToolStep()))
-        .mockResolvedValueOnce(sseResponse(openaiTextStep('好')))
-    );
+    stubSseFetch(openaiToolStep(), openaiTextStep('好'));
 
     await runAgentLoop({
       sessionId: 's1',
@@ -1132,35 +1030,30 @@ describe('runAgentLoop 工具超时', () => {
       }
     };
 
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(
-          sseResponse([
-            sse({
-              id: '1',
-              choices: [
-                {
-                  index: 0,
-                  delta: {
-                    tool_calls: [
-                      {
-                        index: 0,
-                        id: 'call_1',
-                        type: 'function',
-                        function: { name: 'write', arguments: '{"path":"b.txt","content":"x"}' }
-                      }
-                    ]
+    stubSseFetch(
+      [
+        sse({
+          id: '1',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'write', arguments: '{"path":"b.txt","content":"x"}' }
                   }
-                }
-              ]
-            }),
-            sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
-            'data: [DONE]\n\n'
-          ])
-        )
-        .mockResolvedValueOnce(sseResponse(openaiTextStep('写好了')))
+                ]
+              }
+            }
+          ]
+        }),
+        sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+        'data: [DONE]\n\n'
+      ],
+      openaiTextStep('写好了')
     );
 
     const persisted: SessionMessage[][] = [];

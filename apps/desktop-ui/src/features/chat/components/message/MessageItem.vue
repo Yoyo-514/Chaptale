@@ -147,6 +147,8 @@ const showAssistantError = computed(() =>
   )
 );
 const showActions = computed(() => isRenderable.value);
+/** 分支导航只挂在用户节点上；与 actions 同行，但不随 hover 隐藏——"当前在第几个分支"是状态而非操作。 */
+const branchControl = computed(() => (message.value.role === 'user' ? props.displayMessage.branch : undefined));
 // queued 编辑会整体恢复 SDK 队列，因此忙碌期间可用；其他附件消息仍需持久化 entryId。
 const canEdit = computed(() => {
   if (props.displayMessage.deliveryState) {
@@ -241,13 +243,13 @@ async function copyRawText() {
         </div>
       </template>
 
-      <UserBranchNavigator
-        v-if="message.role === 'user' && displayMessage.branch && !isEditing"
-        :branch="displayMessage.branch"
-        @switch-branch="emit('switchBranch', $event)"
-      />
-
-      <div v-if="showActions && !isEditing" class="message-footer">
+      <div v-if="(showActions || branchControl) && !isEditing" class="message-footer">
+        <!-- 用户消息这一行是 flex-row-reverse（整体右对齐），DOM 靠前 = 视觉靠右。 -->
+        <UserBranchNavigator
+          v-if="branchControl"
+          :branch="branchControl"
+          @switch-branch="emit('switchBranch', $event)"
+        />
         <MessageActions
           :can-edit="canEdit"
           :can-regenerate="canRegenerate"

@@ -81,7 +81,9 @@ export type ChaptaleDesktopApi = {
   session: {
     list: () => Promise<ChaptaleSessionListItem[]>;
     create: (options?: CreateSessionOptions) => Promise<ChaptaleSessionMetadata>;
+    /** 全量会话树（含当前分支之外的兄弟子树）；当前分支由调用方沿 parentId 从 leafId 回溯。 */
     getEntries: (sessionId: string) => Promise<ChaptaleSessionTreeEntry[]>;
+    /** 当前分支的消息投影。 */
     getMessages: (sessionId: string) => Promise<ChatMessage[]>;
     readImage: (payload: ReadSessionImagePayload) => Promise<ReadSessionImageResult>;
     rename: (sessionId: string, name: string) => Promise<ChaptaleSessionInfoEntry>;

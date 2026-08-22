@@ -7,8 +7,16 @@ import { createProtocolLanguageModel } from './protocols';
 
 /** 引擎消费的解析产物：LanguageModel + 上下文估算与输入能力。 */
 export type ResolvedModel = {
+  /**
+   * 请求真正的发出方——目标模型 id 已烧进这个实例，不再从外部读取。
+   *
+   * 换模型只能整体换掉本字段（`resolveModel` 重新解析一次）；
+   * 单改下面那两个元数据字段不会改变任何一个请求。
+   */
   model: LanguageModel;
+  /** 元数据：供落盘、日志与界面显示，不参与请求构造。 */
   provider: string;
+  /** 元数据：与 `model` 内部烧死的 id 同源，同样不参与请求构造。 */
   modelId: string;
   /** 有效上下文窗口（未填写时 128k 估算）。 */
   contextWindow: number;

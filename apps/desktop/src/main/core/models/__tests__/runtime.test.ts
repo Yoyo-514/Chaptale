@@ -1,8 +1,10 @@
+import { streamText } from 'ai';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { requestBody, sseData, stubSseFetch } from '../../../__tests__/helpers/sse';
 import { ModelConfigRepository } from '../config-repository';
 import type { ModelsConfig } from '../config-types';
 import { ModelRuntime } from '../runtime';
@@ -16,6 +18,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -89,5 +92,28 @@ describe('ModelRuntime.resolveModel', () => {
     // 如拉取前列表为空时手动指定）；上下文走估算。
     const resolved = await runtime.resolveModel('deepseek', 'unknown-model-id');
     expect(resolved.contextWindow).toBe(128_000);
+  });
+
+  /**
+   * modelId 是元数据，真正生效的模型 id 烧在 `model` 实例里。
+   *
+   * 两者一旦分叉，"换模型"这件事就会静默失效：改了 modelId 的测试照常变绿，
+   * 而请求还发往原来那个模型。这条把元数据钉在真实请求体上。
+   */
+  it('modelId 与实际发往 provider 的模型 id 同源', async () => {
+    await writeFile(modelsPath, JSON.stringify(createConfig()), 'utf8');
+    const runtime = new ModelRuntime(new ModelConfigRepository({ modelsPath }));
+    const resolved = await runtime.resolveModel('deepseek', 'deepseek-chat');
+
+    const fetchMock = stubSseFetch([
+      sseData({ id: '1', choices: [{ index: 0, delta: { content: 'ok' } }] }),
+      sseData({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }),
+      'data: [DONE]\n\n'
+    ]);
+
+    await streamText({ model: resolved.model, messages: [{ role: 'user', content: 'hi' }] }).text;
+
+    const body = JSON.parse(requestBody(fetchMock, 0)) as { model: string };
+    expect(body.model).toBe(resolved.modelId);
   });
 });

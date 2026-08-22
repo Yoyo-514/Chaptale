@@ -2,38 +2,18 @@ import { jsonSchema, streamText, tool } from 'ai';
 import { Type } from 'typebox';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { requestBody, sseData as openaiSse, stubFetchOnce, stubSseFetch } from '../../../__tests__/helpers/sse';
 import { createProtocolLanguageModel } from '../protocols';
 
 /**
  * 真实 AI SDK 工厂 + mock fetch 的端到端网关验证：
  * SSE 字节进 → streamText 事件出，覆盖流式文本、tool-call、图像输入与错误码四类场景。
- * 此处验证的 SSE 形状即生产网关对接的真实协议，引擎测试可复用本 helper。
+ * 此处验证的 SSE 形状即生产网关对接的真实协议。
  */
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
-
-function sseResponse(chunks: string[], init?: ResponseInit) {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(chunk));
-      }
-
-      controller.close();
-    }
-  });
-
-  return new Response(stream, {
-    status: 200,
-    headers: { 'content-type': 'text/event-stream', ...init?.headers },
-    ...init
-  });
-}
-
-const openaiSse = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`;
 
 describe('openai-completions 网关端到端', () => {
   const source = {
@@ -44,19 +24,16 @@ describe('openai-completions 网关端到端', () => {
   };
 
   it('流式文本：SSE delta → text 流', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      sseResponse([
-        openaiSse({ id: '1', choices: [{ index: 0, delta: { content: '你好' } }] }),
-        openaiSse({ id: '1', choices: [{ index: 0, delta: { content: '，世界' } }] }),
-        openaiSse({
-          id: '1',
-          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
-          usage: { prompt_tokens: 5, completion_tokens: 3 }
-        }),
-        'data: [DONE]\n\n'
-      ])
-    );
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch([
+      openaiSse({ id: '1', choices: [{ index: 0, delta: { content: '你好' } }] }),
+      openaiSse({ id: '1', choices: [{ index: 0, delta: { content: '，世界' } }] }),
+      openaiSse({
+        id: '1',
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 5, completion_tokens: 3 }
+      }),
+      'data: [DONE]\n\n'
+    ]);
 
     const result = streamText({
       model: createProtocolLanguageModel(source, 'deepseek-chat'),
@@ -79,31 +56,28 @@ describe('openai-completions 网关端到端', () => {
     // 注：分片 arguments（'"{"query":"' + '"雨夜}"'）的跨块聚合属 AI SDK 核心层职责，
     // 其时序在测试环境下不稳定；网关测试只背书透传与 schema 解析，故用单块全量形状
     //（DeepSeek/兼容站常见），跨块聚合留给引擎的 mock 模型测试覆盖。
-    const fetchMock = vi.fn().mockResolvedValue(
-      sseResponse([
-        openaiSse({
-          id: '1',
-          choices: [
-            {
-              index: 0,
-              delta: {
-                tool_calls: [
-                  {
-                    index: 0,
-                    id: 'call_1',
-                    type: 'function',
-                    function: { name: 'web_search', arguments: '{"query":"雨夜"}' }
-                  }
-                ]
-              }
+    stubSseFetch([
+      openaiSse({
+        id: '1',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'web_search', arguments: '{"query":"雨夜"}' }
+                }
+              ]
             }
-          ]
-        }),
-        openaiSse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
-        'data: [DONE]\n\n'
-      ])
-    );
-    vi.stubGlobal('fetch', fetchMock);
+          }
+        ]
+      }),
+      openaiSse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+      'data: [DONE]\n\n'
+    ]);
 
     // 生产引擎永远带工具注册表；TypeBox 产物经 jsonSchema() 直通 AI SDK（零 zod import）。
     const result = streamText({
@@ -134,16 +108,11 @@ describe('openai-completions 网关端到端', () => {
   });
 
   it('图像输入：file part → 请求体 image_url base64', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        sseResponse([
-          openaiSse({ id: '1', choices: [{ index: 0, delta: { content: 'ok' } }] }),
-          openaiSse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }),
-          'data: [DONE]\n\n'
-        ])
-      );
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch([
+      openaiSse({ id: '1', choices: [{ index: 0, delta: { content: 'ok' } }] }),
+      openaiSse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }),
+      'data: [DONE]\n\n'
+    ]);
 
     const result = streamText({
       model: createProtocolLanguageModel(source, 'deepseek-chat'),
@@ -161,11 +130,7 @@ describe('openai-completions 网关端到端', () => {
 
     await result.text;
 
-    const body = JSON.parse(
-      String(
-        (fetchMock.mock.calls[0] as unknown[])[1] && ((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body
-      )
-    ) as {
+    const body = JSON.parse(requestBody(fetchMock, 0)) as {
       messages: { content: { type: string; image_url: { url: string } }[] }[];
     };
 
@@ -175,14 +140,12 @@ describe('openai-completions 网关端到端', () => {
   });
 
   it('HTTP 401 → 结构化错误抛出', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
+    stubFetchOnce(
+      () =>
         new Response(JSON.stringify({ error: { message: 'Invalid API key' } }), {
           status: 401,
           headers: { 'content-type': 'application/json' }
         })
-      )
     );
 
     const result = streamText({
@@ -196,20 +159,17 @@ describe('openai-completions 网关端到端', () => {
 
 describe('anthropic-messages 网关端到端', () => {
   it('流式文本：Anthropic SSE 事件形状', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        sseResponse([
-          'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-x","usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
-          'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n',
-          'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"月亮"}}\n\n',
-          'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"升起"}}\n\n',
-          'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
-          'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n',
-          'event: message_stop\ndata: {"type":"message_stop"}\n\n'
-        ])
-      );
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubSseFetch([
+      'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-x","usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
+      'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"月亮"}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"升起"}}\n\n',
+      'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
+      // usage 必须带上：缺了它 AI SDK 的 message_delta 校验会失败并静默降级，
+      // 用量归零而文本照常返回——费用与上下文水位两处同时失真。
+      'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":7}}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n'
+    ]);
 
     const result = streamText({
       model: createProtocolLanguageModel(
@@ -225,6 +185,7 @@ describe('anthropic-messages 网关端到端', () => {
     });
 
     await expect(result.text).resolves.toBe('月亮升起');
+    await expect(result.totalUsage).resolves.toMatchObject({ inputTokens: 1, outputTokens: 7 });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://api.anthropic.com/v1/messages',
       expect.objectContaining({

@@ -185,6 +185,34 @@ describe('JsonlSessionRepository', () => {
     expect(read.mimeType).toBe('image/png');
   });
 
+  it('getEntries 返回全量树（被切走的分支仍在），导出只含当前分支', async () => {
+    // 分支导航的判据是"同 parentId 下有几个 user 节点"。只返回当前分支时
+    // 每层恒为一个节点，UI 永远算不出兄弟，导航就整个消失。
+    const meta = await repository.create({ id: 's1', name: '分叉会话' });
+    const store = await repository.openOrCreate('s1', '/w');
+    const rootId = store.entries[0].id;
+
+    const first = await store.appendMessage({ role: 'user', content: '原问题' });
+    await store.appendMessage({ role: 'assistant', content: '原回答' });
+
+    await repository.setLeafId(meta.id, rootId);
+    const second = await store.appendMessage({ role: 'user', content: '改后问题' });
+    await store.appendMessage({ role: 'assistant', content: '新回答' });
+
+    const entries = await repository.getEntries(meta.id);
+    const siblings = entries.filter(
+      entry => entry.type === 'message' && entry.parentId === rootId && entry.message.role === 'user'
+    );
+
+    expect(siblings.map(entry => entry.id)).toEqual([first.id, second.id]);
+    expect(entries.map(entry => entry.id)).toContain(first.id);
+
+    // 导出的是作者当前看到的那条线，不是整棵树。
+    const exported = await repository.exportHtml(meta.id);
+    expect(exported.html).toContain('新回答');
+    expect(exported.html).not.toContain('原回答');
+  });
+
   it('openOrCreate 新建的会话，list 报的 id 必须能再打开', async () => {
     // 会话身份有两个载体：文件名（locateSessionFile / delete 拼 `${id}.jsonl`）
     // 与 header.id（list 上报）。openOrCreate 不显式传 id 时 header 会落随机 UUID，

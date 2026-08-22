@@ -6,7 +6,7 @@ import { useNotificationStore } from '@/features/notifications';
 import { useSessionStore } from '@/features/sessions';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { buildDisplayMessagesFromEntries } from '../utils/message/branching';
+import { buildDisplayMessagesFromEntries, resolveFallbackLeafId } from '../utils/message/branching';
 import type { ChatState } from './chat-state';
 import type { useAssistantStreamingMessages } from './useAssistantStreamingMessages';
 
@@ -43,8 +43,9 @@ export function useChatMessages({ state, assistantStreaming, getDesktopApiOrNoti
         return;
       }
 
-      // 优先保留用户刚选择的分支；首次加载才回退到 store 记录或最新条目。
-      currentLeafId.value = currentLeafId.value ?? sessionStore.currentSession?.leafId ?? entries.at(-1)?.id ?? null;
+      // 优先保留用户刚选择的分支；首次加载才回退到 store 记录或树上最后一条内容节点。
+      currentLeafId.value =
+        currentLeafId.value ?? sessionStore.currentSession?.leafId ?? resolveFallbackLeafId(entries);
       state.messages = buildDisplayMessagesFromEntries(entries, currentLeafId.value);
     } finally {
       if (sequence === loadMessagesSequence) {

@@ -14,7 +14,9 @@ import type { ChatMessage } from '@chaptale/shared';
 export interface SessionRepository {
   list(): Promise<ChaptaleSessionListItem[]>;
   create(options?: CreateSessionOptions): Promise<ChaptaleSessionMetadata>;
+  /** 全量会话树（含当前分支之外的兄弟子树）；分支导航依赖同 parentId 下的多个节点。 */
   getEntries(sessionId: string): Promise<ChaptaleSessionTreeEntry[]>;
+  /** 当前分支的消息投影（树上根 → leaf 的那一条）。 */
   getMessages(sessionId: string): Promise<ChatMessage[]>;
   readImage(payload: ReadSessionImagePayload): Promise<ReadSessionImageResult>;
   appendSessionInfo(sessionId: string, name: string): Promise<ChaptaleSessionInfoEntry>;

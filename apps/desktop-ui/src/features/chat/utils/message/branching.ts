@@ -3,13 +3,39 @@ import type { ChaptaleSessionTreeEntry } from '@chaptale/ipc-contract';
 import type { ChatDisplayMessage, MessageBranchControl } from '../../types';
 import { hasRenderableMessage } from './message-content';
 
+/** 分支切换标记：会话树上的事件节点，不是内容，任何"选一个叶子"的场景都要绕开它。 */
+function isBranchMarker(entry: ChaptaleSessionTreeEntry): boolean {
+  return entry.type === 'custom' && entry.name === 'branch_selected';
+}
+
+/**
+ * 无 leaf 可依据时的兜底：最后一条非标记节点。
+ *
+ * 标记节点的 parentId 是**切换发生时**的 leaf，从它回溯得到的是切换前那条路径，
+ * 而不是作者刚切过去的分支。
+ */
+export function resolveFallbackLeafId(entries: ChaptaleSessionTreeEntry[]): string | null {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+
+    if (!isBranchMarker(entry)) {
+      return entry.id;
+    }
+  }
+
+  return null;
+}
+
 /**
  * 从会话树的指定叶子回溯出当前分支，并转换为可展示消息。
  * compaction 不单独占消息行，而是附着到其后的首条可展示消息；用户节点同时计算兄弟分支导航。
+ *
+ * 入参是**全量**会话树：兄弟分支的判据是"同 parentId 下有几个 user 节点"，
+ * 只喂当前分支时每层恒为一个节点，导航就永远算不出来。
  */
 export function buildDisplayMessagesFromEntries(entries: ChaptaleSessionTreeEntry[], leafId: string | null) {
   const entryMap = new Map(entries.map(entry => [entry.id, entry]));
-  const branchEntryIds = getBranchEntryIds(entryMap, leafId ?? entries.at(-1)?.id ?? null);
+  const branchEntryIds = getBranchEntryIds(entryMap, leafId ?? resolveFallbackLeafId(entries));
   const displayMessages: ChatDisplayMessage[] = [];
   let pendingCompaction: ChatDisplayMessage['compactionBefore'];
 
@@ -106,7 +132,8 @@ function getDeepestLeafId(entries: ChaptaleSessionTreeEntry[], rootId?: string) 
   const childrenByParent = new Map<string, ChaptaleSessionTreeEntry[]>();
 
   for (const entry of entries) {
-    if (!entry.parentId) {
+    // 标记节点不算子树：它挂在切换发生时的 leaf 下，被选成"最深叶"会让 leaf 停在一个事件上。
+    if (!entry.parentId || isBranchMarker(entry)) {
       continue;
     }
 
