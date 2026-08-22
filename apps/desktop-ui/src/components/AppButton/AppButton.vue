@@ -125,7 +125,7 @@ const buttonClassName = computed(() =>
 }
 
 .app-button-outline:hover:not(:disabled) {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .app-button-ghost {
@@ -135,7 +135,7 @@ const buttonClassName = computed(() =>
 }
 
 .app-button-ghost:hover:not(:disabled) {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
   color: var(--foreground);
 }
 

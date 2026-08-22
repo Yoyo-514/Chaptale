@@ -201,7 +201,7 @@ describe('SettingsService', () => {
     expect(config.keys?.braveApiKey).toBe('BSA_test');
 
     const settings = JSON.parse(await readFile(service.settingsPath, 'utf8')) as Record<string, unknown>;
-    expect(settings).toEqual({ version: 1, storage: { mode: 'global' } });
+    expect(settings).toEqual({ version: 1, storage: { mode: 'global' }, theme: 'dark' });
   });
 
   it('production adapter normalizes and merges web-tools config', async () => {

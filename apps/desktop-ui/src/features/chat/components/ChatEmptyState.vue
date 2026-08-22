@@ -81,7 +81,7 @@ const emit = defineEmits<{
 }
 
 .chat-recent-item:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .chat-recent-item:focus-visible {

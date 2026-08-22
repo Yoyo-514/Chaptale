@@ -77,7 +77,7 @@
 
   .settings-provider-card:hover,
   .settings-provider-card.is-active {
-    background: var(--surface-acrylic-strong);
+    background: var(--surface-hover);
     border-color: var(--border-subtle);
   }
 
@@ -122,7 +122,7 @@
 
   .settings-model-row:hover,
   .settings-model-row.is-default {
-    background: var(--surface-muted);
+    background: var(--surface-hover);
   }
 
   .settings-model-info {

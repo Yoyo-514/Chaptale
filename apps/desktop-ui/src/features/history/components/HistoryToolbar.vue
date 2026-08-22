@@ -238,7 +238,7 @@ function selectSortMode(value: string) {
 }
 
 .history-control:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .history-control:focus-visible {

@@ -284,7 +284,7 @@ function statusIcon(status: ReviewLaneStatus) {
   color: var(--foreground);
 
   &:hover {
-    background: var(--surface-muted);
+    background: var(--surface-hover);
   }
 }
 
@@ -314,7 +314,7 @@ function statusIcon(status: ReviewLaneStatus) {
 }
 
 .review-lane-tab-active {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
   color: var(--foreground);
 }
 

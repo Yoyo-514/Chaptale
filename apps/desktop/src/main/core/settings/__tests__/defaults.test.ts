@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { UpdateWebToolsSettingsPayload } from '@chaptale/ipc-contract';
+import type { ChaptaleSettings, UpdateWebToolsSettingsPayload } from '@chaptale/ipc-contract';
 
 import {
   cloneDefaultSettings,
@@ -28,8 +28,18 @@ describe('settings defaults', () => {
 
     expect(settings).toEqual({
       version: 1,
-      storage: { mode: 'workspace', workspacePath: 'E:/Stories' }
+      storage: { mode: 'workspace', workspacePath: 'E:/Stories' },
+      theme: 'dark'
     });
+  });
+
+  it('认不出的主题回落默认，而不是原样透传', () => {
+    // 落盘文件不受类型约束（手改过的配置、旧版本写下的取值都可能出现），故意绕开类型。
+    // 这个值最终会变成 <html> 上的类名——落一个没有对应样式的类，
+    // 界面会退化成没有任何语义色的裸样式。
+    const settings = mergeSettings({ theme: '将来某个主题' } as unknown as Partial<ChaptaleSettings>);
+
+    expect(settings.theme).toBe('dark');
   });
 
   it('returns isolated web tools default clones', () => {

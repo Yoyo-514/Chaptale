@@ -1,6 +1,7 @@
 import { klona } from 'klona';
 
 import type { ChaptaleSettings, UpdateWebToolsSettingsPayload, WebToolsSettings } from '@chaptale/ipc-contract';
+import { isChaptaleTheme } from '@chaptale/ipc-contract';
 
 export const SETTINGS_VERSION = 1;
 
@@ -15,7 +16,10 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
   version: SETTINGS_VERSION,
   storage: {
     mode: 'global'
-  }
+  },
+  // 与 Renderer 的 index.html 上那个静态主题类必须一致：
+  // 两者不一致时每次冷启动都会先画一帧再跳色。
+  theme: 'dark'
 };
 
 /** 返回隔离的默认配置，避免调用方修改共享常量后污染后续初始化。 */
@@ -40,6 +44,9 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
       ...DEFAULT_SETTINGS.storage,
       ...value?.storage
     },
+    // 认不出的主题回落默认，而不是原样透传：这个值最终会变成 <html> 上的类名，
+    // 落一个没有对应样式的类，界面会退化成没有任何语义色的裸样式。
+    theme: isChaptaleTheme(value?.theme) ? value.theme : DEFAULT_SETTINGS.theme,
     ...(Object.keys(lastSessions).length > 0 ? { lastSessions } : {})
   };
 }

@@ -2,6 +2,8 @@ import { BrowserWindow, Menu, shell, type Event as ElectronEvent } from 'electro
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { ChaptaleTheme } from '@chaptale/ipc-contract';
+
 import { isExternalUrl, isTrustedRendererUrl } from '../infra/security/navigation-security';
 
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -10,11 +12,23 @@ const appIconPath = path.join(currentDir, '../../resources/favicon.ico');
 const isDev = process.env.NODE_ENV === 'development';
 
 /**
+ * 窗口创建到首帧之间露出的底色。
+ *
+ * 主进程读不到样式表，只能在这里复刻一份：取值须与各主题的 --background 相同，
+ * 对不上时启动会闪一道异色。
+ */
+const THEME_BACKGROUND: Record<ChaptaleTheme, string> = {
+  light: '#f4f7f9',
+  warm: '#f8f3e7',
+  dark: '#0f1e26'
+};
+
+/**
  * 创建承载 Renderer 的主窗口，并把导航限制在受信入口。
  *
  * 新窗口请求一律交由系统浏览器或拒绝，防止外部页面继承应用窗口的 Electron 能力边界。
  */
-export function createMainWindow(rendererEntryUrl: string): BrowserWindow {
+export function createMainWindow(rendererEntryUrl: string, theme: ChaptaleTheme): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -24,7 +38,7 @@ export function createMainWindow(rendererEntryUrl: string): BrowserWindow {
     icon: appIconPath,
     // 使用自定义标题栏和窗口控制按钮，避免原生控件与应用视觉风格割裂。
     frame: false,
-    backgroundColor: '#fffaf2',
+    backgroundColor: THEME_BACKGROUND[theme],
     webPreferences: {
       preload: path.join(currentDir, '../preload/index.mjs'),
       contextIsolation: true,

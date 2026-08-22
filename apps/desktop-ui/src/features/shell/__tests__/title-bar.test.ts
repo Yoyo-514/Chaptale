@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 
+import { useSettingsStore } from '@/features/settings';
 import { useWorkspaceStore } from '@/features/workspace';
 
 import TitleBar from '../TitleBar.vue';
@@ -52,5 +53,28 @@ describe('TitleBar', () => {
     await nextTick();
 
     expect(openWorkspaceAction).toHaveBeenCalledOnce();
+  });
+
+  it('从视图菜单的外观子菜单切换主题', async () => {
+    const settingsStore = useSettingsStore();
+    const setTheme = vi.spyOn(settingsStore, 'setTheme').mockResolvedValue(undefined);
+    const wrapper = mount(TitleBar, { attachTo: document.body });
+    const viewTrigger = wrapper.findAll('[role="menubar"] [role="menuitem"]')[2];
+
+    await viewTrigger?.trigger('keydown', { key: 'Enter' });
+    await nextTick();
+
+    // 视图菜单其余各项都还是占位；外观是这里唯一能用的入口。
+    const appearance = document.body.querySelector<HTMLElement>('[data-item-id="view.appearance"]');
+    expect(appearance?.textContent).toContain('外观');
+    expect(appearance?.hasAttribute('data-disabled')).toBe(false);
+
+    appearance?.click();
+    await nextTick();
+
+    document.body.querySelector<HTMLElement>('[data-item-id="view.theme.light"]')?.click();
+    await nextTick();
+
+    expect(setTheme).toHaveBeenCalledWith('light');
   });
 });

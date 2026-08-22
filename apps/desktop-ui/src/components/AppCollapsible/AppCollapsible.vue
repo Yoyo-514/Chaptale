@@ -103,7 +103,7 @@ const rootAttrs = computed(() => {
 }
 
 .app-collapsible-trigger:hover:not(:disabled) {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .app-collapsible-trigger:focus-visible {

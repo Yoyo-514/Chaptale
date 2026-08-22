@@ -171,7 +171,7 @@ import AgentPanel from './AgentPanel.vue';
 }
 
 .workbench-resize-handle {
-  @apply relative w-1 shrink-0 outline-none transition-colors;
+  @apply relative w-0.5 shrink-0 outline-none transition-colors;
 
   background: var(--border-subtle);
 }
@@ -180,8 +180,9 @@ import AgentPanel from './AgentPanel.vue';
   @apply absolute inset-y-0;
 
   content: '';
-  left: -2px;
-  right: -2px;
+  // 分界线本身细，命中区靠这层补回来：左右各外扩 3px，总计仍是 8px。
+  left: -3px;
+  right: -3px;
 }
 
 .workbench-resize-handle:hover,

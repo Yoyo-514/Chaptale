@@ -62,6 +62,12 @@ $media-overlay-tokens: (
     --media-overlay-#{$name}: #{$value};
   }
 
+  // 滚动条（常态低存在感，hover 时再加强，避免高饱和色常驻抢视觉注意）
+  // 三套主题共用：thumb 引用 --primary，各主题换主色时自动跟随。
+  --scrollbar-size: 10px;
+  --scrollbar-thumb: rgb(from var(--primary) r g b / 0.35);
+  --scrollbar-thumb-hover: rgb(from var(--primary) r g b / 0.6);
+
   // 原子色板 - 天依色略浅 + Fluent 辅色
   --palette-tianyi-50: #f3fbff;
   --palette-tianyi-100: #e7f7ff;
@@ -77,6 +83,12 @@ $media-overlay-tokens: (
   --palette-cream-50: #fdf9ee;
   --palette-cream-100: #f8f3e7;
   --palette-cream-200: #efe7d3;
+
+  // 中性纸色板 - 浅色主题专用，微青，与天依主色同系
+  --palette-paper-50: #fdfefe;
+  --palette-paper-100: #f9fbfc;
+  --palette-paper-200: #f4f7f9;
+  --palette-paper-300: #eef3f5;
 
   --palette-lavender-100: #f4f0ff;
   --palette-lavender-200: #eae4ff;
@@ -95,10 +107,13 @@ $media-overlay-tokens: (
   --palette-danger-100: #fff0f0;
   --palette-danger-600: #d83b3b;
   --palette-danger-900: #5c1f1f;
+}
 
-  // 语义色彩 - 浅色主题（护眼纸色底）
-  // 正文对比度刻意从 ~12.7:1 降到 ~9.1:1：仍远超 WCAG AAA(7:1)，
-  // 但避免过高对比带来的长时间阅读疲劳（写作场景优先）。
+// 暖色主题（暖纸色底）
+// 正文对比度刻意从 ~12.7:1 降到 ~9.1:1：仍远超 WCAG AAA(7:1)，
+// 但避免过高对比带来的长时间阅读疲劳（写作场景优先）。
+.theme-warm {
+  // 语义色彩
   --background: var(--palette-cream-100);
   --foreground: #2b4552;
   --card: rgb(253 250 242 / 0.85);
@@ -131,6 +146,10 @@ $media-overlay-tokens: (
   --surface: var(--palette-cream-50);
   --surface-elevated: #fbf7ec;
   --surface-muted: #f3ecdb;
+  // 悬停与高亮态背景：用叠加而非固定色，才能在 acrylic、卡片、mica 各种底上都产生同样幅度的变化。
+  // 与 --surface-muted 分开是必须的：后者的语义是「更暗的表面」，
+  // 到了暗色主题「更暗」等于更贴近背景，交互反馈会直接消失。
+  --surface-hover: rgb(43 69 82 / 0.07);
   --surface-acrylic: rgb(253 250 242 / 0.68);
   --surface-acrylic-strong: rgb(253 250 242 / 0.78);
   --surface-acrylic-subtle: rgb(253 250 242 / 0.52);
@@ -155,11 +174,6 @@ $media-overlay-tokens: (
   --input-placeholder: #587585;
   --input-focus-border: var(--palette-tianyi-500);
   --input-focus-shadow: 0 0 0 3px rgb(102 204 255 / 0.18);
-
-  // 滚动条（常态低存在感，hover 时再加强，避免高饱和色常驻抢视觉注意）
-  --scrollbar-size: 10px;
-  --scrollbar-thumb: rgb(from var(--primary) r g b / 0.35);
-  --scrollbar-thumb-hover: rgb(from var(--primary) r g b / 0.6);
 
   // Electron 标题栏（与纸色底同系，保留淡蓝点缀在 hover）
   --titlebar: var(--palette-cream-50);
@@ -192,6 +206,109 @@ $media-overlay-tokens: (
 
   // 侧边栏（与卡片同系暖纸色，避免残留冷白）
   --sidebar: rgb(253 250 242 / 0.72);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+// 浅色主题（微青中性纸色底）
+// 与暗色主题成对：底色不用纯白（长时间写作下亮度过高），也不带暖色的黄味；
+// 正文沿用另外两套的那条取舍——对比度停在 ~9:1，超 AAA 但不做满对比。
+.theme-light {
+  // 语义色彩
+  --background: var(--palette-paper-200);
+  --foreground: #2b4552;
+  --card: rgb(249 251 252 / 0.85);
+  --card-foreground: var(--foreground);
+  --popover: rgb(249 251 252 / 0.92);
+  --popover-foreground: var(--foreground);
+
+  // 主色调系统 - 与暖色主题同源，换底色不换主色
+  --primary: var(--palette-tianyi-400);
+  --primary-hover: var(--palette-tianyi-300);
+  --primary-active: var(--palette-tianyi-500);
+  --primary-foreground: var(--palette-tianyi-900);
+  --primary-solid: var(--palette-tianyi-800);
+  --primary-solid-hover: #005b82;
+  --primary-solid-foreground: #ffffff;
+
+  // 辅色系统
+  --secondary: var(--palette-tianyi-100);
+  --secondary-foreground: #124359;
+  --muted: #e9eef1;
+  --muted-foreground: #536d7c;
+  --accent: var(--palette-lavender-200);
+  --accent-foreground: var(--palette-lavender-900);
+  --accent-sakura: var(--palette-sakura-200);
+  --accent-sakura-foreground: var(--palette-sakura-900);
+  --accent-mint: var(--palette-mint-200);
+  --accent-mint-foreground: var(--palette-mint-900);
+
+  // Fluent Surface / Acrylic（纯白只留给最高层，靠它与非纯白的底拉开层次而不刺眼）
+  --surface: var(--palette-paper-100);
+  --surface-elevated: var(--palette-paper-50);
+  --surface-muted: var(--palette-paper-300);
+  --surface-hover: rgb(43 69 82 / 0.07);
+  --surface-acrylic: rgb(249 251 252 / 0.68);
+  --surface-acrylic-strong: rgb(249 251 252 / 0.78);
+  --surface-acrylic-subtle: rgb(249 251 252 / 0.52);
+  --mica-background: var(--palette-paper-200);
+  --mica-tint: rgb(238 243 245 / 0.72);
+
+  // 功能色彩
+  --destructive: var(--palette-danger-600);
+  --destructive-foreground: #ffffff;
+  --destructive-background: var(--palette-danger-100);
+  --destructive-background-foreground: var(--palette-danger-900);
+  --border: #dce4e8;
+  --border-subtle: #e6ecef;
+  --border-strong: #b9cbd2;
+  --ring: var(--palette-tianyi-500);
+
+  // 输入控件
+  --input: rgb(249 251 252 / 0.72);
+  --input-background: var(--input);
+  --input-border: #d3dee3;
+  --input-foreground: var(--foreground);
+  --input-placeholder: #587585;
+  --input-focus-border: var(--palette-tianyi-500);
+  --input-focus-shadow: 0 0 0 3px rgb(102 204 255 / 0.18);
+
+  // Electron 标题栏
+  --titlebar: var(--palette-paper-100);
+  --titlebar-border: var(--border);
+  --titlebar-foreground: #2b5f73;
+  --titlebar-control-hover: rgb(102 204 255 / 0.14);
+
+  // 交互动作
+  --action-background: var(--palette-tianyi-400);
+  --action-background-hover: var(--palette-tianyi-300);
+  --action-foreground: var(--primary-foreground);
+  --action-shadow: 0 8px 20px rgb(102 204 255 / 0.2);
+
+  // 阴影与玻璃效果
+  --shadow-soft: 0 12px 32px rgb(56 125 153 / 0.09);
+  --shadow-float: 0 18px 48px rgb(56 125 153 / 0.14);
+  --shadow-inset-highlight: inset 0 1px 0 rgb(255 255 255 / 0.72);
+  --blur-acrylic: blur(18px) saturate(1.35);
+  --blur-acrylic-subtle: blur(12px) saturate(1.2);
+
+  // 模态遮罩
+  --overlay-scrim: rgb(43 69 82 / 0.24);
+
+  // 图表色彩
+  --chart-1: var(--palette-tianyi-500);
+  --chart-2: var(--palette-tianyi-700);
+  --chart-3: var(--palette-lavender-700);
+  --chart-4: var(--palette-sakura-700);
+  --chart-5: #38b89f;
+
+  // 侧边栏
+  --sidebar: rgb(249 251 252 / 0.72);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
@@ -237,7 +354,12 @@ $media-overlay-tokens: (
   // Fluent Surface / Acrylic
   --surface: #142c38;
   --surface-elevated: #1a3644;
-  --surface-muted: #112631;
+  // 压到 --background 之下：弱化表面在浅色主题里是「比底更暗」，
+  // 这边也必须同向，否则同一个 token 在两种主题下一个凹一个凸，
+  // 用它做底的控件与代码块在深色下全部糊在背景里。
+  --surface-muted: #0a1820;
+  // 提亮而非压暗：深底上唯一能被看见的方向。
+  --surface-hover: rgb(184 236 255 / 0.1);
   --surface-acrylic: rgb(21 45 57 / 0.66);
   --surface-acrylic-strong: rgb(21 45 57 / 0.78);
   --surface-acrylic-subtle: rgb(21 45 57 / 0.48);

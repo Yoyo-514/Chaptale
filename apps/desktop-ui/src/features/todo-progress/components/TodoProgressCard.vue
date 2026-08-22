@@ -91,7 +91,7 @@ const statusMeta: Record<TodoItem['status'], { icon: string; className: string }
   color: var(--foreground);
 
   &:hover {
-    background: var(--surface-muted);
+    background: var(--surface-hover);
   }
 }
 

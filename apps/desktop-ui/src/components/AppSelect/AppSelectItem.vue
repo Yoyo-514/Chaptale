@@ -64,7 +64,7 @@ const itemClassName = computed(() => cn('app-select-item', `app-select-item-${pr
 
 .app-select-item[data-highlighted],
 .app-select-item:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .app-select-item[data-state='checked'] {

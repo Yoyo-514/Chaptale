@@ -53,7 +53,7 @@ const itemClassName = computed(() => cn('app-dropdown-item', `app-dropdown-item-
 
 .app-dropdown-item[data-highlighted],
 .app-dropdown-item:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .app-dropdown-item[data-active='true'] {

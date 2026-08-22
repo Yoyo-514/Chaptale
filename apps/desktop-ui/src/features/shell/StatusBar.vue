@@ -62,7 +62,7 @@ const notificationTooltip = computed(() =>
 }
 
 .status-notification-button:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
   color: var(--foreground);
 }
 

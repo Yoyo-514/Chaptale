@@ -100,7 +100,7 @@ function handleMainClick() {
 }
 
 .history-item:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .history-item-active {

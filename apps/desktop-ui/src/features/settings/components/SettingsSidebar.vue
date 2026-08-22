@@ -81,7 +81,7 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
 
 .settings-nav-item:hover,
 .settings-nav-item.is-active {
-  background: var(--surface-acrylic-strong);
+  background: var(--surface-hover);
   border-color: var(--border-subtle);
 }
 

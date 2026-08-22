@@ -42,7 +42,7 @@ onBeforeUnmount(() => {
       <div class="assistant-reasoning-content markdown-body" v-html="reasoningHtml" />
     </details>
 
-    <div v-if="content" class="markdown-body" v-html="answerHtml" />
+    <div v-if="content" class="assistant-answer markdown-body" v-html="answerHtml" />
 
     <div v-if="partial" class="assistant-streaming-indicator" aria-label="正在生成">
       <span class="assistant-streaming-dot" />
@@ -57,8 +57,15 @@ onBeforeUnmount(() => {
   @apply flex max-w-full flex-col gap-2;
 }
 
+// 答案卡片：markdown-body 只出排版，卡片外观在这里给。
+.assistant-answer {
+  @apply rounded-xl border border-border-subtle bg-surface-acrylic px-4 py-3 shadow-$shadow-inset-highlight;
+
+  backdrop-filter: var(--blur-acrylic-subtle);
+}
+
 .assistant-reasoning {
-  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic text-muted-foreground shadow-$shadow-inset-highlight;
+  @apply max-w-full overflow-hidden rounded-xl border border-border-subtle bg-surface-acrylic text-muted-foreground shadow-$shadow-inset-highlight;
 
   font-size: var(--chat-secondary-font-size, 0.875rem);
   line-height: 1.55;
@@ -69,11 +76,19 @@ onBeforeUnmount(() => {
 }
 
 .assistant-reasoning-summary {
-  @apply flex cursor-pointer select-none items-center gap-2 px-4 py-2 transition-colors duration-150 hover:text-foreground;
+  @apply flex cursor-pointer select-none items-center gap-2 px-4 py-2 transition-colors duration-150;
 }
 
+// 与折叠工具卡片同一套反馈：整条触发区换底色，而不是只改文字色。
+.assistant-reasoning-summary:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+
+// 折叠区内容：外层已经是卡片，这里只补内边距与分隔线。
+// 方角由外层的 overflow-hidden 收掉，触发区的 hover 底色同理。
 .assistant-reasoning-content {
-  @apply border-t border-border-subtle bg-surface-muted/40;
+  @apply border-t border-border-subtle bg-surface-muted/40 px-4 py-3;
 }
 
 .assistant-streaming-indicator {

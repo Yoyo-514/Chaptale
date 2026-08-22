@@ -59,7 +59,10 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('../app-context', () => ({
-  createAppContext: vi.fn(() => ({}))
+  // 建窗口前要先读到主题（决定首帧之前那一瞬的窗口底色），替身得给得出这一步。
+  createAppContext: vi.fn(() => ({
+    settingsService: { readSettings: vi.fn(async () => ({ theme: 'dark' })) }
+  }))
 }));
 
 vi.mock('../ipc-registry', () => ({

@@ -1,11 +1,13 @@
 /* stylelint-disable at-rule-no-unknown */
 // 通用 Markdown 渲染样式。
 // 该文件由 styles/index.scss 统一导出，组件只需要使用 .markdown-body 容器类。
+//
+// 只管排版。圆角、边框、底色、内边距一律由使用方给——这个类也会被嵌进
+// 本身就是卡片的容器里，自带一套卡片外观会和外层的边角叠在一起打架。
 .markdown-body {
-  @apply max-w-full rounded-xl border border-border-subtle bg-surface-acrylic px-4 py-3 text-foreground shadow-$shadow-inset-highlight;
+  @apply max-w-full text-foreground;
 
   line-height: var(--chat-content-line-height, 1.625);
-  backdrop-filter: var(--blur-acrylic-subtle);
 }
 
 .markdown-body * {
@@ -72,10 +74,6 @@
   @apply font-semibold text-foreground;
 }
 
-.markdown-body em {
-  @apply text-secondary-foreground;
-}
-
 .markdown-body ul {
   list-style: outside;
 }
@@ -112,7 +110,7 @@
 }
 
 .markdown-body pre {
-  @apply overflow-x-auto rounded-lg border border-border-subtle bg-surface-muted p-3 shadow-$shadow-inset-highlight;
+  @apply overflow-x-auto rounded-lg border border-border bg-surface-muted p-3 shadow-$shadow-inset-highlight;
 
   font-size: var(--chat-code-font-size, 0.875rem);
 }

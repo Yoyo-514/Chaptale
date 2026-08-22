@@ -18,7 +18,7 @@ const isDev = process.env.NODE_ENV === 'development';
  * 启动入口只负责确定依赖创建顺序；具体业务由 AppContext 中的服务承担，避免生命周期回调持有分散状态。
  */
 export function bootstrapDesktopApp(): void {
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     if (process.platform === 'win32') {
       app.setAppUserModelId(appUserModelId);
     }
@@ -30,7 +30,10 @@ export function bootstrapDesktopApp(): void {
 
     const context = createAppContext();
     registerApplicationIpc(context);
-    const mainWindow = createMainWindow(rendererEntryUrl);
+    // 主题要在建窗口之前读到：backgroundColor 决定首帧之前那一瞬露出的底色，
+    // 建完再改就已经闪过去了。
+    const { theme } = await context.settingsService.readSettings();
+    const mainWindow = createMainWindow(rendererEntryUrl, theme);
 
     // 仅在开发环境注册快捷键，避免生产包暴露调试入口。
     if (isDev) {
@@ -43,7 +46,7 @@ export function bootstrapDesktopApp(): void {
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        createMainWindow(rendererEntryUrl);
+        createMainWindow(rendererEntryUrl, theme);
       }
     });
   });

@@ -6,6 +6,9 @@ import {
   MenubarPortal,
   MenubarRoot,
   MenubarSeparator,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
   MenubarTrigger
 } from 'reka-ui';
 
@@ -29,12 +32,49 @@ const emit = defineEmits<{
         <MenubarContent class="app-menubar-content" :side-offset="4" align="start">
           <template v-for="item in menu.items" :key="item.id">
             <MenubarSeparator v-if="item.separatorBefore" class="app-menubar-separator" />
+
+            <MenubarSub v-if="item.items">
+              <MenubarSubTrigger class="app-menubar-item" :disabled="item.disabled" :data-item-id="item.id">
+                <span class="app-menubar-item-label">{{ item.label }}</span>
+                <span class="i-mingcute-right-line app-menubar-sub-chevron" aria-hidden="true" />
+              </MenubarSubTrigger>
+
+              <MenubarPortal>
+                <MenubarSubContent class="app-menubar-content" :side-offset="2" :align-offset="-4">
+                  <MenubarItem
+                    v-for="child in item.items ?? []"
+                    :key="child.id"
+                    class="app-menubar-item"
+                    :disabled="child.disabled"
+                    :data-item-id="child.id"
+                    @select="emit('select', child.id)"
+                  >
+                    <span
+                      v-if="child.checked !== undefined"
+                      class="app-menubar-item-check"
+                      :class="child.checked && 'i-mingcute-check-line'"
+                      aria-hidden="true"
+                    />
+                    <span class="app-menubar-item-label">{{ child.label }}</span>
+                    <span v-if="child.shortcut" class="app-menubar-shortcut">{{ child.shortcut }}</span>
+                  </MenubarItem>
+                </MenubarSubContent>
+              </MenubarPortal>
+            </MenubarSub>
+
             <MenubarItem
+              v-else
               class="app-menubar-item"
               :disabled="item.disabled"
               :data-item-id="item.id"
               @select="emit('select', item.id)"
             >
+              <span
+                v-if="item.checked !== undefined"
+                class="app-menubar-item-check"
+                :class="item.checked && 'i-mingcute-check-line'"
+                aria-hidden="true"
+              />
               <span class="app-menubar-item-label">{{ item.label }}</span>
               <span v-if="item.shortcut" class="app-menubar-shortcut">{{ item.shortcut }}</span>
             </MenubarItem>
@@ -86,11 +126,29 @@ const emit = defineEmits<{
 }
 
 .app-menubar-item[data-highlighted] {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
+}
+
+// 子菜单展开期间触发项保持高亮，否则鼠标移进子菜单后父项看着像已经离开了。
+.app-menubar-item[data-state='open'] {
+  background: var(--surface-hover);
 }
 
 .app-menubar-item[data-disabled] {
   @apply pointer-events-none opacity-50;
+}
+
+// 固定宽度的勾位：未选中时留白，同组各项的文字才对得齐。
+.app-menubar-item-check {
+  @apply size-3.5 shrink-0;
+
+  color: var(--primary-solid);
+}
+
+.app-menubar-sub-chevron {
+  @apply ml-auto shrink-0 text-sm;
+
+  color: var(--muted-foreground);
 }
 
 .app-menubar-item-label {

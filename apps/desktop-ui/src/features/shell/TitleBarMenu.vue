@@ -1,10 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import { isChaptaleTheme } from '@chaptale/ipc-contract';
+
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
+import { useSettingsStore } from '@/features/settings';
 import { useWorkspaceStore } from '@/features/workspace';
 
 const workspaceStore = useWorkspaceStore();
+const settingsStore = useSettingsStore();
+
+/** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
+const THEME_ITEM_PREFIX = 'view.theme.';
+
+const themeItems = computed(() => {
+  // 设置尚未读到时不预设勾——猜一个再纠正，比空着更容易让人误解。
+  const current = settingsStore.state?.settings.theme;
+
+  return [
+    { id: `${THEME_ITEM_PREFIX}light`, label: '浅色', checked: current === 'light' },
+    { id: `${THEME_ITEM_PREFIX}warm`, label: '暖色', checked: current === 'warm' },
+    { id: `${THEME_ITEM_PREFIX}dark`, label: '深色', checked: current === 'dark' }
+  ];
+});
 
 const menus = computed<readonly AppMenubarMenu[]>(() => [
   {
@@ -43,7 +61,8 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       { id: 'view.auxiliary-bar', label: '切换辅助栏', disabled: true },
       { id: 'view.status-bar', label: '切换状态栏', disabled: true },
       { id: 'view.internal-files', label: '显示内部文件', disabled: true, separatorBefore: true },
-      { id: 'view.focus-mode', label: '专注模式', disabled: true }
+      { id: 'view.focus-mode', label: '专注模式', disabled: true },
+      { id: 'view.appearance', label: '外观', separatorBefore: true, items: themeItems.value }
     ]
   },
   {
@@ -90,6 +109,15 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 function handleSelect(itemId: string) {
   if (itemId === 'file.open-workspace') {
     void workspaceStore.openWorkspace();
+    return;
+  }
+
+  if (itemId.startsWith(THEME_ITEM_PREFIX)) {
+    const theme = itemId.slice(THEME_ITEM_PREFIX.length);
+
+    if (isChaptaleTheme(theme)) {
+      void settingsStore.setTheme(theme);
+    }
   }
 }
 </script>

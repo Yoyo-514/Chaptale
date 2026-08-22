@@ -88,7 +88,7 @@ const contentClassName = computed(() =>
 
 .app-dropdown-sub-trigger[data-highlighted],
 .app-dropdown-sub-trigger:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .app-dropdown-sub-trigger[data-state='open'] {
