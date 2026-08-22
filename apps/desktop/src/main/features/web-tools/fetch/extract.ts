@@ -22,6 +22,15 @@ export function extractContent(html: string, url: string, contentType: string): 
 
   const document = parseHTML(html).document;
 
+  // 纯文本输入解析不出 documentElement，而 linkedom 的 title / head / body 都是会就地
+  // 解构它的 getter——`?.` 防得住 null 值，防不住抛错的 getter，抓一个 .txt 就以
+  // TypeError 收场。整棵树都不存在时没什么可提取的，原文即正文。
+  if (!document.documentElement) {
+    const text = html.trim();
+
+    return { title: url, markdown: text, text, wordCount: countWords(text) };
+  }
+
   try {
     const article = new Readability(document as unknown as Document).parse();
 

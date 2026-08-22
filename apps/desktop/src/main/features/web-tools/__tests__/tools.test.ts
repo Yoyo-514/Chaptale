@@ -140,6 +140,41 @@ describe('fetch_content 工具', () => {
     await expect(fetchContent.execute({ url: 'https://example.com/redirect' })).rejects.toThrow(/内网或保留地址/);
   });
 
+  it('重定向链过长时拒绝，而不是一路跟下去', async () => {
+    const deps = await createDeps(
+      async () => new Response(null, { status: 302, headers: { location: 'https://example.com/next' } })
+    );
+    const { fetchContent } = toolsOf(deps);
+
+    await expect(fetchContent.execute({ url: 'https://example.com/start' })).rejects.toThrow(/重定向次数超过上限/);
+  });
+
+  it('纯文本页面照常抓取：没有 HTML 结构也不该崩', async () => {
+    const deps = await createDeps(
+      async () => new Response('第一行\n第二行', { status: 200, headers: { 'content-type': 'text/plain' } })
+    );
+    const { fetchContent } = toolsOf(deps);
+
+    const result = await fetchContent.execute({ url: 'https://example.com/notes.txt' });
+
+    expect(result.text).toContain('第一行');
+    expect(result.details).toMatchObject({ truncated: false });
+  });
+
+  it('正文超出体积上限：截断标记与提示都要送到模型手上', async () => {
+    const deps = await createDeps(
+      async () => new Response('甲'.repeat(500), { status: 200, headers: { 'content-type': 'text/plain' } }),
+      normalizeSettings({ fetch: { maxBytes: 64 } })
+    );
+    const { fetchContent } = toolsOf(deps);
+
+    const result = await fetchContent.execute({ url: 'https://example.com/big', mode: 'raw' });
+
+    expect(result.details).toMatchObject({ truncated: true });
+    // 模型只看 text。标记不进正文的话，它会把截断后的残篇当成全文来用。
+    expect(result.text).toContain('内容超过大小上限已截断');
+  });
+
   it('JSON 内容原样返回（raw 模式）', async () => {
     const json = '{"data":[1,2,3]}';
     const deps = await createDeps(
