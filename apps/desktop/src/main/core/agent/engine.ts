@@ -37,6 +37,14 @@ export type RunAgentLoopOptions = {
    */
   maxTruncationRetries?: number;
   /**
+   * 相邻两个 chunk 之间允许的最长静默；超过即以超时失败收尾。
+   *
+   * 计的是间隔而不是整轮时长：后者会误杀长输出，而真正要防的是另一回事——
+   * provider 接下了连接却再不吐字节。那种情况下流既不结束也不报错，
+   * 作者除了手动取消没有任何出路。
+   */
+  idleTimeoutMs?: number;
+  /**
    * 每步开始前的干预点。
    *
    * 这是把循环收回引擎换来的东西：SDK 自驱多步时不存在这样一个
@@ -86,6 +94,18 @@ const DEFAULT_MAX_TOTAL_TOKENS = 200_000;
 
 /** 截断作废后的默认重发次数：给模型一次自纠机会，不给第二次。 */
 const DEFAULT_MAX_TRUNCATION_RETRIES = 1;
+
+/**
+ * 默认流级空闲超时。
+ *
+ * 三分钟是给「思考期完全静默」的模型留的余量——这类模型不流式吐 reasoning，
+ * 首字节可能要等上一两分钟，按更短的间隔计时会把正在思考的模型砍掉。
+ * 宁可让作者多等，也不能误杀；而与「永远转圈」相比，三分钟已经是有限的等待。
+ */
+const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
+
+/** 空闲超时哨兵：用独有 symbol 而不是 null/undefined，避免与流上的合法值撞上。 */
+const IDLE_TIMEOUT = Symbol('idle-timeout');
 
 /**
  * 循环停止原因。
@@ -156,6 +176,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     maxSteps = DEFAULT_MAX_STEPS,
     maxTotalTokens = DEFAULT_MAX_TOTAL_TOKENS,
     maxTruncationRetries = DEFAULT_MAX_TRUNCATION_RETRIES,
+    idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
     prepareStep
   } = options;
 
@@ -285,7 +306,16 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     });
 
     try {
-      for await (const part of result.fullStream) {
+      for await (const part of withIdleTimeout(result.fullStream, idleTimeoutMs)) {
+        if (part === IDLE_TIMEOUT) {
+          // 与 provider 故障走同一条路：先跳出去把已收到的内容落盘，再由调用方感知失败。
+          // 文案里的 "timeout" 是留给 classifyProviderFault 的正则认的，改措辞时别弄丢。
+          streamError = new Error(
+            `模型接了连接但 ${Math.round(idleTimeoutMs / 1000)} 秒内没有再返回内容（stream idle timeout）`
+          );
+          break;
+        }
+
         onPart?.({ sessionId, seq: seq++, part });
 
         if (part.type === 'text-delta') {
@@ -415,6 +445,55 @@ export function withSyntheticResults(
     }));
 
   return synthetic.length > 0 ? [...results, ...synthetic] : results;
+}
+
+/**
+ * 给异步流套上空闲超时：相邻两次产出之间静默超过 `timeoutMs`，就交出哨兵再收尾。
+ *
+ * 做成包装 generator 而不是在消费端手写迭代，为的是让清理自动串联——
+ * 消费端 `break` 会调用本 generator 的 `return`，`finally` 随即关掉源迭代器。
+ * 少了这一步，超时之后底层连接仍挂在那里，而它正是超时想摆脱的东西。
+ */
+async function* withIdleTimeout<T>(
+  source: AsyncIterable<T>,
+  timeoutMs: number
+): AsyncGenerator<T | typeof IDLE_TIMEOUT> {
+  const iterator = source[Symbol.asyncIterator]();
+
+  try {
+    let next = await raceIdleTimeout(iterator.next(), timeoutMs);
+
+    while (next !== IDLE_TIMEOUT && next.done !== true) {
+      yield next.value;
+      next = await raceIdleTimeout(iterator.next(), timeoutMs);
+    }
+
+    if (next === IDLE_TIMEOUT) {
+      yield IDLE_TIMEOUT;
+    }
+  } finally {
+    // 不等它完成是刻意的：收尾若自己也挂住，就把刚诊断出的静默又拖成一次挂起。
+    void iterator.return?.().catch(() => undefined);
+  }
+}
+
+/**
+ * 等下一次产出，静默超过 `timeoutMs` 则以哨兵返回。
+ *
+ * 定时器随每次产出重建：空闲计时要的就是「自上一个 chunk 起」，
+ * 一个长驻定时器量出来的是整轮时长，那会误杀长输出。
+ */
+function raceIdleTimeout<T>(next: Promise<T>, timeoutMs: number): Promise<T | typeof IDLE_TIMEOUT> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  return Promise.race([
+    next,
+    new Promise<typeof IDLE_TIMEOUT>(resolve => {
+      timer = setTimeout(() => resolve(IDLE_TIMEOUT), timeoutMs);
+    })
+  ]).finally(() => {
+    clearTimeout(timer);
+  });
 }
 
 function normalizeUsage(usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number }) {

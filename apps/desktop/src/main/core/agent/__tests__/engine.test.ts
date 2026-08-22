@@ -5,8 +5,10 @@ import {
   requestBody,
   sseData as sse,
   stubFetchOnce,
+  stubPacedSseFetch,
   stubRepeatingSseFetch,
-  stubSseFetch
+  stubSseFetch,
+  stubStallingSseFetch
 } from '../../../__tests__/helpers/sse';
 import { estimateTextTokens } from '../../context/token-counter';
 import { createProtocolLanguageModel } from '../../models/protocols';
@@ -14,6 +16,7 @@ import type { ResolvedModel } from '../../models/runtime';
 import type { SessionMessage } from '../../sessions/entry';
 import type { ToolDefinition } from '../../tool-protocol/definition';
 import { runAgentLoop, withSyntheticResults } from '../engine';
+import { describeProviderFault } from '../error-classify';
 import type { PermissionGatePort } from '../types';
 
 /**
@@ -1073,6 +1076,63 @@ describe('runAgentLoop 工具超时', () => {
 
     expect(executed).toHaveBeenCalledTimes(1);
     expect((persisted[0] ?? [])[1]).not.toHaveProperty('isError');
+  });
+
+  /**
+   * 流级空闲超时。工具超时罩的是 execute，罩不到「模型接下连接就不说话」——
+   * 那种流既不结束也不报错，除了作者手动取消没有别的出路。
+   */
+  it('首字节迟迟不来：以超时失败收尾，而不是一直挂着', async () => {
+    stubStallingSseFetch([]);
+
+    const caught = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '你好' }],
+      tools: [],
+      idleTimeoutMs: 60
+    }).catch((error: unknown) => error);
+
+    // 必须归到 timeout：作者据此拿到「稍后重试」，而不是一句无从下手的未知失败。
+    expect(describeProviderFault(caught)).toMatchObject({ kind: 'timeout', retryable: true });
+  });
+
+  it('中途失联：超时前已收到的半截照样落盘', async () => {
+    stubStallingSseFetch([sse({ id: '1', choices: [{ index: 0, delta: { content: '写到一半' } }] })]);
+
+    const persisted: SessionMessage[][] = [];
+    const caught = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '长文' }],
+      tools: [],
+      idleTimeoutMs: 60,
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    }).catch((error: unknown) => error);
+
+    expect(describeProviderFault(caught).kind).toBe('timeout');
+    // 作者已经看在眼里的那半截，不该因为后半程失联而一起消失。
+    expect(persisted.flat()).toContainEqual(expect.objectContaining({ role: 'assistant', content: '写到一半' }));
+  });
+
+  it('慢而不断的流不被误杀：计的是间隔，不是整轮时长', async () => {
+    stubPacedSseFetch(openaiTextStep('慢慢想'), 50);
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '慢慢来' }],
+      tools: [],
+      // 三块各隔 50ms，整轮 150ms 已经越过这个值——按总时长计时的实现会在这里挂掉。
+      idleTimeoutMs: 120
+    });
+
+    expect(result.stopReason).toBe('natural');
   });
 });
 

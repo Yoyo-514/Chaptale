@@ -7,10 +7,14 @@ import { vi } from 'vitest';
  * 其中一份踩过下面注释里那个坑，另一份没有。集中一处后两边同时受保护。
  */
 
+/** 无状态，三种流形态共用。 */
+const encoder = new TextEncoder();
+
+/** event-stream 响应的固定头；分块怎么进流由各夹具自己决定。 */
+const EVENT_STREAM_INIT = { status: 200, headers: { 'content-type': 'text/event-stream' } } as const;
+
 /** 把分块拼成一个 text/event-stream 响应。 */
 export function sseResponse(chunks: string[], init?: ResponseInit): Response {
-  const encoder = new TextEncoder();
-
   return new Response(
     new ReadableStream<Uint8Array>({
       start(controller) {
@@ -22,8 +26,8 @@ export function sseResponse(chunks: string[], init?: ResponseInit): Response {
       }
     }),
     {
-      status: 200,
-      headers: { 'content-type': 'text/event-stream', ...init?.headers },
+      ...EVENT_STREAM_INIT,
+      headers: { ...EVENT_STREAM_INIT.headers, ...init?.headers },
       ...init
     }
   );
@@ -65,6 +69,56 @@ export function stubRepeatingSseFetch(chunks: string[]) {
 /** 单次非流式响应（错误码等）；同样惰性构造。 */
 export function stubFetchOnce(build: () => Response) {
   const fetchMock = vi.fn(async () => build());
+  vi.stubGlobal('fetch', fetchMock);
+
+  return fetchMock;
+}
+
+/**
+ * 吐完给定分块后既不再吐也不 close：provider 接下了连接却不再返回内容。
+ *
+ * 流永远不结束，所以被测逻辑必须自己诊断静默。少了那道诊断，用例会一直挂到
+ * vitest 判超时——不会退化成一次静默通过。
+ */
+export function stubStallingSseFetch(chunks: string[]) {
+  const fetchMock = vi.fn(
+    async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const chunk of chunks) {
+              controller.enqueue(encoder.encode(chunk));
+            }
+          }
+        }),
+        EVENT_STREAM_INIT
+      )
+  );
+
+  vi.stubGlobal('fetch', fetchMock);
+
+  return fetchMock;
+}
+
+/** 每隔 gapMs 推一块：慢而不断的流，用来钉住空闲超时不误杀长思考。 */
+export function stubPacedSseFetch(chunks: string[], gapMs: number) {
+  const fetchMock = vi.fn(
+    async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          async start(controller) {
+            for (const chunk of chunks) {
+              await new Promise(resolve => setTimeout(resolve, gapMs));
+              controller.enqueue(encoder.encode(chunk));
+            }
+
+            controller.close();
+          }
+        }),
+        EVENT_STREAM_INIT
+      )
+  );
+
   vi.stubGlobal('fetch', fetchMock);
 
   return fetchMock;
