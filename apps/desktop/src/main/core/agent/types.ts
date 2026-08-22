@@ -46,6 +46,8 @@ export type ToolResultRecord = {
   toolName: string;
   output: unknown;
   isError: boolean;
+  /** 补位而非工具产出：调用发出去了，运行却中断在它跑完之前。 */
+  interrupted?: boolean;
 };
 
 /** 事件信封：IPC 透传协议（part 原样携带 AI SDK 流事件）。 */

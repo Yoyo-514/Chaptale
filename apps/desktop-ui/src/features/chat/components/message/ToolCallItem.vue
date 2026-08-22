@@ -26,9 +26,15 @@ watch(
   { immediate: true }
 );
 const name = computed(() => props.call?.name ?? props.result?.toolName ?? 'unknown');
+// 中断补位也带 isError（模型那边只有「有没有可用结果」这一个区分），
+// 但作者要分清是自己按了停止还是工具坏了——所以这里先看 interrupted。
+const isInterrupted = computed(() => props.result?.interrupted === true);
+const isFailed = computed(() => props.result?.isError === true && !isInterrupted.value);
 const status = computed(() => {
   if (props.result) {
-    return props.result.isError ? '失败' : '已完成';
+    if (isInterrupted.value) return '已中断';
+
+    return isFailed.value ? '失败' : '已完成';
   }
 
   return props.isBusy ? '执行中' : '已中断';
@@ -65,7 +71,7 @@ function formatToolTarget(args?: Record<string, unknown>) {
       <button :class="triggerClass" type="button">
         <span class="i-mingcute-tool-line tool-call-item-icon" aria-hidden="true" />
         <span class="tool-call-item-title">{{ title }}</span>
-        <span :class="['tool-call-item-status', props.result?.isError && 'is-error']">{{ status }}</span>
+        <span :class="['tool-call-item-status', isFailed && 'is-error']">{{ status }}</span>
         <span :class="['i-mingcute-down-line tool-call-item-chevron', isOpen && 'is-open']" aria-hidden="true" />
       </button>
     </template>
@@ -85,7 +91,8 @@ function formatToolTarget(args?: Record<string, unknown>) {
         :content="resultContent"
         :details="resultDetails"
         :image-count="resultImageCount"
-        :is-error="props.result.isError"
+        :is-error="isFailed"
+        :interrupted="isInterrupted"
         :search-open="props.searchSection === 'result'"
       />
       <div v-else class="tool-call-item-pending">

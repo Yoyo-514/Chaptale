@@ -441,7 +441,8 @@ export function withSyntheticResults(
       toolCallId: call.id,
       toolName: call.name,
       output: INTERRUPTED_TOOL_RESULT_TEXT,
-      isError: true
+      isError: true,
+      interrupted: true
     }));
 
   return synthetic.length > 0 ? [...results, ...synthetic] : results;

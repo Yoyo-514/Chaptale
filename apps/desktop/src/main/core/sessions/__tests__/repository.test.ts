@@ -148,6 +148,30 @@ describe('JsonlSessionRepository', () => {
     expect(entries.map(entry => entry.type)).toEqual(['message', 'message', 'message']);
   });
 
+  it('中断补位标记穿过落盘与读回：作者按下的停止不会在历史里变成工具失败', async () => {
+    const meta = await repository.create({ id: 's-interrupted' });
+    const store = await repository.openOrCreate('s-interrupted', '/w');
+
+    await store.appendMessage({ role: 'user', content: '写第三章' });
+    await store.appendMessage({
+      role: 'assistant',
+      toolCalls: [{ id: 'call_1', name: 'write', arguments: { path: '第三章.md' } }]
+    });
+    await store.appendMessage({
+      role: 'tool',
+      toolCallId: 'call_1',
+      toolName: 'write',
+      output: '工具未执行：本次运行已中断。',
+      isError: true,
+      interrupted: true
+    });
+
+    const messages = await repository.getMessages(meta.id);
+
+    // 两个标记都要活着穿过 JSONL：少了 interrupted，重开会话就只剩一个红色的「失败」。
+    expect(messages.at(-1)).toMatchObject({ role: 'tool', isError: true, interrupted: true });
+  });
+
   it('run_stop 穿过 getEntries；认不出的原因整条丢弃', async () => {
     const sessionDir = path.join(root, 'agent', 'sessions', 'global');
     await mkdir(sessionDir, { recursive: true });

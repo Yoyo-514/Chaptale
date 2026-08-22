@@ -475,6 +475,8 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
           output: message.output,
           // 失败标记透传：不带它，历史回放里工具卡片的失败态不可达。
           ...(message.isError === true ? { isError: true } : {}),
+          // 中断补位同理：不带它，作者按下的停止在历史里会显示成工具出错。
+          ...(message.interrupted === true ? { interrupted: true } : {}),
           timestamp: 0
         };
     }

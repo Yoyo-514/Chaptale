@@ -172,6 +172,38 @@ describe('ToolCallGroup', () => {
     ).toBe(true);
   });
 
+  it('中断补位显示为已中断，不冒充工具失败', async () => {
+    const wrapper = mount(ToolCallGroup, {
+      props: {
+        messages: [
+          messages[0]!,
+          {
+            id: 'tool-result-interrupted',
+            message: {
+              role: 'tool',
+              toolCallId: 'call-1',
+              toolName: 'read',
+              // 补位同样带 isError（模型那边只认「有没有可用结果」），界面必须靠 interrupted 分辨。
+              isError: true,
+              interrupted: true,
+              output: '工具未执行：本次运行已中断。'
+            }
+          }
+        ]
+      }
+    });
+
+    // 补位不算完成：否则中断过的会话重开后，头部说「已完成」、展开却是「已中断」。
+    expect(wrapper.get('.tool-call-group-summary').text()).toBe('1 次调用 · 部分已中断');
+
+    await wrapper.get('.tool-call-group-trigger').trigger('click');
+    await wrapper.get('.tool-call-item-trigger').trigger('click');
+
+    expect(wrapper.get('.tool-call-item-status').text()).toBe('已中断');
+    expect(wrapper.get('.tool-call-item-status').classes()).not.toContain('is-error');
+    expect(wrapper.get('.tool-call-section-status').text()).toBe('已中断');
+  });
+
   it('marks executions without a result as interrupted once the session is idle', async () => {
     const callOnly = [messages[0]!];
 

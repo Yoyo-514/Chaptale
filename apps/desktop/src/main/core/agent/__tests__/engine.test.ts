@@ -1155,6 +1155,7 @@ describe('withSyntheticResults', () => {
 
     expect(merged).toHaveLength(2);
     expect(merged[0]).toBe(results[0]);
-    expect(merged[1]).toMatchObject({ toolCallId: 'call_2', isError: true });
+    // interrupted 与 isError 一起给：前者让界面分辨得出「作者按了停止」，后者让模型知道没有可用结果。
+    expect(merged[1]).toMatchObject({ toolCallId: 'call_2', isError: true, interrupted: true });
   });
 });

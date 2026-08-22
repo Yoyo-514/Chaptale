@@ -6,7 +6,7 @@ import { AppCollapsible } from '@/components/AppCollapsible';
 const props = defineProps<{
   title: string;
   icon?: string;
-  status?: 'running' | 'done' | 'error';
+  status?: 'running' | 'done' | 'error' | 'interrupted';
   summary?: string;
   details?: string;
   defaultOpen?: boolean;
@@ -26,6 +26,7 @@ watch(
 const statusLabel = computed(() => {
   if (props.status === 'running') return '执行中';
   if (props.status === 'error') return '失败';
+  if (props.status === 'interrupted') return '已中断';
   if (props.status === 'done') return '已完成';
   return '';
 });

@@ -76,7 +76,8 @@ export function repairToolCallPairing(messages: SessionMessage[]): SessionMessag
           toolCallId: call.id,
           toolName: call.name,
           output: INTERRUPTED_TOOL_RESULT_TEXT,
-          isError: true
+          isError: true,
+          interrupted: true
         });
       }
     }

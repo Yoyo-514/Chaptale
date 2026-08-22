@@ -79,7 +79,11 @@ const containsSearchHit = computed(() =>
     return execution.sourceIds.some(id => id === props.searchHit?.id || id === `${props.searchHit?.id}-tools`);
   })
 );
-const completedCount = computed(() => executions.value.filter(execution => execution.result).length);
+// 中断补位不计入完成：它记录的是「没跑成」，不是一份结果。
+// 漏掉这个判断，中断过的会话重开后头部会说「已完成」，展开却是「已中断」。
+const completedCount = computed(
+  () => executions.value.filter(execution => execution.result && execution.result.interrupted !== true).length
+);
 const toolActivityTitle = computed(() => {
   const names = [
     ...new Set(

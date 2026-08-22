@@ -12,18 +12,31 @@ const props = defineProps<{
   details?: unknown;
   imageCount?: number;
   isError?: boolean;
+  /** 中断补位：调用发出去了但没跑完，不是工具自己出的错。 */
+  interrupted?: boolean;
   searchOpen?: boolean;
 }>();
 
 const isWebSearch = computed(() => props.name === 'web_search');
 const webSearchResults = computed(() => extractWebSearchResults(props.details));
 const formattedContent = computed(() => formatMaybeJson(props.content));
+const sectionStatus = computed(() => {
+  if (props.interrupted) return 'interrupted' as const;
+
+  return props.isError ? ('error' as const) : ('done' as const);
+});
 const icon = computed(() => {
+  // 与 subagent 卡片的「已取消」同一个图标：中断在别处已经有了视觉语言。
+  if (props.interrupted) return 'i-mingcute-forbid-circle-line';
   if (props.isError) return 'i-mingcute-close-circle-line';
   if (props.name === 'fetch_content' || props.name === 'get_search_content') return 'i-mingcute-link-line';
   return 'i-mingcute-check-circle-line';
 });
 const summary = computed(() => {
+  if (props.interrupted) {
+    return '本次运行已中断，这一步没有执行';
+  }
+
   if (props.isError) {
     return '工具执行失败，展开查看错误信息';
   }
@@ -76,7 +89,7 @@ function extractWebSearchResults(details: unknown) {
     :summary="summary"
     :icon="icon"
     :search-open="props.searchOpen"
-    :status="props.isError ? 'error' : 'done'"
+    :status="sectionStatus"
   >
     <MessageWebsearchResults :content="content" :results="webSearchResults" />
   </ToolCallSection>
@@ -87,6 +100,6 @@ function extractWebSearchResults(details: unknown) {
     :details="formattedContent"
     :icon="icon"
     :search-open="props.searchOpen"
-    :status="props.isError ? 'error' : 'done'"
+    :status="sectionStatus"
   />
 </template>

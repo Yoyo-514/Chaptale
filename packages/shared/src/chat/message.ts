@@ -61,6 +61,8 @@ export type ChatMessage =
       /** UI 结构化载荷（如 web_search 结果列表）。 */
       details?: unknown;
       isError?: boolean;
+      /** 补位而非工具产出：调用发出去了，运行却中断在它跑完之前。与 isError 并存。 */
+      interrupted?: boolean;
       timestamp?: number;
     }
   | {

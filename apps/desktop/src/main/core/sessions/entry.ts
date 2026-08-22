@@ -70,6 +70,14 @@ export type SessionMessage =
        * 缺省视为成功——历史文件写于本字段之前，不做迁移。
        */
       isError?: boolean;
+      /**
+       * 这条结果是补位而非工具产出：调用发出去了，运行却中断在它跑完之前。
+       *
+       * 与 isError 并存而不是取代它——模型那边只有「有没有可用结果」这一个区分，
+       * 补位仍要标成 error，否则它会当成工具真的返回了这段文字；
+       * 作者要的却是另一个区分：是我按了停止，还是它自己坏了。
+       */
+      interrupted?: boolean;
     }
   | { role: 'system'; content: string };
 

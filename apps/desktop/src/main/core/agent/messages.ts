@@ -114,7 +114,9 @@ export function stepRecordsToSessionMessages(
       output: result.output,
       // 失败标记必须落盘：否则历史回放里工具卡片的"失败"状态永不可达，
       // 且回放转模型消息时无法选用 error-text/error-json 标签。
-      ...(result.isError ? { isError: true } : {})
+      ...(result.isError ? { isError: true } : {}),
+      // 中断补位另立一笔：不落它，重开会话后作者按下的停止会显示成工具出错。
+      ...(result.interrupted ? { interrupted: true } : {})
     });
   }
 

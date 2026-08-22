@@ -49,7 +49,8 @@ describe('repairToolCallPairing', () => {
       toolCallId: 'call_1',
       toolName: 'write',
       output: INTERRUPTED_TOOL_RESULT_TEXT,
-      isError: true
+      isError: true,
+      interrupted: true
     });
   });
 
@@ -63,7 +64,8 @@ describe('repairToolCallPairing', () => {
 
     expect(repaired.map(message => message.role)).toEqual(['assistant', 'tool', 'tool']);
     expect(repaired[1]).toMatchObject({ toolCallId: 'call_1', output: { text: '已写入 第一章.md' } });
-    expect(repaired[2]).toMatchObject({ toolCallId: 'call_2', isError: true });
+    // 读取侧补的这条同样要带 interrupted：历史里的悬空调用与工具真的失败，界面上不是一回事。
+    expect(repaired[2]).toMatchObject({ toolCallId: 'call_2', isError: true, interrupted: true });
   });
 
   it('孤儿 tool 结果被丢弃：压缩切点切在工具批次中间时会成批出现', () => {
