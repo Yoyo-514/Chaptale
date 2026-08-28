@@ -4,7 +4,7 @@ import { errorToMessage } from '@chaptale/shared';
 import { parsePartialJsonObject } from '../../core/agent/partial-json';
 
 /**
- * AI SDK fullStream part → UI ChatMessage 的聚合翻译层。
+ * AI SDK 流上的 part → UI ChatMessage 的聚合翻译层。
  *
  * 策略（与 UI 现有渲染粒度对齐，协议零改动）：
  * - text-delta：**增量**推送 partial assistant（UI 侧 pushText 是追加语义），
@@ -106,7 +106,7 @@ export function createPartTranslator(emit: (message: ChatMessage) => void): Part
         }
 
         case 'reasoning-delta': {
-          // fullStream part 属性是 text；UI 收到累计快照（partial 语义）。
+          // 流上的 part 属性是 text；UI 收到累计快照（partial 语义）。
           reasoning += (part as { text: string }).text;
           emit({
             role: 'assistant',

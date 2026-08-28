@@ -34,7 +34,7 @@ export type ToolAssemblyOptions = {
    *
    * 由引擎在 `onLanguageModelCallEnd` 置位——SDK 把整批工具的执行推迟到
    * `model-call-end`，那正好在该回调之后，所以这是唯一一个"还来得及拦住"的时点。
-   * 等到 fullStream 的 finish part 时，工具早已跑完。
+   * 等到流上的 finish part 时，工具早已跑完。
    */
   isOutputTruncated?: () => boolean;
 };
@@ -111,7 +111,7 @@ function createGatedTool(definition: ToolDefinition, options: ToolAssemblyOption
     },
     // 模型通道入口：SDK 在构建下一轮请求消息时经此把 execute 原始返回值
     // 转成模型可见的输出（token 预算截断 + details 隔离）。落盘与 UI 走的
-    // fullStream tool-result part 仍是原始返回值，完整内容不受影响。
+    // 流上的 tool-result part 仍是原始返回值，完整内容不受影响。
     toModelOutput: ({ output }) => toModelToolOutput(output, false)
   });
 }

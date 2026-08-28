@@ -93,7 +93,7 @@ describe('openai-completions 网关端到端', () => {
     });
 
     // response.messages 为 content parts 形状，tool-call 已聚合完整入参。
-    const toolCall = (await result.response).messages
+    const toolCall = (await result.finalStep).response.messages
       .flatMap((message: { content?: unknown }) => (Array.isArray(message.content) ? message.content : []))
       .find((part: { type?: string }) => part.type === 'tool-call') as
       | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown }
@@ -185,7 +185,7 @@ describe('anthropic-messages 网关端到端', () => {
     });
 
     await expect(result.text).resolves.toBe('月亮升起');
-    await expect(result.totalUsage).resolves.toMatchObject({ inputTokens: 1, outputTokens: 7 });
+    await expect(result.usage).resolves.toMatchObject({ inputTokens: 1, outputTokens: 7 });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://api.anthropic.com/v1/messages',
       expect.objectContaining({

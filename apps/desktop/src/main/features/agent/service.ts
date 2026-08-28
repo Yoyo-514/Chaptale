@@ -27,7 +27,7 @@ import { createPartTranslator } from './part-translator';
 /**
  * 自有 Agent 运行时服务：engine + SessionStore + steer 队列 的编排层。
  *
- * - 事件桥接：fullStream part → AsyncMessageQueue → AsyncGenerator<ChatMessage>
+ * - 事件桥接：流上的 part → AsyncMessageQueue → AsyncGenerator<ChatMessage>
  *   （part-translator 聚合翻译，UI ChatMessage 协议零改动）；
  * - 轮次循环：首轮 query → runAgentLoop；作者中途的插话由引擎的 step 边界钩子
  *   即时接入（不必等整条工具链跑完），外层循环只兜住"引擎已返回、插话刚到"那个窗口；

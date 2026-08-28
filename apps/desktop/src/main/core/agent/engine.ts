@@ -150,7 +150,7 @@ export type AgentLoopResult = {
  * 需要原样回传 reasoning 分块与 provider 签名，改用投影会让这类模型直接被拒。
  * 落盘仍走 `stepRecordsToSessionMessages`，两条路径各司其职。
  *
- * 事件透传：fullStream part → onPart 原样转发（{sessionId, seq, part} 信封），
+ * 事件透传：流上的 part → onPart 原样转发（{sessionId, seq, part} 信封），
  * seq 跨 step 连续；落盘：每步结束把 assistant + tool 结果交 onStepPersist
  * （收集器自聚合，不依赖 SDK 内部聚合时序），崩溃丢失上限 = 当前 step。
  *
@@ -286,7 +286,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
 
     const result = streamText({
       model: stepModel.model,
-      system: stepSystem,
+      instructions: stepSystem,
       messages: conversation,
       tools: toAiSdkTools(stepTools, { sessionId, gate, isOutputTruncated: () => outputTruncated }),
       // 单步：多步循环归引擎，SDK 不自行续跑。
@@ -294,7 +294,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
       abortSignal,
       // 模型响应解析完毕、任何工具执行开始前触发。SDK 把整批工具推迟到 model-call-end
       // 才一起执行，而该回调正好在其之前——这是唯一还来得及拦下截断批次的时点，
-      // fullStream 的 finish part 到达时工具早已跑完。
+      // 流上的 finish part 到达时工具早已跑完。
       onLanguageModelCallEnd: event => {
         outputTruncated = event.finishReason === 'length';
         stepFinishReason = event.finishReason;
@@ -310,7 +310,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     });
 
     try {
-      for await (const part of withIdleTimeout(result.fullStream, idleTimeoutMs)) {
+      for await (const part of withIdleTimeout(result.stream, idleTimeoutMs)) {
         if (part === IDLE_TIMEOUT) {
           // 与 provider 故障走同一条路：先跳出去把已收到的内容落盘，再由调用方感知失败。
           // 文案里的 "timeout" 是留给 classifyProviderFault 的正则认的，改措辞时别弄丢。
@@ -325,7 +325,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
         if (part.type === 'text-delta') {
           text += part.text;
         } else if (part.type === 'reasoning-delta') {
-          // fullStream 的 TextStreamReasoningDeltaPart 属性是 text（UIMessage chunk 才是 delta）。
+          // 流上的 TextStreamReasoningDeltaPart 属性是 text（UIMessage chunk 才是 delta）。
           reasoning += part.text;
         } else if (part.type === 'tool-call') {
           toolCalls.push({
