@@ -194,3 +194,85 @@ describe('anthropic-messages 网关端到端', () => {
     );
   });
 });
+
+/**
+ * 推理档位在各协议上的落地形状。
+ *
+ * 用的是 AI SDK 的顶层 `reasoning`——一个可移植参数，由 SDK 自己翻译成各家的原生表达。
+ * 断言写在**请求体**上而不是传给 streamText 的参数上：后者只能证明我们传了，
+ * 证明不了对面收得到，而"四种协议都吃得下"正是选用顶层参数（而非自建映射）的前提。
+ */
+describe('推理档位的协议翻译', () => {
+  const openaiCompatible = {
+    providerId: 'deepseek',
+    api: 'openai-completions' as const,
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiKey: 'sk-test'
+  };
+
+  const openaiTextStep = [
+    openaiSse({ id: '1', choices: [{ index: 0, delta: { content: 'ok' } }] }),
+    openaiSse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }),
+    'data: [DONE]\n\n'
+  ];
+
+  it('openai 兼容协议：档位落成 reasoning_effort', async () => {
+    const fetchMock = stubSseFetch(openaiTextStep);
+
+    const result = streamText({
+      model: createProtocolLanguageModel(openaiCompatible, 'deepseek-reasoner'),
+      reasoning: 'high',
+      messages: [{ role: 'user', content: '想一想' }]
+    });
+
+    await result.text;
+
+    expect(JSON.parse(requestBody(fetchMock, 0))).toMatchObject({ reasoning_effort: 'high' });
+  });
+
+  it('不配档位时不发推理字段，交由服务端默认', async () => {
+    const fetchMock = stubSseFetch(openaiTextStep);
+
+    const result = streamText({
+      model: createProtocolLanguageModel(openaiCompatible, 'deepseek-reasoner'),
+      messages: [{ role: 'user', content: '想一想' }]
+    });
+
+    await result.text;
+
+    expect(JSON.parse(requestBody(fetchMock, 0))).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('anthropic 协议：同一个档位改落成 thinking 预算', async () => {
+    const fetchMock = stubSseFetch([
+      'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-x","usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
+      'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"好"}}\n\n',
+      'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
+      'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n'
+    ]);
+
+    const result = streamText({
+      model: createProtocolLanguageModel(
+        {
+          providerId: 'anthropic',
+          api: 'anthropic-messages',
+          baseUrl: 'https://api.anthropic.com',
+          apiKey: 'sk-ant'
+        },
+        'claude-sonnet-4-20250514'
+      ),
+      reasoning: 'high',
+      messages: [{ role: 'user', content: '想一想' }]
+    });
+
+    await result.text;
+
+    // 同一个枚举在这里不是枚举了：用 token 预算的 provider 由 SDK 按最大输出的百分比换算。
+    // 断言只认"推理确实被打开了"，不钉死具体预算数字——那是 SDK 的换算细节，会随版本变。
+    const body = JSON.parse(requestBody(fetchMock, 0)) as { thinking?: { type?: string } };
+
+    expect(body.thinking?.type).toBeDefined();
+  });
+});

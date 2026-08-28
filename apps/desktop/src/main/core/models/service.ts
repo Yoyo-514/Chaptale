@@ -162,6 +162,7 @@ export class ModelService {
           ...(model.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
           ...(model.temperature !== undefined ? { temperature: model.temperature } : {}),
           ...(model.topP !== undefined ? { topP: model.topP } : {}),
+          ...(model.reasoningEffort !== undefined ? { reasoningEffort: model.reasoningEffort } : {}),
           isCustom: true,
           authConfigured: Boolean(providerConfig.apiKey),
           isDefault: defaultModel?.provider === provider && defaultModel.modelId === model.id

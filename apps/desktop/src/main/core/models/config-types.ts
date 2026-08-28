@@ -6,6 +6,8 @@
  * - defaultModel：顶层默认模型（唯一事实源）。
  */
 
+import type { ChaptaleReasoningEffort } from '@chaptale/ipc-contract';
+
 export type ModelsConfig = {
   providers: Record<string, ModelProviderConfig>;
   defaultModel?: ModelRef;
@@ -30,6 +32,7 @@ export type ModelDefinition = {
   name?: string;
   api?: string;
   baseUrl?: string;
+  /** 元数据：这个模型会不会推理，只用于列表上的能力徽章。与 `reasoningEffort` 无关。 */
   reasoning?: boolean;
   input?: ('text' | 'image')[];
   contextWindow?: number;
@@ -39,5 +42,7 @@ export type ModelDefinition = {
   temperature?: number;
   /** 核采样阈值（0–1）；缺省交由服务端默认。 */
   topP?: number;
+  /** 推理档位；缺省交由服务端默认。 */
+  reasoningEffort?: ChaptaleReasoningEffort;
   headers?: Record<string, string>;
 };

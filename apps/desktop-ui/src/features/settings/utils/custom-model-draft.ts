@@ -1,3 +1,5 @@
+import type { ChaptaleReasoningEffort } from '@chaptale/ipc-contract';
+
 /**
  * 自定义模型草稿（“添加供应商”与“已有供应商添加模型”共用）。
  * Context Window、图像输入与采样参数按“每个模型”配置。
@@ -13,6 +15,8 @@ export type CustomModelDraft = {
   temperature: string;
   /** 核采样 0–1（空 = 服务端默认）。 */
   topP: string;
+  /** 推理档位（空 = 服务端默认）。 */
+  reasoningEffort: ChaptaleReasoningEffort | '';
 };
 
 export function createCustomModelDraft(): CustomModelDraft {
@@ -23,7 +27,8 @@ export function createCustomModelDraft(): CustomModelDraft {
     supportsImageInput: false,
     maxTokens: '',
     temperature: '',
-    topP: ''
+    topP: '',
+    reasoningEffort: ''
   };
 }
 

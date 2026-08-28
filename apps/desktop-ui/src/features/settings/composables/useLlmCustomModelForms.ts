@@ -1,6 +1,6 @@
 import { computed, reactive, ref, watch, type Ref } from 'vue';
 
-import type { ChaptaleCustomProviderApi, ChaptaleModelInfo } from '@chaptale/ipc-contract';
+import type { ChaptaleCustomProviderApi, ChaptaleModelInfo, ChaptaleReasoningEffort } from '@chaptale/ipc-contract';
 
 import type { useNotificationStore } from '@/features/notifications';
 
@@ -26,6 +26,7 @@ type StagedCustomModel = {
   maxTokens?: number;
   temperature?: number;
   topP?: number;
+  reasoningEffort?: ChaptaleReasoningEffort;
 };
 
 function toStagedModel(draft: CustomModelDraft): StagedCustomModel {
@@ -36,7 +37,8 @@ function toStagedModel(draft: CustomModelDraft): StagedCustomModel {
     contextWindow: parseContextWindow(draft),
     maxTokens: parseOptionalNumber(draft.maxTokens),
     temperature: parseOptionalNumber(draft.temperature),
-    topP: parseOptionalNumber(draft.topP)
+    topP: parseOptionalNumber(draft.topP),
+    reasoningEffort: draft.reasoningEffort || undefined
   };
 }
 
@@ -141,6 +143,7 @@ export function useLlmCustomModelForms(
     customModelDraft.maxTokens = model.maxTokens !== undefined ? String(model.maxTokens) : '';
     customModelDraft.temperature = model.temperature !== undefined ? String(model.temperature) : '';
     customModelDraft.topP = model.topP !== undefined ? String(model.topP) : '';
+    customModelDraft.reasoningEffort = model.reasoningEffort ?? '';
     settingsStore.clearFetchedCustomModels();
     isCustomModelDialogOpen.value = true;
   }
@@ -154,7 +157,8 @@ export function useLlmCustomModelForms(
       contextWindow: parseContextWindow(customModelDraft),
       maxTokens: parseOptionalNumber(customModelDraft.maxTokens),
       temperature: parseOptionalNumber(customModelDraft.temperature),
-      topP: parseOptionalNumber(customModelDraft.topP)
+      topP: parseOptionalNumber(customModelDraft.topP),
+      reasoningEffort: customModelDraft.reasoningEffort || undefined
     });
 
     if (succeeded) {
@@ -170,13 +174,9 @@ export function useLlmCustomModelForms(
 
   async function submitCustomProvider() {
     // 提交前复制 staged input，避免关闭弹窗后的草稿重置影响正在进行的异步请求。
+    // 整体带过去而不是逐个挑字段：漏挑等于把该模型的高级参数静默丢掉，而漏挑是看不出来的。
     const providerId = customProvider.provider.trim();
-    const models = stagedProviderModels.value.map(model => ({
-      modelId: model.modelId,
-      modelName: model.modelName,
-      input: [...model.input],
-      contextWindow: model.contextWindow
-    }));
+    const models = stagedProviderModels.value.map(model => Object.assign({}, model, { input: [...model.input] }));
     const succeeded = await settingsStore.addCustomProvider({
       provider: customProvider.provider,
       providerName: customProvider.providerName,

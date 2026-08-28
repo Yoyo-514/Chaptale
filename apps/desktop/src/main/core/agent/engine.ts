@@ -302,7 +302,11 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
       // 模型级参数：未配置时不传，交由服务端默认（temperature/topP 仅 OpenAI 兼容系生效，其余协议忽略）。
       ...(stepModel.maxTokens !== undefined ? { maxOutputTokens: stepModel.maxTokens } : {}),
       ...(stepModel.temperature !== undefined ? { temperature: stepModel.temperature } : {}),
-      ...(stepModel.topP !== undefined ? { topP: stepModel.topP } : {})
+      ...(stepModel.topP !== undefined ? { topP: stepModel.topP } : {}),
+      // reasoning 与上面三个不同，是 SDK 的可移植参数：它自己翻译成各 provider 的原生表达
+      // （reasoning_effort / thinking budget / thinkingConfig），四种协议都吃得下。
+      // 注意 providerOptions 里若也设了推理相关项，会**整体覆盖**这里而不是与之合并。
+      ...(stepModel.reasoningEffort !== undefined ? { reasoning: stepModel.reasoningEffort } : {})
     });
 
     try {

@@ -6,6 +6,7 @@ import type {
   AddCustomProviderPayloadSchema,
   ChaptaleCustomProviderApiSchema,
   ChaptaleModelInputSchema,
+  ChaptaleReasoningEffortSchema,
   FetchCustomProviderModelsPayloadSchema,
   RemoveCustomModelPayloadSchema,
   RemoveCustomProviderApiKeyPayloadSchema,
@@ -18,12 +19,15 @@ export type ChaptaleModelInput = Static<typeof ChaptaleModelInputSchema>;
 
 export type ChaptaleCustomProviderApi = Static<typeof ChaptaleCustomProviderApiSchema>;
 
+export type ChaptaleReasoningEffort = Static<typeof ChaptaleReasoningEffortSchema>;
+
 /** 设置页展示的模型快照，合并了 SDK 元数据、自定义来源、认证状态与默认选择。 */
 export type ChaptaleModelInfo = {
   provider: string;
   providerName: string;
   id: string;
   name: string;
+  /** 元数据：这个模型会不会推理，只用于列表上的能力徽章。与 `reasoningEffort` 无关。 */
   reasoning: boolean;
   input: ChaptaleModelInput[];
   contextWindow: number;
@@ -33,6 +37,8 @@ export type ChaptaleModelInfo = {
   temperature?: number;
   /** 核采样阈值（0–1）。 */
   topP?: number;
+  /** 推理档位；缺省交由服务端默认。 */
+  reasoningEffort?: ChaptaleReasoningEffort;
   isCustom: boolean;
   authConfigured: boolean;
   isDefault: boolean;

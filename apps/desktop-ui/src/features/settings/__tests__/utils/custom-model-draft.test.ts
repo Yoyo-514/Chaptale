@@ -14,6 +14,7 @@ describe('custom-model-draft', () => {
     draft.modelName = 'Model A';
     draft.contextWindow = 'bad';
     draft.supportsImageInput = true;
+    draft.reasoningEffort = 'high';
 
     resetCustomModelDraft(draft);
 
@@ -24,7 +25,8 @@ describe('custom-model-draft', () => {
       supportsImageInput: false,
       maxTokens: '',
       temperature: '',
-      topP: ''
+      topP: '',
+      reasoningEffort: ''
     });
   });
 

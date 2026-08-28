@@ -1,5 +1,7 @@
 import type { LanguageModel } from 'ai';
 
+import type { ChaptaleReasoningEffort } from '@chaptale/ipc-contract';
+
 import { effectiveContextWindow, normalizeModelInput } from './config-helpers';
 import type { ModelConfigRepository } from './config-repository';
 import type { ModelDefinition, ModelsConfig, ModelProviderConfig } from './config-types';
@@ -27,6 +29,13 @@ export type ResolvedModel = {
   temperature?: number;
   /** 核采样阈值；缺省交由服务端默认。 */
   topP?: number;
+  /**
+   * 推理档位；缺省交由服务端默认。
+   *
+   * 与 maxTokens/temperature/topP 不同，这一项**每步都可能被覆盖**——
+   * 作者在输入区选的档位经 `prepareStep` 换掉整个 ResolvedModel 生效。
+   */
+  reasoningEffort?: ChaptaleReasoningEffort;
 };
 
 /**
@@ -70,7 +79,8 @@ export class ModelRuntime {
       input: normalizeModelInput(model?.input),
       maxTokens: model?.maxTokens,
       temperature: model?.temperature,
-      topP: model?.topP
+      topP: model?.topP,
+      reasoningEffort: model?.reasoningEffort
     };
   }
 }

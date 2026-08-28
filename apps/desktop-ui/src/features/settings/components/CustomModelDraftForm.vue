@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import type { FetchedCustomProviderModel } from '@chaptale/ipc-contract';
+import { computed } from 'vue';
+
+import type { ChaptaleReasoningEffort, FetchedCustomProviderModel } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
@@ -19,6 +21,22 @@ type FetchedModelOption = FetchedCustomProviderModel & {
   isAdded?: boolean;
 };
 
+/**
+ * 「服务端默认」在下拉里需要一个真实值：reka-ui 的 Select 把空串当作未选中，
+ * 用它做选项会让这一项永远选不上。草稿里存的仍是空串。
+ */
+const DEFAULT_EFFORT = 'default';
+
+const REASONING_EFFORT_OPTIONS: { value: string; label: string }[] = [
+  { value: DEFAULT_EFFORT, label: '服务端默认' },
+  { value: 'none', label: 'none（不推理）' },
+  { value: 'minimal', label: 'minimal' },
+  { value: 'low', label: 'low' },
+  { value: 'medium', label: 'medium' },
+  { value: 'high', label: 'high' },
+  { value: 'xhigh', label: 'xhigh' }
+];
+
 const props = defineProps<{
   draft: CustomModelDraft;
   fetchedModels: FetchedModelOption[];
@@ -30,6 +48,16 @@ const props = defineProps<{
 const emit = defineEmits<{
   fetch: [];
 }>();
+
+const reasoningEffortLabel = computed(
+  () =>
+    REASONING_EFFORT_OPTIONS.find(option => option.value === (props.draft.reasoningEffort || DEFAULT_EFFORT))?.label ??
+    '服务端默认'
+);
+
+function selectReasoningEffort(value: string) {
+  props.draft.reasoningEffort = value === DEFAULT_EFFORT ? '' : (value as ChaptaleReasoningEffort);
+}
 
 function selectModel(model: FetchedModelOption) {
   if (model.isAdded) {
@@ -135,7 +163,7 @@ function selectFetchedModel(modelId: string) {
 
     <div class="model-draft-advanced">
       <span class="model-draft-advanced-title">高级参数（可选，留空使用服务端默认）</span>
-      <AppFormGrid :columns="3">
+      <AppFormGrid :columns="2">
         <AppFormField label="最大输出 tokens">
           <template #default="{ controlAttrs }">
             <AppInput
@@ -145,6 +173,27 @@ function selectFetchedModel(modelId: string) {
               placeholder="如 16384"
               autocomplete="off"
             />
+          </template>
+        </AppFormField>
+
+        <AppFormField label="推理档位">
+          <template #default="{ controlAttrs }">
+            <AppSelect
+              v-bind="controlAttrs"
+              :model-value="props.draft.reasoningEffort || DEFAULT_EFFORT"
+              size="sm"
+              variant="default"
+              @update:model-value="selectReasoningEffort"
+            >
+              <template #trigger="{ triggerClass }">
+                <button :class="triggerClass" type="button">
+                  {{ reasoningEffortLabel }}
+                </button>
+              </template>
+              <AppSelectItem v-for="option in REASONING_EFFORT_OPTIONS" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </AppSelectItem>
+            </AppSelect>
           </template>
         </AppFormField>
 

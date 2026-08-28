@@ -476,6 +476,62 @@ describe('runAgentLoop', () => {
 });
 
 /**
+ * 推理档位从 ResolvedModel 到请求体的贯通。
+ *
+ * 与 maxTokens/temperature/topP 不同，这一项每步都可能被 prepareStep 换掉——
+ * 所以除了"配了就发"，还要钉住"换了就跟着变"，否则按步调档会静默失效。
+ */
+describe('runAgentLoop 推理档位', () => {
+  function modelWithEffort(reasoningEffort: ResolvedModel['reasoningEffort']) {
+    return { ...createModel(), reasoningEffort } satisfies ResolvedModel;
+  }
+
+  it('配置的档位随请求发出', async () => {
+    const fetchMock = stubSseFetch(openaiTextStep('好'));
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: modelWithEffort('high'),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '想一想' }],
+      tools: []
+    });
+
+    expect(JSON.parse(requestBody(fetchMock, 0))).toMatchObject({ reasoning_effort: 'high' });
+  });
+
+  it('未配置时不发推理字段，交由服务端默认', async () => {
+    const fetchMock = stubSseFetch(openaiTextStep('好'));
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '想一想' }],
+      tools: []
+    });
+
+    expect(JSON.parse(requestBody(fetchMock, 0))).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('prepareStep 换模型时档位跟着换', async () => {
+    const fetchMock = stubSseFetch(openaiToolStep(), openaiTextStep('读完了'));
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: modelWithEffort('low'),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读 a.txt' }],
+      tools: [readTool],
+      prepareStep: async ({ stepIndex }) => (stepIndex === 1 ? { model: modelWithEffort('xhigh') } : undefined)
+    });
+
+    expect(JSON.parse(requestBody(fetchMock, 0))).toMatchObject({ reasoning_effort: 'low' });
+    expect(JSON.parse(requestBody(fetchMock, 1))).toMatchObject({ reasoning_effort: 'xhigh' });
+  });
+});
+
+/**
  * 取请求体里的 tool 角色消息。
  *
  * provider 的 `switch (output.type)` 没有 default 分支，未归一化的 output 会让

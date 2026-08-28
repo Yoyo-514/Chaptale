@@ -33,10 +33,28 @@ export const FetchCustomProviderModelsPayloadSchema = Type.Object(
 export const FetchCustomProviderModelsArgsSchema = Type.Tuple([FetchCustomProviderModelsPayloadSchema]);
 export const FetchCustomProviderModelsArgsValidator = Compile(FetchCustomProviderModelsArgsSchema);
 
+/**
+ * 推理档位：AI SDK 的顶层 `reasoning` 参数，由它翻译成各 provider 的原生表达
+ * （OpenAI 的 reasoning_effort、Anthropic 的 thinking budget、Google 的 thinkingBudget……）。
+ *
+ * 不收 SDK 那个 `'provider-default'`：它与「不填」行为完全一致，
+ * 而 maxTokens / temperature / topP 已经确立了「空 = 服务端默认」的惯例，
+ * 两种写法表达同一件事只会让界面多一个要解释的选项。
+ */
+export const ChaptaleReasoningEffortSchema = Type.Union([
+  Type.Literal('none'),
+  Type.Literal('minimal'),
+  Type.Literal('low'),
+  Type.Literal('medium'),
+  Type.Literal('high'),
+  Type.Literal('xhigh')
+]);
+
 export const ModelParamsSchema = {
   maxTokens: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
   temperature: Type.Optional(Type.Number({ minimum: 0, maximum: 2 })),
-  topP: Type.Optional(Type.Number({ minimum: 0, maximum: 1 }))
+  topP: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+  reasoningEffort: Type.Optional(ChaptaleReasoningEffortSchema)
 };
 
 export const AddCustomProviderModelPayloadSchema = Type.Object(

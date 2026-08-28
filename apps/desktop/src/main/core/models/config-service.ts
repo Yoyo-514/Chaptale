@@ -18,7 +18,7 @@ import {
   validateContextWindow
 } from './config-helpers';
 import type { ModelConfigRepository } from './config-repository';
-import type { ModelDefinition, ModelsConfig, ModelProviderConfig } from './config-types';
+import type { ModelDefinition, ModelProviderConfig, ModelsConfig } from './config-types';
 import type { FetchModelsSource } from './provider-model-fetcher';
 
 /** 管理 agentDir/models.json 中的自定义供应商与模型配置。 */
@@ -155,7 +155,7 @@ export class CustomModelConfigService {
 
 type CustomModelPayload = Pick<
   AddCustomModelPayload,
-  'modelId' | 'modelName' | 'input' | 'contextWindow' | 'maxTokens' | 'temperature' | 'topP'
+  'modelId' | 'modelName' | 'input' | 'contextWindow' | 'maxTokens' | 'temperature' | 'topP' | 'reasoningEffort'
 >;
 type ProviderWithModels = ModelProviderConfig & { models: ModelDefinition[] };
 
@@ -184,7 +184,9 @@ function toCustomModelDefinition(payload: CustomModelPayload): ModelDefinition {
     contextWindow: toOptionalContextWindow(contextWindow),
     maxTokens: toOptionalPositiveNumber(payload.maxTokens),
     temperature: toOptionalNumberInRange(payload.temperature, 0, 2),
-    topP: toOptionalNumberInRange(payload.topP, 0, 1)
+    topP: toOptionalNumberInRange(payload.topP, 0, 1),
+    // 枚举在 IPC schema 上就是封闭集合，走不到非法值，因此不像三个数值参数那样再校验一次。
+    reasoningEffort: payload.reasoningEffort
   };
 }
 
