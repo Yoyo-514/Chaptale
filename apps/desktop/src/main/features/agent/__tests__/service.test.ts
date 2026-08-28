@@ -82,6 +82,13 @@ function mockModelSequence(responses: string[][]) {
   return fetchMock;
 }
 
+/** 第 index 次模型请求的 JSON 请求体。 */
+function requestBodyAt(fetchMock: ReturnType<typeof mockModelSequence>, index: number) {
+  const init = fetchMock.mock.calls[index]?.[1] as { body: string } | undefined;
+
+  return JSON.parse(init!.body) as Record<string, unknown>;
+}
+
 function textRound(text: string) {
   return [
     sse({ id: '1', choices: [{ index: 0, delta: { content: text } }] }),
@@ -785,6 +792,64 @@ describe('AgentService 自动压缩', () => {
     });
 
     await expect(drain(compacting.stream(runOptions('继续写')))).rejects.toThrow();
+  });
+});
+
+/**
+ * 会话级推理档位：作者在输入区选的那个，覆盖模型自己配的档位。
+ *
+ * 断言写在**请求体**上：档位的意义是让 provider 多想一会儿，
+ * 只验证某个中间字段被赋值，证明不了它真的走完了这条链路。
+ */
+describe('AgentService 推理档位', () => {
+  function serviceWithModel(model: ResolvedModel) {
+    return new AgentService({
+      sessionRepository: repository,
+      modelService: {} as never,
+      runtimeBundle: createBundle([echoTool], model),
+      gate: { check: async () => ({ outcome: 'allow-once' }) },
+      compactSummarizer: stubSummarizer
+    });
+  }
+
+  it('本轮选定的档位盖过模型自己配的那个', async () => {
+    const fetchMock = mockModelSequence([textRound('好')]);
+    const scoped = serviceWithModel({ ...createModel(), reasoningEffort: 'low' });
+
+    await drain(scoped.stream({ ...runOptions('这段想深一点'), reasoningEffort: 'xhigh' }));
+
+    expect(requestBodyAt(fetchMock, 0)).toMatchObject({ reasoning_effort: 'xhigh' });
+  });
+
+  it('本轮没选档位时沿用模型配置', async () => {
+    const fetchMock = mockModelSequence([textRound('好')]);
+    const scoped = serviceWithModel({ ...createModel(), reasoningEffort: 'low' });
+
+    await drain(scoped.stream(runOptions('随便聊聊')));
+
+    expect(requestBodyAt(fetchMock, 0)).toMatchObject({ reasoning_effort: 'low' });
+  });
+
+  it('两处都没配时不发推理字段，交由服务端默认', async () => {
+    const fetchMock = mockModelSequence([textRound('好')]);
+
+    await drain(service.stream(runOptions('随便聊聊')));
+
+    expect(requestBodyAt(fetchMock, 0)).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('本轮内的 steer 沿用同一档位', async () => {
+    const fetchMock = mockModelSequence([textRound('第一轮'), textRound('第二轮')]);
+    const scoped = serviceWithModel(createModel());
+    const stream = scoped.stream({ ...runOptions('开写'), reasoningEffort: 'high' });
+
+    // 首条 user 回显之后插话：steer 与它所属的运行共享同一次档位选择。
+    await stream.next();
+    await scoped.steer({ sessionId: 's1', signal: abortController.signal, query: '换个视角' });
+    await drain(stream);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requestBodyAt(fetchMock, 1)).toMatchObject({ reasoning_effort: 'high' });
   });
 });
 

@@ -1,7 +1,14 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { nextTick } from 'vue';
 
 import ChatInputBox from '../../components/ChatInput/ChatInputBox.vue';
+
+afterEach(() => {
+  // 下拉内容经 Portal 挂到 body，不随 wrapper 一起卸载；留着会让下一条测试
+  // 的 document 查询命中上一条的菜单，点到一个已经没人监听的旧节点上。
+  document.body.innerHTML = '';
+});
 
 function mountInput(props?: Partial<InstanceType<typeof ChatInputBox>['$props']>) {
   return mount(ChatInputBox, {
@@ -11,6 +18,7 @@ function mountInput(props?: Partial<InstanceType<typeof ChatInputBox>['$props']>
       isReplying: false,
       isSubmittingSteer: false,
       isEnabledWebSearch: true,
+      reasoningEffort: '' as const,
       contextFiles: [],
       slashCommands: [],
       modelLabel: 'openai / gpt-4.1',
@@ -141,6 +149,45 @@ describe('ChatInputBox', () => {
     await toggle.trigger('click');
 
     expect(wrapper.emitted('toggleWebSearch')).toHaveLength(1);
+  });
+
+  it('shows the reasoning effort as follow-the-model until one is picked', async () => {
+    const wrapper = mountInput();
+    const trigger = wrapper.find('button[aria-label="选择本轮推理档位"]');
+
+    // 默认态显示“推理”而非某个具体档位名——写成 medium 会让作者以为自己选过。
+    expect(trigger.text()).toContain('推理');
+    expect(trigger.attributes('title')).toBe('本轮推理档位跟随模型配置');
+    expect(trigger.classes()).not.toContain('app-button-selected');
+
+    await trigger.trigger('click');
+    await nextTick();
+
+    const options = document.querySelectorAll('[data-slot="app-dropdown-menu-item"]');
+    const labels = [...options].map(option => option.textContent?.trim());
+
+    // 「跟随模型」排在最前，其后是契约里的六个档位，由低到高。
+    expect(labels).toEqual(['跟随模型', 'none（不推理）', 'minimal', 'low', 'medium', 'high', 'xhigh']);
+  });
+
+  it('emits the picked reasoning effort and reflects it on the trigger', async () => {
+    const wrapper = mountInput({ reasoningEffort: 'high' });
+    const trigger = wrapper.find('button[aria-label="选择本轮推理档位"]');
+
+    expect(trigger.text()).toContain('high');
+    expect(trigger.attributes('title')).toBe('本轮推理档位：high');
+
+    await trigger.trigger('click');
+    await nextTick();
+
+    const followModel = [...document.querySelectorAll('[data-slot="app-dropdown-menu-item"]')].find(
+      option => option.textContent?.trim() === '跟随模型'
+    );
+    followModel?.dispatchEvent(new Event('click', { bubbles: true }));
+    await nextTick();
+
+    // 回到跟随模型走的是空串，不是 undefined：state 上这一项始终是个确定的值。
+    expect(wrapper.emitted('selectReasoningEffort')).toEqual([['']]);
   });
 
   it('starts the three-lane review from the toolbar without persona parameters', async () => {

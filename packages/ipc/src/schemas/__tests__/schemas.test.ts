@@ -79,6 +79,9 @@ describe('IPC 参数 Schema', () => {
     // 空或含路径分隔符的 sessionId 必须被拒绝（拼接会话文件路径的入口）。
     expect(AgentStartArgsValidator.Check([{ runId: 'r1', query: 'hello', sessionId: '' }])).toBe(false);
     expect(AgentStartArgsValidator.Check([{ runId: 'r1', query: 'hello', sessionId: '../escape' }])).toBe(false);
+    // 推理档位是封闭枚举：任意字符串放行会让非法值一路走到 provider 请求体里。
+    expect(AgentStartArgsValidator.Check([{ runId: 'r1', query: 'hi', reasoningEffort: 'xhigh' }])).toBe(true);
+    expect(AgentStartArgsValidator.Check([{ runId: 'r1', query: 'hi', reasoningEffort: 'ultra' }])).toBe(false);
   });
 
   it('校验 Agent 取消与文件检查参数', () => {

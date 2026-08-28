@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-import type { SlashCommand } from '@chaptale/ipc-contract';
+import type { ChaptaleReasoningEffort, SlashCommand } from '@chaptale/ipc-contract';
 import type { ChatContextFile } from '@chaptale/shared';
 
 import { cn } from '@/utils';
@@ -18,6 +18,7 @@ const props = defineProps<{
   /** steer IPC 提交期间锁定输入，避免重复发送。 */
   isSubmittingSteer: boolean;
   isEnabledWebSearch: boolean;
+  reasoningEffort: ChaptaleReasoningEffort | '';
   contextFiles: ChatContextFile[];
   slashCommands: SlashCommand[];
   modelLabel: string;
@@ -28,6 +29,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string];
   submit: [];
   toggleWebSearch: [];
+  selectReasoningEffort: [value: ChaptaleReasoningEffort | ''];
   addContextFiles: [];
   dropContextFiles: [files: File[]];
   removeContextFile: [path: string];
@@ -127,7 +129,9 @@ function handleDrop(event: DragEvent) {
     <ChatInputStatusBar
       :model-label="props.modelLabel"
       :workspace-label="props.workspaceLabel"
+      :reasoning-effort="props.reasoningEffort"
       @open-settings="emit('openSettings', $event)"
+      @select-reasoning-effort="emit('selectReasoningEffort', $event)"
     />
   </section>
 </template>

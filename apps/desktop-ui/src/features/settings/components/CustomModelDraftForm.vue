@@ -8,6 +8,7 @@ import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppFormField, AppFormGrid } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { REASONING_EFFORT_LABELS, REASONING_EFFORT_VALUES } from '@/utils/reasoning-effort';
 
 import type { CustomModelDraft } from '../utils/custom-model-draft';
 
@@ -26,15 +27,11 @@ type FetchedModelOption = FetchedCustomProviderModel & {
  * 用它做选项会让这一项永远选不上。草稿里存的仍是空串。
  */
 const DEFAULT_EFFORT = 'default';
+const DEFAULT_EFFORT_LABEL = '服务端默认';
 
 const REASONING_EFFORT_OPTIONS: { value: string; label: string }[] = [
-  { value: DEFAULT_EFFORT, label: '服务端默认' },
-  { value: 'none', label: 'none（不推理）' },
-  { value: 'minimal', label: 'minimal' },
-  { value: 'low', label: 'low' },
-  { value: 'medium', label: 'medium' },
-  { value: 'high', label: 'high' },
-  { value: 'xhigh', label: 'xhigh' }
+  { value: DEFAULT_EFFORT, label: DEFAULT_EFFORT_LABEL },
+  ...REASONING_EFFORT_VALUES.map(value => ({ value, label: REASONING_EFFORT_LABELS[value] }))
 ];
 
 const props = defineProps<{
@@ -52,7 +49,7 @@ const emit = defineEmits<{
 const reasoningEffortLabel = computed(
   () =>
     REASONING_EFFORT_OPTIONS.find(option => option.value === (props.draft.reasoningEffort || DEFAULT_EFFORT))?.label ??
-    '服务端默认'
+    DEFAULT_EFFORT_LABEL
 );
 
 function selectReasoningEffort(value: string) {

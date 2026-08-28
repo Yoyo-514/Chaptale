@@ -1,6 +1,7 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+import { ChaptaleReasoningEffortSchema } from './models';
 import { SessionIdSchema } from './sessions';
 
 /**
@@ -78,7 +79,15 @@ export const AgentStartPayloadSchema = Type.Object(
     sessionId: Type.Optional(SessionIdSchema),
     branchFromEntryId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     contextFilePaths: Type.Optional(Type.Array(Type.String())),
-    reuseUserEntryId: Type.Optional(Type.String())
+    reuseUserEntryId: Type.Optional(Type.String()),
+    /**
+     * 本次运行的推理档位，覆盖模型自己配的那个；缺省即沿用模型配置。
+     *
+     * 是 per-run 参数而不是设置项：模型上配的是「这个模型平时想多深」，
+     * 这里表达的是「这一次要多想多少」。两者是不同的问题，
+     * 所以作者在输入区改档位不写回任何配置，下次开新会话仍从模型配置起步。
+     */
+    reasoningEffort: Type.Optional(ChaptaleReasoningEffortSchema)
   },
   { additionalProperties: false }
 );

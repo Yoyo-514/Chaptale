@@ -181,7 +181,8 @@ describe('useChatController', () => {
     expect(api.agent.stream).toHaveBeenCalledWith('写一个开场', expect.any(Object), 'session-1', {
       branchFromEntryId: undefined,
       contextFilePaths: [],
-      reuseUserEntryId: undefined
+      reuseUserEntryId: undefined,
+      reasoningEffort: undefined
     });
     expect(controller.state.messages.map(item => item.message.role)).toEqual(['user', 'assistant']);
     expect(controller.state.messages[1]?.message).toMatchObject({
@@ -189,6 +190,50 @@ describe('useChatController', () => {
       content: '最终回复'
     });
     expect(controller.state.isReplying).toBe(false);
+  });
+
+  it('sends the reasoning effort picked for this turn and keeps it out of settings', async () => {
+    const api = installDesktopMock();
+    const controller = await mountController();
+
+    // 会话管理自己会写 lastSessionId；基线取在选档位之前，比对的才是这个动作本身。
+    const settingsWritesBefore = api.settings.update.mock.calls.length;
+    controller.handleSelectReasoningEffort('high');
+    await nextTick();
+
+    // 档位是这一次的任务属性，不是配置：它不该像联网开关那样落进 settings.json。
+    expect(api.settings.update.mock.calls).toHaveLength(settingsWritesBefore);
+    expect(api.settings.updateWebTools).not.toHaveBeenCalled();
+
+    controller.state.input = '这段想深一点';
+    await controller.handleSend();
+    await nextTick();
+
+    expect(api.agent.stream).toHaveBeenCalledWith(
+      '这段想深一点',
+      expect.any(Object),
+      'session-1',
+      expect.objectContaining({ reasoningEffort: 'high' })
+    );
+  });
+
+  it('drops back to the model configuration when the effort is cleared', async () => {
+    const api = installDesktopMock();
+    const controller = await mountController();
+
+    controller.handleSelectReasoningEffort('high');
+    controller.handleSelectReasoningEffort('');
+    controller.state.input = '随便聊聊';
+    await controller.handleSend();
+    await nextTick();
+
+    // 「跟随模型」走的是不传这个字段，而不是传一个空值——空串会被 IPC 契约拒掉。
+    expect(api.agent.stream).toHaveBeenCalledWith(
+      '随便聊聊',
+      expect.any(Object),
+      'session-1',
+      expect.objectContaining({ reasoningEffort: undefined })
+    );
   });
 
   it('opens settings locally without sending the slash command to the agent', async () => {

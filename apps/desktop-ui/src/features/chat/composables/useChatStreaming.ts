@@ -307,7 +307,9 @@ export function useChatStreaming({
         {
           branchFromEntryId: options.branchFromEntryId,
           contextFilePaths,
-          reuseUserEntryId: options.reuseUserEntryId
+          reuseUserEntryId: options.reuseUserEntryId,
+          // 空串是「跟随模型配置」，走的是"不传这个字段"，而不是传一个空值。
+          reasoningEffort: state.reasoningEffort || undefined
         }
       );
       pendingRun = {

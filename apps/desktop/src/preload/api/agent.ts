@@ -61,7 +61,8 @@ export function createAgentApi(): ChaptaleDesktopApi['agent'] {
           sessionId,
           branchFromEntryId: options?.branchFromEntryId,
           contextFilePaths: options?.contextFilePaths,
-          reuseUserEntryId: options?.reuseUserEntryId
+          reuseUserEntryId: options?.reuseUserEntryId,
+          reasoningEffort: options?.reasoningEffort
         } satisfies AgentStartPayload);
       } catch (error) {
         // start 未建立运行时也不会再收到终态事件，因此主动回收本次 run 的监听器。

@@ -1,5 +1,7 @@
 import { computed, onMounted, reactive, watch } from 'vue';
 
+import type { ChaptaleReasoningEffort } from '@chaptale/ipc-contract';
+
 import { useNotificationStore } from '@/features/notifications';
 import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
@@ -132,6 +134,16 @@ export function useChatController() {
     settingsStore.openPanel(section);
   }
 
+  /**
+   * 切换本轮推理档位；空串回到跟随模型配置。
+   *
+   * 不进 useChatCommands：那里每个动作都要落设置或调 IPC，而这一项刻意只改内存态——
+   * 它描述的是「接下来这次发送要想多深」，不该在作者不知情的时候被记住。
+   */
+  function handleSelectReasoningEffort(value: ChaptaleReasoningEffort | '') {
+    state.reasoningEffort = value;
+  }
+
   onMounted(() => {
     void messages.loadCurrentSessionMessages();
     void commands.loadWebAccessSettings();
@@ -172,6 +184,7 @@ export function useChatController() {
     handleRemoveContextFile: contextFiles.handleRemoveContextFile,
     handleOpenSettings,
     handleToggleWebSearch: commands.handleToggleWebSearch,
+    handleSelectReasoningEffort,
     handleSwitchBranch: messages.handleSwitchBranch,
     /** 会话压缩写入新的 compaction 分支后，原地重载当前消息树。 */
     reloadCurrentSessionMessages: messages.loadCurrentSessionMessages

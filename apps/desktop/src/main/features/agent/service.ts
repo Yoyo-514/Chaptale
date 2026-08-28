@@ -213,10 +213,19 @@ export class AgentService implements AgentRuntime {
       const bundle = await this.options.runtimeBundle.resolve({ sessionId, cwd: store.header.cwd });
       const translator = createPartTranslator(onMessage);
 
+      // 作者在输入区选的档位盖过模型自己配的那个；没选就沿用模型配置。
+      // 覆盖落在这里而不是 bundle 内部：bundle 回答的是「这个会话用什么模型、装哪些工具」，
+      // 与「这一次要想多深」不是同一个决定，塞进 resolve 会让它多背一个 per-run 参数。
+      // 本轮内的 steer 沿用同一档位——它们属于同一次运行，中途换档位要等下一次发送。
+      const model =
+        options.reasoningEffort === undefined
+          ? bundle.model
+          : { ...bundle.model, reasoningEffort: options.reasoningEffort };
+
       try {
         const outcome = await runAgentLoop({
           sessionId,
-          model: bundle.model,
+          model,
           system: bundle.system,
           messages: store.buildContextMessages(),
           tools: bundle.tools,

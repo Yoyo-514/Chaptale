@@ -180,6 +180,7 @@ export function registerAgentIpc(options: {
       branchFromEntryId: payload.branchFromEntryId,
       contextFilePaths: payload.contextFilePaths,
       reuseUserEntryId: payload.reuseUserEntryId,
+      reasoningEffort: payload.reasoningEffort,
       signal
     });
 

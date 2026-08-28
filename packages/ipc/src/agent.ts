@@ -57,7 +57,10 @@ export type RunStopRecordReason = Exclude<RunStopReason, 'natural'>;
 /** Main 推送的唯一 Agent 终态事件。 */
 export type AgentEndEvent = Static<typeof AgentEndEventSchema>;
 
-export type StreamAgentOptions = Pick<AgentStartPayload, 'branchFromEntryId' | 'contextFilePaths' | 'reuseUserEntryId'>;
+export type StreamAgentOptions = Pick<
+  AgentStartPayload,
+  'branchFromEntryId' | 'contextFilePaths' | 'reuseUserEntryId' | 'reasoningEffort'
+>;
 
 /** Preload 发送 steer 时允许附带的应用选项。 */
 export type SteerAgentOptions = Pick<AgentSteerPayload, 'contextFilePaths'>;
