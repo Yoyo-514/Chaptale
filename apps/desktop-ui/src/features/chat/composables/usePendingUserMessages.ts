@@ -23,7 +23,8 @@ export type PendingUserMessages = {
   resolveNext: (message: ChatMessage) => boolean;
   rollback: (id: string) => void;
   takeQueuedSteersFromTail: (count: number) => PendingUserSubmission[];
-  clear: () => void;
+  /** 收束队列，返回始终没能交付的 steer（调用方负责把内容退回编辑器）。 */
+  clear: () => PendingUserSubmission[];
 };
 
 /**
@@ -137,11 +138,20 @@ export function usePendingUserMessages(state: ChatState): PendingUserMessages {
   }
 
   /**
-   * 收束运行级 FIFO：未交付的 steer 直接移除，避免伪装成已持久化历史；
+   * 收束运行级 FIFO，并交还那些始终没能交付的 steer。
+   *
+   * 未交付的 steer 必须从消息流里移除——留着会伪装成已持久化的历史；
+   * 但那些字是作者写的，撤掉展示不等于可以把内容一起丢了，所以交回调用方退还编辑器。
    * 启动过运行的 prompt 保留展示，仅清除临时交付标记。
    */
-  function clear(): void {
+  function clear(): PendingUserSubmission[] {
+    const undelivered: PendingUserSubmission[] = [];
+
     for (const submission of submissions) {
+      if (submission.kind === 'steer') {
+        undelivered.push(submission);
+      }
+
       const index = state.messages.findIndex(item => item.id === submission.displayMessageId);
 
       if (index < 0) {
@@ -156,6 +166,7 @@ export function usePendingUserMessages(state: ChatState): PendingUserMessages {
     }
 
     submissions.length = 0;
+    return undelivered;
   }
 
   return { enqueue, markQueued, resolveNext, rollback, takeQueuedSteersFromTail, clear };

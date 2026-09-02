@@ -429,6 +429,28 @@ describe('AgentService.stream', () => {
     expect(contents).toContain('第二轮响应');
   });
 
+  it('最后一轮结束后到达的 steer 立即失败（队列已经没有消费者了）', async () => {
+    mockModelSequence([textRound('说完了')]);
+
+    const iterator = service.stream(runOptions('第一问'));
+    await iterator.next();
+
+    // 落盘是引擎回到 while 判定之前的最后一件事：等它落完再让一轮宏任务，
+    // 引擎就已经收口了。而 generator 没人调 next，仍停在 yield 上——
+    // 运行还登记着，running 也还是 true，正是那个"收得下但不会被消费"的窗口。
+    await vi.waitFor(async () => {
+      const store = await SessionStore.open(path.join(dir, 'sessions', 'global', 's1.jsonl'));
+      expect(store.buildContextMessages()).toHaveLength(2);
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    await expect(
+      service.steer({ sessionId: 's1', query: '再等一下', signal: new AbortController().signal })
+    ).rejects.toThrow(/运行已结束/);
+
+    await iterator.return('aborted');
+  });
+
   /**
    * 插话在 step 边界生效，不必等整条工具链跑完。
    *

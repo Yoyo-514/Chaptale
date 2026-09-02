@@ -85,6 +85,14 @@ export type AgentServiceOptions = {
 type ActiveRun = {
   steering: Array<{ query: string; contextFilePaths?: string[] }>;
   running: boolean;
+  /**
+   * 引擎是否还会再回到 steer 队列。
+   *
+   * 与 running 分开成两个标记：running 回答的是「这个会话有没有运行占着」，
+   * 而最后一轮结束到 stream 收尾之间引擎已经不看队列了——那段时间里收下一条 steer
+   * 等于当着作者的面把话接过来再丢掉。
+   */
+  acceptingSteer: boolean;
 };
 
 export class AgentService implements AgentRuntime {
@@ -112,6 +120,7 @@ export class AgentService implements AgentRuntime {
 
     run.steering = [];
     run.running = true;
+    run.acceptingSteer = true;
 
     const store = await this.options.sessionRepository.openOrCreate(sessionId);
 
@@ -151,6 +160,9 @@ export class AgentService implements AgentRuntime {
       // loop 自身已 .catch，await 它只是等，不会二次抛。
       await loop;
       run.running = false;
+      // 活跃状态随运行一起收场：留着它只是等下一次 stream 开头把队列静默抹掉，
+      // 而残留的插话此刻已由渲染侧退回编辑器。
+      this.active.delete(sessionId);
     }
 
     if (loopFailure) {
@@ -207,6 +219,9 @@ export class AgentService implements AgentRuntime {
 
     while (!signal.aborted) {
       if (!firstRound && !retryAfterOverflow && run.steering.length === 0) {
+        // 这一轮之后不再回到队列，就在这里收口：此后到达的 steer 应当立即失败，
+        // 而不是成功排进一个已经没有消费者的队列。
+        run.acceptingSteer = false;
         break;
       }
 
@@ -363,7 +378,7 @@ export class AgentService implements AgentRuntime {
     options.signal.throwIfAborted();
     const run = this.active.get(options.sessionId);
 
-    if (!run || !run.running) {
+    if (!run || !run.running || !run.acceptingSteer) {
       throw new Error('Agent 运行已结束，无法发送 steer');
     }
 
@@ -432,7 +447,7 @@ export class AgentService implements AgentRuntime {
     let run = this.active.get(sessionId);
 
     if (!run) {
-      run = { steering: [], running: false };
+      run = { steering: [], running: false, acceptingSteer: false };
       this.active.set(sessionId, run);
     }
 

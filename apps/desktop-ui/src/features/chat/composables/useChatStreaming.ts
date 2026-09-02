@@ -16,7 +16,7 @@ import {
 import { STOP_REASON_NOTICES } from '../utils/message/stop-reason';
 import type { ChatState } from './chat-state';
 import type { useAssistantStreamingMessages } from './useAssistantStreamingMessages';
-import { usePendingUserMessages } from './usePendingUserMessages';
+import { usePendingUserMessages, type PendingUserSubmission } from './usePendingUserMessages';
 
 /** 普通 Agent 运行可选的乐观消息和分支参数。 */
 export type RunQueryOptions = {
@@ -73,13 +73,32 @@ export function useChatStreaming({
   function finishRun(): void {
     runEpoch += 1;
     assistantStreaming.finishMessages();
-    pendingUsers.clear();
+    restoreUndeliveredSteers(pendingUsers.clear());
     activeRunId.value = '';
     pendingRun = null;
     state.isReplying = false;
     state.isConnecting = false;
     state.isCancelling = false;
     state.isSubmittingSteer = false;
+  }
+
+  /**
+   * 把没赶上这次运行的插话退还编辑器。
+   *
+   * 引擎读完最后一轮就不再回队列了，取消更是当场停手，两种收场都会剩下几条没被消费的插话。
+   * 它们的展示消息必须撤掉（留着像是已经写进历史），但内容是作者敲的，
+   * 不能跟着展示一起消失——附件同样带回，否则重发时少了一半东西。
+   */
+  function restoreUndeliveredSteers(undelivered: PendingUserSubmission[]): void {
+    if (undelivered.length === 0) {
+      return;
+    }
+
+    const queuedText = undelivered.map(item => item.query).join('\n\n');
+
+    state.input = [queuedText, state.input].filter(text => text.trim()).join('\n\n');
+    state.contextFiles = dedupeContextFiles([...undelivered.flatMap(item => item.contextFiles), ...state.contextFiles]);
+    notificationStore.info('插话未被处理', '本次运行已经结束，内容已退回输入框。');
   }
 
   /** 登记终态回载，完成后自动释放，供下一次运行启动前等待。 */

@@ -678,6 +678,39 @@ describe('useChatController', () => {
     expect(controller.state.messages.some(item => item.deliveryState)).toBe(false);
   });
 
+  it('returns an undelivered steer to the editor instead of dropping it', async () => {
+    let streamHandlers: any;
+    const api = installDesktopMock({
+      agent: {
+        stream: vi.fn().mockImplementation(async (_query, handlers) => {
+          streamHandlers = handlers;
+          return { runId: 'run-steer' };
+        }),
+        steer: vi.fn().mockResolvedValue({ runId: 'run-steer' }),
+        clearPendingMessages: vi.fn(),
+        cancel: vi.fn()
+      }
+    } as any);
+    const controller = await mountController();
+    const contextFile = { path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' as const };
+
+    controller.state.input = '初始问题';
+    await controller.handleSend();
+    controller.state.contextFiles = [contextFile];
+    controller.state.input = '没赶上的调整';
+    await controller.handleSend();
+    // steer 提交成功后草稿已经清空，这条插话此刻只存在于队列里。
+    expect(controller.state.input).toBe('');
+
+    // 作者按下停止：排在队列里的插话不会再被消费。
+    streamHandlers.onEnd({ status: 'cancelled' });
+
+    await vi.waitFor(() => expect(controller.state.input).toBe('没赶上的调整'));
+    expect(controller.state.contextFiles).toEqual([contextFile]);
+    expect(useNotificationStore().items.at(-1)).toMatchObject({ title: '插话未被处理' });
+    expect(api.agent.cancel).not.toHaveBeenCalled();
+  });
+
   it('ignores stale terminal events from a cancelled run and keeps the new run intact', async () => {
     let firstHandlers: any;
     const api = installDesktopMock({
