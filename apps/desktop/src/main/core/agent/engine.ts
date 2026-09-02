@@ -7,7 +7,7 @@ import type { ResolvedModel } from '../models/runtime';
 import type { SessionMessage } from '../sessions/entry';
 import { INTERRUPTED_TOOL_RESULT_TEXT } from '../sessions/tool-pairing';
 import { stepRecordsToSessionMessages, toModelMessages } from './messages';
-import { toAiSdkTools } from './tools';
+import { toAiSdkTools, TRUNCATED_OUTPUT_MESSAGE } from './tools';
 import type { AgentStreamEnvelope, PermissionGatePort, ToolResultRecord } from './types';
 
 export type RunAgentLoopOptions = {
@@ -253,7 +253,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
       throw step.error instanceof Error ? step.error : new Error(errorToMessage(step.error));
     }
 
-    conversation.push(...step.responseMessages);
+    conversation.push(...withPairedToolResults(step));
 
     if (step.finishReason === 'length' && truncationRetries < maxTruncationRetries) {
       // 整批已作废，模型手上已有"请拆小后重发"的理由；给它一次自纠的机会，
@@ -401,7 +401,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
           toolCalls: step.toolCalls,
           usage: step.usage
         },
-        withSyntheticResults(step.toolCalls, step.toolResults)
+        withSyntheticResults(step.toolCalls, step.toolResults, resolveSyntheticCause(step))
       )
     );
   }
@@ -420,11 +420,30 @@ type StepOutcome = {
 };
 
 /**
+ * 补位结果的成因。
+ *
+ * 三种收场都会留下未结算的 tool_call，但作者要看到的不是同一件事：
+ * 中断是他自己按的停止，截断作废与本轮出错都不是。
+ */
+export type SyntheticResultCause = 'aborted' | 'output-truncated' | 'error';
+
+/** 本轮出错导致未执行的补位正文；与中断一样把判断交还模型，但不谎称是作者停的。 */
+const FAILED_TOOL_RESULT_TEXT = '工具未执行：本轮因错误中止。如果仍然需要这一步的结果，请重新发起调用。';
+
+const SYNTHETIC_RESULT_TEXTS = {
+  aborted: INTERRUPTED_TOOL_RESULT_TEXT,
+  'output-truncated': TRUNCATED_OUTPUT_MESSAGE,
+  error: FAILED_TOOL_RESULT_TEXT
+} satisfies Record<SyntheticResultCause, string>;
+
+/**
  * 为没有结果的 tool call 补合成结果。
  *
  * 正常 step 里 SDK 保证流结束前所有工具已结算，此函数是恒等的；
- * 真正生效的是中断路径：用户在工具执行途中点「停止」时流里只有 tool-call、
- * 没有 tool-result，而引擎仍会尽力落盘——不补就写出悬空 tool_call。
+ * 真正生效的是三条异常路径：用户在工具执行途中点「停止」、provider 在工具执行前
+ * 报错、以及模型输出撞上 token 上限——最后一种下 SDK 只要认出批次里有一个调用的
+ * 参数 JSON 非法，就整批不执行，连参数完整的那些也不发 tool-error，
+ * 于是流上只有 tool-call 没有结果，而引擎仍会尽力落盘。不补就写出悬空 tool_call。
  *
  * 写入侧与读取侧（`core/sessions/tool-pairing.ts`）两道都要有：读取侧能救活
  * 已经写坏的历史，写入侧保证文件本身自洽——历史面板与 HTML 导出直接读 entry，
@@ -432,7 +451,8 @@ type StepOutcome = {
  */
 export function withSyntheticResults(
   toolCalls: { id: string; name: string }[],
-  results: ToolResultRecord[]
+  results: ToolResultRecord[],
+  cause: SyntheticResultCause
 ): ToolResultRecord[] {
   if (toolCalls.length === 0) {
     return results;
@@ -441,15 +461,87 @@ export function withSyntheticResults(
   const settled = new Set(results.map(result => result.toolCallId));
   const synthetic = toolCalls
     .filter(call => !settled.has(call.id))
-    .map((call): ToolResultRecord => ({
-      toolCallId: call.id,
-      toolName: call.name,
-      output: INTERRUPTED_TOOL_RESULT_TEXT,
-      isError: true,
-      interrupted: true
-    }));
+    .map((call): ToolResultRecord =>
+      Object.assign(
+        { toolCallId: call.id, toolName: call.name, output: SYNTHETIC_RESULT_TEXTS[cause], isError: true },
+        // 只有真正的中断才打这个标记：作者要分辨的是「我按了停止」还是「它自己没跑成」，
+        // 把截断作废也算作中断，等于让界面替他记住一件他没做过的事。
+        cause === 'aborted' ? { interrupted: true } : {}
+      )
+    );
 
   return synthetic.length > 0 ? [...results, ...synthetic] : results;
+}
+
+/**
+ * 补位成因取自这一步的收场。
+ *
+ * 正常 step 里补位是恒等的，所以这里只需要认对三种异常收场；判定顺序即优先级：
+ * 作者按下的停止盖过一切，其余按有没有 error part 分流。都不是却仍有未结算的调用，
+ * 说明 SDK 的结算承诺没兑现——那时按 error 记比按中断记保守，至少不谎报成作者停的。
+ */
+function resolveSyntheticCause(step: StepOutcome): SyntheticResultCause {
+  if (step.aborted) {
+    return 'aborted';
+  }
+
+  if (step.error === undefined && step.finishReason === 'length') {
+    return 'output-truncated';
+  }
+
+  return 'error';
+}
+
+/**
+ * 把 SDK 的 responseMessages 补齐配对后再推进会话。
+ *
+ * 配对不变量在**内存会话**上也成立，而它不能靠 SDK 自动满足：整批作废时流上只有
+ * tool-call，SDK 的 responseMessages 同样不含那些调用的结果。下一步发请求前 SDK 会
+ * 校验配对并抛 `AI_MissingToolResultsError`，于是"给模型一次自纠机会"变成了整轮失败——
+ * 而那正是截断作废后最需要走通的一步。
+ *
+ * 与落盘侧共用同一个补位函数，两条通道不会对同一次未执行讲出不同的故事；
+ * 幂等同样是必须的：SDK 已经给出结果的调用不重复补。
+ */
+function withPairedToolResults(step: StepOutcome): ModelMessage[] {
+  if (step.toolCalls.length === 0) {
+    return step.responseMessages;
+  }
+
+  const paired = new Set<string>();
+
+  for (const message of step.responseMessages) {
+    if (message.role !== 'tool') {
+      continue;
+    }
+
+    for (const part of message.content) {
+      if (part.type === 'tool-result') {
+        paired.add(part.toolCallId);
+      }
+    }
+  }
+
+  const missing = withSyntheticResults(step.toolCalls, step.toolResults, resolveSyntheticCause(step)).filter(
+    result => !paired.has(result.toolCallId)
+  );
+
+  if (missing.length === 0) {
+    return step.responseMessages;
+  }
+
+  return [
+    ...step.responseMessages,
+    ...toModelMessages(
+      missing.map(result => ({
+        role: 'tool' as const,
+        toolCallId: result.toolCallId,
+        toolName: result.toolName,
+        output: result.output,
+        isError: result.isError === true
+      }))
+    )
+  ];
 }
 
 /**

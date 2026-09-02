@@ -673,6 +673,36 @@ describe('runAgentLoop 错误路径', () => {
     ).rejects.toThrow();
   });
 
+  it('工具结算前 provider 出错：补位结果不标成中断（作者没按停止）', async () => {
+    stubSseFetch([
+      openaiToolStep()[0]!,
+      sse({ error: { message: 'upstream exploded', type: 'server_error' } }),
+      'data: [DONE]\n\n'
+    ]);
+
+    const persisted: SessionMessage[][] = [];
+
+    await expect(
+      runAgentLoop({
+        sessionId: 's1',
+        model: createModel(),
+        system: '你是助手',
+        messages: [{ role: 'user', content: '读一下 a.txt' }],
+        tools: [readTool],
+        onStepPersist: async messages => {
+          persisted.push(messages);
+        }
+      })
+    ).rejects.toThrow();
+
+    const tools = (persisted[0] ?? []).filter(message => message.role === 'tool');
+
+    expect(tools).toHaveLength(1);
+    expect(tools[0]).toMatchObject({ toolCallId: 'call_1', isError: true });
+    // 是它自己没跑成，不是作者按了停止——两者在界面上是不同的说法。
+    expect(tools[0]).not.toHaveProperty('interrupted');
+  });
+
   it('非法工具参数不得进入 execute，且会话仍可继续', async () => {
     const executeSpy = vi.fn(readTool.execute);
     const fetchMock = stubSseFetch(
@@ -791,15 +821,18 @@ describe('runAgentLoop 错误路径', () => {
         .filter(message => message.role === 'tool')
         .map(message => [
           (message as { toolCallId: string }).toolCallId,
-          message as { output: unknown; isError?: boolean }
+          message as { output: unknown; isError?: boolean; interrupted?: boolean }
         ])
     );
 
     expect([...outputs.keys()].toSorted()).toEqual(['call_1', 'call_2']);
     expect([...outputs.values()].every(entry => entry.isError === true)).toBe(true);
-    // 参数完整的那个是被本次修复挡下的；被截断的那个由 SDK 判非法。
+    // 被截断的那个由 SDK 判非法；参数完整的那个 SDK 连 execute 都不调用，
+    // 也不发失败事件，只能由引擎按本步的收场补上原因。
     expect(String(outputs.get('call_1')?.output)).toContain('整体作废');
     expect(String(outputs.get('call_2')?.output)).toContain('JSON');
+    // 作者没按停止：整批作废不能借用中断的标记，否则重开会话满屏都是"已中断"。
+    expect([...outputs.values()].some(entry => entry.interrupted === true)).toBe(false);
   });
 
   it('取消不算失败：aborted 置位且不抛异常', async () => {
@@ -1197,7 +1230,7 @@ describe('withSyntheticResults', () => {
     const calls = [{ id: 'call_1', name: 'read' }];
     const results = [{ toolCallId: 'call_1', toolName: 'read', output: { text: 'ok' }, isError: false }];
 
-    expect(withSyntheticResults(calls, results)).toBe(results);
+    expect(withSyntheticResults(calls, results, 'aborted')).toBe(results);
   });
 
   it('中断留下的未结算调用补合成结果，已有结果保持不变', () => {
@@ -1207,11 +1240,22 @@ describe('withSyntheticResults', () => {
     ];
     const results = [{ toolCallId: 'call_1', toolName: 'write', output: { text: '已写入' }, isError: false }];
 
-    const merged = withSyntheticResults(calls, results);
+    const merged = withSyntheticResults(calls, results, 'aborted');
 
     expect(merged).toHaveLength(2);
     expect(merged[0]).toBe(results[0]);
     // interrupted 与 isError 一起给：前者让界面分辨得出「作者按了停止」，后者让模型知道没有可用结果。
     expect(merged[1]).toMatchObject({ toolCallId: 'call_2', isError: true, interrupted: true });
+  });
+
+  it('非中断的未执行不打中断标记（作者没按停止就不能说是他停的）', () => {
+    const calls = [{ id: 'call_1', name: 'write' }];
+
+    for (const cause of ['output-truncated', 'error'] as const) {
+      const [synthetic] = withSyntheticResults(calls, [], cause);
+
+      expect(synthetic).toMatchObject({ toolCallId: 'call_1', isError: true });
+      expect(synthetic).not.toHaveProperty('interrupted');
+    }
   });
 });
