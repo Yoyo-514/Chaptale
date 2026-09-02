@@ -144,14 +144,17 @@ export class AgentService implements AgentRuntime {
         yield message;
         signal.throwIfAborted();
       }
-
-      await loop;
-
-      if (loopFailure) {
-        throw loopFailure;
-      }
     } finally {
+      // 取消时 throwIfAborted 先于引擎抛出，而引擎此刻可能正停在 persistStep 的写盘上。
+      // 不等它收尾就清 running，下一次运行的 appendUserRound 会与本次最后一步的落盘
+      // 挤在同一个写队列里，旧 assistant/tool 消息的 parentId 挂到新 user 消息下，会话树错位。
+      // loop 自身已 .catch，await 它只是等，不会二次抛。
+      await loop;
       run.running = false;
+    }
+
+    if (loopFailure) {
+      throw loopFailure;
     }
 
     return stopReason;

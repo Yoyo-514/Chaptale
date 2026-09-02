@@ -548,6 +548,65 @@ describe('AgentService.stream', () => {
     await first.return?.('aborted').catch(() => undefined);
   });
 
+  it('取消后引擎仍在落盘时，下一次运行照样被拒绝（防 parentId 挂错节点）', async () => {
+    let releasePersist!: () => void;
+    const persistGate = new Promise<void>(resolve => {
+      releasePersist = resolve;
+    });
+    let markPersistStarted!: () => void;
+    const persistStarted = new Promise<void>(resolve => {
+      markPersistStarted = resolve;
+    });
+
+    // 闸门只卡 assistant 那一条：user 照常落盘，于是能精确停在
+    // 「取消已交还调用方、引擎的最后一次 persistStep 还没写完」这个窗口里。
+    const store = await repository.openOrCreate('s1', '/workspace');
+    const append = store.appendMessage.bind(store);
+    vi.spyOn(store, 'appendMessage').mockImplementation(async message => {
+      if (message.role !== 'assistant') {
+        return append(message);
+      }
+
+      markPersistStarted();
+      await persistGate;
+
+      return append(message);
+    });
+
+    const gatedService = new AgentService({
+      sessionRepository: { open: async () => store, openOrCreate: async () => store },
+      modelService: {} as never,
+      runtimeBundle: createBundle(),
+      gate: { check: async () => ({ outcome: 'allow-once' }) },
+      compactSummarizer: stubSummarizer
+    });
+
+    // 模型这一轮完整收尾，引擎随即落盘——闸门把它停在写盘中途，
+    // 于是"作者点停止时引擎正好在写盘"这个真实时序可以稳定复现。
+    mockModelSequence([textRound('半截')]);
+
+    const iterator = gatedService.stream(runOptions('长文'));
+    await iterator.next();
+    await persistStarted;
+
+    abortController.abort();
+
+    // 不 await 这个 rejection：修复后它要等引擎收尾，而引擎正卡在落盘上。
+    const rejection = iterator.next();
+    // 让出一轮宏任务，给 generator 走完 finally 的机会——否则"拒绝"可能只是因为它还没恢复执行。
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // 取消后立刻重发是新的一次运行，signal 也是新的（旧 signal 已 abort，会先抛 AbortError）。
+    const second = gatedService.stream({
+      ...runOptions('取消后立刻重发'),
+      signal: new AbortController().signal
+    });
+    await expect(second.next()).rejects.toThrow(/正在运行中/);
+
+    releasePersist();
+    await expect(rejection).rejects.toThrow();
+  });
+
   it('memory 注入器前缀进入落盘内容，UI 回显保持纯净', async () => {
     mockModelSequence([textRound('回答。')]);
 
