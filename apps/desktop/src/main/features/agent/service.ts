@@ -390,12 +390,12 @@ export class AgentService implements AgentRuntime {
     const run = this.active.get(scope.sessionId);
 
     if (!run) {
-      return { steering: [], followUp: [] };
+      return { steering: [] };
     }
 
     const steering = run.steering.map(item => item.query);
     run.steering = [];
-    return { steering, followUp: [] };
+    return { steering };
   }
 
   async getContextPressure(sessionId: string): Promise<MemoryContextPressureStatus> {

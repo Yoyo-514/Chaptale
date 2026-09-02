@@ -200,7 +200,7 @@ export function useChatStreaming({
       const localTexts = restored.map(item => item.query);
       const missingCount = Math.max(0, result.queue.steering.length - restored.length);
       const missingSdkTexts = result.queue.steering.slice(0, missingCount);
-      const queuedText = [...missingSdkTexts, ...localTexts, ...result.queue.followUp].join('\n\n');
+      const queuedText = [...missingSdkTexts, ...localTexts].join('\n\n');
 
       state.input = [queuedText, state.input].filter(text => text.trim()).join('\n\n');
       state.contextFiles = dedupeContextFiles([...restored.flatMap(item => item.contextFiles), ...state.contextFiles]);

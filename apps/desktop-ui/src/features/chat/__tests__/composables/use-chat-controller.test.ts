@@ -125,7 +125,7 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
       steer: vi.fn().mockResolvedValue({ runId: 'run-1' }),
       clearPendingMessages: vi.fn().mockResolvedValue({
         runId: 'run-1',
-        queue: { steering: [], followUp: [] }
+        queue: { steering: [] }
       }),
       cancel: vi.fn().mockResolvedValue({ runId: 'run-1' })
     },
@@ -539,7 +539,7 @@ describe('useChatController', () => {
         steer: vi.fn().mockResolvedValue({ runId: 'run-steer' }),
         clearPendingMessages: vi.fn().mockResolvedValue({
           runId: 'run-steer',
-          queue: { steering: ['第二条调整'], followUp: [] }
+          queue: { steering: ['第二条调整'] }
         }),
         cancel: vi.fn()
       }

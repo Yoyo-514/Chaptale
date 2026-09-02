@@ -972,6 +972,6 @@ describe('AgentService 其余端口', () => {
       signal: abortController.signal
     });
 
-    expect(cleared).toEqual({ steering: [], followUp: [] });
+    expect(cleared).toEqual({ steering: [] });
   });
 });

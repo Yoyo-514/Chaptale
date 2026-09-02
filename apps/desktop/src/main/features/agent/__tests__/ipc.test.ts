@@ -181,7 +181,7 @@ function createRuntime(control: StreamControl): AgentRuntime {
   return {
     stream: vi.fn((options: AgentRunOptions) => controlledStream(control, options)),
     steer: vi.fn(async () => undefined),
-    clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] })),
+    clearPendingMessages: vi.fn(async () => ({ steering: [] })),
     getContextPressure: vi.fn(async () => ({
       tokens: 0,
       contextWindow: 100_000,
@@ -198,7 +198,7 @@ function createRuntimeByQuery(controls: Record<string, StreamControl>): AgentRun
   return {
     stream: vi.fn((options: AgentRunOptions) => controlledStream(controls[options.query]!, options)),
     steer: vi.fn(async () => undefined),
-    clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] })),
+    clearPendingMessages: vi.fn(async () => ({ steering: [] })),
     getContextPressure: vi.fn(async () => ({
       tokens: 0,
       contextWindow: 100_000,
@@ -376,7 +376,7 @@ describe('Agent IPC lifecycle', () => {
         return 'aborted';
       }),
       steer: vi.fn(async () => undefined),
-      clearPendingMessages: vi.fn(async () => ({ steering: [], followUp: [] })),
+      clearPendingMessages: vi.fn(async () => ({ steering: [] })),
       getContextPressure: vi.fn(async () => ({
         tokens: 0,
         contextWindow: 100_000,
@@ -409,7 +409,7 @@ describe('Agent IPC lifecycle', () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
     const runtime = createRuntime(control);
-    vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: ['调整方向'], followUp: [] });
+    vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: ['调整方向'] });
     registerAgentIpc({
       runtime: runtime,
       contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },
@@ -440,7 +440,7 @@ describe('Agent IPC lifecycle', () => {
       clearPendingMessages({ sender: sender as unknown as WebContents }, { runId: 'run-1' })
     ).resolves.toEqual({
       runId: 'run-1',
-      queue: { steering: ['调整方向'], followUp: [] }
+      queue: { steering: ['调整方向'] }
     });
     expect(runtime.clearPendingMessages).toHaveBeenCalledWith({
       sessionId: 'session-1',
@@ -456,7 +456,7 @@ describe('Agent IPC lifecycle', () => {
     const control = createStreamControl();
     const sender = new FakeWebContents();
     const runtime = createRuntime(control);
-    vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: '坏队列', followUp: [] } as never);
+    vi.mocked(runtime.clearPendingMessages).mockResolvedValue({ steering: '坏队列' } as never);
     registerAgentIpc({
       runtime: runtime,
       contextFileService: { selectFiles: vi.fn(async () => []), inspectFiles: vi.fn(async () => []) },

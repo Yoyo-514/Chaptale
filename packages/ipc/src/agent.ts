@@ -108,7 +108,7 @@ export interface AgentRuntime {
   stream(options: AgentRunOptions): AsyncGenerator<ChatMessage, AgentRunStopReason>;
   /** 向当前活跃运行追加 steering message。 */
   steer(options: AgentSteerOptions): Promise<void>;
-  /** 清空指定活跃运行中仍未消费的 steering 与 follow-up 消息。 */
+  /** 清空指定活跃运行中仍未消费的 steering 消息。 */
   clearPendingMessages(scope: AgentRunScope): Promise<AgentClearedQueue>;
   /** 查询当前会话水位；达到产品阈值时由 Renderer 提示作者。 */
   getContextPressure(sessionId: string): Promise<MemoryContextPressureStatus>;

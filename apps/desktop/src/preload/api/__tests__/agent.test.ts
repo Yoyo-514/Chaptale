@@ -159,7 +159,7 @@ describe('createAgentApi', () => {
   it('clearPendingMessages 保持主进程返回的队列结果', async () => {
     const result = {
       runId: OTHER_RUN_ID,
-      queue: { steering: ['调整人物动机'], followUp: [] }
+      queue: { steering: ['调整人物动机'] }
     };
     electronMock.invoke.mockResolvedValueOnce(result);
     const api = createAgentApi();

@@ -55,8 +55,7 @@ export const AgentRunResultValidator = Compile(AgentRunResultSchema);
 /** Runtime 清空队列后允许跨 IPC 返回的项目级消息集合。 */
 export const AgentClearedQueueSchema = Type.Object(
   {
-    steering: Type.Array(Type.String()),
-    followUp: Type.Array(Type.String())
+    steering: Type.Array(Type.String())
   },
   { additionalProperties: false }
 );
