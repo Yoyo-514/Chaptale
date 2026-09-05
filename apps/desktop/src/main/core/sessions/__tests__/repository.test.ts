@@ -45,6 +45,13 @@ afterEach(async () => {
 });
 
 describe('JsonlSessionRepository', () => {
+  it('openOrCreateBound 按持久化目录返回 global scope，而非按 cwd 猜测', async () => {
+    const bound = await repository.openOrCreateBound('global-bound', '/workspace');
+
+    expect(bound.ctx).toEqual({ sessionId: 'global-bound', cwd: '/workspace', scope: 'global' });
+    expect(bound.session.header.cwd).toBe('/workspace');
+  });
+
   it('create → append → list 全链路：名字/leaf/计数/累计 token', async () => {
     const meta = await repository.create({ name: '雨夜构思' });
     expect(meta.cwd).toBe('/workspace');

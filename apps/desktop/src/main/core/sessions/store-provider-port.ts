@@ -1,3 +1,4 @@
+import type { BoundSession } from '../session-ctx/types';
 import type { SessionStore } from './store';
 
 /**
@@ -14,4 +15,8 @@ export type SessionStoreProvider = {
   open(sessionId: string): Promise<SessionStore>;
   /** 打开或创建（首轮对话前调用）；cwd 缺省时由实现方解析当前工作区。 */
   openOrCreate(sessionId: string, cwd?: string): Promise<SessionStore>;
+  /** 打开会话并带出由持久化目录解析的安全上下文。 */
+  openBound(sessionId: string): Promise<BoundSession<SessionStore>>;
+  /** 打开或创建会话并带出由持久化目录解析的安全上下文。 */
+  openOrCreateBound(sessionId: string, cwd?: string): Promise<BoundSession<SessionStore>>;
 };

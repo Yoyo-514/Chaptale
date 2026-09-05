@@ -596,7 +596,15 @@ describe('AgentService.stream', () => {
     });
 
     const gatedService = new AgentService({
-      sessionRepository: { open: async () => store, openOrCreate: async () => store },
+      sessionRepository: {
+        open: async () => store,
+        openOrCreate: async () => store,
+        openBound: async () => ({ session: store, ctx: { sessionId: 's1', cwd: '/workspace', scope: 'workspace' } }),
+        openOrCreateBound: async () => ({
+          session: store,
+          ctx: { sessionId: 's1', cwd: '/workspace', scope: 'workspace' }
+        })
+      },
       modelService: {} as never,
       runtimeBundle: createBundle(),
       gate: { check: async () => ({ outcome: 'allow-once' }) },

@@ -126,7 +126,7 @@ export function createChatRuntimeBundle(deps: {
                 ctx: {
                   sessionId: input.sessionId,
                   cwd: input.cwd,
-                  scope: input.cwd.trim() ? 'workspace' : 'global'
+                  scope: input.scope
                 }
               })
             }

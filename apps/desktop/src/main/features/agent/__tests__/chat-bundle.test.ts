@@ -69,7 +69,7 @@ function createBundle(
 describe('chat-bundle 工具装配', () => {
   it('默认白名单同时挂载文件六工具与注册工具（回归：文件工具曾被错误过滤为空）', async () => {
     const bundle = createBundle();
-    const { tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace' });
+    const { tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace', scope: 'workspace' });
 
     const names = tools.map(tool => tool.name);
     expect(names).toEqual(
@@ -80,7 +80,7 @@ describe('chat-bundle 工具装配', () => {
 
   it('显式 tools 白名单对注册工具与文件工具统一收窄', async () => {
     const bundle = createBundle({ persona: { ...companion, tools: ['read', 'memory_search'] } });
-    const { tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace' });
+    const { tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace', scope: 'workspace' });
 
     expect(tools.map(tool => tool.name).toSorted()).toEqual(['memory_search', 'read']);
   });
@@ -88,7 +88,7 @@ describe('chat-bundle 工具装配', () => {
   it('on-demand 缺省：system 只含技能索引，正文经 skill_read 按需读取', async () => {
     const skill = await createSkillFile('秘密正文');
     const bundle = createBundle({ skills: [skill] });
-    const { system, tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace' });
+    const { system, tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace', scope: 'workspace' });
 
     // 索引一行一条，正文不进 system。
     expect(system).toContain('- review-checklist：审查清单');
@@ -101,14 +101,14 @@ describe('chat-bundle 工具装配', () => {
   it('inline 形态保留历史行为：SKILL.md 正文拼入 system', async () => {
     const skill = await createSkillFile('秘密正文');
     const bundle = createBundle({ skills: [skill], skillInjection: 'inline' });
-    const { system } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace' });
+    const { system } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace', scope: 'workspace' });
 
     expect(system).toContain('秘密正文');
   });
 
   it('无适用技能时不挂 skill_read', async () => {
     const bundle = createBundle();
-    const { tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace' });
+    const { tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace', scope: 'workspace' });
 
     expect(tools.map(tool => tool.name)).not.toContain('skill_read');
   });

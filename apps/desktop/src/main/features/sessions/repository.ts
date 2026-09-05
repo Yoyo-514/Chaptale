@@ -16,11 +16,13 @@ import type { ChatImageAttachment, ChatMessage, ChatTextPart } from '@chaptale/s
 
 import type { ImageAttachmentService } from '../../core/attachments/service';
 import { decodeUserMessage } from '../../core/prompt-envelope/decode-user-message';
+import type { BoundSession } from '../../core/session-ctx/types';
 import type { SessionEntry, SessionMessage } from '../../core/sessions/entry';
 import { isSessionRunStopReason } from '../../core/sessions/entry';
 import { parseSessionContent } from '../../core/sessions/reader';
 import type { SessionStorageContext } from '../../core/sessions/storage';
 import { SessionStorageResolver } from '../../core/sessions/storage';
+import { getSessionScope } from '../../core/sessions/storage';
 import { SessionStore } from '../../core/sessions/store';
 import type { SessionStoreProvider } from '../../core/sessions/store-provider-port';
 import { deriveSessionSummary } from '../../core/sessions/summary';
@@ -253,6 +255,15 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
     return store;
   }
 
+  async openBound(sessionId: string): Promise<BoundSession<SessionStore>> {
+    const store = await this.open(sessionId);
+    const filePath = await this.locateSessionFile(sessionId);
+    return {
+      session: store,
+      ctx: { sessionId, cwd: store.header.cwd, scope: getSessionScope(path.dirname(filePath)) }
+    };
+  }
+
   /** 会话文件定位：列表来自多个 scope 目录，打开时按 sessionId 全域查找。 */
   private async locateSessionFile(sessionId: string): Promise<string> {
     const dirs = await this.storage.getKnownSessionDirs();
@@ -291,6 +302,12 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
     this.stores.set(sessionId, store);
 
     return store;
+  }
+
+  async openOrCreateBound(sessionId: string, cwd?: string): Promise<BoundSession<SessionStore>> {
+    const store = await this.openOrCreate(sessionId, cwd);
+    const sessionDir = path.dirname(await this.locateSessionFile(sessionId));
+    return { session: store, ctx: { sessionId, cwd: store.header.cwd, scope: getSessionScope(sessionDir) } };
   }
 
   /** 会话 cwd（已落盘则读 header，否则当前工作区）。 */

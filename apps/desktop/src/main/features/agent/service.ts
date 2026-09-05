@@ -16,6 +16,7 @@ import type { ImageAttachmentService } from '../../core/attachments/service';
 import type { ContextFileService } from '../../core/context/service';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
+import type { SessionCtx } from '../../core/session-ctx/types';
 import type { SessionMessage } from '../../core/sessions/entry';
 import type { SessionStore } from '../../core/sessions/store';
 import type { SessionStoreProvider } from '../../core/sessions/store-provider-port';
@@ -40,7 +41,7 @@ export type ChatRuntimeBundle = {
    * 走 resolve 会白装配全部工具、创建 delegate 工具并读遍 SKILL.md 正文。
    */
   resolveModel: () => Promise<ResolvedModel>;
-  resolve: (input: { sessionId: string; cwd: string }) => Promise<{
+  resolve: (input: SessionCtx) => Promise<{
     model: ResolvedModel;
     system: string;
     tools: Parameters<typeof runAgentLoop>[0]['tools'];
@@ -122,7 +123,8 @@ export class AgentService implements AgentRuntime {
     run.running = true;
     run.acceptingSteer = true;
 
-    const store = await this.options.sessionRepository.openOrCreate(sessionId);
+    const bound = await this.options.sessionRepository.openOrCreateBound(sessionId);
+    const store = bound.session;
 
     const queue = new AsyncMessageQueue<ChatMessage>();
     let loopFailure: Error | undefined;
@@ -132,6 +134,7 @@ export class AgentService implements AgentRuntime {
     const loop = this.driveRounds({
       sessionId,
       store,
+      sessionCtx: bound.ctx,
       run,
       signal,
       options,
@@ -181,6 +184,7 @@ export class AgentService implements AgentRuntime {
   private async driveRounds(input: {
     sessionId: string;
     store: SessionStore;
+    sessionCtx: SessionCtx;
     run: ActiveRun;
     signal: AbortSignal;
     options: AgentRunOptions;
@@ -208,6 +212,7 @@ export class AgentService implements AgentRuntime {
       });
     }
 
+    const { sessionCtx } = input;
     let firstRound = true;
     let overflowCompacted = false;
     let retryAfterOverflow = false;
@@ -228,7 +233,7 @@ export class AgentService implements AgentRuntime {
       firstRound = false;
       retryAfterOverflow = false;
 
-      const bundle = await this.options.runtimeBundle.resolve({ sessionId, cwd: store.header.cwd });
+      const bundle = await this.options.runtimeBundle.resolve(sessionCtx);
       const translator = createPartTranslator(onMessage);
 
       // 作者在输入区选的档位盖过模型自己配的那个；没选就沿用模型配置。
