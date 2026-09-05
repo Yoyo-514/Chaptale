@@ -255,9 +255,9 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
 
     conversation.push(...withPairedToolResults(step));
 
-    if (step.finishReason === 'length' && truncationRetries < maxTruncationRetries) {
-      // 整批已作废，模型手上已有"请拆小后重发"的理由；给它一次自纠的机会，
-      // 而不是让作者再说一句"继续"。
+    if (step.finishReason === 'length' && step.toolCalls.length > 0 && truncationRetries < maxTruncationRetries) {
+      // 整批工具调用已作废，模型手上已有"请拆小后重发"的理由；给它一次自纠的机会，
+      // 而不是让作者再说一句"继续"。纯正文截断则交给作者决定是否续写。
       truncationRetries += 1;
     } else if (step.finishReason === 'length') {
       pendingStop = 'output-truncated';

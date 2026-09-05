@@ -881,6 +881,30 @@ describe('runAgentLoop 错误路径', () => {
  * 作者中途插话、截断后自纠、按步换配置，全都落在这里。
  */
 describe('runAgentLoop prepareStep', () => {
+  it('纯文本截断直接停止，不自动续写', async () => {
+    const fetchMock = stubSseFetch(openaiTextStep('雨夜里，她推开', 'length'), openaiTextStep('不该自动续写的正文'));
+    const persisted: SessionMessage[][] = [];
+
+    const result = await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '写一个雨夜场景' }],
+      tools: [writeTool],
+      onStepPersist: async messages => {
+        persisted.push(messages);
+      }
+    });
+
+    expect(result.stopReason).toBe('output-truncated');
+    expect(result.finishReason).toBe('length');
+    expect(result.aborted).toBe(false);
+    expect(result.steps).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0]?.[0]).toMatchObject({ role: 'assistant', content: '雨夜里，她推开' });
+  });
+
   it('截断作废后给一次重发机会，模型改小即可继续', async () => {
     const executeSpy = vi.fn(writeTool.execute);
     stubSseFetch(
