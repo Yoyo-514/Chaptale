@@ -65,12 +65,17 @@ import type {
 } from './tasks';
 import type { TodosUpdatedEvent } from './todos';
 import type { WindowStateResult } from './window';
+import type { WorkspaceState, ListDirectoryArgs, ListDirectoryResult } from './workspace';
 
 /**
  * Preload 暴露给启用上下文隔离且关闭 Node 集成的 Renderer 的完整能力契约。
  * 该类型只描述可跨进程调用的稳定数据，不允许 Electron、Node 或具体 SDK 类型越过边界。
  */
 export type ChaptaleDesktopApi = {
+  workspace: {
+    getState: () => Promise<WorkspaceState>;
+    listDirectory: (args: ListDirectoryArgs) => Promise<ListDirectoryResult>;
+  };
   getPlatform: () => Promise<AppPlatformResult>;
   windowControl: {
     minimize: () => Promise<WindowStateResult>;

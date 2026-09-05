@@ -15,8 +15,10 @@ import { createSubagentApi } from './api/subagent';
 import { createTasksApi } from './api/tasks';
 import { createTodosApi } from './api/todos';
 import { createWindowControlApi } from './api/window';
+import { createWorkspaceApi } from './api/workspace';
 
 const desktopApi: ChaptaleDesktopApi = {
+  workspace: createWorkspaceApi(),
   getPlatform: createGetPlatformApi(),
   windowControl: createWindowControlApi(),
   session: createSessionApi(),

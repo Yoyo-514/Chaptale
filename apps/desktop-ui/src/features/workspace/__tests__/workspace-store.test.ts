@@ -54,6 +54,14 @@ function createSession(id: string, cwd: string) {
 
 function installDesktopApi(state = createSettingsState()) {
   const api = {
+    workspace: {
+      getState: vi.fn().mockResolvedValue({
+        rootPath: state.paths.currentCwd,
+        displayName: 'workspace-b',
+        hasChaptaleMetadata: false
+      }),
+      listDirectory: vi.fn().mockResolvedValue({ ok: true, entries: [] })
+    },
     settings: {
       selectWorkspaceDir: vi.fn().mockResolvedValue({ canceled: false, state }),
       getState: vi.fn().mockResolvedValue(state),

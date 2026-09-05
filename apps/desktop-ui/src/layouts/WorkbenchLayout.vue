@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 
+import { WorkspaceExplorer } from '@/features/workspace';
+
 import AgentPanel from './AgentPanel.vue';
 </script>
 
@@ -21,6 +23,8 @@ import AgentPanel from './AgentPanel.vue';
       class="workbench-panel"
     >
       <aside class="workbench-primary-sidebar" aria-label="工作区侧栏">
+        <WorkspaceExplorer />
+        <!--
         <header class="workbench-panel-header">
           <span>工作区</span>
         </header>
@@ -28,6 +32,7 @@ import AgentPanel from './AgentPanel.vue';
           <span class="i-mingcute-folder-2-line workbench-placeholder-icon" aria-hidden="true" />
           <p>作品文件将显示在这里</p>
         </div>
+        -->
       </aside>
     </SplitterPanel>
 

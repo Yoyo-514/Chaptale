@@ -12,3 +12,4 @@ export * from './permissions';
 export * from './settings';
 export * from './slash-command';
 export * from './window';
+export * from './workspace';

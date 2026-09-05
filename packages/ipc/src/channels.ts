@@ -3,6 +3,10 @@
  * 按业务域分组可让 Preload、handler 注册和契约审查使用同一组不可变字面量。
  */
 export const IPC_CHANNELS = {
+  workspace: {
+    getState: 'workspace:get-state',
+    listDirectory: 'workspace:list-directory'
+  },
   app: {
     getPlatform: 'app:get-platform'
   },

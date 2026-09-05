@@ -9,9 +9,21 @@ import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
     isOpening: false,
-    error: ''
+    error: '',
+    rootPath: null as string | null,
+    displayName: null as string | null,
+    hasChaptaleMetadata: false,
+    revision: 0,
+    showInternalFiles: false
   }),
   actions: {
+    async refreshState() {
+      const state = await getDesktopApi().workspace.getState();
+      this.rootPath = state.rootPath;
+      this.displayName = state.displayName;
+      this.hasChaptaleMetadata = state.hasChaptaleMetadata;
+      this.revision += 1;
+    },
     async openWorkspace() {
       if (this.isOpening) {
         return false;
@@ -28,6 +40,7 @@ export const useWorkspaceStore = defineStore('workspace', {
         }
 
         useSettingsStore().applyStateSnapshot(result.state);
+        await this.refreshState();
 
         const sessionStore = useSessionStore();
         await sessionStore.bindCwd(result.state.paths.currentCwd);
@@ -40,6 +53,10 @@ export const useWorkspaceStore = defineStore('workspace', {
       } finally {
         this.isOpening = false;
       }
+    },
+    async closeWorkspace() {
+      await useSettingsStore().update({ storage: { mode: 'global' } });
+      await this.refreshState();
     }
   }
 });

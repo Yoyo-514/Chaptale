@@ -32,7 +32,7 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       { id: 'file.new-workspace', label: '新建作品…', disabled: true },
       { id: 'file.open-workspace', label: '打开工作区…', disabled: workspaceStore.isOpening },
       { id: 'file.open-recent', label: '打开最近工作区…', disabled: true },
-      { id: 'file.close-workspace', label: '关闭工作区', disabled: true, separatorBefore: true },
+      { id: 'file.close-workspace', label: '关闭工作区', disabled: !workspaceStore.rootPath, separatorBefore: true },
       { id: 'file.new-chapter', label: '新建章节', disabled: true, separatorBefore: true },
       { id: 'file.new-scene-card', label: '新建场景卡', disabled: true },
       { id: 'file.save', label: '保存', shortcut: 'Ctrl+S', disabled: true, separatorBefore: true },
@@ -60,7 +60,12 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       { id: 'view.primary-sidebar', label: '切换主侧栏', disabled: true },
       { id: 'view.auxiliary-bar', label: '切换辅助栏', disabled: true },
       { id: 'view.status-bar', label: '切换状态栏', disabled: true },
-      { id: 'view.internal-files', label: '显示内部文件', disabled: true, separatorBefore: true },
+      {
+        id: 'view.internal-files',
+        label: '显示内部文件',
+        checked: workspaceStore.showInternalFiles,
+        separatorBefore: true
+      },
       { id: 'view.focus-mode', label: '专注模式', disabled: true },
       { id: 'view.appearance', label: '外观', separatorBefore: true, items: themeItems.value }
     ]
@@ -109,6 +114,14 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 function handleSelect(itemId: string) {
   if (itemId === 'file.open-workspace') {
     void workspaceStore.openWorkspace();
+    return;
+  }
+  if (itemId === 'file.close-workspace') {
+    void workspaceStore.closeWorkspace();
+    return;
+  }
+  if (itemId === 'view.internal-files') {
+    workspaceStore.showInternalFiles = !workspaceStore.showInternalFiles;
     return;
   }
 

@@ -22,7 +22,7 @@ const splitterStubs = {
 describe('WorkbenchLayout', () => {
   it('defines the primary sidebar, editor and auxiliary regions', () => {
     const wrapper = mount(WorkbenchLayout, {
-      global: { stubs: splitterStubs }
+      global: { stubs: { ...splitterStubs, WorkspaceExplorer: { template: '<div data-test="workspace-explorer" />' } } }
     });
 
     expect(wrapper.get('[aria-label="工作区侧栏"]').attributes('aria-label')).toBe('工作区侧栏');
@@ -35,7 +35,7 @@ describe('WorkbenchLayout', () => {
 
   it('keeps future auxiliary views visible but disabled', () => {
     const wrapper = mount(WorkbenchLayout, {
-      global: { stubs: splitterStubs }
+      global: { stubs: { ...splitterStubs, WorkspaceExplorer: { template: '<div data-test="workspace-explorer" />' } } }
     });
     const tabs = wrapper.findAll('.workbench-auxiliary-bar [role="tab"]');
 

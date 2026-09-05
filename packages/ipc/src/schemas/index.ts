@@ -8,3 +8,4 @@ export * from './todos';
 export * from './memory';
 export * from './subagent';
 export * from './permissions';
+export * from './workspace';
