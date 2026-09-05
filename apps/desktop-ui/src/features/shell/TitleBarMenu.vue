@@ -68,12 +68,6 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       { id: 'view.primary-sidebar', label: '切换主侧栏', disabled: true },
       { id: 'view.auxiliary-bar', label: '切换辅助栏', disabled: true },
       { id: 'view.status-bar', label: '切换状态栏', disabled: true },
-      {
-        id: 'view.internal-files',
-        label: '显示内部文件',
-        checked: workspaceStore.showInternalFiles,
-        separatorBefore: true
-      },
       { id: 'view.focus-mode', label: '专注模式', disabled: true },
       { id: 'view.appearance', label: '外观', separatorBefore: true, items: themeItems.value }
     ]
@@ -130,10 +124,6 @@ function handleSelect(itemId: string) {
   }
   if (itemId.startsWith('file.recent.')) {
     void workspaceStore.openRecent(itemId.slice('file.recent.'.length));
-    return;
-  }
-  if (itemId === 'view.internal-files') {
-    workspaceStore.showInternalFiles = !workspaceStore.showInternalFiles;
     return;
   }
 

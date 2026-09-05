@@ -24,15 +24,6 @@ import AgentPanel from './AgentPanel.vue';
     >
       <aside class="workbench-primary-sidebar" aria-label="工作区侧栏">
         <WorkspaceExplorer />
-        <!--
-        <header class="workbench-panel-header">
-          <span>工作区</span>
-        </header>
-        <div class="workbench-placeholder">
-          <span class="i-mingcute-folder-2-line workbench-placeholder-icon" aria-hidden="true" />
-          <p>作品文件将显示在这里</p>
-        </div>
-        -->
       </aside>
     </SplitterPanel>
 
@@ -96,7 +87,6 @@ import AgentPanel from './AgentPanel.vue';
   background: var(--surface-acrylic-subtle);
 }
 
-.workbench-panel-header,
 .workbench-editor-tabs,
 .workbench-auxiliary-tabs {
   @apply flex h-9 shrink-0 items-center border-b px-3 text-xs;
@@ -104,20 +94,10 @@ import AgentPanel from './AgentPanel.vue';
   border-color: var(--border-subtle);
 }
 
-.workbench-panel-header {
-  @apply font-semibold uppercase tracking-wide;
-
-  color: var(--muted-foreground);
-}
-
 .workbench-placeholder {
   @apply flex flex-1 flex-col items-center justify-center gap-2 px-5 text-center text-xs;
 
   color: var(--muted-foreground);
-}
-
-.workbench-placeholder-icon {
-  @apply size-7 opacity-70;
 }
 
 .workbench-editor-tabs {

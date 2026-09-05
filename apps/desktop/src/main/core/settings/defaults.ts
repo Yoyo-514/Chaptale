@@ -17,6 +17,10 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
   storage: {
     mode: 'global'
   },
+  // 默认藏起 `.chaptale/`：那是应用数据，不是作者的创作资产。
+  explorer: {
+    showInternalFiles: false
+  },
   // 与 Renderer 的 index.html 上那个静态主题类必须一致：
   // 两者不一致时每次冷启动都会先画一帧再跳色。
   theme: 'dark'
@@ -43,6 +47,13 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
     storage: {
       ...DEFAULT_SETTINGS.storage,
       ...value?.storage
+    },
+    explorer: {
+      ...DEFAULT_SETTINGS.explorer,
+      // 只认布尔：手改过的配置里出现 "true"、1 这类值时，落一个非布尔会让开关的勾选态与取数行为对不上。
+      ...(typeof value?.explorer?.showInternalFiles === 'boolean'
+        ? { showInternalFiles: value.explorer.showInternalFiles }
+        : {})
     },
     // 认不出的主题回落默认，而不是原样透传：这个值最终会变成 <html> 上的类名，
     // 落一个没有对应样式的类，界面会退化成没有任何语义色的裸样式。

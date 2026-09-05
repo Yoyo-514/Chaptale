@@ -15,9 +15,16 @@ const ChaptaleStorageSettingsUpdateSchema = Type.Object(
   { additionalProperties: false }
 );
 
+/** 资源管理器偏好；跨会话保留，不随工作区切换重置。 */
+const ChaptaleExplorerSettingsUpdateSchema = Type.Object(
+  { showInternalFiles: Type.Optional(Type.Boolean()) },
+  { additionalProperties: false }
+);
+
 export const UpdateChaptaleSettingsPayloadSchema = Type.Object(
   {
     storage: Type.Optional(ChaptaleStorageSettingsUpdateSchema),
+    explorer: Type.Optional(ChaptaleExplorerSettingsUpdateSchema),
     theme: Type.Optional(ChaptaleThemeSchema),
     lastSessionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     recentWorkspaces: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 8 }))

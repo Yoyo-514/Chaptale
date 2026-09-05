@@ -120,7 +120,7 @@ const emit = defineEmits<{
 }
 
 .app-menubar-item {
-  @apply flex min-h-7 cursor-default items-center gap-4 px-2 py-1 text-xs outline-none;
+  @apply flex min-h-7 cursor-default items-center gap-2 px-2 py-1 text-xs outline-none;
 
   border-radius: var(--radius-control-sm);
 }

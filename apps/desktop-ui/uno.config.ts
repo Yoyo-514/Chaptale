@@ -17,7 +17,10 @@ export default defineConfig({
       extraProperties: {
         display: 'inline-block',
         width: '1em',
-        height: '1em'
+        height: '1em',
+        // 图标绝大多数放在 flex 容器里，默认 flex-shrink: 1 会让它跟着文字一起被压扁
+        // （表现为「图标变成一条细线」）。这里统一锁住，避免每个调用点各写一次 shrink-0。
+        'flex-shrink': '0'
       },
       collections: {
         // 使用 @iconify-json/mingcute 提供的图标数据

@@ -32,7 +32,7 @@ const notificationTooltip = computed(() =>
         aria-label="打开通知中心"
         @click="notificationStore.togglePanel()"
       >
-        <span class="i-mingcute-notification-line size-4.5" aria-hidden="true" />
+        <span class="i-mingcute-notification-line size-4" aria-hidden="true" />
         <span v-if="notificationStore.unseenCount > 0" class="notification-count">{{ notificationCountLabel }}</span>
       </AppButton>
     </AppTooltip>
@@ -41,7 +41,8 @@ const notificationTooltip = computed(() =>
 
 <style scoped lang="scss">
 .status-bar {
-  @apply relative z-$z-app-chrome flex h-5 shrink-0 items-center border-t px-1 text-xs;
+  /* 22px 是留给 16px 图标的最小高度：h-5 时上下只剩 1px，图标会被 flex 压成一条线。 */
+  @apply relative z-$z-app-chrome flex h-5.5 shrink-0 items-center border-t px-1 text-xs;
 
   background: var(--surface-acrylic-strong);
   border-color: var(--border-subtle);

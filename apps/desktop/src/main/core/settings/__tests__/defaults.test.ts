@@ -29,6 +29,7 @@ describe('settings defaults', () => {
     expect(settings).toEqual({
       version: 1,
       storage: { mode: 'workspace', workspacePath: 'E:/Stories' },
+      explorer: { showInternalFiles: false },
       theme: 'dark'
     });
   });

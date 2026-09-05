@@ -13,8 +13,7 @@ export const useWorkspaceStore = defineStore('workspace', {
     rootPath: null as string | null,
     displayName: null as string | null,
     hasChaptaleMetadata: false,
-    revision: 0,
-    showInternalFiles: false
+    revision: 0
   }),
   actions: {
     async syncSession() {

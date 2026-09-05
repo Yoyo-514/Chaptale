@@ -5,7 +5,8 @@
 export const IPC_CHANNELS = {
   workspace: {
     getState: 'workspace:get-state',
-    listDirectory: 'workspace:list-directory'
+    listDirectory: 'workspace:list-directory',
+    createEntry: 'workspace:create-entry'
   },
   app: {
     getPlatform: 'app:get-platform'

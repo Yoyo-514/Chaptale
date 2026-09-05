@@ -45,7 +45,9 @@ test.beforeEach(async () => {
 
   electronApp = await electron.launch({
     executablePath: electronExecutable,
-    args: [desktopDir],
+    // 隔离 userData：不带这个参数时 Electron 仍按真实用户目录解析 userData，
+    // 测试里的缩放、窗口尺寸等状态会落回本机配置。
+    args: [desktopDir, `--user-data-dir=${path.join(testHome, 'user-data')}`],
     env
   });
   mainWindow = await electronApp.firstWindow();

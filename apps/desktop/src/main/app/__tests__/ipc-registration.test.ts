@@ -42,7 +42,8 @@ import {
   UpdateWebToolsSettingsArgsValidator,
   UpdatePromptSettingsArgsValidator,
   WorkspaceGetStateArgsValidator,
-  ListDirectoryArgsValidator
+  ListDirectoryArgsValidator,
+  CreateEntryArgsValidator
 } from '@chaptale/ipc-contract';
 
 import type { AppContext } from '../app-context';
@@ -122,6 +123,7 @@ const expectedRegistrations: Registration[] = [
 
   validated(IPC_CHANNELS.workspace.getState, WorkspaceGetStateArgsValidator),
   validated(IPC_CHANNELS.workspace.listDirectory, ListDirectoryArgsValidator),
+  validated(IPC_CHANNELS.workspace.createEntry, CreateEntryArgsValidator),
 
   trusted(IPC_CHANNELS.promptSettings.getState),
   validated(IPC_CHANNELS.promptSettings.update, UpdatePromptSettingsArgsValidator),

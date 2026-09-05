@@ -51,6 +51,12 @@ export function createMainWindow(rendererEntryUrl: string, theme: ChaptaleTheme)
     window.setIcon(appIconPath);
   }
 
+  // Chromium 默认把 zoom 按 origin 持久化到 userData：一次误触 Ctrl+滚轮就会永久改变整个界面尺寸，
+  // 而应用自己既没有缩放入口也没有重置入口，用户改不回来。
+  // disabled 模式会把当前 webContents 拉回默认缩放并忽略后续变更，顺带抗掉已经落盘的旧值。
+  // 将来真要做「界面缩放」设置项，该改成 manual + 从 settings 读取，而不是放开 default。
+  window.webContents.setZoomMode('disabled');
+
   // 应用使用自定义命令与标题栏，移除原生菜单可避免出现未纳入权限设计的默认入口。
   Menu.setApplicationMenu(null);
 

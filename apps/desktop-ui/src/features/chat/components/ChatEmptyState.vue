@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
+import { APP_ICON_URL } from '@/utils/app-icon';
 import { formatSessionTime, getSessionTitle } from '@/utils/session-display';
 
-// public 目录资源按根路径引用；动态绑定可避免 plugin-vue 将其作为模块导入（vitest 环境会解析失败）
-const appIconUrl = '/favicon.ico';
+const appIconUrl = APP_ICON_URL;
 
 const props = defineProps<{
   recentSessions: ChaptaleSessionListItem[];

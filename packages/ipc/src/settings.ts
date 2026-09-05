@@ -37,6 +37,12 @@ export type ChaptaleStorageSettings = {
   workspacePath?: string;
 };
 
+/** 资源管理器偏好；属于“这个人想看到什么”，不随工作区变。 */
+export type ChaptaleExplorerSettings = {
+  /** 是否在文件树里展示 `.chaptale/` 等应用内部文件。 */
+  showInternalFiles: boolean;
+};
+
 export type WebToolsProvider = Static<typeof WebToolsProviderSchema>;
 
 /** 聊天联网能力设置快照；更新 payload 允许只提交部分字段。 */
@@ -63,6 +69,8 @@ export type WebToolsSettings = {
 export type ChaptaleSettings = {
   version: 1;
   storage: ChaptaleStorageSettings;
+  /** 资源管理器偏好；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
+  explorer: ChaptaleExplorerSettings;
   /** 界面主题；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
   theme: ChaptaleTheme;
   /**

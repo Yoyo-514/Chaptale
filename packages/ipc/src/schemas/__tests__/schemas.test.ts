@@ -40,7 +40,9 @@ import {
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
   UpdateWebToolsSettingsArgsValidator,
-  UpdatePromptSettingsArgsValidator
+  UpdatePromptSettingsArgsValidator,
+  ListDirectoryArgsValidator,
+  CreateEntryArgsValidator
 } from '../../index';
 
 function expectStrictObject(
@@ -161,6 +163,9 @@ describe('IPC 参数 Schema', () => {
     );
     expect(UpdateChaptaleSettingsArgsValidator.Check([{ storage: { mode: 'global', extra: true } }])).toBe(false);
     expect(UpdateChaptaleSettingsArgsValidator.Check([{ lastSessionId: null }])).toBe(true);
+    expect(UpdateChaptaleSettingsArgsValidator.Check([{ explorer: { showInternalFiles: true } }])).toBe(true);
+    expect(UpdateChaptaleSettingsArgsValidator.Check([{ explorer: { showInternalFiles: 'yes' } }])).toBe(false);
+    expect(UpdateChaptaleSettingsArgsValidator.Check([{ explorer: { unknown: true } }])).toBe(false);
 
     expectStrictObject(UpdateWebToolsSettingsArgsValidator, {});
     expect(
@@ -406,5 +411,25 @@ describe('IPC 参数 Schema', () => {
     expect(MemoryResolvePendingArgsValidator.Check([{ id: '', action: 'accept' }])).toBe(false);
     expect(MemoryResolvePendingArgsValidator.Check([{ id: 'p-1', action: 'apply' }])).toBe(false);
     expect(MemoryResolvePendingArgsValidator.Check([{ id: 'p-1', action: 'accept', extra: 1 }])).toBe(false);
+  });
+
+  it('工作区目录与新建参数只接无穿越的正斜杠相对路径', () => {
+    // 空串是根目录，listDirectory 必须接受。
+    expect(ListDirectoryArgsValidator.Check([{ relativePath: '' }])).toBe(true);
+    expect(ListDirectoryArgsValidator.Check([{ relativePath: '正文/第一卷', includeInternal: true }])).toBe(true);
+    expect(ListDirectoryArgsValidator.Check([{ relativePath: '../outside' }])).toBe(false);
+    expect(ListDirectoryArgsValidator.Check([{ relativePath: '正文/../../etc' }])).toBe(false);
+    expect(ListDirectoryArgsValidator.Check([{ relativePath: '/abs' }])).toBe(false);
+    expect(ListDirectoryArgsValidator.Check([{ relativePath: 'E:\\novel' }])).toBe(false);
+    expect(ListDirectoryArgsValidator.Check([{ relativePath: '正文//空段' }])).toBe(false);
+    expect(ListDirectoryArgsValidator.Check([{ relativePath: '', extra: true }])).toBe(false);
+
+    // 根目录已经存在，新建不接空串。
+    expect(CreateEntryArgsValidator.Check([{ relativePath: '', kind: 'file' }])).toBe(false);
+    expect(CreateEntryArgsValidator.Check([{ relativePath: '正文/第一章.md', kind: 'file' }])).toBe(true);
+    expect(CreateEntryArgsValidator.Check([{ relativePath: '设定', kind: 'directory' }])).toBe(true);
+    expect(CreateEntryArgsValidator.Check([{ relativePath: '../outside.md', kind: 'file' }])).toBe(false);
+    expect(CreateEntryArgsValidator.Check([{ relativePath: 'a.md', kind: 'symlink' }])).toBe(false);
+    expect(CreateEntryArgsValidator.Check([{ relativePath: 'a.md' }])).toBe(false);
   });
 });

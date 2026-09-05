@@ -110,6 +110,10 @@ export class SettingsService {
           ...current.storage,
           ...payload.storage
         },
+        explorer: {
+          ...current.explorer,
+          ...payload.explorer
+        },
         theme: payload.theme ?? current.theme,
         ...(current.lastSessions && Object.keys(current.lastSessions).length > 0
           ? { lastSessions: { ...current.lastSessions } }

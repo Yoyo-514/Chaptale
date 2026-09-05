@@ -6,6 +6,7 @@ import { useSessionStore } from '@/features/sessions';
 
 import SettingsPathCard from '../components/SettingsPathCard.vue';
 import SettingsSection from '../components/SettingsSection.vue';
+import SettingsToggleField from '../components/SettingsToggleField.vue';
 import { useSettingsStore } from '../store';
 
 const settingsStore = useSettingsStore();
@@ -14,11 +15,16 @@ const sessionStore = useSessionStore();
 const state = computed(() => settingsStore.state);
 const storage = computed(() => state.value?.settings.storage);
 const paths = computed(() => state.value?.paths);
+const showInternalFiles = computed(() => state.value?.settings.explorer.showInternalFiles ?? false);
 
 async function useGlobalStorage() {
   await settingsStore.useGlobalStorage();
   await sessionStore.loadStorageDebugInfo();
   await sessionStore.loadSessions();
+}
+
+async function setShowInternalFiles(value: boolean) {
+  await settingsStore.update({ explorer: { showInternalFiles: value } });
 }
 </script>
 
@@ -49,6 +55,20 @@ async function useGlobalStorage() {
     <div class="settings-actions">
       <AppButton type="button" :disabled="settingsStore.isLoading" @click="useGlobalStorage">使用 Global</AppButton>
     </div>
+  </SettingsSection>
+
+  <SettingsSection
+    title="资源管理器"
+    title-id="settings-explorer-title"
+    description="控制侧栏文件树展示哪些内容；偏好跟着你而不跟着具体作品。"
+  >
+    <SettingsToggleField
+      :model-value="showInternalFiles"
+      title="显示内部文件"
+      description="展示 .chaptale/ 等应用数据目录；日常写作不需要看到它们。"
+      :disabled="settingsStore.isLoading"
+      @update:model-value="setShowInternalFiles"
+    />
   </SettingsSection>
 </template>
 

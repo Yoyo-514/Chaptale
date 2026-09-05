@@ -1,7 +1,9 @@
 import {
+  CreateEntryArgsValidator,
   IPC_CHANNELS,
   ListDirectoryArgsValidator,
   WorkspaceGetStateArgsValidator,
+  type CreateEntryArgs,
   type ListDirectoryArgs
 } from '@chaptale/ipc-contract';
 
@@ -14,5 +16,8 @@ export function registerWorkspaceIpc(service: WorkspaceService) {
     IPC_CHANNELS.workspace.listDirectory,
     ListDirectoryArgsValidator,
     (_event, args: ListDirectoryArgs) => service.listDirectory(args)
+  );
+  handleValidatedIpc(IPC_CHANNELS.workspace.createEntry, CreateEntryArgsValidator, (_event, args: CreateEntryArgs) =>
+    service.createEntry(args)
   );
 }
