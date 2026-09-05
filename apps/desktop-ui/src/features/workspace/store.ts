@@ -57,6 +57,10 @@ export const useWorkspaceStore = defineStore('workspace', {
     async closeWorkspace() {
       await useSettingsStore().update({ storage: { mode: 'global' } });
       await this.refreshState();
+    },
+    async openRecent(path: string) {
+      await useSettingsStore().update({ storage: { mode: 'workspace', workspacePath: path } });
+      await this.refreshState();
     }
   }
 });

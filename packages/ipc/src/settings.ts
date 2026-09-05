@@ -72,6 +72,7 @@ export type ChaptaleSettings = {
   lastSessions?: Record<string, string>;
   /** 当前存储域的最近会话（合成值，不落盘）；不存在或已删除时由 Renderer 回退。 */
   lastSessionId?: string;
+  recentWorkspaces?: string[];
 };
 
 export type ChaptaleSettingsPaths = {

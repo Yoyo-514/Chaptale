@@ -113,12 +113,19 @@ export class SettingsService {
         theme: payload.theme ?? current.theme,
         ...(current.lastSessions && Object.keys(current.lastSessions).length > 0
           ? { lastSessions: { ...current.lastSessions } }
-          : {})
+          : {}),
+        ...(current.recentWorkspaces ? { recentWorkspaces: [...current.recentWorkspaces] } : {})
       };
 
       // workspace 模式必须绑定有效路径；不完整的设置回退到 global，避免生成不可定位的会话目录。
       if (next.storage.mode === 'workspace' && !next.storage.workspacePath) {
         next.storage.mode = 'global';
+      }
+      if (next.storage.mode === 'workspace' && next.storage.workspacePath) {
+        next.recentWorkspaces = [
+          next.storage.workspacePath,
+          ...(next.recentWorkspaces ?? []).filter(item => item !== next.storage.workspacePath)
+        ].slice(0, 8);
       }
 
       // 切回 global 时清掉工作区路径：避免设置面板残留显示，保持落盘数据与模式一致。

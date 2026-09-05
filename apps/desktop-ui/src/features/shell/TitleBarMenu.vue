@@ -23,6 +23,9 @@ const themeItems = computed(() => {
     { id: `${THEME_ITEM_PREFIX}dark`, label: '深色', checked: current === 'dark' }
   ];
 });
+const recentItems = computed(() =>
+  (settingsStore.state?.settings.recentWorkspaces ?? []).map(path => ({ id: `file.recent.${path}`, label: path }))
+);
 
 const menus = computed<readonly AppMenubarMenu[]>(() => [
   {
@@ -31,7 +34,12 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     items: [
       { id: 'file.new-workspace', label: '新建作品…', disabled: true },
       { id: 'file.open-workspace', label: '打开工作区…', disabled: workspaceStore.isOpening },
-      { id: 'file.open-recent', label: '打开最近工作区…', disabled: true },
+      {
+        id: 'file.open-recent',
+        label: '打开最近工作区…',
+        disabled: recentItems.value.length === 0,
+        items: recentItems.value
+      },
       { id: 'file.close-workspace', label: '关闭工作区', disabled: !workspaceStore.rootPath, separatorBefore: true },
       { id: 'file.new-chapter', label: '新建章节', disabled: true, separatorBefore: true },
       { id: 'file.new-scene-card', label: '新建场景卡', disabled: true },
@@ -118,6 +126,10 @@ function handleSelect(itemId: string) {
   }
   if (itemId === 'file.close-workspace') {
     void workspaceStore.closeWorkspace();
+    return;
+  }
+  if (itemId.startsWith('file.recent.')) {
+    void workspaceStore.openRecent(itemId.slice('file.recent.'.length));
     return;
   }
   if (itemId === 'view.internal-files') {
