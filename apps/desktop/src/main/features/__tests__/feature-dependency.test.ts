@@ -14,6 +14,7 @@ const featuresRoot = path.join(mainRoot, 'features');
  *   零 feature 依赖、被 memory 与 search 共用）已上提到 core/memory-layout，
  *   原先唯一的 search -> memory/paths 因此消失；memory -> personas 与
  *   personas -> search 均为 type-only。
+ * - 路径守卫归 infra/filesystem，skills 与文件工具共同复用，不保留跨 feature 例外。
  */
 const crossFeatureAllowlist = [
   // agent 运行时装配（chat-bundle / tool-assembly / service）按职责引用各 feature 的端口与工具。
@@ -47,8 +48,6 @@ const crossFeatureAllowlist = [
   'agent -> web-tools/settings',
   'agent -> web-tools/tools',
   'commands -> skills/provider-port',
-  // skill_read 的目录内读取复用 read 同一条越界守卫（词法 + realpath），不给 skill 开独立边界。
-  'skills -> file-tools/path-guard',
   'memory -> personas/registry',
   'personas -> search/types',
   'prompts -> personas/builtin',

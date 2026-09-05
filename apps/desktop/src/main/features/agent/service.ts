@@ -40,7 +40,7 @@ export type ChatRuntimeBundle = {
    * 走 resolve 会白装配全部工具、创建 delegate 工具并读遍 SKILL.md 正文。
    */
   resolveModel: () => Promise<ResolvedModel>;
-  resolve: (input: { sessionId: string; cwd: string; personaId?: string }) => Promise<{
+  resolve: (input: { sessionId: string; cwd: string }) => Promise<{
     model: ResolvedModel;
     system: string;
     tools: Parameters<typeof runAgentLoop>[0]['tools'];

@@ -4,7 +4,12 @@ import path from 'node:path';
 import { Type } from 'typebox';
 
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
-import { DEFAULT_IGNORED_DIRS, globToRegExp, isBinaryContent, resolveWithinCwd } from './path-guard';
+import {
+  DEFAULT_IGNORED_DIRS,
+  globToRegExp,
+  isBinaryContent,
+  resolveWithinCwd
+} from '../../infra/filesystem/path-guard';
 
 /**
  * 文件六工具装配：全部绑定同一会话 cwd，共享越界守卫。

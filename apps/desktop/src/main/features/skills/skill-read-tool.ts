@@ -5,7 +5,7 @@ import { Type } from 'typebox';
 import { takeTextToTokenBudget } from '../../core/context/token-counter';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import { TOOL_RESULT_TOKEN_BUDGET } from '../../core/tool-protocol/model-output';
-import { isBinaryContent, resolveWithinCwd } from '../file-tools/path-guard';
+import { isBinaryContent, resolveWithinCwd } from '../../infra/filesystem/path-guard';
 import type { SkillProvider } from './provider-port';
 
 export const SKILL_READ_TOOL_NAME = 'skill_read';
