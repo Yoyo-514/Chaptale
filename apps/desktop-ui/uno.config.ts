@@ -1,3 +1,4 @@
+import { icons } from '@iconify-json/mingcute';
 import {
   defineConfig,
   presetAttributify,
@@ -21,6 +22,7 @@ export default defineConfig({
       collections: {
         // 使用 @iconify-json/mingcute 提供的图标数据
         // 用法: class="i-mingcute-send-plane-line"
+        mingcute: icons
       }
     }),
     presetTypography()
