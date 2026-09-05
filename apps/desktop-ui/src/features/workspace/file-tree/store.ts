@@ -27,6 +27,8 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
   const selectedPath = ref('');
   const showInternalFiles = ref(false);
   const pendingCreation = ref<PendingCreation | null>(null);
+  /** 根目录至少成功加载过一次；占位面板只属于「从未加载过」，刷新/显隐是重渲染不是空状态。 */
+  const rootLoaded = ref(false);
   const settingsStore = useSettingsStore();
 
   // 设置快照是偏好的事实源：无论改动来自侧栏筛选按钮还是设置面板，都在这里收敛成一次重载。
@@ -63,6 +65,7 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
 
       if (result.ok) {
         nodes[relativePath] = result.entries;
+        if (relativePath === '') rootLoaded.value = true;
       } else {
         // 失败时清掉旧结果：留着会让人以为看到的是当前磁盘状态。
         delete nodes[relativePath];
@@ -116,6 +119,11 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
 
   /** 重新拉取根目录与所有已展开目录，保留展开态与选中项。 */
   async function reload() {
+    // 先清缓存再置加载标记（同一次同步更新里完成）：树会短暂重排、整体闪一下，
+    // 与 VS Code 的刷新观感一致；rootLoaded 已置位，占位面板不会顶掉树。
+    for (const key of Object.keys(nodes)) delete nodes[key];
+    loading[''] = true;
+
     // 目录之间互不依赖，串行只会把刷新耗时叠起来。
     await Promise.all(['', ...expanded.value].map(target => fetchDirectory(target)));
 
@@ -199,6 +207,7 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
     expanded.value.clear();
     selectedPath.value = '';
     pendingCreation.value = null;
+    rootLoaded.value = false;
   }
 
   /** 选中目录 → 建在其内部；选中文件 → 建在其同级；无选中 → 建在根。 */
@@ -221,6 +230,7 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
     selectedPath,
     showInternalFiles,
     pendingCreation,
+    rootLoaded,
     visibleRows,
     loadPreferences,
     load,

@@ -164,7 +164,11 @@ watch(
       <p>尚未打开工作区</p>
       <AppButton size="sm" @click="workspace.openWorkspace">打开工作区</AppButton>
     </div>
-    <div v-else-if="tree.loading['']" class="workspace-explorer-placeholder"><p>正在读取文件…</p></div>
+    <!-- 占位只属于「根目录从未加载过」：刷新/显隐切换会清缓存重排（闪一下），
+         不显示占位面板，与 VS Code 的刷新观感一致。 -->
+    <div v-else-if="tree.loading[''] && !tree.rootLoaded" class="workspace-explorer-placeholder">
+      <p>正在读取文件…</p>
+    </div>
     <div v-else-if="tree.errors['']" class="workspace-explorer-placeholder">
       <p>{{ tree.errors[''] }}</p>
     </div>

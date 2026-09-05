@@ -281,6 +281,32 @@ describe('file tree store', () => {
     expect(tree.errors['']).toBe('缺少目录 ');
   });
 
+  it('刷新用新数据替换旧缓存，消失的条目不会残留', async () => {
+    const layout: Record<string, Entry[]> = { '': [file('old.md')] };
+    installDesktopApi(layout);
+    const tree = useFileTreeStore();
+
+    await tree.load();
+    expect(tree.visibleRows.map(row => row.name)).toStrictEqual(['old.md']);
+
+    layout[''] = [file('new.md')];
+    await tree.reload();
+
+    expect(tree.visibleRows.map(row => row.name)).toStrictEqual(['new.md']);
+  });
+
+  it('根目录加载成功后 rootLoaded 置位，reset 后回位', async () => {
+    installDesktopApi({ '': [file('README.md')] });
+    const tree = useFileTreeStore();
+
+    expect(tree.rootLoaded).toBe(false);
+    await tree.load();
+    expect(tree.rootLoaded).toBe(true);
+
+    tree.reset();
+    expect(tree.rootLoaded).toBe(false);
+  });
+
   it('reset 清空缓存、展开态、错误与选中项', async () => {
     installDesktopApi({ '': [dir('chapters')], chapters: [] });
     const tree = useFileTreeStore();
