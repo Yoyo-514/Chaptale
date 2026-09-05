@@ -127,6 +127,14 @@ watch(
 </template>
 
 <style scoped>
+.workspace-explorer {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .workspace-tree {
   flex: 1;
   min-height: 0;
