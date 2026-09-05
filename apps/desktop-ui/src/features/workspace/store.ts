@@ -17,6 +17,13 @@ export const useWorkspaceStore = defineStore('workspace', {
     showInternalFiles: false
   }),
   actions: {
+    async syncSession() {
+      const sessionStore = useSessionStore();
+      if (this.rootPath) {
+        await sessionStore.bindCwd(this.rootPath);
+        await sessionStore.loadStorageDebugInfo();
+      }
+    },
     async refreshState() {
       const state = await getDesktopApi().workspace.getState();
       this.rootPath = state.rootPath;
@@ -42,9 +49,7 @@ export const useWorkspaceStore = defineStore('workspace', {
         useSettingsStore().applyStateSnapshot(result.state);
         await this.refreshState();
 
-        const sessionStore = useSessionStore();
-        await sessionStore.bindCwd(result.state.paths.currentCwd);
-        await sessionStore.loadStorageDebugInfo();
+        await this.syncSession();
         return true;
       } catch (error) {
         this.error = toErrorMessage(error);

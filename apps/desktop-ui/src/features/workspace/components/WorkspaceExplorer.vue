@@ -26,6 +26,37 @@ async function refresh() {
   tree.reset();
   await tree.load('', workspace.showInternalFiles);
 }
+function focusRow(index: number) {
+  const target = document.querySelector<HTMLElement>(`[data-tree-index="${index}"]`);
+  target?.focus();
+}
+function handleKeydown(index: number, event: KeyboardEvent) {
+  const row = rows.value[index];
+  if (!row) return;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    focusRow(Math.min(index + 1, rows.value.length - 1));
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    focusRow(Math.max(index - 1, 0));
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    focusRow(0);
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    focusRow(rows.value.length - 1);
+  } else if (event.key === 'ArrowRight' && row.kind === 'directory' && !row.expanded) {
+    event.preventDefault();
+    void tree.toggle(row.relativePath, workspace.showInternalFiles);
+  } else if (event.key === 'ArrowLeft' && row.kind === 'directory' && row.expanded) {
+    event.preventDefault();
+    void tree.toggle(row.relativePath, workspace.showInternalFiles);
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    if (row.kind === 'directory') void tree.toggle(row.relativePath, workspace.showInternalFiles);
+    else selectedPath.value = row.relativePath;
+  }
+}
 onMounted(async () => {
   await workspace.refreshState();
   if (workspace.rootPath) await refresh();
@@ -60,12 +91,16 @@ watch(
           v-for="item in virtualItems"
           :key="String(item.key)"
           :style="{ transform: `translateY(${item.start}px)` }"
+          :data-tree-index="item.index"
           role="treeitem"
           :aria-level="(rows[item.index]?.depth ?? 0) + 1"
           :aria-expanded="rows[item.index]?.kind === 'directory' ? rows[item.index]?.expanded : undefined"
           :aria-selected="selectedPath === rows[item.index]?.relativePath"
+          :aria-setsize="rows.length"
+          :aria-posinset="item.index + 1"
           tabindex="0"
           class="workspace-tree-row"
+          @keydown="handleKeydown(item.index, $event)"
           @click="
             rows[item.index] &&
             (rows[item.index]!.kind === 'directory'
@@ -90,3 +125,33 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.workspace-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.workspace-tree-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.workspace-tree-row {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 30px;
+  padding: 0 0.75rem;
+  cursor: pointer;
+}
+
+.workspace-tree-row:focus-visible {
+  outline: 2px solid var(--color-focus, currentColor);
+  outline-offset: -2px;
+}
+</style>
