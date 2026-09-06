@@ -185,13 +185,16 @@ export class SettingsService {
 
   /** 只补齐缺失的配置文件；已有文件即使内容不完整也交给 merge 逻辑兼容，避免覆盖用户设置。 */
   async ensureSettingsFile(settings?: ChaptaleSettings) {
-    const rawSettings = await this.readRawSettingsFile();
+    // 缺失检查与回填也必须串行，否则旧的初始化快照会覆盖刚完成的工作区更新。
+    await this.enqueue(async () => {
+      const rawSettings = await this.readRawSettingsFile();
 
-    if (!rawSettings) {
-      await writeJsonFile(this.settingsPath, settings ?? mergeSettings(undefined));
-    }
+      if (!rawSettings) {
+        await writeJsonFile(this.settingsPath, settings ?? mergeSettings(undefined));
+      }
 
-    await this.ensureWebToolsConfigFile(DEFAULT_WEB_TOOLS_SETTINGS);
+      await this.ensureWebToolsConfigFile(DEFAULT_WEB_TOOLS_SETTINGS);
+    });
   }
 
   async getCurrentSessionDir() {
