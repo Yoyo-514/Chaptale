@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useVirtualizer } from '@tanstack/vue-virtual';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
@@ -15,6 +15,7 @@ const INDENT_STEP = 8;
 /** 树内容的起始内边距；缩进参考线也以它为基准。 */
 const TREE_PADDING_START = 8;
 
+const emit = defineEmits<{ openFile: [relativePath: string] }>();
 const workspace = useWorkspaceStore();
 const tree = useFileTreeStore();
 const rows = computed(() => tree.visibleRows);
@@ -29,18 +30,31 @@ const virtualizer = useVirtualizer(
 );
 const virtualItems = computed(() => virtualizer.value.getVirtualItems());
 const totalSize = computed(() => virtualizer.value.getTotalSize());
+const tabStopPath = computed(() =>
+  rows.value.some(row => row.relativePath === tree.selectedPath) ? tree.selectedPath : rows.value[0]?.relativePath
+);
 
-function focusRow(index: number) {
-  document.querySelector<HTMLElement>(`[data-tree-index="${index}"]`)?.focus();
+async function focusRow(index: number) {
+  if (!rows.value[index]) return;
+  virtualizer.value.scrollToIndex(index, { align: 'auto' });
+  await nextTick();
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  await nextTick();
+  scrollElementRef.value?.querySelector<HTMLElement>(`[data-tree-index="${index}"]`)?.focus();
 }
 
 /** 点击目录同时选中并展开，与 VS Code 一致：选中态是「光标在哪」，不代表打开了什么。 */
-function activateRow(index: number) {
+function activateRow(index: number, event?: MouseEvent) {
   const row = rows.value[index];
   if (!row) return;
 
   tree.selectedPath = row.relativePath;
-  if (row.kind === 'directory') void tree.toggle(row.relativePath);
+  if (row.kind === 'directory' && (event?.detail ?? 1) < 2) void tree.toggle(row.relativePath);
+}
+
+function openFileRow(index: number) {
+  const row = rows.value[index];
+  if (row?.kind === 'file') emit('openFile', row.relativePath);
 }
 
 function handleKeydown(index: number, event: KeyboardEvent) {
@@ -51,23 +65,32 @@ function handleKeydown(index: number, event: KeyboardEvent) {
 
   if (event.key === 'ArrowDown') {
     event.preventDefault();
-    focusRow(Math.min(index + 1, rows.value.length - 1));
+    void focusRow(Math.min(index + 1, rows.value.length - 1));
   } else if (event.key === 'ArrowUp') {
     event.preventDefault();
-    focusRow(Math.max(index - 1, 0));
+    void focusRow(Math.max(index - 1, 0));
   } else if (event.key === 'Home') {
     event.preventDefault();
-    focusRow(0);
+    void focusRow(0);
   } else if (event.key === 'End') {
     event.preventDefault();
-    focusRow(rows.value.length - 1);
-  } else if (event.key === 'ArrowRight' && isDirectory && !row.expanded) {
+    void focusRow(rows.value.length - 1);
+  } else if (event.key === 'ArrowRight' && isDirectory) {
     event.preventDefault();
-    void tree.toggle(row.relativePath);
-  } else if (event.key === 'ArrowLeft' && isDirectory && row.expanded) {
+    if (!row.expanded) void tree.toggle(row.relativePath);
+    else if (rows.value[index + 1]?.depth === row.depth + 1) void focusRow(index + 1);
+  } else if (event.key === 'ArrowLeft') {
     event.preventDefault();
-    void tree.toggle(row.relativePath);
-  } else if (event.key === 'Enter' || event.key === ' ') {
+    if (isDirectory && row.expanded) void tree.toggle(row.relativePath);
+    else {
+      const parent = row.relativePath.split('/').slice(0, -1).join('/');
+      void focusRow(rows.value.findIndex(item => item.relativePath === parent));
+    }
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    if (isDirectory) activateRow(index);
+    else openFileRow(index);
+  } else if (event.key === ' ') {
     event.preventDefault();
     activateRow(index);
   }
@@ -182,17 +205,21 @@ watch(
               paddingInlineStart: `${TREE_PADDING_START + rows[item.index]!.depth * INDENT_STEP}px`
             }"
             :data-tree-index="item.index"
+            :data-tree-path="rows[item.index]!.relativePath"
+            :title="rows[item.index]!.relativePath"
             role="treeitem"
             :aria-level="rows[item.index]!.depth + 1"
             :aria-expanded="rows[item.index]!.kind === 'directory' ? rows[item.index]!.expanded : undefined"
             :aria-selected="tree.selectedPath === rows[item.index]!.relativePath"
-            :aria-setsize="rows.length"
-            :aria-posinset="item.index + 1"
-            tabindex="0"
+            :aria-setsize="rows[item.index]!.setSize"
+            :aria-posinset="rows[item.index]!.posInSet"
+            :tabindex="tabStopPath === rows[item.index]!.relativePath ? 0 : -1"
             class="workspace-tree-row"
             :class="{ 'is-selected': tree.selectedPath === rows[item.index]!.relativePath }"
             @keydown="handleKeydown(item.index, $event)"
-            @click="activateRow(item.index)"
+            @click="activateRow(item.index, $event)"
+            @dblclick="openFileRow(item.index)"
+            @focus="tree.selectedPath = rows[item.index]!.relativePath"
           >
             <!-- 缩进参考线：每个祖先层级一条，对准该祖先行的箭头中心，三层以上时用来对齐父子关系。 -->
             <span
@@ -222,9 +249,35 @@ watch(
               aria-hidden="true"
             />
             <span class="workspace-tree-label">{{ rows[item.index]!.name }}</span>
+            <span
+              v-if="tree.loading[rows[item.index]!.relativePath]"
+              class="i-mingcute-loading-line size-3 shrink-0 animate-spin"
+              aria-label="正在读取"
+            />
+            <span
+              v-else-if="rows[item.index]!.expanded && tree.nodes[rows[item.index]!.relativePath]?.length === 0"
+              class="workspace-tree-hint"
+              >空</span
+            >
+            <AppTooltip
+              v-if="tree.errors[rows[item.index]!.relativePath]"
+              :text="tree.errors[rows[item.index]!.relativePath]!"
+            >
+              <AppButton
+                icon
+                size="xs"
+                variant="ghost"
+                :aria-label="`重新读取 ${rows[item.index]!.relativePath}`"
+                @click.stop="tree.load(rows[item.index]!.relativePath)"
+                @dblclick.stop
+              >
+                <span class="i-mingcute-warning-line size-3" aria-hidden="true" />
+              </AppButton>
+            </AppTooltip>
           </div>
         </template>
       </div>
+      <p v-if="tree.rootLoaded && !rows.length && !tree.loading['']" class="workspace-tree-empty">工作区为空</p>
     </div>
 
     <WorkspaceCreateEntryDialog
@@ -344,5 +397,17 @@ watch(
 
 .workspace-tree-label {
   @apply ml-1 min-w-0 truncate;
+}
+
+.workspace-tree-hint {
+  @apply ml-1 shrink-0 text-[11px];
+
+  color: var(--muted-foreground);
+}
+
+.workspace-tree-empty {
+  @apply px-3 py-4 text-xs;
+
+  color: var(--muted-foreground);
 }
 </style>

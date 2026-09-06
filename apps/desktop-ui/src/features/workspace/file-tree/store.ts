@@ -5,9 +5,9 @@ import type { DirectoryEntry } from '@chaptale/ipc-contract';
 
 import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/features/settings';
-import { getDesktopApi } from '@/utils/desktop-api';
+import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
-export type FileTreeRow = DirectoryEntry & { depth: number; expanded: boolean };
+export type FileTreeRow = DirectoryEntry & { depth: number; expanded: boolean; posInSet: number; setSize: number };
 
 /** 新建行的落点：目标父目录（空串为根）与要创建的类型。 */
 export type PendingCreation = { parent: string; kind: 'file' | 'directory' };
@@ -30,10 +30,12 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
   /** 根目录至少成功加载过一次；占位面板只属于「从未加载过」，刷新/显隐是重渲染不是空状态。 */
   const rootLoaded = ref(false);
   const settingsStore = useSettingsStore();
+  const pending = new Map<string, symbol>();
+  let revision = 0;
 
   // 设置快照是偏好的事实源：无论改动来自侧栏筛选按钮还是设置面板，都在这里收敛成一次重载。
   watch(
-    () => settingsStore.state?.settings.explorer.showInternalFiles,
+    () => settingsStore.state?.settings.explorer?.showInternalFiles,
     value => {
       if (typeof value === 'boolean') void applyShowInternalFiles(value);
     },
@@ -43,9 +45,10 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
   const visibleRows = computed<FileTreeRow[]>(() => {
     const rows: FileTreeRow[] = [];
     const walk = (parent: string, depth: number) => {
-      for (const entry of nodes[parent] ?? []) {
+      const entries = nodes[parent] ?? [];
+      for (const [index, entry] of entries.entries()) {
         const open = expanded.value.has(entry.relativePath);
-        rows.push({ ...entry, depth, expanded: open });
+        rows.push({ ...entry, depth, expanded: open, posInSet: index + 1, setSize: entries.length });
         if (open) walk(entry.relativePath, depth + 1);
       }
     };
@@ -54,6 +57,8 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
   });
 
   async function fetchDirectory(relativePath: string) {
+    const token = Symbol();
+    pending.set(relativePath, token);
     loading[relativePath] = true;
     errors[relativePath] = '';
 
@@ -62,6 +67,7 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
         relativePath,
         includeInternal: showInternalFiles.value
       });
+      if (pending.get(relativePath) !== token) return;
 
       if (result.ok) {
         nodes[relativePath] = result.entries;
@@ -71,8 +77,15 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
         delete nodes[relativePath];
         errors[relativePath] = result.message;
       }
+    } catch (error) {
+      if (pending.get(relativePath) !== token) return;
+      delete nodes[relativePath];
+      errors[relativePath] = toErrorMessage(error);
     } finally {
-      loading[relativePath] = false;
+      if (pending.get(relativePath) === token) {
+        pending.delete(relativePath);
+        loading[relativePath] = false;
+      }
     }
   }
 
@@ -85,7 +98,7 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
   async function loadPreferences() {
     if (!settingsStore.state) await settingsStore.load();
 
-    const value = settingsStore.state?.settings.explorer.showInternalFiles;
+    const value = settingsStore.state?.settings.explorer?.showInternalFiles;
     if (typeof value === 'boolean') showInternalFiles.value = value;
   }
 
@@ -119,6 +132,9 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
 
   /** 重新拉取根目录与所有已展开目录，保留展开态与选中项。 */
   async function reload() {
+    const currentRevision = ++revision;
+    pending.clear();
+    for (const key of Object.keys(loading)) delete loading[key];
     // 先清缓存再置加载标记（同一次同步更新里完成）：树会短暂重排、整体闪一下，
     // 与 VS Code 的刷新观感一致；rootLoaded 已置位，占位面板不会顶掉树。
     for (const key of Object.keys(nodes)) delete nodes[key];
@@ -126,6 +142,7 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
 
     // 目录之间互不依赖，串行只会把刷新耗时叠起来。
     await Promise.all(['', ...expanded.value].map(target => fetchDirectory(target)));
+    if (revision !== currentRevision) return;
 
     // 目录可能已经不在了：展开态要跟着收回，否则 visibleRows 里会留一条空壳分支。
     // 迭代中删当前项是 Set 的明确行为，不需要先拷一份。
@@ -201,6 +218,8 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
   }
 
   function reset() {
+    revision += 1;
+    pending.clear();
     for (const key of Object.keys(nodes)) delete nodes[key];
     for (const key of Object.keys(loading)) delete loading[key];
     for (const key of Object.keys(errors)) delete errors[key];

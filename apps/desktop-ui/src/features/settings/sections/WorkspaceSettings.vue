@@ -15,7 +15,7 @@ const sessionStore = useSessionStore();
 const state = computed(() => settingsStore.state);
 const storage = computed(() => state.value?.settings.storage);
 const paths = computed(() => state.value?.paths);
-const showInternalFiles = computed(() => state.value?.settings.explorer.showInternalFiles ?? false);
+const showInternalFiles = computed(() => state.value?.settings.explorer?.showInternalFiles ?? false);
 
 async function useGlobalStorage() {
   await settingsStore.useGlobalStorage();

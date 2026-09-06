@@ -13,6 +13,12 @@
   "dependencies": {
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
+    "@codemirror/commands": "catalog:",
+    "@codemirror/lang-markdown": "catalog:",
+    "@codemirror/language": "catalog:",
+    "@codemirror/search": "catalog:",
+    "@codemirror/state": "catalog:",
+    "@codemirror/view": "catalog:",
     "@tanstack/vue-virtual": "catalog:",
     "@unocss/reset": "catalog:",
     "clsx": "catalog:",

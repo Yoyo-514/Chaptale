@@ -1,6 +1,8 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+import { MAX_DOCUMENT_BYTES } from '../workspace';
+
 /** 无穿越、无空段、无盘符与反斜杠的正斜杠相对路径；空串代表工作区根。 */
 const WORKSPACE_RELATIVE_PATH_PATTERN = '^(?!.*(?:^|/)\\.\\.(?:/|$))(?!/)(?!.*//)[^\\\\:\\x00]*$';
 
@@ -24,3 +26,18 @@ export const CreateEntryArgsSchema = Type.Object(
   { additionalProperties: false }
 );
 export const CreateEntryArgsValidator = Compile(Type.Tuple([CreateEntryArgsSchema]));
+
+export const ReadDocumentArgsSchema = Type.Object(
+  {
+    /** 仅校验工作区身份，不作为读取根目录；真正的根目录仍取自 Main 设置。 */
+    rootPath: Type.String({ minLength: 1 }),
+    relativePath: Type.String({
+      minLength: 1,
+      pattern: '^(?!.*(?:^|/)\\.{1,2}(?:/|$))[^/\\\\:\\x00]+(?:/[^/\\\\:\\x00]+)*$'
+    }),
+    /** 调用方可收紧读取预算，不能放宽 Main 上限。 */
+    maxBytes: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_DOCUMENT_BYTES }))
+  },
+  { additionalProperties: false }
+);
+export const ReadDocumentArgsValidator = Compile(Type.Tuple([ReadDocumentArgsSchema]));

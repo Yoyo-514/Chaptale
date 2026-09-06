@@ -1,6 +1,8 @@
 import type { Static } from 'typebox';
 
-import type { CreateEntryArgsSchema, ListDirectoryArgsSchema } from './schemas/workspace';
+import type { CreateEntryArgsSchema, ListDirectoryArgsSchema, ReadDocumentArgsSchema } from './schemas/workspace';
+
+export const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
 
 export type WorkspaceState = { rootPath: string | null; displayName: string | null; hasChaptaleMetadata: boolean };
 export type ListDirectoryArgs = Static<typeof ListDirectoryArgsSchema>;
@@ -28,3 +30,38 @@ export type CreateEntryResult =
       code: 'already-exists' | 'invalid-name' | 'outside-workspace' | 'no-workspace' | 'write-failed';
       message: string;
     };
+
+export type ReadDocumentArgs = Static<typeof ReadDocumentArgsSchema>;
+export type DocumentHead =
+  | { status: 'ok'; frontmatter: Record<string, unknown>; body: string }
+  | { status: 'none'; body: string }
+  | { status: 'invalid'; body: string; error: string };
+
+export type WorkspaceDocument = {
+  rootPath: string;
+  relativePath: string;
+  /** 完整 UTF-8 原文，保留 BOM、frontmatter 与原始换行；head 只是一份解析投影。 */
+  content: string;
+  head: DocumentHead;
+  sizeBytes: number;
+  mtimeMs: number;
+  /** 对实际读取的原始字节计算 SHA-256，不对解析或换行归一化后的文本计算。 */
+  contentHash: string;
+};
+
+export type ReadDocumentErrorCode =
+  | 'no-workspace'
+  | 'workspace-changed'
+  | 'outside-workspace'
+  | 'not-found'
+  | 'not-a-file'
+  | 'binary-file'
+  | 'unsupported-encoding'
+  | 'too-large'
+  | 'file-changed'
+  | 'read-timeout'
+  | 'read-failed';
+
+export type ReadDocumentResult =
+  | { ok: true; document: WorkspaceDocument }
+  | { ok: false; code: ReadDocumentErrorCode; message: string };

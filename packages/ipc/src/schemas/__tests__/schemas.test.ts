@@ -42,7 +42,9 @@ import {
   UpdateWebToolsSettingsArgsValidator,
   UpdatePromptSettingsArgsValidator,
   ListDirectoryArgsValidator,
-  CreateEntryArgsValidator
+  CreateEntryArgsValidator,
+  ReadDocumentArgsValidator,
+  MAX_DOCUMENT_BYTES
 } from '../../index';
 
 function expectStrictObject(
@@ -431,5 +433,20 @@ describe('IPC 参数 Schema', () => {
     expect(CreateEntryArgsValidator.Check([{ relativePath: '../outside.md', kind: 'file' }])).toBe(false);
     expect(CreateEntryArgsValidator.Check([{ relativePath: 'a.md', kind: 'symlink' }])).toBe(false);
     expect(CreateEntryArgsValidator.Check([{ relativePath: 'a.md' }])).toBe(false);
+  });
+
+  it('正文读取绑定工作区身份，只允许具体相对路径与有限字节预算', () => {
+    const args = { rootPath: 'E:/novel', relativePath: '正文/第一章.md' };
+    expectStrictObject(ReadDocumentArgsValidator, args);
+    expect(ReadDocumentArgsValidator.Check([{ ...args, maxBytes: 0 }])).toBe(true);
+    expect(ReadDocumentArgsValidator.Check([{ ...args, maxBytes: MAX_DOCUMENT_BYTES }])).toBe(true);
+    expect(ReadDocumentArgsValidator.Check([{ ...args, maxBytes: MAX_DOCUMENT_BYTES + 1 }])).toBe(false);
+    expect(ReadDocumentArgsValidator.Check([{ ...args, maxBytes: -1 }])).toBe(false);
+    expect(ReadDocumentArgsValidator.Check([{ ...args, maxBytes: 1.5 }])).toBe(false);
+    expect(ReadDocumentArgsValidator.Check([{ relativePath: 'chapter.md' }])).toBe(false);
+    expect(ReadDocumentArgsValidator.Check([{ ...args, rootPath: '' }])).toBe(false);
+    for (const relativePath of ['', '.', './a', '..', 'a/../b', '/a', 'a//b', 'a/', 'E:/a', 'a\\b', 'a\0b']) {
+      expect(ReadDocumentArgsValidator.Check([{ ...args, relativePath }]), relativePath).toBe(false);
+    }
   });
 });

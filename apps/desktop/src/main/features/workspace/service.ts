@@ -7,11 +7,14 @@ import type {
   DirectoryEntry,
   ListDirectoryArgs,
   ListDirectoryResult,
+  ReadDocumentArgs,
+  ReadDocumentResult,
   WorkspaceState
 } from '@chaptale/ipc-contract';
 
 import type { SettingsService } from '../../core/settings/service';
 import { DEFAULT_IGNORED_DIRS, resolveWithinCwd } from '../../infra/filesystem/path-guard';
+import { DocumentReadError, readDocumentSnapshot, type DocumentReadOptions } from './read-document';
 
 /** Windows 保留字符；跨平台统一按最严的一套挡，避免作品目录在另一台机器上打不开。 */
 const INVALID_NAME_CHARS = /[<>:"/\\|?*]/;
@@ -27,9 +30,12 @@ const RESERVED_NAMES = new Set([
   ...Array.from({ length: 9 }, (_, index) => `LPT${index + 1}`)
 ]);
 
-/** 工作区状态、目录单层枚举与条目新建；根路径只认设置服务，正文不在此读取。 */
+/** 工作区文件操作；根路径只认设置服务，Renderer 只能提供相对路径与预期工作区身份。 */
 export class WorkspaceService {
-  constructor(private readonly settings: Pick<SettingsService, 'getStorageContext'>) {}
+  constructor(
+    private readonly settings: Pick<SettingsService, 'getStorageContext'>,
+    private readonly documentReadOptions: DocumentReadOptions = {}
+  ) {}
 
   async getState(): Promise<WorkspaceState> {
     const context = await this.settings.getStorageContext();
@@ -76,6 +82,42 @@ export class WorkspaceService {
             ? 'not-found'
             : code === 'ENOTDIR'
               ? 'not-a-directory'
+              : 'read-failed',
+        message
+      };
+    }
+  }
+
+  async readDocument(args: ReadDocumentArgs): Promise<ReadDocumentResult> {
+    try {
+      const context = await this.settings.getStorageContext();
+      const rootPath = context.storageMode === 'workspace' ? context.workspacePath : undefined;
+      if (!rootPath) return { ok: false, code: 'no-workspace', message: '请先打开工作区' };
+      if (args.rootPath !== rootPath) {
+        return { ok: false, code: 'workspace-changed', message: '工作区已经切换，请重新打开文件' };
+      }
+      if (!isSafeRelativePath(args.relativePath)) {
+        return { ok: false, code: 'outside-workspace', message: '只能读取工作区内的相对路径' };
+      }
+
+      const document = await readDocumentSnapshot({ ...args, rootPath }, this.documentReadOptions);
+      const current = await this.settings.getStorageContext();
+      if (current.storageMode !== 'workspace' || current.workspacePath !== rootPath) {
+        return { ok: false, code: 'workspace-changed', message: '工作区已经切换，已丢弃旧文件读取结果' };
+      }
+      return { ok: true, document };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof DocumentReadError) return { ok: false, code: error.code, message };
+      const code = (error as NodeJS.ErrnoException).code;
+      return {
+        ok: false,
+        code: message.includes('工作区之外')
+          ? 'outside-workspace'
+          : code === 'ENOENT' || code === 'ENOTDIR'
+            ? 'not-found'
+            : code === 'EISDIR'
+              ? 'not-a-file'
               : 'read-failed',
         message
       };

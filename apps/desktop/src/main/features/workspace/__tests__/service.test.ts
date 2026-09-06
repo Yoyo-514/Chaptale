@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -35,6 +35,40 @@ describe('WorkspaceService', () => {
     dirs.push(root);
     const result = await new WorkspaceService(settings(root)).listDirectory({ relativePath: '../outside' });
     expect(result).toMatchObject({ ok: false, code: 'outside-workspace' });
+  });
+
+  it('显示应用内部目录仍不扫描依赖，区分不存在与非目录', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'chaptale-workspace-'));
+    dirs.push(root);
+    await mkdir(path.join(root, '.chaptale'));
+    await mkdir(path.join(root, 'node_modules'));
+    await writeFile(path.join(root, '正文.md'), '正文');
+    const service = new WorkspaceService(settings(root));
+    expect(await service.listDirectory({ relativePath: '', includeInternal: true })).toMatchObject({
+      ok: true,
+      entries: [{ name: '.chaptale' }, { name: '正文.md' }]
+    });
+    expect(await service.listDirectory({ relativePath: 'missing' })).toMatchObject({ ok: false, code: 'not-found' });
+    expect(await service.listDirectory({ relativePath: '正文.md' })).toMatchObject({
+      ok: false,
+      code: 'not-a-directory'
+    });
+  });
+
+  it('列表不跟随链接，直接请求越界链接也被拒绝', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'chaptale-workspace-'));
+    dirs.push(root);
+    const workspace = path.join(root, 'workspace');
+    const outside = path.join(root, 'outside');
+    await mkdir(workspace);
+    await mkdir(outside);
+    await symlink(outside, path.join(workspace, 'link'), process.platform === 'win32' ? 'junction' : 'dir');
+    const service = new WorkspaceService(settings(workspace));
+    expect(await service.listDirectory({ relativePath: '' })).toEqual({ ok: true, entries: [] });
+    expect(await service.listDirectory({ relativePath: 'link' })).toMatchObject({
+      ok: false,
+      code: 'outside-workspace'
+    });
   });
 
   it('新建文件与目录，并回传创建出的条目', async () => {

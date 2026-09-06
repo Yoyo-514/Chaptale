@@ -70,7 +70,9 @@ import type {
   ListDirectoryArgs,
   ListDirectoryResult,
   CreateEntryArgs,
-  CreateEntryResult
+  CreateEntryResult,
+  ReadDocumentArgs,
+  ReadDocumentResult
 } from './workspace';
 
 /**
@@ -82,6 +84,7 @@ export type ChaptaleDesktopApi = {
     getState: () => Promise<WorkspaceState>;
     listDirectory: (args: ListDirectoryArgs) => Promise<ListDirectoryResult>;
     createEntry: (args: CreateEntryArgs) => Promise<CreateEntryResult>;
+    readDocument: (args: ReadDocumentArgs) => Promise<ReadDocumentResult>;
   };
   getPlatform: () => Promise<AppPlatformResult>;
   windowControl: {

@@ -38,7 +38,8 @@
     "pinyin-pro": "catalog:",
     "radash": "catalog:",
     "turndown": "catalog:",
-    "typebox": "catalog:"
+    "typebox": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "@electron/fuses": "catalog:",

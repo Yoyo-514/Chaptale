@@ -2,9 +2,11 @@ import {
   CreateEntryArgsValidator,
   IPC_CHANNELS,
   ListDirectoryArgsValidator,
+  ReadDocumentArgsValidator,
   WorkspaceGetStateArgsValidator,
   type CreateEntryArgs,
-  type ListDirectoryArgs
+  type ListDirectoryArgs,
+  type ReadDocumentArgs
 } from '@chaptale/ipc-contract';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
@@ -19,5 +21,8 @@ export function registerWorkspaceIpc(service: WorkspaceService) {
   );
   handleValidatedIpc(IPC_CHANNELS.workspace.createEntry, CreateEntryArgsValidator, (_event, args: CreateEntryArgs) =>
     service.createEntry(args)
+  );
+  handleValidatedIpc(IPC_CHANNELS.workspace.readDocument, ReadDocumentArgsValidator, (_event, args: ReadDocumentArgs) =>
+    service.readDocument(args)
   );
 }

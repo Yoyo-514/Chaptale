@@ -1,9 +1,20 @@
 <script setup lang="ts">
-import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
+import {
+  SplitterGroup,
+  SplitterPanel,
+  SplitterResizeHandle,
+  TabsContent,
+  TabsList,
+  TabsRoot,
+  TabsTrigger
+} from 'reka-ui';
 
+import { EditorGroup, useEditorStore } from '@/features/editor';
 import { WorkspaceExplorer } from '@/features/workspace';
 
 import AgentPanel from './AgentPanel.vue';
+
+const editor = useEditorStore();
 </script>
 
 <template>
@@ -23,7 +34,7 @@ import AgentPanel from './AgentPanel.vue';
       class="workbench-panel"
     >
       <aside class="workbench-primary-sidebar" aria-label="工作区侧栏">
-        <WorkspaceExplorer />
+        <WorkspaceExplorer @open-file="editor.openDocument" />
       </aside>
     </SplitterPanel>
 
@@ -31,14 +42,7 @@ import AgentPanel from './AgentPanel.vue';
 
     <SplitterPanel id="workbench-editor" :default-size="52" :min-size="35" class="workbench-panel">
       <main class="workbench-editor" aria-label="编辑器区域">
-        <div class="workbench-editor-tabs" role="tablist" aria-label="编辑器标签">
-          <div class="workbench-editor-tab" role="tab" aria-selected="true">欢迎</div>
-        </div>
-        <section class="workbench-editor-empty">
-          <span class="i-mingcute-book-6-line workbench-editor-empty-icon" aria-hidden="true" />
-          <h1>创作工作台</h1>
-          <p>从左侧选择作品文件，在这里开始写作。</p>
-        </section>
+        <EditorGroup />
       </main>
     </SplitterPanel>
 
@@ -54,12 +58,14 @@ import AgentPanel from './AgentPanel.vue';
       class="workbench-panel"
     >
       <aside class="workbench-auxiliary-bar" aria-label="辅助栏">
-        <div class="workbench-auxiliary-tabs" role="tablist" aria-label="辅助栏视图">
-          <button class="workbench-auxiliary-tab is-active" type="button" role="tab" aria-selected="true">Agent</button>
-          <button class="workbench-auxiliary-tab" type="button" role="tab" aria-selected="false" disabled>参考</button>
-          <button class="workbench-auxiliary-tab" type="button" role="tab" aria-selected="false" disabled>审查</button>
-        </div>
-        <AgentPanel />
+        <TabsRoot default-value="agent" class="workbench-auxiliary-root">
+          <TabsList class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
+            <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
+            <TabsTrigger class="workbench-auxiliary-tab" value="references" disabled>参考</TabsTrigger>
+            <TabsTrigger class="workbench-auxiliary-tab" value="review" disabled>审查</TabsTrigger>
+          </TabsList>
+          <TabsContent value="agent" class="workbench-auxiliary-content"><AgentPanel /></TabsContent>
+        </TabsRoot>
       </aside>
     </SplitterPanel>
   </SplitterGroup>
@@ -87,51 +93,15 @@ import AgentPanel from './AgentPanel.vue';
   background: var(--surface-acrylic-subtle);
 }
 
-.workbench-editor-tabs,
 .workbench-auxiliary-tabs {
   @apply flex h-9 shrink-0 items-center border-b px-3 text-xs;
 
   border-color: var(--border-subtle);
 }
 
-.workbench-placeholder {
-  @apply flex flex-1 flex-col items-center justify-center gap-2 px-5 text-center text-xs;
-
-  color: var(--muted-foreground);
-}
-
-.workbench-editor-tabs {
-  @apply p-0;
-
-  background: var(--surface-acrylic-subtle);
-}
-
-.workbench-editor-tab {
-  @apply flex h-full min-w-28 items-center border-r px-3;
-
-  border-color: var(--border-subtle);
-  background: var(--mica-background);
-  color: var(--foreground);
-}
-
-.workbench-editor-empty {
-  @apply flex flex-1 flex-col items-center justify-center gap-2 px-8 text-center;
-
-  color: var(--muted-foreground);
-}
-
-.workbench-editor-empty-icon {
-  @apply mb-1 size-10 opacity-55;
-}
-
-.workbench-editor-empty h1 {
-  @apply text-base font-medium;
-
-  color: var(--foreground);
-}
-
-.workbench-editor-empty p {
-  @apply text-xs;
+.workbench-auxiliary-root,
+.workbench-auxiliary-content {
+  @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none;
 }
 
 .workbench-auxiliary-tabs {
@@ -144,15 +114,19 @@ import AgentPanel from './AgentPanel.vue';
   color: var(--muted-foreground);
 }
 
-.workbench-auxiliary-tab.is-active {
+.workbench-auxiliary-tab[data-state='active'] {
   color: var(--foreground);
 }
 
-.workbench-auxiliary-tab.is-active::after {
+.workbench-auxiliary-tab[data-state='active']::after {
   @apply absolute inset-x-2 bottom-0 h-0.5;
 
   content: '';
   background: var(--primary-solid);
+}
+
+.workbench-auxiliary-tab:focus-visible {
+  box-shadow: var(--input-focus-shadow);
 }
 
 .workbench-resize-handle {

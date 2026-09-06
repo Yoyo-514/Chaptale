@@ -4,11 +4,13 @@ import { computed } from 'vue';
 import { isChaptaleTheme } from '@chaptale/ipc-contract';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
+import { useEditorStore } from '@/features/editor';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkspaceStore } from '@/features/workspace';
 
 const workspaceStore = useWorkspaceStore();
 const settingsStore = useSettingsStore();
+const editor = useEditorStore();
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
 const THEME_ITEM_PREFIX = 'view.theme.';
@@ -41,6 +43,7 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         items: recentItems.value
       },
       { id: 'file.close-workspace', label: '关闭工作区', disabled: !workspaceStore.rootPath, separatorBefore: true },
+      { id: 'file.close-editor', label: '关闭文件', shortcut: 'Ctrl+W', disabled: !editor.activeId },
       { id: 'file.new-chapter', label: '新建章节', disabled: true, separatorBefore: true },
       { id: 'file.new-scene-card', label: '新建场景卡', disabled: true },
       { id: 'file.save', label: '保存', shortcut: 'Ctrl+S', disabled: true, separatorBefore: true },
@@ -57,7 +60,13 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       { id: 'edit.cut', label: '剪切', shortcut: 'Ctrl+X', disabled: true, separatorBefore: true },
       { id: 'edit.copy', label: '复制', shortcut: 'Ctrl+C', disabled: true },
       { id: 'edit.paste', label: '粘贴', shortcut: 'Ctrl+V', disabled: true },
-      { id: 'edit.find', label: '查找', shortcut: 'Ctrl+F', disabled: true, separatorBefore: true },
+      {
+        id: 'edit.find',
+        label: '查找',
+        shortcut: 'Ctrl+F',
+        disabled: editor.activeTab?.status !== 'ready',
+        separatorBefore: true
+      },
       { id: 'edit.replace', label: '替换', shortcut: 'Ctrl+H', disabled: true }
     ]
   },
@@ -114,6 +123,14 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'file.close-editor') {
+    editor.closeTab(editor.activeId);
+    return;
+  }
+  if (itemId === 'edit.find') {
+    editor.requestSearch();
+    return;
+  }
   if (itemId === 'file.open-workspace') {
     void workspaceStore.openWorkspace();
     return;

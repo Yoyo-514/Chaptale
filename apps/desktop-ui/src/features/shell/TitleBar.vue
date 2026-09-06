@@ -1,10 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
+import { useEditorStore } from '@/features/editor';
+import { useWorkspaceStore } from '@/features/workspace';
 import { APP_ICON_URL } from '@/utils/app-icon';
 
 import TitleBarMenu from './TitleBarMenu.vue';
 import { useWindowControls } from './useWindowControls';
 
 const appIconUrl = APP_ICON_URL;
+const workspace = useWorkspaceStore();
+const editor = useEditorStore();
+const documentTitle = computed(
+  () => [editor.activeTab?.title, workspace.displayName].filter(Boolean).join(' - ') || 'Chaptale'
+);
 
 const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowControls();
 </script>
@@ -17,7 +26,7 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
         <TitleBarMenu />
       </div>
 
-      <div class="titlebar-document-title">Chaptale</div>
+      <div class="titlebar-document-title" :title="documentTitle">{{ documentTitle }}</div>
 
       <div class="titlebar-controls" aria-label="窗口控制" @dblclick.stop>
         <button class="titlebar-control" type="button" :disabled="!isDesktop" aria-label="最小化" @click="minimize">
@@ -73,16 +82,13 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
 }
 
 .titlebar-document-title {
-  @apply pointer-events-none absolute truncate text-xs;
+  @apply pointer-events-none min-w-0 flex-1 truncate px-3 text-center text-xs;
 
-  left: 50%;
-  max-width: 28rem;
-  transform: translateX(-50%);
   color: var(--muted-foreground);
 }
 
 .titlebar-controls {
-  @apply ml-auto flex h-full items-center;
+  @apply ml-auto flex h-full shrink-0 items-center;
 
   -webkit-app-region: no-drag;
   app-region: no-drag;
