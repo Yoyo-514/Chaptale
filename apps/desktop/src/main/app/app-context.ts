@@ -21,6 +21,7 @@ import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
 import { createDefaultPersonaRegistry } from '../features/personas/persona-registry-factory';
 import { PromptFileService } from '../features/prompts/file-service';
+import { ReviewFeedbackStore } from '../features/reviews/feedback';
 import { ReviewService } from '../features/reviews/service';
 import { ReviewOutputStore } from '../features/reviews/store';
 import { ReviewWorkflowStore } from '../features/reviews/workflow-store';
@@ -157,17 +158,19 @@ export function createAppContext(): AppContext {
   const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   const reviewStore = new ReviewOutputStore({ resolveCwd: () => settingsService.getCurrentCwd() });
   const taskOutputStore = new TaskOutputRouter({ runStore, reviewStore });
+  const reviewWorkflowStore = new ReviewWorkflowStore();
+  const reviewFeedbackStore = new ReviewFeedbackStore(reviewWorkflowStore, settingsService.rootDir);
 
   // task 链路：TaskSessionFactory/TaskRunner 承接结构化任务会话。
   const taskSessionFactory = new TaskSessionFactory({
     settingsService,
     modelService,
     skillsProvider,
+    reviewPreferences: reviewFeedbackStore,
     buildTaskTools: (spec, cwd, onMemoryRead) => buildTaskSessionTools({ spec, cwd, memorySearchService, onMemoryRead })
   });
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
-  const reviewWorkflowStore = new ReviewWorkflowStore();
   const writingService = new WritingService({
     workspace: workspaceService,
     library: libraryService,
@@ -184,7 +187,8 @@ export function createAppContext(): AppContext {
     models: modelService,
     tasks: taskRunner,
     candidates: writingService.candidates,
-    store: reviewWorkflowStore
+    store: reviewWorkflowStore,
+    feedback: reviewFeedbackStore
   });
   const settlementService = new SettlementService({
     workspace: workspaceService,

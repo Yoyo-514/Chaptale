@@ -70,6 +70,7 @@ import {
   ReviewRunValidator,
   ReviewIdValidator,
   ResolveIssueValidator,
+  ResolveReviewFeedbackValidator,
   SettlementValidators
 } from '@chaptale/ipc-contract';
 
@@ -140,6 +141,8 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.reviews.list, WorkspaceRootArgsValidator),
   validated(IPC_CHANNELS.reviews.read, ReviewIdValidator),
   validated(IPC_CHANNELS.reviews.resolve, ResolveIssueValidator),
+  validated(IPC_CHANNELS.reviews.feedback, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.reviews.resolveFeedback, ResolveReviewFeedbackValidator),
   validated(IPC_CHANNELS.writing.generate, DraftRequestValidator),
   validated(IPC_CHANNELS.writing.prepareRewrite, RewriteSelectionValidator),
   validated(IPC_CHANNELS.writing.rewrite, RewriteRequestValidator),

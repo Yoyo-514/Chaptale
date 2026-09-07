@@ -7,6 +7,8 @@ export function createReviewsApi(): ReviewsApi {
     cancel: args => ipcRenderer.invoke(IPC_CHANNELS.reviews.cancel, args),
     list: args => ipcRenderer.invoke(IPC_CHANNELS.reviews.list, args),
     read: args => ipcRenderer.invoke(IPC_CHANNELS.reviews.read, args),
-    resolve: args => ipcRenderer.invoke(IPC_CHANNELS.reviews.resolve, args)
+    resolve: args => ipcRenderer.invoke(IPC_CHANNELS.reviews.resolve, args),
+    feedback: args => ipcRenderer.invoke(IPC_CHANNELS.reviews.feedback, args),
+    resolveFeedback: args => ipcRenderer.invoke(IPC_CHANNELS.reviews.resolveFeedback, args)
   };
 }

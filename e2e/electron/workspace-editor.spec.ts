@@ -694,6 +694,98 @@ test('独立审查从落盘结果定位正文，状态分离保存并在重启�
   await expect(page.getByRole('button', { name: '重新打开', exact: true })).toBeVisible();
 });
 
+test('审查偏好必须经作者确认，通用表单在三主题可读且重启保留', async () => {
+  test.setTimeout(60_000);
+  const reviewDir = path.join(workspace, '.chaptale/reviews');
+  await mkdir(path.join(reviewDir, 'jobs'), { recursive: true });
+  const output = JSON.stringify({
+    summary: '五处节奏建议',
+    issues: Array.from({ length: 5 }, (_, index) => ({
+      agentType: 'style',
+      type: 'flat_rhythm',
+      severity: 'low',
+      quote: '林晚收起了信',
+      reason: `节奏问题 ${index + 1}`,
+      suggestion: `检查句式 ${index + 1}`
+    }))
+  });
+  await writeFile(path.join(reviewDir, 'feedback-fixture.json'), output);
+  await writeFile(
+    path.join(reviewDir, 'jobs/feedback-job.json'),
+    JSON.stringify({
+      id: 'feedback-job',
+      personaId: 'style-reviewer',
+      targetPath: '正文/第一章.md',
+      text: chapter.replace(/\r\n/g, '\n'),
+      baselineHash: hash(chapter),
+      model: { provider: 'fixture', modelId: 'stored-output' },
+      memoryRefs: [],
+      excludedSources: [],
+      status: 'done',
+      runId: 'feedback-fixture',
+      outputRef: '.chaptale/reviews/feedback-fixture.json',
+      outputHash: hash(output),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
+  );
+  await page.getByRole('button', { name: '审查', exact: true }).click();
+  await page.getByRole('button', { name: /正文\/第一章.md.*文风.*已完成/ }).click();
+  const panel = page.getByRole('region', { name: '独立审查' });
+  for (let remaining = 5; remaining > 0; remaining--) {
+    await panel.getByRole('button', { name: '忽略', exact: true }).first().click();
+    await expect(panel.locator('.review-issue-row')).toHaveCount(remaining - 1);
+  }
+  const feedback = page.getByRole('region', { name: '审查偏好', exact: true });
+  await expect(feedback).toContainText('已连续忽略 5 条不同问题');
+  await feedback.getByRole('button', { name: '调整检查', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '确认审查偏好', exact: true });
+  await expect(dialog.getByRole('textbox', { name: '审查偏好内容' })).toHaveValue(/降低/);
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+  const before = await page.evaluate(
+    rootPath => (window as DesktopWindow).chaptaleDesktop.reviews.feedback({ rootPath }),
+    workspace
+  );
+  expect(before.preferences).toEqual([]);
+  await feedback.getByRole('button', { name: '调整检查', exact: true }).click();
+  const preference = '仅对影响叙事的节奏问题提出建议，保留严重问题。';
+  await dialog.getByRole('textbox', { name: '审查偏好内容' }).fill(preference);
+  await mkdir(visualDir, { recursive: true });
+  for (const theme of ['light', 'warm', 'dark'] as const) {
+    await dialog.getByRole('button', { name: '取消', exact: true }).click();
+    await page.evaluate(value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }), theme);
+    await page.reload();
+    await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : new RegExp(`theme-${theme}`));
+    await page.getByRole('button', { name: '审查', exact: true }).click();
+    await page.getByRole('button', { name: /正文\/第一章.md.*文风.*已完成/ }).click();
+    await feedback.getByRole('button', { name: '调整检查', exact: true }).click();
+    await dialog.getByRole('textbox', { name: '审查偏好内容' }).fill(preference);
+    const metrics = await dialog.getByRole('textbox', { name: '审查偏好内容' }).evaluate(element => ({
+      fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+      right: element.getBoundingClientRect().right,
+      viewport: window.innerWidth
+    }));
+    expect(metrics.fontSize).toBeGreaterThanOrEqual(13);
+    expect(metrics.right).toBeLessThanOrEqual(metrics.viewport);
+    await page.screenshot({ path: path.join(visualDir, `m5-review-feedback-${theme}.png`) });
+  }
+  await dialog.getByRole('button', { name: '确认偏好', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(feedback.getByRole('button', { name: '调整检查', exact: true })).toHaveCount(0);
+  await feedback.locator('summary').click();
+  await expect(feedback).toContainText(preference);
+  expect(await readFile(path.join(reviewDir, 'feedback-fixture.json'), 'utf8')).toBe(output);
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  await app!.close();
+  app = undefined;
+  await launchApp();
+  await page.getByRole('button', { name: '审查', exact: true }).click();
+  await page.getByRole('button', { name: /正文\/第一章.md.*文风.*已完成/ }).click();
+  const restoredFeedback = page.getByRole('region', { name: '审查偏好', exact: true });
+  await restoredFeedback.locator('summary').click();
+  await expect(restoredFeedback).toContainText(preference);
+});
+
 test('真实 preload 读取保留原文和哈希，并验证工作区身份及非法参数', async () => {
   const result = await page.evaluate(async rootPath => {
     const api = (window as DesktopWindow).chaptaleDesktop.workspace;

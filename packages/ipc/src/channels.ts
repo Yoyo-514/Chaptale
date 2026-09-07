@@ -23,7 +23,9 @@ export const IPC_CHANNELS = {
     cancel: 'reviews:cancel',
     list: 'reviews:list',
     read: 'reviews:read',
-    resolve: 'reviews:resolve'
+    resolve: 'reviews:resolve',
+    feedback: 'reviews:feedback',
+    resolveFeedback: 'reviews:resolve-feedback'
   },
   writing: {
     generate: 'writing:generate',

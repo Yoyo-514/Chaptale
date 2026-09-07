@@ -1,4 +1,4 @@
-import type { ReviewIdArgs, ReviewRunArgs, ResolveIssueArgs } from '@chaptale/ipc-contract';
+import type { ReviewIdArgs, ReviewRunArgs, ResolveIssueArgs, ResolveReviewFeedbackArgs } from '@chaptale/ipc-contract';
 import { normalizeDocumentText, REVIEWERS, type ReferencePack, type ReviewJob } from '@chaptale/shared';
 
 import type { ModelService } from '../../core/models/service';
@@ -7,6 +7,7 @@ import type { PersonaRegistry } from '../personas/registry';
 import type { TaskRunnerPort } from '../tasks/runner-port';
 import type { WorkspaceService } from '../workspace/service';
 import type { CandidateStore } from '../writing/candidates';
+import type { ReviewFeedbackStore } from './feedback';
 import { ReviewWorkflowStore } from './workflow-store';
 
 export function reviewReference(pack: ReferencePack) {
@@ -29,6 +30,7 @@ export class ReviewService {
       models: ModelService;
       candidates: Pick<CandidateStore, 'read'>;
       store?: ReviewWorkflowStore;
+      feedback?: ReviewFeedbackStore;
     }
   ) {
     this.store = options.store ?? new ReviewWorkflowStore();
@@ -161,5 +163,15 @@ export class ReviewService {
   async resolve(args: ResolveIssueArgs) {
     await this.options.library.assertWorkspace(args.rootPath);
     return this.store.resolve(args.rootPath, args.requestId, args.issueIndexes, args.status);
+  }
+  async feedback(args: { rootPath: string }) {
+    await this.options.library.assertWorkspace(args.rootPath);
+    if (!this.options.feedback) throw new Error('审查偏好服务不可用');
+    return this.options.feedback.list(args.rootPath);
+  }
+  async resolveFeedback(args: ResolveReviewFeedbackArgs) {
+    await this.options.library.assertWorkspace(args.rootPath);
+    if (!this.options.feedback) throw new Error('审查偏好服务不可用');
+    return this.options.feedback.resolve(args.rootPath, args.suggestionId, args.action, args.text);
   }
 }

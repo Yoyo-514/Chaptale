@@ -50,10 +50,23 @@ export const ResolveIssueSchema = Type.Object(
 );
 export type ResolveIssueArgs = Static<typeof ResolveIssueSchema>;
 export const ResolveIssueValidator = Compile(Type.Tuple([ResolveIssueSchema]));
+export const ResolveReviewFeedbackSchema = Type.Object(
+  {
+    ...WorkspaceRootArgsSchema.properties,
+    suggestionId: ContentHashSchema,
+    action: Type.Union([Type.Literal('accept'), Type.Literal('dismiss')]),
+    text: Type.Optional(Type.String({ minLength: 1, maxLength: 4000 }))
+  },
+  { additionalProperties: false }
+);
+export type ResolveReviewFeedbackArgs = Static<typeof ResolveReviewFeedbackSchema>;
+export const ResolveReviewFeedbackValidator = Compile(Type.Tuple([ResolveReviewFeedbackSchema]));
 export type ReviewsApi = {
   run: (args: ReviewRunArgs) => Promise<ReviewDetails>;
   cancel: (args: ReviewIdArgs) => Promise<void>;
   list: (args: { rootPath: string }) => Promise<{ jobs: ReviewJobSummary[]; diagnostics: string[] }>;
   read: (args: ReviewIdArgs) => Promise<ReviewDetails>;
   resolve: (args: ResolveIssueArgs) => Promise<ReviewDetails>;
+  feedback: (args: { rootPath: string }) => Promise<import('@chaptale/shared').ReviewFeedbackList>;
+  resolveFeedback: (args: ResolveReviewFeedbackArgs) => Promise<import('@chaptale/shared').ReviewFeedbackList>;
 };

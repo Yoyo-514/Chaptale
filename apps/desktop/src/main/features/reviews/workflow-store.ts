@@ -110,7 +110,11 @@ export class ReviewWorkflowStore {
       )
         throw new Error('问题选择无效');
       const now = new Date().toISOString();
-      for (const index of indexes) details.state.issues[String(index)] = { status, updatedAt: now };
+      for (const index of indexes) {
+        if (details.state.issues[String(index)]?.status !== status) {
+          details.state.issues[String(index)] = { status, updatedAt: now };
+        }
+      }
       await writeTextAtomically(filename, JSON.stringify(details.state));
       return details;
     });

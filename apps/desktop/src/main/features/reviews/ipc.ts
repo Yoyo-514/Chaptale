@@ -3,12 +3,21 @@ import {
   ReviewRunValidator,
   ReviewIdValidator,
   ResolveIssueValidator,
+  ResolveReviewFeedbackValidator,
   WorkspaceRootArgsValidator
 } from '@chaptale/ipc-contract';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { ReviewService } from './service';
 export function registerReviewIpc(service: ReviewService) {
+  handleValidatedIpc(IPC_CHANNELS.reviews.feedback, WorkspaceRootArgsValidator, (_event, args: { rootPath: string }) =>
+    service.feedback(args)
+  );
+  handleValidatedIpc(
+    IPC_CHANNELS.reviews.resolveFeedback,
+    ResolveReviewFeedbackValidator,
+    (_event, args: Parameters<ReviewService['resolveFeedback']>[0]) => service.resolveFeedback(args)
+  );
   handleValidatedIpc(
     IPC_CHANNELS.reviews.run,
     ReviewRunValidator,

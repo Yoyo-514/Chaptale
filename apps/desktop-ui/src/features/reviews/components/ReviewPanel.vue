@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
-import { REVIEWERS } from '@chaptale/shared';
+import { REVIEWERS, REVIEW_ISSUE_LABELS } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
@@ -12,6 +12,7 @@ import { useWorkbenchStore } from '@/features/workbench';
 import { useWritingStore } from '@/features/writing';
 
 import { useReviewStore } from '../store';
+import ReviewFeedback from './ReviewFeedback.vue';
 const reviews = useReviewStore();
 const writing = useWritingStore();
 const navigation = useWorkbenchStore();
@@ -20,23 +21,7 @@ const selectedIssues = ref<number[]>([]);
 const labels = { running: '运行中', done: '已完成', failed: '失败', cancelled: '已取消' };
 const severityLabels: Record<string, string> = { high: '高', medium: '中', low: '低' };
 const job = computed(() => reviews.details?.job);
-const typeLabels: Record<string, string> = {
-  timeline: '时间线',
-  world_rule: '设定规则',
-  item_state: '物件状态',
-  fact_conflict: '事实冲突',
-  premature_reveal: '提前揭露',
-  ooc: '人物行为',
-  voice_mismatch: '人物语气',
-  knowledge_leak: '知识越界',
-  emotion_break: '情感断裂',
-  weak_motivation: '动机不足',
-  style_drift: '文风偏移',
-  flat_rhythm: '节奏平淡',
-  over_explaining: '过度解释',
-  mechanical_emotion: '情绪直述',
-  unnatural_dialogue: '对白生硬'
-};
+const typeLabels = REVIEW_ISSUE_LABELS;
 watch(
   () => reviews.details,
   () => {
@@ -132,6 +117,7 @@ async function locate(index: number) {
     </div>
     <AppScrollArea class="review-results">
       <div ref="list">
+        <ReviewFeedback />
         <p v-if="job">{{ job.targetPath }} · {{ job.candidateId ? '候选稿' : '已保存正文' }}</p>
         <p v-if="reviews.details?.result">{{ reviews.details.result.summary }}</p>
         <p v-if="job?.excludedSources.length" class="review-warning">
@@ -335,7 +321,7 @@ footer {
   border-color: var(--border-subtle);
 }
 .review-warning {
-  color: #a46d0b;
+  color: var(--warning);
 }
 [role='alert'] {
   color: var(--destructive);

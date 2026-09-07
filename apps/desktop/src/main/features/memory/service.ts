@@ -114,7 +114,9 @@ function takeHead(text: string | undefined): string | undefined {
 
 /** 读取目录内全部 .md 的头部要点（按文件名排序保证确定性）。 */
 async function readMarkdownHeads(dir: string): Promise<string[]> {
-  const files = await listMarkdownFiles(dir);
+  const files = (await listMarkdownFiles(dir)).filter(
+    filePath => !/^review-[a-f0-9]{64}\.md$/.test(path.basename(filePath))
+  );
   const heads = await Promise.all(files.map(async filePath => takeHead(await readOptionalTextFile(filePath))));
 
   return heads.filter((head): head is string => Boolean(head));

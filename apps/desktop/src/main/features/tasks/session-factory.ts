@@ -8,6 +8,7 @@ import type { SettingsService } from '../../core/settings/service';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import type { TaskPersonaSpec } from '../personas/task-spec';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
+import type { ReviewFeedbackStore } from '../reviews/feedback';
 import type { SkillProvider } from '../skills/provider-port';
 import { createSkillReadTool } from '../skills/skill-read-tool';
 import type { TaskSessionFactoryPort } from './runner-port';
@@ -26,6 +27,7 @@ export type TaskSessionFactoryOptions = {
   buildTaskTools: TaskSessionToolBuilder;
   /** skills 查找端口；缺省不注入 skills 摘要。与 chat 侧共用同一 provider，保证三层目录一致。 */
   skillsProvider?: Pick<SkillProvider, 'load'>;
+  reviewPreferences?: Pick<ReviewFeedbackStore, 'forPersona'>;
 };
 
 /**
@@ -65,7 +67,10 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
     const model = spec.model
       ? await modelService.runtime.resolveModel(spec.model.provider, spec.model.modelId)
       : await resolveTaskModel(modelService, spec.modelPreference);
-    const system = await composeTaskSystemPrompt(this.options.skillsProvider, cwd, spec);
+    const baseSystem = await composeTaskSystemPrompt(this.options.skillsProvider, cwd, spec);
+    const preferences = await this.options.reviewPreferences?.forPersona(spec.personaId);
+    if (preferences?.memoryRefs.length) onMemoryRead?.(preferences.memoryRefs);
+    const system = [baseSystem, preferences?.prompt].filter(Boolean).join('\n\n');
     const gate = createUnattendedGate();
 
     return createTaskSession({
