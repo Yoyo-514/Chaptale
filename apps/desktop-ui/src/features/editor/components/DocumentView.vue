@@ -6,19 +6,35 @@ import type { WorkspaceDocument } from '@chaptale/ipc-contract';
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 
-import { createReadonlyView } from '../codemirror/readonly-view';
-import { NORMAL_PREVIEW_BYTES, type DocumentViewState } from '../types';
+import type { DocumentBuffer } from '../codemirror/document-buffer';
+import { createDocumentView } from '../codemirror/view';
+import type { DocumentViewState } from '../types';
 
-const props = defineProps<{ document: WorkspaceDocument; viewState?: DocumentViewState; searchRequest: number }>();
-const emit = defineEmits<{ reload: []; rememberView: [state: DocumentViewState] }>();
+const props = defineProps<{
+  document: WorkspaceDocument;
+  readonly: boolean;
+  viewState?: DocumentViewState;
+  searchRequest: number;
+  buffer?: DocumentBuffer;
+  command?: { name: 'undo' | 'redo'; sequence: number } | null;
+  dirty?: boolean;
+  saving?: boolean;
+  saveError?: string;
+}>();
+const emit = defineEmits<{
+  reload: [];
+  save: [];
+  rememberView: [state: DocumentViewState];
+  change: [buffer: DocumentBuffer];
+}>();
 const host = ref<HTMLElement | null>(null);
-const large = computed(() => props.document.sizeBytes > NORMAL_PREVIEW_BYTES);
+const large = computed(() => props.readonly);
 const size = computed(() => {
   const bytes = props.document.sizeBytes;
   if (bytes < 1024) return `${bytes} B`;
   return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 });
-let view: ReturnType<typeof createReadonlyView> | undefined;
+let view: ReturnType<typeof createDocumentView> | undefined;
 
 function find() {
   view?.find();
@@ -26,11 +42,14 @@ function find() {
 
 onMounted(() => {
   if (!host.value) return;
-  view = createReadonlyView(host.value, props.document.content, {
+  view = createDocumentView(host.value, props.document.content, {
     markdown: /\.(md|markdown)$/i.test(props.document.relativePath),
     large: large.value,
-    viewState: props.viewState
+    viewState: props.viewState,
+    buffer: props.buffer,
+    onChange: buffer => emit('change', buffer)
   });
+  if (view.buffer) emit('change', view.buffer);
 });
 onBeforeUnmount(() => {
   if (!view) return;
@@ -38,13 +57,36 @@ onBeforeUnmount(() => {
   view.destroy();
 });
 watch(() => props.searchRequest, find);
+watch(
+  () => props.command,
+  command => {
+    if (command) view?.[command.name]();
+  }
+);
 </script>
 
 <template>
   <section class="document-view">
     <header class="document-toolbar">
       <span class="document-path" :title="document.relativePath">{{ document.relativePath }}</span>
-      <span class="document-readonly"><span class="i-mingcute-lock-line size-3" aria-hidden="true" />只读</span>
+      <span v-if="large" class="document-readonly"
+        ><span class="i-mingcute-lock-line size-3" aria-hidden="true" />只读</span
+      >
+      <span v-else class="document-readonly" role="status">{{
+        saving ? '正在保存' : dirty ? '未保存' : '已保存'
+      }}</span>
+      <AppTooltip v-if="!large" text="保存文件" side="bottom">
+        <AppButton
+          icon
+          size="xs"
+          variant="ghost"
+          aria-label="保存文件"
+          :disabled="!dirty || saving"
+          @click="emit('save')"
+        >
+          <span class="i-mingcute-save-line size-3.5" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
       <AppTooltip text="在文档中查找" side="bottom">
         <AppButton icon size="xs" variant="ghost" aria-label="在文档中查找" @click="find">
           <span class="i-mingcute-search-line size-3.5" aria-hidden="true" />
@@ -56,13 +98,16 @@ watch(() => props.searchRequest, find);
         </AppButton>
       </AppTooltip>
     </header>
+    <div v-if="saveError" class="document-diagnostic" role="alert">{{ saveError }}</div>
     <details v-if="document.head.status === 'invalid'" class="document-diagnostic">
       <summary>frontmatter 无法解析</summary>
       <p>{{ document.head.error }}</p>
     </details>
     <div class="document-surface">
       <div ref="host" class="document-codemirror" />
-      <span v-if="!document.content" class="document-empty" role="status">空文件</span>
+      <span v-if="!(buffer?.state.doc.length ?? document.content.length)" class="document-empty" role="status"
+        >空文件</span
+      >
     </div>
     <footer class="document-footer">
       <span v-if="large">大文件模式</span>

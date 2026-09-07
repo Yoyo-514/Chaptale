@@ -1,8 +1,10 @@
 import { BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 
-import { IPC_CHANNELS, type WindowStateResult } from '@chaptale/ipc-contract';
+import { IPC_CHANNELS, WindowCompleteCloseArgsValidator, type WindowStateResult } from '@chaptale/ipc-contract';
 
 import { handleTrustedIpc } from '../security/trusted-ipc';
+import { handleValidatedIpc } from '../security/validated-ipc';
+import { completeWindowClose } from './window-close';
 
 function getWindowFromEvent(event: IpcMainInvokeEvent) {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -42,6 +44,9 @@ export function registerWindowIpc() {
 
   handleTrustedIpc(IPC_CHANNELS.window.close, event => {
     getWindowFromEvent(event).close();
+  });
+  handleValidatedIpc(IPC_CHANNELS.window.completeClose, WindowCompleteCloseArgsValidator, (event, close: boolean) => {
+    completeWindowClose(getWindowFromEvent(event), close);
   });
 
   handleTrustedIpc(IPC_CHANNELS.window.isMaximized, event => getWindowState(getWindowFromEvent(event)));

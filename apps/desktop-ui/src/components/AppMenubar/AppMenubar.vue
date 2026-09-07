@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   MenubarContent,
+  MenubarCheckboxItem,
   MenubarItem,
   MenubarMenu,
   MenubarPortal,
@@ -62,8 +63,10 @@ const emit = defineEmits<{
               </MenubarPortal>
             </MenubarSub>
 
-            <MenubarItem
+            <component
               v-else
+              :is="item.checked === undefined ? MenubarItem : MenubarCheckboxItem"
+              v-bind="item.checked === undefined ? {} : { modelValue: item.checked }"
               class="app-menubar-item"
               :disabled="item.disabled"
               :data-item-id="item.id"
@@ -77,7 +80,7 @@ const emit = defineEmits<{
               />
               <span class="app-menubar-item-label">{{ item.label }}</span>
               <span v-if="item.shortcut" class="app-menubar-shortcut">{{ item.shortcut }}</span>
-            </MenubarItem>
+            </component>
           </template>
         </MenubarContent>
       </MenubarPortal>

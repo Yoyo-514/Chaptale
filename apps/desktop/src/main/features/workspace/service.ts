@@ -1,19 +1,29 @@
+import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { stringify } from 'yaml';
 
-import type {
-  CreateEntryArgs,
-  CreateEntryResult,
-  DirectoryEntry,
-  ListDirectoryArgs,
-  ListDirectoryResult,
-  ReadDocumentArgs,
-  ReadDocumentResult,
-  WorkspaceState
+import {
+  MAX_DOCUMENT_BYTES,
+  type WriteDocumentArgs,
+  type WriteDocumentResult,
+  type WorkspaceLayoutResult,
+  type CreateChapterArgs,
+  type CreateEntryArgs,
+  type CreateEntryResult,
+  type DirectoryEntry,
+  type ListDirectoryArgs,
+  type ListDirectoryResult,
+  type ReadDocumentArgs,
+  type ReadDocumentResult,
+  type WorkspaceState
 } from '@chaptale/ipc-contract';
 
 import type { SettingsService } from '../../core/settings/service';
+import { WorkspaceLayoutService } from '../../core/workspace/layout';
+import { createTextAtomically, writeTextAtomically } from '../../infra/filesystem/atomic-text';
 import { DEFAULT_IGNORED_DIRS, resolveWithinCwd } from '../../infra/filesystem/path-guard';
+import { withFileWriteLock } from '../../infra/filesystem/write-lock';
 import { DocumentReadError, readDocumentSnapshot, type DocumentReadOptions } from './read-document';
 
 /** Windows 保留字符；跨平台统一按最严的一套挡，避免作品目录在另一台机器上打不开。 */
@@ -120,6 +130,89 @@ export class WorkspaceService {
               ? 'not-a-file'
               : 'read-failed',
         message
+      };
+    }
+  }
+
+  async writeDocument(args: WriteDocumentArgs): Promise<WriteDocumentResult> {
+    if (!args.content.isWellFormed() || args.content.includes('\0')) {
+      return { ok: false, code: 'invalid-content', message: '正文包含无效 Unicode 或 NUL，未写入文件' };
+    }
+    if (Buffer.byteLength(args.content, 'utf8') > MAX_DOCUMENT_BYTES) {
+      return { ok: false, code: 'too-large', message: '正文超过 100 MiB 保存上限' };
+    }
+    if (!isSafeRelativePath(args.relativePath)) {
+      return { ok: false, code: 'outside-workspace', message: '只能保存工作区内的相对路径' };
+    }
+    try {
+      const context = await this.settings.getStorageContext();
+      if (context.storageMode !== 'workspace' || context.workspacePath !== args.rootPath) {
+        return { ok: false, code: 'workspace-changed', message: '工作区已变化，未保存旧工作区文件' };
+      }
+      const target = await resolveWithinCwd(args.rootPath, args.relativePath);
+      return await withFileWriteLock(target, async () => {
+        const before = await this.readDocument({ rootPath: args.rootPath, relativePath: args.relativePath });
+        if (!before.ok) return before;
+        if (before.document.contentHash !== args.expectedHash) {
+          return { ok: false, code: 'conflict', message: '磁盘文件已更新，本地修改未覆盖外部内容' };
+        }
+        await resolveWithinCwd(args.rootPath, args.relativePath);
+        await writeTextAtomically(target, args.content);
+        const saved = await this.readDocument({ rootPath: args.rootPath, relativePath: args.relativePath });
+        if (saved.ok && saved.document.content !== args.content) {
+          return { ok: false, code: 'conflict', message: '保存后文件再次发生变化，本地缓冲仍保留' };
+        }
+        return saved;
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { ok: false, code: message.includes('工作区之外') ? 'outside-workspace' : 'write-failed', message };
+    }
+  }
+
+  async getLayout(rootPath: string): Promise<WorkspaceLayoutResult> {
+    const context = await this.settings.getStorageContext();
+    if (context.storageMode !== 'workspace' || context.workspacePath !== rootPath) {
+      return { ok: false, message: '工作区已经切换' };
+    }
+    return { ok: true, layout: await new WorkspaceLayoutService().read(rootPath) };
+  }
+
+  async createChapter(args: CreateChapterArgs): Promise<ReadDocumentResult> {
+    try {
+      const layout = await this.getLayout(args.rootPath);
+      if (!layout.ok) return { ok: false, code: 'workspace-changed', message: layout.message };
+      const nameError = validateEntryName(args.filename);
+      if (nameError || !args.filename.endsWith('.md') || !args.title.trim()) {
+        return { ok: false, code: 'read-failed', message: nameError ?? '章节需要标题和 .md 文件名' };
+      }
+      const directory = args.relativeDirectory ?? layout.layout.roles.manuscript.relativePath;
+      if (!isSafeRelativePath(directory) || directory.split('/')[0] === '.chaptale') {
+        return { ok: false, code: 'outside-workspace', message: '章节只能建在作者目录中' };
+      }
+      const relativePath = `${directory}/${args.filename}`;
+      const target = await resolveWithinCwd(args.rootPath, relativePath);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      const head = stringify({
+        id: randomUUID(),
+        kind: 'chapter',
+        title: args.title.trim(),
+        order: args.order,
+        status: 'draft',
+        template: 'chapter'
+      });
+      await withFileWriteLock(target, async () => {
+        const current = await this.getLayout(args.rootPath);
+        if (!current.ok) throw new Error(current.message);
+        await resolveWithinCwd(args.rootPath, relativePath);
+        await createTextAtomically(target, `---\n${head}---\n# ${args.title.trim()}\n\n`);
+      });
+      return this.readDocument({ rootPath: args.rootPath, relativePath });
+    } catch (error) {
+      return {
+        ok: false,
+        code: 'read-failed',
+        message: (error as NodeJS.ErrnoException).code === 'EEXIST' ? '同名章节已存在' : String(error)
       };
     }
   }

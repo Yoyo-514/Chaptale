@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const electronMock = vi.hoisted(() => {
+const electronMock = await vi.hoisted(async () => {
+  const { EventEmitter } = await import('node:events');
   const windows: Array<{
     loadURL: ReturnType<typeof vi.fn>;
     setIcon: ReturnType<typeof vi.fn>;
@@ -15,7 +16,7 @@ const electronMock = vi.hoisted(() => {
   const appListeners = new Map<string, () => void>();
 
   const BrowserWindow = vi.fn(function BrowserWindow() {
-    const window = {
+    const window = Object.assign(new EventEmitter(), {
       loadURL: vi.fn(),
       setIcon: vi.fn(),
       webContents: {
@@ -25,7 +26,7 @@ const electronMock = vi.hoisted(() => {
         setZoomMode: vi.fn(),
         toggleDevTools: vi.fn()
       }
-    };
+    });
     windows.push(window);
     return window;
   });

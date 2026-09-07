@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
-import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { APP_ICON_URL } from '@/utils/app-icon';
+import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import { useEditorStore } from '../store';
+import NewChapterDialog from './NewChapterDialog.vue';
+import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 
 const DocumentView = defineAsyncComponent(() => import('./DocumentView.vue'));
 
 const editor = useEditorStore();
+let unsubscribeClose: (() => void) | undefined;
 const tabList = ref<HTMLElement | null>(null);
 const duplicateTitles = computed(() => {
   const counts = new Map<string, number>();
@@ -20,7 +24,7 @@ const duplicateTitles = computed(() => {
 
 async function closeTab(id: string) {
   const focusedInside = tabList.value?.contains(document.activeElement);
-  editor.closeTab(id);
+  await editor.closeTab(id);
   if (focusedInside) {
     await nextTick();
     tabList.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
@@ -28,12 +32,32 @@ async function closeTab(id: string) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    if (event.shiftKey) void editor.saveAll();
+    else void editor.saveDocument();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'w' && editor.activeId) {
     event.preventDefault();
     event.stopPropagation();
     void closeTab(editor.activeId);
   }
 }
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown);
+  window.addEventListener('beforeunload', editor.handleBeforeUnload);
+  if (hasDesktopApi())
+    unsubscribeClose = getDesktopApi().windowControl.onCloseRequested?.(() => {
+      void editor.requestWindowClose();
+    });
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('beforeunload', editor.handleBeforeUnload);
+  unsubscribeClose?.();
+});
 
 watch(
   () => editor.activeId,
@@ -51,7 +75,6 @@ watch(
     :model-value="editor.activeId || 'welcome'"
     class="editor-group"
     @update:model-value="value => editor.selectTab(String(value))"
-    @keydown="handleKeydown"
   >
     <div ref="tabList" class="editor-tabs-scroll">
       <TabsList class="editor-tabs" aria-label="编辑器标签">
@@ -76,6 +99,7 @@ watch(
               aria-hidden="true"
             />
             <span class="editor-tab-title">{{ tab.title }}</span>
+            <span v-if="tab.dirty" class="editor-dirty" aria-label="未保存" />
             <span v-if="duplicateTitles.has(tab.title)" class="editor-tab-parent">{{
               tab.path.split('/').slice(0, -1).join('/') || '/'
             }}</span>
@@ -126,15 +150,25 @@ watch(
       </div>
       <DocumentView
         v-else-if="tab.document"
-        :key="`${tab.id}:${tab.document.contentHash}:${tab.document.mtimeMs}`"
+        :key="`${tab.id}:${tab.generation ?? 0}`"
         :document="tab.document"
+        :readonly="tab.readonly"
+        :buffer="editor.getBuffer(tab.id)"
+        :dirty="tab.dirty"
+        :saving="tab.saving"
+        :save-error="tab.saveError"
+        :command="editor.command"
         :view-state="tab.viewState"
         :search-request="editor.searchRequest"
         @reload="editor.reloadDocument(tab.id)"
         @remember-view="state => editor.rememberView(tab.id, state)"
+        @change="buffer => editor.updateBuffer(tab.id, buffer)"
+        @save="editor.saveDocument(tab.id)"
       />
     </TabsContent>
   </TabsRoot>
+  <UnsavedDocumentsDialog />
+  <NewChapterDialog />
 </template>
 
 <style scoped lang="scss">
@@ -190,6 +224,14 @@ watch(
 
 .editor-tab-title {
   @apply min-w-0 truncate;
+}
+
+.editor-dirty {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--foreground);
 }
 
 .editor-tab-parent {

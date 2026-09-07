@@ -205,6 +205,7 @@ describe('SettingsService', () => {
       version: 1,
       storage: { mode: 'global' },
       explorer: { showInternalFiles: false },
+      editor: { autoSave: false },
       theme: 'dark'
     });
   });

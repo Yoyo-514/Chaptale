@@ -99,7 +99,7 @@ test('真实 preload 读取保留原文和哈希，并验证工作区身份及�
   expect(result.invalid).toContain('IPC 参数无效');
 });
 
-test('单击只选择，双击以只读标签打开完整原文', async () => {
+test('单击只选择，双击打开完整原文，编辑在保存前不写盘', async () => {
   await page.getByRole('treeitem', { name: '正文', exact: true }).click();
   const row = page.getByRole('treeitem', { name: '第一章.md', exact: true });
   await row.click();
@@ -110,11 +110,131 @@ test('单击只选择，双击以只读标签打开完整原文', async () => {
   const content = page.getByRole('textbox', { name: '文档正文' });
   await expect(content).toContainText('title: 初雪');
   await expect(content).toContainText('雪落在窗沿');
-  await expect(content).toHaveAttribute('aria-readonly', 'true');
+  await expect(content).toHaveAttribute('aria-readonly', 'false');
   await content.click();
   await page.keyboard.type('should-not-be-written');
-  await expect(content).not.toContainText('should-not-be-written');
+  await expect(content).toContainText('should-not-be-written');
   expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  await page.keyboard.press('Control+z');
+});
+
+test('Ctrl+S 保留混合换行和 BOM，保存及标签切换不丢撤销', async () => {
+  const raw = '\uFEFF---\r\ntitle: 初雪\r\n---\r\n第一行\r\n第二行\n第三行\r末尾';
+  await writeFile(path.join(workspace, '正文/第一章.md'), raw);
+  await openChapter();
+  const content = page.getByRole('textbox', { name: '文档正文' });
+  await content.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('新增');
+  await expect(page.getByText('未保存', { exact: true })).toBeVisible();
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(raw + '新增');
+  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).dblclick();
+  await page.getByRole('tab', { name: '正文/第一章.md', exact: true }).click();
+  await content.click();
+  await page.keyboard.press('Control+z');
+  await expect(content).not.toContainText('新增');
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(raw);
+});
+
+test('关闭脏标签可以取消、保存后关闭，磁盘内容与作者选择一致', async () => {
+  await openChapter();
+  const content = page.getByRole('textbox', { name: '文档正文' });
+  await content.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('待保存的结尾');
+  await page.getByRole('button', { name: '关闭 正文/第一章.md', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '保存未保存的修改？' });
+  await expect(dialog).toContainText('正文/第一章.md');
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(content).toContainText('待保存的结尾');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  await page.getByRole('button', { name: '关闭 正文/第一章.md', exact: true }).click();
+  await dialog.getByRole('button', { name: '保存并继续' }).click();
+  await expect(page.getByRole('tab', { name: '欢迎', exact: true })).toBeVisible();
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter + '待保存的结尾');
+});
+
+test('磁盘冲突不覆盖任一方，重新读取需要显式放弃本地修改', async () => {
+  await openChapter();
+  const content = page.getByRole('textbox', { name: '文档正文' });
+  await content.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('本地结尾');
+  await writeFile(path.join(workspace, '正文/第一章.md'), '外部的新正文');
+  await page.keyboard.press('Control+s');
+  await expect(page.getByRole('alert')).toContainText('磁盘文件已更新');
+  await expect(content).toContainText('本地结尾');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe('外部的新正文');
+  await page.getByRole('button', { name: '重新读取', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '不保存', exact: true }).click();
+  await expect(content).toContainText('外部的新正文');
+});
+
+test('关闭工作区先保护脏缓冲，取消不改变工作区', async () => {
+  await openChapter();
+  await page.getByRole('textbox', { name: '文档正文' }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('保留文字');
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitem', { name: '关闭工作区', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('保留文字');
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitem', { name: '关闭工作区', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '不保存', exact: true }).click();
+  await expect(page.getByText('尚未打开工作区', { exact: true })).toBeVisible();
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+});
+
+test('自动保存由作者启用，暂停输入后写盘', async () => {
+  await openChapter();
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitemcheckbox', { name: '自动保存', exact: true }).click();
+  await page.getByRole('textbox', { name: '文档正文' }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('自动保存结尾');
+  await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter + '自动保存结尾');
+});
+
+test('新建章节使用自定义目录角色并立即打开', async () => {
+  await writeFile(
+    path.join(workspace, 'chaptale.json'),
+    JSON.stringify({
+      version: 1,
+      id: 'book',
+      title: '青岚',
+      kind: 'novel',
+      dirs: { manuscript: '稿件/第一卷' }
+    })
+  );
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新建章节', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: '章节目录' })).toHaveValue('稿件/第一卷');
+  await page.getByRole('textbox', { name: '章节标题' }).fill('夜谈');
+  await page.getByRole('button', { name: '创建章节', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '稿件/第一卷/0001-夜谈.md', exact: true })).toBeVisible();
+  const created = await readFile(path.join(workspace, '稿件/第一卷/0001-夜谈.md'), 'utf8');
+  expect(created).toContain('kind: chapter');
+  expect(created).toContain('status: draft');
+  expect(created).toContain('# 夜谈');
+});
+
+test('原生窗口关闭也受未保存保护，取消后仍能继续编辑', async () => {
+  await openChapter();
+  await page.getByRole('textbox', { name: '文档正文' }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('窗口关闭保护');
+  await app!.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]!.close();
+  });
+  const dialog = page.getByRole('dialog', { name: '保存未保存的修改？' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('窗口关闭保护');
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter + '窗口关闭保护');
 });
 
 test('Enter 打开、重复打开聚焦、同名文件分开管理，关闭保持合理焦点', async () => {

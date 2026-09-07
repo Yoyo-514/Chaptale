@@ -7,6 +7,7 @@ import type {
 
 import { useSessionStore } from '@/features/sessions';
 import { getDesktopApi } from '@/utils/desktop-api';
+import { confirmWorkspaceTransition } from '@/utils/workspace-transition';
 
 import { applyTheme, cacheTheme } from '../theme';
 import type { SettingsStoreContext } from './types';
@@ -34,6 +35,7 @@ export const workspaceSettingsActions = {
   },
 
   async update(this: SettingsStoreContext, payload: UpdateChaptaleSettingsPayload) {
+    if (payload.storage && !(await confirmWorkspaceTransition())) return false;
     this.isLoading = true;
 
     try {
@@ -42,7 +44,9 @@ export const workspaceSettingsActions = {
         this.state = state;
         syncTheme(state);
         await bindSessionCwd(this, state);
+        return true;
       }
+      return false;
     } finally {
       this.isLoading = false;
     }

@@ -1,4 +1,4 @@
-import { defaultKeymap } from '@codemirror/commands';
+import { defaultKeymap, historyKeymap, redo, undo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
@@ -6,12 +6,13 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 import { drawSelection, EditorView, keymap, lineNumbers } from '@codemirror/view';
 
 import type { DocumentViewState } from '../types';
+import { DocumentBuffer } from './document-buffer';
 
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '14px', color: 'var(--foreground)', backgroundColor: 'var(--mica-background)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { overflow: 'auto', fontFamily: 'inherit', lineHeight: '1.8' },
-  '.cm-content': { padding: '20px 0 48px', caretColor: 'transparent' },
+  '.cm-content': { padding: '20px 0 48px', caretColor: 'var(--foreground)' },
   '.cm-line': { padding: '0 24px 0 16px' },
   '.cm-gutters': {
     backgroundColor: 'var(--mica-background)',
@@ -21,7 +22,7 @@ const theme = EditorView.theme({
   },
   '.cm-lineNumbers .cm-gutterElement': { minWidth: '36px', padding: '0 8px 0 12px' },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--accent)' },
-  '.cm-cursor': { display: 'none' },
+  '.cm-cursor': { borderLeftColor: 'var(--foreground)' },
   '.cm-panels': { color: 'var(--foreground)', backgroundColor: 'var(--surface-muted)' },
   '.cm-panels-top': { borderBottom: '1px solid var(--border-subtle)' },
   '.cm-search': {
@@ -53,48 +54,64 @@ const theme = EditorView.theme({
   '.cm-searchMatch-selected': { outline: '1px solid var(--primary-solid)' }
 });
 
-/** CodeMirror 仅承担只读视图；原始文件内容留在 IPC 快照，绝不从归一化后的编辑器反向生成文件。 */
-export function createReadonlyView(
+/** 视图可卸载，正文、原始换行与撤销历史由标签的 DocumentBuffer 持有。 */
+export function createDocumentView(
   parent: HTMLElement,
   content: string,
-  options: { markdown: boolean; large: boolean; viewState?: DocumentViewState }
+  options: {
+    markdown: boolean;
+    large: boolean;
+    viewState?: DocumentViewState;
+    buffer?: DocumentBuffer;
+    onChange?: (buffer: DocumentBuffer) => void;
+  }
 ) {
+  const extensions = [
+    EditorState.readOnly.of(options.large),
+    EditorView.editable.of(!options.large),
+    ...(options.large
+      ? [EditorState.transactionFilter.of(transaction => (transaction.docChanged ? [] : transaction))]
+      : []),
+    EditorView.contentAttributes.of({
+      tabindex: '0',
+      role: 'textbox',
+      'aria-label': '文档正文',
+      'aria-readonly': String(options.large),
+      'aria-multiline': 'true'
+    }),
+    keymap.of([...historyKeymap, ...searchKeymap, ...defaultKeymap]),
+    search({ top: true }),
+    drawSelection(),
+    lineNumbers(),
+    theme,
+    EditorState.phrases.of({
+      Find: '查找',
+      Replace: '替换',
+      replace: '替换',
+      'replace all': '全部替换',
+      next: '下一个',
+      previous: '上一个',
+      all: '全部',
+      'match case': '区分大小写',
+      regexp: '正则表达式',
+      'by word': '全词匹配',
+      close: '关闭',
+      'current match': '当前匹配'
+    }),
+    options.large ? [] : EditorView.lineWrapping,
+    options.markdown && !options.large ? [markdown(), syntaxHighlighting(defaultHighlightStyle)] : []
+  ];
+  const buffer = options.large ? null : (options.buffer ?? new DocumentBuffer(content, extensions));
   const view = new EditorView({
     parent,
-    state: EditorState.create({
-      doc: content,
-      extensions: [
-        EditorState.readOnly.of(true),
-        EditorView.editable.of(false),
-        EditorState.transactionFilter.of(transaction => (transaction.docChanged ? [] : transaction)),
-        EditorView.contentAttributes.of({
-          tabindex: '0',
-          role: 'textbox',
-          'aria-label': '文档正文',
-          'aria-readonly': 'true',
-          'aria-multiline': 'true'
-        }),
-        keymap.of([...searchKeymap, ...defaultKeymap]),
-        search({ top: true }),
-        drawSelection(),
-        lineNumbers(),
-        theme,
-        EditorState.phrases.of({
-          Find: '查找',
-          Replace: '替换',
-          next: '下一个',
-          previous: '上一个',
-          all: '全部',
-          'match case': '区分大小写',
-          regexp: '正则表达式',
-          'by word': '全词匹配',
-          close: '关闭',
-          'current match': '当前匹配'
-        }),
-        options.large ? [] : EditorView.lineWrapping,
-        options.markdown && !options.large ? [markdown(), syntaxHighlighting(defaultHighlightStyle)] : []
-      ]
-    })
+    state: buffer?.state ?? EditorState.create({ doc: content, extensions }),
+    dispatchTransactions(transactions, currentView) {
+      currentView.update(transactions);
+      if (buffer) {
+        buffer.update(currentView.state);
+        if (transactions.some(transaction => transaction.docChanged)) options.onChange?.(buffer);
+      }
+    }
   });
 
   // 搜索框也接收粘贴与输入法提交，不能只等 keyup 后才让 Enter 使用新查询。
@@ -125,7 +142,10 @@ export function createReadonlyView(
   }
 
   return {
+    buffer,
     find: () => openSearchPanel(view),
+    undo: () => undo(view),
+    redo: () => redo(view),
     getViewState: (): DocumentViewState => ({
       anchor: view.state.selection.main.anchor,
       head: view.state.selection.main.head,

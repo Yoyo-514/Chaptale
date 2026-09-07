@@ -32,6 +32,6 @@ export type SettingsStoreContext = SettingsStoreState & {
   loadModels(): Promise<void>;
   loadPromptSettings(): Promise<void>;
   updatePromptSettings(payload: UpdatePromptSettingsPayload): Promise<boolean>;
-  update(payload: UpdateChaptaleSettingsPayload): Promise<void>;
+  update(payload: UpdateChaptaleSettingsPayload): Promise<boolean>;
   updateWebTools(payload: UpdateWebToolsSettingsPayload): Promise<boolean>;
 };

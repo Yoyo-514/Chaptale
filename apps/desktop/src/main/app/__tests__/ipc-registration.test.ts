@@ -44,7 +44,11 @@ import {
   WorkspaceGetStateArgsValidator,
   ListDirectoryArgsValidator,
   CreateEntryArgsValidator,
-  ReadDocumentArgsValidator
+  ReadDocumentArgsValidator,
+  WriteDocumentArgsValidator,
+  WorkspaceRootArgsValidator,
+  CreateChapterArgsValidator,
+  WindowCompleteCloseArgsValidator
 } from '@chaptale/ipc-contract';
 
 import type { AppContext } from '../app-context';
@@ -126,6 +130,9 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.workspace.listDirectory, ListDirectoryArgsValidator),
   validated(IPC_CHANNELS.workspace.createEntry, CreateEntryArgsValidator),
   validated(IPC_CHANNELS.workspace.readDocument, ReadDocumentArgsValidator),
+  validated(IPC_CHANNELS.workspace.writeDocument, WriteDocumentArgsValidator),
+  validated(IPC_CHANNELS.workspace.getLayout, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.workspace.createChapter, CreateChapterArgsValidator),
 
   trusted(IPC_CHANNELS.promptSettings.getState),
   validated(IPC_CHANNELS.promptSettings.update, UpdatePromptSettingsArgsValidator),
@@ -172,6 +179,7 @@ const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),
   trusted(IPC_CHANNELS.window.close),
+  validated(IPC_CHANNELS.window.completeClose, WindowCompleteCloseArgsValidator),
   trusted(IPC_CHANNELS.window.isMaximized)
 ];
 
@@ -181,7 +189,8 @@ const mainToRendererEvents = new Set<string>([
   IPC_CHANNELS.todos.updated,
   IPC_CHANNELS.subagent.event,
   IPC_CHANNELS.memory.pendingChanged,
-  IPC_CHANNELS.permissions.ask
+  IPC_CHANNELS.permissions.ask,
+  IPC_CHANNELS.window.closeRequested
 ]);
 
 function createContext(): AppContext {

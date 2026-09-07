@@ -44,19 +44,20 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       },
       { id: 'file.close-workspace', label: '关闭工作区', disabled: !workspaceStore.rootPath, separatorBefore: true },
       { id: 'file.close-editor', label: '关闭文件', shortcut: 'Ctrl+W', disabled: !editor.activeId },
-      { id: 'file.new-chapter', label: '新建章节', disabled: true, separatorBefore: true },
+      { id: 'file.new-chapter', label: '新建章节', disabled: !workspaceStore.rootPath, separatorBefore: true },
       { id: 'file.new-scene-card', label: '新建场景卡', disabled: true },
-      { id: 'file.save', label: '保存', shortcut: 'Ctrl+S', disabled: true, separatorBefore: true },
-      { id: 'file.save-all', label: '全部保存', disabled: true },
-      { id: 'file.exit', label: '退出', disabled: true, separatorBefore: true }
+      { id: 'file.save', label: '保存', shortcut: 'Ctrl+S', disabled: !editor.activeTab?.dirty, separatorBefore: true },
+      { id: 'file.save-all', label: '全部保存', shortcut: 'Ctrl+Shift+S', disabled: !editor.hasUnsaved },
+      { id: 'file.auto-save', label: '自动保存', checked: editor.autoSave },
+      { id: 'file.exit', label: '退出', separatorBefore: true }
     ]
   },
   {
     id: 'edit',
     label: '编辑',
     items: [
-      { id: 'edit.undo', label: '撤销', shortcut: 'Ctrl+Z', disabled: true },
-      { id: 'edit.redo', label: '重做', shortcut: 'Ctrl+Y', disabled: true },
+      { id: 'edit.undo', label: '撤销', shortcut: 'Ctrl+Z', disabled: !editor.activeTab || editor.activeTab.readonly },
+      { id: 'edit.redo', label: '重做', shortcut: 'Ctrl+Y', disabled: !editor.activeTab || editor.activeTab.readonly },
       { id: 'edit.cut', label: '剪切', shortcut: 'Ctrl+X', disabled: true, separatorBefore: true },
       { id: 'edit.copy', label: '复制', shortcut: 'Ctrl+C', disabled: true },
       { id: 'edit.paste', label: '粘贴', shortcut: 'Ctrl+V', disabled: true },
@@ -67,7 +68,12 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         disabled: editor.activeTab?.status !== 'ready',
         separatorBefore: true
       },
-      { id: 'edit.replace', label: '替换', shortcut: 'Ctrl+H', disabled: true }
+      {
+        id: 'edit.replace',
+        label: '替换',
+        shortcut: 'Ctrl+H',
+        disabled: !editor.activeTab || editor.activeTab.readonly
+      }
     ]
   },
   {
@@ -123,11 +129,35 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'file.new-chapter') {
+    editor.newChapterOpen = true;
+    return;
+  }
+  if (itemId === 'file.save') {
+    void editor.saveDocument();
+    return;
+  }
+  if (itemId === 'file.save-all') {
+    void editor.saveAll();
+    return;
+  }
+  if (itemId === 'file.auto-save') {
+    void editor.setAutoSave(!editor.autoSave);
+    return;
+  }
+  if (itemId === 'file.exit') {
+    void editor.requestWindowClose();
+    return;
+  }
+  if (itemId === 'edit.undo' || itemId === 'edit.redo') {
+    editor.requestCommand(itemId === 'edit.undo' ? 'undo' : 'redo');
+    return;
+  }
   if (itemId === 'file.close-editor') {
     editor.closeTab(editor.activeId);
     return;
   }
-  if (itemId === 'edit.find') {
+  if (itemId === 'edit.find' || itemId === 'edit.replace') {
     editor.requestSearch();
     return;
   }

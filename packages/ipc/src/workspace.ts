@@ -1,6 +1,14 @@
 import type { Static } from 'typebox';
 
-import type { CreateEntryArgsSchema, ListDirectoryArgsSchema, ReadDocumentArgsSchema } from './schemas/workspace';
+import type { WorkspaceLayout } from '@chaptale/shared';
+
+import type {
+  CreateEntryArgsSchema,
+  ListDirectoryArgsSchema,
+  ReadDocumentArgsSchema,
+  WriteDocumentArgsSchema,
+  CreateChapterArgsSchema
+} from './schemas/workspace';
 
 export const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
 
@@ -65,3 +73,10 @@ export type ReadDocumentErrorCode =
 export type ReadDocumentResult =
   | { ok: true; document: WorkspaceDocument }
   | { ok: false; code: ReadDocumentErrorCode; message: string };
+
+export type WriteDocumentArgs = Static<typeof WriteDocumentArgsSchema>;
+export type WriteDocumentResult =
+  | { ok: true; document: WorkspaceDocument }
+  | { ok: false; code: ReadDocumentErrorCode | 'conflict' | 'invalid-content' | 'write-failed'; message: string };
+export type WorkspaceLayoutResult = { ok: true; layout: WorkspaceLayout } | { ok: false; message: string };
+export type CreateChapterArgs = Static<typeof CreateChapterArgsSchema>;

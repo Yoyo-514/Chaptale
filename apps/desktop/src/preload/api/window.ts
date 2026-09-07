@@ -8,6 +8,12 @@ export function createWindowControlApi(): ChaptaleDesktopApi['windowControl'] {
     minimize: () => ipcRenderer.invoke(IPC_CHANNELS.window.minimize) as Promise<WindowStateResult>,
     toggleMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.window.toggleMaximize) as Promise<WindowStateResult>,
     close: () => ipcRenderer.invoke(IPC_CHANNELS.window.close) as Promise<void>,
+    completeClose: close => ipcRenderer.invoke(IPC_CHANNELS.window.completeClose, close) as Promise<void>,
+    onCloseRequested: listener => {
+      const handler = () => listener();
+      ipcRenderer.on(IPC_CHANNELS.window.closeRequested, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.window.closeRequested, handler);
+    },
     isMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.window.isMaximized) as Promise<WindowStateResult>
   };
 }

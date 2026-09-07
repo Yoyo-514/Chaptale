@@ -4,6 +4,7 @@ import { useNotificationStore } from '@/features/notifications';
 import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
+import { confirmWorkspaceTransition } from '@/utils/workspace-transition';
 
 /** 工作区生命周期入口；迁移期复用 settings IPC，但不再由设置 UI 发起目录选择。 */
 export const useWorkspaceStore = defineStore('workspace', {
@@ -25,10 +26,11 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
     async refreshState() {
       const state = await getDesktopApi().workspace.getState();
+      const changed = state.rootPath !== this.rootPath;
       this.rootPath = state.rootPath;
       this.displayName = state.displayName;
       this.hasChaptaleMetadata = state.hasChaptaleMetadata;
-      this.revision += 1;
+      if (changed) this.revision += 1;
     },
     async openWorkspace() {
       if (this.isOpening) {
@@ -39,6 +41,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.error = '';
 
       try {
+        if (!(await confirmWorkspaceTransition())) return false;
         const result = await getDesktopApi().settings.selectWorkspaceDir();
 
         if (result.canceled || !result.state) {
@@ -59,12 +62,13 @@ export const useWorkspaceStore = defineStore('workspace', {
       }
     },
     async closeWorkspace() {
-      await useSettingsStore().update({ storage: { mode: 'global' } });
+      if (!(await useSettingsStore().update({ storage: { mode: 'global' } }))) return;
       await this.refreshState();
     },
     async openRecent(path: string) {
-      await useSettingsStore().update({ storage: { mode: 'workspace', workspacePath: path } });
+      if (!(await useSettingsStore().update({ storage: { mode: 'workspace', workspacePath: path } }))) return;
       await this.refreshState();
+      await this.syncSession();
     }
   }
 });

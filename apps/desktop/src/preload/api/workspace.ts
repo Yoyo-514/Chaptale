@@ -8,6 +8,9 @@ export function createWorkspaceApi(): ChaptaleDesktopApi['workspace'] {
     getState: () => ipcRenderer.invoke(IPC_CHANNELS.workspace.getState),
     listDirectory: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.listDirectory, args),
     createEntry: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.createEntry, args),
-    readDocument: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.readDocument, args)
+    readDocument: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.readDocument, args),
+    writeDocument: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.writeDocument, args),
+    getLayout: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.getLayout, args),
+    createChapter: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.createChapter, args)
   };
 }

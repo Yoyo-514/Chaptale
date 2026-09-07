@@ -7,7 +7,10 @@ export const IPC_CHANNELS = {
     getState: 'workspace:get-state',
     listDirectory: 'workspace:list-directory',
     createEntry: 'workspace:create-entry',
-    readDocument: 'workspace:read-document'
+    readDocument: 'workspace:read-document',
+    writeDocument: 'workspace:write-document',
+    getLayout: 'workspace:get-layout',
+    createChapter: 'workspace:create-chapter'
   },
   app: {
     getPlatform: 'app:get-platform'
@@ -16,6 +19,8 @@ export const IPC_CHANNELS = {
     minimize: 'window:minimize',
     toggleMaximize: 'window:toggle-maximize',
     close: 'window:close',
+    completeClose: 'window:complete-close',
+    closeRequested: 'window:close-requested',
     isMaximized: 'window:is-maximized'
   },
   session: {

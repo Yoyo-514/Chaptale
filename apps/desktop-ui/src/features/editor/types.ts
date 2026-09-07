@@ -6,13 +6,17 @@ export type EditorTab = {
   id: string;
   path: string;
   title: string;
-  readonly: true;
-  dirty: false;
+  readonly: boolean;
+  dirty: boolean;
   status: 'loading' | 'ready' | 'error';
   document: WorkspaceDocument | null;
   error: Extract<ReadDocumentResult, { ok: false }> | null;
   allowLarge: boolean;
   viewState?: DocumentViewState;
+  saving?: boolean;
+  saveError?: string;
+  words?: number;
+  generation?: number;
 };
 
 /** 常规预览的预算；更大的文件需要显式打开，并关闭换行与语法解析。 */

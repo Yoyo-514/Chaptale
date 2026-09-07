@@ -41,3 +41,31 @@ export const ReadDocumentArgsSchema = Type.Object(
   { additionalProperties: false }
 );
 export const ReadDocumentArgsValidator = Compile(Type.Tuple([ReadDocumentArgsSchema]));
+
+export const WriteDocumentArgsSchema = Type.Object(
+  {
+    rootPath: ReadDocumentArgsSchema.properties.rootPath,
+    relativePath: ReadDocumentArgsSchema.properties.relativePath,
+    expectedHash: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    content: Type.String({ maxLength: MAX_DOCUMENT_BYTES })
+  },
+  { additionalProperties: false }
+);
+export const WriteDocumentArgsValidator = Compile(Type.Tuple([WriteDocumentArgsSchema]));
+
+export const WorkspaceRootArgsSchema = Type.Object(
+  { rootPath: ReadDocumentArgsSchema.properties.rootPath },
+  { additionalProperties: false }
+);
+export const WorkspaceRootArgsValidator = Compile(Type.Tuple([WorkspaceRootArgsSchema]));
+export const CreateChapterArgsSchema = Type.Object(
+  {
+    rootPath: ReadDocumentArgsSchema.properties.rootPath,
+    title: Type.String({ minLength: 1, maxLength: 200 }),
+    filename: Type.String({ minLength: 1, maxLength: 160 }),
+    order: Type.Integer({ minimum: 1, maximum: 1000000 }),
+    relativeDirectory: Type.Optional(ReadDocumentArgsSchema.properties.relativePath)
+  },
+  { additionalProperties: false }
+);
+export const CreateChapterArgsValidator = Compile(Type.Tuple([CreateChapterArgsSchema]));

@@ -114,6 +114,7 @@ export class SettingsService {
           ...current.explorer,
           ...payload.explorer
         },
+        editor: { autoSave: payload.editor?.autoSave ?? current.editor?.autoSave ?? false },
         theme: payload.theme ?? current.theme,
         ...(current.lastSessions && Object.keys(current.lastSessions).length > 0
           ? { lastSessions: { ...current.lastSessions } }

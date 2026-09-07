@@ -3,9 +3,11 @@ import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
 
 const notificationStore = useNotificationStore();
+const editor = useEditorStore();
 
 const hasError = computed(() => notificationStore.items.some(item => item.kind === 'error'));
 const notificationCountLabel = computed(() =>
@@ -18,6 +20,7 @@ const notificationTooltip = computed(() =>
 
 <template>
   <footer class="status-bar" aria-label="状态栏">
+    <span v-if="editor.activeTab?.words !== undefined" class="px-2">{{ editor.activeTab.words }} 字</span>
     <div class="status-bar-spacer" />
 
     <AppTooltip :text="notificationTooltip" side="top" :side-offset="6">

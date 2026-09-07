@@ -72,7 +72,11 @@ import type {
   CreateEntryArgs,
   CreateEntryResult,
   ReadDocumentArgs,
-  ReadDocumentResult
+  ReadDocumentResult,
+  WriteDocumentArgs,
+  WriteDocumentResult,
+  WorkspaceLayoutResult,
+  CreateChapterArgs
 } from './workspace';
 
 /**
@@ -85,12 +89,17 @@ export type ChaptaleDesktopApi = {
     listDirectory: (args: ListDirectoryArgs) => Promise<ListDirectoryResult>;
     createEntry: (args: CreateEntryArgs) => Promise<CreateEntryResult>;
     readDocument: (args: ReadDocumentArgs) => Promise<ReadDocumentResult>;
+    writeDocument: (args: WriteDocumentArgs) => Promise<WriteDocumentResult>;
+    getLayout: (args: { rootPath: string }) => Promise<WorkspaceLayoutResult>;
+    createChapter: (args: CreateChapterArgs) => Promise<ReadDocumentResult>;
   };
   getPlatform: () => Promise<AppPlatformResult>;
   windowControl: {
     minimize: () => Promise<WindowStateResult>;
     toggleMaximize: () => Promise<WindowStateResult>;
     close: () => Promise<void>;
+    completeClose: (close: boolean) => Promise<void>;
+    onCloseRequested: (listener: () => void) => () => void;
     isMaximized: () => Promise<WindowStateResult>;
   };
   session: {

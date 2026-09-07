@@ -30,8 +30,17 @@ describe('settings defaults', () => {
       version: 1,
       storage: { mode: 'workspace', workspacePath: 'E:/Stories' },
       explorer: { showInternalFiles: false },
+      editor: { autoSave: false },
       theme: 'dark'
     });
+  });
+
+  it('自动保存只接受显式布尔开启，旧设置和错误类型默认关闭', () => {
+    expect(mergeSettings(undefined).editor?.autoSave).toBe(false);
+    expect(mergeSettings({ editor: { autoSave: true } }).editor?.autoSave).toBe(true);
+    expect(
+      mergeSettings({ editor: { autoSave: 'true' } } as unknown as Partial<ChaptaleSettings>).editor?.autoSave
+    ).toBe(false);
   });
 
   it('认不出的主题回落默认，而不是原样透传', () => {

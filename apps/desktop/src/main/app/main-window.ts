@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { ChaptaleTheme } from '@chaptale/ipc-contract';
 
+import { guardWindowClose } from '../infra/electron/window-close';
 import { isExternalUrl, isTrustedRendererUrl } from '../infra/security/navigation-security';
 
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -50,6 +51,7 @@ export function createMainWindow(rendererEntryUrl: string, theme: ChaptaleTheme)
   if (process.platform === 'win32') {
     window.setIcon(appIconPath);
   }
+  guardWindowClose(window);
 
   // Chromium 默认把 zoom 按 origin 持久化到 userData：一次误触 Ctrl+滚轮就会永久改变整个界面尺寸，
   // 而应用自己既没有缩放入口也没有重置入口，用户改不回来。
