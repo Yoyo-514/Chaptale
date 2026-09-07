@@ -25,7 +25,20 @@ export const CreateAssetSchema = Type.Object(
 );
 export type CreateAssetArgs = Static<typeof CreateAssetSchema>;
 export const CreateAssetValidator = Compile(Type.Tuple([CreateAssetSchema]));
+export const IdentifyAssetSchema = Type.Object(
+  {
+    ...WorkspaceRootArgsSchema.properties,
+    relativePath: WorkspaceRelativePathSchema,
+    expectedHash: ContentHashSchema,
+    templateId: ArtifactIdSchema,
+    templateHash: ContentHashSchema
+  },
+  { additionalProperties: false }
+);
+export type IdentifyAssetArgs = Static<typeof IdentifyAssetSchema>;
+export const IdentifyAssetValidator = Compile(Type.Tuple([IdentifyAssetSchema]));
 export type TemplatesApi = {
   list: (args: { rootPath: string }) => Promise<TemplateList>;
   create: (args: CreateAssetArgs) => Promise<WorkspaceDocument>;
+  identify: (args: IdentifyAssetArgs) => Promise<WorkspaceDocument>;
 };

@@ -55,6 +55,12 @@ const theme = EditorView.theme({
     backgroundColor: 'color-mix(in srgb, var(--foreground) 7%, transparent)'
   },
   '.cm-activeLineGutter': { color: 'var(--foreground)' },
+  '.cm-foldPlaceholder': {
+    backgroundColor: 'var(--surface-muted)',
+    color: 'var(--muted-foreground)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-control-sm)'
+  },
   '.cm-selectionBackground': { backgroundColor: 'var(--accent)' },
   '&.cm-focused .cm-selectionBackground': {
     backgroundColor: 'color-mix(in srgb, var(--primary-solid) 24%, transparent)'

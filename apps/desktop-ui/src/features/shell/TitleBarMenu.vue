@@ -9,6 +9,7 @@ import { useReviewStore } from '@/features/reviews';
 import { useSettingsStore } from '@/features/settings';
 import { useSettlementStore } from '@/features/settlement';
 import { useTemplateStore } from '@/features/templates';
+import { useVersionStore } from '@/features/versions';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 import { useWritingStore } from '@/features/writing';
@@ -21,6 +22,7 @@ const writing = useWritingStore();
 const reviews = useReviewStore();
 const templates = useTemplateStore();
 const settlement = useSettlementStore();
+const versions = useVersionStore();
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
 const THEME_ITEM_PREFIX = 'view.theme.';
@@ -109,7 +111,9 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         label: '结算当前章节',
         disabled: !editor.activeTab || editor.activeTab.readonly,
         separatorBefore: true
-      }
+      },
+      { id: 'writing.finalize', label: '定稿当前章节', disabled: !editor.activeTab || editor.activeTab.readonly },
+      { id: 'writing.versions', label: '查看文档版本', disabled: !editor.activeTab?.document }
     ]
   },
   {
@@ -145,6 +149,14 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'writing.finalize') {
+    versions.prepareFinal();
+    return;
+  }
+  if (itemId === 'writing.versions') {
+    void versions.open();
+    return;
+  }
   if (itemId === 'writing.settle') {
     void settlement.prepare();
     return;

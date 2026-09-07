@@ -15,7 +15,8 @@ export const IPC_CHANNELS = {
   },
   templates: {
     list: 'templates:list',
-    create: 'templates:create'
+    create: 'templates:create',
+    identify: 'templates:identify'
   },
   reviews: {
     run: 'reviews:run',
@@ -34,7 +35,9 @@ export const IPC_CHANNELS = {
     discard: 'writing:discard',
     apply: 'writing:apply',
     listVersions: 'writing:list-versions',
-    readVersion: 'writing:read-version'
+    readVersion: 'writing:read-version',
+    finalizeChapter: 'writing:finalize-chapter',
+    restoreVersion: 'writing:restore-version'
   },
   library: {
     sceneReferences: 'library:scene-references',
@@ -112,6 +115,7 @@ export const IPC_CHANNELS = {
   },
   memory: {
     listPending: 'memory:list-pending',
+    inspectPending: 'memory:inspect-pending',
     resolvePending: 'memory:resolve-pending',
     pendingChanged: 'memory:pending-changed'
   },

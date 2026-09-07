@@ -4,6 +4,7 @@ import type {
   MemoryCompactionResult,
   MemoryContextPressureStatus,
   MemoryPendingAction,
+  MemoryPendingDetails,
   MemoryPendingListResult,
   MemoryPendingResolveResult,
   SubagentSlotEvent,
@@ -213,7 +214,13 @@ export type ChaptaleDesktopApi = {
     /** 当前作品的待确认提议列表（含坏文件诊断）。 */
     listPending: () => Promise<MemoryPendingListResult>;
     /** 接受或拒绝提议；冲突时提议保留并返回原因。 */
-    resolvePending: (args: { id: string; action: MemoryPendingAction }) => Promise<MemoryPendingResolveResult>;
+    inspectPending: (args: { id: string; rootPath?: string }) => Promise<MemoryPendingDetails>;
+    resolvePending: (args: {
+      id: string;
+      action: MemoryPendingAction;
+      rootPath?: string;
+      expectedProposalHash?: string;
+    }) => Promise<MemoryPendingResolveResult>;
     /** 订阅 pending 集合变更（新提议/已处理）；返回取消订阅函数。 */
     onPendingChanged: (listener: () => void) => () => void;
   };

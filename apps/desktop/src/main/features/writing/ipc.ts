@@ -7,6 +7,8 @@ import {
   ApplyCandidateValidator,
   WritingTargetValidator,
   SnapshotReadValidator,
+  FinalizeChapterValidator,
+  RestoreVersionValidator,
   WorkspaceRootArgsValidator
 } from '@chaptale/ipc-contract';
 
@@ -63,5 +65,15 @@ export function registerWritingIpc(service: WritingService) {
     IPC_CHANNELS.writing.readVersion,
     SnapshotReadValidator,
     (_event, args: Parameters<WritingService['readVersion']>[0]) => service.readVersion(args)
+  );
+  handleValidatedIpc(
+    IPC_CHANNELS.writing.finalizeChapter,
+    FinalizeChapterValidator,
+    (_event, args: Parameters<WritingService['finalizeChapter']>[0]) => service.finalizeChapter(args)
+  );
+  handleValidatedIpc(
+    IPC_CHANNELS.writing.restoreVersion,
+    RestoreVersionValidator,
+    (_event, args: Parameters<WritingService['restoreVersion']>[0]) => service.restoreVersion(args)
   );
 }

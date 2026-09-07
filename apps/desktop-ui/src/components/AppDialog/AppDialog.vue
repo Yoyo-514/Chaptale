@@ -102,7 +102,7 @@ function closeDialog() {
 .app-dialog-content {
   @apply fixed left-1/2 top-1/2 z-$z-modal flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden border p-4 shadow-$shadow-float outline-none;
 
-  background: var(--popover);
+  background: var(--surface-elevated);
   border-color: var(--border-subtle);
   border-radius: var(--radius-overlay);
   color: var(--popover-foreground);

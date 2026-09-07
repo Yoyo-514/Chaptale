@@ -32,6 +32,13 @@ export type MemoryPendingListResult = {
 };
 
 export type MemoryPendingAction = 'accept' | 'reject';
+export type MemoryPendingDetails = {
+  proposal: MemoryPendingProposal;
+  proposalHash: string;
+  original: string;
+  modified: string;
+  conflict?: string;
+};
 
 /** 当前会话上下文水位；compaction 后尚无新 usage 时 tokens/percent 为 null。 */
 export type MemoryContextPressureStatus = {

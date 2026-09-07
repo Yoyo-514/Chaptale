@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import type {
   MemoryPendingAction,
+  MemoryPendingDetails,
   MemoryPendingDiagnostic,
   MemoryPendingListResult,
   MemoryPendingProposal,
@@ -13,6 +14,7 @@ import type {
 
 import type { FrontmatterParser } from '../../../core/frontmatter/types';
 import { resolveWorkspaceMemoryPaths } from '../../../core/memory-layout/paths';
+import { resolveArtifactPath } from '../../../core/workspace/artifacts';
 import { createTextAtomically, writeTextAtomically } from '../../../infra/filesystem/atomic-text';
 import { resolveWithinCwd } from '../../../infra/filesystem/path-guard';
 import { withFileWriteLock } from '../../../infra/filesystem/write-lock';
@@ -176,7 +178,12 @@ export class MemoryPendingStore {
   }
 
   /** 接受或拒绝提议；终态提议移入 pending/archived/ 留痕（AgentRun 可溯）。 */
-  async resolve(cwd: string, id: string, action: MemoryPendingAction): Promise<MemoryPendingResolveResult> {
+  async resolve(
+    cwd: string,
+    id: string,
+    action: MemoryPendingAction,
+    expectedProposalHash?: string
+  ): Promise<MemoryPendingResolveResult> {
     if (!/^[\w-]+$/.test(id)) return { id, status: 'missing', message: '提议标识无效' };
     const workspaceCwd = path.resolve(cwd);
     const pendingDir = await resolveWithinCwd(workspaceCwd, resolveWorkspaceMemoryPaths(workspaceCwd).pendingDir);
@@ -185,7 +192,11 @@ export class MemoryPendingStore {
       let proposal: MemoryPendingProposal;
 
       try {
-        proposal = parseProposalFile(await fs.readFile(filePath, 'utf8'), this.options.parseFrontmatter);
+        const raw = await fs.readFile(filePath, 'utf8');
+        if (expectedProposalHash && hashContent(raw) !== expectedProposalHash)
+          return { id, status: 'conflict', message: '提议已变化，请重新查看差异' };
+        proposal = parseProposalFile(raw, this.options.parseFrontmatter);
+        if (proposal.id !== id) return { id, status: 'conflict', message: '提议标识与文件名不符' };
       } catch {
         return { id, status: 'missing', message: '提议不存在或已被处理' };
       }
@@ -206,6 +217,46 @@ export class MemoryPendingStore {
       this.emitChange();
       return { id, status: 'applied' };
     });
+  }
+
+  async inspect(cwd: string, id: string): Promise<MemoryPendingDetails> {
+    if (!/^[\w-]+$/.test(id)) throw new Error('提议标识无效');
+    const filePath = await resolveArtifactPath(cwd, `.chaptale/memory/pending/${id}.md`);
+    if ((await fs.stat(filePath)).size > 8 * 1024 * 1024) throw new Error('提议过大');
+    const raw = await fs.readFile(filePath, 'utf8');
+    const proposal = parseProposalFile(raw, this.options.parseFrontmatter);
+    if (proposal.id !== id) throw new Error('提议标识与文件名不符');
+    const target = await this.resolveTargetPath(cwd, proposal.targetPath);
+    if (!target) throw new Error('提议目标无效');
+    let original = '';
+    let exists = false;
+    try {
+      if ((await fs.stat(target.absolute)).size > 8 * 1024 * 1024) throw new Error('资产过大');
+      original = await fs.readFile(target.absolute, 'utf8');
+      exists = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    const conflict =
+      proposal.proposalType === 'create'
+        ? exists
+          ? '落点已被占用'
+          : undefined
+        : !exists
+          ? '原文件已不存在'
+          : !proposal.contentHash || hashContent(original) !== proposal.contentHash
+            ? '资产已变化，请重新提出修改'
+            : undefined;
+    return {
+      proposal,
+      proposalHash: hashContent(raw),
+      original,
+      modified:
+        proposal.proposalType === 'archive'
+          ? setFrontmatterStatusArchived(original)
+          : ensureTrailingNewline(proposal.content),
+      ...(conflict ? { conflict } : {})
+    };
   }
 
   private async applyProposal(

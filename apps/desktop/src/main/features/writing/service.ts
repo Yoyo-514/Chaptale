@@ -5,17 +5,23 @@ import {
   type CandidateIdArgs,
   type DraftRequest,
   type RewriteSelection,
-  type RewriteRequest
+  type RewriteRequest,
+  type FinalizeChapterArgs,
+  type RestoreVersionArgs
 } from '@chaptale/ipc-contract';
 import { applyDocumentEdits, applyRewriteEdits, normalizeDocumentText, type Candidate } from '@chaptale/shared';
+import { patchDocumentFields } from '@chaptale/shared/document-frontmatter';
 
 import type { ModelService } from '../../core/models/service';
+import { resolveArtifactPath } from '../../core/workspace/artifacts';
+import { withFileWriteLock } from '../../infra/filesystem/write-lock';
 import type { LibraryService } from '../library/service';
 import type { PersonaRegistry } from '../personas/registry';
 import type { TaskRunnerPort } from '../tasks/runner-port';
 import type { WorkspaceService } from '../workspace/service';
 import { assertWritingTarget, CandidateStore } from './candidates';
 import { prepareRewriteInput, type ReviewReader } from './rewrite';
+import { VersionStore } from './versions';
 
 export class WritingService {
   private readonly running = new Map<string, AbortController>();
@@ -30,7 +36,10 @@ export class WritingService {
       readReview?: ReviewReader;
     }
   ) {
-    this.candidates = new CandidateStore(options.workspace);
+    this.candidates = new CandidateStore(
+      options.workspace,
+      new VersionStore(async rootPath => (await options.library.listAssets(rootPath)).assets)
+    );
   }
   private key(args: CandidateIdArgs) {
     return `${args.rootPath}\0${args.candidateId}`;
@@ -298,5 +307,65 @@ export class WritingService {
   async readVersion(args: { rootPath: string; targetPath: string; snapshotId: string }) {
     await this.options.library.assertWorkspace(args.rootPath);
     return this.candidates.versions.read(args.rootPath, args.targetPath, args.snapshotId);
+  }
+  private async savedTarget(args: { rootPath: string; targetPath: string; expectedHash: string }) {
+    await this.options.library.assertWorkspace(args.rootPath);
+    assertWritingTarget(args.targetPath);
+    const result = await this.options.workspace.readDocument({
+      rootPath: args.rootPath,
+      relativePath: args.targetPath,
+      maxBytes: 8 * 1024 * 1024
+    });
+    if (!result.ok) throw new Error(result.message);
+    if (result.document.contentHash !== args.expectedHash) throw new Error('文档已变化，请重新比较');
+    return result.document;
+  }
+  async finalizeChapter(args: FinalizeChapterArgs) {
+    const document = await this.savedTarget(args);
+    if (document.head.status === 'invalid') throw new Error('请先修正章节元数据');
+    const head = document.head.status === 'ok' ? document.head.frontmatter : {};
+    const layout = await this.options.workspace.getLayout(args.rootPath);
+    if (!layout.ok) throw new Error(layout.message);
+    if (
+      head.kind !== 'chapter' &&
+      (head.kind !== undefined || !args.targetPath.startsWith(`${layout.layout.roles.manuscript.relativePath}/`))
+    )
+      throw new Error('只能定稿章节');
+    if (!document.head.body.trim()) throw new Error('空章节不能定稿');
+    if (
+      head.status === 'final' &&
+      (await this.candidates.versions.list(args.rootPath, args.targetPath)).some(
+        snapshot => snapshot.reason === 'final' && snapshot.contentHash === document.contentHash
+      )
+    )
+      return document;
+    await this.candidates.versions.save(document, 'final');
+    if (head.status === 'final') return document;
+    const result = await this.options.workspace.writeDocument({
+      rootPath: args.rootPath,
+      relativePath: args.targetPath,
+      expectedHash: args.expectedHash,
+      content: patchDocumentFields(document.content, { status: 'final' })
+    });
+    if (!result.ok) throw new Error(result.message);
+    return result.document;
+  }
+  async restoreVersion(args: RestoreVersionArgs) {
+    const lock = await resolveArtifactPath(args.rootPath, '.chaptale/revisions/restore');
+    return withFileWriteLock(lock, async () => {
+      const document = await this.savedTarget(args);
+      const selected = await this.candidates.versions.read(args.rootPath, args.targetPath, args.snapshotId);
+      if (document.contentHash === selected.snapshot.contentHash) return document;
+      await this.candidates.versions.save(document, 'before-rollback');
+      const result = await this.options.workspace.writeDocument({
+        rootPath: args.rootPath,
+        relativePath: args.targetPath,
+        expectedHash: args.expectedHash,
+        content: selected.content
+      });
+      if (!result.ok) throw new Error(result.message);
+      await this.candidates.versions.save(result.document, 'rollback', undefined, args.snapshotId);
+      return result.document;
+    });
   }
 }

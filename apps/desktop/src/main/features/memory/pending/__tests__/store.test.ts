@@ -17,7 +17,58 @@ describe('MemoryPendingStore', () => {
   });
 
   afterEach(async () => {
+    expect(path.dirname(path.resolve(cwd))).toBe(path.resolve(os.tmpdir()));
+    expect(path.basename(cwd).startsWith('chaptale-pending-')).toBe(true);
     await fs.rm(cwd, { recursive: true, force: true });
+  });
+
+  it('previews exact applied text and refuses a proposal changed after inspection', async () => {
+    await fs.mkdir(path.join(cwd, '角色'));
+    const target = path.join(cwd, '角色/甲.md');
+    await fs.writeFile(target, '---\nkind: character\n---\n旧状态\n');
+    const proposal = await store.add(cwd, {
+      proposalType: 'update',
+      title: '更新角色',
+      reason: '作者确认',
+      targetPath: '角色/甲.md',
+      source: 'saved-output',
+      content: '---\nkind: character\n---\n新状态\n'
+    });
+    const detail = await store.inspect(cwd, proposal.id);
+    expect(detail.conflict).toBeUndefined();
+    expect(detail.original).toContain('旧状态');
+    expect(detail.modified).toContain('新状态');
+    const filename = path.join(cwd, '.chaptale/memory/pending', `${proposal.id}.md`);
+    await fs.writeFile(filename, (await fs.readFile(filename, 'utf8')).replace('新状态', '其他提议'));
+    expect(await store.resolve(cwd, proposal.id, 'accept', detail.proposalHash)).toMatchObject({
+      status: 'conflict',
+      message: '提议已变化，请重新查看差异'
+    });
+    expect(await fs.readFile(target, 'utf8')).toBe(detail.original);
+    const refreshed = await store.inspect(cwd, proposal.id);
+    expect(await store.resolve(cwd, proposal.id, 'accept', refreshed.proposalHash)).toMatchObject({
+      status: 'applied'
+    });
+    expect(await fs.readFile(target, 'utf8')).toBe(refreshed.modified);
+  });
+
+  it('shows archive diff without writing and marks changed assets as conflicting', async () => {
+    await fs.mkdir(path.join(cwd, '角色'));
+    const target = path.join(cwd, '角色/甲.md');
+    await fs.writeFile(target, '---\nkind: character\n---\n原文\n');
+    const proposal = await store.add(cwd, {
+      proposalType: 'archive',
+      title: '归档角色',
+      reason: '结束',
+      targetPath: '角色/甲.md',
+      source: 'saved-output'
+    });
+    const detail = await store.inspect(cwd, proposal.id);
+    expect(detail.modified).toContain('status: archived');
+    expect(await fs.readFile(target, 'utf8')).toBe(detail.original);
+    await fs.writeFile(target, `${detail.original}外部新增\n`);
+    expect((await store.inspect(cwd, proposal.id)).conflict).toContain('资产已变化');
+    await expect(store.inspect(cwd, '../escape')).rejects.toThrow('无效');
   });
 
   it('keeps proposals isolated by the explicit workspace cwd', async () => {

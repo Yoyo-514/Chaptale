@@ -23,12 +23,11 @@ describe('ActivityBar', () => {
       '记忆'
     ]);
     expect(activityButtons[0]?.attributes('aria-current')).toBe('page');
+    expect(activityButtons[2]?.attributes('disabled')).toBeUndefined();
     expect(activityButtons[3]?.attributes('disabled')).toBeUndefined();
-    expect(
-      [activityButtons[1], activityButtons[2], activityButtons[4]].every(
-        button => button?.attributes('disabled') !== undefined
-      )
-    ).toBe(true);
+    expect([activityButtons[1], activityButtons[4]].every(button => button?.attributes('disabled') !== undefined)).toBe(
+      true
+    );
   });
 
   it('opens the settings panel from the activity bar button', async () => {

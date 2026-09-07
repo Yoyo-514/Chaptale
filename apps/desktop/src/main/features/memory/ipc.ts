@@ -1,6 +1,7 @@
 import {
   IPC_CHANNELS,
   MemoryListPendingArgsValidator,
+  MemoryInspectPendingArgsValidator,
   MemoryResolvePendingArgsValidator
 } from '@chaptale/ipc-contract';
 
@@ -30,7 +31,13 @@ export function registerMemoryIpc(
 
   handleValidatedIpc(IPC_CHANNELS.memory.resolvePending, MemoryResolvePendingArgsValidator, async (_event, payload) => {
     const cwd = await options.resolveCwd();
-    return pendingStore.resolve(cwd, payload.id, payload.action);
+    if (payload.rootPath && payload.rootPath !== cwd) throw new Error('工作区已切换');
+    return pendingStore.resolve(cwd, payload.id, payload.action, payload.expectedProposalHash);
+  });
+  handleValidatedIpc(IPC_CHANNELS.memory.inspectPending, MemoryInspectPendingArgsValidator, async (_event, payload) => {
+    const cwd = await options.resolveCwd();
+    if (payload.rootPath && payload.rootPath !== cwd) throw new Error('工作区已切换');
+    return pendingStore.inspect(cwd, payload.id);
   });
 
   pendingStore.onChange(() => {

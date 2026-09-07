@@ -5,6 +5,7 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
 import { parseDocumentFrontmatter } from '@chaptale/shared/document-frontmatter';
 
+import { readDocumentSnapshot } from '../../workspace/read-document';
 import { WorkspaceService } from '../../workspace/service';
 import { TemplateService } from '../service';
 
@@ -35,6 +36,34 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 describe('模板三层与文件创建', () => {
+  it('识别仅补元数据，保留正文、既有字段与注释，并拒绝过期和重复识别', async () => {
+    const template = (await service.list(root)).templates.find(value => value.template === 'character-main')!;
+    const source = '\uFEFF---\r\ncustom: 0xFF # 保留\r\nimportance: hidden\r\n---\r\n自由原文。\n第二行。\r\n';
+    await writeFile(path.join(root, '随记.md'), source);
+    const original = await readDocumentSnapshot({ rootPath: root, relativePath: '随记.md', maxBytes: 1024 });
+    const args = {
+      rootPath: root,
+      relativePath: '随记.md',
+      expectedHash: original.contentHash,
+      templateId: template.template,
+      templateHash: template.hash
+    };
+    await expect(service.identify({ ...args, expectedHash: '0'.repeat(64) })).rejects.toThrow('已变化');
+    const result = await service.identify(args);
+    expect(result.head).toMatchObject({
+      status: 'ok',
+      frontmatter: { kind: 'character', title: '随记', importance: 'hidden' },
+      body: original.head.body
+    });
+    expect(result.content).toContain('custom: 0xFF # 保留\r\n');
+    expect(result.content.startsWith('\uFEFF')).toBe(true);
+    expect(result.content).not.toContain('一句话定位');
+    await expect(service.identify({ ...args, expectedHash: result.contentHash })).rejects.toThrow('已经分类');
+    await writeFile(path.join(root, '随记.md'), '---\ncustom: [\n---\n原文');
+    const broken = await readDocumentSnapshot({ rootPath: root, relativePath: '随记.md', maxBytes: 1024 });
+    await expect(service.identify({ ...args, expectedHash: broken.contentHash })).rejects.toThrow('修正元数据');
+    expect(await readFile(path.join(root, '随记.md'), 'utf8')).toBe(broken.content);
+  });
   it('内置十二种，作品覆盖作者版本，坏模板诊断且不覆盖合法定义', async () => {
     expect((await service.list(root)).templates).toHaveLength(12);
     await writeFile(path.join(home, 'templates/scene.md'), custom('作者版本'));

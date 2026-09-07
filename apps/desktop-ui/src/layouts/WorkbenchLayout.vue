@@ -8,14 +8,16 @@ import {
   TabsRoot,
   TabsTrigger
 } from 'reka-ui';
-import { onMounted, onBeforeUnmount } from 'vue';
+import { nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 
 import { AppScrollArea } from '@/components/AppScrollArea';
+import { AssetDialogs, AssetPanel, StructurePanel } from '@/features/assets';
 import { EditorGroup, useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore } from '@/features/library';
 import { ReviewPanel, ReviewCenter } from '@/features/reviews';
 import { SettlementPanel, SettlementDialogs } from '@/features/settlement';
 import { CreateAssetDialog } from '@/features/templates';
+import { VersionDialogs } from '@/features/versions';
 import { useWorkbenchStore } from '@/features/workbench';
 import { WorkspaceExplorer, useFileTreeStore, useWorkspaceStore } from '@/features/workspace';
 import { CandidatePanel, WritingDialogs } from '@/features/writing';
@@ -28,6 +30,16 @@ const workspace = useWorkspaceStore();
 const tree = useFileTreeStore();
 const library = useLibraryStore();
 const navigation = useWorkbenchStore();
+const auxiliaryTabs = ref<{ $el: HTMLElement }>();
+watch(
+  () => navigation.auxiliary,
+  async () => {
+    await nextTick();
+    auxiliaryTabs.value?.$el
+      .querySelector<HTMLElement>('[role="tab"][data-state="active"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }
+);
 let unsubscribe: (() => void) | undefined;
 onMounted(() => {
   if (!hasDesktopApi()) return;
@@ -58,8 +70,12 @@ onBeforeUnmount(() => unsubscribe?.());
       class="workbench-panel"
     >
       <aside class="workbench-primary-sidebar" aria-label="工作区侧栏">
-        <WorkspaceExplorer v-show="navigation.sidebar !== 'review'" @open-file="editor.openDocument" />
+        <WorkspaceExplorer
+          v-show="navigation.sidebar !== 'review' && navigation.sidebar !== 'structure'"
+          @open-file="editor.openDocument"
+        />
         <ReviewCenter v-if="navigation.sidebar === 'review'" />
+        <StructurePanel v-if="navigation.sidebar === 'structure'" />
       </aside>
     </SplitterPanel>
 
@@ -85,12 +101,13 @@ onBeforeUnmount(() => unsubscribe?.());
       <aside class="workbench-auxiliary-bar" aria-label="辅助栏">
         <TabsRoot v-model="navigation.auxiliary" class="workbench-auxiliary-root">
           <AppScrollArea orientation="horizontal" class="workbench-tab-scroll">
-            <TabsList class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
+            <TabsList ref="auxiliaryTabs" class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
               <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
               <TabsTrigger class="workbench-auxiliary-tab" value="references">参考</TabsTrigger>
               <TabsTrigger class="workbench-auxiliary-tab" value="candidates">候选</TabsTrigger>
               <TabsTrigger class="workbench-auxiliary-tab" value="review">审查</TabsTrigger>
               <TabsTrigger class="workbench-auxiliary-tab" value="settlement">结算</TabsTrigger>
+              <TabsTrigger class="workbench-auxiliary-tab" value="assets">资产</TabsTrigger>
             </TabsList>
           </AppScrollArea>
           <TabsContent value="agent" class="workbench-auxiliary-content"><AgentPanel /></TabsContent>
@@ -98,6 +115,7 @@ onBeforeUnmount(() => unsubscribe?.());
           <TabsContent value="candidates" class="workbench-auxiliary-content"><CandidatePanel /></TabsContent>
           <TabsContent value="review" class="workbench-auxiliary-content"><ReviewPanel /></TabsContent>
           <TabsContent value="settlement" class="workbench-auxiliary-content"><SettlementPanel /></TabsContent>
+          <TabsContent value="assets" class="workbench-auxiliary-content"><AssetPanel /></TabsContent>
         </TabsRoot>
       </aside>
     </SplitterPanel>
@@ -105,6 +123,8 @@ onBeforeUnmount(() => unsubscribe?.());
   <WritingDialogs />
   <CreateAssetDialog />
   <SettlementDialogs />
+  <AssetDialogs />
+  <VersionDialogs />
 </template>
 
 <style scoped lang="scss">

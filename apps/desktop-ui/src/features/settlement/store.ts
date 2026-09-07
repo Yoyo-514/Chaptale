@@ -23,6 +23,7 @@ export const useSettlementStore = defineStore('chapter-settlement', () => {
   const diagnostics = ref<string[]>([]);
   const error = ref('');
   const busy = ref(false);
+  const focusedTarget = ref('');
   let sequence = 0;
   let readSequence = 0;
 
@@ -43,13 +44,14 @@ export const useSettlementStore = defineStore('chapter-settlement', () => {
       if (token === sequence) error.value = toErrorMessage(cause);
     }
   }
-  async function read(batchId: string) {
+  async function read(batchId: string, targetPath?: string) {
     const rootPath = workspace.rootPath;
     if (!rootPath) return;
     const token = ++readSequence;
     try {
       const result = await getDesktopApi().settlement.read({ rootPath, batchId });
       if (token !== readSequence || rootPath !== workspace.rootPath) return;
+      if (targetPath !== undefined || batchId !== details.value?.batch.id) focusedTarget.value = targetPath ?? '';
       details.value = result;
       error.value = '';
       navigation.auxiliary = 'settlement';
@@ -222,6 +224,7 @@ export const useSettlementStore = defineStore('chapter-settlement', () => {
       diagnostics.value = [];
       error.value = '';
       busy.value = false;
+      focusedTarget.value = '';
     }
   );
   return {
@@ -233,6 +236,7 @@ export const useSettlementStore = defineStore('chapter-settlement', () => {
     diagnostics,
     error,
     busy,
+    focusedTarget,
     refresh,
     read,
     prepare,

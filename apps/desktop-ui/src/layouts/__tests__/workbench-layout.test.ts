@@ -46,7 +46,7 @@ describe('WorkbenchLayout', () => {
     });
     const tabs = wrapper.findAll('.workbench-auxiliary-bar [role="tab"]');
 
-    expect(tabs.map(tab => tab.text())).toEqual(['Agent', '参考', '候选', '审查', '结算']);
+    expect(tabs.map(tab => tab.text())).toEqual(['Agent', '参考', '候选', '审查', '结算', '资产']);
     expect(tabs[0]?.attributes('aria-selected')).toBe('true');
     expect(tabs[1]?.attributes('disabled')).toBeUndefined();
     expect(tabs[2]?.attributes('disabled')).toBeUndefined();

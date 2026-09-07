@@ -33,15 +33,15 @@ const complete = computed(
     batch.value.items.every(value => value.status !== 'pending') &&
     !settlement.details?.stale
 );
-watch(
-  () => batch.value?.id,
-  () => {
-    selected.value =
-      batch.value?.items.find(value => value.status === 'pending')?.id ?? batch.value?.items[0]?.id ?? '';
-    drafts.value = {};
-    editing.value = false;
-  }
-);
+watch([() => batch.value?.id, () => settlement.focusedTarget], () => {
+  selected.value =
+    batch.value?.items.find(value => value.targetPath === settlement.focusedTarget)?.id ??
+    batch.value?.items.find(value => value.status === 'pending')?.id ??
+    batch.value?.items[0]?.id ??
+    '';
+  drafts.value = {};
+  editing.value = false;
+});
 watch(selected, () => {
   editing.value = false;
 });

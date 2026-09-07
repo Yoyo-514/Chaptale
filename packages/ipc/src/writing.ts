@@ -68,6 +68,18 @@ export const SnapshotReadSchema = Type.Object(
   { additionalProperties: false }
 );
 export const SnapshotReadValidator = Compile(Type.Tuple([SnapshotReadSchema]));
+export const FinalizeChapterSchema = Type.Object(
+  { ...WritingTargetSchema.properties, expectedHash: ContentHashSchema },
+  { additionalProperties: false }
+);
+export type FinalizeChapterArgs = Static<typeof FinalizeChapterSchema>;
+export const FinalizeChapterValidator = Compile(Type.Tuple([FinalizeChapterSchema]));
+export const RestoreVersionSchema = Type.Object(
+  { ...SnapshotReadSchema.properties, expectedHash: ContentHashSchema },
+  { additionalProperties: false }
+);
+export type RestoreVersionArgs = Static<typeof RestoreVersionSchema>;
+export const RestoreVersionValidator = Compile(Type.Tuple([RestoreVersionSchema]));
 export const RewriteSelectionSchema = Type.Object(
   {
     ...WorkspaceRootArgsSchema.properties,
@@ -115,4 +127,6 @@ export type WritingApi = {
   apply: (args: ApplyCandidateArgs) => Promise<{ details: CandidateDetails; document: WorkspaceDocument }>;
   listVersions: (args: Static<typeof WritingTargetSchema>) => Promise<VersionSnapshot[]>;
   readVersion: (args: Static<typeof SnapshotReadSchema>) => Promise<{ snapshot: VersionSnapshot; content: string }>;
+  finalizeChapter: (args: FinalizeChapterArgs) => Promise<WorkspaceDocument>;
+  restoreVersion: (args: RestoreVersionArgs) => Promise<WorkspaceDocument>;
 };

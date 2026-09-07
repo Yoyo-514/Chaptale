@@ -2,7 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readdir, unlink } from 'node:fs/promises';
 
 import type { WorkspaceDocument } from '@chaptale/ipc-contract';
-import { VersionSnapshotValidator, type VersionSnapshot } from '@chaptale/shared';
+import { VersionSnapshotValidator, type AssetRecord, type VersionSnapshot } from '@chaptale/shared';
+import { parseDocumentFrontmatter } from '@chaptale/shared/document-frontmatter';
 
 import { createArtifact, resolveArtifactPath } from '../../core/workspace/artifacts';
 import { withFileWriteLock } from '../../infra/filesystem/write-lock';
@@ -12,7 +13,16 @@ function versionDirectory(targetPath: string) {
   return `.chaptale/revisions/versions/${createHash('sha256').update(targetPath).digest('hex').slice(0, 24)}`;
 }
 export class VersionStore {
-  async save(document: WorkspaceDocument, reason: VersionSnapshot['reason'], candidateId?: string) {
+  constructor(
+    private readonly assets?: (rootPath: string) => Promise<readonly Pick<AssetRecord, 'sourcePath' | 'id'>[]>
+  ) {}
+
+  async save(
+    document: WorkspaceDocument,
+    reason: VersionSnapshot['reason'],
+    candidateId?: string,
+    restoredFrom?: string
+  ) {
     const id = randomUUID();
     const directory = versionDirectory(document.relativePath);
     const contentPath = `${directory}/${id}.md`;
@@ -23,7 +33,13 @@ export class VersionStore {
       contentPath,
       reason,
       createdAt: new Date().toISOString(),
-      ...(candidateId ? { candidateId } : {})
+      ...(candidateId ? { candidateId } : {}),
+      ...(restoredFrom ? { restoredFrom } : {}),
+      ...(document.head.status === 'ok' &&
+      typeof document.head.frontmatter.id === 'string' &&
+      document.head.frontmatter.id
+        ? { sourceId: document.head.frontmatter.id }
+        : {})
     };
     await createArtifact(document.rootPath, contentPath, document.content);
     await createArtifact(document.rootPath, `${directory}/${id}.json`, JSON.stringify(snapshot));
@@ -31,7 +47,42 @@ export class VersionStore {
     return snapshot;
   }
   async list(rootPath: string, targetPath: string) {
-    const directory = versionDirectory(targetPath);
+    const assets = await this.assets?.(rootPath);
+    const id = assets?.find(asset => asset.sourcePath === targetPath)?.id;
+    const sourceId = id && assets?.filter(asset => asset.id === id).length === 1 ? id : undefined;
+    let directories = [versionDirectory(targetPath)];
+    if (sourceId) {
+      try {
+        const entries = await readdir(await resolveArtifactPath(rootPath, '.chaptale/revisions/versions'), {
+          withFileTypes: true
+        });
+        directories = entries
+          .filter(entry => entry.isDirectory() && /^[a-f0-9]{24}$/.test(entry.name))
+          .map(entry => `.chaptale/revisions/versions/${entry.name}`);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    const snapshots: VersionSnapshot[] = [];
+    for (const directory of directories) {
+      for (const snapshot of await this.readDirectory(rootPath, directory)) {
+        if (!sourceId) {
+          if (snapshot.targetPath === targetPath) snapshots.push(snapshot);
+          continue;
+        }
+        let snapshotSourceId = snapshot.sourceId;
+        // 旧版本没有 sourceId，按不可变原文补读身份，不改写历史记录。
+        if (!snapshotSourceId) {
+          const head = parseDocumentFrontmatter(await this.content(rootPath, snapshot));
+          if (head.status === 'ok' && typeof head.frontmatter.id === 'string') snapshotSourceId = head.frontmatter.id;
+        }
+        if (snapshotSourceId === sourceId || (!snapshotSourceId && snapshot.targetPath === targetPath))
+          snapshots.push(snapshot);
+      }
+    }
+    return snapshots.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+  }
+  private async readDirectory(rootPath: string, directory: string) {
     const absolute = await resolveArtifactPath(rootPath, directory);
     let names: string[];
     try {
@@ -50,7 +101,7 @@ export class VersionStore {
       const snapshot: unknown = JSON.parse(document.content);
       if (
         !VersionSnapshotValidator.Check(snapshot) ||
-        snapshot.targetPath !== targetPath ||
+        versionDirectory(snapshot.targetPath) !== directory ||
         snapshot.id !== name.slice(0, -5) ||
         snapshot.contentPath !== `${directory}/${snapshot.id}.md`
       ) {
@@ -58,11 +109,14 @@ export class VersionStore {
       }
       snapshots.push(snapshot);
     }
-    return snapshots.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return snapshots;
   }
   async read(rootPath: string, targetPath: string, snapshotId: string) {
     const snapshot = (await this.list(rootPath, targetPath)).find(value => value.id === snapshotId);
     if (!snapshot) throw new Error('版本不存在');
+    return { snapshot, content: await this.content(rootPath, snapshot) };
+  }
+  private async content(rootPath: string, snapshot: VersionSnapshot) {
     await resolveArtifactPath(rootPath, snapshot.contentPath);
     const document = await readDocumentSnapshot({
       rootPath,
@@ -70,7 +124,9 @@ export class VersionStore {
       maxBytes: 12 * 1024 * 1024
     });
     if (document.contentHash !== snapshot.contentHash) throw new Error('版本原文已被外部修改');
-    return { snapshot, content: document.content };
+    if (snapshot.sourceId && (document.head.status !== 'ok' || document.head.frontmatter.id !== snapshot.sourceId))
+      throw new Error('版本身份与原文不一致');
+    return document.content;
   }
   async prune(rootPath: string, targetPath: string) {
     const lockPath = await resolveArtifactPath(rootPath, `${versionDirectory(targetPath)}/retention`);

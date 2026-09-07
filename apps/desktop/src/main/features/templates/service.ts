@@ -1,7 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 
-import { CreateAssetValidator, type CreateAssetArgs } from '@chaptale/ipc-contract';
+import {
+  CreateAssetValidator,
+  IdentifyAssetValidator,
+  type CreateAssetArgs,
+  type IdentifyAssetArgs
+} from '@chaptale/ipc-contract';
 import {
   TemplateHeaderValidator,
   templateDefaults,
@@ -29,7 +34,7 @@ const protectedKeys = new Set([
 ]);
 export class TemplateService {
   constructor(
-    private readonly workspace: Pick<WorkspaceService, 'getState' | 'createDocument'>,
+    private readonly workspace: Pick<WorkspaceService, 'getState' | 'createDocument' | 'writeDocument'>,
     private readonly userDirectory: string
   ) {}
   private async assertWorkspace(rootPath: string) {
@@ -128,6 +133,41 @@ export class TemplateService {
     const result = await this.workspace.createDocument({
       rootPath: args.rootPath,
       relativePath: `${directory}/${args.filename}`,
+      content
+    });
+    if (!result.ok) throw new Error(result.message);
+    return result.document;
+  }
+  async identify(args: IdentifyAssetArgs) {
+    if (!IdentifyAssetValidator.Check([args])) throw new Error('识别请求不合法');
+    if (!/\.md$/i.test(args.relativePath) || args.relativePath.split('/').some(part => part.startsWith('.')))
+      throw new Error('只能识别作品内的 Markdown 文档');
+    const template = (await this.list(args.rootPath)).templates.find(value => value.template === args.templateId);
+    if (!template || template.hash !== args.templateHash) throw new Error('模板已变化，请重新选择');
+    const document = await readDocumentSnapshot({
+      rootPath: args.rootPath,
+      relativePath: args.relativePath,
+      maxBytes: 8 * 1024 * 1024
+    });
+    if (document.contentHash !== args.expectedHash) throw new Error('文档已变化，请重新读取');
+    if (document.head.status === 'invalid') throw new Error('请先在源文件中修正元数据');
+    const head = document.head.status === 'ok' ? document.head.frontmatter : {};
+    if (head.kind !== undefined && head.kind !== 'note') throw new Error('文档已经分类，不重复识别');
+    if (head.id !== undefined && (typeof head.id !== 'string' || !head.id.trim()))
+      throw new Error('文档 id 无效，请先修正');
+    const defaults = Object.fromEntries(Object.entries(templateDefaults(template)).filter(([key]) => !(key in head)));
+    const content = patchDocumentFields(document.content, {
+      ...defaults,
+      ...(head.id === undefined ? { id: randomUUID() } : {}),
+      ...(head.title === undefined ? { title: args.relativePath.split('/').at(-1)!.replace(/\.md$/i, '') } : {}),
+      kind: template.targetKind,
+      templateId: template.template,
+      templateHash: template.hash
+    });
+    const result = await this.workspace.writeDocument({
+      rootPath: args.rootPath,
+      relativePath: args.relativePath,
+      expectedHash: args.expectedHash,
       content
     });
     if (!result.ok) throw new Error(result.message);

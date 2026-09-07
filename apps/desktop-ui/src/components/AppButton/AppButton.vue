@@ -153,7 +153,7 @@ const buttonClassName = computed(() =>
 
   background: transparent;
   border-color: transparent;
-  color: var(--primary);
+  color: var(--primary-solid);
   text-underline-offset: 4px;
 }
 

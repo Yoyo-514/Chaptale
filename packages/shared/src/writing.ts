@@ -107,10 +107,13 @@ export const VersionSnapshotSchema = Type.Object(
       Type.Literal('accepted'),
       Type.Literal('final'),
       Type.Literal('settlement'),
+      Type.Literal('before-rollback'),
       Type.Literal('rollback')
     ]),
     createdAt: Type.String(),
-    candidateId: Type.Optional(ArtifactIdSchema)
+    candidateId: Type.Optional(ArtifactIdSchema),
+    sourceId: Type.Optional(Type.String({ minLength: 1 })),
+    restoredFrom: Type.Optional(ArtifactIdSchema)
   },
   { additionalProperties: false }
 );

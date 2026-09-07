@@ -111,6 +111,169 @@ async function openChapter(folder = '正文') {
   await page.locator(`[data-tree-path="${folder}/第一章.md"]`).click();
 }
 
+test('资产库支持跨目录分组、关系反链、无损识别和三主题窄窗口', async () => {
+  await mkdir(path.join(workspace, '角色/主要'), { recursive: true });
+  await mkdir(path.join(workspace, '散落资产'));
+  await mkdir(path.join(workspace, '大纲/场景卡'), { recursive: true });
+  await writeFile(
+    path.join(workspace, '角色/主要/林晚.md'),
+    '---\nid: linwan\nkind: character\ntitle: 林晚\nimportance: main\naliases: [阿晚]\nrelations:\n  - { to: "[[顾沉]]", type: 师父, note: 尚不知其真实身份 }\n---\n在[[失落的城]]收到信。\n'
+  );
+  await writeFile(
+    path.join(workspace, '散落资产/顾沉.md'),
+    '---\nid: guchen\nkind: character\ntitle: 顾沉\nimportance: main\n---\n远行未归。\n'
+  );
+  await writeFile(
+    path.join(workspace, '大纲/场景卡/夜访.md'),
+    '---\nkind: scene-card\ntitle: 夜访\ncast: ["[[角色/主要/林晚.md]]"]\n---\n本章场景。\n'
+  );
+  await writeFile(path.join(workspace, '角色/林晚 (conflicted copy).md'), '同步产生的待处理副本。');
+  const unclassified = '---\ncustom: 0xFF # 保留\n---\n作者的自由文字。\n';
+  await writeFile(path.join(workspace, '草记.md'), unclassified);
+  await page.getByRole('button', { name: '结构', exact: true }).click();
+  const structure = page.getByRole('region', { name: '作品结构' });
+  await page.getByRole('tab', { name: '角色', exact: true }).click();
+  await page.getByRole('button', { name: '分组视图', exact: true }).click();
+  await expect(page.locator('.structure-group summary', { hasText: '主要角色' })).toHaveCount(1);
+  await page.getByRole('button', { name: '打开资产 林晚 角色/主要/林晚.md', exact: true }).click();
+  const detail = page.getByRole('region', { name: '资产详情' });
+  await expect(detail.getByRole('heading', { name: '林晚', exact: true })).toBeVisible();
+  await expect(detail.getByText('[[失落的城]] · 断链', { exact: false })).toBeVisible();
+  await expect(detail.getByRole('button', { name: /夜访/ })).toBeVisible();
+  await detail.getByRole('button', { name: '[[顾沉]]', exact: true }).first().click();
+  await expect(detail.getByText('将本角色视为师父', { exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: '筛选资产', exact: true }).fill('阿晚');
+  await expect(page.locator('.structure-row')).toHaveCount(1);
+  await page.getByRole('button', { name: '清除资产筛选' }).click();
+  await page.getByRole('tab', { name: '未分类', exact: true }).click();
+  await page.getByRole('button', { name: '打开资产 草记 草记.md', exact: true }).click();
+  await detail.getByRole('button', { name: '识别文档', exact: true }).click();
+  await expect.poll(() => readFile(path.join(workspace, '草记.md'), 'utf8')).toContain('kind: character');
+  const recognized = await readFile(path.join(workspace, '草记.md'), 'utf8');
+  expect(recognized).toContain('custom: 0xFF # 保留\n');
+  expect(recognized.endsWith('作者的自由文字。\n')).toBe(true);
+  expect(recognized).not.toContain('一句话定位');
+  await expect(page.getByRole('tab', { name: '表单', exact: true })).toBeVisible();
+  await expect(page.getByText('冲突待处理', { exact: false }).first()).toBeVisible();
+  const snapshot = await page.evaluate(
+    async root => (window as DesktopWindow).chaptaleDesktop.library.listAssets({ rootPath: root }),
+    workspace
+  );
+  expect(snapshot.assets.some(asset => asset.sourcePath.includes('conflicted copy'))).toBe(false);
+  await mkdir(visualDir, { recursive: true });
+  for (const [theme, width] of [
+    ['light', 1440],
+    ['warm', 1024],
+    ['dark', 1024]
+  ] as const) {
+    await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size, 800), width);
+    await page.evaluate(
+      async value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }),
+      theme
+    );
+    await page.reload();
+    await page.getByRole('button', { name: '结构', exact: true }).click();
+    await page.getByRole('tab', { name: '角色', exact: true }).click();
+    await page.getByRole('button', { name: '分组视图', exact: true }).click();
+    await page.getByRole('button', { name: '打开资产 林晚 角色/主要/林晚.md', exact: true }).click();
+    await expect(detail.getByRole('heading', { name: '林晚', exact: true })).toBeVisible();
+    const sizes = await page.locator('.structure-panel, .asset-panel').evaluateAll(elements =>
+      elements.map(element => ({
+        width: element.getBoundingClientRect().width,
+        scroll: element.scrollWidth,
+        right: element.getBoundingClientRect().right,
+        viewport: window.innerWidth
+      }))
+    );
+    expect(sizes.every(size => size.scroll <= size.width + 1 && size.right <= size.viewport + 1)).toBe(true);
+    await page.screenshot({ path: path.join(visualDir, `m5-assets-${theme}.png`) });
+  }
+  await expect(structure).toBeVisible();
+});
+
+test('资产库待确认差异经真实 IPC 接受并可撤销，未接受前不写文件', async () => {
+  const original = '---\nid: linwan\nkind: character\ntitle: 林晚\n---\n尚未拆信。\n';
+  const modified = original.replace('尚未拆信', '已经拆信');
+  await mkdir(path.join(workspace, '角色'));
+  await writeFile(path.join(workspace, '角色/林晚.md'), original);
+  await mkdir(path.join(workspace, '.chaptale/memory/pending'), { recursive: true });
+  const fingerprint = `sha1:${createHash('sha1').update(original).digest('hex')}`;
+  await writeFile(
+    path.join(workspace, '.chaptale/memory/pending/p-asset.md'),
+    `---\nkind: proposal\nid: p-asset\nproposalType: update\ntitle: 林晚状态\nreason: 收到来信\nsource: saved-output\ncreatedAt: "2026-09-08T00:00:00.000Z"\ntargetPath: "角色/林晚.md"\ncontentHash: "${fingerprint}"\n---\n${modified}`
+  );
+  await page.getByRole('button', { name: '结构', exact: true }).click();
+  await page.getByRole('tab', { name: '角色', exact: true }).click();
+  await page.getByRole('button', { name: '打开资产 林晚 角色/林晚.md', exact: true }).click();
+  await page.getByRole('region', { name: '资产详情' }).getByRole('button', { name: '林晚状态', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '待确认事实', exact: true });
+  await expect(dialog.getByRole('textbox', { name: '当前资产', exact: true })).toContainText('尚未拆信');
+  await expect(dialog.getByRole('textbox', { name: '提议内容', exact: true })).toContainText('已经拆信');
+  expect(await readFile(path.join(workspace, '角色/林晚.md'), 'utf8')).toBe(original);
+  await dialog.getByRole('button', { name: '接受提议', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(await readFile(path.join(workspace, '角色/林晚.md'), 'utf8')).toBe(modified);
+  await page.getByRole('textbox', { name: '文档正文' }).click();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('尚未拆信');
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => readFile(path.join(workspace, '角色/林晚.md'), 'utf8')).toBe(original);
+});
+
+test('资产库文档版本支持定稿快照、外部冲突保护、完整回滚与重启恢复', async () => {
+  await openChapter();
+  await page.getByRole('menuitem', { name: '写作', exact: true }).click();
+  await page.getByRole('menuitem', { name: '定稿当前章节', exact: true }).click();
+  const finalDialog = page.getByRole('dialog', { name: '定稿当前章节', exact: true });
+  await finalDialog.getByRole('button', { name: '确认定稿', exact: true }).click();
+  await expect(finalDialog).toBeHidden();
+  const finalized = await readFile(path.join(workspace, '正文/第一章.md'), 'utf8');
+  expect(finalized).toContain('status: final');
+  const snapshots = await page.evaluate(
+    async root =>
+      (window as DesktopWindow).chaptaleDesktop.writing.listVersions({ rootPath: root, targetPath: '正文/第一章.md' }),
+    workspace
+  );
+  expect(snapshots).toHaveLength(1);
+  expect(snapshots[0]!.reason).toBe('final');
+  const immutable = await readFile(path.join(workspace, snapshots[0]!.contentPath), 'utf8');
+  expect(immutable).toBe(chapter);
+  await writeFile(path.join(workspace, '正文/第一章.md'), `${finalized}后来的修改。\r\n`);
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('后来的修改');
+  await page.getByRole('button', { name: '查看文档版本', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '文档版本', exact: true });
+  await expect(dialog.getByRole('textbox', { name: '当前版本', exact: true })).toContainText('后来的修改');
+  const external = `${finalized}外部再次修改。\r\n`;
+  await writeFile(path.join(workspace, '正文/第一章.md'), external);
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('外部再次修改');
+  await dialog.getByRole('button', { name: '回滚到该版本', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('已变化');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(external);
+  await dialog.getByRole('button', { name: '关闭', exact: true }).last().click();
+  await page.getByRole('button', { name: '查看文档版本', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: '当前版本', exact: true })).toContainText('外部再次修改');
+  await dialog.getByRole('button', { name: '回滚到该版本', exact: true }).click();
+  await expect(dialog.getByText('当前文件与此快照一致', { exact: true })).toBeVisible();
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  expect(await readFile(path.join(workspace, snapshots[0]!.contentPath), 'utf8')).toBe(immutable);
+  const restored = await page.evaluate(
+    async root =>
+      (window as DesktopWindow).chaptaleDesktop.writing.listVersions({ rootPath: root, targetPath: '正文/第一章.md' }),
+    workspace
+  );
+  expect(restored.map(item => item.reason)).toEqual(expect.arrayContaining(['before-rollback', 'rollback', 'final']));
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'm5-version-restored.png') });
+  await dialog.getByRole('button', { name: '关闭', exact: true }).last().click();
+  await app!.close();
+  await launchApp();
+  await openChapter();
+  await page.getByRole('button', { name: '查看文档版本', exact: true }).click();
+  await expect(
+    page.getByRole('dialog', { name: '文档版本', exact: true }).getByRole('combobox', { name: '历史版本' })
+  ).toContainText('回滚');
+});
+
 test('结算提议经真实 IPC 编辑接受、拒绝和重启恢复，完成后更新场景', async () => {
   const characterPath = '角色/林晚.md';
   const character = '---\nid: linwan\nkind: character\ntitle: 林晚\ncustom: 0xFF # 保留\n---\n尚未拆信。\n';

@@ -11,6 +11,7 @@ import { AppTooltip } from '@/components/AppTooltip';
 import { useLibraryStore } from '@/features/library';
 import { useReviewStore } from '@/features/reviews';
 import { TemplateFields, useTemplateStore } from '@/features/templates';
+import { useVersionStore } from '@/features/versions';
 import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
@@ -47,6 +48,7 @@ const editor = useEditorStore();
 const navigation = useWorkbenchStore();
 const reviews = useReviewStore();
 const templates = useTemplateStore();
+const versions = useVersionStore();
 const showForm = ref(false);
 const formValues = ref<Record<string, unknown>>({});
 const formError = ref('');
@@ -225,6 +227,16 @@ watch(
           <span class="i-mingcute-bookmark-add-line size-3.5" aria-hidden="true" />
         </AppButton>
       </AppTooltip>
+      <AppTooltip v-if="!large" text="资产引用与提议">
+        <AppButton icon size="xs" variant="ghost" aria-label="资产引用与提议" @click="navigation.auxiliary = 'assets'">
+          <span class="i-mingcute-link-line size-3.5" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip v-if="!large" text="查看文档版本">
+        <AppButton icon size="xs" variant="ghost" aria-label="查看文档版本" @click="versions.open()">
+          <span class="i-mingcute-history-line size-3.5" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
       <span v-if="large" class="document-readonly"
         ><span class="i-mingcute-lock-line size-3" aria-hidden="true" />只读</span
       >
@@ -280,8 +292,8 @@ watch(
         ><span class="i-mingcute-close-line size-3"
       /></AppButton>
     </div>
-    <div v-if="saveError || recoveryError || conflict" class="document-diagnostic" role="alert">
-      {{ saveError || recoveryError || '磁盘版本与本地版本不同' }}
+    <div v-if="saveError || recoveryError || conflict || versions.error" class="document-diagnostic" role="alert">
+      {{ saveError || recoveryError || versions.error || '磁盘版本与本地版本不同' }}
       <AppButton v-if="conflict" size="xs" @click="emit('compare')">对比版本</AppButton>
     </div>
     <details v-if="document.head.status === 'invalid'" class="document-diagnostic">

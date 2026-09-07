@@ -13,6 +13,8 @@ export function createWritingApi(): WritingApi {
     discard: args => ipcRenderer.invoke(IPC_CHANNELS.writing.discard, args),
     apply: args => ipcRenderer.invoke(IPC_CHANNELS.writing.apply, args),
     listVersions: args => ipcRenderer.invoke(IPC_CHANNELS.writing.listVersions, args),
-    readVersion: args => ipcRenderer.invoke(IPC_CHANNELS.writing.readVersion, args)
+    readVersion: args => ipcRenderer.invoke(IPC_CHANNELS.writing.readVersion, args),
+    finalizeChapter: args => ipcRenderer.invoke(IPC_CHANNELS.writing.finalizeChapter, args),
+    restoreVersion: args => ipcRenderer.invoke(IPC_CHANNELS.writing.restoreVersion, args)
   };
 }

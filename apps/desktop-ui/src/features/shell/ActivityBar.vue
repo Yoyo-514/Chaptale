@@ -10,7 +10,7 @@ const navigation = useWorkbenchStore();
 const activities = [
   { id: 'workspace', label: '工作区', icon: 'i-mingcute-folder-2-line', available: true },
   { id: 'search', label: '搜索', icon: 'i-mingcute-search-line', available: false },
-  { id: 'structure', label: '结构', icon: 'i-mingcute-list-check-line', available: false },
+  { id: 'structure', label: '结构', icon: 'i-mingcute-list-check-line', available: true },
   { id: 'review', label: '审查', icon: 'i-mingcute-check-circle-line', available: true },
   { id: 'memory', label: '记忆', icon: 'i-mingcute-brain-line', available: false }
 ] as const;

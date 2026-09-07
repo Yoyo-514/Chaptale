@@ -4,13 +4,23 @@ import { Compile } from 'typebox/compile';
 /** 列出 pending 提议：无参数。 */
 export const MemoryListPendingArgsSchema = Type.Tuple([]);
 export const MemoryListPendingArgsValidator = Compile(MemoryListPendingArgsSchema);
+const pendingId = Type.String({ minLength: 1, maxLength: 80, pattern: '^[A-Za-z0-9_-]+$' });
+export const MemoryInspectPendingArgsSchema = Type.Tuple([
+  Type.Object(
+    { id: pendingId, rootPath: Type.Optional(Type.String({ minLength: 1 })) },
+    { additionalProperties: false }
+  )
+]);
+export const MemoryInspectPendingArgsValidator = Compile(MemoryInspectPendingArgsSchema);
 
 /** 处理提议：id + accept/reject。id 只允许安全字符集，阻断经文件名拼接的路径穿越。 */
 export const MemoryResolvePendingArgsSchema = Type.Tuple([
   Type.Object(
     {
-      id: Type.String({ minLength: 1, maxLength: 80, pattern: '^[A-Za-z0-9_-]+$' }),
-      action: Type.Union([Type.Literal('accept'), Type.Literal('reject')])
+      id: pendingId,
+      action: Type.Union([Type.Literal('accept'), Type.Literal('reject')]),
+      rootPath: Type.Optional(Type.String({ minLength: 1 })),
+      expectedProposalHash: Type.Optional(Type.String({ pattern: '^sha1:[a-f0-9]{40}$' }))
     },
     { additionalProperties: false }
   )
