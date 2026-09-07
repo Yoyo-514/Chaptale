@@ -16,6 +16,9 @@ import {
   type ListDirectoryResult,
   type ReadDocumentArgs,
   type ReadDocumentResult,
+  type RecoveryPathArgs,
+  type SaveRecoveryArgs,
+  type WorkspaceChanged,
   type WorkspaceState
 } from '@chaptale/ipc-contract';
 
@@ -25,6 +28,8 @@ import { createTextAtomically, writeTextAtomically } from '../../infra/filesyste
 import { DEFAULT_IGNORED_DIRS, resolveWithinCwd } from '../../infra/filesystem/path-guard';
 import { withFileWriteLock } from '../../infra/filesystem/write-lock';
 import { DocumentReadError, readDocumentSnapshot, type DocumentReadOptions } from './read-document';
+import type { RecoveryStore } from './recovery';
+import type { WorkspaceWatcher } from './watcher';
 
 /** Windows 保留字符；跨平台统一按最严的一套挡，避免作品目录在另一台机器上打不开。 */
 const INVALID_NAME_CHARS = /[<>:"/\\|?*]/;
@@ -44,12 +49,15 @@ const RESERVED_NAMES = new Set([
 export class WorkspaceService {
   constructor(
     private readonly settings: Pick<SettingsService, 'getStorageContext'>,
-    private readonly documentReadOptions: DocumentReadOptions = {}
+    private readonly documentReadOptions: DocumentReadOptions = {},
+    private readonly watcher?: WorkspaceWatcher,
+    private readonly recovery?: RecoveryStore
   ) {}
 
   async getState(): Promise<WorkspaceState> {
     const context = await this.settings.getStorageContext();
     const rootPath = context.storageMode === 'workspace' && context.workspacePath ? context.workspacePath : null;
+    await this.watcher?.setRoot(rootPath);
     const hasChaptaleMetadata = rootPath
       ? await fs.stat(path.join(rootPath, '.chaptale')).then(
           stat => stat.isDirectory(),
@@ -57,6 +65,41 @@ export class WorkspaceService {
         )
       : false;
     return { rootPath, displayName: rootPath ? path.basename(rootPath) : null, hasChaptaleMetadata };
+  }
+
+  onChange(listener: (event: WorkspaceChanged) => void) {
+    return this.watcher?.onChange(listener) ?? (() => undefined);
+  }
+
+  async dispose() {
+    await this.watcher?.dispose();
+  }
+
+  private async assertWorkspace(rootPath: string) {
+    const context = await this.settings.getStorageContext();
+    if (context.storageMode !== 'workspace' || context.workspacePath !== rootPath) throw new Error('工作区已经切换');
+  }
+
+  async listRecoveries(rootPath: string) {
+    await this.assertWorkspace(rootPath);
+    return this.recovery?.list(rootPath) ?? [];
+  }
+
+  async readRecovery(args: RecoveryPathArgs) {
+    await this.assertWorkspace(args.rootPath);
+    return this.recovery?.read(args.rootPath, args.relativePath) ?? null;
+  }
+
+  async saveRecovery(args: SaveRecoveryArgs) {
+    await this.assertWorkspace(args.rootPath);
+    if (!isSafeRelativePath(args.relativePath)) throw new Error('恢复草稿路径不合法');
+    if (!this.recovery) throw new Error('恢复存储不可用');
+    await this.recovery.save(args);
+  }
+
+  async discardRecovery(args: RecoveryPathArgs) {
+    await this.assertWorkspace(args.rootPath);
+    await this.recovery?.discard(args.rootPath, args.relativePath);
   }
 
   async listDirectory(args: ListDirectoryArgs): Promise<ListDirectoryResult> {
@@ -155,6 +198,10 @@ export class WorkspaceService {
         if (!before.ok) return before;
         if (before.document.contentHash !== args.expectedHash) {
           return { ok: false, code: 'conflict', message: '磁盘文件已更新，本地修改未覆盖外部内容' };
+        }
+        if (args.preservePrevious) {
+          if (!this.recovery) return { ok: false, code: 'write-failed', message: '无法保留外部版本，未覆盖文件' };
+          await this.recovery.preserve(args.rootPath, args.relativePath, before.document.content);
         }
         await resolveWithinCwd(args.rootPath, args.relativePath);
         await writeTextAtomically(target, args.content);

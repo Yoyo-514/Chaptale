@@ -29,6 +29,9 @@ export function bootstrapDesktopApp(): void {
     configureTrustedRendererUrl(rendererEntryUrl);
 
     const context = createAppContext();
+    app.on('will-quit', () => {
+      void context.workspaceService.dispose();
+    });
     registerApplicationIpc(context);
     // 主题要在建窗口之前读到：backgroundColor 决定首帧之前那一瞬露出的底色，
     // 建完再改就已经闪过去了。

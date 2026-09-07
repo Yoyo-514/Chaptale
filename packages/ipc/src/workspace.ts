@@ -7,7 +7,11 @@ import type {
   ListDirectoryArgsSchema,
   ReadDocumentArgsSchema,
   WriteDocumentArgsSchema,
-  CreateChapterArgsSchema
+  CreateChapterArgsSchema,
+  WorkspaceChangedSchema,
+  RecoveryPathArgsSchema,
+  SaveRecoveryArgsSchema,
+  RecoveryDraftSchema
 } from './schemas/workspace';
 
 export const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
@@ -80,3 +84,8 @@ export type WriteDocumentResult =
   | { ok: false; code: ReadDocumentErrorCode | 'conflict' | 'invalid-content' | 'write-failed'; message: string };
 export type WorkspaceLayoutResult = { ok: true; layout: WorkspaceLayout } | { ok: false; message: string };
 export type CreateChapterArgs = Static<typeof CreateChapterArgsSchema>;
+export type WorkspaceChanged = Static<typeof WorkspaceChangedSchema>;
+export type RecoveryPathArgs = Static<typeof RecoveryPathArgsSchema>;
+export type SaveRecoveryArgs = Static<typeof SaveRecoveryArgsSchema>;
+export type RecoveryDraft = Static<typeof RecoveryDraftSchema>;
+export type RecoverySummary = Omit<RecoveryDraft, 'content'>;

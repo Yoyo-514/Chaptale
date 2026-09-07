@@ -48,9 +48,12 @@ import {
   WriteDocumentArgsValidator,
   WorkspaceRootArgsValidator,
   CreateChapterArgsValidator,
-  WindowCompleteCloseArgsValidator
+  WindowCompleteCloseArgsValidator,
+  RecoveryPathArgsValidator,
+  SaveRecoveryArgsValidator
 } from '@chaptale/ipc-contract';
 
+import { WorkspaceService } from '../../features/workspace/service';
 import type { AppContext } from '../app-context';
 import { registerApplicationIpc } from '../ipc-registry';
 
@@ -133,6 +136,10 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.workspace.writeDocument, WriteDocumentArgsValidator),
   validated(IPC_CHANNELS.workspace.getLayout, WorkspaceRootArgsValidator),
   validated(IPC_CHANNELS.workspace.createChapter, CreateChapterArgsValidator),
+  validated(IPC_CHANNELS.workspace.listRecoveries, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.workspace.readRecovery, RecoveryPathArgsValidator),
+  validated(IPC_CHANNELS.workspace.saveRecovery, SaveRecoveryArgsValidator),
+  validated(IPC_CHANNELS.workspace.discardRecovery, RecoveryPathArgsValidator),
 
   trusted(IPC_CHANNELS.promptSettings.getState),
   validated(IPC_CHANNELS.promptSettings.update, UpdatePromptSettingsArgsValidator),
@@ -190,12 +197,16 @@ const mainToRendererEvents = new Set<string>([
   IPC_CHANNELS.subagent.event,
   IPC_CHANNELS.memory.pendingChanged,
   IPC_CHANNELS.permissions.ask,
-  IPC_CHANNELS.window.closeRequested
+  IPC_CHANNELS.window.closeRequested,
+  IPC_CHANNELS.workspace.changed
 ]);
 
 function createContext(): AppContext {
   return {
     settingsService: {},
+    workspaceService: new WorkspaceService({
+      getStorageContext: async () => ({ storageMode: 'global' as const, workspacePath: undefined })
+    }),
     sessionRepository: {},
     modelService: {},
     agentRuntime: {},

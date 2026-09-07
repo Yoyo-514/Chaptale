@@ -10,7 +10,12 @@ export const IPC_CHANNELS = {
     readDocument: 'workspace:read-document',
     writeDocument: 'workspace:write-document',
     getLayout: 'workspace:get-layout',
-    createChapter: 'workspace:create-chapter'
+    createChapter: 'workspace:create-chapter',
+    changed: 'workspace:changed',
+    listRecoveries: 'workspace:list-recoveries',
+    readRecovery: 'workspace:read-recovery',
+    saveRecovery: 'workspace:save-recovery',
+    discardRecovery: 'workspace:discard-recovery'
   },
   app: {
     getPlatform: 'app:get-platform'

@@ -12,6 +12,7 @@ import NewChapterDialog from './NewChapterDialog.vue';
 import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 
 const DocumentView = defineAsyncComponent(() => import('./DocumentView.vue'));
+const ExternalChangeDialog = defineAsyncComponent(() => import('./ExternalChangeDialog.vue'));
 
 const editor = useEditorStore();
 let unsubscribeClose: (() => void) | undefined;
@@ -71,6 +72,17 @@ watch(
 </script>
 
 <template>
+  <div v-if="editor.recoveries.length || editor.recoveryError" class="editor-recoveries">
+    <p v-if="editor.recoveryError" role="alert">{{ editor.recoveryError }}</p>
+    <details v-if="editor.recoveries.length" open>
+      <summary>上次未保存的草稿（{{ editor.recoveries.length }}）</summary>
+      <div v-for="draft in editor.recoveries" :key="draft.relativePath" class="editor-recovery-row">
+        <span :title="draft.relativePath">{{ draft.relativePath }}</span>
+        <AppButton size="xs" @click="editor.restoreRecovery(draft.relativePath)">恢复</AppButton>
+        <AppButton size="xs" variant="ghost" @click="editor.discardRecovery(draft.relativePath)">放弃</AppButton>
+      </div>
+    </details>
+  </div>
   <TabsRoot
     :model-value="editor.activeId || 'welcome'"
     class="editor-group"
@@ -157,6 +169,9 @@ watch(
         :dirty="tab.dirty"
         :saving="tab.saving"
         :save-error="tab.saveError"
+        :recovery-error="tab.recoveryError"
+        :notice="tab.notice"
+        :conflict="Boolean(tab.external)"
         :command="editor.command"
         :view-state="tab.viewState"
         :search-request="editor.searchRequest"
@@ -164,16 +179,29 @@ watch(
         @remember-view="state => editor.rememberView(tab.id, state)"
         @change="buffer => editor.updateBuffer(tab.id, buffer)"
         @save="editor.saveDocument(tab.id)"
+        @compare="editor.conflictId = tab.id"
       />
     </TabsContent>
   </TabsRoot>
   <UnsavedDocumentsDialog />
   <NewChapterDialog />
+  <ExternalChangeDialog v-if="editor.conflictId" />
 </template>
 
 <style scoped lang="scss">
 .editor-group {
-  @apply flex h-full min-h-0 min-w-0 flex-col overflow-hidden;
+  @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden;
+}
+.editor-recoveries {
+  @apply max-h-36 shrink-0 overflow-auto border-b p-2 text-xs;
+  border-color: var(--border-subtle);
+  background: var(--surface-muted);
+}
+.editor-recovery-row {
+  @apply mt-2 flex items-center gap-2;
+}
+.editor-recovery-row > span {
+  @apply min-w-0 flex-1 truncate;
 }
 
 .editor-tabs-scroll {

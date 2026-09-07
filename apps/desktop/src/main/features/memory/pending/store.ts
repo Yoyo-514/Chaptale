@@ -1,4 +1,3 @@
-import { writeFile } from 'atomically';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -14,6 +13,9 @@ import type {
 
 import type { FrontmatterParser } from '../../../core/frontmatter/types';
 import { resolveWorkspaceMemoryPaths } from '../../../core/memory-layout/paths';
+import { createTextAtomically, writeTextAtomically } from '../../../infra/filesystem/atomic-text';
+import { resolveWithinCwd } from '../../../infra/filesystem/path-guard';
+import { withFileWriteLock } from '../../../infra/filesystem/write-lock';
 import {
   ensureTrailingNewline,
   hashContent,
@@ -61,27 +63,40 @@ export class MemoryPendingStore {
   }
 
   /** 校验 targetPath 合法性：必须落在 workspace 内，且不得指向 .chaptale 运行时数据区。 */
-  private resolveTargetPath(cwd: string, targetPath: string): { cwd: string; absolute: string } | null {
+  private async resolveTargetPath(cwd: string, targetPath: string): Promise<{ cwd: string; absolute: string } | null> {
     const workspaceCwd = path.resolve(cwd);
     const absolute = path.resolve(workspaceCwd, targetPath);
 
-    if (absolute !== workspaceCwd && !absolute.startsWith(workspaceCwd + path.sep)) {
+    if (absolute === workspaceCwd || !absolute.startsWith(workspaceCwd + path.sep)) {
       return null;
     }
 
-    const runtimeDir = path.join(workspaceCwd, '.chaptale');
-
-    // 安全边界：pending 提议只能指向作者资产，不能写入应用运行时目录。
-    if (absolute === runtimeDir || absolute.startsWith(runtimeDir + path.sep)) {
+    const relative = path.relative(workspaceCwd, absolute);
+    if (relative.split(path.sep)[0]?.toLowerCase() === '.chaptale') {
       return null;
     }
-
+    try {
+      await resolveWithinCwd(workspaceCwd, targetPath);
+      let probe = workspaceCwd;
+      // 根目录可为链接，提议目标内部不跟随链接，避免指回运行时目录。
+      for (const part of relative.split(path.sep)) {
+        probe = path.join(probe, part);
+        try {
+          if ((await fs.lstat(probe)).isSymbolicLink()) return null;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return null;
+          break;
+        }
+      }
+    } catch {
+      return null;
+    }
     return { cwd: workspaceCwd, absolute };
   }
 
   /** 新增提议：update/archive 会读取目标文件计算 contentHash；返回提议 id。 */
   async add(cwd: string, draft: MemoryProposalDraft): Promise<MemoryPendingProposal> {
-    const resolved = this.resolveTargetPath(cwd, draft.targetPath);
+    const resolved = await this.resolveTargetPath(cwd, draft.targetPath);
 
     if (!resolved) {
       throw new Error(`目标路径不合法（必须在作品内且不得指向 .chaptale）：${draft.targetPath}`);
@@ -124,9 +139,9 @@ export class MemoryPendingStore {
       content: draft.content ?? ''
     };
 
-    const pendingDir = resolveWorkspaceMemoryPaths(resolved.cwd).pendingDir;
+    const pendingDir = await resolveWithinCwd(resolved.cwd, resolveWorkspaceMemoryPaths(resolved.cwd).pendingDir);
     await fs.mkdir(pendingDir, { recursive: true });
-    await writeFile(path.join(pendingDir, `${proposal.id}.md`), renderProposalFile(proposal), 'utf8');
+    await createTextAtomically(path.join(pendingDir, `${proposal.id}.md`), renderProposalFile(proposal));
 
     this.emitChange();
     return proposal;
@@ -162,79 +177,91 @@ export class MemoryPendingStore {
 
   /** 接受或拒绝提议；终态提议移入 pending/archived/ 留痕（AgentRun 可溯）。 */
   async resolve(cwd: string, id: string, action: MemoryPendingAction): Promise<MemoryPendingResolveResult> {
+    if (!/^[\w-]+$/.test(id)) return { id, status: 'missing', message: '提议标识无效' };
     const workspaceCwd = path.resolve(cwd);
-    const pendingDir = resolveWorkspaceMemoryPaths(workspaceCwd).pendingDir;
+    const pendingDir = await resolveWithinCwd(workspaceCwd, resolveWorkspaceMemoryPaths(workspaceCwd).pendingDir);
     const filePath = path.join(pendingDir, `${id}.md`);
+    return withFileWriteLock(filePath, async () => {
+      let proposal: MemoryPendingProposal;
 
-    let proposal: MemoryPendingProposal;
+      try {
+        proposal = parseProposalFile(await fs.readFile(filePath, 'utf8'), this.options.parseFrontmatter);
+      } catch {
+        return { id, status: 'missing', message: '提议不存在或已被处理' };
+      }
 
-    try {
-      proposal = parseProposalFile(await fs.readFile(filePath, 'utf8'), this.options.parseFrontmatter);
-    } catch {
-      return { id, status: 'missing', message: '提议不存在或已被处理' };
-    }
+      if (action === 'reject') {
+        await this.archiveProposal(pendingDir, filePath, 'rejected');
+        this.emitChange();
+        return { id, status: 'rejected' };
+      }
 
-    if (action === 'reject') {
-      await this.archiveProposal(pendingDir, filePath, 'rejected');
+      const applied = await this.applyProposal(workspaceCwd, proposal);
+
+      if (applied.status === 'conflict') {
+        return { id, status: 'conflict', ...(applied.message ? { message: applied.message } : {}) };
+      }
+
+      await this.archiveProposal(pendingDir, filePath, 'accepted');
       this.emitChange();
-      return { id, status: 'rejected' };
-    }
-
-    const applied = await this.applyProposal(workspaceCwd, proposal);
-
-    if (applied.status === 'conflict') {
-      return { id, status: 'conflict', ...(applied.message ? { message: applied.message } : {}) };
-    }
-
-    await this.archiveProposal(pendingDir, filePath, 'accepted');
-    this.emitChange();
-    return { id, status: 'applied' };
+      return { id, status: 'applied' };
+    });
   }
 
   private async applyProposal(
     cwd: string,
     proposal: MemoryPendingProposal
   ): Promise<{ status: 'applied' | 'conflict'; message?: string }> {
-    const resolved = this.resolveTargetPath(cwd, proposal.targetPath);
+    const resolved = await this.resolveTargetPath(cwd, proposal.targetPath);
 
     if (!resolved) {
       return { status: 'conflict', message: `目标路径不合法：${proposal.targetPath}` };
     }
+    return withFileWriteLock(resolved.absolute, async () => {
+      if (!(await this.resolveTargetPath(cwd, proposal.targetPath))) {
+        return { status: 'conflict', message: '目标路径已变化，未应用提议' };
+      }
+      if (proposal.proposalType === 'create') {
+        const exists = await fs
+          .access(resolved.absolute)
+          .then(() => true)
+          .catch(() => false);
 
-    if (proposal.proposalType === 'create') {
-      const exists = await fs
-        .access(resolved.absolute)
-        .then(() => true)
-        .catch(() => false);
+        if (exists) {
+          return { status: 'conflict', message: '落点已被占用（作者已创建同名文件）' };
+        }
 
-      if (exists) {
-        return { status: 'conflict', message: '落点已被占用（作者已创建同名文件）' };
+        await fs.mkdir(path.dirname(resolved.absolute), { recursive: true });
+        try {
+          await createTextAtomically(resolved.absolute, ensureTrailingNewline(proposal.content));
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'EEXIST')
+            return { status: 'conflict', message: '落点已被占用' };
+          throw error;
+        }
+        return { status: 'applied' };
       }
 
-      await fs.mkdir(path.dirname(resolved.absolute), { recursive: true });
-      await writeFile(resolved.absolute, ensureTrailingNewline(proposal.content), 'utf8');
+      let current: string;
+
+      try {
+        current = await fs.readFile(resolved.absolute, 'utf8');
+      } catch {
+        return { status: 'conflict', message: '目标文件已不存在（可能被移动或删除）' };
+      }
+
+      if (proposal.contentHash && hashContent(current) !== proposal.contentHash) {
+        return { status: 'conflict', message: '目标文件已被修改，提议基于的版本已过期' };
+      }
+
+      if (proposal.proposalType === 'update') {
+        await writeTextAtomically(resolved.absolute, ensureTrailingNewline(proposal.content));
+        return { status: 'applied' };
+      }
+
+      await writeTextAtomically(resolved.absolute, setFrontmatterStatusArchived(current));
       return { status: 'applied' };
-    }
-
-    let current: string;
-
-    try {
-      current = await fs.readFile(resolved.absolute, 'utf8');
-    } catch {
-      return { status: 'conflict', message: '目标文件已不存在（可能被移动或删除）' };
-    }
-
-    if (proposal.contentHash && hashContent(current) !== proposal.contentHash) {
-      return { status: 'conflict', message: '目标文件已被修改，提议基于的版本已过期' };
-    }
-
-    if (proposal.proposalType === 'update') {
-      await writeFile(resolved.absolute, ensureTrailingNewline(proposal.content), 'utf8');
-      return { status: 'applied' };
-    }
-
-    await writeFile(resolved.absolute, setFrontmatterStatusArchived(current), 'utf8');
-    return { status: 'applied' };
+    });
   }
 
   private async archiveProposal(pendingDir: string, filePath: string, resolution: string): Promise<void> {
@@ -244,7 +271,7 @@ export class MemoryPendingStore {
     const original = await fs.readFile(filePath, 'utf8');
     const stamped = `${original.trimEnd()}\n\n<!-- resolution: ${resolution} at ${new Date().toISOString()} -->\n`;
 
-    await writeFile(path.join(archivedDir, path.basename(filePath)), stamped, 'utf8');
+    await writeTextAtomically(path.join(archivedDir, path.basename(filePath)), stamped);
     await fs.rm(filePath, { force: true });
   }
 

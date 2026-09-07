@@ -47,7 +47,8 @@ export const WriteDocumentArgsSchema = Type.Object(
     rootPath: ReadDocumentArgsSchema.properties.rootPath,
     relativePath: ReadDocumentArgsSchema.properties.relativePath,
     expectedHash: Type.String({ pattern: '^[a-f0-9]{64}$' }),
-    content: Type.String({ maxLength: MAX_DOCUMENT_BYTES })
+    content: Type.String({ maxLength: MAX_DOCUMENT_BYTES }),
+    preservePrevious: Type.Optional(Type.Boolean())
   },
   { additionalProperties: false }
 );
@@ -69,3 +70,46 @@ export const CreateChapterArgsSchema = Type.Object(
   { additionalProperties: false }
 );
 export const CreateChapterArgsValidator = Compile(Type.Tuple([CreateChapterArgsSchema]));
+
+export const WorkspaceChangedSchema = Type.Object({
+  rootPath: Type.String(),
+  sequence: Type.Integer({ minimum: 1 }),
+  changes: Type.Array(
+    Type.Object({
+      relativePath: Type.String(),
+      type: Type.Union([
+        Type.Literal('add'),
+        Type.Literal('change'),
+        Type.Literal('unlink'),
+        Type.Literal('addDir'),
+        Type.Literal('unlinkDir')
+      ])
+    })
+  ),
+  error: Type.Optional(Type.String())
+});
+export const WorkspaceChangedValidator = Compile(WorkspaceChangedSchema);
+
+export const RecoveryPathArgsSchema = Type.Object(
+  {
+    rootPath: ReadDocumentArgsSchema.properties.rootPath,
+    relativePath: ReadDocumentArgsSchema.properties.relativePath
+  },
+  { additionalProperties: false }
+);
+export const RecoveryPathArgsValidator = Compile(Type.Tuple([RecoveryPathArgsSchema]));
+export const SaveRecoveryArgsSchema = Type.Object(
+  {
+    ...RecoveryPathArgsSchema.properties,
+    expectedHash: WriteDocumentArgsSchema.properties.expectedHash,
+    content: WriteDocumentArgsSchema.properties.content
+  },
+  { additionalProperties: false }
+);
+export const SaveRecoveryArgsValidator = Compile(Type.Tuple([SaveRecoveryArgsSchema]));
+export const RecoveryDraftSchema = Type.Object({
+  ...SaveRecoveryArgsSchema.properties,
+  updatedAt: Type.String(),
+  sizeBytes: Type.Integer({ minimum: 0 })
+});
+export const RecoveryDraftValidator = Compile(RecoveryDraftSchema);

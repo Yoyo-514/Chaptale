@@ -38,6 +38,9 @@ import { TaskSessionFactory } from '../features/tasks/session-factory';
 import { TodoStore } from '../features/todo/store';
 import { WebToolsSettingsAdapter } from '../features/web-tools/adapter';
 import { WebToolsSettingsStore } from '../features/web-tools/settings';
+import { RecoveryStore } from '../features/workspace/recovery';
+import { WorkspaceService } from '../features/workspace/service';
+import { WorkspaceWatcher } from '../features/workspace/watcher';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { OfficeDocumentParser } from '../integrations/officeparser/parser';
@@ -45,6 +48,7 @@ import { TaskOutputRouter } from './task-output-router';
 
 export type AppContext = {
   settingsService: SettingsService;
+  workspaceService: WorkspaceService;
   sessionRepository: JsonlSessionRepository;
   modelService: ModelService;
   agentRuntime: AgentService;
@@ -68,6 +72,12 @@ export type AppContext = {
 
 export function createAppContext(): AppContext {
   const settingsService = new SettingsService(new WebToolsSettingsAdapter());
+  const workspaceService = new WorkspaceService(
+    settingsService,
+    {},
+    new WorkspaceWatcher(),
+    new RecoveryStore(path.join(settingsService.rootDir, 'cache'))
+  );
   const webToolsSettingsStore = new WebToolsSettingsStore({ configPath: settingsService.webToolsConfigPath });
 
   // 内置 skills 先于任何会话创建物化到磁盘；失败只影响内置 skills 可用性，不阻塞启动。
@@ -177,6 +187,7 @@ export function createAppContext(): AppContext {
 
   return {
     settingsService,
+    workspaceService,
     sessionRepository,
     modelService,
     agentRuntime,

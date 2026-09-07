@@ -1,10 +1,13 @@
 import { _electron as electron, expect, test } from '@playwright/test';
 import type { ElectronApplication, Page } from '@playwright/test';
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { once } from 'node:events';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 
@@ -21,6 +24,42 @@ let home: string;
 let workspace: string;
 let pageErrors: string[];
 
+async function launchApp() {
+  const env = { ...process.env, HOME: home, USERPROFILE: home, NODE_ENV: 'production' };
+  delete (env as NodeJS.ProcessEnv).VITE_DEV_SERVER_URL;
+  app = await electron.launch({
+    executablePath: electronExecutable,
+    args: [desktopDir, `--user-data-dir=${path.join(home, 'user-data')}`],
+    env
+  });
+  page = await app.firstWindow();
+  page.on('pageerror', error => pageErrors.push(error.message));
+}
+
+async function crashIsolatedApp() {
+  const running = app;
+  if (!running) return;
+  const child = running.process();
+  const userDataArgument = `--user-data-dir=${path.join(home, 'user-data')}`;
+  expect(
+    child.spawnargs.some(argument => argument === userDataArgument || argument.includes(`"${userDataArgument}"`))
+  ).toBe(true);
+  expect(path.basename(home).startsWith('chaptale-editor-e2e-')).toBe(true);
+  expect(child.pid).toBeGreaterThan(0);
+  if (child.exitCode !== null || child.signalCode !== null) {
+    app = undefined;
+    return;
+  }
+  const exited = once(child, 'close');
+  if (process.platform === 'win32') {
+    await promisify(execFile)('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true });
+  } else {
+    child.kill('SIGKILL');
+  }
+  await exited;
+  app = undefined;
+}
+
 test.beforeEach(async () => {
   home = await mkdtemp(path.join(os.tmpdir(), 'chaptale-editor-e2e-'));
   workspace = path.join(home, '青岚');
@@ -31,16 +70,8 @@ test.beforeEach(async () => {
   await writeFile(path.join(workspace, '损坏.md'), '---\ntitle: [坏的元数据\n---\n正文依然完整。');
   await writeFile(path.join(workspace, '空文件.txt'), '');
   await writeFile(path.join(workspace, '二进制.bin'), Buffer.from([0x50, 0x00, 0x4e]));
-  const env = { ...process.env, HOME: home, USERPROFILE: home, NODE_ENV: 'production' };
-  delete (env as NodeJS.ProcessEnv).VITE_DEV_SERVER_URL;
-  app = await electron.launch({
-    executablePath: electronExecutable,
-    args: [desktopDir, `--user-data-dir=${path.join(home, 'user-data')}`],
-    env
-  });
-  page = await app.firstWindow();
   pageErrors = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
+  await launchApp();
   await page.evaluate(async root => {
     await (window as DesktopWindow).chaptaleDesktop.settings.update({
       storage: { mode: 'workspace', workspacePath: root },
@@ -55,9 +86,10 @@ test.afterEach(async () => {
   const testInfo = test.info();
   try {
     if (testInfo.status !== testInfo.expectedStatus && page && !page.isClosed()) {
-      await page.screenshot({ path: testInfo.outputPath('failure.png') });
+      await page.screenshot({ path: testInfo.outputPath('failure.png'), timeout: 5_000 });
     }
-    await app?.close();
+    if (testInfo.status !== testInfo.expectedStatus) await crashIsolatedApp();
+    else await app?.close();
     app = undefined;
   } finally {
     expect(path.dirname(path.resolve(home))).toBe(path.resolve(os.tmpdir()));
@@ -237,6 +269,115 @@ test('原生窗口关闭也受未保存保护，取消后仍能继续编辑', as
   await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter + '窗口关闭保护');
 });
 
+test('磁盘更新自动刷新干净标签和文件树，不需要手动刷新', async () => {
+  await openChapter();
+  const updated = '# 新的磁盘正文\n外部编辑器写入。';
+  await writeFile(path.join(workspace, '正文/第一章.md'), updated);
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('外部编辑器写入');
+  await expect(page.getByText('已载入磁盘更新', { exact: true })).toBeVisible();
+  await writeFile(path.join(workspace, '自动出现.md'), '新文件');
+  await expect(page.getByRole('treeitem', { name: '自动出现.md', exact: true })).toBeVisible();
+  await rm(path.join(workspace, '自动出现.md'));
+  await expect(page.getByRole('treeitem', { name: '自动出现.md', exact: true })).toHaveCount(0);
+});
+
+test('脏文档的外部变化进入只读 diff，保留本地前留存外部版本', async () => {
+  await openChapter();
+  await page.getByRole('textbox', { name: '文档正文' }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('作者本地修改');
+  await writeFile(path.join(workspace, '正文/第一章.md'), '另一台设备的新版本');
+  await page.getByRole('button', { name: '对比版本', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '磁盘版本冲突' });
+  await expect(dialog).toContainText('另一台设备的新版本');
+  await expect(dialog).toContainText('作者本地修改');
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'external-conflict.png') });
+  await dialog.getByRole('button', { name: '保留我的', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter + '作者本地修改');
+  const cache = path.join(home, '.chaptale/cache/editor-recovery');
+  const preserved = (await readdir(cache, { recursive: true })).filter(
+    file => file.includes('conflicts') && file.endsWith('.json')
+  );
+  expect(preserved).toHaveLength(1);
+  expect(JSON.parse(await readFile(path.join(cache, preserved[0]!), 'utf8')).content).toBe('另一台设备的新版本');
+});
+
+test('脏文档可明确采用外部版本，删除原文件仍能另存恢复副本', async () => {
+  await openChapter();
+  const content = page.getByRole('textbox', { name: '文档正文' });
+  await content.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('放弃的修改');
+  await writeFile(path.join(workspace, '正文/第一章.md'), '采用外部内容');
+  await page.getByRole('button', { name: '对比版本', exact: true }).click();
+  await page.getByRole('button', { name: '接受外部', exact: true }).click();
+  await expect(content).toContainText('采用外部内容');
+  await content.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('留下的本地内容');
+  await rm(path.join(workspace, '正文/第一章.md'));
+  await page.getByRole('button', { name: '对比版本', exact: true }).click();
+  await page.getByRole('button', { name: '另存副本', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '正文/第一章-恢复副本.md', exact: true })).toBeVisible();
+  expect(await readFile(path.join(workspace, '正文/第一章-恢复副本.md'), 'utf8')).toBe('采用外部内容留下的本地内容');
+  await page.getByRole('button', { name: '关闭 正文/第一章.md', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '不保存', exact: true }).click();
+});
+
+test('意外退出后恢复未保存草稿，磁盘基线改变时禁止直接覆盖', async () => {
+  test.setTimeout(60_000);
+  await openChapter();
+  await page.getByRole('textbox', { name: '文档正文' }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('意外退出前的文字');
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        async rootPath =>
+          (await (window as DesktopWindow).chaptaleDesktop.workspace.listRecoveries({ rootPath })).length,
+        workspace
+      )
+    )
+    .toBe(1);
+  await crashIsolatedApp();
+  await writeFile(path.join(workspace, '正文/第一章.md'), '重启前的外部版本');
+  await launchApp();
+  await expect(page.getByText('上次未保存的草稿（1）', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '恢复', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('意外退出前的文字');
+  await page.getByRole('textbox', { name: '文档正文' }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('恢复后继续写作');
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async rootPath =>
+          await (window as DesktopWindow).chaptaleDesktop.workspace.readRecovery({
+            rootPath,
+            relativePath: '正文/第一章.md'
+          }),
+        workspace
+      )
+    )
+    .toMatchObject({
+      expectedHash: createHash('sha256').update(chapter).digest('hex'),
+      content: chapter + '意外退出前的文字恢复后继续写作'
+    });
+  await crashIsolatedApp();
+  await launchApp();
+  await page.getByRole('button', { name: '恢复', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('恢复后继续写作');
+  await page.keyboard.press('Control+s');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe('重启前的外部版本');
+  await page.getByRole('button', { name: '对比版本', exact: true }).click();
+  await page.getByRole('button', { name: '保留我的', exact: true }).click();
+  await expect
+    .poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8'))
+    .toBe(chapter + '意外退出前的文字恢复后继续写作');
+});
+
 test('Enter 打开、重复打开聚焦、同名文件分开管理，关闭保持合理焦点', async () => {
   await openChapter();
   await page.getByRole('treeitem', { name: '第一章.md', exact: true }).press('Enter');
@@ -387,20 +528,17 @@ test('100 MiB 文件必须显式选择大文件模式，能够跳到末尾且不
   await writeFile(path.join(visualDir, 'large-file.json'), JSON.stringify({ sizeBytes: bytes.length, openMs }));
 });
 
-test('空目录有标记，目录读取失败可行内重试', async () => {
+test('空目录有标记，外部移动目录后树移除并在移回时重现', async () => {
   await mkdir(path.join(workspace, '空目录'));
   await page.getByRole('button', { name: '刷新文件树' }).click();
   const empty = page.locator('[data-tree-path="空目录"]');
   await empty.click();
   await expect(empty.getByText('空', { exact: true })).toBeVisible();
   await rename(path.join(workspace, '设定'), path.join(home, 'moved'));
-  await page.getByRole('treeitem', { name: '设定', exact: true }).click();
-  const retry = page.getByRole('button', { name: '重新读取 设定', exact: true });
-  await expect(retry).toBeVisible();
+  await expect(page.getByRole('treeitem', { name: '设定', exact: true })).toHaveCount(0);
   await rename(path.join(home, 'moved'), path.join(workspace, '设定'));
-  await retry.click();
+  await page.getByRole('treeitem', { name: '设定', exact: true }).click();
   await expect(page.locator('[data-tree-path="设定/第一章.md"]')).toBeVisible();
-  await expect(retry).toHaveCount(0);
 });
 
 test('三种主题下正文与搜索控件保持可见', async () => {

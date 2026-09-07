@@ -63,4 +63,17 @@ describe('无损编辑缓冲', () => {
     undo(historyTarget(buffer));
     expect(buffer.dirty).toBe(true);
   });
+
+  it('恢复全文是一次可撤销事务，配置重挂载不改变磁盘基线', () => {
+    const original = '\uFEFF甲\r\n乙\n';
+    const restored = '\uFEFF新文\n末尾\r';
+    const buffer = new DocumentBuffer(original);
+    buffer.replaceContent(restored);
+    buffer.configure([]);
+    expect(buffer.content).toBe(restored);
+    expect(buffer.dirty).toBe(true);
+    undo(historyTarget(buffer));
+    expect(buffer.content).toBe(original);
+    expect(buffer.dirty).toBe(false);
+  });
 });

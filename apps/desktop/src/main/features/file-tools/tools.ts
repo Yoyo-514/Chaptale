@@ -1,15 +1,16 @@
-import { writeFile } from 'atomically';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Type } from 'typebox';
 
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
+import { writeTextAtomically } from '../../infra/filesystem/atomic-text';
 import {
   DEFAULT_IGNORED_DIRS,
   globToRegExp,
   isBinaryContent,
   resolveWithinCwd
 } from '../../infra/filesystem/path-guard';
+import { withFileWriteLock } from '../../infra/filesystem/write-lock';
 
 /**
  * 文件六工具装配：全部绑定同一会话 cwd，共享越界守卫。
@@ -327,9 +328,14 @@ export function createWriteTool(cwd: string): ToolDefinition<typeof writeParamet
     async execute(params) {
       const filePath = await resolveWithinCwd(cwd, params.path);
       const bytes = Buffer.byteLength(params.content, 'utf8');
-
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await writeFile(filePath, params.content, { encoding: 'utf8' });
+      if (bytes > MAX_TOOL_FILE_BYTES || !params.content.isWellFormed() || params.content.includes('\0')) {
+        throw new Error('内容不是有效 UTF-8 文本或超过写入上限');
+      }
+      await withFileWriteLock(filePath, async () => {
+        await resolveWithinCwd(cwd, params.path);
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await writeTextAtomically(filePath, params.content);
+      });
 
       return {
         text: `已写入 ${params.path}（${bytes} 字节，整体覆盖）`,
@@ -358,37 +364,46 @@ export function createEditTool(cwd: string): ToolDefinition<typeof editParameter
     parameters: editParameters,
     async execute(params) {
       const filePath = await resolveWithinCwd(cwd, params.path);
+      return withFileWriteLock(filePath, async () => {
+        await resolveWithinCwd(cwd, params.path);
+        let content: string;
 
-      let content: string;
+        try {
+          const info = await fs.stat(filePath);
+          if (info.size > MAX_TOOL_FILE_BYTES) return { text: '文件超过编辑上限' };
+          const buffer = await fs.readFile(filePath);
 
-      try {
-        const buffer = await fs.readFile(filePath);
+          if (isBinaryContent(buffer)) {
+            return { text: `二进制文件不支持编辑：${params.path}` };
+          }
 
-        if (isBinaryContent(buffer)) {
-          return { text: `二进制文件不支持编辑：${params.path}` };
+          content = buffer.toString('utf8');
+        } catch {
+          return { text: `文件不存在：${params.path}` };
         }
 
-        content = buffer.toString('utf8');
-      } catch {
-        return { text: `文件不存在：${params.path}` };
-      }
+        const count = countOccurrences(content, params.oldText);
 
-      const count = countOccurrences(content, params.oldText);
+        if (count === 0) {
+          return { text: '未找到要替换的文本（oldText 出现 0 次）。请核对原文并重试。' };
+        }
 
-      if (count === 0) {
-        return { text: '未找到要替换的文本（oldText 出现 0 次）。请核对原文并重试。' };
-      }
+        if (count > 1) {
+          return { text: `oldText 出现 ${count} 次，无法确定替换目标。请扩大 oldText 范围使其唯一。` };
+        }
 
-      if (count > 1) {
-        return { text: `oldText 出现 ${count} 次，无法确定替换目标。请扩大 oldText 范围使其唯一。` };
-      }
+        const updated = content.replace(params.oldText, params.newText);
+        if (!updated.isWellFormed() || updated.includes('\0') || Buffer.byteLength(updated) > MAX_TOOL_FILE_BYTES) {
+          throw new Error('修改后的内容不是有效 UTF-8 文本或超过编辑上限');
+        }
+        await resolveWithinCwd(cwd, params.path);
+        await writeTextAtomically(filePath, updated);
 
-      await writeFile(filePath, content.replace(params.oldText, params.newText), { encoding: 'utf8' });
-
-      return {
-        text: `已替换 ${params.path} 中 1 处文本`,
-        details: { path: params.path, occurrences: 1 }
-      };
+        return {
+          text: `已替换 ${params.path} 中 1 处文本`,
+          details: { path: params.path, occurrences: 1 }
+        };
+      });
     }
   };
 }

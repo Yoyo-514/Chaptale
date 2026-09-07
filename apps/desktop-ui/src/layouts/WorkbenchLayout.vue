@@ -8,13 +8,27 @@ import {
   TabsRoot,
   TabsTrigger
 } from 'reka-ui';
+import { onMounted, onBeforeUnmount } from 'vue';
 
 import { EditorGroup, useEditorStore } from '@/features/editor';
-import { WorkspaceExplorer } from '@/features/workspace';
+import { WorkspaceExplorer, useFileTreeStore, useWorkspaceStore } from '@/features/workspace';
+import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import AgentPanel from './AgentPanel.vue';
 
 const editor = useEditorStore();
+const workspace = useWorkspaceStore();
+const tree = useFileTreeStore();
+let unsubscribe: (() => void) | undefined;
+onMounted(() => {
+  if (!hasDesktopApi()) return;
+  unsubscribe = getDesktopApi().workspace?.onChanged?.(event => {
+    if (event.rootPath !== workspace.rootPath) return;
+    void tree.applyChanges(event.changes);
+    void editor.handleWorkspaceChanged(event);
+  });
+});
+onBeforeUnmount(() => unsubscribe?.());
 </script>
 
 <template>

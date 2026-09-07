@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, reactive, ref, watch } from 'vue';
 
-import type { DirectoryEntry } from '@chaptale/ipc-contract';
+import type { DirectoryEntry, WorkspaceChanged } from '@chaptale/ipc-contract';
 
 import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/features/settings';
@@ -151,6 +151,25 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
     }
   }
 
+  async function applyChanges(changes: WorkspaceChanged['changes']) {
+    const parents = new Set<string>();
+    for (const change of changes) {
+      if (change.type === 'change') continue;
+      const parent = change.relativePath.split('/').slice(0, -1).join('/');
+      if (parent in nodes || expanded.value.has(parent) || parent === '') parents.add(parent);
+      if (change.type === 'unlinkDir') {
+        for (const key of Object.keys(nodes)) {
+          if (key === change.relativePath || key.startsWith(`${change.relativePath}/`)) {
+            delete nodes[key];
+            pending.delete(key);
+            expanded.value.delete(key);
+          }
+        }
+      }
+    }
+    await Promise.all([...parents].map(parent => fetchDirectory(parent)));
+  }
+
   /**
    * 应用设置快照里的偏好；值没变时不重拉，避免每次设置往返都刷一遍树。
    *
@@ -257,6 +276,7 @@ export const useFileTreeStore = defineStore('workspace-file-tree', () => {
     expand,
     collapseAll,
     reload,
+    applyChanges,
     applyShowInternalFiles,
     setShowInternalFiles,
     startCreation,

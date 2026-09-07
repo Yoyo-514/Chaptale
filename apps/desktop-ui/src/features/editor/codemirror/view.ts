@@ -102,6 +102,7 @@ export function createDocumentView(
     options.markdown && !options.large ? [markdown(), syntaxHighlighting(defaultHighlightStyle)] : []
   ];
   const buffer = options.large ? null : (options.buffer ?? new DocumentBuffer(content, extensions));
+  buffer?.configure(extensions);
   const view = new EditorView({
     parent,
     state: buffer?.state ?? EditorState.create({ doc: content, extensions }),
@@ -113,6 +114,7 @@ export function createDocumentView(
       }
     }
   });
+  const detachBuffer = buffer?.attach(transaction => view.dispatch(transaction));
 
   // 搜索框也接收粘贴与输入法提交，不能只等 keyup 后才让 Enter 使用新查询。
   const updateSearchInput = (event: Event) => {
@@ -153,6 +155,7 @@ export function createDocumentView(
       scrollLeft: view.scrollDOM.scrollLeft
     }),
     destroy() {
+      detachBuffer?.();
       if (restoreFrame !== undefined) cancelAnimationFrame(restoreFrame);
       view.dom.removeEventListener('input', updateSearchInput);
       view.dom.removeEventListener('compositionend', updateSearchInput);

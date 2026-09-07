@@ -6,6 +6,10 @@ import {
   WriteDocumentArgsValidator,
   WorkspaceRootArgsValidator,
   CreateChapterArgsValidator,
+  RecoveryPathArgsValidator,
+  SaveRecoveryArgsValidator,
+  type RecoveryPathArgs,
+  type SaveRecoveryArgs,
   type CreateChapterArgs,
   WorkspaceGetStateArgsValidator,
   type CreateEntryArgs,
@@ -14,10 +18,12 @@ import {
   type WriteDocumentArgs
 } from '@chaptale/ipc-contract';
 
+import type { IpcBroadcaster } from '../../core/ipc-ports';
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { WorkspaceService } from './service';
 
-export function registerWorkspaceIpc(service: WorkspaceService) {
+export function registerWorkspaceIpc(service: WorkspaceService, broadcaster?: IpcBroadcaster) {
+  service.onChange(event => broadcaster?.broadcast(IPC_CHANNELS.workspace.changed, event));
   handleValidatedIpc(IPC_CHANNELS.workspace.getState, WorkspaceGetStateArgsValidator, () => service.getState());
   handleValidatedIpc(
     IPC_CHANNELS.workspace.listDirectory,
@@ -44,5 +50,21 @@ export function registerWorkspaceIpc(service: WorkspaceService) {
     IPC_CHANNELS.workspace.createChapter,
     CreateChapterArgsValidator,
     (_event, args: CreateChapterArgs) => service.createChapter(args)
+  );
+  handleValidatedIpc(
+    IPC_CHANNELS.workspace.listRecoveries,
+    WorkspaceRootArgsValidator,
+    (_event, args: { rootPath: string }) => service.listRecoveries(args.rootPath)
+  );
+  handleValidatedIpc(IPC_CHANNELS.workspace.readRecovery, RecoveryPathArgsValidator, (_event, args: RecoveryPathArgs) =>
+    service.readRecovery(args)
+  );
+  handleValidatedIpc(IPC_CHANNELS.workspace.saveRecovery, SaveRecoveryArgsValidator, (_event, args: SaveRecoveryArgs) =>
+    service.saveRecovery(args)
+  );
+  handleValidatedIpc(
+    IPC_CHANNELS.workspace.discardRecovery,
+    RecoveryPathArgsValidator,
+    (_event, args: RecoveryPathArgs) => service.discardRecovery(args)
   );
 }

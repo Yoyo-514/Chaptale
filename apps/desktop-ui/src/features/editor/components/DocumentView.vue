@@ -20,12 +20,16 @@ const props = defineProps<{
   dirty?: boolean;
   saving?: boolean;
   saveError?: string;
+  recoveryError?: string;
+  notice?: string;
+  conflict?: boolean;
 }>();
 const emit = defineEmits<{
   reload: [];
   save: [];
   rememberView: [state: DocumentViewState];
   change: [buffer: DocumentBuffer];
+  compare: [];
 }>();
 const host = ref<HTMLElement | null>(null);
 const large = computed(() => props.readonly);
@@ -98,7 +102,10 @@ watch(
         </AppButton>
       </AppTooltip>
     </header>
-    <div v-if="saveError" class="document-diagnostic" role="alert">{{ saveError }}</div>
+    <div v-if="saveError || recoveryError || conflict" class="document-diagnostic" role="alert">
+      {{ saveError || recoveryError || '磁盘版本与本地版本不同' }}
+      <AppButton v-if="conflict" size="xs" @click="emit('compare')">对比版本</AppButton>
+    </div>
     <details v-if="document.head.status === 'invalid'" class="document-diagnostic">
       <summary>frontmatter 无法解析</summary>
       <p>{{ document.head.error }}</p>
@@ -110,6 +117,7 @@ watch(
       >
     </div>
     <footer class="document-footer">
+      <span v-if="notice" class="mr-auto truncate" role="status">{{ notice }}</span>
       <span v-if="large">大文件模式</span>
       <span>UTF-8</span>
       <span>{{ size }}</span>

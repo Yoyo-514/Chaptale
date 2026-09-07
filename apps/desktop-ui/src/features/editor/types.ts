@@ -17,6 +17,10 @@ export type EditorTab = {
   saveError?: string;
   words?: number;
   generation?: number;
+  external?: ReadDocumentResult;
+  recoveryError?: string;
+  recoveryBaseHash?: string;
+  notice?: string;
 };
 
 /** 常规预览的预算；更大的文件需要显式打开，并关闭换行与语法解析。 */

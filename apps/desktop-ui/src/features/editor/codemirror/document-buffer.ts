@@ -1,5 +1,5 @@
 import { history, invertedEffects } from '@codemirror/commands';
-import { EditorState, StateEffect, StateField, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, StateEffect, StateField, type Extension, type Transaction } from '@codemirror/state';
 
 type LineFormat = { bom: boolean; preferred: string; separators: readonly string[] };
 const restoreLineFormat = StateEffect.define<LineFormat>();
@@ -60,6 +60,8 @@ export function serializeDocument(state: EditorState): string {
 export class DocumentBuffer {
   state: EditorState;
   private baseline: EditorState;
+  private readonly viewConfig = new Compartment();
+  private dispatchToView?: (transaction: Transaction) => void;
 
   constructor(content: string, extensions: Extension = []) {
     const format = parseLineFormat(content);
@@ -71,7 +73,7 @@ export class DocumentBuffer {
         invertedEffects.of(transaction =>
           transaction.docChanged ? [restoreLineFormat.of(transaction.startState.field(lineFormat))] : []
         ),
-        extensions
+        this.viewConfig.of(extensions)
       ]
     });
     this.baseline = this.state;
@@ -79,6 +81,28 @@ export class DocumentBuffer {
 
   update(state: EditorState) {
     this.state = state;
+  }
+
+  configure(extensions: Extension) {
+    this.state = this.state.update({ effects: this.viewConfig.reconfigure(extensions) }).state;
+  }
+
+  attach(dispatch: (transaction: Transaction) => void) {
+    this.dispatchToView = dispatch;
+    return () => {
+      if (this.dispatchToView === dispatch) this.dispatchToView = undefined;
+    };
+  }
+
+  replaceContent(content: string) {
+    const format = parseLineFormat(content);
+    const transaction = this.state.update({
+      changes: { from: 0, to: this.state.doc.length, insert: format.bom ? content.slice(1) : content },
+      effects: restoreLineFormat.of(format),
+      userEvent: 'input'
+    });
+    if (this.dispatchToView) this.dispatchToView(transaction);
+    else this.update(transaction.state);
   }
 
   markSaved(sentState: EditorState) {

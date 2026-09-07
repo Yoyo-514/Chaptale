@@ -1,7 +1,9 @@
 import { ipcRenderer } from 'electron';
 
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import { WorkspaceChangedValidator, type ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
+
+import { onValidatedEvent } from './validated-event';
 
 export function createWorkspaceApi(): ChaptaleDesktopApi['workspace'] {
   return {
@@ -11,6 +13,11 @@ export function createWorkspaceApi(): ChaptaleDesktopApi['workspace'] {
     readDocument: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.readDocument, args),
     writeDocument: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.writeDocument, args),
     getLayout: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.getLayout, args),
-    createChapter: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.createChapter, args)
+    createChapter: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.createChapter, args),
+    onChanged: listener => onValidatedEvent(IPC_CHANNELS.workspace.changed, WorkspaceChangedValidator, listener),
+    listRecoveries: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.listRecoveries, args),
+    readRecovery: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.readRecovery, args),
+    saveRecovery: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.saveRecovery, args),
+    discardRecovery: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.discardRecovery, args)
   };
 }

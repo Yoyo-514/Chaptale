@@ -76,7 +76,12 @@ import type {
   WriteDocumentArgs,
   WriteDocumentResult,
   WorkspaceLayoutResult,
-  CreateChapterArgs
+  CreateChapterArgs,
+  WorkspaceChanged,
+  RecoveryPathArgs,
+  SaveRecoveryArgs,
+  RecoveryDraft,
+  RecoverySummary
 } from './workspace';
 
 /**
@@ -92,6 +97,11 @@ export type ChaptaleDesktopApi = {
     writeDocument: (args: WriteDocumentArgs) => Promise<WriteDocumentResult>;
     getLayout: (args: { rootPath: string }) => Promise<WorkspaceLayoutResult>;
     createChapter: (args: CreateChapterArgs) => Promise<ReadDocumentResult>;
+    onChanged: (listener: (event: WorkspaceChanged) => void) => () => void;
+    listRecoveries: (args: { rootPath: string }) => Promise<RecoverySummary[]>;
+    readRecovery: (args: RecoveryPathArgs) => Promise<RecoveryDraft | null>;
+    saveRecovery: (args: SaveRecoveryArgs) => Promise<void>;
+    discardRecovery: (args: RecoveryPathArgs) => Promise<void>;
   };
   getPlatform: () => Promise<AppPlatformResult>;
   windowControl: {

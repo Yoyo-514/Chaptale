@@ -30,6 +30,7 @@
     "@node-rs/jieba": "catalog:",
     "ai": "catalog:",
     "atomically": "catalog:",
+    "chokidar": "catalog:",
     "klona": "catalog:",
     "linkedom": "catalog:",
     "marked": "catalog:",
