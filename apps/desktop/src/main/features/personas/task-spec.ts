@@ -1,4 +1,4 @@
-import type { PersonaDefinition } from '@chaptale/shared';
+import type { PersonaDefinition, WritingModel } from '@chaptale/shared';
 
 import type { ToolCatalog } from '../../core/tool-protocol/catalog';
 import type { IndexDomain } from '../search/types';
@@ -20,6 +20,9 @@ export type TaskPersonaSpec = {
    * 当前除显式 id 外一律跟随全局默认。undefined = 全局默认。
    */
   modelPreference?: string;
+  model?: WritingModel;
+  strictInputBudget?: boolean;
+  frozenContext?: boolean;
 };
 
 /**

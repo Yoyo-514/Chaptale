@@ -14,3 +14,4 @@ export * from './slash-command';
 export * from './window';
 export * from './workspace';
 export * from './library';
+export * from './writing';

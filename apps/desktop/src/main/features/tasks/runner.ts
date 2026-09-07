@@ -46,6 +46,10 @@ export class TaskRunner implements TaskRunnerPort {
     }
 
     const spec = resolveTaskSpec(request.persona, this.toolCatalog);
+    spec.model = request.model;
+    spec.strictInputBudget = request.strictInputBudget;
+    spec.frozenContext = request.frozenContext;
+    if (request.frozenContext) spec.tools = [];
     const memoryRefs = new Set(request.memoryRefs ?? []);
     const session = await this.sessionFactory.createTaskSession(spec, request.cwd, refs => {
       for (const ref of refs) memoryRefs.add(ref);
@@ -55,6 +59,7 @@ export class TaskRunner implements TaskRunnerPort {
 
     try {
       if (request.signal?.aborted) {
+        await this.record(runId, request, spec, createdAt, 'cancelled', session, memoryRefs);
         return { status: 'cancelled', runId };
       }
 
@@ -113,13 +118,31 @@ export class TaskRunner implements TaskRunnerPort {
     let errors: string[] = [];
 
     for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt += 1) {
-      await session.prompt(promptText);
+      try {
+        await session.prompt(promptText);
+      } catch (error) {
+        return {
+          ok: false,
+          errors: [error instanceof Error ? error.message : String(error)],
+          rawText: session.getLastAssistantText() ?? ''
+        };
+      }
 
       if (request.signal?.aborted) {
         return { ok: false, errors: ['已取消'], rawText };
       }
 
       rawText = session.getLastAssistantText() ?? '';
+      const reason = session.getStopReason?.();
+      if (reason && reason !== 'natural') {
+        return { ok: false, errors: [`模型未完整结束：${reason}`], rawText };
+      }
+      if (schemaId === 'draft-markdown') {
+        const validated = validateOutput(schemaId, rawText);
+        return validated.ok
+          ? { ok: true, value: validated.value, rawText }
+          : { ok: false, errors: validated.errors, rawText };
+      }
       const extracted = extractTaskOutput(rawText);
 
       if (extracted.ok) {
@@ -157,7 +180,9 @@ export class TaskRunner implements TaskRunnerPort {
       execution: 'task',
       trigger: request.trigger,
       ...(request.parentSessionId ? { parentSessionId: request.parentSessionId } : {}),
-      promptTemplateHash: createHash('sha1').update(spec.systemPrompt).digest('hex'),
+      promptTemplateHash:
+        session.getMetadata?.().promptTemplateHash ?? createHash('sha1').update(spec.systemPrompt).digest('hex'),
+      ...(session.getMetadata ? { model: session.getMetadata().model } : {}),
       inputDigest: {
         brief: request.brief,
         ...(request.files?.length ? { files: [...request.files] } : {}),
@@ -225,11 +250,10 @@ export function renderTaskPromptWithinBudget(
 
 function renderEscapedTaskPrompt(escapedBrief: string, escapedText: string, contextPrompt?: string): string {
   return [
+    ...(contextPrompt ? [contextPrompt.trim(), ''] : []),
     '<task_brief>',
     escapedBrief,
     '</task_brief>',
-    // 附件信封由 ContextFileService 生成，已是规范 XML，不再转义。
-    ...(contextPrompt ? ['', contextPrompt.trim()] : []),
     '',
     '<task_input>',
     escapedText,

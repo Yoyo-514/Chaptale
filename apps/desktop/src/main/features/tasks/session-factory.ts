@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 import type { PermissionGatePort } from '../../core/agent/types';
 import type { ResolvedModel } from '../../core/models/runtime';
@@ -53,7 +54,7 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
     // skill_read 独立于 spec.tools 白名单：声明了 skills 的 persona 才能读正文，
     // 且读取时按声明集合过滤（声明优先于 appliesTo，与 system 摘要注入同语义）。
     const skillRead =
-      this.options.skillsProvider && spec.skills.length > 0
+      !spec.frozenContext && this.options.skillsProvider && spec.skills.length > 0
         ? createSkillReadTool({
             skillsProvider: this.options.skillsProvider,
             allowedNames: spec.skills,
@@ -61,7 +62,9 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
           })
         : undefined;
 
-    const model = await resolveTaskModel(modelService, spec.modelPreference);
+    const model = spec.model
+      ? await modelService.runtime.resolveModel(spec.model.provider, spec.model.modelId)
+      : await resolveTaskModel(modelService, spec.modelPreference);
     const system = await composeTaskSystemPrompt(this.options.skillsProvider, cwd, spec);
     const gate = createUnattendedGate();
 
@@ -71,7 +74,8 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
       model,
       system,
       tools: skillRead ? [...taskTools, skillRead] : taskTools,
-      gate
+      gate,
+      strictInputBudget: spec.strictInputBudget
     });
   }
 }
@@ -107,6 +111,17 @@ async function composeTaskSystemPrompt(
   const layers = [composeSystemPrompt({ personaBody: spec.systemPrompt })];
 
   if (skillsProvider && spec.skills.length > 0) {
+    if (spec.frozenContext) {
+      const { skills } = await skillsProvider.load(cwd);
+      for (const name of spec.skills) {
+        const skill = skills.find(value => value.name === name);
+        if (!skill) throw new Error(`绑定技能不可用：${name}`);
+        const body = await readFile(skill.filePath, 'utf8');
+        if (body.length > 128_000) throw new Error(`技能超过长度上限：${name}`);
+        layers.push(body);
+      }
+      return layers.join('\n\n');
+    }
     const selected = await loadSkillsForTask(skillsProvider, cwd, spec);
 
     if (selected.length > 0) {

@@ -13,6 +13,7 @@ const props = withDefaults(
   }>(),
   { originalLabel: '当前版本', modifiedLabel: '新版本' }
 );
+const emit = defineEmits<{ selection: [range: { from: number; to: number }] }>();
 const host = ref<HTMLElement | null>(null);
 let view: MergeView | undefined;
 function render() {
@@ -35,14 +36,23 @@ function render() {
     parent: host.value,
     a: {
       doc: props.original,
-      extensions: [...extensions, EditorView.contentAttributes.of({ 'aria-label': props.originalLabel })]
+      extensions: [
+        ...extensions,
+        EditorView.contentAttributes.of({ 'aria-label': props.originalLabel }),
+        EditorView.updateListener.of(update => {
+          if (update.selectionSet) {
+            const { from, to } = update.state.selection.main;
+            emit('selection', { from, to });
+          }
+        })
+      ]
     },
     b: {
       doc: props.modified,
       extensions: [...extensions, EditorView.contentAttributes.of({ 'aria-label': props.modifiedLabel })]
     },
     collapseUnchanged: { margin: 3, minSize: 8 },
-    diffConfig: { scanLimit: 1000, timeout: 100 }
+    diffConfig: { scanLimit: 1000 }
   });
 }
 onMounted(render);

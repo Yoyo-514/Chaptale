@@ -7,12 +7,14 @@ import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 import { useWorkspaceStore } from '@/features/workspace';
+import { useWritingStore } from '@/features/writing';
 
 import { useLibraryStore } from '../store';
 
 const library = useLibraryStore();
 const editor = useEditorStore();
 const workspace = useWorkspaceStore();
+const writing = useWritingStore();
 const query = ref('');
 const visibleLimit = ref(80);
 const candidates = computed(() =>
@@ -160,6 +162,9 @@ watch(
       </div>
     </AppScrollArea>
     <footer class="reference-footer">
+      <AppButton size="sm" :disabled="!editor.activeTab || library.busy" @click="writing.prepare()"
+        >生成候选稿</AppButton
+      >
       <span v-if="library.frozen" role="status">已冻结 {{ library.frozen.id.slice(0, 8) }}</span>
       <AppButton
         size="sm"

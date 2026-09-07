@@ -1,4 +1,4 @@
-import type { PersonaDefinition } from '@chaptale/shared';
+import type { PersonaDefinition, WritingModel } from '@chaptale/shared';
 
 import type { TaskPersonaSpec } from '../personas/task-spec';
 import type { AgentRunTrigger } from '../runs/record';
@@ -23,6 +23,12 @@ export type TaskRunRequest = {
   parentSessionId?: string;
   /** 完整首轮 prompt 的硬预算；缺省不裁剪。 */
   maxPromptTokens?: number;
+  /** 作者确认的模型，不能降级到其他默认模型。 */
+  model?: WritingModel;
+  /** 创作任务不裁剪正文，按实际模型和完整系统提示词检查预算。 */
+  strictInputBudget?: boolean;
+  /** 冻结参考任务不开放动态技能读取，绑定技能直接进入稳定 system。 */
+  frozenContext?: boolean;
   signal?: AbortSignal;
 };
 

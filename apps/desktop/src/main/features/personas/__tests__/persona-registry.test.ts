@@ -179,6 +179,7 @@ describe('PersonaRegistry', () => {
       'character-reviewer',
       'companion',
       'continuity-reviewer',
+      'draft',
       'good',
       'memory-distiller',
       'style-reviewer'

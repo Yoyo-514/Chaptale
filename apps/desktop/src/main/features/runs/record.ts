@@ -36,6 +36,7 @@ export type AgentRunRecord = {
   /** 委派/界面动作发起时，指向宿主主对话 session。 */
   parentSessionId?: string;
   promptTemplateHash: string;
+  model?: { provider: string; modelId: string };
   inputDigest: AgentRunInputDigest;
   /** 输出体的 workspace 相对路径（由 store.saveOutput 生成）。 */
   outputRef?: string;

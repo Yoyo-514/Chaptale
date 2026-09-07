@@ -8,11 +8,13 @@ import { useEditorStore } from '@/features/editor';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
+import { useWritingStore } from '@/features/writing';
 
 const workspaceStore = useWorkspaceStore();
 const settingsStore = useSettingsStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
+const writing = useWritingStore();
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
 const THEME_ITEM_PREFIX = 'view.theme.';
@@ -94,7 +96,7 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     label: '写作',
     items: [
       { id: 'writing.context', label: '组装本次参考', disabled: !workspaceStore.rootPath },
-      { id: 'writing.generate', label: '生成候选稿', disabled: true },
+      { id: 'writing.generate', label: '生成候选稿', disabled: !editor.activeTab || editor.activeTab.readonly },
       { id: 'writing.settle', label: '结算当前章节', disabled: true, separatorBefore: true }
     ]
   },
@@ -131,6 +133,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'writing.generate') {
+    void writing.prepare();
+    return;
+  }
   if (itemId === 'writing.context') {
     navigation.auxiliary = 'references';
     return;

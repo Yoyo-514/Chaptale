@@ -1,8 +1,17 @@
-import { history, invertedEffects } from '@codemirror/commands';
-import { Compartment, EditorState, StateEffect, StateField, type Extension, type Transaction } from '@codemirror/state';
+import { history, invertedEffects, isolateHistory } from '@codemirror/commands';
+import {
+  Annotation,
+  Compartment,
+  EditorState,
+  StateEffect,
+  StateField,
+  type Extension,
+  type Transaction
+} from '@codemirror/state';
 
 type LineFormat = { bom: boolean; preferred: string; separators: readonly string[] };
 const restoreLineFormat = StateEffect.define<LineFormat>();
+const controlledEdit = Annotation.define<boolean>();
 
 const lineFormat = StateField.define<LineFormat>({
   create: () => ({ bom: false, preferred: '\n', separators: [] }),
@@ -61,6 +70,7 @@ export class DocumentBuffer {
   state: EditorState;
   private baseline: EditorState;
   private readonly viewConfig = new Compartment();
+  private readonly lockConfig = new Compartment();
   private dispatchToView?: (transaction: Transaction) => void;
 
   constructor(content: string, extensions: Extension = []) {
@@ -70,6 +80,7 @@ export class DocumentBuffer {
       extensions: [
         lineFormat.init(() => format),
         history(),
+        this.lockConfig.of([]),
         invertedEffects.of(transaction =>
           transaction.docChanged ? [restoreLineFormat.of(transaction.startState.field(lineFormat))] : []
         ),
@@ -94,11 +105,29 @@ export class DocumentBuffer {
     };
   }
 
-  replaceContent(content: string) {
+  setLocked(locked: boolean) {
+    const transaction = this.state.update({
+      effects: this.lockConfig.reconfigure(
+        locked
+          ? [
+              EditorState.readOnly.of(true),
+              EditorState.transactionFilter.of(change =>
+                change.docChanged && !change.annotation(controlledEdit) ? [] : change
+              )
+            ]
+          : []
+      )
+    });
+    if (this.dispatchToView) this.dispatchToView(transaction);
+    else this.update(transaction.state);
+  }
+
+  replaceContent(content: string, isolated = false) {
     const format = parseLineFormat(content);
     const transaction = this.state.update({
       changes: { from: 0, to: this.state.doc.length, insert: format.bom ? content.slice(1) : content },
       effects: restoreLineFormat.of(format),
+      annotations: [controlledEdit.of(true), ...(isolated ? [isolateHistory.of('full')] : [])],
       userEvent: 'input'
     });
     if (this.dispatchToView) this.dispatchToView(transaction);

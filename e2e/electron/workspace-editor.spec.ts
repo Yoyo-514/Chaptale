@@ -109,6 +109,88 @@ async function openChapter(folder = '正文') {
   await page.locator(`[data-tree-path="${folder}/第一章.md"]`).click();
 }
 
+test('候选留档经真实 IPC 恢复、确认接受并独立撤销，正文基线不被 watch 重置', async () => {
+  const directory = path.join(workspace, '.chaptale/revisions/candidates');
+  await mkdir(directory, { recursive: true });
+  const proposed = chapter.replace('林晚收起了信', '林晚将信藏进袖口');
+  await writeFile(
+    path.join(directory, 'candidate-fixture.json'),
+    JSON.stringify({
+      id: 'candidate-fixture',
+      revision: 1,
+      status: 'ready',
+      targetPath: '正文/第一章.md',
+      baselineHash: createHash('sha256').update(chapter).digest('hex'),
+      baselineContent: chapter,
+      proposedContent: proposed,
+      range: { from: 0, to: chapter.length },
+      goal: '合法留档消费测试',
+      packId: 'fixture-pack',
+      personaId: 'draft',
+      model: { provider: 'fixture', modelId: 'saved-output' },
+      usedStalePack: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      acceptances: []
+    })
+  );
+  await openChapter();
+  await page.getByRole('tab', { name: '候选', exact: true }).click();
+  await page.getByRole('button', { name: /正文\/第一章.md.*待处理/ }).click();
+  const dialog = page.getByRole('dialog', { name: '候选差异' });
+  await expect(dialog.getByRole('textbox', { name: '候选稿' })).toContainText('藏进袖口');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'm5-candidate-diff.png') });
+  await dialog.getByRole('button', { name: '全部接受', exact: true }).click();
+  await expect(dialog.getByText(/移除.*加入.*字符/)).toContainText('正文/第一章.md');
+  await dialog.getByRole('button', { name: '确认全部接受', exact: true }).click();
+  await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(proposed);
+  await expect(dialog.getByRole('button', { name: '全部接受', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: '关闭', exact: true }).last().click();
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('藏进袖口');
+  await page.getByRole('textbox', { name: '文档正文' }).click();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('收起了信');
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  const stored = JSON.parse(await readFile(path.join(directory, 'candidate-fixture.json'), 'utf8'));
+  expect(stored.status).toBe('accepted');
+  expect(stored.acceptances).toHaveLength(1);
+});
+
+test('正文变化后的候选只读差异，不能绕过 stale 写回', async () => {
+  await mkdir(path.join(workspace, '.chaptale/revisions/candidates'), { recursive: true });
+  await writeFile(
+    path.join(workspace, '.chaptale/revisions/candidates/stale-fixture.json'),
+    JSON.stringify({
+      id: 'stale-fixture',
+      revision: 1,
+      status: 'ready',
+      targetPath: '正文/第一章.md',
+      baselineHash: createHash('sha256').update('旧正文').digest('hex'),
+      baselineContent: '旧正文',
+      proposedContent: '旧候选',
+      range: { from: 0, to: 3 },
+      goal: '过期留档',
+      packId: 'fixture-pack',
+      personaId: 'draft',
+      model: { provider: 'fixture', modelId: 'saved-output' },
+      usedStalePack: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      acceptances: []
+    })
+  );
+  await page.getByRole('tab', { name: '候选', exact: true }).click();
+  await page.getByRole('button', { name: /正文\/第一章.md.*正文已变化/ }).click();
+  const dialog = page.getByRole('dialog', { name: '候选差异' });
+  await expect(dialog.getByText('正文已变化，此候选不能直接接受。')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: '全部接受', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: '放弃候选' }).click();
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+});
+
 test('真实 preload 读取保留原文和哈希，并验证工作区身份及非法参数', async () => {
   const result = await page.evaluate(async rootPath => {
     const api = (window as DesktopWindow).chaptaleDesktop.workspace;

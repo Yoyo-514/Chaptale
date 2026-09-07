@@ -9,6 +9,24 @@ function historyTarget(buffer: DocumentBuffer) {
 }
 
 describe('无损编辑缓冲', () => {
+  it('接受候选期间拦截编辑，确认后独立撤销一次回到原文', () => {
+    const buffer = new DocumentBuffer('\uFEFF原文\r\n末尾\n');
+    buffer.update(buffer.state.update({ changes: { from: 0, insert: '先前' }, userEvent: 'input.type' }).state);
+    buffer.markSaved(buffer.state);
+    const before = buffer.content;
+    buffer.setLocked(true);
+    buffer.update(buffer.state.update({ changes: { from: 0, insert: '意外输入' } }).state);
+    expect(buffer.content).toBe(before);
+    buffer.replaceContent('\uFEFF候选\r\n末尾\n', true);
+    buffer.markSaved(buffer.state);
+    buffer.setLocked(false);
+    expect(buffer.dirty).toBe(false);
+    expect(undo(historyTarget(buffer))).toBe(true);
+    expect(buffer.content).toBe(before);
+    expect(buffer.dirty).toBe(true);
+    expect(undo(historyTarget(buffer))).toBe(true);
+    expect(buffer.content).toBe('\uFEFF原文\r\n末尾\n');
+  });
   it.each(['', '\uFEFF正文\r\n第二行\n末行\r', '甲\r乙\n丙\r\n'])('打开后字节等价：%j', raw => {
     const buffer = new DocumentBuffer(raw);
     expect(buffer.content).toBe(raw);

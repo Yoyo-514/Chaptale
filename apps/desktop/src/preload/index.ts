@@ -17,8 +17,10 @@ import { createTasksApi } from './api/tasks';
 import { createTodosApi } from './api/todos';
 import { createWindowControlApi } from './api/window';
 import { createWorkspaceApi } from './api/workspace';
+import { createWritingApi } from './api/writing';
 
 const desktopApi: ChaptaleDesktopApi = {
+  writing: createWritingApi(),
   library: createLibraryApi(),
   workspace: createWorkspaceApi(),
   getPlatform: createGetPlatformApi(),

@@ -167,7 +167,7 @@ export function createDocumentView(
   });
   const detachBuffer = buffer?.attach(transaction => view.dispatch(transaction));
   const head = options.markdown && !options.large && options.foldHead ? documentHeadRange(view.state) : null;
-  if (head && !options.buffer) {
+  if (head && !options.viewState) {
     view.dispatch({
       effects: foldEffect.of(head),
       selection: { anchor: Math.min(head.to + 1, view.state.doc.length) }

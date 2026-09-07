@@ -46,10 +46,11 @@ describe('WorkbenchLayout', () => {
     });
     const tabs = wrapper.findAll('.workbench-auxiliary-bar [role="tab"]');
 
-    expect(tabs.map(tab => tab.text())).toEqual(['Agent', '参考', '审查']);
+    expect(tabs.map(tab => tab.text())).toEqual(['Agent', '参考', '候选', '审查']);
     expect(tabs[0]?.attributes('aria-selected')).toBe('true');
     expect(tabs[1]?.attributes('disabled')).toBeUndefined();
-    expect(tabs[2]?.attributes('disabled')).toBeDefined();
+    expect(tabs[2]?.attributes('disabled')).toBeUndefined();
+    expect(tabs[3]?.attributes('disabled')).toBeDefined();
     await tabs[1]!.trigger('mousedown', { button: 0 });
     await tabs[1]!.trigger('click');
     expect(wrapper.find('[aria-label="本次写作参考"]').exists()).toBe(true);

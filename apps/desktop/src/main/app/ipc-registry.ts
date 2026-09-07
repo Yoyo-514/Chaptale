@@ -13,6 +13,7 @@ import { registerSubagentIpc } from '../features/subagent/ipc';
 import { registerTaskIpc } from '../features/tasks/ipc';
 import { registerTodoIpc } from '../features/todo/ipc';
 import { registerWorkspaceIpc } from '../features/workspace/ipc';
+import { registerWritingIpc } from '../features/writing/ipc';
 import { ElectronUiShell } from '../infra/electron/ui-shell';
 import { registerWindowIpc } from '../infra/electron/window-ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
@@ -27,6 +28,7 @@ export function registerApplicationIpc(context: AppContext): void {
   const ui = new ElectronUiShell();
   registerWorkspaceIpc(context.workspaceService, ui);
   registerLibraryIpc(context.libraryService);
+  registerWritingIpc(context.writingService);
 
   handleTrustedIpc(
     IPC_CHANNELS.app.getPlatform,

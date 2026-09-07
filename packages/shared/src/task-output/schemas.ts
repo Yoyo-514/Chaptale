@@ -2,6 +2,7 @@ import { Type, type Static, type TSchema } from 'typebox';
 import { Check, Errors } from 'typebox/value';
 
 import { CharacterIssuesSchema, ContinuityIssuesSchema, StyleIssuesSchema } from '../reviews';
+import { DraftMarkdownSchema } from '../writing';
 
 /**
  * 任务输出 schema 注册表。
@@ -43,6 +44,7 @@ registerOutputSchema('continuity-issues', ContinuityIssuesSchema);
 registerOutputSchema('character-issues', CharacterIssuesSchema);
 registerOutputSchema('style-issues', StyleIssuesSchema);
 registerOutputSchema('creative-checkpoint', CreativeCheckpointSchema);
+registerOutputSchema('draft-markdown', DraftMarkdownSchema);
 
 /** 校验结果：成功携带（类型收窄后的）值，失败携带人类可读的错误列表。 */
 export type OutputValidationResult = { ok: true; value: unknown } | { ok: false; errors: string[] };

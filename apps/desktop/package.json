@@ -26,6 +26,7 @@
     "@ai-sdk/openai-compatible": "catalog:",
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
+    "@codemirror/merge": "catalog:",
     "@mozilla/readability": "catalog:",
     "@node-rs/jieba": "catalog:",
     "ai": "catalog:",

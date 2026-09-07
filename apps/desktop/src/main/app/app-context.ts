@@ -41,6 +41,7 @@ import { WebToolsSettingsStore } from '../features/web-tools/settings';
 import { RecoveryStore } from '../features/workspace/recovery';
 import { WorkspaceService } from '../features/workspace/service';
 import { WorkspaceWatcher } from '../features/workspace/watcher';
+import { WritingService } from '../features/writing/service';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { OfficeDocumentParser } from '../integrations/officeparser/parser';
@@ -63,6 +64,7 @@ export type AppContext = {
   memoryPendingStore: MemoryPendingStore;
   indexService: WorkspaceIndexWorker;
   libraryService: LibraryService;
+  writingService: WritingService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
   /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
@@ -154,6 +156,13 @@ export function createAppContext(): AppContext {
   });
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
+  const writingService = new WritingService({
+    workspace: workspaceService,
+    library: libraryService,
+    personas: personaRegistry,
+    models: modelService,
+    tasks: taskRunner
+  });
 
   // 会话压缩 = 创作检查点管线：memory-distiller 蒸馏出结构化检查点并原子落盘，
   // 同一正文才写入会话流；任一步失败即取消压缩，不留半截状态。
@@ -211,6 +220,7 @@ export function createAppContext(): AppContext {
     memoryPendingStore,
     indexService,
     libraryService,
+    writingService,
     permissionBroker,
     permissionRuleStore,
     getPermissionSettingsCwd: () => settingsService.getCurrentCwd(),

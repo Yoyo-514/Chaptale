@@ -1,6 +1,7 @@
 import characterReviewerSource from './character-reviewer.md?raw';
 import companionSource from './companion.md?raw';
 import continuityReviewerSource from './continuity-reviewer.md?raw';
+import draftSource from './draft.md?raw';
 import memoryDistillerSource from './memory-distiller.md?raw';
 import styleReviewerSource from './style-reviewer.md?raw';
 
@@ -10,7 +11,8 @@ export const builtinPersonaSources: readonly string[] = [
   companionSource.replace(/\r\n/g, '\n'),
   continuityReviewerSource.replace(/\r\n/g, '\n'),
   memoryDistillerSource.replace(/\r\n/g, '\n'),
-  styleReviewerSource.replace(/\r\n/g, '\n')
+  styleReviewerSource.replace(/\r\n/g, '\n'),
+  draftSource.replace(/\r\n/g, '\n')
 ];
 
 /**

@@ -53,7 +53,12 @@ import {
   SaveRecoveryArgsValidator,
   LibraryLinkArgsValidator,
   ComposePackArgsValidator,
-  PackIdArgsValidator
+  PackIdArgsValidator,
+  DraftRequestValidator,
+  CandidateIdArgsValidator,
+  ApplyCandidateValidator,
+  WritingTargetValidator,
+  SnapshotReadValidator
 } from '@chaptale/ipc-contract';
 
 import { WorkspaceService } from '../../features/workspace/service';
@@ -112,6 +117,14 @@ const validated = (channel: string, validator: IpcValidator): Registration => ({
 
 const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.app.getPlatform),
+  validated(IPC_CHANNELS.writing.generate, DraftRequestValidator),
+  validated(IPC_CHANNELS.writing.cancel, CandidateIdArgsValidator),
+  validated(IPC_CHANNELS.writing.listCandidates, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.writing.readCandidate, CandidateIdArgsValidator),
+  validated(IPC_CHANNELS.writing.discard, CandidateIdArgsValidator),
+  validated(IPC_CHANNELS.writing.apply, ApplyCandidateValidator),
+  validated(IPC_CHANNELS.writing.listVersions, WritingTargetValidator),
+  validated(IPC_CHANNELS.writing.readVersion, SnapshotReadValidator),
 
   trusted(IPC_CHANNELS.session.list),
   validated(IPC_CHANNELS.session.create, CreateSessionArgsValidator),

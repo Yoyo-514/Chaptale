@@ -1,14 +1,19 @@
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 
-import { MAX_DOCUMENT_BYTES, type RecoverySummary, type WorkspaceChanged } from '@chaptale/ipc-contract';
+import {
+  MAX_DOCUMENT_BYTES,
+  type RecoverySummary,
+  type WorkspaceChanged,
+  type WorkspaceDocument
+} from '@chaptale/ipc-contract';
 
 import { useSettingsStore } from '@/features/settings';
 import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
-import type { DocumentBuffer } from './codemirror/document-buffer';
+import { DocumentBuffer } from './codemirror/document-buffer';
 import { NORMAL_PREVIEW_BYTES, type DocumentViewState, type EditorTab } from './types';
 import { countDocumentWords } from './word-count';
 
@@ -112,7 +117,9 @@ export const useEditorStore = defineStore('editor', () => {
           });
           return;
         }
-        buffers.delete(id);
+        if (result.document.sizeBytes <= NORMAL_PREVIEW_BYTES)
+          buffers.set(id, new DocumentBuffer(result.document.content));
+        else buffers.delete(id);
         replaceTab({
           ...current,
           status: 'ready',
@@ -270,6 +277,50 @@ export const useEditorStore = defineStore('editor', () => {
     return !hasUnsaved.value;
   }
 
+  /** 候选/版本写入与保存、watch、关闭共用同一队列，磁盘确认后只追加一个撤销事务。 */
+  async function acceptDocumentChange<T extends { document: WorkspaceDocument }>(
+    targetPath: string,
+    expectedHash: string,
+    action: () => Promise<T>
+  ): Promise<T> {
+    await openDocument(targetPath);
+    const tab = tabs.value.find(value => value.path === targetPath);
+    if (!tab?.document || tab.readonly || tab.dirty || tab.saving || tab.external)
+      throw new Error('请先保存正文并处理磁盘冲突');
+    if (tab.document.contentHash !== expectedHash) throw new Error('编辑器正文已变化，请重新读取候选');
+    const buffer = buffers.get(tab.id) ?? new DocumentBuffer(tab.document.content);
+    buffers.set(tab.id, buffer);
+    buffer.setLocked(true);
+    replaceTab({ ...tab, saving: true });
+    let result: T | undefined;
+    let failure: unknown;
+    const operation = (async () => {
+      try {
+        result = await action();
+        const current = tabs.value.find(value => value.id === tab.id);
+        if (!current || workspace.rootPath !== result.document.rootPath)
+          throw new Error('工作区已切换，写入结果将在重新打开时载入');
+        buffer.replaceContent(result.document.content, true);
+        buffer.markSaved(buffer.state);
+        replaceTab({ ...current, document: result.document, dirty: false, saving: false, saveError: '' });
+        await persistRecovery(tab.id);
+        return true;
+      } catch (cause) {
+        failure = cause;
+        const current = tabs.value.find(value => value.id === tab.id);
+        if (current) replaceTab({ ...current, saving: false, saveError: toErrorMessage(cause) });
+        return false;
+      } finally {
+        buffer.setLocked(false);
+        saves.delete(tab.id);
+      }
+    })();
+    saves.set(tab.id, operation);
+    await operation;
+    if (failure) throw failure;
+    return result!;
+  }
+
   async function confirmClose(ids = tabs.value.map(tab => tab.id)): Promise<boolean> {
     for (const id of ids) {
       const underway = saves.get(id);
@@ -384,7 +435,6 @@ export const useEditorStore = defineStore('editor', () => {
       await openDocument(relativePath);
       const tab = tabs.value.find(item => item.path === relativePath);
       if (!tab || rootPath !== workspace.rootPath) return;
-      const { DocumentBuffer: BufferClass } = await import('./codemirror/document-buffer');
       const disk = tab.document;
       const document = disk ?? {
         rootPath,
@@ -395,7 +445,7 @@ export const useEditorStore = defineStore('editor', () => {
         mtimeMs: 0,
         sizeBytes: 0
       };
-      const buffer = buffers.get(tab.id) ?? new BufferClass(document.content);
+      const buffer = buffers.get(tab.id) ?? new DocumentBuffer(document.content);
       buffers.set(tab.id, buffer);
       buffer.replaceContent(draft.content);
       replaceTab({
@@ -662,6 +712,7 @@ export const useEditorStore = defineStore('editor', () => {
     updateBuffer,
     saveDocument,
     saveAll,
+    acceptDocumentChange,
     confirmClose,
     resolveUnsaved,
     requestCommand,
