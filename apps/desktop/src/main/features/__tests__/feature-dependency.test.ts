@@ -62,6 +62,12 @@ const crossFeatureAllowlist = [
   // 索引 worker 复用编辑器的安全快照读取和宽容 YAML，不另建不受限读取链路。
   'search -> workspace/read-document',
   'search -> workspace/frontmatter',
+  'settlement -> library/service',
+  'settlement -> personas/registry',
+  'settlement -> tasks/runner-port',
+  'settlement -> workspace/read-document',
+  'settlement -> workspace/service',
+  'settlement -> writing/versions',
   'subagent -> personas/registry',
   'subagent -> tasks/runner-port',
   'tasks -> personas/registry',

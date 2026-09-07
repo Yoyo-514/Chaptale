@@ -10,12 +10,14 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import type { SettlementBatch } from '@chaptale/shared';
 
 const desktopDir = path.resolve('apps/desktop');
 const desktopRequire = createRequire(path.join(desktopDir, 'package.json'));
 const electronExecutable = desktopRequire('electron') as string;
 const visualDir = path.resolve('temp/visual-qa', `t5-editor-${Date.now()}`);
 type DesktopWindow = Window & { chaptaleDesktop: ChaptaleDesktopApi };
+const hash = (content: string) => createHash('sha256').update(content).digest('hex');
 
 const chapter = '---\r\ntitle: 初雪\r\n---\r\n# 第一章\r\n\r\n雪落在窗沿，林晚收起了信。\r\n';
 let app: ElectronApplication | undefined;
@@ -108,6 +110,151 @@ async function openChapter(folder = '正文') {
   await page.getByRole('treeitem', { name: folder, exact: true }).click();
   await page.locator(`[data-tree-path="${folder}/第一章.md"]`).click();
 }
+
+test('结算提议经真实 IPC 编辑接受、拒绝和重启恢复，完成后更新场景', async () => {
+  const characterPath = '角色/林晚.md';
+  const character = '---\nid: linwan\nkind: character\ntitle: 林晚\ncustom: 0xFF # 保留\n---\n尚未拆信。\n';
+  const scenePath = '大纲/场景卡/夜访.md';
+  const scene =
+    '---\nkind: scene-card\ntitle: 夜访\nchapter: "[[正文/第一章.md]]"\nsettled: false\n---\n在桥下交换来信。\n';
+  await mkdir(path.join(workspace, '角色'));
+  await mkdir(path.join(workspace, '大纲/场景卡'), { recursive: true });
+  await writeFile(path.join(workspace, characterPath), character);
+  await writeFile(path.join(workspace, scenePath), scene);
+  const chapterKey = hash('path:正文/第一章.md').slice(0, 24);
+  const summaryPath = `.chaptale/memory/summaries/chapters/${chapterKey}.md`;
+  const batch: SettlementBatch = {
+    id: 'settlement-fixture',
+    revision: 1,
+    status: 'ready',
+    chapterPath: '正文/第一章.md',
+    chapterKey,
+    chapterHash: hash(chapter),
+    chapterTitle: '初雪',
+    packId: 'saved-pack',
+    personaId: 'chapter-distiller',
+    model: { provider: 'fixture', modelId: 'saved-output' },
+    autoAcceptSummary: false,
+    worldDirectory: '设定',
+    sources: [
+      { sourcePath: characterPath, contentHash: hash(character), kind: 'character' },
+      { sourcePath: scenePath, contentHash: hash(scene), kind: 'scene-card' }
+    ],
+    scenes: [{ sourcePath: scenePath, contentHash: hash(scene), kind: 'scene-card' }],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    items: [
+      {
+        id: 'summary',
+        category: 'summary',
+        title: '章节摘要',
+        reason: '本章事实',
+        targetPath: summaryPath,
+        proposedContent: '---\nkind: chapter-summary\n---\n林晚收到来信。\n',
+        status: 'pending'
+      },
+      {
+        id: 'asset-0',
+        category: 'character',
+        title: '林晚',
+        reason: '已收到信',
+        targetPath: characterPath,
+        baseline: { content: character, contentHash: hash(character) },
+        proposedContent: character.replace('尚未拆信', '已经拆信'),
+        status: 'pending'
+      },
+      {
+        id: 'event-0',
+        category: 'timeline',
+        title: '拆开来信',
+        reason: '待确认事件',
+        targetPath: '设定/时间线/settlement-fixture-event-0.md',
+        proposedContent: '---\nkind: world\n---\n拆开来信。\n',
+        status: 'pending'
+      }
+    ]
+  };
+  await mkdir(path.join(workspace, '.chaptale/memory/pending/batches'), { recursive: true });
+  await writeFile(
+    path.join(workspace, '.chaptale/memory/pending/batches/settlement-fixture.json'),
+    JSON.stringify(batch)
+  );
+  await page.getByRole('tab', { name: '结算', exact: true }).click();
+  await page.getByRole('button', { name: /初雪.*3 项待确认/ }).click();
+  const dialog = page.getByRole('dialog', { name: '结算批次' });
+  await expect(dialog.getByRole('textbox', { name: '待确认内容' })).toContainText('林晚收到来信');
+  expect(await readFile(path.join(workspace, characterPath), 'utf8')).toBe(character);
+  await dialog.getByRole('button', { name: '接受提议', exact: true }).click();
+  await expect(dialog.getByRole('combobox', { name: '结算提议' })).toContainText('已接受');
+  expect(await readFile(path.join(workspace, summaryPath), 'utf8')).toContain('林晚收到来信');
+  await dialog.getByRole('combobox', { name: '结算提议' }).click();
+  await page.getByRole('option', { name: '角色状态 · 林晚 · 待确认', exact: true }).click();
+  await dialog.getByRole('button', { name: '编辑提议', exact: true }).click();
+  await dialog
+    .getByRole('textbox', { name: '编辑待确认事实' })
+    .fill(character.replace('尚未拆信。', '仍未拆信，保管在袖口。'));
+  await dialog.getByRole('button', { name: '编辑后接受', exact: true }).click();
+  await expect
+    .poll(() => readFile(path.join(workspace, characterPath), 'utf8'))
+    .toBe(character.replace('尚未拆信。', '仍未拆信，保管在袖口。'));
+  await dialog.getByRole('combobox', { name: '结算提议' }).click();
+  await page.getByRole('option', { name: '时间线事件 · 拆开来信 · 待确认', exact: true }).click();
+  await dialog.getByRole('button', { name: '拒绝提议', exact: true }).click();
+  await dialog.getByRole('button', { name: '完成结算', exact: true }).click();
+  await expect(dialog.getByText('本章结算已完成')).toBeVisible();
+  await expect.poll(() => readFile(path.join(workspace, scenePath), 'utf8')).toContain('settled: true');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  await expect(readFile(path.join(workspace, '设定/时间线/settlement-fixture-event-0.md'))).rejects.toMatchObject({
+    code: 'ENOENT'
+  });
+  expect(await readFile(path.join(workspace, '.chaptale/memory/summaries/recent.md'), 'utf8')).toContain(
+    '林晚收到来信'
+  );
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'm5-settlement-completed.png') });
+  await dialog.getByRole('button', { name: '关闭', exact: true }).last().click();
+  await app!.close();
+  await launchApp();
+  await page.getByRole('tab', { name: '结算', exact: true }).click();
+  await page.getByRole('combobox', { name: '结算状态筛选' }).click();
+  await page.getByRole('option', { name: '全部结算', exact: true }).click();
+  await page.getByRole('button', { name: /初雪.*已结算/ }).click();
+  await expect(page.getByRole('dialog', { name: '结算批次' }).getByText('本章结算已完成')).toBeVisible();
+});
+
+test('结算准备补齐场景参考并统计未结算章节，无模型时不发送请求', async () => {
+  await mkdir(path.join(workspace, '大纲/场景卡'), { recursive: true });
+  await mkdir(path.join(workspace, '角色'));
+  await writeFile(path.join(workspace, '角色/林晚.md'), '---\nkind: character\ntitle: 林晚\n---\n尚未拆信。\n');
+  await writeFile(
+    path.join(workspace, '大纲/场景卡/夜访.md'),
+    '---\nkind: scene-card\nchapter: "[[正文/第一章.md]]"\ncast: ["[[角色/林晚.md]]"]\n---\n收到来信。\n'
+  );
+  for (const name of ['第二章', '第三章'])
+    await writeFile(path.join(workspace, `正文/${name}.md`), `# ${name}\n已保存的正文。\n`);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async root => (await (window as DesktopWindow).chaptaleDesktop.settlement.unsettled({ rootPath: root })).length,
+        workspace
+      )
+    )
+    .toBe(3);
+  const plan = await page.evaluate(async root => {
+    const api = (window as DesktopWindow).chaptaleDesktop;
+    const pack = await api.library.freezePack({ rootPath: root, goal: '结算准备', budgetChars: 9000, selections: [] });
+    return api.settlement.prepare({ rootPath: root, chapterPath: '正文/第一章.md', packId: pack.id });
+  }, workspace);
+  expect(plan.sources).toContain('角色/林晚.md');
+  expect(plan.scenePaths).toEqual(['大纲/场景卡/夜访.md']);
+  await openChapter();
+  await page.getByRole('menuitem', { name: '写作', exact: true }).click();
+  await page.getByRole('menuitem', { name: '结算当前章节', exact: true }).click();
+  const confirmation = page.getByRole('dialog', { name: '结算本章' });
+  await expect(confirmation.getByRole('checkbox', { name: '本次自动接受摘要' })).not.toBeChecked();
+  await expect(confirmation.getByRole('button', { name: '生成待确认事实' })).toBeDisabled();
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+});
 
 test('通用表单在三种主题与窄窗口中保持可读尺寸，搜索选择不丢自由输入', async () => {
   for (const [theme, width] of [

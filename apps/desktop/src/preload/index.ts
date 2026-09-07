@@ -13,6 +13,7 @@ import { createPromptSettingsApi } from './api/prompts';
 import { createReviewsApi } from './api/reviews';
 import { createSessionApi } from './api/sessions';
 import { createSettingsApi } from './api/settings';
+import { createSettlementApi } from './api/settlement';
 import { createSubagentApi } from './api/subagent';
 import { createTasksApi } from './api/tasks';
 import { createTemplatesApi } from './api/templates';
@@ -22,6 +23,7 @@ import { createWorkspaceApi } from './api/workspace';
 import { createWritingApi } from './api/writing';
 
 const desktopApi: ChaptaleDesktopApi = {
+  settlement: createSettlementApi(),
   writing: createWritingApi(),
   templates: createTemplatesApi(),
   reviews: createReviewsApi(),

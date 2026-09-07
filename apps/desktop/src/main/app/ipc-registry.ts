@@ -10,6 +10,7 @@ import { registerPromptSettingsIpc } from '../features/prompts/ipc';
 import { registerReviewIpc } from '../features/reviews/ipc';
 import { registerSessionIpc } from '../features/sessions/ipc';
 import { registerSettingsIpc } from '../features/settings/ipc';
+import { registerSettlementIpc } from '../features/settlement/ipc';
 import { registerSubagentIpc } from '../features/subagent/ipc';
 import { registerTaskIpc } from '../features/tasks/ipc';
 import { registerTemplatesIpc } from '../features/templates/ipc';
@@ -33,6 +34,7 @@ export function registerApplicationIpc(context: AppContext): void {
   registerWritingIpc(context.writingService);
   registerTemplatesIpc(context.templateService);
   registerReviewIpc(context.reviewService);
+  registerSettlementIpc(context.settlementService);
 
   handleTrustedIpc(
     IPC_CHANNELS.app.getPlatform,

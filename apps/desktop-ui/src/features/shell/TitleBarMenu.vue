@@ -7,6 +7,7 @@ import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useEditorStore } from '@/features/editor';
 import { useReviewStore } from '@/features/reviews';
 import { useSettingsStore } from '@/features/settings';
+import { useSettlementStore } from '@/features/settlement';
 import { useTemplateStore } from '@/features/templates';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
@@ -19,6 +20,7 @@ const navigation = useWorkbenchStore();
 const writing = useWritingStore();
 const reviews = useReviewStore();
 const templates = useTemplateStore();
+const settlement = useSettlementStore();
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
 const THEME_ITEM_PREFIX = 'view.theme.';
@@ -102,7 +104,12 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     items: [
       { id: 'writing.context', label: '组装本次参考', disabled: !workspaceStore.rootPath },
       { id: 'writing.generate', label: '生成候选稿', disabled: !editor.activeTab || editor.activeTab.readonly },
-      { id: 'writing.settle', label: '结算当前章节', disabled: true, separatorBefore: true }
+      {
+        id: 'writing.settle',
+        label: '结算当前章节',
+        disabled: !editor.activeTab || editor.activeTab.readonly,
+        separatorBefore: true
+      }
     ]
   },
   {
@@ -138,6 +145,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'writing.settle') {
+    void settlement.prepare();
+    return;
+  }
   if (itemId === 'file.new-scene-card' || itemId === 'file.new-asset') {
     const tab = editor.activeTab;
     void templates.openCreate(

@@ -1,3 +1,4 @@
+import chapterDistillerSource from './chapter-distiller.md?raw';
 import characterReviewerSource from './character-reviewer.md?raw';
 import companionSource from './companion.md?raw';
 import continuityReviewerSource from './continuity-reviewer.md?raw';
@@ -14,6 +15,7 @@ export const builtinPersonaSources: readonly string[] = [
   memoryDistillerSource.replace(/\r\n/g, '\n'),
   styleReviewerSource.replace(/\r\n/g, '\n'),
   draftSource.replace(/\r\n/g, '\n'),
+  chapterDistillerSource.replace(/\r\n/g, '\n'),
   rewriterSource.replace(/\r\n/g, '\n')
 ];
 

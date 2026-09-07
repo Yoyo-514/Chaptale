@@ -57,6 +57,7 @@ import type {
   UpdateChaptaleSettingsPayload,
   UpdateWebToolsSettingsPayload
 } from './settings';
+import type { SettlementApi } from './settlement';
 import type { SlashCommand } from './slash-command';
 import type {
   AgentRunsListPayload,
@@ -93,6 +94,7 @@ import type { WritingApi } from './writing';
  * 该类型只描述可跨进程调用的稳定数据，不允许 Electron、Node 或具体 SDK 类型越过边界。
  */
 export type ChaptaleDesktopApi = {
+  settlement: SettlementApi;
   writing: WritingApi;
   templates: TemplatesApi;
   reviews: ReviewsApi;

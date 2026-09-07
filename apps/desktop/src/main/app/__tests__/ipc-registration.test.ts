@@ -65,7 +65,8 @@ import {
   SnapshotReadValidator,
   ReviewRunValidator,
   ReviewIdValidator,
-  ResolveIssueValidator
+  ResolveIssueValidator,
+  SettlementValidators
 } from '@chaptale/ipc-contract';
 
 import { WorkspaceService } from '../../features/workspace/service';
@@ -123,6 +124,9 @@ const validated = (channel: string, validator: IpcValidator): Registration => ({
 });
 
 const expectedRegistrations: Registration[] = [
+  ...Object.entries(SettlementValidators).map(([key, validator]) =>
+    validated(IPC_CHANNELS.settlement[key as keyof typeof SettlementValidators], validator)
+  ),
   trusted(IPC_CHANNELS.app.getPlatform),
   validated(IPC_CHANNELS.templates.list, WorkspaceRootArgsValidator),
   validated(IPC_CHANNELS.templates.create, CreateAssetValidator),

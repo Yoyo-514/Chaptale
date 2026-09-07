@@ -30,6 +30,7 @@ import { WorkspaceIndexSourceResolver } from '../features/search/index/source-re
 import { WorkspaceIndexWorker } from '../features/search/index/worker-client';
 import { MemorySearchService } from '../features/search/memory/service';
 import { JsonlSessionRepository } from '../features/sessions/repository';
+import { SettlementService } from '../features/settlement/service';
 import { materializeBuiltinSkills } from '../features/skills/builtin-materializer';
 import { SkillsProvider } from '../features/skills/provider';
 import { SubagentPool } from '../features/subagent/pool';
@@ -70,6 +71,7 @@ export type AppContext = {
   writingService: WritingService;
   templateService: TemplateService;
   reviewService: ReviewService;
+  settlementService: SettlementService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
   /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
@@ -180,6 +182,14 @@ export function createAppContext(): AppContext {
     candidates: writingService.candidates,
     store: reviewWorkflowStore
   });
+  const settlementService = new SettlementService({
+    workspace: workspaceService,
+    library: libraryService,
+    personas: personaRegistry,
+    models: modelService,
+    tasks: taskRunner,
+    versions: writingService.candidates.versions
+  });
 
   // 会话压缩 = 创作检查点管线：memory-distiller 蒸馏出结构化检查点并原子落盘，
   // 同一正文才写入会话流；任一步失败即取消压缩，不留半截状态。
@@ -240,6 +250,7 @@ export function createAppContext(): AppContext {
     writingService,
     templateService,
     reviewService,
+    settlementService,
     permissionBroker,
     permissionRuleStore,
     getPermissionSettingsCwd: () => settingsService.getCurrentCwd(),

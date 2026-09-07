@@ -3,6 +3,16 @@
  * 按业务域分组可让 Preload、handler 注册和契约审查使用同一组不可变字面量。
  */
 export const IPC_CHANNELS = {
+  settlement: {
+    list: 'settlement:list',
+    unsettled: 'settlement:unsettled',
+    prepare: 'settlement:prepare',
+    start: 'settlement:start',
+    read: 'settlement:read',
+    cancel: 'settlement:cancel',
+    resolve: 'settlement:resolve',
+    complete: 'settlement:complete'
+  },
   templates: {
     list: 'templates:list',
     create: 'templates:create'

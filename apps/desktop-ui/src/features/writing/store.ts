@@ -36,6 +36,7 @@ export const useWritingStore = defineStore('writing', () => {
   const error = ref('');
   const busy = ref(false);
   const diagnostics = ref<string[]>([]);
+  const unsettled = ref<string[]>([]);
   let sequence = 0;
   const usable = computed(() =>
     Boolean(details.value && ['ready', 'partially-accepted'].includes(details.value.candidate.status))
@@ -93,7 +94,9 @@ export const useWritingStore = defineStore('writing', () => {
       const pack = await library.freeze();
       if (!pack) throw new Error(library.error || '参考冻结失败');
       const available = await getDesktopApi().models.list();
+      const pendingChapters = await getDesktopApi().settlement.unsettled({ rootPath });
       if (rootPath !== workspace.rootPath) return;
+      unsettled.value = pendingChapters;
       models.value = available.models.filter(model => model.authConfigured);
       const model = models.value.find(value => value.isDefault) ?? models.value[0];
       if (!model) throw new Error('尚未配置可用模型');
@@ -258,6 +261,7 @@ export const useWritingStore = defineStore('writing', () => {
       running.value = [];
       error.value = '';
       diagnostics.value = [];
+      unsettled.value = [];
     }
   );
   return {
@@ -270,6 +274,7 @@ export const useWritingStore = defineStore('writing', () => {
     running,
     error,
     diagnostics,
+    unsettled,
     busy,
     usable,
     refresh,

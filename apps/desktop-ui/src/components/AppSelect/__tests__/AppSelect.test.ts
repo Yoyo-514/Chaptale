@@ -1,10 +1,11 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
-import { h } from 'vue';
+import { h, ref } from 'vue';
 
 import AppDialog from '../../AppDialog/AppDialog.vue';
 import AppFormField from '../../AppForm/AppFormField.vue';
 import AppSelect from '../AppSelect.vue';
+import AppSelectItem from '../AppSelectItem.vue';
 
 const overlayPrimitiveStubs = {
   AppScrollArea: { template: '<div><slot /></div>' },
@@ -23,6 +24,23 @@ const overlayPrimitiveStubs = {
 };
 
 describe('AppSelect', () => {
+  it('refreshes a selected label without changing the value', async () => {
+    const label = ref('待确认');
+    const wrapper = mount(AppSelect, {
+      props: { modelValue: 'summary' },
+      slots: { default: () => h(AppSelectItem, { value: 'summary' }, () => label.value) }
+    });
+    try {
+      await flushPromises();
+      expect(wrapper.get('[role="combobox"]').text()).toContain('待确认');
+      label.value = '已接受';
+      await expect.poll(() => wrapper.get('[role="combobox"]').text()).toContain('已接受');
+      expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
   it('forwards trigger attributes and merges classes', () => {
     const wrapper = mount(AppSelect, {
       props: {

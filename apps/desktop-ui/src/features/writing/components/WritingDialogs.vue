@@ -61,6 +61,7 @@ function changeModel(value: string) {
   <RewriteDialog />
   <AppDialog :open="Boolean(writing.draft)" title="创建候选稿" @update:open="open => !open && (writing.draft = null)">
     <div v-if="writing.draft" class="draft-confirm">
+      <p v-if="writing.unsettled.length" role="status">有 {{ writing.unsettled.length }} 章未结算</p>
       <dl>
         <dt>目标章节</dt>
         <dd>{{ writing.draft.targetPath }}</dd>

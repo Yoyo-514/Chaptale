@@ -37,7 +37,7 @@ describe('WorkbenchLayout', () => {
     expect(wrapper.get('[data-test="agent-panel"]').attributes('data-test')).toBe('agent-panel');
   });
 
-  it('enables reference, candidate and independent review views', async () => {
+  it('enables reference, candidate, independent review and settlement views', async () => {
     const wrapper = mount(WorkbenchLayout, {
       global: {
         plugins: [createPinia()],
@@ -46,13 +46,17 @@ describe('WorkbenchLayout', () => {
     });
     const tabs = wrapper.findAll('.workbench-auxiliary-bar [role="tab"]');
 
-    expect(tabs.map(tab => tab.text())).toEqual(['Agent', '参考', '候选', '审查']);
+    expect(tabs.map(tab => tab.text())).toEqual(['Agent', '参考', '候选', '审查', '结算']);
     expect(tabs[0]?.attributes('aria-selected')).toBe('true');
     expect(tabs[1]?.attributes('disabled')).toBeUndefined();
     expect(tabs[2]?.attributes('disabled')).toBeUndefined();
     expect(tabs[3]?.attributes('disabled')).toBeUndefined();
+    expect(tabs[4]?.attributes('disabled')).toBeUndefined();
     await tabs[1]!.trigger('mousedown', { button: 0 });
     await tabs[1]!.trigger('click');
     expect(wrapper.find('[aria-label="本次写作参考"]').exists()).toBe(true);
+    await tabs[4]!.trigger('mousedown', { button: 0 });
+    await tabs[4]!.trigger('click');
+    expect(wrapper.find('[aria-label="章节结算"]').exists()).toBe(true);
   });
 });

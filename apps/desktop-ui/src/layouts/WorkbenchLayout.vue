@@ -10,9 +10,11 @@ import {
 } from 'reka-ui';
 import { onMounted, onBeforeUnmount } from 'vue';
 
+import { AppScrollArea } from '@/components/AppScrollArea';
 import { EditorGroup, useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore } from '@/features/library';
 import { ReviewPanel, ReviewCenter } from '@/features/reviews';
+import { SettlementPanel, SettlementDialogs } from '@/features/settlement';
 import { CreateAssetDialog } from '@/features/templates';
 import { useWorkbenchStore } from '@/features/workbench';
 import { WorkspaceExplorer, useFileTreeStore, useWorkspaceStore } from '@/features/workspace';
@@ -82,22 +84,27 @@ onBeforeUnmount(() => unsubscribe?.());
     >
       <aside class="workbench-auxiliary-bar" aria-label="辅助栏">
         <TabsRoot v-model="navigation.auxiliary" class="workbench-auxiliary-root">
-          <TabsList class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
-            <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
-            <TabsTrigger class="workbench-auxiliary-tab" value="references">参考</TabsTrigger>
-            <TabsTrigger class="workbench-auxiliary-tab" value="candidates">候选</TabsTrigger>
-            <TabsTrigger class="workbench-auxiliary-tab" value="review">审查</TabsTrigger>
-          </TabsList>
+          <AppScrollArea orientation="horizontal" class="workbench-tab-scroll">
+            <TabsList class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
+              <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
+              <TabsTrigger class="workbench-auxiliary-tab" value="references">参考</TabsTrigger>
+              <TabsTrigger class="workbench-auxiliary-tab" value="candidates">候选</TabsTrigger>
+              <TabsTrigger class="workbench-auxiliary-tab" value="review">审查</TabsTrigger>
+              <TabsTrigger class="workbench-auxiliary-tab" value="settlement">结算</TabsTrigger>
+            </TabsList>
+          </AppScrollArea>
           <TabsContent value="agent" class="workbench-auxiliary-content"><AgentPanel /></TabsContent>
           <TabsContent value="references" class="workbench-auxiliary-content"><ReferencePanel /></TabsContent>
           <TabsContent value="candidates" class="workbench-auxiliary-content"><CandidatePanel /></TabsContent>
           <TabsContent value="review" class="workbench-auxiliary-content"><ReviewPanel /></TabsContent>
+          <TabsContent value="settlement" class="workbench-auxiliary-content"><SettlementPanel /></TabsContent>
         </TabsRoot>
       </aside>
     </SplitterPanel>
   </SplitterGroup>
   <WritingDialogs />
   <CreateAssetDialog />
+  <SettlementDialogs />
 </template>
 
 <style scoped lang="scss">
@@ -123,9 +130,12 @@ onBeforeUnmount(() => unsubscribe?.());
 }
 
 .workbench-auxiliary-tabs {
-  @apply flex h-9 shrink-0 items-center border-b px-3 text-xs;
+  @apply flex h-9 w-max min-w-full shrink-0 items-center border-b px-3 text-xs;
 
   border-color: var(--border-subtle);
+}
+.workbench-tab-scroll {
+  @apply h-9 min-w-0 shrink-0;
 }
 
 .workbench-auxiliary-root,

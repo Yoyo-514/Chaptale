@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { SelectItem, SelectItemIndicator, SelectItemText } from 'reka-ui';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { cn } from '@/utils';
 
@@ -19,12 +19,29 @@ const props = withDefaults(
 );
 
 const itemClassName = computed(() => cn('app-select-item', `app-select-item-${props.density}`, props.itemClass));
+const copyElement = ref<HTMLElement>();
+const textRevision = ref(0);
+let registeredText = '';
+let textObserver: MutationObserver | undefined;
+onMounted(() => {
+  registeredText = copyElement.value?.textContent ?? '';
+  textObserver = new MutationObserver(() => {
+    const text = copyElement.value?.textContent ?? '';
+    if (text === registeredText) return;
+    registeredText = text;
+    // Reka 在文字节点挂载时登记标签；只重挂文字，保留选中项和焦点。
+    textRevision.value += 1;
+  });
+  if (copyElement.value)
+    textObserver.observe(copyElement.value, { characterData: true, childList: true, subtree: true });
+});
+onBeforeUnmount(() => textObserver?.disconnect());
 </script>
 
 <template>
   <SelectItem :class="itemClassName" :value="props.value" :disabled="props.disabled" data-slot="app-select-item">
-    <span class="app-select-item-copy" data-slot="app-select-item-copy">
-      <SelectItemText class="app-select-item-text" data-slot="app-select-item-text">
+    <span ref="copyElement" class="app-select-item-copy" data-slot="app-select-item-copy">
+      <SelectItemText :key="textRevision" class="app-select-item-text" data-slot="app-select-item-text">
         <slot />
       </SelectItemText>
     </span>
