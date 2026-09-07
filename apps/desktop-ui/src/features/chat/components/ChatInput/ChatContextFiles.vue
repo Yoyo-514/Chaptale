@@ -160,6 +160,6 @@ function getSkippedLabel(file: ChatContextFile) {
 }
 
 .chat-context-file-size {
-  @apply text-[11px];
+  @apply text-xs;
 }
 </style>

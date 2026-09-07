@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 
 import type { SlashCommand } from '@chaptale/ipc-contract';
 
+import { AppButton } from '@/components/AppButton';
 import type { AppTextareaExpose } from '@/components/AppTextarea';
 import { AppTextarea } from '@/components/AppTextarea';
 import { useAutosizeTextarea } from '@/composables';
@@ -157,7 +158,10 @@ function handleKeydown(event: KeyboardEvent) {
   />
 
   <div class="chat-send-button-wrapper">
-    <button
+    <AppButton
+      icon
+      size="sm"
+      variant="primary"
       :class="cn('chat-send-button', isInputDisabled && 'chat-send-button-disabled')"
       type="button"
       :disabled="isInputDisabled"
@@ -179,7 +183,7 @@ function handleKeydown(event: KeyboardEvent) {
       <span v-else-if="props.isReplying" class="i-mingcute-stop-line" />
       <span v-else-if="props.isConnecting" class="i-mingcute-loading-line animate-spin" />
       <span v-else class="i-mingcute-send-plane-line" />
-    </button>
+    </AppButton>
   </div>
 </template>
 
@@ -203,7 +207,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .chat-send-button {
-  @apply flex-center cursor-pointer rounded-full p-1.5 shadow-$shadow-soft transition-colors duration-200;
+  @apply rounded-full shadow-$shadow-soft;
 
   background: var(--action-background);
   color: var(--action-foreground);

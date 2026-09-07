@@ -102,7 +102,8 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
 }
 
 .settings-nav-title {
-  @apply text-xs font-semibold;
+  @apply font-semibold;
+  font-size: var(--ui-font-size);
 }
 
 .settings-nav-description {

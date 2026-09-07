@@ -122,7 +122,7 @@ function formatToolTarget(args?: Record<string, unknown>) {
 }
 
 .tool-call-item-status {
-  @apply shrink-0 text-[11px];
+  @apply shrink-0 text-xs;
 
   color: var(--muted-foreground);
 }

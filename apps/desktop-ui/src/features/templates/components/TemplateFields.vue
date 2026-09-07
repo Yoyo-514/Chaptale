@@ -4,6 +4,12 @@ import { useId } from 'vue';
 import type { AssetFieldValue, AssetRecord, TemplateField } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
+import { AppCheckbox } from '@/components/AppCheckbox';
+import { AppCombobox } from '@/components/AppCombobox';
+import { AppInput } from '@/components/AppInput';
+import { AppNumberInput } from '@/components/AppNumberInput';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppTextarea } from '@/components/AppTextarea';
 const props = defineProps<{
   fields: TemplateField[];
   values: Record<string, unknown>;
@@ -25,7 +31,6 @@ function text(value: unknown) {
 function tags(value: unknown) {
   return Array.isArray(value) ? value.join('\n') : text(value);
 }
-const inputValue = (event: Event) => (event.target as HTMLInputElement).value;
 const choices = (field: TemplateField) =>
   (props.assets ?? [])
     .filter(
@@ -35,11 +40,21 @@ const choices = (field: TemplateField) =>
         (field.targetKind === 'chapter' && asset.role === 'manuscript' && !asset.kind)
     )
     .slice(0, 200);
-function addLink(key: string, event: Event) {
-  const select = event.target as HTMLSelectElement;
-  if (select.value)
-    emit('field', key, [...new Set([...tags(props.values[key]).split('\n').filter(Boolean), select.value])]);
-  select.value = '';
+const linkOptions = (field: TemplateField) =>
+  choices(field).map(asset => ({
+    value: `[[${asset.sourcePath}]]`,
+    label: asset.title,
+    description: asset.sourcePath
+  }));
+const relationOptions = () =>
+  (props.assets ?? []).slice(0, 200).map(asset => ({
+    value: `[[${asset.sourcePath}]]`,
+    label: asset.title,
+    description: asset.sourcePath
+  }));
+function addLink(key: string, value: string) {
+  if (value !== '__add')
+    emit('field', key, [...new Set([...tags(props.values[key]).split('\n').filter(Boolean), value])]);
 }
 </script>
 <template>
@@ -53,51 +68,62 @@ function addLink(key: string, event: Event) {
       <label :for="`${id}-${field.key}`"
         >{{ field.label }}<span v-if="field.required" aria-hidden="true"> *</span></label
       >
-      <input
+      <AppCheckbox
         v-if="field.type === 'checkbox'"
         :id="`${id}-${field.key}`"
-        type="checkbox"
-        :checked="values[field.key] === true"
-        @change="emit('field', field.key, ($event.target as HTMLInputElement).checked)"
+        :model-value="values[field.key] === true"
+        :disabled="disabled"
+        @update:model-value="emit('field', field.key, $event === true)"
       />
-      <textarea
+      <AppTextarea
         v-else-if="field.type === 'textarea'"
         :id="`${id}-${field.key}`"
-        :value="text(values[field.key])"
-        rows="3"
-        @input="emit('field', field.key, inputValue($event))"
+        :model-value="text(values[field.key])"
+        :rows="3"
+        :disabled="disabled"
+        @update:model-value="emit('field', field.key, $event)"
       />
       <template v-else-if="field.type === 'tags'">
-        <textarea
+        <AppTextarea
           :id="`${id}-${field.key}`"
-          :value="tags(values[field.key])"
-          rows="2"
-          @input="emit('field', field.key, inputValue($event).split(/\r?\n/))"
+          :model-value="tags(values[field.key])"
+          :rows="2"
+          :disabled="disabled"
+          @update:model-value="emit('field', field.key, $event.split(/\r?\n/))"
         />
-        <select v-if="field.targetKind" :aria-label="`添加${field.label}`" @change="addLink(field.key, $event)">
-          <option value="">添加{{ field.label }}</option>
-          <option v-for="asset in choices(field)" :key="asset.sourcePath" :value="`[[${asset.sourcePath}]]`">
+        <AppSelect
+          v-if="field.targetKind"
+          model-value="__add"
+          :aria-label="`添加${field.label}`"
+          :disabled="disabled"
+          @update:model-value="addLink(field.key, $event)"
+        >
+          <AppSelectItem value="__add" disabled>添加{{ field.label }}</AppSelectItem>
+          <AppSelectItem v-for="asset in choices(field)" :key="asset.sourcePath" :value="`[[${asset.sourcePath}]]`">
             {{ asset.title }} · {{ asset.sourcePath }}
-          </option>
-        </select>
+          </AppSelectItem>
+        </AppSelect>
       </template>
       <div v-else-if="field.type === 'relations'" class="relations">
         <div v-for="(row, index) in relationRows(field.key)" :key="index" class="relation-row">
-          <input
-            :value="row.to"
+          <AppCombobox
+            :model-value="row.to"
             :aria-label="`${field.label} ${index + 1} 目标`"
-            :list="`${id}-links`"
-            @input="relation(field.key, index, { to: inputValue($event) })"
+            :options="relationOptions()"
+            :disabled="disabled"
+            @update:model-value="relation(field.key, index, { to: $event })"
           />
-          <input
-            :value="row.type"
+          <AppInput
+            :model-value="row.type"
             :aria-label="`${field.label} ${index + 1} 类型`"
-            @input="relation(field.key, index, { type: inputValue($event) })"
+            :disabled="disabled"
+            @update:model-value="relation(field.key, index, { type: $event })"
           />
-          <input
-            :value="row.note ?? ''"
+          <AppInput
+            :model-value="row.note ?? ''"
             :aria-label="`${field.label} ${index + 1} 备注`"
-            @input="relation(field.key, index, { note: inputValue($event) })"
+            :disabled="disabled"
+            @update:model-value="relation(field.key, index, { note: $event })"
           />
           <AppButton
             icon
@@ -125,40 +151,47 @@ function addLink(key: string, event: Event) {
           ><span class="i-mingcute-add-line size-3.5"
         /></AppButton>
       </div>
-      <input
+      <AppNumberInput
+        v-else-if="field.type === 'number'"
+        :id="`${id}-${field.key}`"
+        :model-value="typeof values[field.key] === 'number' ? (values[field.key] as number) : undefined"
+        :disabled="disabled"
+        @update:model-value="emit('field', field.key, $event ?? null)"
+      />
+      <AppCombobox
+        v-else-if="field.type === 'link'"
+        :id="`${id}-${field.key}`"
+        :model-value="text(values[field.key])"
+        :options="linkOptions(field)"
+        :disabled="disabled"
+        @update:model-value="emit('field', field.key, $event)"
+      />
+      <AppSelect
+        v-else-if="field.type === 'select'"
+        :id="`${id}-${field.key}`"
+        :model-value="text(values[field.key]) || '__unset'"
+        :disabled="disabled"
+        @update:model-value="emit('field', field.key, $event === '__unset' ? '' : $event)"
+      >
+        <AppSelectItem value="__unset">未设置</AppSelectItem>
+        <AppSelectItem
+          v-if="text(values[field.key]) && !field.options?.includes(text(values[field.key]))"
+          :value="text(values[field.key])"
+          >{{ text(values[field.key]) }}</AppSelectItem
+        >
+        <AppSelectItem v-for="option in (field.options ?? []).filter(Boolean)" :key="option" :value="option">{{
+          option
+        }}</AppSelectItem>
+      </AppSelect>
+      <AppInput
         v-else
         :id="`${id}-${field.key}`"
-        :value="text(values[field.key])"
-        :type="field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'"
-        :list="field.type === 'select' || field.type === 'link' ? `${id}-${field.key}-choices` : undefined"
-        @input="
-          emit(
-            'field',
-            field.key,
-            field.type === 'number'
-              ? inputValue($event) === ''
-                ? null
-                : Number(inputValue($event))
-              : inputValue($event)
-          )
-        "
+        :model-value="text(values[field.key])"
+        :type="field.type === 'date' ? 'date' : 'text'"
+        :disabled="disabled"
+        @update:model-value="emit('field', field.key, $event)"
       />
-      <datalist v-if="field.type === 'select' || field.type === 'link'" :id="`${id}-${field.key}-choices`">
-        <option v-for="option in field.options ?? []" :key="option" :value="option" />
-        <option
-          v-for="asset in field.type === 'link' ? choices(field) : []"
-          :key="asset.sourcePath"
-          :value="`[[${asset.sourcePath}]]`"
-        >
-          {{ asset.title }}
-        </option>
-      </datalist>
     </div>
-    <datalist :id="`${id}-links`">
-      <option v-for="asset in (assets ?? []).slice(0, 200)" :key="asset.sourcePath" :value="`[[${asset.sourcePath}]]`">
-        {{ asset.title }}
-      </option>
-    </datalist>
   </fieldset>
 </template>
 <style scoped lang="scss">
@@ -166,7 +199,8 @@ function addLink(key: string, event: Event) {
   @apply m-0 grid min-w-0 grid-cols-2 gap-3 border-0 p-0;
 }
 .template-field {
-  @apply flex min-w-0 flex-col gap-1.5 text-xs;
+  @apply flex min-w-0 flex-col gap-1.5;
+  font-size: var(--ui-font-size);
 }
 .template-field.wide {
   grid-column: 1 / -1;
@@ -174,21 +208,6 @@ function addLink(key: string, event: Event) {
 label {
   @apply min-w-0;
   overflow-wrap: anywhere;
-}
-input:not([type='checkbox']),
-select,
-textarea {
-  @apply w-full min-w-0 rounded border px-2 py-1.5 text-xs;
-  border-color: var(--border-subtle);
-  background: var(--input-background);
-  color: var(--foreground);
-}
-textarea {
-  @apply resize-y;
-  min-height: 48px;
-}
-input[type='checkbox'] {
-  @apply h-4 w-4;
 }
 .relations {
   @apply flex min-w-0 flex-col gap-2;

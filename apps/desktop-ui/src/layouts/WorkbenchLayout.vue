@@ -138,7 +138,8 @@ onBeforeUnmount(() => unsubscribe?.());
 }
 
 .workbench-auxiliary-tab {
-  @apply relative flex h-full items-center border-0 bg-transparent px-2 text-xs outline-none disabled:opacity-45;
+  @apply relative flex h-full items-center border-0 bg-transparent px-2 outline-none disabled:opacity-45;
+  font-size: var(--ui-font-size);
 
   color: var(--muted-foreground);
 }

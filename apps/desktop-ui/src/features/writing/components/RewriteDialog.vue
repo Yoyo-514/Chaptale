@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
+import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppDialog } from '@/components/AppDialog';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 
 import { useWritingStore } from '../store';
 const writing = useWritingStore();
@@ -39,27 +41,35 @@ const writing = useWritingStore();
         <pre v-for="span in writing.rewrite.plan.spans" :key="span.from">{{ span.text }}</pre>
       </section>
       <label
-        >模型<select
+        >模型<AppSelect
           aria-label="修订模型"
-          :value="
-            writing.models.findIndex(
-              model => model.provider === writing.rewrite?.model?.provider && model.id === writing.rewrite.model.modelId
+          :model-value="
+            String(
+              writing.models.findIndex(
+                model =>
+                  model.provider === writing.rewrite?.model?.provider && model.id === writing.rewrite.model.modelId
+              )
             )
           "
-          @change="
-            event => {
-              const model = writing.models[Number((event.target as HTMLSelectElement).value)];
+          @update:model-value="
+            value => {
+              const model = writing.models[Number(value)];
               if (model && writing.rewrite) writing.rewrite.model = { provider: model.provider, modelId: model.id };
             }
           "
         >
-          <option v-if="!writing.models.length" :value="-1">未配置可用模型</option>
-          <option v-for="(model, index) in writing.models" :key="index" :value="index">
+          <AppSelectItem v-if="!writing.models.length" value="-1">未配置可用模型</AppSelectItem>
+          <AppSelectItem v-for="(model, index) in writing.models" :key="index" :value="String(index)">
             {{ model.providerName }} / {{ model.name }}
-          </option>
-        </select></label
+          </AppSelectItem>
+        </AppSelect></label
       >
-      <label><input v-model="writing.rewrite.allowStalePack" type="checkbox" />允许使用来源已更新的旧参考快照</label>
+      <label
+        ><AppCheckbox
+          :model-value="writing.rewrite.allowStalePack"
+          @update:model-value="writing.rewrite.allowStalePack = $event === true"
+        />允许使用来源已更新的旧参考快照</label
+      >
       <footer>
         <AppButton size="sm" @click="writing.rewrite = null">取消</AppButton>
         <AppButton size="sm" :disabled="!writing.rewrite.model" @click="writing.generateRewrite"
@@ -71,7 +81,8 @@ const writing = useWritingStore();
 </template>
 <style scoped lang="scss">
 .rewrite-confirm {
-  @apply flex min-h-0 flex-col gap-3 overflow-auto pt-3 text-xs;
+  @apply flex min-h-0 flex-col gap-4 overflow-auto pt-3;
+  font-size: var(--ui-font-size);
   max-height: 75vh;
 }
 dl {
@@ -106,11 +117,6 @@ pre {
 }
 label {
   @apply flex flex-wrap items-center gap-2;
-}
-select {
-  @apply max-w-full min-w-0 rounded border px-2 py-1;
-  background: var(--input-background);
-  color: var(--foreground);
 }
 footer {
   @apply flex shrink-0 justify-end gap-2;

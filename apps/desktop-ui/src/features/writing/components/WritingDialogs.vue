@@ -4,8 +4,10 @@ import { computed, ref, watch } from 'vue';
 import { normalizeDocumentText } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
+import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppDialog } from '@/components/AppDialog';
 import { AppDiffView } from '@/components/AppDiffView';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useLibraryStore } from '@/features/library';
 import { useReviewStore } from '@/features/reviews';
 
@@ -49,9 +51,9 @@ watch(
     selection.value = { from: 0, to: 0 };
   }
 );
-function changeModel(event: Event) {
+function changeModel(value: string) {
   if (!writing.draft) return;
-  const model = writing.models[Number((event.target as HTMLSelectElement).value)];
+  const model = writing.models[Number(value)];
   if (model) writing.draft.model = { provider: model.provider, modelId: model.id };
 }
 </script>
@@ -80,38 +82,53 @@ function changeModel(event: Event) {
         <dd>draft</dd>
       </dl>
       <label
-        >写入范围<select
+        >写入范围<AppSelect
           aria-label="候选目标范围"
-          :value="
-            writing.ranges.findIndex(
-              range => range.from === writing.draft?.range.from && range.to === writing.draft.range.to
+          :model-value="
+            String(
+              writing.ranges.findIndex(
+                range => range.from === writing.draft?.range.from && range.to === writing.draft.range.to
+              )
             )
           "
-          @change="
-            event => {
-              const range = writing.ranges[Number((event.target as HTMLSelectElement).value)];
+          @update:model-value="
+            value => {
+              const range = writing.ranges[Number(value)];
               if (range && writing.draft) writing.draft.range = { from: range.from, to: range.to };
             }
           "
         >
-          <option v-for="(range, index) in writing.ranges" :key="index" :value="index">{{ range.label }}</option>
-        </select></label
+          <AppSelectItem v-for="(range, index) in writing.ranges" :key="index" :value="String(index)">{{
+            range.label
+          }}</AppSelectItem>
+        </AppSelect></label
       >
       <label
-        >模型<select
-          :value="
-            writing.models.findIndex(
-              model => model.provider === writing.draft?.model.provider && model.id === writing.draft.model.modelId
+        >模型<AppSelect
+          :model-value="
+            String(
+              writing.models.findIndex(
+                model => model.provider === writing.draft?.model.provider && model.id === writing.draft.model.modelId
+              )
             )
           "
-          @change="changeModel"
+          @update:model-value="changeModel"
         >
-          <option v-for="(model, index) in writing.models" :key="`${model.provider}/${model.id}`" :value="index">
+          <AppSelectItem
+            v-for="(model, index) in writing.models"
+            :key="`${model.provider}/${model.id}`"
+            :value="String(index)"
+          >
             {{ model.providerName }} / {{ model.name }}
-          </option>
-        </select></label
+          </AppSelectItem>
+        </AppSelect></label
       >
-      <label><input v-model="writing.draft.allowStalePack" type="checkbox" />允许使用来源已更新的旧快照</label>
+      <label
+        ><AppCheckbox
+          :model-value="writing.draft.allowStalePack"
+          @update:model-value="writing.draft.allowStalePack = $event === true"
+        />允许使用来源已更新的旧快照</label
+      >
       <footer>
         <AppButton size="sm" @click="writing.draft = null">取消</AppButton
         ><AppButton size="sm" @click="writing.generate">创建候选</AppButton>
@@ -140,11 +157,16 @@ function changeModel(event: Event) {
         @selection="selection = $event"
       />
       <div v-if="writing.usable && details.changes.length" class="candidate-actions">
-        <select v-model.number="currentBlock" aria-label="当前差异块">
-          <option v-for="(change, index) in details.changes" :key="index" :value="index">
+        <AppSelect
+          :model-value="String(currentBlock)"
+          aria-label="当前差异块"
+          class="candidate-block-select"
+          @update:model-value="currentBlock = Number($event)"
+        >
+          <AppSelectItem v-for="(change, index) in details.changes" :key="index" :value="String(index)">
             第 {{ index + 1 }} 块 · {{ change.toB - change.fromB }} 字符
-          </option>
-        </select>
+          </AppSelectItem>
+        </AppSelect>
         <AppButton size="xs" :disabled="writing.busy" @click="writing.apply([currentBlock])">接受当前块</AppButton>
         <AppButton
           size="xs"
@@ -194,7 +216,8 @@ function changeModel(event: Event) {
 </template>
 <style scoped lang="scss">
 .draft-confirm {
-  @apply flex min-h-0 flex-col gap-3 overflow-auto pt-3 text-xs;
+  @apply flex min-h-0 flex-col gap-4 overflow-auto pt-3;
+  font-size: var(--ui-font-size);
 }
 dl {
   @apply grid grid-cols-[7rem_1fr] gap-2;
@@ -209,16 +232,15 @@ dd {
 label {
   @apply flex flex-wrap items-center gap-2;
 }
-select {
-  @apply max-w-full min-w-0 rounded border px-2 py-1 text-xs;
-  background: var(--input-background);
-  color: var(--foreground);
+.candidate-block-select {
+  @apply w-52 max-w-full;
 }
 footer {
   @apply flex shrink-0 flex-wrap justify-end gap-2;
 }
 .candidate-diff {
-  @apply flex min-h-0 flex-col gap-3 pt-3 text-xs;
+  @apply flex min-h-0 flex-col gap-3 pt-3;
+  font-size: var(--ui-font-size);
   height: min(70vh, 38rem);
 }
 .candidate-meta {

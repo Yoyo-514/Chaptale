@@ -181,8 +181,24 @@ watch(
     <header class="document-toolbar">
       <span class="document-path" :title="document.relativePath">{{ document.relativePath }}</span>
       <div v-if="assetTemplate && !large" class="document-modes" role="tablist" aria-label="文档视图">
-        <button role="tab" :aria-selected="showForm" @click="showForm = true">表单</button>
-        <button role="tab" :aria-selected="!showForm" @click="showForm = false">源文件</button>
+        <AppButton
+          variant="ghost"
+          size="xs"
+          role="tab"
+          :selected="showForm"
+          :aria-selected="showForm"
+          @click="showForm = true"
+          >表单</AppButton
+        >
+        <AppButton
+          variant="ghost"
+          size="xs"
+          role="tab"
+          :selected="!showForm"
+          :aria-selected="!showForm"
+          @click="showForm = false"
+          >源文件</AppButton
+        >
       </div>
       <AppTooltip v-if="!large && document.head.status === 'ok'" text="折叠或展开元数据">
         <AppButton icon size="xs" variant="ghost" aria-label="折叠或展开元数据" @click="view?.toggleHead()">
@@ -240,7 +256,8 @@ watch(
     </header>
     <div v-if="linkResult || linkError" class="document-diagnostic" role="status">
       <span>{{ linkError || (linkResult?.status === 'ambiguous' ? '引用存在多个同名来源' : '引用来源不存在') }}</span>
-      <button
+      <AppButton
+        variant="link"
         v-for="candidate in linkResult?.candidates"
         :key="candidate"
         class="document-link-choice"
@@ -250,7 +267,7 @@ watch(
         "
       >
         {{ candidate }}
-      </button>
+      </AppButton>
       <AppButton
         icon
         size="xs"
@@ -297,7 +314,8 @@ watch(
       <AppScrollArea v-if="showOutline" class="document-outline">
         <nav aria-label="标题大纲">
           <p v-if="!headings.length" class="p-3 text-xs">没有标题</p>
-          <button
+          <AppButton
+            variant="ghost"
             v-for="heading in headings"
             :key="heading.from"
             :style="{ paddingLeft: `${12 + (heading.level - 1) * 10}px` }"
@@ -305,7 +323,7 @@ watch(
             @click="view?.goTo(heading.from, heading.to)"
           >
             {{ heading.title }}
-          </button>
+          </AppButton>
         </nav>
       </AppScrollArea>
       <div ref="host" class="document-codemirror" />
@@ -328,7 +346,8 @@ watch(
 }
 
 .document-toolbar {
-  @apply flex h-8 shrink-0 items-center gap-1 border-b px-2 text-xs;
+  @apply flex min-h-9 shrink-0 flex-wrap items-center gap-1 border-b px-2;
+  font-size: var(--ui-font-size);
 
   border-color: var(--border-subtle);
   color: var(--muted-foreground);
@@ -339,18 +358,10 @@ watch(
 }
 
 .document-readonly {
-  @apply mr-1 inline-flex shrink-0 items-center gap-1 text-[11px];
+  @apply mr-1 inline-flex shrink-0 items-center gap-1 text-xs;
 }
 .document-modes {
-  @apply flex h-6 shrink-0 items-center gap-1;
-}
-.document-modes button {
-  @apply h-6 border-0 bg-transparent px-2 text-xs;
-  color: var(--muted-foreground);
-}
-.document-modes button[aria-selected='true'] {
-  background: var(--accent);
-  color: var(--foreground);
+  @apply flex shrink-0 items-center gap-1;
 }
 .document-form {
   @apply min-h-0 shrink-0 border-b;
@@ -380,7 +391,7 @@ watch(
   border-color: var(--border-subtle);
 }
 .document-outline button {
-  @apply block w-full truncate border-0 bg-transparent py-1 pr-2 text-left text-xs;
+  @apply block w-full truncate rounded-none border-0 bg-transparent py-1 pr-2 text-left;
   color: var(--muted-foreground);
 }
 .document-outline button:hover {
@@ -416,7 +427,7 @@ watch(
 }
 
 .document-footer {
-  @apply flex h-6 shrink-0 items-center justify-end gap-3 border-t px-3 text-[11px];
+  @apply flex h-7 shrink-0 items-center justify-end gap-3 border-t px-3 text-xs;
 
   border-color: var(--border-subtle);
   color: var(--muted-foreground);

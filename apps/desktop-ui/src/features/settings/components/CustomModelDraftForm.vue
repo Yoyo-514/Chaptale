@@ -248,7 +248,7 @@ function selectFetchedModel(modelId: string) {
 }
 
 .model-draft-advanced-title {
-  @apply text-[11px];
+  @apply text-xs;
 
   color: var(--muted-foreground);
 }

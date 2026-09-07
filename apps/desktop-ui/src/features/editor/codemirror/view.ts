@@ -37,7 +37,7 @@ const theme = EditorView.theme({
     backgroundColor: 'var(--mica-background)',
     border: 'none',
     color: 'var(--muted-foreground)',
-    fontSize: '11px',
+    fontSize: 'var(--ui-caption-size)',
     lineHeight: '26px',
     fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
     fontVariantNumeric: 'tabular-nums'
@@ -68,24 +68,44 @@ const theme = EditorView.theme({
     alignItems: 'center',
     gap: '6px',
     padding: '8px 30px 8px 12px',
-    fontSize: '12px'
+    fontSize: 'var(--ui-font-size)'
   },
   '.cm-search label': { display: 'inline-flex', gap: '4px', alignItems: 'center', whiteSpace: 'nowrap' },
   '.cm-search .cm-textfield': {
     width: '160px',
     maxWidth: '100%',
     minWidth: '0',
-    background: 'var(--input-background)',
+    background: 'var(--input)',
     color: 'var(--foreground)',
-    border: '1px solid var(--border)'
+    border: '1px solid var(--input-border)',
+    borderRadius: 'var(--radius-control)',
+    minHeight: 'var(--control-height-sm)',
+    font: 'inherit',
+    padding: '4px 8px'
   },
   '.cm-search .cm-button': {
     background: 'var(--surface-muted)',
     color: 'var(--foreground)',
-    border: '1px solid var(--border)',
-    fontSize: '12px',
-    borderRadius: '3px',
-    padding: '2px 6px'
+    border: '1px solid var(--border-subtle)',
+    fontSize: 'var(--ui-font-size)',
+    fontFamily: 'inherit',
+    textTransform: 'none',
+    minHeight: 'var(--control-height-sm)',
+    borderRadius: 'var(--radius-control)',
+    padding: '4px 8px'
+  },
+  '.cm-search input[type=checkbox]': { width: '18px', height: '18px', accentColor: 'var(--primary-solid)' },
+  '.cm-search .cm-textfield:focus, .cm-search button:focus-visible, .cm-search input[type=checkbox]:focus-visible': {
+    outline: 'none',
+    boxShadow: 'var(--input-focus-shadow)'
+  },
+  '.cm-search .cm-button:hover': { background: 'var(--surface-hover)' },
+  '.cm-search button[name=close]': {
+    width: '28px',
+    height: '28px',
+    fontSize: '18px',
+    color: 'var(--muted-foreground)',
+    borderRadius: 'var(--radius-control)'
   },
   '.cm-searchMatch': { backgroundColor: 'var(--accent)' },
   '.cm-searchMatch-selected': { outline: '1px solid var(--primary-solid)' }

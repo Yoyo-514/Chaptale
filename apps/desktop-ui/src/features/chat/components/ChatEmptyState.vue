@@ -93,7 +93,8 @@ const emit = defineEmits<{
 }
 
 .chat-recent-item-title {
-  @apply truncate text-xs font-medium;
+  @apply truncate font-medium;
+  font-size: var(--ui-font-size);
 }
 
 .chat-recent-item-preview {

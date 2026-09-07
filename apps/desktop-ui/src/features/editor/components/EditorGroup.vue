@@ -254,7 +254,8 @@ watch(
 }
 
 .editor-tab {
-  @apply flex h-full min-w-0 items-center gap-2 border-0 bg-transparent px-3 text-xs outline-none;
+  @apply flex h-full min-w-0 items-center gap-2 border-0 bg-transparent px-3 outline-none;
+  font-size: var(--ui-font-size);
 
   color: var(--muted-foreground);
   letter-spacing: 0;
@@ -282,7 +283,7 @@ watch(
 }
 
 .editor-tab-parent {
-  @apply max-w-24 truncate text-[11px];
+  @apply max-w-24 truncate text-xs;
 
   color: var(--muted-foreground);
 }

@@ -2,8 +2,12 @@
 import { computed, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppInput } from '@/components/AppInput';
+import { AppNumberInput } from '@/components/AppNumberInput';
 import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppTextarea } from '@/components/AppTextarea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 import { useWorkspaceStore } from '@/features/workspace';
@@ -64,20 +68,20 @@ watch(
       <div class="reference-content">
         <p v-if="!workspace.rootPath">尚未打开工作区</p>
         <label class="reference-field"
-          >场景<select
+          >场景<AppSelect
             aria-label="写作场景"
-            :value="library.scenePath ?? ''"
-            @change="library.useScene(($event.target as HTMLSelectElement).value || undefined)"
+            :model-value="library.scenePath ?? '__temporary'"
+            @update:model-value="library.useScene($event === '__temporary' ? undefined : $event)"
           >
-            <option value="">临时写作目标</option>
-            <option
+            <AppSelectItem value="__temporary">临时写作目标</AppSelectItem>
+            <AppSelectItem
               v-for="asset in library.available.filter(value => value.kind === 'scene-card')"
               :key="asset.sourcePath"
               :value="asset.sourcePath"
             >
               {{ asset.title }}
-            </option>
-          </select></label
+            </AppSelectItem>
+          </AppSelect></label
         >
         <p v-if="library.chapterPath" class="reference-meta">目标章节：{{ library.chapterPath }}</p>
         <details v-if="library.sceneDiagnostics.length">
@@ -85,17 +89,18 @@ watch(
           <p v-for="message in library.sceneDiagnostics" :key="message">{{ message }}</p>
         </details>
         <label class="reference-field"
-          >写作目标<textarea v-model="library.goal" rows="3" aria-label="写作目标" />
+          >写作目标<AppTextarea v-model="library.goal" :rows="3" aria-label="写作目标" />
         </label>
         <div class="reference-budget" :class="{ 'is-over': overBudget }">
           <span>{{ library.pack?.chars ?? 0 }} 字 · 约 {{ library.pack?.tokens ?? 0 }} tokens</span>
           <label
-            >预算<input
-              v-model.number="library.budgetChars"
-              type="number"
-              min="100"
-              max="1000000"
+            >预算<AppNumberInput
+              :model-value="library.budgetChars"
+              :min="100"
+              :max="1000000"
               aria-label="参考字数预算"
+              class="reference-budget-input"
+              @update:model-value="library.budgetChars = $event ?? 9000"
           /></label>
         </div>
         <p v-if="library.error" role="alert">{{ library.error }}</p>
@@ -130,13 +135,14 @@ watch(
             :class="{ 'is-largest': overBudget && library.largest === section.sourcePath }"
           >
             <div class="reference-item-heading">
-              <button
+              <AppButton
+                variant="link"
                 class="reference-source"
                 :title="section.sourcePath"
                 @click="editor.openDocument(section.sourcePath)"
               >
                 {{ section.title }}
-              </button>
+              </AppButton>
               <AppTooltip :text="section.pinned ? '取消固定' : '固定参考'"
                 ><AppButton
                   icon
@@ -166,12 +172,11 @@ watch(
               <span v-if="section.reason"> · {{ section.reason }}</span>
             </div>
             <label class="reference-mode"
-              ><input
-                type="checkbox"
-                :checked="section.mode === 'summary'"
-                @change="
+              ><AppCheckbox
+                :model-value="section.mode === 'summary'"
+                @update:model-value="
                   library.selections.find(item => item.sourcePath === section.sourcePath)!.mode =
-                    section.mode === 'full' ? 'summary' : 'full'
+                    $event === true ? 'summary' : 'full'
                 "
               />要点模式</label
             >
@@ -191,9 +196,14 @@ watch(
           <AppInput v-model="query" placeholder="筛选来源" aria-label="筛选参考来源" />
           <p v-if="library.loading" role="status">正在读取资产…</p>
           <div v-for="asset in candidates.slice(0, visibleLimit)" :key="asset.sourcePath" class="reference-candidate">
-            <button :title="asset.sourcePath" @click="editor.openDocument(asset.sourcePath)">
+            <AppButton
+              variant="link"
+              :title="asset.sourcePath"
+              class="reference-candidate-link"
+              @click="editor.openDocument(asset.sourcePath)"
+            >
               {{ asset.title }}<small>{{ asset.sourcePath }}</small>
-            </button>
+            </AppButton>
             <AppTooltip text="加入参考"
               ><AppButton
                 icon
@@ -228,7 +238,8 @@ watch(
 
 <style scoped lang="scss">
 .reference-panel {
-  @apply flex min-h-0 flex-1 flex-col text-xs;
+  @apply flex min-h-0 flex-1 flex-col;
+  font-size: var(--ui-font-size);
 }
 .reference-header {
   @apply flex h-9 shrink-0 items-center justify-between border-b px-3;
@@ -243,16 +254,6 @@ watch(
 .reference-field {
   @apply flex flex-col gap-2;
 }
-.reference-field textarea {
-  @apply w-full resize-y rounded border p-2 text-xs;
-  background: var(--input-background);
-  color: var(--foreground);
-}
-.reference-field select {
-  @apply min-w-0 max-w-full rounded border px-2 py-1.5;
-  background: var(--input-background);
-  color: var(--foreground);
-}
 .reference-unreadable > div {
   @apply flex min-w-0 items-center gap-1;
 }
@@ -264,13 +265,15 @@ watch(
   @apply flex flex-wrap items-center justify-between gap-2;
   color: var(--muted-foreground);
 }
-.reference-budget input {
-  @apply ml-1 w-18 rounded border px-1 py-0.5;
-  background: var(--input-background);
-  color: var(--foreground);
+.reference-budget label {
+  @apply flex items-center gap-2;
+}
+.reference-budget-input {
+  @apply w-26;
 }
 .reference-section h3 {
-  @apply mb-2 flex items-center justify-between text-xs font-medium;
+  @apply mb-2 flex items-center justify-between font-medium;
+  font-size: var(--ui-font-size);
 }
 .reference-item {
   @apply border-b py-2;
@@ -281,11 +284,11 @@ watch(
   @apply flex min-w-0 items-center gap-1;
 }
 .reference-source {
-  @apply min-w-0 flex-1 truncate border-0 bg-transparent text-left;
+  @apply min-w-0 flex-1 justify-start truncate border-0 bg-transparent text-left;
   color: var(--foreground);
 }
 .reference-meta {
-  @apply my-1 text-[11px];
+  @apply my-1 text-xs;
   color: var(--muted-foreground);
 }
 .reference-mode {
@@ -299,12 +302,12 @@ watch(
   @apply flex min-w-0 items-center gap-1 border-b py-2;
   border-color: var(--border-subtle);
 }
-.reference-candidate > button {
-  @apply min-w-0 flex-1 truncate border-0 bg-transparent text-left;
+.reference-candidate-link {
+  @apply block min-w-0 flex-1 truncate border-0 bg-transparent text-left;
   color: var(--foreground);
 }
 .reference-candidate small {
-  @apply block truncate text-[11px];
+  @apply block truncate text-xs;
   color: var(--muted-foreground);
 }
 .reference-footer {

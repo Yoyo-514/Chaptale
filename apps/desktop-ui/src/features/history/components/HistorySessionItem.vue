@@ -130,7 +130,8 @@ function handleMainClick() {
 }
 
 .history-item-title {
-  @apply truncate text-xs font-medium;
+  @apply truncate font-medium;
+  font-size: var(--ui-font-size);
 }
 
 .history-item-time {

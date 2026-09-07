@@ -43,7 +43,8 @@ onMounted(() => {
         <AppButton size="xs" @click="writing.cancel(id)">取消</AppButton>
       </div>
       <p v-if="!writing.candidates.length && !writing.running.length">暂无候选稿</p>
-      <button
+      <AppButton
+        variant="ghost"
         v-for="candidate in writing.candidates"
         :key="candidate.id"
         class="candidate-item"
@@ -53,13 +54,14 @@ onMounted(() => {
         <span>{{ labels[candidate.status] }} · {{ candidate.personaId }}</span>
         <span>{{ candidate.goal }}</span>
         <small>{{ new Date(candidate.createdAt).toLocaleString() }}</small>
-      </button>
+      </AppButton>
     </AppScrollArea>
   </section>
 </template>
 <style scoped lang="scss">
 .candidate-panel {
-  @apply flex min-h-0 flex-1 flex-col text-xs;
+  @apply flex min-h-0 flex-1 flex-col;
+  font-size: var(--ui-font-size);
 }
 header {
   @apply flex h-9 shrink-0 items-center gap-2 border-b px-3;
@@ -82,7 +84,7 @@ header > span {
   @apply flex items-center justify-between gap-2 p-3;
 }
 .candidate-item {
-  @apply flex w-full flex-col gap-1 border-0 border-b bg-transparent p-3 text-left;
+  @apply flex w-full flex-col items-start gap-1 rounded-none border-0 border-b bg-transparent p-3 text-left;
   color: var(--foreground);
   border-color: var(--border-subtle);
   overflow-wrap: anywhere;
@@ -91,10 +93,13 @@ header > span {
   background: var(--accent);
 }
 .candidate-item strong {
-  @apply text-xs font-medium;
+  @apply font-medium;
 }
 .candidate-item span,
 .candidate-item small {
   color: var(--muted-foreground);
+}
+.candidate-item small {
+  font-size: var(--ui-caption-size);
 }
 </style>

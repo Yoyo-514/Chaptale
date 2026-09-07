@@ -36,7 +36,7 @@ const editor = useEditorStore();
   padding: 16px 20px;
   margin: 0;
   overflow: auto;
-  font-size: 12px;
+  font-size: var(--ui-font-size);
   overflow-wrap: anywhere;
 }
 </style>

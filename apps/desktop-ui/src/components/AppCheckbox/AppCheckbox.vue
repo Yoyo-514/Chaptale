@@ -108,7 +108,7 @@ const iconClass = computed(() =>
 }
 
 .app-checkbox-sm {
-  @apply size-4 text-xs;
+  @apply size-4.5 text-xs;
 }
 
 .app-checkbox-md {

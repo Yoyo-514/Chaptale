@@ -19,6 +19,7 @@ const props = withDefaults(
     disabled?: boolean;
     invalid?: boolean;
     ariaLabel?: string;
+    variant?: 'default' | 'muted';
   }>(),
   {
     step: 1,
@@ -26,6 +27,7 @@ const props = withDefaults(
     disabled: false,
     invalid: false,
     ariaLabel: undefined,
+    variant: 'default',
     min: undefined,
     max: undefined
   }
@@ -42,7 +44,13 @@ const displayValue = ref(formatValue(props.modelValue));
 const isDisabled = computed(() => props.disabled || formContext?.disabled.value === true);
 const isInvalid = computed(() => props.invalid || attrs['aria-invalid'] === 'true');
 const rootClassName = computed(() =>
-  cn('app-number-input', isDisabled.value && 'is-disabled', isInvalid.value && 'is-invalid', attrs.class)
+  cn(
+    'app-number-input',
+    `app-number-input-${props.variant}`,
+    isDisabled.value && 'is-disabled',
+    isInvalid.value && 'is-invalid',
+    attrs.class
+  )
 );
 const inputAttrs = computed(() => {
   const { class: _class, style: _style, ...rest } = attrs;
@@ -128,6 +136,7 @@ function handleBlur() {
 }
 
 function stepBy(direction: -1 | 1) {
+  if (isDisabled.value) return;
   const baseValue = props.modelValue ?? props.min ?? 0;
   updateValue(baseValue + direction * props.step);
 }
@@ -150,9 +159,15 @@ function stepBy(direction: -1 | 1) {
       v-bind="inputAttrs"
       class="app-number-input-control"
       inputmode="decimal"
+      role="spinbutton"
+      :aria-valuenow="props.modelValue"
+      :aria-valuemin="props.min"
+      :aria-valuemax="props.max"
       data-slot="app-number-input-control"
       @input="handleInput"
       @blur="handleBlur"
+      @keydown.up.prevent="stepBy(1)"
+      @keydown.down.prevent="stepBy(-1)"
     />
     <div class="app-number-input-controls" data-slot="app-number-input-controls">
       <button
@@ -183,10 +198,15 @@ function stepBy(direction: -1 | 1) {
 .app-number-input {
   @apply grid min-w-0 grid-cols-[minmax(0,1fr)_1.45rem] overflow-hidden border transition-colors duration-150;
 
+  background: var(--input);
+  border-color: var(--input-border);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  min-height: var(--control-height-sm);
+}
+.app-number-input-muted {
   background: var(--surface-muted);
   border-color: var(--border-subtle);
-  border-radius: var(--radius-control-sm);
-  color: var(--foreground);
 }
 
 .app-number-input:focus-within {
@@ -202,7 +222,9 @@ function stepBy(direction: -1 | 1) {
 }
 
 .app-number-input-control {
-  @apply min-w-0 border-0 bg-transparent px-2 py-1.5 text-xs outline-none;
+  @apply min-w-0 border-0 bg-transparent px-3 py-1.5 outline-none;
+  font-size: var(--ui-font-size);
+  line-height: 18px;
 
   color: inherit;
 }

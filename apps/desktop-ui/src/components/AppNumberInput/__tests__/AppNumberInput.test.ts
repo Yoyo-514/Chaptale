@@ -93,4 +93,17 @@ describe('AppNumberInput', () => {
     expect(wrapper.find('input').attributes('name')).toBe('timeout');
     expect(wrapper.find('input').attributes('aria-describedby')).toBe('timeout-description');
   });
+
+  it('exposes numeric bounds and applies keyboard steps without exceeding them', async () => {
+    const wrapper = mount(AppNumberInput, { props: { modelValue: 9, min: 0, max: 10, step: 2 } });
+    const input = wrapper.get('[role="spinbutton"]');
+    expect(input.attributes('aria-valuenow')).toBe('9');
+    expect(input.attributes('aria-valuemin')).toBe('0');
+    expect(input.attributes('aria-valuemax')).toBe('10');
+    await input.trigger('keydown', { key: 'ArrowUp' });
+    expect(latestModelValue(wrapper)).toBe(10);
+    await wrapper.setProps({ modelValue: 0 });
+    await input.trigger('keydown', { key: 'ArrowDown' });
+    expect(latestModelValue(wrapper)).toBe(0);
+  });
 });

@@ -103,7 +103,8 @@ const fieldClassName = computed(() =>
 
 <style scoped lang="scss">
 .app-form-field {
-  @apply flex min-w-0 gap-1.5 text-xs;
+  @apply flex min-w-0 gap-1.5;
+  font-size: var(--ui-font-size);
 }
 
 .app-form-field-stacked {

@@ -3,6 +3,8 @@ import { computed, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppDialog } from '@/components/AppDialog';
+import { AppInput } from '@/components/AppInput';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
 import { useFileTreeStore } from '@/features/workspace';
@@ -54,16 +56,16 @@ async function create() {
   >
     <form v-if="templates.creating" class="create-asset" @submit.prevent="create">
       <label
-        >模板<select
-          :value="templates.creating.templateId"
+        >模板<AppSelect
+          :model-value="templates.creating.templateId"
           aria-label="资产模板"
           :disabled="templates.loading || templates.busy"
-          @change="templates.choose(($event.target as HTMLSelectElement).value)"
+          @update:model-value="templates.choose($event)"
         >
-          <option v-for="item in templates.templates" :key="item.template" :value="item.template">
+          <AppSelectItem v-for="item in templates.templates" :key="item.template" :value="item.template">
             {{ item.name }} · {{ { builtin: '内置', user: '作者', workspace: '作品' }[item.source] }}
-          </option>
-        </select></label
+          </AppSelectItem>
+        </AppSelect></label
       >
       <p v-if="templates.loading" role="status">正在读取模板</p>
       <TemplateFields
@@ -75,10 +77,10 @@ async function create() {
         @field="(key, value) => templates.creating && (templates.creating.values[key] = value)"
       />
       <label
-        >目录<input v-model="templates.creating.directory" aria-label="资产目录" :disabled="templates.busy"
+        >目录<AppInput v-model="templates.creating.directory" aria-label="资产目录" :disabled="templates.busy"
       /></label>
       <label
-        >文件名<input
+        >文件名<AppInput
           v-model="templates.creating.filename"
           aria-label="资产文件名"
           :disabled="templates.busy"
@@ -100,18 +102,12 @@ async function create() {
 </template>
 <style scoped lang="scss">
 .create-asset {
-  @apply flex min-h-0 flex-col gap-3 overflow-auto pt-3 text-xs;
+  @apply flex min-h-0 flex-col gap-4 overflow-auto pt-3;
+  font-size: var(--ui-font-size);
   max-height: 75vh;
 }
 label {
   @apply flex min-w-0 flex-col gap-1.5;
-}
-input,
-select {
-  @apply min-w-0 max-w-full rounded border px-2 py-1.5 text-xs;
-  border-color: var(--border-subtle);
-  background: var(--input-background);
-  color: var(--foreground);
 }
 footer {
   @apply flex shrink-0 justify-end gap-2;

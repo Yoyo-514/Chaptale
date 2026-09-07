@@ -44,8 +44,7 @@ const notificationTooltip = computed(() =>
 
 <style scoped lang="scss">
 .status-bar {
-  /* 22px 是留给 16px 图标的最小高度：h-5 时上下只剩 1px，图标会被 flex 压成一条线。 */
-  @apply relative z-$z-app-chrome flex h-5.5 shrink-0 items-center border-t px-1 text-xs;
+  @apply relative z-$z-app-chrome flex h-8 shrink-0 items-center border-t px-1 text-xs;
 
   background: var(--surface-acrylic-strong);
   border-color: var(--border-subtle);
@@ -75,7 +74,7 @@ const notificationTooltip = computed(() =>
 }
 
 .notification-count {
-  @apply min-w-4 rounded-full px-1 text-[10px] leading-3.5;
+  @apply min-w-4 rounded-full px-1 text-xs leading-4;
 
   background: var(--primary-solid);
   color: var(--primary-solid-foreground);

@@ -49,6 +49,10 @@ $media-overlay-tokens: (
 // CSS 变量定义 - Design Tokens
 :root {
   --radius: 0.75rem;
+  --ui-font-size: 13px;
+  --ui-caption-size: 12px;
+  --control-height-sm: 32px;
+  --control-height-md: 36px;
 
   @each $name, $value in $radius-tokens {
     --radius-#{$name}: #{$value};

@@ -43,11 +43,13 @@ const itemClassName = computed(() => cn('app-select-item', `app-select-item-${pr
 }
 
 .app-select-item-sm {
-  @apply py-1.5 pr-7 pl-2.5 text-sm;
+  @apply py-1.5 pr-7 pl-2.5;
+  font-size: var(--ui-font-size);
+  line-height: 20px;
 }
 
 .app-select-item-md {
-  @apply py-1.5 pr-7 pl-2 text-xs;
+  @apply py-1.5 pr-7 pl-2 text-sm;
 }
 
 .app-select-item-copy {
@@ -56,6 +58,7 @@ const itemClassName = computed(() => cn('app-select-item', `app-select-item-${pr
 
 .app-select-item-text {
   @apply flex min-w-0 flex-col gap-0.5;
+  overflow-wrap: anywhere;
 }
 
 .app-select-item-indicator {

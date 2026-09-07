@@ -109,6 +109,79 @@ async function openChapter(folder = '正文') {
   await page.locator(`[data-tree-path="${folder}/第一章.md"]`).click();
 }
 
+test('通用表单在三种主题与窄窗口中保持可读尺寸，搜索选择不丢自由输入', async () => {
+  for (const [theme, width] of [
+    ['light', 1440],
+    ['warm', 1024],
+    ['dark', 1024]
+  ] as const) {
+    await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size, 800), width);
+    await page.evaluate(async value => {
+      await (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value });
+    }, theme);
+    await page.reload();
+    await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+    await page.getByRole('menuitem', { name: '新建场景卡', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '新建场景卡', exact: true });
+    await expect(dialog.getByRole('textbox', { name: /^标题/ })).toBeVisible();
+    const sizes = await dialog
+      .locator('.app-input-control, .app-select-trigger, .app-combobox-input, .app-number-input-control, .app-textarea')
+      .evaluateAll(elements =>
+        elements.map(element => {
+          const style = getComputedStyle(element);
+          const box = element.getBoundingClientRect();
+          const control =
+            element.closest('[data-slot="app-input"], [data-slot="app-combobox"], [data-slot="app-number-input"]') ??
+            element;
+          return {
+            font: Number.parseFloat(style.fontSize),
+            height: control.getBoundingClientRect().height,
+            left: box.left,
+            right: box.right,
+            viewport: window.innerWidth
+          };
+        })
+      );
+    expect(sizes.length).toBeGreaterThan(8);
+    for (const size of sizes) {
+      expect(size.font).toBeGreaterThanOrEqual(13);
+      expect(size.height).toBeGreaterThanOrEqual(32);
+      expect(size.left).toBeGreaterThanOrEqual(0);
+      expect(size.right).toBeLessThanOrEqual(size.viewport);
+    }
+    const chapterLink = dialog.getByRole('combobox', { name: '所属章节', exact: true });
+    await chapterLink.fill('初雪');
+    const option = page.getByRole('option', { name: /初雪/ });
+    await expect(option).toBeVisible();
+    await option.click();
+    await expect(chapterLink).toHaveValue('[[正文/第一章.md]]');
+    await chapterLink.fill('[[作者手输的新章节]]');
+    await dialog.getByRole('textbox', { name: /^标题/ }).click();
+    await expect(chapterLink).toHaveValue('[[作者手输的新章节]]');
+    await dialog.getByRole('spinbutton', { name: '目标字数' }).fill('2400');
+    await page.keyboard.press('ArrowUp');
+    await expect(dialog.getByRole('spinbutton', { name: '目标字数' })).toHaveValue('2401');
+    await dialog.getByRole('checkbox', { name: '已结算' }).check();
+    await expect(dialog.getByRole('checkbox', { name: '已结算' })).toBeChecked();
+    await dialog.getByRole('textbox', { name: /^标题/ }).scrollIntoViewIfNeeded();
+    await mkdir(visualDir, { recursive: true });
+    await page.screenshot({ path: path.join(visualDir, `ui-controls-${theme}-${width}.png`) });
+    await dialog.getByRole('button', { name: '取消', exact: true }).click();
+    expect((await readdir(workspace)).some(name => name === '大纲')).toBe(false);
+  }
+  await page.getByRole('button', { name: '历史记录', exact: true }).click();
+  const search = page.getByRole('searchbox', { name: '搜索历史记录' });
+  const height = () => search.evaluate(element => element.closest('.app-input')!.getBoundingClientRect().height);
+  await expect(search).toBeVisible();
+  const before = await height();
+  await search.fill('长标题筛选');
+  await expect(page.getByRole('button', { name: '清空搜索', exact: true })).toBeVisible();
+  expect(await height()).toBe(before);
+  await page.getByRole('button', { name: '清空搜索', exact: true }).click();
+  expect(await height()).toBe(before);
+  await page.screenshot({ path: path.join(visualDir, 'ui-history-controls.png') });
+});
+
 test('场景模板创建、表单无损保存及场景参考通过真实 IPC 串联', async () => {
   await writeFile(
     path.join(workspace, '正文/第一章.md'),
@@ -125,7 +198,8 @@ test('场景模板创建、表单无损保存及场景参考通过真实 IPC 串
   await create.getByRole('textbox', { name: /^标题/ }).fill('夜访');
   await create.getByRole('textbox', { name: '场景目标', exact: true }).fill('收到来信');
   await create.getByRole('combobox', { name: '所属章节', exact: true }).fill('[[正文/第一章.md]]');
-  await create.getByRole('combobox', { name: '添加出场角色', exact: true }).selectOption('[[角色/林晚.md]]');
+  await create.getByRole('combobox', { name: '添加出场角色', exact: true }).click();
+  await page.getByRole('option', { name: '林晚 · 角色/林晚.md', exact: true }).click();
   await expect(create.getByRole('textbox', { name: '出场角色', exact: true })).toHaveValue('[[角色/林晚.md]]');
   await create.getByRole('button', { name: '创建文件', exact: true }).click();
   const scenePath = '大纲/场景卡/夜访.md';
@@ -304,7 +378,8 @@ test('独立审查从落盘结果定位正文，状态分离保存并在重启�
   await page.reload();
   await page.getByRole('button', { name: '审查', exact: true }).click();
   await page.getByRole('button', { name: /正文\/第一章.md.*文风.*已完成/ }).click();
-  await page.getByRole('combobox', { name: '问题处理状态' }).selectOption('ignored');
+  await page.getByRole('combobox', { name: '问题处理状态' }).click();
+  await page.getByRole('option', { name: '已忽略', exact: true }).click();
   await expect(page.getByRole('button', { name: '重新打开', exact: true })).toBeVisible();
 });
 

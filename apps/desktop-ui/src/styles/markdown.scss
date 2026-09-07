@@ -38,7 +38,8 @@
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  @apply font-semibold tracking-tight text-foreground;
+  @apply font-semibold text-foreground;
+  letter-spacing: 0;
 
   margin: 1.15rem 0 0.55rem;
   line-height: 1.35;

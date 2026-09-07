@@ -35,8 +35,8 @@ const props = withDefaults(
     triggerClass: undefined,
     contentClass: undefined,
     contentSize: 'md',
-    size: undefined,
-    variant: undefined,
+    size: 'sm',
+    variant: 'default',
     sideOffset: 6,
     align: 'start',
     disabled: false,
@@ -119,7 +119,7 @@ const contentClassName = computed(() =>
       :data-invalid="isInvalid || undefined"
       data-slot="app-select"
     >
-      <SelectValue :placeholder="props.placeholder" />
+      <SelectValue :placeholder="props.placeholder" class="app-select-value" />
       <slot name="triggerIcon">
         <span class="i-mingcute-down-line app-select-trigger-icon" aria-hidden="true" />
       </slot>
@@ -144,17 +144,24 @@ const contentClassName = computed(() =>
 
 <style lang="scss">
 .app-select-trigger {
-  @apply flex w-full min-w-0 cursor-pointer items-center justify-between border text-left outline-none transition-colors duration-150;
+  @apply flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 border text-left outline-none transition-colors duration-150;
 
   border-radius: var(--radius-control);
 }
 
 .app-select-trigger-sm {
-  @apply px-3 py-1.5 text-xs;
+  @apply px-3 py-1.5;
+  min-height: var(--control-height-sm);
+  font-size: var(--ui-font-size);
+  line-height: 18px;
 }
 
 .app-select-trigger-md {
-  @apply px-3 py-2 text-sm;
+  @apply px-3 py-1.5 text-sm;
+  min-height: var(--control-height-md);
+}
+.app-select-value {
+  @apply min-w-0 flex-1 truncate;
 }
 
 .app-select-trigger-default {
@@ -183,7 +190,7 @@ const contentClassName = computed(() =>
 }
 
 .app-select-trigger-icon {
-  @apply shrink-0;
+  @apply size-4 shrink-0;
 }
 
 .app-select-content {
@@ -194,6 +201,7 @@ const contentClassName = computed(() =>
   border-color: var(--border-subtle);
   border-radius: var(--radius-control);
   color: var(--popover-foreground);
+  max-width: calc(100vw - 24px);
 }
 
 .app-select-content-sm {

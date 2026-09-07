@@ -9,8 +9,8 @@ import { useFileTreeStore } from '../file-tree/store';
 import { useWorkspaceStore } from '../store';
 import WorkspaceCreateEntryDialog from './WorkspaceCreateEntryDialog.vue';
 
-/** 行高与缩进对齐 VS Code / Zed 的资源管理器：22px 行、每级 8px 缩进。 */
-const ROW_HEIGHT = 22;
+/** 虚拟行和 CSS 共用 28px 高度，容纳通用图标按钮；每级缩进 8px。 */
+const ROW_HEIGHT = 28;
 const INDENT_STEP = 8;
 /** 树内容的起始内边距；缩进参考线也以它为基准。 */
 const TREE_PADDING_START = 8;
@@ -305,25 +305,24 @@ watch(
 
 /* 标题是定位信息不是重点内容，加粗会盖过下面的工作区名。 */
 .workspace-explorer-title {
-  @apply truncate text-[11px] font-normal uppercase tracking-wide;
+  @apply truncate text-xs font-normal;
 
   color: var(--muted-foreground);
 }
 
-/* 工作区名一行，等价 VS Code 的根节点：树里的路径都相对它。
-   高度取 24px 而不是跟树行的 22px：行内要装 24px 的图标按钮，小一号会让按钮溢出行外。 */
+/* 根节点留出通用图标按钮的完整命中区。 */
 .workspace-explorer-root {
-  @apply flex h-6 shrink-0 items-center gap-1 pl-3 pr-1;
+  @apply flex h-8 shrink-0 items-center gap-1 pl-3 pr-1;
 }
 
 .workspace-explorer-root-name {
-  @apply min-w-0 flex-1 truncate text-xs font-medium;
+  @apply min-w-0 flex-1 truncate font-medium;
+  font-size: var(--ui-font-size);
 
   color: var(--foreground);
 }
 
-/* 操作按钮平时让位给工作区名；指针进到侧栏或键盘进到按钮时才出现。
-   命中区定在整个侧栏而不是那一行 22px：要先描准一行才看得到按钮，等于没有入口。 */
+/* 操作按钮平时让位给工作区名；指针进到侧栏或键盘进到按钮时才出现。 */
 .workspace-explorer-root-actions {
   @apply flex shrink-0 items-center opacity-0;
 }
@@ -349,9 +348,10 @@ watch(
 }
 
 .workspace-tree-row {
-  @apply absolute inset-x-0 top-0 flex select-none items-center gap-0.5 pr-2 text-xs outline-none;
+  @apply absolute inset-x-0 top-0 flex select-none items-center gap-0.5 pr-2 outline-none;
 
-  height: 22px;
+  height: 28px;
+  font-size: var(--ui-font-size);
   color: var(--foreground);
   cursor: pointer;
   /* 行背景是块状高亮，跟着 * 的 transition 淡入会拖慢指针反馈。 */
@@ -402,7 +402,7 @@ watch(
 }
 
 .workspace-tree-hint {
-  @apply ml-1 shrink-0 text-[11px];
+  @apply ml-1 shrink-0 text-xs;
 
   color: var(--muted-foreground);
 }

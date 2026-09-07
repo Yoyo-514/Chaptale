@@ -115,11 +115,11 @@ async function create() {
 .chapter-form label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
+  font-size: var(--ui-font-size);
 }
 .chapter-error {
   color: var(--destructive);
-  font-size: 12px;
+  font-size: var(--ui-font-size);
   overflow-wrap: anywhere;
 }
 </style>

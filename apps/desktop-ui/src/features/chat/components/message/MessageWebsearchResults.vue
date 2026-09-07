@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
+import { AppButton } from '@/components/AppButton';
+
 import { getHostname, parseSearchResult, type SearchCitation } from '../../utils/message/websearch-results';
 
 const props = defineProps<{
@@ -65,9 +67,9 @@ const metaLine = computed(() => {
 
     <p v-else class="websearch-empty">搜索完成，但结果中没有可解析的来源链接。</p>
 
-    <button v-if="hasMore" class="websearch-citations-toggle" type="button" @click="showAll = !showAll">
+    <AppButton v-if="hasMore" variant="link" class="websearch-citations-toggle" @click="showAll = !showAll">
       {{ showAll ? '收起来源' : `查看全部 ${citations.length} 个来源` }}
-    </button>
+    </AppButton>
   </div>
 </template>
 
@@ -133,7 +135,7 @@ const metaLine = computed(() => {
 }
 
 .websearch-citations-toggle {
-  @apply w-fit cursor-pointer border-0 bg-transparent p-0 text-xs outline-none transition-colors duration-150;
+  @apply w-fit;
 
   color: var(--muted-foreground);
 }

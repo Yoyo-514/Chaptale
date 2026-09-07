@@ -33,7 +33,8 @@ const props = withDefaults(
 const attrs = useAttrs();
 const rootAttrs = computed(() => {
   const { class: _class, ...rest } = attrs;
-  return rest;
+  const title = rest.title ?? (props.icon ? rest['aria-label'] : undefined);
+  return { ...rest, title: typeof title === 'string' ? title : undefined };
 });
 const buttonClassName = computed(() =>
   cn(
@@ -66,18 +67,25 @@ const buttonClassName = computed(() =>
   @apply inline-flex min-w-0 shrink-0 items-center justify-center gap-2 border font-medium outline-none transition-colors duration-150 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60;
 
   border-radius: var(--radius-control);
+  font-size: var(--ui-font-size);
+  line-height: 18px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
 }
 
 .app-button-xs {
-  @apply px-2 py-1 text-xs;
+  @apply min-h-7 px-2 py-1;
 }
 
 .app-button-sm {
-  @apply px-3 py-1.5 text-xs;
+  @apply px-3 py-1.5;
+  min-height: var(--control-height-sm);
 }
 
 .app-button-md {
-  @apply px-4 py-2 text-sm;
+  @apply px-4 py-1.5 text-sm;
+  min-height: var(--control-height-md);
 }
 
 .app-button-lg {
@@ -141,6 +149,7 @@ const buttonClassName = computed(() =>
 
 .app-button-link {
   @apply p-0;
+  min-height: 0;
 
   background: transparent;
   border-color: transparent;
@@ -155,21 +164,25 @@ const buttonClassName = computed(() =>
 .app-button-icon {
   @apply aspect-square gap-0 p-0;
 }
-
-.app-button-icon.app-button-xs {
-  @apply size-6;
+.app-button-icon > [class*='i-mingcute-'] {
+  width: 16px;
+  height: 16px;
 }
 
-.app-button-icon.app-button-sm {
+.app-button-icon.app-button-xs {
   @apply size-7;
 }
 
-.app-button-icon.app-button-md {
+.app-button-icon.app-button-sm {
   @apply size-8;
 }
 
-.app-button-icon.app-button-lg {
+.app-button-icon.app-button-md {
   @apply size-9;
+}
+
+.app-button-icon.app-button-lg {
+  @apply size-10;
 }
 
 .app-button-selected {

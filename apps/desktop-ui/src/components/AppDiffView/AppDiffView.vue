@@ -26,7 +26,7 @@ function render() {
     lineNumbers(),
     EditorState.phrases.of({ '$ unchanged lines': '$ 行未改动' }),
     EditorView.theme({
-      '&': { fontSize: '12px', background: 'var(--background)', color: 'var(--foreground)' },
+      '&': { fontSize: '14px', background: 'var(--background)', color: 'var(--foreground)' },
       '.cm-scroller': { fontFamily: 'inherit', lineHeight: '1.7' },
       '.cm-gutters': { color: 'var(--muted-foreground)', background: 'var(--surface-muted)' },
       '.cm-content': { padding: '8px 0' }

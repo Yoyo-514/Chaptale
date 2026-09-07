@@ -95,13 +95,13 @@ const statusLabel = computed(() => {
 }
 
 .tool-call-section-summary {
-  @apply line-clamp-1 text-[11px];
+  @apply line-clamp-1 text-xs;
 
   color: var(--muted-foreground);
 }
 
 .tool-call-section-status {
-  @apply shrink-0 text-[11px];
+  @apply shrink-0 text-xs;
 
   color: var(--muted-foreground);
 }

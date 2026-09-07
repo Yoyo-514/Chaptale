@@ -23,10 +23,14 @@ const checkedState = computed(() => {
 
 <template>
   <div class="history-selection-toolbar">
-    <button class="history-select-all" type="button" :disabled="props.totalCount === 0" @click="emit('toggleAll')">
-      <AppCheckbox :model-value="checkedState" :disabled="props.totalCount === 0" as-child />
+    <label class="history-select-all">
+      <AppCheckbox
+        :model-value="checkedState"
+        :disabled="props.totalCount === 0"
+        @update:model-value="emit('toggleAll')"
+      />
       <span>全选</span>
-    </button>
+    </label>
   </div>
 </template>
 
@@ -36,7 +40,8 @@ const checkedState = computed(() => {
 }
 
 .history-select-all {
-  @apply inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-8 items-center gap-1.5;
+  font-size: var(--ui-font-size);
 
   color: var(--muted-foreground);
 }

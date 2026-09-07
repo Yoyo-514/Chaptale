@@ -309,7 +309,7 @@ async function copyRawText() {
 }
 
 .message-meta {
-  @apply px-1 text-[11px] tabular-nums opacity-0 transition-opacity duration-150;
+  @apply px-1 text-xs tabular-nums opacity-0 transition-opacity duration-150;
 
   color: var(--muted-foreground);
 }

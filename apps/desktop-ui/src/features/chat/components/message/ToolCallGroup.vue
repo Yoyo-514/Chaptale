@@ -216,7 +216,7 @@ watch(
 }
 
 .tool-call-group-summary {
-  @apply shrink-0 text-[11px];
+  @apply shrink-0 text-xs;
 
   color: var(--muted-foreground);
 }

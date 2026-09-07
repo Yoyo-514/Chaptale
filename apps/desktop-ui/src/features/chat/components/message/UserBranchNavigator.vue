@@ -47,6 +47,6 @@ const emit = defineEmits<{
 }
 
 .user-branch-count {
-  @apply min-w-8 text-center text-[11px] tabular-nums;
+  @apply min-w-8 text-center text-xs tabular-nums;
 }
 </style>

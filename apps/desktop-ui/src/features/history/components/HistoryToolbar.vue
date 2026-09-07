@@ -222,7 +222,7 @@ function selectSortMode(value: string) {
 }
 
 .history-search-clear {
-  @apply size-5 shrink-0 rounded-full;
+  @apply shrink-0;
 }
 
 .history-controls {
@@ -230,7 +230,8 @@ function selectSortMode(value: string) {
 }
 
 .history-control {
-  @apply gap-1.5 px-2 py-1.5 text-xs;
+  @apply gap-1.5 px-2 py-1.5;
+  font-size: var(--ui-font-size);
 
   background: var(--surface-acrylic-subtle);
   border-color: var(--border-subtle);

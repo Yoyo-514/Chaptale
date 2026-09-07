@@ -109,11 +109,15 @@ function handleInput(event: Event) {
 }
 
 .app-input-sm {
-  @apply px-3 py-1.5 text-xs;
+  @apply px-3;
+  min-height: var(--control-height-sm);
+  font-size: var(--ui-font-size);
+  line-height: 18px;
 }
 
 .app-input-md {
-  @apply px-3 py-2 text-sm;
+  @apply px-3 text-sm;
+  min-height: var(--control-height-md);
 }
 
 .app-input:focus-within {

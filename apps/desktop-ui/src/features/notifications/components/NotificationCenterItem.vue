@@ -78,7 +78,8 @@ const emit = defineEmits<{
 }
 
 .notification-item-title {
-  @apply min-w-0 flex-1 truncate text-xs font-semibold leading-5;
+  @apply min-w-0 flex-1 truncate font-semibold leading-5;
+  font-size: var(--ui-font-size);
 }
 
 .notification-item-toolbar {
@@ -108,7 +109,7 @@ const emit = defineEmits<{
 }
 
 .notification-item-details-row time {
-  @apply shrink-0 text-[10px] leading-4;
+  @apply shrink-0 text-xs leading-4;
 
   color: var(--muted-foreground);
 }
