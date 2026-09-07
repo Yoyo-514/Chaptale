@@ -3,6 +3,7 @@ import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import { computed, defineAsyncComponent, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { APP_ICON_URL } from '@/utils/app-icon';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
@@ -30,6 +31,15 @@ async function closeTab(id: string) {
     await nextTick();
     tabList.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
   }
+}
+
+function scrollTabs(event: WheelEvent) {
+  if (event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+  const viewport = tabList.value?.querySelector<HTMLElement>('[data-slot="app-scroll-area-viewport"]');
+  if (!viewport || viewport.scrollWidth <= viewport.clientWidth) return;
+  const previous = viewport.scrollLeft;
+  viewport.scrollLeft += event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 24 : 1);
+  if (viewport.scrollLeft !== previous) event.preventDefault();
 }
 
 function handleKeydown(event: KeyboardEvent) {
@@ -88,49 +98,51 @@ watch(
     class="editor-group"
     @update:model-value="value => editor.selectTab(String(value))"
   >
-    <div ref="tabList" class="editor-tabs-scroll">
-      <TabsList class="editor-tabs" aria-label="编辑器标签">
-        <TabsTrigger v-if="!editor.tabs.length" value="welcome" class="editor-tab">欢迎</TabsTrigger>
-        <div
-          v-for="tab in editor.tabs"
-          :key="tab.id"
-          class="editor-tab-shell"
-          :class="{ 'is-active': tab.id === editor.activeId }"
-          @auxclick.middle.prevent="closeTab(tab.id)"
-        >
-          <TabsTrigger
-            :value="tab.id"
-            class="editor-tab"
-            :aria-label="tab.path"
-            :title="tab.path"
-            @keydown.delete.prevent="closeTab(tab.id)"
+    <div ref="tabList" class="editor-tabs-scroll" @wheel="scrollTabs">
+      <AppScrollArea orientation="horizontal" class="editor-tabs-area" viewport-class="editor-tabs-viewport">
+        <TabsList class="editor-tabs" aria-label="编辑器标签">
+          <TabsTrigger v-if="!editor.tabs.length" value="welcome" class="editor-tab">欢迎</TabsTrigger>
+          <div
+            v-for="tab in editor.tabs"
+            :key="tab.id"
+            class="editor-tab-shell"
+            :class="{ 'is-active': tab.id === editor.activeId }"
+            @auxclick.middle.prevent="closeTab(tab.id)"
           >
-            <span
-              class="size-3.5 shrink-0"
-              :class="tab.status === 'error' ? 'i-mingcute-warning-line' : 'i-mingcute-file-line'"
-              aria-hidden="true"
-            />
-            <span class="editor-tab-title">{{ tab.title }}</span>
-            <span v-if="tab.dirty" class="editor-dirty" aria-label="未保存" />
-            <span v-if="duplicateTitles.has(tab.title)" class="editor-tab-parent">{{
-              tab.path.split('/').slice(0, -1).join('/') || '/'
-            }}</span>
-          </TabsTrigger>
-          <AppTooltip :text="`关闭 ${tab.path}`" side="bottom">
-            <AppButton
-              icon
-              size="xs"
-              variant="ghost"
-              class="editor-tab-close"
-              :aria-label="`关闭 ${tab.path}`"
-              :tabindex="tab.id === editor.activeId ? 0 : -1"
-              @click.stop="closeTab(tab.id)"
+            <TabsTrigger
+              :value="tab.id"
+              class="editor-tab"
+              :aria-label="tab.path"
+              :title="tab.path"
+              @keydown.delete.prevent="closeTab(tab.id)"
             >
-              <span class="i-mingcute-close-line size-3" aria-hidden="true" />
-            </AppButton>
-          </AppTooltip>
-        </div>
-      </TabsList>
+              <span
+                class="size-3.5 shrink-0"
+                :class="tab.status === 'error' ? 'i-mingcute-warning-line' : 'i-mingcute-file-line'"
+                aria-hidden="true"
+              />
+              <span class="editor-tab-title">{{ tab.title }}</span>
+              <span v-if="tab.dirty" class="editor-dirty" aria-label="未保存" />
+              <span v-if="duplicateTitles.has(tab.title)" class="editor-tab-parent">{{
+                tab.path.split('/').slice(0, -1).join('/') || '/'
+              }}</span>
+            </TabsTrigger>
+            <AppTooltip :text="`关闭 ${tab.path}`" side="bottom">
+              <AppButton
+                icon
+                size="xs"
+                variant="ghost"
+                class="editor-tab-close"
+                :aria-label="`关闭 ${tab.path}`"
+                :tabindex="tab.id === editor.activeId ? 0 : -1"
+                @click.stop="closeTab(tab.id)"
+              >
+                <span class="i-mingcute-close-line size-3" aria-hidden="true" />
+              </AppButton>
+            </AppTooltip>
+          </div>
+        </TabsList>
+      </AppScrollArea>
     </div>
 
     <TabsContent v-if="!editor.tabs.length" value="welcome" class="editor-welcome">
@@ -205,11 +217,18 @@ watch(
 }
 
 .editor-tabs-scroll {
-  @apply h-9 shrink-0 overflow-x-auto overflow-y-hidden border-b;
+  @apply h-9 min-w-0 shrink-0 overflow-hidden border-b;
 
   border-color: var(--border-subtle);
   background: var(--surface-acrylic-subtle);
-  scrollbar-width: thin;
+}
+
+.editor-tabs-area {
+  @apply h-full w-full;
+}
+
+.editor-tabs-area :deep(.editor-tabs-viewport > div) {
+  height: 100%;
 }
 
 .editor-tabs {

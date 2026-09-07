@@ -14,12 +14,14 @@ const props = withDefaults(
     scrollbarClass?: string;
     thumbClass?: string;
     type?: 'auto' | 'always' | 'scroll' | 'hover';
+    orientation?: 'vertical' | 'horizontal';
   }>(),
   {
     viewportClass: undefined,
     scrollbarClass: undefined,
     thumbClass: undefined,
-    type: 'hover'
+    type: 'hover',
+    orientation: 'vertical'
   }
 );
 
@@ -39,7 +41,11 @@ const thumbClassName = computed(() => cn('app-scroll-area-thumb', props.thumbCla
     <ScrollAreaViewport :class="viewportClassName" data-slot="app-scroll-area-viewport">
       <slot />
     </ScrollAreaViewport>
-    <ScrollAreaScrollbar :class="scrollbarClassName" orientation="vertical" data-slot="app-scroll-area-scrollbar">
+    <ScrollAreaScrollbar
+      :class="scrollbarClassName"
+      :orientation="props.orientation"
+      data-slot="app-scroll-area-scrollbar"
+    >
       <ScrollAreaThumb :class="thumbClassName" data-slot="app-scroll-area-thumb" />
     </ScrollAreaScrollbar>
   </ScrollAreaRoot>
@@ -60,6 +66,10 @@ const thumbClassName = computed(() => cn('app-scroll-area-thumb', props.thumbCla
   @apply flex w-2 touch-none select-none p-0.5;
 
   background: transparent;
+}
+
+.app-scroll-area-scrollbar[data-orientation='horizontal'] {
+  @apply h-1.5 w-auto flex-col px-0.5 py-px;
 }
 
 .app-scroll-area-thumb {

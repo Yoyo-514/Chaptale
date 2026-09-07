@@ -43,13 +43,14 @@ async function focusRow(index: number) {
   scrollElementRef.value?.querySelector<HTMLElement>(`[data-tree-index="${index}"]`)?.focus();
 }
 
-/** 点击目录同时选中并展开，与 VS Code 一致：选中态是「光标在哪」，不代表打开了什么。 */
+/** 单击文件即打开，目录单击展开；方向键移动焦点不打开文件。 */
 function activateRow(index: number, event?: MouseEvent) {
   const row = rows.value[index];
   if (!row) return;
 
   tree.selectedPath = row.relativePath;
   if (row.kind === 'directory' && (event?.detail ?? 1) < 2) void tree.toggle(row.relativePath);
+  else if (row.kind === 'file' && (event?.detail ?? 1) < 2) openFileRow(index);
 }
 
 function openFileRow(index: number) {
@@ -218,7 +219,6 @@ watch(
             :class="{ 'is-selected': tree.selectedPath === rows[item.index]!.relativePath }"
             @keydown="handleKeydown(item.index, $event)"
             @click="activateRow(item.index, $event)"
-            @dblclick="openFileRow(item.index)"
             @focus="tree.selectedPath = rows[item.index]!.relativePath"
           >
             <!-- 缩进参考线：每个祖先层级一条，对准该祖先行的箭头中心，三层以上时用来对齐父子关系。 -->

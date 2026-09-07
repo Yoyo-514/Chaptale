@@ -101,7 +101,7 @@ test.afterEach(async () => {
 
 async function openChapter(folder = '正文') {
   await page.getByRole('treeitem', { name: folder, exact: true }).click();
-  await page.locator(`[data-tree-path="${folder}/第一章.md"]`).dblclick();
+  await page.locator(`[data-tree-path="${folder}/第一章.md"]`).click();
 }
 
 test('真实 preload 读取保留原文和哈希，并验证工作区身份及非法参数', async () => {
@@ -131,12 +131,17 @@ test('真实 preload 读取保留原文和哈希，并验证工作区身份及�
   expect(result.invalid).toContain('IPC 参数无效');
 });
 
-test('单击只选择，双击打开完整原文，编辑在保存前不写盘', async () => {
+test('单击文件打开或切换标签，双击不重复打开，编辑在保存前不写盘', async () => {
   await page.getByRole('treeitem', { name: '正文', exact: true }).click();
   const row = page.getByRole('treeitem', { name: '第一章.md', exact: true });
   await row.click();
-  await expect(page.getByRole('tab', { name: '正文/第一章.md', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: '正文/第一章.md', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '空文件.txt', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await row.click();
+  await expect(page.getByRole('tab', { name: '正文/第一章.md', exact: true })).toHaveAttribute('aria-selected', 'true');
   await row.dblclick();
+  await expect(page.getByRole('tab', { name: '正文/第一章.md', exact: true })).toHaveCount(1);
 
   await expect(page.getByRole('tab', { name: '正文/第一章.md', exact: true })).toHaveAttribute('aria-selected', 'true');
   const content = page.getByRole('textbox', { name: '文档正文' });
@@ -161,7 +166,7 @@ test('Ctrl+S 保留混合换行和 BOM，保存及标签切换不丢撤销', asy
   await expect(page.getByText('未保存', { exact: true })).toBeVisible();
   await page.keyboard.press('Control+s');
   await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(raw + '新增');
-  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).dblclick();
+  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).click();
   await page.getByRole('tab', { name: '正文/第一章.md', exact: true }).click();
   await content.click();
   await page.keyboard.press('Control+z');
@@ -394,12 +399,12 @@ test('Enter 打开、重复打开聚焦、同名文件分开管理，关闭保�
 });
 
 test('损坏元数据和空文件可打开，读取失败可在原标签重试', async () => {
-  await page.getByRole('treeitem', { name: '损坏.md', exact: true }).dblclick();
+  await page.getByRole('treeitem', { name: '损坏.md', exact: true }).click();
   await expect(page.getByText('frontmatter 无法解析', { exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('title: [坏的元数据');
-  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).dblclick();
+  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).click();
   await expect(page.getByText('空文件', { exact: true })).toBeVisible();
-  await page.getByRole('treeitem', { name: '二进制.bin', exact: true }).dblclick();
+  await page.getByRole('treeitem', { name: '二进制.bin', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('二进制文件');
   await writeFile(path.join(workspace, '二进制.bin'), '现在是 UTF-8 文本');
   await page.getByRole('button', { name: '重新读取', exact: true }).click();
@@ -425,7 +430,7 @@ test('HTML 作为源码显示，不执行脚本或加载文档中的远程图片
     if (request.url().includes('never-load.png')) requests.push(request.url());
   });
   await page.getByRole('button', { name: '刷新文件树' }).click();
-  await page.getByRole('treeitem', { name: '原文.html', exact: true }).dblclick();
+  await page.getByRole('treeitem', { name: '原文.html', exact: true }).click();
   await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('<script>');
   expect(await page.evaluate(() => 'chaptaleUnsafeHtml' in window)).toBe(false);
   expect(requests).toEqual([]);
@@ -437,7 +442,7 @@ test('读取尚未完成时关闭标签，迟到的结果不能重新打开文�
   await page.getByRole('button', { name: '刷新文件树' }).click();
   await expect(page.getByRole('treeitem', { name: '在途.md', exact: true })).toBeVisible();
   const closedWhileLoading = await page.evaluate(async rootPath => {
-    document.querySelector('[data-tree-path="在途.md"]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    document.querySelector('[data-tree-path="在途.md"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await Promise.resolve();
     const wasLoading = document
       .querySelector('[aria-label="编辑器区域"] [role="status"]')
@@ -454,12 +459,12 @@ test('读取尚未完成时关闭标签，迟到的结果不能重新打开文�
 test('标签切换恢复阅读位置，键盘可切换和关闭标签', async () => {
   await writeFile(path.join(workspace, '阅读.md'), '开头\n' + '下一段正文。\n'.repeat(5_000) + '阅读位置标记');
   await page.getByRole('button', { name: '刷新文件树' }).click();
-  await page.getByRole('treeitem', { name: '阅读.md', exact: true }).dblclick();
+  await page.getByRole('treeitem', { name: '阅读.md', exact: true }).click();
   const content = page.getByRole('textbox', { name: '文档正文' });
   await content.click();
   await page.keyboard.press('Control+End');
   await expect(content).toContainText('阅读位置标记');
-  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).dblclick();
+  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).click();
   await expect(page.getByText('空文件', { exact: true })).toBeVisible();
   await page.getByRole('tab', { name: '空文件.txt', exact: true }).focus();
   await page.keyboard.press('ArrowLeft');
@@ -469,6 +474,97 @@ test('标签切换恢复阅读位置，键盘可切换和关闭标签', async ()
   await page.keyboard.press('Control+w');
   await expect(page.getByRole('tab', { name: '阅读.md', exact: true })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: '空文件.txt', exact: true })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('多标签使用覆盖式横向滚动，活动标签自动可见且高度不变', async () => {
+  await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1024, 720));
+  const files = Array.from(
+    { length: 12 },
+    (_, index) => `标签-${String(index).padStart(2, '0')}-车间夜谈与旧日来信.md`
+  );
+  for (const file of files) await writeFile(path.join(workspace, file), `# ${file}\n正文`);
+  await page.getByRole('button', { name: '刷新文件树' }).click();
+  for (const file of files) {
+    await page.getByRole('treeitem', { name: file, exact: true }).click();
+    await expect(page.getByRole('tab', { name: file, exact: true })).toHaveAttribute('aria-selected', 'true');
+  }
+  const viewport = page.locator('.editor-tabs-scroll [data-slot="app-scroll-area-viewport"]');
+  const bounds = await viewport.evaluate(element => {
+    const tab = element.querySelector('[role="tab"][aria-selected="true"]')!.getBoundingClientRect();
+    const frame = element.getBoundingClientRect();
+    return {
+      overflow: element.scrollWidth > element.clientWidth,
+      offset: element.scrollLeft,
+      nativeScrollbar: element.getBoundingClientRect().height - element.clientHeight,
+      inside: tab.left >= frame.left - 1 && tab.right <= frame.right + 1
+    };
+  });
+  expect(bounds).toMatchObject({ overflow: true, inside: true, nativeScrollbar: 0 });
+  expect(bounds.offset).toBeGreaterThan(0);
+  await expect(page.locator('.editor-tabs-scroll')).toHaveCSS('height', '36px');
+  await viewport.hover();
+  await expect(
+    page.locator('.editor-tabs-scroll [data-orientation="horizontal"][data-slot="app-scroll-area-scrollbar"]')
+  ).toBeVisible();
+  await page.mouse.wheel(0, -600);
+  await expect.poll(() => viewport.evaluate(element => element.scrollLeft)).toBeLessThan(bounds.offset);
+  await page.getByRole('treeitem', { name: files[0]!, exact: true }).click();
+  await expect.poll(() => viewport.evaluate(element => element.scrollLeft)).toBe(0);
+  await page.getByRole('tab', { name: files[0]!, exact: true }).focus();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: files.at(-1)!, exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Delete');
+  await expect(page.getByRole('tab', { name: files.at(-2)!, exact: true })).toBeFocused();
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'editor-overflow-tabs.png') });
+});
+
+test('行号与正文垂直对齐，当前行和选区在三种主题中清晰区分', async () => {
+  await writeFile(path.join(workspace, '空文件.txt'), '第一行\n第二行\n第三行\n' + '下一行\n'.repeat(20));
+  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).click();
+  const content = page.getByRole('textbox', { name: '文档正文' });
+  await mkdir(visualDir, { recursive: true });
+  for (const [label, theme] of [
+    ['浅色', 'theme-light'],
+    ['深色', 'dark'],
+    ['暖色', 'theme-warm']
+  ] as const) {
+    await page.getByRole('menuitem', { name: '视图', exact: true }).click();
+    await page.getByRole('menuitem', { name: '外观', exact: true }).hover();
+    await page.getByRole('menuitem', { name: label, exact: true }).click();
+    await expect(page.locator('html')).toHaveClass(new RegExp(theme));
+    await content.click();
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.press('ArrowDown');
+    const active = page.locator('.document-codemirror .cm-activeLine');
+    const gutter = page.locator('.document-codemirror .cm-activeLineGutter');
+    await expect(active).toHaveText('第二行');
+    await expect(gutter).toHaveText('2');
+    const geometry = await page.evaluate(() => {
+      const line = document.querySelector('.document-codemirror .cm-activeLine')!;
+      const number = document.querySelector('.document-codemirror .cm-activeLineGutter')!;
+      const a = line.getBoundingClientRect();
+      const b = number.getBoundingClientRect();
+      return {
+        offset: Math.abs(a.top - b.top),
+        lineHeight: getComputedStyle(line).lineHeight,
+        gutterLineHeight: getComputedStyle(number).lineHeight,
+        background: getComputedStyle(line).backgroundColor
+      };
+    });
+    expect(geometry.offset).toBeLessThanOrEqual(1);
+    expect(geometry.lineHeight).toBe(geometry.gutterLineHeight);
+    expect(geometry.background).not.toBe('rgba(0, 0, 0, 0)');
+    await page.screenshot({ path: path.join(visualDir, `editor-active-line-${theme}.png`) });
+    await page.keyboard.press('Shift+End');
+    await expect(page.locator('.document-codemirror .cm-selectionBackground')).toBeVisible();
+    expect(
+      await page
+        .locator('.document-codemirror .cm-selectionBackground')
+        .first()
+        .evaluate(element => getComputedStyle(element).backgroundColor)
+    ).not.toBe(geometry.background);
+  }
 });
 
 test('两千文件只渲染可见行，Home/End 与父子导航保持焦点和 ARIA', async () => {
@@ -510,7 +606,7 @@ test('100 MiB 文件必须显式选择大文件模式，能够跳到末尾且不
   bytes.write(ending, bytes.length - Buffer.byteLength(ending));
   await writeFile(path.join(workspace, '大文件.txt'), bytes);
   await page.getByRole('button', { name: '刷新文件树' }).click();
-  await page.getByRole('treeitem', { name: '大文件.txt', exact: true }).dblclick();
+  await page.getByRole('treeitem', { name: '大文件.txt', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('8 MiB');
   await expect(page.getByRole('textbox', { name: '文档正文' })).toHaveCount(0);
   const started = Date.now();
@@ -573,7 +669,7 @@ for (const width of [1280, 1024]) {
       BrowserWindow.getAllWindows()[0]!.setSize(size, 720);
     }, width);
     await page.getByRole('button', { name: '刷新文件树' }).click();
-    await page.getByRole('treeitem', { name: '长文.md', exact: true }).dblclick();
+    await page.getByRole('treeitem', { name: '长文.md', exact: true }).click();
     const content = page.getByRole('textbox', { name: '文档正文' });
     await expect(content).toContainText('长篇预览');
     expect(await page.locator('.cm-line').count()).toBeLessThan(150);

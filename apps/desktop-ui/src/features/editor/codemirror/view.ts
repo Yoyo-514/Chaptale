@@ -3,7 +3,14 @@ import { markdown } from '@codemirror/lang-markdown';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { EditorSelection, EditorState } from '@codemirror/state';
-import { drawSelection, EditorView, keymap, lineNumbers } from '@codemirror/view';
+import {
+  drawSelection,
+  EditorView,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  keymap,
+  lineNumbers
+} from '@codemirror/view';
 
 import type { DocumentViewState } from '../types';
 import { DocumentBuffer } from './document-buffer';
@@ -11,17 +18,35 @@ import { DocumentBuffer } from './document-buffer';
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '14px', color: 'var(--foreground)', backgroundColor: 'var(--mica-background)' },
   '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { overflow: 'auto', fontFamily: 'inherit', lineHeight: '1.8' },
+  '.cm-scroller': { overflow: 'auto', fontFamily: 'inherit', lineHeight: '26px' },
   '.cm-content': { padding: '20px 0 48px', caretColor: 'var(--foreground)' },
-  '.cm-line': { padding: '0 24px 0 16px' },
+  '.cm-line': { padding: '0 24px 0 16px', transition: 'none' },
   '.cm-gutters': {
     backgroundColor: 'var(--mica-background)',
     border: 'none',
     color: 'var(--muted-foreground)',
-    fontSize: '11px'
+    fontSize: '11px',
+    lineHeight: '26px',
+    fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+    fontVariantNumeric: 'tabular-nums'
   },
-  '.cm-lineNumbers .cm-gutterElement': { minWidth: '36px', padding: '0 8px 0 12px' },
-  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--accent)' },
+  '.cm-lineNumbers .cm-gutterElement': {
+    minWidth: '36px',
+    padding: '0 8px 0 12px',
+    textAlign: 'right',
+    transition: 'none'
+  },
+  '.cm-activeLine, .cm-activeLineGutter': {
+    backgroundColor: 'color-mix(in srgb, var(--foreground) 4%, transparent)'
+  },
+  '&.cm-focused .cm-activeLine, &.cm-focused .cm-activeLineGutter': {
+    backgroundColor: 'color-mix(in srgb, var(--foreground) 7%, transparent)'
+  },
+  '.cm-activeLineGutter': { color: 'var(--foreground)' },
+  '.cm-selectionBackground': { backgroundColor: 'var(--accent)' },
+  '&.cm-focused .cm-selectionBackground': {
+    backgroundColor: 'color-mix(in srgb, var(--primary-solid) 24%, transparent)'
+  },
   '.cm-cursor': { borderLeftColor: 'var(--foreground)' },
   '.cm-panels': { color: 'var(--foreground)', backgroundColor: 'var(--surface-muted)' },
   '.cm-panels-top': { borderBottom: '1px solid var(--border-subtle)' },
@@ -83,6 +108,8 @@ export function createDocumentView(
     search({ top: true }),
     drawSelection(),
     lineNumbers(),
+    highlightActiveLine(),
+    highlightActiveLineGutter(),
     theme,
     EditorState.phrases.of({
       Find: '查找',
