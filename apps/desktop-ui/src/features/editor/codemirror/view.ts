@@ -1,6 +1,14 @@
 import { defaultKeymap, historyKeymap, redo, undo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
-import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import {
+  defaultHighlightStyle,
+  foldEffect,
+  foldGutter,
+  foldedRanges,
+  foldService,
+  syntaxHighlighting,
+  unfoldEffect
+} from '@codemirror/language';
 import { getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import {
@@ -12,8 +20,11 @@ import {
   lineNumbers
 } from '@codemirror/view';
 
+import type { AssetRecord } from '@chaptale/shared';
+
 import type { DocumentViewState } from '../types';
 import { DocumentBuffer } from './document-buffer';
+import { documentHeadings, documentHeadRange, wikiLinks } from './markdown-navigation';
 
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '14px', color: 'var(--foreground)', backgroundColor: 'var(--mica-background)' },
@@ -89,6 +100,9 @@ export function createDocumentView(
     viewState?: DocumentViewState;
     buffer?: DocumentBuffer;
     onChange?: (buffer: DocumentBuffer) => void;
+    assets?: () => Promise<readonly AssetRecord[]>;
+    onOpenLink?: (link: string) => void;
+    foldHead?: boolean;
   }
 ) {
   const extensions = [
@@ -126,7 +140,17 @@ export function createDocumentView(
       'current match': '当前匹配'
     }),
     options.large ? [] : EditorView.lineWrapping,
-    options.markdown && !options.large ? [markdown(), syntaxHighlighting(defaultHighlightStyle)] : []
+    options.markdown && !options.large
+      ? [
+          markdown(),
+          syntaxHighlighting(defaultHighlightStyle),
+          foldGutter(),
+          foldService.of((state, from) => (from === 0 ? documentHeadRange(state) : null)),
+          ...(options.assets && options.onOpenLink
+            ? [wikiLinks({ assets: options.assets, open: options.onOpenLink })]
+            : [])
+        ]
+      : []
   ];
   const buffer = options.large ? null : (options.buffer ?? new DocumentBuffer(content, extensions));
   buffer?.configure(extensions);
@@ -142,6 +166,13 @@ export function createDocumentView(
     }
   });
   const detachBuffer = buffer?.attach(transaction => view.dispatch(transaction));
+  const head = options.markdown && !options.large && options.foldHead ? documentHeadRange(view.state) : null;
+  if (head && !options.buffer) {
+    view.dispatch({
+      effects: foldEffect.of(head),
+      selection: { anchor: Math.min(head.to + 1, view.state.doc.length) }
+    });
+  }
 
   // 搜索框也接收粘贴与输入法提交，不能只等 keyup 后才让 Enter 使用新查询。
   const updateSearchInput = (event: Event) => {
@@ -175,6 +206,27 @@ export function createDocumentView(
     find: () => openSearchPanel(view),
     undo: () => undo(view),
     redo: () => redo(view),
+    headings: () => documentHeadings(view.state),
+    selection: () => {
+      const { from, to } = view.state.selection.main;
+      return { from, to, text: view.state.sliceDoc(from, to) };
+    },
+    goTo(from: number, to = from) {
+      view.dispatch({
+        selection: { anchor: Math.min(from, view.state.doc.length), head: Math.min(to, view.state.doc.length) },
+        scrollIntoView: true
+      });
+      view.focus();
+    },
+    toggleHead() {
+      const range = documentHeadRange(view.state);
+      if (!range) return;
+      let folded = false;
+      foldedRanges(view.state).between(range.from, range.to, () => {
+        folded = true;
+      });
+      view.dispatch({ effects: (folded ? unfoldEffect : foldEffect).of(range) });
+    },
     getViewState: (): DocumentViewState => ({
       anchor: view.state.selection.main.anchor,
       head: view.state.selection.main.head,

@@ -2,6 +2,7 @@ import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
 
 import { registerAgentIpc } from '../features/agent/ipc';
 import { registerSlashCommandIpc } from '../features/commands/ipc';
+import { registerLibraryIpc } from '../features/library/ipc';
 import { registerMemoryIpc } from '../features/memory/ipc';
 import { registerModelsIpc } from '../features/models/ipc';
 import { registerPermissionsIpc } from '../features/permissions/ipc';
@@ -25,6 +26,7 @@ import type { AppContext } from './app-context';
 export function registerApplicationIpc(context: AppContext): void {
   const ui = new ElectronUiShell();
   registerWorkspaceIpc(context.workspaceService, ui);
+  registerLibraryIpc(context.libraryService);
 
   handleTrustedIpc(
     IPC_CHANNELS.app.getPlatform,

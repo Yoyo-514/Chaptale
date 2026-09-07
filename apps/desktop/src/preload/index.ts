@@ -5,6 +5,7 @@ import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 import { createAgentApi } from './api/agent';
 import { createGetPlatformApi } from './api/app';
 import { createSlashCommandsApi } from './api/commands';
+import { createLibraryApi } from './api/library';
 import { createMemoryApi } from './api/memory';
 import { createModelsApi } from './api/models';
 import { createPermissionsApi } from './api/permissions';
@@ -18,6 +19,7 @@ import { createWindowControlApi } from './api/window';
 import { createWorkspaceApi } from './api/workspace';
 
 const desktopApi: ChaptaleDesktopApi = {
+  library: createLibraryApi(),
   workspace: createWorkspaceApi(),
   getPlatform: createGetPlatformApi(),
   windowControl: createWindowControlApi(),

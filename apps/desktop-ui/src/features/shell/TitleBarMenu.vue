@@ -6,11 +6,13 @@ import { isChaptaleTheme } from '@chaptale/ipc-contract';
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useEditorStore } from '@/features/editor';
 import { useSettingsStore } from '@/features/settings';
+import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 
 const workspaceStore = useWorkspaceStore();
 const settingsStore = useSettingsStore();
 const editor = useEditorStore();
+const navigation = useWorkbenchStore();
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
 const THEME_ITEM_PREFIX = 'view.theme.';
@@ -91,7 +93,7 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'writing',
     label: '写作',
     items: [
-      { id: 'writing.context', label: '组装本次参考', disabled: true },
+      { id: 'writing.context', label: '组装本次参考', disabled: !workspaceStore.rootPath },
       { id: 'writing.generate', label: '生成候选稿', disabled: true },
       { id: 'writing.settle', label: '结算当前章节', disabled: true, separatorBefore: true }
     ]
@@ -129,6 +131,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'writing.context') {
+    navigation.auxiliary = 'references';
+    return;
+  }
   if (itemId === 'file.new-chapter') {
     editor.newChapterOpen = true;
     return;

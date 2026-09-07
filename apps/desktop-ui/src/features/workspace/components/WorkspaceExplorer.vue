@@ -23,6 +23,7 @@ const scrollElementRef = ref<HTMLElement | null>(null);
 const virtualizer = useVirtualizer(
   computed(() => ({
     count: rows.value.length,
+    getItemKey: (index: number) => rows.value[index]!.relativePath,
     getScrollElement: () => scrollElementRef.value,
     estimateSize: () => ROW_HEIGHT,
     overscan: 12
@@ -45,12 +46,13 @@ async function focusRow(index: number) {
 
 /** 单击文件即打开，目录单击展开；方向键移动焦点不打开文件。 */
 function activateRow(index: number, event?: MouseEvent) {
-  const row = rows.value[index];
+  const clickedPath = (event?.currentTarget as HTMLElement | undefined)?.dataset.treePath;
+  const row = clickedPath ? rows.value.find(item => item.relativePath === clickedPath) : rows.value[index];
   if (!row) return;
 
   tree.selectedPath = row.relativePath;
   if (row.kind === 'directory' && (event?.detail ?? 1) < 2) void tree.toggle(row.relativePath);
-  else if (row.kind === 'file' && (event?.detail ?? 1) < 2) openFileRow(index);
+  else if (row.kind === 'file' && (event?.detail ?? 1) < 2) emit('openFile', row.relativePath);
 }
 
 function openFileRow(index: number) {

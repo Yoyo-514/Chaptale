@@ -31,6 +31,7 @@ export function bootstrapDesktopApp(): void {
     const context = createAppContext();
     app.on('will-quit', () => {
       void context.workspaceService.dispose();
+      void context.indexService.dispose();
     });
     registerApplicationIpc(context);
     // 主题要在建窗口之前读到：backgroundColor 决定首帧之前那一瞬露出的底色，

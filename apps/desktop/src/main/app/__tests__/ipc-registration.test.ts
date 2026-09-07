@@ -50,7 +50,10 @@ import {
   CreateChapterArgsValidator,
   WindowCompleteCloseArgsValidator,
   RecoveryPathArgsValidator,
-  SaveRecoveryArgsValidator
+  SaveRecoveryArgsValidator,
+  LibraryLinkArgsValidator,
+  ComposePackArgsValidator,
+  PackIdArgsValidator
 } from '@chaptale/ipc-contract';
 
 import { WorkspaceService } from '../../features/workspace/service';
@@ -140,6 +143,12 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.workspace.readRecovery, RecoveryPathArgsValidator),
   validated(IPC_CHANNELS.workspace.saveRecovery, SaveRecoveryArgsValidator),
   validated(IPC_CHANNELS.workspace.discardRecovery, RecoveryPathArgsValidator),
+  validated(IPC_CHANNELS.library.listAssets, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.library.resolveLink, LibraryLinkArgsValidator),
+  validated(IPC_CHANNELS.library.composePack, ComposePackArgsValidator),
+  validated(IPC_CHANNELS.library.freezePack, ComposePackArgsValidator),
+  validated(IPC_CHANNELS.library.readPack, PackIdArgsValidator),
+  validated(IPC_CHANNELS.library.checkPack, PackIdArgsValidator),
 
   trusted(IPC_CHANNELS.promptSettings.getState),
   validated(IPC_CHANNELS.promptSettings.update, UpdatePromptSettingsArgsValidator),

@@ -1,8 +1,12 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import type { AssetSnapshot } from '@chaptale/shared';
+
 import { resolveAuthorMemoryPaths, resolveWorkspaceMemoryPaths } from '../../core/memory-layout/paths';
+import { WorkspaceLayoutService } from '../../core/workspace/layout';
 import { readOptionalTextFile } from '../../infra/filesystem/files';
+import { resolveWithinCwd } from '../../infra/filesystem/path-guard';
 
 export type MemorySections = {
   /** ① 作者偏好要点：MEMORY.md 头部 + preferences 摘录。 */
@@ -13,11 +17,14 @@ export type MemorySections = {
   recent?: string;
   /** ⑤ notes 清单：文件名 + 首行，一行一条。 */
   notes?: string;
+  assets?: string;
+  threads?: string;
 };
 
 export type MemoryServiceOptions = {
   /** ~/.chaptale 根目录（SettingsService.rootDir）。 */
   chaptaleRootDir: string;
+  listAssets?: (cwd: string) => Promise<AssetSnapshot>;
 };
 
 /** 单文件摘录的行数上限：注入块只取"头部要点"，全文靠 agent 用 read 深挖。 */
@@ -39,22 +46,56 @@ export class MemoryService {
   async readSections(cwd: string): Promise<MemorySections> {
     const authorPaths = resolveAuthorMemoryPaths(this.options.chaptaleRootDir);
     const workspacePaths = resolveWorkspaceMemoryPaths(cwd);
+    const layout = await new WorkspaceLayoutService().read(cwd);
+    const stylePath = `${layout.roles.world.relativePath}/创作守则.md`;
+    const readStyle = async () => readOptionalTextFile(await resolveWithinCwd(cwd, stylePath));
 
-    const [memoryIndex, preferenceEntries, styleGuide, recent, notes] = await Promise.all([
+    const [memoryIndex, preferenceEntries, styleGuide, recent, notes, catalog] = await Promise.all([
       readOptionalTextFile(authorPaths.memoryIndex),
       readMarkdownHeads(authorPaths.preferencesDir),
-      readOptionalTextFile(workspacePaths.styleGuide),
+      readStyle().catch(() => undefined),
       readOptionalTextFile(workspacePaths.recent),
-      listMarkdownFirstLines(workspacePaths.notesDir)
+      listMarkdownFirstLines(workspacePaths.notesDir),
+      this.options.listAssets?.(cwd).catch(() => undefined)
     ]);
 
     const preferences = joinNonEmpty([takeHead(memoryIndex), ...preferenceEntries]);
+    const assets =
+      catalog?.assets.filter(
+        asset => asset.status !== 'archived' && asset.role !== 'notes' && asset.role !== 'templates'
+      ) ?? [];
+    const threads = assets.filter(
+      asset => asset.kind === 'plot-thread' && ['planted', 'advanced'].includes(asset.status ?? '')
+    );
+    const counts = new Map<string, number>();
+    for (const asset of assets) counts.set(asset.kind ?? asset.role, (counts.get(asset.kind ?? asset.role) ?? 0) + 1);
+    const characterLines = assets
+      .filter(asset => asset.kind === 'character')
+      .filter(
+        (asset, _index, all) => all.length <= 20 || ['main', 'secondary'].includes(String(asset.frontmatter.importance))
+      )
+      .slice(0, 20)
+      .map(asset => `${asset.title} | ${asset.sourcePath} | ${asset.excerpt.replaceAll('\n', ' ').slice(0, 80)}`);
+    const assetIndex = assets.length
+      ? `${[...counts].map(([kind, count]) => `${kind}: ${count}`).join(' · ')}\n${characterLines.join('\n')}\n完整内容按需通过 memory_search/read 获取。`
+      : undefined;
 
     return {
       ...(preferences ? { preferences } : {}),
-      ...(styleGuide?.trim() ? { styleGuide: takeHead(styleGuide)! } : {}),
+      ...(styleGuide?.trim() ? { styleGuide: `来源：${stylePath}\n${takeHead(styleGuide)!}` } : {}),
       ...(recent?.trim() ? { recent: takeHead(recent)! } : {}),
-      ...(notes ? { notes } : {})
+      ...(notes ? { notes } : {}),
+      ...(assetIndex ? { assets: assetIndex } : {}),
+      ...(threads.length
+        ? {
+            threads: threads
+              .map(
+                asset =>
+                  `${asset.title} | ${asset.status} | ${asset.sourcePath} | 埋设 ${String(asset.frontmatter.plantedAt ?? '未登记')} | 揭露限制 ${String(asset.frontmatter.mustNotRevealBefore ?? '未登记')}`
+              )
+              .join('\n')
+          }
+        : {})
     };
   }
 }
@@ -91,7 +132,7 @@ async function listMarkdownFirstLines(dir: string): Promise<string | undefined> 
     files.slice(0, NOTES_LIST_LIMIT).map(async filePath => {
       const content = await readOptionalTextFile(filePath);
       const firstLine = firstContentLine(content);
-      return `${path.basename(filePath)}: ${firstLine}`;
+      return `${path.basename(filePath)}: ${firstLine.slice(0, 200)}`;
     })
   );
 

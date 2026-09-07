@@ -11,6 +11,7 @@ import { createChatRuntimeBundle } from '../features/agent/chat-bundle';
 import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { SlashCommandService } from '../features/commands/service';
+import { LibraryService } from '../features/library/service';
 import { CompactCoord } from '../features/memory/compaction/coord';
 import { CompactionSummaryStore } from '../features/memory/compaction/summary-store';
 import { MemoryInjector } from '../features/memory/injector';
@@ -23,9 +24,8 @@ import { PromptFileService } from '../features/prompts/file-service';
 import { ReviewOutputStore } from '../features/reviews/store';
 import { AgentRunStore } from '../features/runs/store';
 import { AttachedFileSearchService } from '../features/search/attached-file-service';
-import { LiteralSearchProvider } from '../features/search/index/literal-provider';
-import { IndexService } from '../features/search/index/service';
 import { WorkspaceIndexSourceResolver } from '../features/search/index/source-resolver';
+import { WorkspaceIndexWorker } from '../features/search/index/worker-client';
 import { MemorySearchService } from '../features/search/memory/service';
 import { JsonlSessionRepository } from '../features/sessions/repository';
 import { materializeBuiltinSkills } from '../features/skills/builtin-materializer';
@@ -61,7 +61,8 @@ export type AppContext = {
   todoStore: TodoStore;
   subagentPool: SubagentPool;
   memoryPendingStore: MemoryPendingStore;
-  indexService: IndexService;
+  indexService: WorkspaceIndexWorker;
+  libraryService: LibraryService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
   /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
@@ -124,14 +125,19 @@ export function createAppContext(): AppContext {
   const subagentPool = new SubagentPool();
   const memoryPendingStore = new MemoryPendingStore({ parseFrontmatter });
   const indexSourceResolver = new WorkspaceIndexSourceResolver();
-  const indexService = new IndexService({
-    resolver: indexSourceResolver,
-    parseFrontmatter,
-    cacheRoot: path.join(settingsService.rootDir, 'cache')
+  const indexService = new WorkspaceIndexWorker(path.join(settingsService.rootDir, 'cache'));
+  const libraryService = new LibraryService(workspaceService, indexService);
+  workspaceService.onChange(event => {
+    void indexService
+      .invalidate(
+        event.rootPath,
+        event.changes.map(change => change.relativePath)
+      )
+      .catch(error => console.error('索引失效通知失败:', error));
   });
   const memorySearchService = new MemorySearchService({
     indexSearch: (cwd, query, options) => indexService.search(cwd, query, options),
-    literalSearch: new LiteralSearchProvider({ resolver: indexSourceResolver, parseFrontmatter }),
+    literalSearch: { search: input => indexService.literalSearch(input) },
     sourceResolver: indexSourceResolver
   });
   // runs/reviews 归属工作区：审查历史是创作产物，随作品同步。
@@ -151,7 +157,10 @@ export function createAppContext(): AppContext {
 
   // 会话压缩 = 创作检查点管线：memory-distiller 蒸馏出结构化检查点并原子落盘，
   // 同一正文才写入会话流；任一步失败即取消压缩，不留半截状态。
-  const memoryService = new MemoryService({ chaptaleRootDir: settingsService.agentDir });
+  const memoryService = new MemoryService({
+    chaptaleRootDir: settingsService.rootDir,
+    listAssets: cwd => indexService.listAssets(cwd)
+  });
   const compactCoord = new CompactCoord({
     personas: personaRegistry,
     tasks: taskRunner,
@@ -201,6 +210,7 @@ export function createAppContext(): AppContext {
     subagentPool,
     memoryPendingStore,
     indexService,
+    libraryService,
     permissionBroker,
     permissionRuleStore,
     getPermissionSettingsCwd: () => settingsService.getCurrentCwd(),

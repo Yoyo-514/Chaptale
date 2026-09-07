@@ -13,6 +13,7 @@
   "dependencies": {
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
+    "@codemirror/autocomplete": "catalog:",
     "@codemirror/commands": "catalog:",
     "@codemirror/lang-markdown": "catalog:",
     "@codemirror/language": "catalog:",

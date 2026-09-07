@@ -52,7 +52,12 @@ async function crashIsolatedApp() {
   }
   const exited = once(child, 'close');
   if (process.platform === 'win32') {
-    await promisify(execFile)('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true });
+    try {
+      await promisify(execFile)('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true });
+    } catch (error) {
+      // 超时收尾可能已经关闭测试进程；只在进程确已退出时忽略 taskkill 的竞态错误。
+      if (child.exitCode === null && child.signalCode === null) throw error;
+    }
   } else {
     child.kill('SIGKILL');
   }
@@ -145,6 +150,7 @@ test('单击文件打开或切换标签，双击不重复打开，编辑在保�
 
   await expect(page.getByRole('tab', { name: '正文/第一章.md', exact: true })).toHaveAttribute('aria-selected', 'true');
   const content = page.getByRole('textbox', { name: '文档正文' });
+  await page.getByRole('button', { name: '折叠或展开元数据' }).click();
   await expect(content).toContainText('title: 初雪');
   await expect(content).toContainText('雪落在窗沿');
   await expect(content).toHaveAttribute('aria-readonly', 'false');
@@ -153,6 +159,81 @@ test('单击文件打开或切换标签，双击不重复打开，编辑在保�
   await expect(content).toContainText('should-not-be-written');
   expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
   await page.keyboard.press('Control+z');
+});
+
+test('索引 worker 经真实 preload 返回资产、反链与移动结果，参考快照只增', async () => {
+  await mkdir(path.join(workspace, '角色'));
+  await writeFile(
+    path.join(workspace, '角色/林晚.md'),
+    '---\nid: lin-wan\nkind: character\ntitle: 林晚\n---\n修表匠。'
+  );
+  await writeFile(path.join(workspace, '正文/第一章.md'), `${chapter}\n[[林晚]]`);
+  const listed = await page.evaluate(
+    async rootPath => (window as DesktopWindow).chaptaleDesktop.library.listAssets({ rootPath }),
+    workspace
+  );
+  expect(listed.assets.find(asset => asset.id === 'lin-wan')?.backlinks).toContain('正文/第一章.md');
+  await page.getByRole('tab', { name: '参考', exact: true }).click();
+  await page.getByRole('textbox', { name: '写作目标' }).fill('雪夜初见');
+  await page.getByRole('button', { name: '加入参考 林晚', exact: true }).click();
+  await expect(page.getByRole('button', { name: '取消固定 林晚' })).toBeVisible();
+  await page.getByRole('button', { name: '冻结参考', exact: true }).click();
+  await expect(page.getByText(/^已冻结 /)).toBeVisible();
+  expect(await readdir(path.join(workspace, '.chaptale/packs'))).toHaveLength(1);
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'm4-reference-pack.png') });
+  await writeFile(
+    path.join(workspace, '角色/林晚.md'),
+    '---\nid: lin-wan\nkind: character\ntitle: 林晚\n---\n新的角色状态。'
+  );
+  await expect(page.getByText('来源已更新', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '冻结参考', exact: true }).click();
+  await expect.poll(() => readdir(path.join(workspace, '.chaptale/packs'))).toHaveLength(2);
+  await rename(path.join(workspace, '角色/林晚.md'), path.join(workspace, '角色/林晚新.md'));
+  const moved = await page.evaluate(
+    async rootPath =>
+      (window as DesktopWindow).chaptaleDesktop.library.resolveLink({ rootPath, link: '[[角色/林晚]]' }),
+    workspace
+  );
+  expect(moved).toMatchObject({ status: 'moved', targetPath: '角色/林晚新.md' });
+});
+
+test('元数据默认折叠，标题导航、双链补全与跳转均操作真实文档', async () => {
+  await mkdir(path.join(workspace, '角色'));
+  await writeFile(
+    path.join(workspace, '角色/林晚.md'),
+    '---\nid: lin-wan\nkind: character\ntitle: 林晚\n---\n修表匠。'
+  );
+  await openChapter();
+  const content = page.getByRole('textbox', { name: '文档正文' });
+  await expect(content).not.toContainText('title: 初雪');
+  await page.getByRole('button', { name: '标题大纲', exact: true }).click();
+  await page.getByRole('navigation', { name: '标题大纲' }).getByRole('button', { name: '第一章' }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('\n[[');
+  await expect(page.getByRole('option').filter({ hasText: '林晚' })).toBeVisible();
+  await page.getByRole('option').filter({ hasText: '林晚' }).click();
+  await expect(content).toContainText('[[角色/林晚]]');
+  await page.keyboard.press('Control+s');
+  await page
+    .locator('.cm-wiki-link')
+    .filter({ hasText: '角色/林晚' })
+    .click({ modifiers: ['Control'] });
+  await expect(page.getByRole('tab', { name: '角色/林晚.md', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(content).toContainText('修表匠');
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'm4-library-navigation.png') });
+});
+
+test('外部新增前置目录后，虚拟树仍保持文件焦点和打开目标', async () => {
+  await page.getByRole('treeitem', { name: '正文', exact: true }).click();
+  await page.locator('[data-tree-path="正文/第一章.md"]').focus();
+  await mkdir(path.join(workspace, '000-新目录'));
+  await expect(page.getByRole('treeitem', { name: '000-新目录', exact: true })).toBeVisible();
+  await expect(page.locator('[data-tree-path="正文/第一章.md"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('tab', { name: '正文/第一章.md', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('雪落在窗沿');
 });
 
 test('Ctrl+S 保留混合换行和 BOM，保存及标签切换不丢撤销', async () => {
@@ -530,7 +611,8 @@ test('行号与正文垂直对齐，当前行和选区在三种主题中清晰�
     ['暖色', 'theme-warm']
   ] as const) {
     await page.getByRole('menuitem', { name: '视图', exact: true }).click();
-    await page.getByRole('menuitem', { name: '外观', exact: true }).hover();
+    await page.getByRole('menuitem', { name: '外观', exact: true }).focus();
+    await page.getByRole('menuitem', { name: '外观', exact: true }).press('ArrowRight');
     await page.getByRole('menuitem', { name: label, exact: true }).click();
     await expect(page.locator('html')).toHaveClass(new RegExp(theme));
     await content.click();
@@ -646,7 +728,8 @@ test('三种主题下正文与搜索控件保持可见', async () => {
     ['浅色', 'theme-light']
   ] as const) {
     await page.getByRole('menuitem', { name: '视图', exact: true }).click();
-    await page.getByRole('menuitem', { name: '外观', exact: true }).hover();
+    await page.getByRole('menuitem', { name: '外观', exact: true }).focus();
+    await page.getByRole('menuitem', { name: '外观', exact: true }).press('ArrowRight');
     await page.getByRole('menuitem', { name: label, exact: true }).click();
     await expect(page.locator('html')).toHaveClass(new RegExp(className));
     await page.getByRole('button', { name: '在文档中查找', exact: true }).click();

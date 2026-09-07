@@ -68,7 +68,7 @@ describe('WorkspaceIndexSourceResolver', () => {
     expect(path.basename(result.roots[0].absolutePath)).toBe('大纲');
     expect(path.basename(result.roots[1].absolutePath)).toBe('custom-world');
     expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: 'source-outside-workspace', role: 'outline' })
+      expect.objectContaining({ code: 'config-invalid', message: expect.stringContaining('outline') })
     );
   });
 });

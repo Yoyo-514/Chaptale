@@ -11,6 +11,8 @@ import {
 import { onMounted, onBeforeUnmount } from 'vue';
 
 import { EditorGroup, useEditorStore } from '@/features/editor';
+import { ReferencePanel, useLibraryStore } from '@/features/library';
+import { useWorkbenchStore } from '@/features/workbench';
 import { WorkspaceExplorer, useFileTreeStore, useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
@@ -19,6 +21,8 @@ import AgentPanel from './AgentPanel.vue';
 const editor = useEditorStore();
 const workspace = useWorkspaceStore();
 const tree = useFileTreeStore();
+const library = useLibraryStore();
+const navigation = useWorkbenchStore();
 let unsubscribe: (() => void) | undefined;
 onMounted(() => {
   if (!hasDesktopApi()) return;
@@ -26,6 +30,7 @@ onMounted(() => {
     if (event.rootPath !== workspace.rootPath) return;
     void tree.applyChanges(event.changes);
     void editor.handleWorkspaceChanged(event);
+    if (library.snapshot) void library.refresh();
   });
 });
 onBeforeUnmount(() => unsubscribe?.());
@@ -72,13 +77,14 @@ onBeforeUnmount(() => unsubscribe?.());
       class="workbench-panel"
     >
       <aside class="workbench-auxiliary-bar" aria-label="辅助栏">
-        <TabsRoot default-value="agent" class="workbench-auxiliary-root">
+        <TabsRoot v-model="navigation.auxiliary" class="workbench-auxiliary-root">
           <TabsList class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
             <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
-            <TabsTrigger class="workbench-auxiliary-tab" value="references" disabled>参考</TabsTrigger>
+            <TabsTrigger class="workbench-auxiliary-tab" value="references">参考</TabsTrigger>
             <TabsTrigger class="workbench-auxiliary-tab" value="review" disabled>审查</TabsTrigger>
           </TabsList>
           <TabsContent value="agent" class="workbench-auxiliary-content"><AgentPanel /></TabsContent>
+          <TabsContent value="references" class="workbench-auxiliary-content"><ReferencePanel /></TabsContent>
         </TabsRoot>
       </aside>
     </SplitterPanel>

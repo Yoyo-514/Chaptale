@@ -18,6 +18,9 @@ catalogs:
     '@ai-sdk/openai-compatible':
       specifier: ^3.0.43
       version: 3.0.43
+    '@codemirror/autocomplete':
+      specifier: 6.20.3
+      version: 6.20.3
     '@codemirror/commands':
       specifier: 6.11.0
       version: 6.11.0
@@ -342,6 +345,9 @@ importers:
       '@chaptale/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@codemirror/autocomplete':
+        specifier: 'catalog:'
+        version: 6.20.3
       '@codemirror/commands':
         specifier: 'catalog:'
         version: 6.11.0

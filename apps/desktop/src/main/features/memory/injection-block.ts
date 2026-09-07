@@ -12,15 +12,25 @@ type SectionSpec = {
 };
 
 /**
- * 注入优先级：守则 > 偏好 > 近况 > notes。
+ * 注入优先级：守则 > 伏笔 > 偏好 > 资产目录 > 近况 > notes。
  * 超限规则：低优先级整节截断并附一行提示，不做节内裁剪（保持内容完整可信）。
  */
 const SECTION_PRIORITY: SectionSpec[] = [
-  { key: 'styleGuide', title: '创作守则与禁忌', truncationHint: '创作守则未注入，需要时用 read 查看 设定/创作守则.md' },
+  {
+    key: 'styleGuide',
+    title: '创作守则与禁忌',
+    truncationHint: '创作守则未注入，需要时按 chaptale.json 的 world 目录定位创作守则'
+  },
+  { key: 'threads', title: '活跃伏笔', truncationHint: '活跃伏笔未注入，需要时用 memory_search 检索' },
   {
     key: 'preferences',
     title: '作者偏好要点',
     truncationHint: '作者偏好未注入，需要时用 read 查看 ~/.chaptale/memory/'
+  },
+  {
+    key: 'assets',
+    title: '作品资产目录',
+    truncationHint: '资产目录未注入，需要时用 memory_search 检索'
   },
   {
     key: 'recent',

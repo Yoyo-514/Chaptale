@@ -3,6 +3,7 @@ import { promises as fs, type Dirent } from 'node:fs';
 import path from 'node:path';
 
 import type { FrontmatterParser } from '../../../core/frontmatter/types';
+import { DEFAULT_IGNORED_DIRS } from '../../../infra/filesystem/path-guard';
 import { throwIfSearchAborted } from '../abort';
 import type { IndexDiagnostic, IndexSourceDocument, IndexSourceFile, IndexSourceRoot } from '../types';
 
@@ -222,7 +223,7 @@ async function collectMarkdownFiles(
   for (const entry of entries.toSorted((left, right) => left.name.localeCompare(right.name, 'zh-CN'))) {
     throwIfSearchAborted(signal);
     // 不跟随 symlink，既防 workspace 逃逸，也避免目录环。
-    if (entry.isSymbolicLink()) continue;
+    if (entry.isSymbolicLink() || DEFAULT_IGNORED_DIRS.has(entry.name) || entry.name === '.chaptale') continue;
     const entryPath = path.join(rootPath, entry.name);
     if (entry.isDirectory()) files.push(...(await collectMarkdownFiles(entryPath, diagnostics, role, signal)));
     else if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.md') files.push(entryPath);
@@ -230,7 +231,7 @@ async function collectMarkdownFiles(
   return files;
 }
 
-function isConflictCopy(fileName: string): boolean {
+export function isConflictCopy(fileName: string): boolean {
   return /conflicted copy|sync-conflict|冲突副本|\(冲突\)/iu.test(fileName);
 }
 

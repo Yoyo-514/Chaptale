@@ -2,12 +2,19 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type { WorkspaceDocument } from '@chaptale/ipc-contract';
+import type { AssetLink } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
+import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useLibraryStore } from '@/features/library';
+import { useWorkbenchStore } from '@/features/workbench';
+import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import type { DocumentBuffer } from '../codemirror/document-buffer';
+import type { DocumentHeading } from '../codemirror/markdown-navigation';
 import { createDocumentView } from '../codemirror/view';
+import { useEditorStore } from '../store';
 import type { DocumentViewState } from '../types';
 
 const props = defineProps<{
@@ -32,6 +39,14 @@ const emit = defineEmits<{
   compare: [];
 }>();
 const host = ref<HTMLElement | null>(null);
+const library = useLibraryStore();
+const editor = useEditorStore();
+const navigation = useWorkbenchStore();
+const showOutline = ref(false);
+const headings = ref<DocumentHeading[]>([]);
+const linkResult = ref<AssetLink | null>(null);
+const linkError = ref('');
+let outlineTimer: ReturnType<typeof setTimeout> | undefined;
 const large = computed(() => props.readonly);
 const size = computed(() => {
   const bytes = props.document.sizeBytes;
@@ -43,6 +58,28 @@ let view: ReturnType<typeof createDocumentView> | undefined;
 function find() {
   view?.find();
 }
+function updateOutline() {
+  headings.value = view?.headings() ?? [];
+}
+async function openLink(link: string) {
+  try {
+    const result = await getDesktopApi().library.resolveLink({ rootPath: props.document.rootPath, link });
+    if (result.targetPath) await editor.openDocument(result.targetPath);
+    else linkResult.value = result;
+  } catch (error) {
+    linkError.value = toErrorMessage(error);
+  }
+}
+function addSelection() {
+  const selection = view?.selection();
+  if (!selection?.text) return;
+  if (props.dirty) {
+    linkError.value = '选段参考需要已保存的来源，请先保存文件';
+    return;
+  }
+  library.add(props.document.relativePath, selection.text);
+  navigation.auxiliary = 'references';
+}
 
 onMounted(() => {
   if (!host.value) return;
@@ -51,12 +88,26 @@ onMounted(() => {
     large: large.value,
     viewState: props.viewState,
     buffer: props.buffer,
-    onChange: buffer => emit('change', buffer)
+    onChange: buffer => {
+      emit('change', buffer);
+      clearTimeout(outlineTimer);
+      outlineTimer = setTimeout(updateOutline, 200);
+    },
+    foldHead: props.document.head.status === 'ok',
+    assets: async () => {
+      if (!library.snapshot) await library.load();
+      return library.assets;
+    },
+    onOpenLink: link => {
+      void openLink(link);
+    }
   });
   if (view.buffer) emit('change', view.buffer);
+  updateOutline();
 });
 onBeforeUnmount(() => {
   if (!view) return;
+  clearTimeout(outlineTimer);
   emit('rememberView', view.getViewState());
   view.destroy();
 });
@@ -73,6 +124,31 @@ watch(
   <section class="document-view">
     <header class="document-toolbar">
       <span class="document-path" :title="document.relativePath">{{ document.relativePath }}</span>
+      <AppTooltip v-if="!large && document.head.status === 'ok'" text="折叠或展开元数据">
+        <AppButton icon size="xs" variant="ghost" aria-label="折叠或展开元数据" @click="view?.toggleHead()">
+          <span class="i-mingcute-braces-line size-3.5" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip v-if="!large" text="标题大纲">
+        <AppButton
+          icon
+          size="xs"
+          variant="ghost"
+          aria-label="标题大纲"
+          :aria-pressed="showOutline"
+          @click="
+            showOutline = !showOutline;
+            updateOutline();
+          "
+        >
+          <span class="i-mingcute-list-check-line size-3.5" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip v-if="!large" text="选段加入参考">
+        <AppButton icon size="xs" variant="ghost" aria-label="选段加入参考" @click="addSelection">
+          <span class="i-mingcute-bookmark-add-line size-3.5" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
       <span v-if="large" class="document-readonly"
         ><span class="i-mingcute-lock-line size-3" aria-hidden="true" />只读</span
       >
@@ -102,6 +178,31 @@ watch(
         </AppButton>
       </AppTooltip>
     </header>
+    <div v-if="linkResult || linkError" class="document-diagnostic" role="status">
+      <span>{{ linkError || (linkResult?.status === 'ambiguous' ? '引用存在多个同名来源' : '引用来源不存在') }}</span>
+      <button
+        v-for="candidate in linkResult?.candidates"
+        :key="candidate"
+        class="document-link-choice"
+        @click="
+          editor.openDocument(candidate);
+          linkResult = null;
+        "
+      >
+        {{ candidate }}
+      </button>
+      <AppButton
+        icon
+        size="xs"
+        variant="ghost"
+        aria-label="关闭引用提示"
+        @click="
+          linkResult = null;
+          linkError = '';
+        "
+        ><span class="i-mingcute-close-line size-3"
+      /></AppButton>
+    </div>
     <div v-if="saveError || recoveryError || conflict" class="document-diagnostic" role="alert">
       {{ saveError || recoveryError || '磁盘版本与本地版本不同' }}
       <AppButton v-if="conflict" size="xs" @click="emit('compare')">对比版本</AppButton>
@@ -111,6 +212,20 @@ watch(
       <p>{{ document.head.error }}</p>
     </details>
     <div class="document-surface">
+      <AppScrollArea v-if="showOutline" class="document-outline">
+        <nav aria-label="标题大纲">
+          <p v-if="!headings.length" class="p-3 text-xs">没有标题</p>
+          <button
+            v-for="heading in headings"
+            :key="heading.from"
+            :style="{ paddingLeft: `${12 + (heading.level - 1) * 10}px` }"
+            :title="heading.title"
+            @click="view?.goTo(heading.from, heading.to)"
+          >
+            {{ heading.title }}
+          </button>
+        </nav>
+      </AppScrollArea>
       <div ref="host" class="document-codemirror" />
       <span v-if="!(buffer?.state.doc.length ?? document.content.length)" class="document-empty" role="status"
         >空文件</span
@@ -146,11 +261,27 @@ watch(
 }
 
 .document-surface {
-  @apply relative min-h-0 min-w-0 flex-1 overflow-hidden;
+  @apply relative flex min-h-0 min-w-0 flex-1 overflow-hidden;
 }
 
 .document-codemirror {
-  @apply h-full min-h-0 min-w-0;
+  @apply h-full min-h-0 min-w-0 flex-1;
+}
+.document-outline {
+  @apply h-full w-40 max-w-[35%] shrink-0 border-r;
+  border-color: var(--border-subtle);
+}
+.document-outline button {
+  @apply block w-full truncate border-0 bg-transparent py-1 pr-2 text-left text-xs;
+  color: var(--muted-foreground);
+}
+.document-outline button:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.document-link-choice {
+  @apply m-1 border-0 bg-transparent underline;
+  color: var(--primary-solid);
 }
 
 .document-empty {

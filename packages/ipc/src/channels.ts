@@ -3,6 +3,14 @@
  * 按业务域分组可让 Preload、handler 注册和契约审查使用同一组不可变字面量。
  */
 export const IPC_CHANNELS = {
+  library: {
+    listAssets: 'library:list-assets',
+    resolveLink: 'library:resolve-link',
+    composePack: 'library:compose-pack',
+    freezePack: 'library:freeze-pack',
+    readPack: 'library:read-pack',
+    checkPack: 'library:check-pack'
+  },
   workspace: {
     getState: 'workspace:get-state',
     listDirectory: 'workspace:list-directory',

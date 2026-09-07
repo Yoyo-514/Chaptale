@@ -30,7 +30,10 @@ export default defineConfig(async () => ({
     vue(),
     ...(await electron({
       main: {
-        entry: path.resolve(desktopRoot, 'src/main/index.ts'),
+        entry: {
+          index: path.resolve(desktopRoot, 'src/main/index.ts'),
+          'index-worker': path.resolve(desktopRoot, 'src/main/features/search/index/worker-entry.ts')
+        },
         onstart: async ({ startup }) => {
           await startup(['.'], { cwd: desktopRoot });
         },

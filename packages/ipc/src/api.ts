@@ -19,6 +19,7 @@ import type {
   StreamAgentOptions
 } from './agent';
 import type { AppPlatformResult } from './app';
+import type { LibraryApi } from './library';
 import type {
   AddCustomModelPayload,
   AddCustomProviderPayload,
@@ -89,6 +90,7 @@ import type {
  * 该类型只描述可跨进程调用的稳定数据，不允许 Electron、Node 或具体 SDK 类型越过边界。
  */
 export type ChaptaleDesktopApi = {
+  library: LibraryApi;
   workspace: {
     getState: () => Promise<WorkspaceState>;
     listDirectory: (args: ListDirectoryArgs) => Promise<ListDirectoryResult>;

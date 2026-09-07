@@ -13,3 +13,4 @@ export * from './settings';
 export * from './slash-command';
 export * from './window';
 export * from './workspace';
+export * from './library';

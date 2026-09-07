@@ -52,7 +52,7 @@ describe('MemoryService', () => {
 
     const sections = await service.readSections(cwd);
 
-    expect(sections.styleGuide).toBe('禁用词：xxx');
+    expect(sections.styleGuide).toBe('来源：设定/创作守则.md\n禁用词：xxx');
     expect(sections.recent).toBe('第 3 章：决裂');
     expect(sections.notes).toBe('fear-of-water.md: 观察：林晚似乎怕水');
   });

@@ -12,7 +12,16 @@ export const WORKSPACE_ROLES = [
   'templates'
 ] as const;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
-export const WorkspaceRoleSchema = Type.Union(WORKSPACE_ROLES.map(role => Type.Literal(role)));
+export const WorkspaceRoleSchema = Type.Union([
+  Type.Literal('manuscript'),
+  Type.Literal('outline'),
+  Type.Literal('world'),
+  Type.Literal('characters'),
+  Type.Literal('threads'),
+  Type.Literal('drafts'),
+  Type.Literal('inspiration'),
+  Type.Literal('templates')
+]);
 export const WorkspaceRelativePathSchema = Type.String({
   minLength: 1,
   pattern: '^(?!.*(?:^|/)\\.{1,2}(?:/|$))[^/\\\\:\\x00]+(?:/[^/\\\\:\\x00]+)*$'
