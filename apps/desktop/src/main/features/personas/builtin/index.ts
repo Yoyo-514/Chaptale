@@ -3,6 +3,7 @@ import companionSource from './companion.md?raw';
 import continuityReviewerSource from './continuity-reviewer.md?raw';
 import draftSource from './draft.md?raw';
 import memoryDistillerSource from './memory-distiller.md?raw';
+import rewriterSource from './rewriter.md?raw';
 import styleReviewerSource from './style-reviewer.md?raw';
 
 /** 构建期打进 bundle 的内置 persona 源文本；新增内置 persona 时在此登记。换行统一为 LF，避免 Windows 检出的 CRLF 渗入运行层。 */
@@ -12,7 +13,8 @@ export const builtinPersonaSources: readonly string[] = [
   continuityReviewerSource.replace(/\r\n/g, '\n'),
   memoryDistillerSource.replace(/\r\n/g, '\n'),
   styleReviewerSource.replace(/\r\n/g, '\n'),
-  draftSource.replace(/\r\n/g, '\n')
+  draftSource.replace(/\r\n/g, '\n'),
+  rewriterSource.replace(/\r\n/g, '\n')
 ];
 
 /**

@@ -10,6 +10,7 @@ import { useLibraryStore } from '@/features/library';
 import { useReviewStore } from '@/features/reviews';
 
 import { useWritingStore } from '../store';
+import RewriteDialog from './RewriteDialog.vue';
 
 const writing = useWritingStore();
 const library = useLibraryStore();
@@ -55,6 +56,7 @@ function changeModel(event: Event) {
 }
 </script>
 <template>
+  <RewriteDialog />
   <AppDialog :open="Boolean(writing.draft)" title="创建候选稿" @update:open="open => !open && (writing.draft = null)">
     <div v-if="writing.draft" class="draft-confirm">
       <dl>

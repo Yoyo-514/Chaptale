@@ -1,6 +1,8 @@
 import {
   IPC_CHANNELS,
   DraftRequestValidator,
+  RewriteSelectionValidator,
+  RewriteRequestValidator,
   CandidateIdArgsValidator,
   ApplyCandidateValidator,
   WritingTargetValidator,
@@ -12,6 +14,16 @@ import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { WritingService } from './service';
 
 export function registerWritingIpc(service: WritingService) {
+  handleValidatedIpc(
+    IPC_CHANNELS.writing.prepareRewrite,
+    RewriteSelectionValidator,
+    (_event, args: Parameters<WritingService['prepareRewrite']>[0]) => service.prepareRewrite(args)
+  );
+  handleValidatedIpc(
+    IPC_CHANNELS.writing.rewrite,
+    RewriteRequestValidator,
+    (_event, args: Parameters<WritingService['rewrite']>[0]) => service.rewrite(args)
+  );
   handleValidatedIpc(
     IPC_CHANNELS.writing.generate,
     DraftRequestValidator,

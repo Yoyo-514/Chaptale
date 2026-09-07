@@ -56,6 +56,14 @@ export const CandidateSchema = Type.Object(
     runId: Type.Optional(Type.String()),
     outputRef: Type.Optional(WorkspaceRelativePathSchema),
     parentId: Type.Optional(ArtifactIdSchema),
+    reviewRef: Type.Optional(
+      Type.Object({
+        requestId: ArtifactIdSchema,
+        outputHash: ContentHashSchema,
+        issueIndexes: Type.Array(Type.Integer({ minimum: 0 }), { minItems: 1, maxItems: 100 }),
+        sourceHash: ContentHashSchema
+      })
+    ),
     error: Type.Optional(Type.String()),
     createdAt: Type.String(),
     updatedAt: Type.String(),

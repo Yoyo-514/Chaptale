@@ -26,7 +26,7 @@ export const useReviewStore = defineStore('review-workflow', () => {
   const navigation = useWorkbenchStore();
   const jobs = shallowRef<ReviewJobSummary[]>([]);
   const details = shallowRef<ReviewDetails | null>(null);
-  const confirmation = shallowRef<Omit<ReviewRunArgs, 'requestId' | 'personaId'> | null>(null);
+  const confirmation = ref<Omit<ReviewRunArgs, 'requestId' | 'personaId'> | null>(null);
   const enabled = ref<string[]>(REVIEWERS.map(reviewer => reviewer.id));
   const models = shallowRef<ChaptaleModelInfo[]>([]);
   const running = ref<Array<{ id: string; personaId: string }>>([]);

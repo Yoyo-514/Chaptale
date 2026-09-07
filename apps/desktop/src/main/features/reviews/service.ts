@@ -18,7 +18,7 @@ export function reviewReference(pack: ReferencePack) {
   };
 }
 export class ReviewService {
-  readonly store = new ReviewWorkflowStore();
+  readonly store: ReviewWorkflowStore;
   private readonly running = new Map<string, AbortController>();
   constructor(
     private readonly options: {
@@ -28,8 +28,11 @@ export class ReviewService {
       tasks: TaskRunnerPort;
       models: ModelService;
       candidates: Pick<CandidateStore, 'read'>;
+      store?: ReviewWorkflowStore;
     }
-  ) {}
+  ) {
+    this.store = options.store ?? new ReviewWorkflowStore();
+  }
   private key(args: ReviewIdArgs) {
     return `${args.rootPath}\0${args.requestId}`;
   }

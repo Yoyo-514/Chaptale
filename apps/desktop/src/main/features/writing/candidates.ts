@@ -1,4 +1,4 @@
-import { presentableDiff } from '@codemirror/merge';
+import { diff, presentableDiff } from '@codemirror/merge';
 import { createHash } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 
@@ -144,11 +144,28 @@ export class CandidateStore {
     });
   }
   async finish(rootPath: string, id: string, output: string, runId: string, outputRef: string) {
+    if (!output.trim() || output.length > 1_000_000) throw new Error('候选正文为空或超过长度上限');
+    return this.complete(
+      rootPath,
+      id,
+      candidate => applyDocumentEdits(candidate.baselineContent, [{ ...candidate.range, insert: output }]),
+      runId,
+      outputRef
+    );
+  }
+  async finishRevision(rootPath: string, id: string, content: string, runId: string, outputRef: string) {
+    if (!content.trim() || content.length > 12_000_000) throw new Error('修订正文为空或超过长度上限');
+    return this.complete(rootPath, id, () => content, runId, outputRef);
+  }
+  private async complete(
+    rootPath: string,
+    id: string,
+    proposed: (candidate: Candidate) => string,
+    runId: string,
+    outputRef: string
+  ) {
     return this.mutate(rootPath, id, async candidate => {
-      if (!output.trim() || output.length > 1_000_000) throw new Error('候选正文为空或超过长度上限');
-      candidate.proposedContent = applyDocumentEdits(candidate.baselineContent, [
-        { ...candidate.range, insert: output }
-      ]);
+      candidate.proposedContent = proposed(candidate);
       candidate.runId = runId;
       candidate.outputRef = outputRef;
       const current = await this.readTarget(rootPath, candidate.targetPath);
@@ -185,10 +202,23 @@ export class CandidateStore {
           : 0;
       if (indexes.some(index => details.changes[index]!.fromA < bodyStart)) throw new Error('候选不能修改 frontmatter');
       const proposed = normalizeDocumentText(candidate.proposedContent);
+      // 展示块会合并邻近变化；写盘仍用最小差异，避免重写块内未改行的换行字节。
+      const edits = diff(normalizeDocumentText(candidate.baselineContent), proposed, { scanLimit: 1000 }).filter(
+        change =>
+          indexes.some(index => {
+            const block = details.changes[index]!;
+            return (
+              change.fromA >= block.fromA &&
+              change.toA <= block.toA &&
+              change.fromB >= block.fromB &&
+              change.toB <= block.toB
+            );
+          })
+      );
+      if (!edits.length) throw new Error('差异块未包含有效修改');
       const content = applyDocumentEdits(
         candidate.baselineContent,
-        indexes.map(index => {
-          const change = details.changes[index]!;
+        edits.map(change => {
           return { from: change.fromA, to: change.toA, insert: proposed.slice(change.fromB, change.toB) };
         })
       );

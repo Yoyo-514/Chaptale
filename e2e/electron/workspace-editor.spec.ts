@@ -237,6 +237,16 @@ test('独立审查从落盘结果定位正文，状态分离保存并在重启�
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('林晚收起了信');
   await mkdir(visualDir, { recursive: true });
   await page.screenshot({ path: path.join(visualDir, 'm5-review-anchor.png') });
+  await panel.getByRole('checkbox', { name: '选择问题 1', exact: true }).check();
+  await panel.getByRole('button', { name: '修订所选 (1)', exact: true }).click();
+  const rewrite = page.getByRole('dialog', { name: '提出候选修订', exact: true });
+  await expect(rewrite).toBeVisible();
+  await expect(rewrite.getByRole('region', { name: '选中的问题' })).toContainText('林晚收起了信');
+  await expect(rewrite.getByRole('region', { name: '允许修改的原文' })).toHaveText(/雪落在窗沿，林晚收起了信/);
+  await expect(rewrite.getByRole('button', { name: '创建修订候选', exact: true })).toBeDisabled();
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  await page.screenshot({ path: path.join(visualDir, 'm5-rewrite-confirm.png') });
+  await rewrite.getByRole('button', { name: '取消', exact: true }).click();
   await panel.getByRole('button', { name: '忽略', exact: true }).click();
   await expect(page.locator('.document-codemirror .review-mark')).toHaveCount(0);
   expect(await readFile(path.join(reviewDir, 'review-fixture.json'), 'utf8')).toBe(output);

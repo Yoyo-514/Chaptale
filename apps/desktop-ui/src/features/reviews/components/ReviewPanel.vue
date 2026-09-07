@@ -14,6 +14,7 @@ const reviews = useReviewStore();
 const writing = useWritingStore();
 const navigation = useWorkbenchStore();
 const list = ref<HTMLElement | null>(null);
+const selectedIssues = ref<number[]>([]);
 const labels = { running: '运行中', done: '已完成', failed: '失败', cancelled: '已取消' };
 const severityLabels: Record<string, string> = { high: '高', medium: '中', low: '低' };
 const job = computed(() => reviews.details?.job);
@@ -34,6 +35,18 @@ const typeLabels: Record<string, string> = {
   mechanical_emotion: '情绪直述',
   unnatural_dialogue: '对白生硬'
 };
+watch(
+  () => reviews.details,
+  () => {
+    selectedIssues.value = selectedIssues.value.filter(index => reviews.issues[index]?.status === 'open');
+  }
+);
+watch(
+  () => job.value?.id,
+  () => {
+    selectedIssues.value = [];
+  }
+);
 watch(
   () => reviews.selectedIssue,
   async index => {
@@ -89,7 +102,9 @@ async function locate(index: number) {
         </option>
       </select>
     </div>
-    <p v-if="reviews.error || job?.error" role="alert">{{ reviews.error || job?.error }}</p>
+    <p v-if="reviews.error || writing.error || job?.error" role="alert">
+      {{ reviews.error || writing.error || job?.error }}
+    </p>
     <p v-if="reviews.needsRereview" class="review-warning" role="status">超过半数未处理问题已失锚，建议重新审查。</p>
     <div v-if="reviews.details?.result" class="issue-filters">
       <select v-model="reviews.severity" aria-label="问题严重度">
@@ -125,6 +140,13 @@ async function locate(index: number) {
           :class="{ selected: reviews.selectedIssue === value.index }"
         >
           <div class="issue-heading">
+            <input
+              v-model="selectedIssues"
+              type="checkbox"
+              :value="value.index"
+              :aria-label="`选择问题 ${value.index + 1}`"
+              :disabled="value.status !== 'open' || value.anchor.stale"
+            />
             <strong>{{ severityLabels[value.issue.severity] }} · {{ typeLabels[value.issue.type] }}</strong
             ><span v-if="value.anchor.stale">原文已变化</span>
           </div>
@@ -135,6 +157,13 @@ async function locate(index: number) {
           <p>{{ value.issue.suggestion }}</p>
           <p v-if="value.issue.agentType === 'character'">{{ value.issue.expectedBehavior }}</p>
           <div class="issue-actions">
+            <AppButton
+              v-if="value.status === 'open'"
+              size="xs"
+              :disabled="value.anchor.stale"
+              @click="writing.prepareRewrite(job!.id, [value.index])"
+              >提出修订</AppButton
+            >
             <AppButton size="xs" :disabled="value.anchor.stale" @click="locate(value.index)">定位</AppButton>
             <AppButton v-if="value.status !== 'resolved'" size="xs" @click="reviews.resolve([value.index], 'resolved')"
               >已处理</AppButton
@@ -150,6 +179,12 @@ async function locate(index: number) {
       </div>
     </AppScrollArea>
     <footer v-if="job">
+      <AppButton
+        size="xs"
+        :disabled="!selectedIssues.length"
+        @click="writing.prepareRewrite(job.id, [...selectedIssues])"
+        >修订所选 ({{ selectedIssues.length }})</AppButton
+      >
       <AppButton size="xs" @click="reviews.prepare(job.personaId)">重新审查正文</AppButton
       ><AppButton
         v-if="reviews.issueType !== 'all' && reviews.visibleIssues.length"

@@ -9,6 +9,8 @@ import {
   WritingModelSchema,
   type CandidateDetails,
   type CandidateSummary,
+  type ReviewIssue,
+  type RewriteSpan,
   type VersionSnapshot
 } from '@chaptale/shared';
 
@@ -66,8 +68,46 @@ export const SnapshotReadSchema = Type.Object(
   { additionalProperties: false }
 );
 export const SnapshotReadValidator = Compile(Type.Tuple([SnapshotReadSchema]));
+export const RewriteSelectionSchema = Type.Object(
+  {
+    ...WorkspaceRootArgsSchema.properties,
+    reviewId: ArtifactIdSchema,
+    issueIndexes: Type.Array(Type.Integer({ minimum: 0 }), { minItems: 1, maxItems: 100 })
+  },
+  { additionalProperties: false }
+);
+export type RewriteSelection = Static<typeof RewriteSelectionSchema>;
+export const RewriteSelectionValidator = Compile(Type.Tuple([RewriteSelectionSchema]));
+export const RewriteRequestSchema = Type.Object(
+  {
+    ...RewriteSelectionSchema.properties,
+    candidateId: ArtifactIdSchema,
+    expectedHash: ContentHashSchema,
+    sourceHash: ContentHashSchema,
+    outputHash: ContentHashSchema,
+    packId: ArtifactIdSchema,
+    allowStalePack: Type.Boolean(),
+    model: WritingModelSchema
+  },
+  { additionalProperties: false }
+);
+export type RewriteRequest = Static<typeof RewriteRequestSchema>;
+export const RewriteRequestValidator = Compile(Type.Tuple([RewriteRequestSchema]));
+export type RewritePlan = {
+  targetPath: string;
+  expectedHash: string;
+  sourceHash: string;
+  outputHash: string;
+  sourceText: string;
+  parentId?: string;
+  packId?: string;
+  issues: ReviewIssue[];
+  spans: RewriteSpan[];
+};
 export type WritingApi = {
   generate: (args: DraftRequest) => Promise<CandidateDetails>;
+  prepareRewrite: (args: RewriteSelection) => Promise<RewritePlan>;
+  rewrite: (args: RewriteRequest) => Promise<CandidateDetails>;
   cancel: (args: CandidateIdArgs) => Promise<void>;
   listCandidates: (args: { rootPath: string }) => Promise<{ candidates: CandidateSummary[]; diagnostics: string[] }>;
   readCandidate: (args: CandidateIdArgs) => Promise<CandidateDetails>;

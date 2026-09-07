@@ -12,6 +12,8 @@ export const IPC_CHANNELS = {
   },
   writing: {
     generate: 'writing:generate',
+    prepareRewrite: 'writing:prepare-rewrite',
+    rewrite: 'writing:rewrite',
     cancel: 'writing:cancel',
     listCandidates: 'writing:list-candidates',
     readCandidate: 'writing:read-candidate',

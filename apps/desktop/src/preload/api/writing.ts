@@ -5,6 +5,8 @@ import { IPC_CHANNELS, type WritingApi } from '@chaptale/ipc-contract';
 export function createWritingApi(): WritingApi {
   return {
     generate: args => ipcRenderer.invoke(IPC_CHANNELS.writing.generate, args),
+    prepareRewrite: args => ipcRenderer.invoke(IPC_CHANNELS.writing.prepareRewrite, args),
+    rewrite: args => ipcRenderer.invoke(IPC_CHANNELS.writing.rewrite, args),
     cancel: args => ipcRenderer.invoke(IPC_CHANNELS.writing.cancel, args),
     listCandidates: args => ipcRenderer.invoke(IPC_CHANNELS.writing.listCandidates, args),
     readCandidate: args => ipcRenderer.invoke(IPC_CHANNELS.writing.readCandidate, args),

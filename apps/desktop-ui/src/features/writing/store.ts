@@ -1,8 +1,13 @@
 import { defineStore } from 'pinia';
 import { computed, ref, shallowRef, watch } from 'vue';
 
-import type { ChaptaleModelInfo, DraftRequest } from '@chaptale/ipc-contract';
-import { normalizeDocumentText, type CandidateDetails, type CandidateSummary } from '@chaptale/shared';
+import type { ChaptaleModelInfo, DraftRequest, RewritePlan, RewriteSelection } from '@chaptale/ipc-contract';
+import {
+  normalizeDocumentText,
+  type CandidateDetails,
+  type CandidateSummary,
+  type WritingModel
+} from '@chaptale/shared';
 
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
@@ -17,7 +22,14 @@ export const useWritingStore = defineStore('writing', () => {
   const navigation = useWorkbenchStore();
   const candidates = shallowRef<CandidateSummary[]>([]);
   const details = shallowRef<CandidateDetails | null>(null);
-  const draft = shallowRef<DraftRequest | null>(null);
+  const draft = ref<DraftRequest | null>(null);
+  const rewrite = ref<{
+    selection: RewriteSelection;
+    plan: RewritePlan;
+    packId: string;
+    model: WritingModel | null;
+    allowStalePack: boolean;
+  } | null>(null);
   const models = shallowRef<ChaptaleModelInfo[]>([]);
   const ranges = shallowRef<Array<{ label: string; from: number; to: number }>>([]);
   const running = ref<string[]>([]);
@@ -112,11 +124,17 @@ export const useWritingStore = defineStore('writing', () => {
     const request = draft.value;
     if (!request) return;
     draft.value = null;
+    return runGeneration(request, () => getDesktopApi().writing.generate(request));
+  }
+  async function runGeneration(
+    request: { rootPath: string; candidateId: string },
+    run: () => Promise<CandidateDetails>
+  ) {
     running.value.push(request.candidateId);
     navigation.auxiliary = 'candidates';
     error.value = '';
     try {
-      const result = await getDesktopApi().writing.generate(request);
+      const result = await run();
       if (workspace.rootPath === request.rootPath) details.value = result;
     } catch (cause) {
       if (workspace.rootPath === request.rootPath) error.value = toErrorMessage(cause);
@@ -124,6 +142,55 @@ export const useWritingStore = defineStore('writing', () => {
       running.value = running.value.filter(id => id !== request.candidateId);
       if (workspace.rootPath === request.rootPath) await refresh();
     }
+  }
+  async function prepareRewrite(reviewId: string, issueIndexes: number[]) {
+    const rootPath = workspace.rootPath!;
+    error.value = '';
+    try {
+      const selection = { rootPath, reviewId, issueIndexes };
+      const plan = await getDesktopApi().writing.prepareRewrite(selection);
+      const tab = editor.tabs.find(value => value.path === plan.targetPath);
+      if (tab && (tab.dirty || tab.saving || tab.external)) throw new Error('请先保存目标正文或处理外部变化');
+      const available = await getDesktopApi().models.list();
+      const packId =
+        plan.packId ??
+        (
+          await getDesktopApi().library.freezePack({
+            rootPath,
+            goal: '按选中的审查问题最小修订',
+            selections: [],
+            budgetChars: 9000
+          })
+        ).id;
+      if (rootPath !== workspace.rootPath) return;
+      models.value = available.models.filter(model => model.authConfigured);
+      const model = models.value.find(value => value.isDefault) ?? models.value[0];
+      rewrite.value = {
+        selection,
+        plan,
+        packId,
+        allowStalePack: false,
+        model: model ? { provider: model.provider, modelId: model.id } : null
+      };
+    } catch (cause) {
+      if (rootPath === workspace.rootPath) error.value = toErrorMessage(cause);
+    }
+  }
+  async function generateRewrite() {
+    const confirmation = rewrite.value;
+    if (!confirmation?.model) return;
+    const request = {
+      ...confirmation.selection,
+      candidateId: crypto.randomUUID(),
+      expectedHash: confirmation.plan.expectedHash,
+      sourceHash: confirmation.plan.sourceHash,
+      outputHash: confirmation.plan.outputHash,
+      packId: confirmation.packId,
+      allowStalePack: confirmation.allowStalePack,
+      model: confirmation.model
+    };
+    rewrite.value = null;
+    return runGeneration(request, () => getDesktopApi().writing.rewrite(request));
   }
   async function cancel(candidateId: string) {
     try {
@@ -178,6 +245,7 @@ export const useWritingStore = defineStore('writing', () => {
       candidates.value = [];
       details.value = null;
       draft.value = null;
+      rewrite.value = null;
       running.value = [];
       error.value = '';
       diagnostics.value = [];
@@ -187,6 +255,7 @@ export const useWritingStore = defineStore('writing', () => {
     candidates,
     details,
     draft,
+    rewrite,
     models,
     ranges,
     running,
@@ -198,6 +267,8 @@ export const useWritingStore = defineStore('writing', () => {
     read,
     prepare,
     generate,
+    prepareRewrite,
+    generateRewrite,
     cancel,
     discard,
     apply

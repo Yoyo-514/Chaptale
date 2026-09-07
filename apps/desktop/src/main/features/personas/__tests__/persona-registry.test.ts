@@ -182,6 +182,7 @@ describe('PersonaRegistry', () => {
       'draft',
       'good',
       'memory-distiller',
+      'rewriter',
       'style-reviewer'
     ]);
     expect(diagnostics).toHaveLength(2);

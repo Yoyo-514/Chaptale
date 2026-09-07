@@ -11,3 +11,4 @@ export * from './workspace';
 export * from './library';
 export * from './writing';
 export * from './review-workflow';
+export * from './rewrite';

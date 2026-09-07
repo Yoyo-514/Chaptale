@@ -23,6 +23,7 @@ import { createDefaultPersonaRegistry } from '../features/personas/persona-regis
 import { PromptFileService } from '../features/prompts/file-service';
 import { ReviewService } from '../features/reviews/service';
 import { ReviewOutputStore } from '../features/reviews/store';
+import { ReviewWorkflowStore } from '../features/reviews/workflow-store';
 import { AgentRunStore } from '../features/runs/store';
 import { AttachedFileSearchService } from '../features/search/attached-file-service';
 import { WorkspaceIndexSourceResolver } from '../features/search/index/source-resolver';
@@ -158,12 +159,14 @@ export function createAppContext(): AppContext {
   });
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
+  const reviewWorkflowStore = new ReviewWorkflowStore();
   const writingService = new WritingService({
     workspace: workspaceService,
     library: libraryService,
     personas: personaRegistry,
     models: modelService,
-    tasks: taskRunner
+    tasks: taskRunner,
+    readReview: (rootPath, id) => reviewWorkflowStore.read(rootPath, id)
   });
   const reviewService = new ReviewService({
     workspace: workspaceService,
@@ -171,7 +174,8 @@ export function createAppContext(): AppContext {
     personas: personaRegistry,
     models: modelService,
     tasks: taskRunner,
-    candidates: writingService.candidates
+    candidates: writingService.candidates,
+    store: reviewWorkflowStore
   });
 
   // 会话压缩 = 创作检查点管线：memory-distiller 蒸馏出结构化检查点并原子落盘，
