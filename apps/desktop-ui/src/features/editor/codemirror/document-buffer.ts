@@ -1,4 +1,5 @@
 import { history, invertedEffects, isolateHistory } from '@codemirror/commands';
+import { diff } from '@codemirror/merge';
 import {
   Annotation,
   Compartment,
@@ -8,6 +9,8 @@ import {
   type Extension,
   type Transaction
 } from '@codemirror/state';
+
+import { normalizeDocumentText } from '@chaptale/shared';
 
 type LineFormat = { bom: boolean; preferred: string; separators: readonly string[] };
 const restoreLineFormat = StateEffect.define<LineFormat>();
@@ -82,7 +85,9 @@ export class DocumentBuffer {
         history(),
         this.lockConfig.of([]),
         invertedEffects.of(transaction =>
-          transaction.docChanged ? [restoreLineFormat.of(transaction.startState.field(lineFormat))] : []
+          transaction.docChanged || transaction.effects.some(effect => effect.is(restoreLineFormat))
+            ? [restoreLineFormat.of(transaction.startState.field(lineFormat))]
+            : []
         ),
         this.viewConfig.of(extensions)
       ]
@@ -124,8 +129,13 @@ export class DocumentBuffer {
 
   replaceContent(content: string, isolated = false) {
     const format = parseLineFormat(content);
+    const normalized = normalizeDocumentText(content);
     const transaction = this.state.update({
-      changes: { from: 0, to: this.state.doc.length, insert: format.bom ? content.slice(1) : content },
+      changes: diff(this.state.doc.toString(), normalized).map(change => ({
+        from: change.fromA,
+        to: change.toA,
+        insert: normalized.slice(change.fromB, change.toB)
+      })),
       effects: restoreLineFormat.of(format),
       annotations: [controlledEdit.of(true), ...(isolated ? [isolateHistory.of('full')] : [])],
       userEvent: 'input'

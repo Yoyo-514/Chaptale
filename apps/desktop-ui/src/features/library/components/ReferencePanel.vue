@@ -28,7 +28,13 @@ watch(query, () => {
   visibleLimit.value = 80;
 });
 const overBudget = computed(() => (library.pack?.chars ?? 0) > library.budgetChars);
-const sections = (pinned: boolean) => library.pack?.sections.filter(section => section.pinned === pinned) ?? [];
+const selectedSections = computed(() =>
+  library.selections.flatMap(selection => {
+    const section = library.pack?.sections.find(value => value.sourcePath === selection.sourcePath);
+    return section ? [Object.assign({}, section, selection)] : [];
+  })
+);
+const sections = (pinned: boolean) => selectedSections.value.filter(section => section.pinned === pinned);
 watch(
   () => [workspace.rootPath, workspace.revision],
   () => {
@@ -58,6 +64,27 @@ watch(
       <div class="reference-content">
         <p v-if="!workspace.rootPath">尚未打开工作区</p>
         <label class="reference-field"
+          >场景<select
+            aria-label="写作场景"
+            :value="library.scenePath ?? ''"
+            @change="library.useScene(($event.target as HTMLSelectElement).value || undefined)"
+          >
+            <option value="">临时写作目标</option>
+            <option
+              v-for="asset in library.available.filter(value => value.kind === 'scene-card')"
+              :key="asset.sourcePath"
+              :value="asset.sourcePath"
+            >
+              {{ asset.title }}
+            </option>
+          </select></label
+        >
+        <p v-if="library.chapterPath" class="reference-meta">目标章节：{{ library.chapterPath }}</p>
+        <details v-if="library.sceneDiagnostics.length">
+          <summary>未采用来源 · {{ library.sceneDiagnostics.length }}</summary>
+          <p v-for="message in library.sceneDiagnostics" :key="message">{{ message }}</p>
+        </details>
+        <label class="reference-field"
           >写作目标<textarea v-model="library.goal" rows="3" aria-label="写作目标" />
         </label>
         <div class="reference-budget" :class="{ 'is-over': overBudget }">
@@ -72,6 +99,25 @@ watch(
           /></label>
         </div>
         <p v-if="library.error" role="alert">{{ library.error }}</p>
+        <div v-if="library.error" class="reference-unreadable">
+          <div
+            v-for="selection in library.selections.filter(
+              value => !library.pack?.sections.some(section => section.sourcePath === value.sourcePath)
+            )"
+            :key="selection.sourcePath"
+          >
+            <span>{{ selection.sourcePath }}</span
+            ><AppButton
+              icon
+              size="xs"
+              variant="ghost"
+              :aria-label="`移除 ${selection.sourcePath}`"
+              title="移除参考"
+              @click="library.remove(selection.sourcePath)"
+              ><span class="i-mingcute-close-line size-3.5"
+            /></AppButton>
+          </div>
+        </div>
         <p v-if="library.freshness?.stale" class="reference-stale" role="status">来源已更新</p>
         <div v-for="pinned in [true, false]" :key="String(pinned)" class="reference-section">
           <h3>
@@ -117,6 +163,7 @@ watch(
             </div>
             <div class="reference-meta">
               {{ section.chars }} 字 · {{ new Date(section.updatedAt).toLocaleString() }}
+              <span v-if="section.reason"> · {{ section.reason }}</span>
             </div>
             <label class="reference-mode"
               ><input
@@ -135,6 +182,9 @@ watch(
           </article>
         </div>
         <section class="reference-section">
+          <AppButton v-if="library.excluded.length" size="xs" variant="ghost" @click="library.restoreExcluded"
+            >恢复已移除建议（{{ library.excluded.length }}）</AppButton
+          >
           <h3>
             未采用建议 <span>{{ candidates.length }}</span>
           </h3>
@@ -197,6 +247,18 @@ watch(
   @apply w-full resize-y rounded border p-2 text-xs;
   background: var(--input-background);
   color: var(--foreground);
+}
+.reference-field select {
+  @apply min-w-0 max-w-full rounded border px-2 py-1.5;
+  background: var(--input-background);
+  color: var(--foreground);
+}
+.reference-unreadable > div {
+  @apply flex min-w-0 items-center gap-1;
+}
+.reference-unreadable span {
+  @apply min-w-0 flex-1;
+  overflow-wrap: anywhere;
 }
 .reference-budget {
   @apply flex flex-wrap items-center justify-between gap-2;

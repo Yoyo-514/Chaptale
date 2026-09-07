@@ -7,6 +7,7 @@ import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useEditorStore } from '@/features/editor';
 import { useReviewStore } from '@/features/reviews';
 import { useSettingsStore } from '@/features/settings';
+import { useTemplateStore } from '@/features/templates';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 import { useWritingStore } from '@/features/writing';
@@ -17,6 +18,7 @@ const editor = useEditorStore();
 const navigation = useWorkbenchStore();
 const writing = useWritingStore();
 const reviews = useReviewStore();
+const templates = useTemplateStore();
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
 const THEME_ITEM_PREFIX = 'view.theme.';
@@ -51,7 +53,8 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       { id: 'file.close-workspace', label: '关闭工作区', disabled: !workspaceStore.rootPath, separatorBefore: true },
       { id: 'file.close-editor', label: '关闭文件', shortcut: 'Ctrl+W', disabled: !editor.activeId },
       { id: 'file.new-chapter', label: '新建章节', disabled: !workspaceStore.rootPath, separatorBefore: true },
-      { id: 'file.new-scene-card', label: '新建场景卡', disabled: true },
+      { id: 'file.new-scene-card', label: '新建场景卡', disabled: !workspaceStore.rootPath },
+      { id: 'file.new-asset', label: '从模板新建', disabled: !workspaceStore.rootPath },
       { id: 'file.save', label: '保存', shortcut: 'Ctrl+S', disabled: !editor.activeTab?.dirty, separatorBefore: true },
       { id: 'file.save-all', label: '全部保存', shortcut: 'Ctrl+Shift+S', disabled: !editor.hasUnsaved },
       { id: 'file.auto-save', label: '自动保存', checked: editor.autoSave },
@@ -135,6 +138,18 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'file.new-scene-card' || itemId === 'file.new-asset') {
+    const tab = editor.activeTab;
+    void templates.openCreate(
+      itemId === 'file.new-scene-card' ? 'scene-card' : 'chapter',
+      itemId === 'file.new-scene-card' &&
+        tab?.document?.head.status === 'ok' &&
+        tab.document.head.frontmatter.kind === 'chapter'
+        ? { chapter: `[[${tab.path}]]` }
+        : {}
+    );
+    return;
+  }
   if (itemId === 'review.center') {
     navigation.sidebar = 'review';
     navigation.auxiliary = 'review';

@@ -12,3 +12,5 @@ export * from './library';
 export * from './writing';
 export * from './review-workflow';
 export * from './rewrite';
+export * from './templates';
+export * from './scene-references';

@@ -15,6 +15,7 @@ import { createSessionApi } from './api/sessions';
 import { createSettingsApi } from './api/settings';
 import { createSubagentApi } from './api/subagent';
 import { createTasksApi } from './api/tasks';
+import { createTemplatesApi } from './api/templates';
 import { createTodosApi } from './api/todos';
 import { createWindowControlApi } from './api/window';
 import { createWorkspaceApi } from './api/workspace';
@@ -22,6 +23,7 @@ import { createWritingApi } from './api/writing';
 
 const desktopApi: ChaptaleDesktopApi = {
   writing: createWritingApi(),
+  templates: createTemplatesApi(),
   reviews: createReviewsApi(),
   library: createLibraryApi(),
   workspace: createWorkspaceApi(),

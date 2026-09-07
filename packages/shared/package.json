@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./src/index.ts"
+    },
+    "./document-frontmatter": {
+      "types": "./dist/document-frontmatter.d.ts",
+      "default": "./src/document-frontmatter.ts"
     }
   },
   "scripts": {
@@ -15,7 +19,8 @@
     "test": "cd ../.. && vitest run --config vitest.config.ts --project shared"
   },
   "dependencies": {
-    "typebox": "catalog:"
+    "typebox": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

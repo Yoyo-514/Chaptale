@@ -12,6 +12,7 @@ import { registerSessionIpc } from '../features/sessions/ipc';
 import { registerSettingsIpc } from '../features/settings/ipc';
 import { registerSubagentIpc } from '../features/subagent/ipc';
 import { registerTaskIpc } from '../features/tasks/ipc';
+import { registerTemplatesIpc } from '../features/templates/ipc';
 import { registerTodoIpc } from '../features/todo/ipc';
 import { registerWorkspaceIpc } from '../features/workspace/ipc';
 import { registerWritingIpc } from '../features/writing/ipc';
@@ -30,6 +31,7 @@ export function registerApplicationIpc(context: AppContext): void {
   registerWorkspaceIpc(context.workspaceService, ui);
   registerLibraryIpc(context.libraryService);
   registerWritingIpc(context.writingService);
+  registerTemplatesIpc(context.templateService);
   registerReviewIpc(context.reviewService);
 
   handleTrustedIpc(

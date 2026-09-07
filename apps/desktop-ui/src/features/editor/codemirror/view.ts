@@ -231,6 +231,10 @@ export function createDocumentView(
       });
       view.dispatch({ effects: (folded ? unfoldEffect : foldEffect).of(range) });
     },
+    foldHead() {
+      const range = documentHeadRange(view.state);
+      if (range) view.dispatch({ effects: foldEffect.of(range) });
+    },
     getViewState: (): DocumentViewState => ({
       anchor: view.state.selection.main.anchor,
       head: view.state.selection.main.head,

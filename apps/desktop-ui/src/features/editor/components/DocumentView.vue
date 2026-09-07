@@ -2,13 +2,15 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type { WorkspaceDocument } from '@chaptale/ipc-contract';
-import type { AssetLink } from '@chaptale/shared';
+import { matchAssetTemplate, validateTemplateValues, type AssetFieldValue, type AssetLink } from '@chaptale/shared';
+import { parseDocumentFrontmatter, patchDocumentFields } from '@chaptale/shared/document-frontmatter';
 
 import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useLibraryStore } from '@/features/library';
 import { useReviewStore } from '@/features/reviews';
+import { TemplateFields, useTemplateStore } from '@/features/templates';
 import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
@@ -44,6 +46,42 @@ const library = useLibraryStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
 const reviews = useReviewStore();
+const templates = useTemplateStore();
+const showForm = ref(false);
+const formValues = ref<Record<string, unknown>>({});
+const formError = ref('');
+const assetTemplate = computed(() =>
+  props.document.head.status === 'ok'
+    ? matchAssetTemplate(templates.templates, props.document.head.frontmatter)
+    : undefined
+);
+function syncForm() {
+  const head = parseDocumentFrontmatter(props.buffer?.content ?? props.document.content);
+  formValues.value = head.status === 'ok' ? head.frontmatter : {};
+}
+function changeField(key: string, value: AssetFieldValue) {
+  if (!props.buffer || props.saving || props.readonly || props.conflict || !assetTemplate.value) return;
+  try {
+    const errors = validateTemplateValues(assetTemplate.value, { [key]: value }, false);
+    if (errors.length) throw new Error(errors.join('\n'));
+    const content = patchDocumentFields(props.buffer.content, { [key]: value });
+    props.buffer.replaceContent(content);
+    view?.foldHead();
+    emit('change', props.buffer);
+    syncForm();
+    formError.value = '';
+  } catch (error) {
+    formError.value = toErrorMessage(error);
+  }
+}
+watch(showForm, () => {
+  syncForm();
+  if (showForm.value) {
+    view?.foldHead();
+    if (!library.snapshot) void library.load();
+  }
+});
+watch(() => props.document.contentHash, syncForm);
 const showOutline = ref(false);
 const headings = ref<DocumentHeading[]>([]);
 const linkResult = ref<AssetLink | null>(null);
@@ -84,6 +122,7 @@ function addSelection() {
 }
 
 onMounted(() => {
+  if (props.document.head.status === 'ok') void templates.load();
   if (!host.value) return;
   view = createDocumentView(host.value, props.document.content, {
     markdown: /\.(md|markdown)$/i.test(props.document.relativePath),
@@ -92,6 +131,7 @@ onMounted(() => {
     buffer: props.buffer,
     onChange: buffer => {
       emit('change', buffer);
+      if (showForm.value) syncForm();
       clearTimeout(outlineTimer);
       outlineTimer = setTimeout(updateOutline, 200);
     },
@@ -140,6 +180,10 @@ watch(
   <section class="document-view">
     <header class="document-toolbar">
       <span class="document-path" :title="document.relativePath">{{ document.relativePath }}</span>
+      <div v-if="assetTemplate && !large" class="document-modes" role="tablist" aria-label="文档视图">
+        <button role="tab" :aria-selected="showForm" @click="showForm = true">表单</button>
+        <button role="tab" :aria-selected="!showForm" @click="showForm = false">源文件</button>
+      </div>
       <AppTooltip v-if="!large && document.head.status === 'ok'" text="折叠或展开元数据">
         <AppButton icon size="xs" variant="ghost" aria-label="折叠或展开元数据" @click="view?.toggleHead()">
           <span class="i-mingcute-braces-line size-3.5" aria-hidden="true" />
@@ -227,6 +271,28 @@ watch(
       <summary>frontmatter 无法解析</summary>
       <p>{{ document.head.error }}</p>
     </details>
+    <AppScrollArea v-if="showForm && assetTemplate" class="document-form" aria-label="文档元数据表单">
+      <div class="document-form-content">
+        <TemplateFields
+          :fields="assetTemplate.fields"
+          :values="formValues"
+          :assets="library.available"
+          :disabled="readonly || saving || conflict"
+          @field="changeField"
+        />
+        <p v-if="formError" role="alert">{{ formError }}</p>
+        <AppButton
+          v-if="assetTemplate.targetKind === 'scene-card'"
+          size="xs"
+          :disabled="dirty || saving"
+          @click="
+            library.useScene(document.relativePath);
+            navigation.auxiliary = 'references';
+          "
+          >组装本次参考</AppButton
+        >
+      </div>
+    </AppScrollArea>
     <div class="document-surface">
       <AppScrollArea v-if="showOutline" class="document-outline">
         <nav aria-label="标题大纲">
@@ -274,6 +340,32 @@ watch(
 
 .document-readonly {
   @apply mr-1 inline-flex shrink-0 items-center gap-1 text-[11px];
+}
+.document-modes {
+  @apply flex h-6 shrink-0 items-center gap-1;
+}
+.document-modes button {
+  @apply h-6 border-0 bg-transparent px-2 text-xs;
+  color: var(--muted-foreground);
+}
+.document-modes button[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.document-form {
+  @apply min-h-0 shrink-0 border-b;
+  max-height: 55%;
+  border-color: var(--border-subtle);
+}
+.document-form-content {
+  @apply mx-auto flex max-w-2xl flex-col gap-3 p-4;
+}
+.document-form :deep([data-slot='app-scroll-area-viewport']) {
+  max-height: 100%;
+}
+.document-form-content [role='alert'] {
+  @apply text-xs;
+  color: var(--destructive);
 }
 
 .document-surface {

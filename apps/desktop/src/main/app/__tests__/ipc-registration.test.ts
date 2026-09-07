@@ -52,9 +52,11 @@ import {
   RecoveryPathArgsValidator,
   SaveRecoveryArgsValidator,
   LibraryLinkArgsValidator,
+  SceneReferencesValidator,
   ComposePackArgsValidator,
   PackIdArgsValidator,
   DraftRequestValidator,
+  CreateAssetValidator,
   RewriteSelectionValidator,
   RewriteRequestValidator,
   CandidateIdArgsValidator,
@@ -122,6 +124,8 @@ const validated = (channel: string, validator: IpcValidator): Registration => ({
 
 const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.app.getPlatform),
+  validated(IPC_CHANNELS.templates.list, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.templates.create, CreateAssetValidator),
   validated(IPC_CHANNELS.reviews.run, ReviewRunValidator),
   validated(IPC_CHANNELS.reviews.cancel, ReviewIdValidator),
   validated(IPC_CHANNELS.reviews.list, WorkspaceRootArgsValidator),
@@ -169,6 +173,7 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.workspace.saveRecovery, SaveRecoveryArgsValidator),
   validated(IPC_CHANNELS.workspace.discardRecovery, RecoveryPathArgsValidator),
   validated(IPC_CHANNELS.library.listAssets, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.library.sceneReferences, SceneReferencesValidator),
   validated(IPC_CHANNELS.library.resolveLink, LibraryLinkArgsValidator),
   validated(IPC_CHANNELS.library.composePack, ComposePackArgsValidator),
   validated(IPC_CHANNELS.library.freezePack, ComposePackArgsValidator),

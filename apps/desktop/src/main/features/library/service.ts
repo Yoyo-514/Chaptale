@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { stringify } from 'yaml';
 
-import type { ComposePackArgs, PackFreshness } from '@chaptale/ipc-contract';
+import type { ComposePackArgs, PackFreshness, SceneReferencesArgs } from '@chaptale/ipc-contract';
 import {
   escapeXmlAttribute,
   escapeXmlText,
   ReferencePackValidator,
+  selectSceneReferences,
   type ReferencePack,
   type ReferenceSection
 } from '@chaptale/shared';
@@ -36,6 +37,12 @@ export class LibraryService {
     await this.assertWorkspace(rootPath);
     return this.index.resolveLink(rootPath, link);
   }
+  async sceneReferences(args: SceneReferencesArgs) {
+    const snapshot = await this.listAssets(args.rootPath);
+    const scene = snapshot.assets.find(asset => asset.sourcePath === args.scenePath);
+    if (!scene) throw new Error('场景卡未被索引，请保存文件后刷新');
+    return selectSceneReferences(scene, snapshot.assets, args.selections, args.excluded);
+  }
 
   async composePack(args: ComposePackArgs): Promise<ReferencePack> {
     await this.assertWorkspace(args.rootPath);
@@ -63,13 +70,7 @@ export class LibraryService {
       }
       const content =
         selection.quote ??
-        (selection.mode === 'summary'
-          ? `${stringify(head).trim()}\n\n${document.head.body
-              .split(/\r?\n/)
-              .filter(line => line.trim())
-              .slice(0, 3)
-              .join('\n')}`.trim()
-          : document.content);
+        (selection.mode === 'summary' ? referenceSummary(head, document.head.body) : document.content);
       totalBytes += Buffer.byteLength(content);
       if (totalBytes > 8 * 1024 * 1024) throw new Error('参考总量超过 8 MiB，请减少来源后重试；未截断原文');
       sections.push({
@@ -165,6 +166,23 @@ export class LibraryService {
     }
     return { stale: sources.some(source => source.state !== 'current'), sources };
   }
+}
+
+export function referenceSummary(head: Record<string, unknown>, body: string) {
+  const metadata = { ...head };
+  if (Array.isArray(metadata.relations))
+    metadata.relations = metadata.relations.flatMap(value =>
+      value && typeof value === 'object' && 'to' in value && typeof value.to === 'string' ? [value.to] : []
+    );
+  const lines = body.split(/\r?\n/);
+  const meaningful = lines.filter(line => line.trim() && !/^#{1,6}\s|^\s*<!--/.test(line)).slice(0, 3);
+  const sections: string[] = [];
+  let include = false;
+  for (const line of lines) {
+    if (/^#{1,6}\s/.test(line)) include = /当前状态|已知信息|规则|禁忌|目标与动机/.test(line);
+    if (include) sections.push(line);
+  }
+  return `${stringify(metadata).trim()}\n\n${[...new Set([...meaningful, ...sections])].join('\n')}`.trim();
 }
 
 /** 不把随机 id、冻结时间或文件 mtime 放入模型前缀。 */

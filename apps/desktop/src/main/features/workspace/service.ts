@@ -264,6 +264,38 @@ export class WorkspaceService {
     }
   }
 
+  async createDocument(args: { rootPath: string; relativePath: string; content: string }): Promise<ReadDocumentResult> {
+    try {
+      await this.assertWorkspace(args.rootPath);
+      if (!isSafeRelativePath(args.relativePath) || args.relativePath.split('/').some(part => part.startsWith('.')))
+        throw new Error('新建文档只能位于作者目录');
+      for (const part of args.relativePath.split('/')) {
+        const error = validateEntryName(part);
+        if (error) throw new Error(error);
+      }
+      if (
+        !args.content.isWellFormed() ||
+        args.content.includes('\0') ||
+        Buffer.byteLength(args.content) > 8 * 1024 * 1024
+      )
+        throw new Error('文档内容无效或超过 8 MiB');
+      const target = await resolveWithinCwd(args.rootPath, args.relativePath);
+      await withFileWriteLock(target, async () => {
+        await this.assertWorkspace(args.rootPath);
+        await fs.mkdir(path.dirname(target), { recursive: true });
+        await resolveWithinCwd(args.rootPath, args.relativePath);
+        await createTextAtomically(target, args.content);
+      });
+      return this.readDocument(args);
+    } catch (error) {
+      return {
+        ok: false,
+        code: 'read-failed',
+        message: (error as NodeJS.ErrnoException).code === 'EEXIST' ? '同名文件已存在' : String(error)
+      };
+    }
+  }
+
   /**
    * 在工作区内新建空文件或目录。
    *

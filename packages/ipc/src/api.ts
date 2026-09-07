@@ -65,6 +65,7 @@ import type {
   TaskRunCompleteEvent,
   TaskRunPayload
 } from './tasks';
+import type { TemplatesApi } from './templates';
 import type { TodosUpdatedEvent } from './todos';
 import type { WindowStateResult } from './window';
 import type {
@@ -93,6 +94,7 @@ import type { WritingApi } from './writing';
  */
 export type ChaptaleDesktopApi = {
   writing: WritingApi;
+  templates: TemplatesApi;
   reviews: ReviewsApi;
   library: LibraryApi;
   workspace: {

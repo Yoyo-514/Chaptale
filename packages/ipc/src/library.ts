@@ -6,7 +6,8 @@ import {
   WorkspaceRelativePathSchema,
   type AssetSnapshot,
   type AssetLink,
-  type ReferencePack
+  type ReferencePack,
+  type SceneReferences
 } from '@chaptale/shared';
 
 import { WorkspaceRootArgsSchema } from './schemas/workspace';
@@ -39,11 +40,23 @@ export const PackIdArgsSchema = Type.Object(
   { additionalProperties: false }
 );
 export const PackIdArgsValidator = Compile(Type.Tuple([PackIdArgsSchema]));
+export const SceneReferencesSchema = Type.Object(
+  {
+    ...WorkspaceRootArgsSchema.properties,
+    scenePath: WorkspaceRelativePathSchema,
+    selections: Type.Array(ReferenceSelectionSchema, { maxItems: 200 }),
+    excluded: Type.Array(WorkspaceRelativePathSchema, { maxItems: 200 })
+  },
+  { additionalProperties: false }
+);
+export type SceneReferencesArgs = Static<typeof SceneReferencesSchema>;
+export const SceneReferencesValidator = Compile(Type.Tuple([SceneReferencesSchema]));
 export type PackFreshness = {
   stale: boolean;
   sources: Array<{ sourcePath: string; state: 'current' | 'changed' | 'missing' }>;
 };
 export type LibraryApi = {
+  sceneReferences: (args: SceneReferencesArgs) => Promise<SceneReferences>;
   listAssets: (args: { rootPath: string }) => Promise<AssetSnapshot>;
   resolveLink: (args: Static<typeof LibraryLinkArgsSchema>) => Promise<AssetLink>;
   composePack: (args: ComposePackArgs) => Promise<ReferencePack>;

@@ -13,6 +13,7 @@ import { onMounted, onBeforeUnmount } from 'vue';
 import { EditorGroup, useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore } from '@/features/library';
 import { ReviewPanel, ReviewCenter } from '@/features/reviews';
+import { CreateAssetDialog } from '@/features/templates';
 import { useWorkbenchStore } from '@/features/workbench';
 import { WorkspaceExplorer, useFileTreeStore, useWorkspaceStore } from '@/features/workspace';
 import { CandidatePanel, WritingDialogs } from '@/features/writing';
@@ -96,6 +97,7 @@ onBeforeUnmount(() => unsubscribe?.());
     </SplitterPanel>
   </SplitterGroup>
   <WritingDialogs />
+  <CreateAssetDialog />
 </template>
 
 <style scoped lang="scss">

@@ -13,6 +13,11 @@ export const useLibraryStore = defineStore('library', () => {
   const selections = ref<ReferenceSelection[]>([]);
   const goal = ref('');
   const scenePath = ref<string>();
+  const chapterPath = ref<string>();
+  const sceneDiagnostics = ref<string[]>([]);
+  const excluded = ref<string[]>([]);
+  let sceneGoal = '';
+  let sceneSequence = 0;
   const budgetChars = ref(9000);
   const pack = shallowRef<ReferencePack | null>(null);
   const frozen = shallowRef<ReferencePack | null>(null);
@@ -77,6 +82,7 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
   function add(sourcePath: string, quote?: string) {
+    excluded.value = excluded.value.filter(path => path !== sourcePath);
     const existing = selections.value.find(selection => selection.sourcePath === sourcePath);
     const selection: ReferenceSelection = {
       sourcePath,
@@ -89,7 +95,55 @@ export const useLibraryStore = defineStore('library', () => {
     else selections.value.push(selection);
   }
   function remove(sourcePath: string) {
+    if (scenePath.value && !excluded.value.includes(sourcePath)) excluded.value.push(sourcePath);
     selections.value = selections.value.filter(selection => selection.sourcePath !== sourcePath);
+  }
+  async function rebuildScene() {
+    const rootPath = workspace.rootPath;
+    const scene = scenePath.value;
+    if (!rootPath || !scene) return;
+    const token = ++sceneSequence;
+    const selectionKey = () => JSON.stringify([selections.value, excluded.value]);
+    const requestedSelection = selectionKey();
+    try {
+      const result = await getDesktopApi().library.sceneReferences({
+        rootPath,
+        scenePath: scene,
+        selections: selections.value.map(value => ({ ...value })),
+        excluded: [...excluded.value]
+      });
+      if (token !== sceneSequence || scene !== scenePath.value || rootPath !== workspace.rootPath) return;
+      if (selectionKey() !== requestedSelection) {
+        await rebuildScene();
+        return;
+      }
+      if (goal.value === sceneGoal || !goal.value) goal.value = result.goal;
+      sceneGoal = result.goal;
+      chapterPath.value = result.chapterPath;
+      sceneDiagnostics.value = result.diagnostics;
+      selections.value = result.selections;
+    } catch (cause) {
+      if (token === sceneSequence) error.value = toErrorMessage(cause);
+    }
+  }
+  async function useScene(path?: string) {
+    if (scenePath.value !== path) {
+      excluded.value = [];
+      selections.value = selections.value.filter(value => value.pinned);
+      goal.value = '';
+      sceneGoal = '';
+    }
+    scenePath.value = path;
+    chapterPath.value = undefined;
+    sceneDiagnostics.value = [];
+    if (path) await rebuildScene();
+    else ++sceneSequence;
+    await compose();
+  }
+  async function restoreExcluded() {
+    excluded.value = [];
+    await rebuildScene();
+    await compose();
   }
   async function freeze() {
     if (!workspace.rootPath || busy.value) return;
@@ -130,6 +184,8 @@ export const useLibraryStore = defineStore('library', () => {
     const rootPath = workspace.rootPath;
     await load();
     if (rootPath !== workspace.rootPath) return;
+    await rebuildScene();
+    if (rootPath !== workspace.rootPath) return;
     await checkFreshness();
     if (rootPath !== workspace.rootPath) return;
     await compose();
@@ -150,10 +206,15 @@ export const useLibraryStore = defineStore('library', () => {
     ++composeSequence;
     ++freezeSequence;
     ++freshnessSequence;
+    ++sceneSequence;
     snapshot.value = null;
     selections.value = [];
     goal.value = '';
     scenePath.value = undefined;
+    chapterPath.value = undefined;
+    sceneDiagnostics.value = [];
+    excluded.value = [];
+    sceneGoal = '';
     pack.value = null;
     frozen.value = null;
     freshness.value = null;
@@ -171,6 +232,9 @@ export const useLibraryStore = defineStore('library', () => {
     selections,
     goal,
     scenePath,
+    chapterPath,
+    sceneDiagnostics,
+    excluded,
     budgetChars,
     pack,
     frozen,
@@ -185,6 +249,8 @@ export const useLibraryStore = defineStore('library', () => {
     remove,
     freeze,
     checkFreshness,
-    refresh
+    refresh,
+    useScene,
+    restoreExcluded
   };
 });

@@ -1,4 +1,5 @@
 import {
+  SceneReferencesValidator,
   IPC_CHANNELS,
   WorkspaceRootArgsValidator,
   LibraryLinkArgsValidator,
@@ -10,6 +11,11 @@ import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { LibraryService } from './service';
 
 export function registerLibraryIpc(service: LibraryService) {
+  handleValidatedIpc(
+    IPC_CHANNELS.library.sceneReferences,
+    SceneReferencesValidator,
+    (_event, args: Parameters<LibraryService['sceneReferences']>[0]) => service.sceneReferences(args)
+  );
   handleValidatedIpc(
     IPC_CHANNELS.library.listAssets,
     WorkspaceRootArgsValidator,

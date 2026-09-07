@@ -10,6 +10,10 @@ const ipcPackageRoot = path.resolve(desktopRoot, '../../packages/ipc/src');
 
 const workspaceAliases = [
   {
+    find: '@chaptale/shared/document-frontmatter',
+    replacement: path.resolve(desktopRoot, '../../packages/shared/src/document-frontmatter.ts')
+  },
+  {
     find: '@chaptale/ipc-contract/channels',
     replacement: path.resolve(ipcPackageRoot, 'channels.ts')
   },

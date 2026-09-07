@@ -68,7 +68,16 @@ export const useWritingStore = defineStore('writing', () => {
     }
   }
   async function prepare(parentId?: string) {
-    const tab = editor.activeTab;
+    let tab = editor.activeTab;
+    if (library.scenePath && tab?.path === library.scenePath) {
+      if (!library.chapterPath) {
+        error.value = '场景卡未关联有效章节，请先选择目标正文';
+        navigation.auxiliary = 'candidates';
+        return;
+      }
+      await editor.openDocument(library.chapterPath);
+      tab = editor.activeTab;
+    }
     if (!tab?.document || tab.readonly || tab.dirty || tab.saving || tab.external) {
       error.value = '请打开已保存的 Markdown 正文';
       navigation.auxiliary = 'candidates';

@@ -73,6 +73,8 @@ const crossFeatureAllowlist = [
   'tasks -> skills/provider-port',
   // task 会话按 spec.skills 挂 skill_read：声明了技能的 persona 才能读正文（运行时边，有理由见注释）。
   'tasks -> skills/skill-read-tool',
+  'templates -> workspace/read-document',
+  'templates -> workspace/service',
   'writing -> library/service',
   'writing -> personas/registry',
   'writing -> tasks/runner-port',

@@ -15,4 +15,5 @@ export * from './window';
 export * from './workspace';
 export * from './library';
 export * from './writing';
+export * from './templates';
 export * from './reviews';

@@ -99,7 +99,7 @@ test.afterEach(async () => {
   } finally {
     expect(path.dirname(path.resolve(home))).toBe(path.resolve(os.tmpdir()));
     expect(path.basename(home).startsWith('chaptale-editor-e2e-')).toBe(true);
-    await rm(home, { recursive: true, force: true });
+    await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
   expect(pageErrors).toEqual([]);
 });
@@ -108,6 +108,54 @@ async function openChapter(folder = '正文') {
   await page.getByRole('treeitem', { name: folder, exact: true }).click();
   await page.locator(`[data-tree-path="${folder}/第一章.md"]`).click();
 }
+
+test('场景模板创建、表单无损保存及场景参考通过真实 IPC 串联', async () => {
+  await writeFile(
+    path.join(workspace, '正文/第一章.md'),
+    chapter.replace('title: 初雪', 'id: chapter-one\r\nkind: chapter\r\norder: 1\r\ntitle: 初雪')
+  );
+  await mkdir(path.join(workspace, '角色'));
+  await writeFile(
+    path.join(workspace, '角色/林晚.md'),
+    '---\nkind: character\ntitle: 林晚\nstatus: active\n---\n## 当前状态\n尚未拆信。\n'
+  );
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新建场景卡', exact: true }).click();
+  const create = page.getByRole('dialog', { name: '新建场景卡', exact: true });
+  await create.getByRole('textbox', { name: /^标题/ }).fill('夜访');
+  await create.getByRole('textbox', { name: '场景目标', exact: true }).fill('收到来信');
+  await create.getByRole('combobox', { name: '所属章节', exact: true }).fill('[[正文/第一章.md]]');
+  await create.getByRole('combobox', { name: '添加出场角色', exact: true }).selectOption('[[角色/林晚.md]]');
+  await expect(create.getByRole('textbox', { name: '出场角色', exact: true })).toHaveValue('[[角色/林晚.md]]');
+  await create.getByRole('button', { name: '创建文件', exact: true }).click();
+  const scenePath = '大纲/场景卡/夜访.md';
+  await expect(page.getByRole('tab', { name: scenePath, exact: true })).toBeVisible();
+  const filename = path.join(workspace, scenePath);
+  const created = await readFile(filename, 'utf8');
+  const custom = '# 不属于模板的字段\ncustom: { values: [甲, 乙], number: 0xFF } # 保留\n';
+  const withUnknown = created.replace('\n---\n', `\n${custom}---\n`);
+  await writeFile(filename, withUnknown);
+  await page.getByRole('button', { name: '重新读取', exact: true }).click();
+  await page.getByRole('tab', { name: '表单', exact: true }).click();
+  const form = page.locator('.document-form');
+  await form.getByRole('textbox', { name: '场景目标', exact: true }).fill('在桥下交换来信');
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => readFile(filename, 'utf8')).toContain('goal: 在桥下交换来信');
+  const saved = await readFile(filename, 'utf8');
+  expect(saved).toContain(custom);
+  expect(saved.split('\n---\n')[1]).toBe(withUnknown.split('\n---\n')[1]);
+  await form.getByRole('button', { name: '组装本次参考', exact: true }).click();
+  const references = page.getByRole('region', { name: '本次写作参考', exact: true });
+  await expect(references.getByRole('textbox', { name: '写作目标', exact: true })).toHaveValue('在桥下交换来信');
+  await expect(references.getByRole('button', { name: '林晚', exact: true })).toBeVisible();
+  await references.getByRole('button', { name: '固定 林晚', exact: true }).click();
+  await references.getByRole('button', { name: '重组参考', exact: true }).click();
+  await expect(references.getByRole('button', { name: '取消固定 林晚', exact: true })).toBeVisible();
+  await references.getByRole('button', { name: '冻结参考', exact: true }).click();
+  await expect(references.getByText(/已冻结/)).toBeVisible();
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'm5-scene-reference.png') });
+});
 
 test('候选留档经真实 IPC 恢复、确认接受并独立撤销，正文基线不被 watch 重置', async () => {
   const directory = path.join(workspace, '.chaptale/revisions/candidates');

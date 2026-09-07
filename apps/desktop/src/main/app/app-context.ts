@@ -37,6 +37,7 @@ import type { TaskOutputStorePort } from '../features/tasks/output-port';
 import { TaskRunner } from '../features/tasks/runner';
 import { TaskService } from '../features/tasks/service';
 import { TaskSessionFactory } from '../features/tasks/session-factory';
+import { TemplateService } from '../features/templates/service';
 import { TodoStore } from '../features/todo/store';
 import { WebToolsSettingsAdapter } from '../features/web-tools/adapter';
 import { WebToolsSettingsStore } from '../features/web-tools/settings';
@@ -67,6 +68,7 @@ export type AppContext = {
   indexService: WorkspaceIndexWorker;
   libraryService: LibraryService;
   writingService: WritingService;
+  templateService: TemplateService;
   reviewService: ReviewService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
@@ -132,6 +134,7 @@ export function createAppContext(): AppContext {
   const indexSourceResolver = new WorkspaceIndexSourceResolver();
   const indexService = new WorkspaceIndexWorker(path.join(settingsService.rootDir, 'cache'));
   const libraryService = new LibraryService(workspaceService, indexService);
+  const templateService = new TemplateService(workspaceService, path.join(settingsService.rootDir, 'templates'));
   workspaceService.onChange(event => {
     void indexService
       .invalidate(
@@ -235,6 +238,7 @@ export function createAppContext(): AppContext {
     indexService,
     libraryService,
     writingService,
+    templateService,
     reviewService,
     permissionBroker,
     permissionRuleStore,
