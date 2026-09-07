@@ -10,3 +10,6 @@ export {
   type ReviewLaneStatus,
   type ReviewSubagentTaskEvent
 } from './composables/useReviewLanes';
+export { useReviewStore } from './store';
+export { default as ReviewPanel } from './components/ReviewPanel.vue';
+export { default as ReviewCenter } from './components/ReviewCenter.vue';

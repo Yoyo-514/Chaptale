@@ -58,7 +58,10 @@ import {
   CandidateIdArgsValidator,
   ApplyCandidateValidator,
   WritingTargetValidator,
-  SnapshotReadValidator
+  SnapshotReadValidator,
+  ReviewRunValidator,
+  ReviewIdValidator,
+  ResolveIssueValidator
 } from '@chaptale/ipc-contract';
 
 import { WorkspaceService } from '../../features/workspace/service';
@@ -117,6 +120,11 @@ const validated = (channel: string, validator: IpcValidator): Registration => ({
 
 const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.app.getPlatform),
+  validated(IPC_CHANNELS.reviews.run, ReviewRunValidator),
+  validated(IPC_CHANNELS.reviews.cancel, ReviewIdValidator),
+  validated(IPC_CHANNELS.reviews.list, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.reviews.read, ReviewIdValidator),
+  validated(IPC_CHANNELS.reviews.resolve, ResolveIssueValidator),
   validated(IPC_CHANNELS.writing.generate, DraftRequestValidator),
   validated(IPC_CHANNELS.writing.cancel, CandidateIdArgsValidator),
   validated(IPC_CHANNELS.writing.listCandidates, WorkspaceRootArgsValidator),

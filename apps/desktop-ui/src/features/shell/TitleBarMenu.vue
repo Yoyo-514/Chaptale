@@ -5,6 +5,7 @@ import { isChaptaleTheme } from '@chaptale/ipc-contract';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useEditorStore } from '@/features/editor';
+import { useReviewStore } from '@/features/reviews';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
@@ -15,6 +16,7 @@ const settingsStore = useSettingsStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
 const writing = useWritingStore();
+const reviews = useReviewStore();
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
 const THEME_ITEM_PREFIX = 'view.theme.';
@@ -114,11 +116,11 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'review',
     label: '审查',
     items: [
-      { id: 'review.continuity', label: '运行连贯性审查', disabled: true },
-      { id: 'review.character', label: '运行人物审查', disabled: true },
-      { id: 'review.style', label: '运行文风审查', disabled: true },
-      { id: 'review.enabled', label: '运行已启用审查', disabled: true, separatorBefore: true },
-      { id: 'review.center', label: '打开审查中心', disabled: true, separatorBefore: true }
+      { id: 'review.continuity', label: '运行连贯性审查', disabled: !editor.activeTab },
+      { id: 'review.character', label: '运行人物审查', disabled: !editor.activeTab },
+      { id: 'review.style', label: '运行文风审查', disabled: !editor.activeTab },
+      { id: 'review.enabled', label: '运行已启用审查', disabled: !editor.activeTab, separatorBefore: true },
+      { id: 'review.center', label: '打开审查中心', disabled: !workspaceStore.rootPath, separatorBefore: true }
     ]
   },
   {
@@ -133,6 +135,15 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'review.center') {
+    navigation.sidebar = 'review';
+    navigation.auxiliary = 'review';
+    return;
+  }
+  if (itemId.startsWith('review.')) {
+    void reviews.prepare(itemId === 'review.enabled' ? undefined : `${itemId.slice(7)}-reviewer`);
+    return;
+  }
   if (itemId === 'writing.generate') {
     void writing.prepare();
     return;

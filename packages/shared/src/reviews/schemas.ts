@@ -96,6 +96,7 @@ export type ReviewIssues = ContinuityIssues | CharacterIssues | StyleIssues;
 export function decodeReviewIssues(kind: 'continuity', value: unknown): ContinuityIssues | undefined;
 export function decodeReviewIssues(kind: 'character', value: unknown): CharacterIssues | undefined;
 export function decodeReviewIssues(kind: 'style', value: unknown): StyleIssues | undefined;
+export function decodeReviewIssues(kind: ReviewAgentType, value: unknown): ReviewIssues | undefined;
 export function decodeReviewIssues(kind: ReviewAgentType, value: unknown): ReviewIssues | undefined {
   switch (kind) {
     case 'continuity':

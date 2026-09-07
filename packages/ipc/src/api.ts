@@ -40,6 +40,7 @@ import type {
   PermissionRuleEntry
 } from './permissions';
 import type { PromptSettingsState, UpdatePromptSettingsPayload } from './prompt-settings';
+import type { ReviewsApi } from './reviews';
 import type {
   ChaptaleSessionInfoEntry,
   ChaptaleSessionListItem,
@@ -92,6 +93,7 @@ import type { WritingApi } from './writing';
  */
 export type ChaptaleDesktopApi = {
   writing: WritingApi;
+  reviews: ReviewsApi;
   library: LibraryApi;
   workspace: {
     getState: () => Promise<WorkspaceState>;

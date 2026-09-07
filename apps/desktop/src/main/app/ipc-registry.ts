@@ -7,6 +7,7 @@ import { registerMemoryIpc } from '../features/memory/ipc';
 import { registerModelsIpc } from '../features/models/ipc';
 import { registerPermissionsIpc } from '../features/permissions/ipc';
 import { registerPromptSettingsIpc } from '../features/prompts/ipc';
+import { registerReviewIpc } from '../features/reviews/ipc';
 import { registerSessionIpc } from '../features/sessions/ipc';
 import { registerSettingsIpc } from '../features/settings/ipc';
 import { registerSubagentIpc } from '../features/subagent/ipc';
@@ -29,6 +30,7 @@ export function registerApplicationIpc(context: AppContext): void {
   registerWorkspaceIpc(context.workspaceService, ui);
   registerLibraryIpc(context.libraryService);
   registerWritingIpc(context.writingService);
+  registerReviewIpc(context.reviewService);
 
   handleTrustedIpc(
     IPC_CHANNELS.app.getPlatform,

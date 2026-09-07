@@ -21,6 +21,7 @@ import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
 import { createDefaultPersonaRegistry } from '../features/personas/persona-registry-factory';
 import { PromptFileService } from '../features/prompts/file-service';
+import { ReviewService } from '../features/reviews/service';
 import { ReviewOutputStore } from '../features/reviews/store';
 import { AgentRunStore } from '../features/runs/store';
 import { AttachedFileSearchService } from '../features/search/attached-file-service';
@@ -65,6 +66,7 @@ export type AppContext = {
   indexService: WorkspaceIndexWorker;
   libraryService: LibraryService;
   writingService: WritingService;
+  reviewService: ReviewService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
   /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
@@ -163,6 +165,14 @@ export function createAppContext(): AppContext {
     models: modelService,
     tasks: taskRunner
   });
+  const reviewService = new ReviewService({
+    workspace: workspaceService,
+    library: libraryService,
+    personas: personaRegistry,
+    models: modelService,
+    tasks: taskRunner,
+    candidates: writingService.candidates
+  });
 
   // 会话压缩 = 创作检查点管线：memory-distiller 蒸馏出结构化检查点并原子落盘，
   // 同一正文才写入会话流；任一步失败即取消压缩，不留半截状态。
@@ -221,6 +231,7 @@ export function createAppContext(): AppContext {
     indexService,
     libraryService,
     writingService,
+    reviewService,
     permissionBroker,
     permissionRuleStore,
     getPermissionSettingsCwd: () => settingsService.getCurrentCwd(),

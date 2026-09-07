@@ -20,11 +20,12 @@ import {
   lineNumbers
 } from '@codemirror/view';
 
-import type { AssetRecord } from '@chaptale/shared';
+import type { AssetRecord, ReviewMark } from '@chaptale/shared';
 
 import type { DocumentViewState } from '../types';
 import { DocumentBuffer } from './document-buffer';
 import { documentHeadings, documentHeadRange, wikiLinks } from './markdown-navigation';
+import { reviewDecorations, setReviewMarks } from './review-marks';
 
 const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '14px', color: 'var(--foreground)', backgroundColor: 'var(--mica-background)' },
@@ -103,6 +104,7 @@ export function createDocumentView(
     assets?: () => Promise<readonly AssetRecord[]>;
     onOpenLink?: (link: string) => void;
     foldHead?: boolean;
+    onReviewClick?: (id: string) => void;
   }
 ) {
   const extensions = [
@@ -125,6 +127,7 @@ export function createDocumentView(
     highlightActiveLine(),
     highlightActiveLineGutter(),
     theme,
+    ...(options.onReviewClick ? reviewDecorations(options.onReviewClick) : []),
     EditorState.phrases.of({
       Find: '查找',
       Replace: '替换',
@@ -203,6 +206,7 @@ export function createDocumentView(
 
   return {
     buffer,
+    setReviewMarks: (marks: ReviewMark[]) => view.dispatch({ effects: setReviewMarks.of(marks) }),
     find: () => openSearchPanel(view),
     undo: () => undo(view),
     redo: () => redo(view),

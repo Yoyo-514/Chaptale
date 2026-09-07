@@ -8,6 +8,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useLibraryStore } from '@/features/library';
+import { useReviewStore } from '@/features/reviews';
 import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
@@ -42,6 +43,7 @@ const host = ref<HTMLElement | null>(null);
 const library = useLibraryStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
+const reviews = useReviewStore();
 const showOutline = ref(false);
 const headings = ref<DocumentHeading[]>([]);
 const linkResult = ref<AssetLink | null>(null);
@@ -100,10 +102,13 @@ onMounted(() => {
     },
     onOpenLink: link => {
       void openLink(link);
-    }
+    },
+    onReviewClick: reviews.selectMark
   });
   if (view.buffer) emit('change', view.buffer);
   updateOutline();
+  view.setReviewMarks(reviews.marks(props.document.relativePath));
+  if (editor.location?.path === props.document.relativePath) view.goTo(editor.location.from, editor.location.to);
 });
 onBeforeUnmount(() => {
   if (!view) return;
@@ -112,6 +117,17 @@ onBeforeUnmount(() => {
   view.destroy();
 });
 watch(() => props.searchRequest, find);
+watch(
+  () => reviews.marks(props.document.relativePath),
+  marks => view?.setReviewMarks(marks),
+  { deep: true }
+);
+watch(
+  () => editor.location,
+  location => {
+    if (location?.path === props.document.relativePath) view?.goTo(location.from, location.to);
+  }
+);
 watch(
   () => props.command,
   command => {

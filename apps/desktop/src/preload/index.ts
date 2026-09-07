@@ -10,6 +10,7 @@ import { createMemoryApi } from './api/memory';
 import { createModelsApi } from './api/models';
 import { createPermissionsApi } from './api/permissions';
 import { createPromptSettingsApi } from './api/prompts';
+import { createReviewsApi } from './api/reviews';
 import { createSessionApi } from './api/sessions';
 import { createSettingsApi } from './api/settings';
 import { createSubagentApi } from './api/subagent';
@@ -21,6 +22,7 @@ import { createWritingApi } from './api/writing';
 
 const desktopApi: ChaptaleDesktopApi = {
   writing: createWritingApi(),
+  reviews: createReviewsApi(),
   library: createLibraryApi(),
   workspace: createWorkspaceApi(),
   getPlatform: createGetPlatformApi(),

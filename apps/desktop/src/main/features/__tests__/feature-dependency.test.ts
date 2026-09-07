@@ -53,6 +53,12 @@ const crossFeatureAllowlist = [
   'memory -> personas/registry',
   'personas -> search/types',
   'prompts -> personas/builtin',
+  'reviews -> library/service',
+  'reviews -> personas/registry',
+  'reviews -> tasks/runner-port',
+  'reviews -> workspace/read-document',
+  'reviews -> workspace/service',
+  'reviews -> writing/candidates',
   // 索引 worker 复用编辑器的安全快照读取和宽容 YAML，不另建不受限读取链路。
   'search -> workspace/read-document',
   'search -> workspace/frontmatter',

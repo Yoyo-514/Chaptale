@@ -2,14 +2,16 @@
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useSettingsStore } from '@/features/settings';
+import { useWorkbenchStore } from '@/features/workbench';
 
 const settingsStore = useSettingsStore();
+const navigation = useWorkbenchStore();
 
 const activities = [
   { id: 'workspace', label: '工作区', icon: 'i-mingcute-folder-2-line', available: true },
   { id: 'search', label: '搜索', icon: 'i-mingcute-search-line', available: false },
   { id: 'structure', label: '结构', icon: 'i-mingcute-list-check-line', available: false },
-  { id: 'review', label: '审查', icon: 'i-mingcute-check-circle-line', available: false },
+  { id: 'review', label: '审查', icon: 'i-mingcute-check-circle-line', available: true },
   { id: 'memory', label: '记忆', icon: 'i-mingcute-brain-line', available: false }
 ] as const;
 </script>
@@ -29,10 +31,11 @@ const activities = [
           size="lg"
           variant="ghost"
           type="button"
-          :selected="activity.id === 'workspace'"
+          :selected="activity.id === navigation.sidebar"
           :disabled="!activity.available"
-          :aria-current="activity.id === 'workspace' ? 'page' : undefined"
+          :aria-current="activity.id === navigation.sidebar ? 'page' : undefined"
           :aria-label="activity.label"
+          @click="navigation.sidebar = activity.id"
         >
           <span :class="[activity.icon, 'size-5']" aria-hidden="true" />
         </AppButton>

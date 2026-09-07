@@ -24,6 +24,7 @@ export const useEditorStore = defineStore('editor', () => {
   const tabs = shallowRef<EditorTab[]>([]);
   const activeId = ref('');
   const searchRequest = ref(0);
+  const location = shallowRef<{ path: string; from: number; to: number; sequence: number } | null>(null);
   const newChapterOpen = ref(false);
   const command = shallowRef<{ name: 'undo' | 'redo'; sequence: number } | null>(null);
   const unsavedPrompt = shallowRef<{ paths: string[] } | null>(null);
@@ -174,6 +175,10 @@ export const useEditorStore = defineStore('editor', () => {
 
   function requestSearch() {
     if (activeTab.value?.status === 'ready') searchRequest.value += 1;
+  }
+  async function locate(path: string, from: number, to = from) {
+    await openDocument(path);
+    location.value = { path, from, to, sequence: (location.value?.sequence ?? 0) + 1 };
   }
 
   function requestCommand(name: 'undo' | 'redo') {
@@ -691,6 +696,8 @@ export const useEditorStore = defineStore('editor', () => {
     activeId,
     activeTab,
     searchRequest,
+    location,
+    locate,
     newChapterOpen,
     command,
     hasUnsaved,

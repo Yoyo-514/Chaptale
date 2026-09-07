@@ -12,6 +12,7 @@ import { onMounted, onBeforeUnmount } from 'vue';
 
 import { EditorGroup, useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore } from '@/features/library';
+import { ReviewPanel, ReviewCenter } from '@/features/reviews';
 import { useWorkbenchStore } from '@/features/workbench';
 import { WorkspaceExplorer, useFileTreeStore, useWorkspaceStore } from '@/features/workspace';
 import { CandidatePanel, WritingDialogs } from '@/features/writing';
@@ -54,7 +55,8 @@ onBeforeUnmount(() => unsubscribe?.());
       class="workbench-panel"
     >
       <aside class="workbench-primary-sidebar" aria-label="工作区侧栏">
-        <WorkspaceExplorer @open-file="editor.openDocument" />
+        <WorkspaceExplorer v-show="navigation.sidebar !== 'review'" @open-file="editor.openDocument" />
+        <ReviewCenter v-if="navigation.sidebar === 'review'" />
       </aside>
     </SplitterPanel>
 
@@ -83,11 +85,12 @@ onBeforeUnmount(() => unsubscribe?.());
             <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
             <TabsTrigger class="workbench-auxiliary-tab" value="references">参考</TabsTrigger>
             <TabsTrigger class="workbench-auxiliary-tab" value="candidates">候选</TabsTrigger>
-            <TabsTrigger class="workbench-auxiliary-tab" value="review" disabled>审查</TabsTrigger>
+            <TabsTrigger class="workbench-auxiliary-tab" value="review">审查</TabsTrigger>
           </TabsList>
           <TabsContent value="agent" class="workbench-auxiliary-content"><AgentPanel /></TabsContent>
           <TabsContent value="references" class="workbench-auxiliary-content"><ReferencePanel /></TabsContent>
           <TabsContent value="candidates" class="workbench-auxiliary-content"><CandidatePanel /></TabsContent>
+          <TabsContent value="review" class="workbench-auxiliary-content"><ReviewPanel /></TabsContent>
         </TabsRoot>
       </aside>
     </SplitterPanel>

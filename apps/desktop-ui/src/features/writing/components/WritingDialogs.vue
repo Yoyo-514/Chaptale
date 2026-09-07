@@ -7,11 +7,13 @@ import { AppButton } from '@/components/AppButton';
 import { AppDialog } from '@/components/AppDialog';
 import { AppDiffView } from '@/components/AppDiffView';
 import { useLibraryStore } from '@/features/library';
+import { useReviewStore } from '@/features/reviews';
 
 import { useWritingStore } from '../store';
 
 const writing = useWritingStore();
 const library = useLibraryStore();
+const reviews = useReviewStore();
 const selection = ref({ from: 0, to: 0 });
 const currentBlock = ref(0);
 const confirmAll = ref(false);
@@ -158,6 +160,15 @@ function changeModel(event: Event) {
         <AppButton size="xs" @click="confirmAll = false">取消</AppButton>
       </div>
       <footer>
+        <AppButton
+          v-if="['ready', 'partially-accepted', 'accepted'].includes(candidate.status)"
+          size="xs"
+          @click="
+            reviews.prepare(undefined, candidate);
+            writing.details = null;
+          "
+          >审查候选稿</AppButton
+        >
         <AppButton
           v-if="candidate.status === 'stale' || candidate.status === 'failed' || candidate.status === 'cancelled'"
           size="xs"
