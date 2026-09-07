@@ -38,6 +38,7 @@ export const ReviewJobSchema = Type.Object(
     ]),
     runId: Type.Optional(ArtifactIdSchema),
     outputRef: Type.Optional(WorkspaceRelativePathSchema),
+    outputHash: Type.Optional(ContentHashSchema),
     error: Type.Optional(Type.String()),
     createdAt: Type.String(),
     updatedAt: Type.String()

@@ -9,6 +9,7 @@ const versions = useVersionStore();
 const reasons = {
   accepted: '接受前',
   final: '定稿',
+  'before-final': '定稿前',
   settlement: '结算前',
   'before-rollback': '回滚前',
   rollback: '回滚'

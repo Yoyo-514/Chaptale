@@ -234,10 +234,11 @@ test('资产库文档版本支持定稿快照、外部冲突保护、完整回�
       (window as DesktopWindow).chaptaleDesktop.writing.listVersions({ rootPath: root, targetPath: '正文/第一章.md' }),
     workspace
   );
-  expect(snapshots).toHaveLength(1);
-  expect(snapshots[0]!.reason).toBe('final');
-  const immutable = await readFile(path.join(workspace, snapshots[0]!.contentPath), 'utf8');
-  expect(immutable).toBe(chapter);
+  expect(snapshots).toHaveLength(2);
+  const finalSnapshot = snapshots.find(item => item.reason === 'final')!;
+  expect(snapshots.some(item => item.reason === 'before-final')).toBe(true);
+  const immutable = await readFile(path.join(workspace, finalSnapshot.contentPath), 'utf8');
+  expect(immutable).toBe(finalized);
   await writeFile(path.join(workspace, '正文/第一章.md'), `${finalized}后来的修改。\r\n`);
   await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('后来的修改');
   await page.getByRole('button', { name: '查看文档版本', exact: true }).click();
@@ -254,8 +255,8 @@ test('资产库文档版本支持定稿快照、外部冲突保护、完整回�
   await expect(dialog.getByRole('textbox', { name: '当前版本', exact: true })).toContainText('外部再次修改');
   await dialog.getByRole('button', { name: '回滚到该版本', exact: true }).click();
   await expect(dialog.getByText('当前文件与此快照一致', { exact: true })).toBeVisible();
-  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
-  expect(await readFile(path.join(workspace, snapshots[0]!.contentPath), 'utf8')).toBe(immutable);
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(finalized);
+  expect(await readFile(path.join(workspace, finalSnapshot.contentPath), 'utf8')).toBe(immutable);
   const restored = await page.evaluate(
     async root =>
       (window as DesktopWindow).chaptaleDesktop.writing.listVersions({ rootPath: root, targetPath: '正文/第一章.md' }),

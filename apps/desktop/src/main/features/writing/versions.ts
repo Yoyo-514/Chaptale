@@ -6,19 +6,50 @@ import { VersionSnapshotValidator, type AssetRecord, type VersionSnapshot } from
 import { parseDocumentFrontmatter } from '@chaptale/shared/document-frontmatter';
 
 import { createArtifact, resolveArtifactPath } from '../../core/workspace/artifacts';
+import { WorkspaceLayoutService } from '../../core/workspace/layout';
 import { withFileWriteLock } from '../../infra/filesystem/write-lock';
 import { readDocumentSnapshot } from '../workspace/read-document';
 
 function versionDirectory(targetPath: string) {
   return `.chaptale/revisions/versions/${createHash('sha256').update(targetPath).digest('hex').slice(0, 24)}`;
 }
+type VersionDocument = Pick<WorkspaceDocument, 'rootPath' | 'relativePath' | 'content' | 'contentHash' | 'head'>;
 export class VersionStore {
   constructor(
     private readonly assets?: (rootPath: string) => Promise<readonly Pick<AssetRecord, 'sourcePath' | 'id'>[]>
   ) {}
 
+  async preserveFinalization(
+    next: Pick<WorkspaceDocument, 'rootPath' | 'relativePath' | 'content'>,
+    previous?: WorkspaceDocument
+  ) {
+    if (!/\.(md|markdown)$/i.test(next.relativePath) || next.relativePath.split('/').some(part => part.startsWith('.')))
+      return;
+    const head = parseDocumentFrontmatter(next.content);
+    if (
+      head.status !== 'ok' ||
+      head.frontmatter.status !== 'final' ||
+      (previous?.head.status === 'ok' && previous.head.frontmatter.status === 'final')
+    )
+      return;
+    const layout = await new WorkspaceLayoutService().read(next.rootPath);
+    if (
+      head.frontmatter.kind !== 'chapter' &&
+      (head.frontmatter.kind !== undefined || !next.relativePath.startsWith(`${layout.roles.manuscript.relativePath}/`))
+    )
+      return;
+    const contentHash = createHash('sha256').update(next.content).digest('hex');
+    if (
+      (await this.list(next.rootPath, next.relativePath)).some(
+        item => item.reason === 'final' && item.contentHash === contentHash
+      )
+    )
+      return;
+    await this.save({ ...next, head, contentHash }, 'final');
+  }
+
   async save(
-    document: WorkspaceDocument,
+    document: VersionDocument,
     reason: VersionSnapshot['reason'],
     candidateId?: string,
     restoredFrom?: string

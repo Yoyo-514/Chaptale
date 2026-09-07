@@ -46,6 +46,7 @@ import { RecoveryStore } from '../features/workspace/recovery';
 import { WorkspaceService } from '../features/workspace/service';
 import { WorkspaceWatcher } from '../features/workspace/watcher';
 import { WritingService } from '../features/writing/service';
+import { VersionStore } from '../features/writing/versions';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { OfficeDocumentParser } from '../integrations/officeparser/parser';
@@ -82,11 +83,14 @@ export type AppContext = {
 
 export function createAppContext(): AppContext {
   const settingsService = new SettingsService(new WebToolsSettingsAdapter());
+  const indexService = new WorkspaceIndexWorker(path.join(settingsService.rootDir, 'cache'));
+  const versions = new VersionStore(async cwd => (await indexService.listAssets(cwd)).assets);
   const workspaceService = new WorkspaceService(
     settingsService,
     {},
     new WorkspaceWatcher(),
-    new RecoveryStore(path.join(settingsService.rootDir, 'cache'))
+    new RecoveryStore(path.join(settingsService.rootDir, 'cache')),
+    (next, previous) => versions.preserveFinalization(next, previous)
   );
   const webToolsSettingsStore = new WebToolsSettingsStore({ configPath: settingsService.webToolsConfigPath });
 
@@ -134,7 +138,6 @@ export function createAppContext(): AppContext {
   const subagentPool = new SubagentPool();
   const memoryPendingStore = new MemoryPendingStore({ parseFrontmatter });
   const indexSourceResolver = new WorkspaceIndexSourceResolver();
-  const indexService = new WorkspaceIndexWorker(path.join(settingsService.rootDir, 'cache'));
   const libraryService = new LibraryService(workspaceService, indexService);
   const templateService = new TemplateService(workspaceService, path.join(settingsService.rootDir, 'templates'));
   workspaceService.onChange(event => {
@@ -171,6 +174,7 @@ export function createAppContext(): AppContext {
     personas: personaRegistry,
     models: modelService,
     tasks: taskRunner,
+    versions,
     readReview: (rootPath, id) => reviewWorkflowStore.read(rootPath, id)
   });
   const reviewService = new ReviewService({

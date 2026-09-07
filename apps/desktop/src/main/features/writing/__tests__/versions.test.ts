@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AssetCatalog } from '../../search/index/asset-catalog';
 import { readDocumentSnapshot } from '../../workspace/read-document';
+import { WorkspaceService } from '../../workspace/service';
 import { VersionStore } from '../versions';
 
 let home: string, root: string, versions: VersionStore;
@@ -24,6 +25,77 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 describe('不可变版本', () => {
+  it('表单和源文件保存为 final 时先留存完整定稿，普通后续编辑不重复快照', async () => {
+    const workspace = new WorkspaceService(
+      { getStorageContext: async () => ({ storageMode: 'workspace' as const, workspacePath: root }) },
+      {},
+      undefined,
+      undefined,
+      (next, previous) => versions.preserveFinalization(next, previous)
+    );
+    const before = await document();
+    const content = before.content.replace('status: draft', 'status: final') + '同时修改的正文。\n';
+    const result = await workspace.writeDocument({
+      rootPath: root,
+      relativePath: before.relativePath,
+      expectedHash: before.contentHash,
+      content
+    });
+    expect(result.ok).toBe(true);
+    const [snapshot] = await versions.list(root, before.relativePath);
+    expect(snapshot.reason).toBe('final');
+    expect((await versions.read(root, before.relativePath, snapshot.id)).content).toBe(content);
+    const saved = await document();
+    await workspace.writeDocument({
+      rootPath: root,
+      relativePath: saved.relativePath,
+      expectedHash: saved.contentHash,
+      content: `${content}继续编辑。\n`
+    });
+    expect(await versions.list(root, before.relativePath)).toHaveLength(1);
+  });
+  it('新建定稿同样留档，快照目录损坏时不写正文', async () => {
+    const workspace = new WorkspaceService(
+      { getStorageContext: async () => ({ storageMode: 'workspace' as const, workspacePath: root }) },
+      {},
+      undefined,
+      undefined,
+      (next, previous) => versions.preserveFinalization(next, previous)
+    );
+    const created = await workspace.createDocument({
+      rootPath: root,
+      relativePath: '新章.md',
+      content: '---\nkind: chapter\nstatus: final\n---\n已完成。\n'
+    });
+    expect(created.ok).toBe(true);
+    expect((await versions.list(root, '新章.md'))[0]?.reason).toBe('final');
+    const otherRoot = path.join(home, 'blocked');
+    await mkdir(path.join(otherRoot, '.chaptale'), { recursive: true });
+    await writeFile(path.join(otherRoot, '.chaptale/revisions'), '不是目录');
+    const blocked = new WorkspaceService(
+      { getStorageContext: async () => ({ storageMode: 'workspace' as const, workspacePath: otherRoot }) },
+      {},
+      undefined,
+      undefined,
+      (next, previous) => versions.preserveFinalization(next, previous)
+    );
+    const content = '---\nkind: chapter\nstatus: final\n---\n正文';
+    expect(await blocked.createDocument({ rootPath: otherRoot, relativePath: 'new.md', content })).toMatchObject({
+      ok: false
+    });
+    await expect(readFile(path.join(otherRoot, 'new.md'))).rejects.toThrow();
+    await writeFile(path.join(otherRoot, 'old.md'), '原稿');
+    const before = await readDocumentSnapshot({ rootPath: otherRoot, relativePath: 'old.md' });
+    expect(
+      await blocked.writeDocument({
+        rootPath: otherRoot,
+        relativePath: 'old.md',
+        content,
+        expectedHash: before.contentHash
+      })
+    ).toMatchObject({ ok: false });
+    expect(await readFile(path.join(otherRoot, 'old.md'), 'utf8')).toBe('原稿');
+  });
   it('唯一稳定 id 移动后仍发现旧路径和旧格式历史', async () => {
     const before = await document();
     const snapshot = await versions.save(before, 'final');

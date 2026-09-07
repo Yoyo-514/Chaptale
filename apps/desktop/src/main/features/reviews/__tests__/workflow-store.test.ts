@@ -53,6 +53,15 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 describe('审查留档与处理状态', () => {
+  it('运行完成即绑定输出，首次打开前的篡改也拒绝', async () => {
+    const job = await fixture();
+    await store.update(root, job.id, { status: 'running' });
+    await store.update(root, job.id, { status: 'done', runId: job.id, outputRef: job.outputRef });
+    expect((await store.readJob(root, job.id)).outputHash).toBe(hash(JSON.stringify(result)));
+    await expect(readFile(path.join(root, `.chaptale/reviews/${job.id}.state.json`))).rejects.toThrow();
+    await writeFile(path.join(root, job.outputRef!), JSON.stringify({ ...result, summary: '首次处理前被替换' }));
+    await expect(store.read(root, job.id)).rejects.toThrow('输出已被修改');
+  });
   it('面板数据来自原始输出，状态另存且重启可恢复', async () => {
     const job = await fixture();
     expect((await store.read(root, job.id)).result).toEqual(result);

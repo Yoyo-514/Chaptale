@@ -1,10 +1,10 @@
-import { writeFile } from 'atomically';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Type } from 'typebox';
 
-import { resolveWorkspaceMemoryPaths } from '../../core/memory-layout/paths';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
+import { createArtifact, resolveArtifactPath } from '../../core/workspace/artifacts';
+import { withFileWriteLock } from '../../infra/filesystem/write-lock';
 import type { MemoryPendingStore } from './pending/store';
 
 export type MemoryToolContext = {
@@ -46,12 +46,6 @@ export function createMemorySaveTool(context: MemoryToolContext): ToolDefinition
       }
 
       const cwd = await context.resolveCwd();
-      const notesDir = resolveWorkspaceMemoryPaths(cwd).notesDir;
-      await fs.mkdir(notesDir, { recursive: true });
-
-      const fileName = await uniqueNoteFileName(notesDir, sanitizeFileName(params.title));
-      const relativePath = ['.chaptale', 'memory', 'notes', fileName].join('/');
-
       const frontmatter = [
         '---',
         'kind: note',
@@ -65,7 +59,14 @@ export function createMemorySaveTool(context: MemoryToolContext): ToolDefinition
         ''
       ].join('\n');
 
-      await writeFile(path.join(notesDir, fileName), `${frontmatter}${params.content.trimEnd()}\n`, 'utf8');
+      const notesDir = await resolveArtifactPath(cwd, '.chaptale/memory/notes');
+      const relativePath = await withFileWriteLock(notesDir, async () => {
+        await resolveArtifactPath(cwd, '.chaptale/memory/notes');
+        const fileName = await uniqueNoteFileName(notesDir, sanitizeFileName(params.title));
+        const relative = `.chaptale/memory/notes/${fileName}`;
+        await createArtifact(cwd, relative, `${frontmatter}${params.content.trimEnd()}\n`);
+        return relative;
+      });
 
       return { text: `笔记已保存：${relativePath}`, details: { path: relativePath } };
     }
@@ -107,6 +108,7 @@ export function createMemoryProposeTool(
     description:
       '对角色、设定、大纲、伏笔等资产文件提出修改提议（落 pending，作者确认后才应用）。' +
       '资产文件是作者领地，任何新增/更新/归档都必须走本工具而不是直接写文件。' +
+      '正文和章节不得使用本工具，必须通过候选稿确认。' +
       'update 需给出完整新内容（基于当前文件内容修改，不要凭记忆重写）。' +
       '一次提议只改一个文件、一件事。',
     parameters: memoryProposeParameters,

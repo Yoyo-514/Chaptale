@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type { MemoryPendingProposal, MemoryProposalType } from '@chaptale/shared';
+import { parseDocumentFrontmatter, patchDocumentFields } from '@chaptale/shared/document-frontmatter';
 
 import type { FrontmatterParser } from '../../../core/frontmatter/types';
 
@@ -83,18 +84,12 @@ function expectString(frontmatter: Record<string, unknown>, key: string): string
  * 除此之外一字不动，保留作者文件的原始格式。
  */
 export function setFrontmatterStatusArchived(content: string): string {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
-
-  if (!match) {
-    return `---\nstatus: archived\n---\n\n${content}`;
+  const head = parseDocumentFrontmatter(content);
+  if (head.status === 'invalid') throw new Error('请先修正资产元数据');
+  if (head.status === 'none') {
+    const bom = content.startsWith('\uFEFF') ? '\uFEFF' : '';
+    const eol = content.includes('\r\n') ? '\r\n' : '\n';
+    return patchDocumentFields(`${bom}${eol}${content.slice(bom.length)}`, { status: 'archived' });
   }
-
-  const block = match[1];
-
-  if (/^status\s*:/m.test(block)) {
-    const nextBlock = block.replace(/^status\s*:.*$/m, 'status: archived');
-    return content.replace(block, nextBlock);
-  }
-
-  return content.replace(block, `${block}\nstatus: archived`);
+  return patchDocumentFields(content, { status: 'archived' });
 }

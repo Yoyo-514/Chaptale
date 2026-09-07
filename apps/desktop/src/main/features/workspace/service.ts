@@ -19,6 +19,7 @@ import {
   type RecoveryPathArgs,
   type SaveRecoveryArgs,
   type WorkspaceChanged,
+  type WorkspaceDocument,
   type WorkspaceState
 } from '@chaptale/ipc-contract';
 
@@ -51,7 +52,11 @@ export class WorkspaceService {
     private readonly settings: Pick<SettingsService, 'getStorageContext'>,
     private readonly documentReadOptions: DocumentReadOptions = {},
     private readonly watcher?: WorkspaceWatcher,
-    private readonly recovery?: RecoveryStore
+    private readonly recovery?: RecoveryStore,
+    private readonly beforeDocumentWrite?: (
+      next: Pick<WriteDocumentArgs, 'rootPath' | 'relativePath' | 'content'>,
+      previous?: WorkspaceDocument
+    ) => Promise<void>
   ) {}
 
   async getState(): Promise<WorkspaceState> {
@@ -203,6 +208,13 @@ export class WorkspaceService {
           if (!this.recovery) return { ok: false, code: 'write-failed', message: '无法保留外部版本，未覆盖文件' };
           await this.recovery.preserve(args.rootPath, args.relativePath, before.document.content);
         }
+        if (this.beforeDocumentWrite) {
+          await this.beforeDocumentWrite(args, before.document);
+          const checked = await this.readDocument({ rootPath: args.rootPath, relativePath: args.relativePath });
+          if (!checked.ok) return checked;
+          if (checked.document.contentHash !== args.expectedHash)
+            return { ok: false, code: 'conflict', message: '留档期间正文发生变化，未覆盖外部内容' };
+        }
         await resolveWithinCwd(args.rootPath, args.relativePath);
         await writeTextAtomically(target, args.content);
         const saved = await this.readDocument({ rootPath: args.rootPath, relativePath: args.relativePath });
@@ -284,6 +296,13 @@ export class WorkspaceService {
         await this.assertWorkspace(args.rootPath);
         await fs.mkdir(path.dirname(target), { recursive: true });
         await resolveWithinCwd(args.rootPath, args.relativePath);
+        try {
+          await fs.lstat(target);
+          throw Object.assign(new Error('同名文件已存在'), { code: 'EEXIST' });
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+        await this.beforeDocumentWrite?.(args);
         await createTextAtomically(target, args.content);
       });
       return this.readDocument(args);

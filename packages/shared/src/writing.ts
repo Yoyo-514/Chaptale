@@ -106,6 +106,7 @@ export const VersionSnapshotSchema = Type.Object(
     reason: Type.Union([
       Type.Literal('accepted'),
       Type.Literal('final'),
+      Type.Literal('before-final'),
       Type.Literal('settlement'),
       Type.Literal('before-rollback'),
       Type.Literal('rollback')

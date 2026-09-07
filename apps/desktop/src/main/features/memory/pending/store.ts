@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import { WorkspaceRelativePathValidator } from '@chaptale/shared';
 import type {
   MemoryPendingAction,
   MemoryPendingDetails,
@@ -11,10 +12,11 @@ import type {
   MemoryPendingResolveResult,
   MemoryProposalType
 } from '@chaptale/shared';
+import { parseDocumentFrontmatter } from '@chaptale/shared/document-frontmatter';
 
 import type { FrontmatterParser } from '../../../core/frontmatter/types';
-import { resolveWorkspaceMemoryPaths } from '../../../core/memory-layout/paths';
-import { resolveArtifactPath } from '../../../core/workspace/artifacts';
+import { createArtifact, resolveArtifactPath } from '../../../core/workspace/artifacts';
+import { WorkspaceLayoutService } from '../../../core/workspace/layout';
 import { createTextAtomically, writeTextAtomically } from '../../../infra/filesystem/atomic-text';
 import { resolveWithinCwd } from '../../../infra/filesystem/path-guard';
 import { withFileWriteLock } from '../../../infra/filesystem/write-lock';
@@ -66,6 +68,12 @@ export class MemoryPendingStore {
 
   /** 校验 targetPath 合法性：必须落在 workspace 内，且不得指向 .chaptale 运行时数据区。 */
   private async resolveTargetPath(cwd: string, targetPath: string): Promise<{ cwd: string; absolute: string } | null> {
+    if (
+      !WorkspaceRelativePathValidator.Check(targetPath) ||
+      !/\.(md|markdown)$/i.test(targetPath) ||
+      targetPath.split('/').some(part => part.startsWith('.'))
+    )
+      return null;
     const workspaceCwd = path.resolve(cwd);
     const absolute = path.resolve(workspaceCwd, targetPath);
 
@@ -96,6 +104,31 @@ export class MemoryPendingStore {
     return { cwd: workspaceCwd, absolute };
   }
 
+  private async proposalConflict(cwd: string, proposal: MemoryProposalDraft, current?: string) {
+    const layout = await new WorkspaceLayoutService().read(cwd);
+    const target = proposal.targetPath.toLowerCase();
+    const manuscript = layout.roles.manuscript.relativePath.toLowerCase();
+    const before = current === undefined ? undefined : parseDocumentFrontmatter(current);
+    const after = parseDocumentFrontmatter(proposal.content ?? '');
+    if (
+      target === manuscript ||
+      target.startsWith(`${manuscript}/`) ||
+      (before?.status === 'ok' && before.frontmatter.kind === 'chapter') ||
+      (after.status === 'ok' && after.frontmatter.kind === 'chapter')
+    )
+      return '正文修改必须通过候选稿确认，不能使用资产提议';
+    if (before?.status === 'invalid' || after.status === 'invalid') return '请先修正资产或提议的元数据';
+    if (
+      proposal.proposalType !== 'archive' &&
+      (!proposal.content?.trim() ||
+        !proposal.content.isWellFormed() ||
+        proposal.content.includes('\0') ||
+        Buffer.byteLength(proposal.content) > 8 * 1024 * 1024)
+    )
+      return '提议内容为空、无效或超过 8 MiB';
+    return undefined;
+  }
+
   /** 新增提议：update/archive 会读取目标文件计算 contentHash；返回提议 id。 */
   async add(cwd: string, draft: MemoryProposalDraft): Promise<MemoryPendingProposal> {
     const resolved = await this.resolveTargetPath(cwd, draft.targetPath);
@@ -105,10 +138,9 @@ export class MemoryPendingStore {
     }
 
     let contentHash: string | undefined;
+    let current: string | undefined;
 
     if (draft.proposalType === 'update' || draft.proposalType === 'archive') {
-      let current: string;
-
       try {
         current = await fs.readFile(resolved.absolute, 'utf8');
       } catch {
@@ -127,6 +159,8 @@ export class MemoryPendingStore {
         throw new Error(`目标文件已存在，请改用 update 提议：${draft.targetPath}`);
       }
     }
+    const conflict = await this.proposalConflict(resolved.cwd, draft, current);
+    if (conflict) throw new Error(conflict);
 
     const proposal: MemoryPendingProposal = {
       id: `p-${Date.now()}-${randomUUID().slice(0, 8)}`,
@@ -141,9 +175,7 @@ export class MemoryPendingStore {
       content: draft.content ?? ''
     };
 
-    const pendingDir = await resolveWithinCwd(resolved.cwd, resolveWorkspaceMemoryPaths(resolved.cwd).pendingDir);
-    await fs.mkdir(pendingDir, { recursive: true });
-    await createTextAtomically(path.join(pendingDir, `${proposal.id}.md`), renderProposalFile(proposal));
+    await createArtifact(resolved.cwd, `.chaptale/memory/pending/${proposal.id}.md`, renderProposalFile(proposal));
 
     this.emitChange();
     return proposal;
@@ -151,24 +183,32 @@ export class MemoryPendingStore {
 
   /** 列出待处理提议；坏文件跳过并入诊断，不拖垮整表。 */
   async list(cwd: string): Promise<MemoryPendingListResult> {
-    const pendingDir = resolveWorkspaceMemoryPaths(path.resolve(cwd)).pendingDir;
+    const pendingPath = '.chaptale/memory/pending';
 
     let entries: string[];
 
     try {
-      entries = (await fs.readdir(pendingDir)).filter(name => name.endsWith('.md'));
-    } catch {
-      return { proposals: [], diagnostics: [] };
+      entries = (await fs.readdir(await resolveArtifactPath(cwd, pendingPath))).filter(name => name.endsWith('.md'));
+    } catch (error) {
+      return {
+        proposals: [],
+        diagnostics:
+          (error as NodeJS.ErrnoException).code === 'ENOENT' ? [] : [{ filePath: pendingPath, message: String(error) }]
+      };
     }
 
     const proposals: MemoryPendingProposal[] = [];
     const diagnostics: MemoryPendingDiagnostic[] = [];
 
     for (const name of entries.toSorted()) {
-      const filePath = path.join(pendingDir, name);
+      const filePath = `${pendingPath}/${name}`;
 
       try {
-        proposals.push(parseProposalFile(await fs.readFile(filePath, 'utf8'), this.options.parseFrontmatter));
+        const absolute = await resolveArtifactPath(cwd, filePath);
+        if ((await fs.stat(absolute)).size > 8 * 1024 * 1024) throw new Error('提议过大');
+        const proposal = parseProposalFile(await fs.readFile(absolute, 'utf8'), this.options.parseFrontmatter);
+        if (`${proposal.id}.md` !== name) throw new Error('提议标识与文件名不符');
+        proposals.push(proposal);
       } catch (error) {
         diagnostics.push({ filePath, message: error instanceof Error ? error.message : String(error) });
       }
@@ -186,12 +226,13 @@ export class MemoryPendingStore {
   ): Promise<MemoryPendingResolveResult> {
     if (!/^[\w-]+$/.test(id)) return { id, status: 'missing', message: '提议标识无效' };
     const workspaceCwd = path.resolve(cwd);
-    const pendingDir = await resolveWithinCwd(workspaceCwd, resolveWorkspaceMemoryPaths(workspaceCwd).pendingDir);
-    const filePath = path.join(pendingDir, `${id}.md`);
+    const filePath = await resolveArtifactPath(workspaceCwd, `.chaptale/memory/pending/${id}.md`);
     return withFileWriteLock(filePath, async () => {
+      await resolveArtifactPath(workspaceCwd, `.chaptale/memory/pending/${id}.md`);
       let proposal: MemoryPendingProposal;
 
       try {
+        if ((await fs.stat(filePath)).size > 8 * 1024 * 1024) throw new Error('提议过大');
         const raw = await fs.readFile(filePath, 'utf8');
         if (expectedProposalHash && hashContent(raw) !== expectedProposalHash)
           return { id, status: 'conflict', message: '提议已变化，请重新查看差异' };
@@ -202,7 +243,7 @@ export class MemoryPendingStore {
       }
 
       if (action === 'reject') {
-        await this.archiveProposal(pendingDir, filePath, 'rejected');
+        await this.archiveProposal(workspaceCwd, id, 'rejected');
         this.emitChange();
         return { id, status: 'rejected' };
       }
@@ -213,7 +254,7 @@ export class MemoryPendingStore {
         return { id, status: 'conflict', ...(applied.message ? { message: applied.message } : {}) };
       }
 
-      await this.archiveProposal(pendingDir, filePath, 'accepted');
+      await this.archiveProposal(workspaceCwd, id, 'accepted');
       this.emitChange();
       return { id, status: 'applied' };
     });
@@ -238,7 +279,8 @@ export class MemoryPendingStore {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
     const conflict =
-      proposal.proposalType === 'create'
+      (await this.proposalConflict(cwd, proposal, exists ? original : undefined)) ??
+      (proposal.proposalType === 'create'
         ? exists
           ? '落点已被占用'
           : undefined
@@ -246,7 +288,7 @@ export class MemoryPendingStore {
           ? '原文件已不存在'
           : !proposal.contentHash || hashContent(original) !== proposal.contentHash
             ? '资产已变化，请重新提出修改'
-            : undefined;
+            : undefined);
     return {
       proposal,
       proposalHash: hashContent(raw),
@@ -273,6 +315,8 @@ export class MemoryPendingStore {
         return { status: 'conflict', message: '目标路径已变化，未应用提议' };
       }
       if (proposal.proposalType === 'create') {
+        const conflict = await this.proposalConflict(cwd, proposal);
+        if (conflict) return { status: 'conflict', message: conflict };
         const exists = await fs
           .access(resolved.absolute)
           .then(() => true)
@@ -301,7 +345,9 @@ export class MemoryPendingStore {
         return { status: 'conflict', message: '目标文件已不存在（可能被移动或删除）' };
       }
 
-      if (proposal.contentHash && hashContent(current) !== proposal.contentHash) {
+      const conflict = await this.proposalConflict(cwd, proposal, current);
+      if (conflict) return { status: 'conflict', message: conflict };
+      if (!proposal.contentHash || hashContent(current) !== proposal.contentHash) {
         return { status: 'conflict', message: '目标文件已被修改，提议基于的版本已过期' };
       }
 
@@ -315,14 +361,12 @@ export class MemoryPendingStore {
     });
   }
 
-  private async archiveProposal(pendingDir: string, filePath: string, resolution: string): Promise<void> {
-    const archivedDir = path.join(pendingDir, 'archived');
-    await fs.mkdir(archivedDir, { recursive: true });
-
+  private async archiveProposal(cwd: string, id: string, resolution: string): Promise<void> {
+    const filePath = await resolveArtifactPath(cwd, `.chaptale/memory/pending/${id}.md`);
     const original = await fs.readFile(filePath, 'utf8');
     const stamped = `${original.trimEnd()}\n\n<!-- resolution: ${resolution} at ${new Date().toISOString()} -->\n`;
 
-    await writeTextAtomically(path.join(archivedDir, path.basename(filePath)), stamped);
+    await createArtifact(cwd, `.chaptale/memory/pending/archived/${id}.md`, stamped);
     await fs.rm(filePath, { force: true });
   }
 

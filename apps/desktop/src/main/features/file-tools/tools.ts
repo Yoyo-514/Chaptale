@@ -11,6 +11,7 @@ import {
   resolveWithinCwd
 } from '../../infra/filesystem/path-guard';
 import { withFileWriteLock } from '../../infra/filesystem/write-lock';
+import { assertAgentDraftWrite } from './write-boundary';
 
 /**
  * 文件六工具装配：全部绑定同一会话 cwd，共享越界守卫。
@@ -21,13 +22,14 @@ import { withFileWriteLock } from '../../infra/filesystem/write-lock';
  * UI 与历史里这六个最常用的工具将永远显示为成功。
  */
 export function createFileTools(cwd: string): ToolDefinition[] {
+  const beforeWrite = (relativePath: string, content: string) => assertAgentDraftWrite(cwd, relativePath, content);
   return [
     createReadTool(cwd),
     createGrepTool(cwd),
     createFindTool(cwd),
     createLsTool(cwd),
-    createWriteTool(cwd),
-    createEditTool(cwd)
+    createWriteTool(cwd, beforeWrite),
+    createEditTool(cwd, beforeWrite)
   ];
 }
 
@@ -318,12 +320,17 @@ const writeParameters = Type.Object(
 );
 
 /** write：整体覆盖式原子写（temp + rename），父目录自动创建。 */
-export function createWriteTool(cwd: string): ToolDefinition<typeof writeParameters> {
+export function createWriteTool(
+  cwd: string,
+  beforeWrite?: (relativePath: string, content: string) => Promise<void>
+): ToolDefinition<typeof writeParameters> {
   return {
     name: 'write',
     label: '写入文件',
     riskLevel: 'mutating',
-    description: '把内容整体写入文件（覆盖已有内容），父目录不存在时自动创建。',
+    description: beforeWrite
+      ? '只在作品草稿目录写入文本。正式正文必须创建候选稿，资产必须提出待确认提议。'
+      : '把内容整体写入文件（覆盖已有内容），父目录不存在时自动创建。',
     parameters: writeParameters,
     async execute(params) {
       const filePath = await resolveWithinCwd(cwd, params.path);
@@ -333,6 +340,7 @@ export function createWriteTool(cwd: string): ToolDefinition<typeof writeParamet
       }
       await withFileWriteLock(filePath, async () => {
         await resolveWithinCwd(cwd, params.path);
+        await beforeWrite?.(params.path, params.content);
         await fs.mkdir(path.dirname(filePath), { recursive: true });
         await writeTextAtomically(filePath, params.content);
       });
@@ -355,12 +363,17 @@ const editParameters = Type.Object(
 );
 
 /** edit：oldText 恰好出现一次才替换；零匹配/多匹配给出次数提示（原子写）。 */
-export function createEditTool(cwd: string): ToolDefinition<typeof editParameters> {
+export function createEditTool(
+  cwd: string,
+  beforeWrite?: (relativePath: string, content: string) => Promise<void>
+): ToolDefinition<typeof editParameters> {
   return {
     name: 'edit',
     label: '编辑文件',
     riskLevel: 'mutating',
-    description: '精确文本替换：oldText 必须在文件中恰好出现一次，否则报错并给出出现次数。',
+    description: beforeWrite
+      ? '只在作品草稿目录精确替换文本，oldText 必须恰好出现一次。正式正文和资产不能直接改写。'
+      : '精确文本替换：oldText 必须在文件中恰好出现一次，否则报错并给出出现次数。',
     parameters: editParameters,
     async execute(params) {
       const filePath = await resolveWithinCwd(cwd, params.path);
@@ -397,6 +410,7 @@ export function createEditTool(cwd: string): ToolDefinition<typeof editParameter
           throw new Error('修改后的内容不是有效 UTF-8 文本或超过编辑上限');
         }
         await resolveWithinCwd(cwd, params.path);
+        await beforeWrite?.(params.path, updated);
         await writeTextAtomically(filePath, updated);
 
         return {

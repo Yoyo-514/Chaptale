@@ -34,6 +34,10 @@ export class ReviewWorkflowStore {
     await withFileWriteLock(filename, async () => {
       const job = await this.readJob(rootPath, id);
       const updated = { ...job, ...patch, updatedAt: new Date().toISOString() };
+      if (patch.status === 'done') {
+        const { document } = await this.readOutput(rootPath, updated);
+        updated.outputHash = document.contentHash;
+      }
       if (!ReviewJobValidator.Check(updated)) throw new Error('审查状态校验失败');
       await writeTextAtomically(filename, JSON.stringify(updated));
     });
@@ -68,12 +72,8 @@ export class ReviewWorkflowStore {
   async read(rootPath: string, id: string): Promise<ReviewDetails> {
     const job = await this.readJob(rootPath, id);
     if (job.status !== 'done') return { job, result: null, state: null };
-    if (!job.runId || job.outputRef !== `.chaptale/reviews/${job.runId}.json`) throw new Error('审查输出引用不合法');
-    await resolveArtifactPath(rootPath, job.outputRef);
-    const document = await readDocumentSnapshot({ rootPath, relativePath: job.outputRef, maxBytes: 8 * 1024 * 1024 });
-    const kind = REVIEWERS.find(reviewer => reviewer.id === job.personaId)!.kind;
-    const result = decodeReviewIssues(kind, JSON.parse(document.content));
-    if (!result || result.issues.length > 1000) throw new Error('审查输出未通过校验');
+    const { document, result } = await this.readOutput(rootPath, job);
+    if (job.outputHash && job.outputHash !== document.contentHash) throw new Error('审查输出已被修改，请重审');
     const statePath = `.chaptale/reviews/${job.runId}.state.json`;
     await resolveArtifactPath(rootPath, statePath);
     try {
@@ -86,6 +86,15 @@ export class ReviewWorkflowStore {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       return { job, result, state: { outputHash: document.contentHash, issues: {} } };
     }
+  }
+  private async readOutput(rootPath: string, job: ReviewJob) {
+    if (!job.runId || job.outputRef !== `.chaptale/reviews/${job.runId}.json`) throw new Error('审查输出引用不合法');
+    await resolveArtifactPath(rootPath, job.outputRef);
+    const document = await readDocumentSnapshot({ rootPath, relativePath: job.outputRef, maxBytes: 8 * 1024 * 1024 });
+    const kind = REVIEWERS.find(reviewer => reviewer.id === job.personaId)!.kind;
+    const result = decodeReviewIssues(kind, JSON.parse(document.content));
+    if (!result || result.issues.length > 1000) throw new Error('审查输出未通过校验');
+    return { document, result };
   }
   async resolve(rootPath: string, id: string, indexes: number[], status: IssueStatus) {
     const job = await this.readJob(rootPath, id);

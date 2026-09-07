@@ -34,11 +34,12 @@ export class WritingService {
       models: ModelService;
       tasks: TaskRunnerPort;
       readReview?: ReviewReader;
+      versions?: VersionStore;
     }
   ) {
     this.candidates = new CandidateStore(
       options.workspace,
-      new VersionStore(async rootPath => (await options.library.listAssets(rootPath)).assets)
+      options.versions ?? new VersionStore(async rootPath => (await options.library.listAssets(rootPath)).assets)
     );
   }
   private key(args: CandidateIdArgs) {
@@ -339,13 +340,21 @@ export class WritingService {
       )
     )
       return document;
-    await this.candidates.versions.save(document, 'final');
-    if (head.status === 'final') return document;
+    if (head.status === 'final') {
+      await this.candidates.versions.save(document, 'final');
+      return document;
+    }
+    await this.candidates.versions.save(document, 'before-final');
+    const content = patchDocumentFields(document.content, { status: 'final' });
+    await this.candidates.versions.preserveFinalization(
+      { rootPath: args.rootPath, relativePath: args.targetPath, content },
+      document
+    );
     const result = await this.options.workspace.writeDocument({
       rootPath: args.rootPath,
       relativePath: args.targetPath,
       expectedHash: args.expectedHash,
-      content: patchDocumentFields(document.content, { status: 'final' })
+      content
     });
     if (!result.ok) throw new Error(result.message);
     return result.document;
@@ -356,7 +365,7 @@ export class WritingService {
       const document = await this.savedTarget(args);
       const selected = await this.candidates.versions.read(args.rootPath, args.targetPath, args.snapshotId);
       if (document.contentHash === selected.snapshot.contentHash) return document;
-      await this.candidates.versions.save(document, 'before-rollback');
+      await this.candidates.versions.save(document, 'before-rollback', undefined, args.snapshotId);
       const result = await this.options.workspace.writeDocument({
         rootPath: args.rootPath,
         relativePath: args.targetPath,
@@ -364,7 +373,11 @@ export class WritingService {
         content: selected.content
       });
       if (!result.ok) throw new Error(result.message);
-      await this.candidates.versions.save(result.document, 'rollback', undefined, args.snapshotId);
+      try {
+        await this.candidates.versions.save(result.document, 'rollback', undefined, args.snapshotId);
+      } catch (error) {
+        throw new Error('正文已恢复，但回滚版本登记失败；回滚前快照与目标关联已保留，请刷新检查', { cause: error });
+      }
       return result.document;
     });
   }
