@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import type { WorkspaceDocument } from '@chaptale/ipc-contract';
+import type { EditCommand, WorkspaceDocument } from '@chaptale/ipc-contract';
 import { matchAssetTemplate, validateTemplateValues, type AssetFieldValue, type AssetLink } from '@chaptale/shared';
 import { parseDocumentFrontmatter, patchDocumentFields } from '@chaptale/shared/document-frontmatter';
 
 import { AppButton } from '@/components/AppButton';
+import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useLibraryStore } from '@/features/library';
@@ -13,6 +14,8 @@ import { useReviewStore } from '@/features/reviews';
 import { TemplateFields, useTemplateStore } from '@/features/templates';
 import { useVersionStore } from '@/features/versions';
 import { useWorkbenchStore } from '@/features/workbench';
+import { useWorkspaceActions } from '@/features/workspace';
+import { useWritingStore } from '@/features/writing';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import type { DocumentBuffer } from '../codemirror/document-buffer';
@@ -49,6 +52,76 @@ const navigation = useWorkbenchStore();
 const reviews = useReviewStore();
 const templates = useTemplateStore();
 const versions = useVersionStore();
+const fileActions = useWorkspaceActions();
+const writing = useWritingStore();
+const contextItems = ref<AppContextMenuItem[]>([]);
+let contextSelection = { from: 0, to: 0, text: '' };
+function prepareContext() {
+  contextSelection = view?.selection() ?? { from: 0, to: 0, text: '' };
+  contextItems.value = [
+    {
+      id: 'agent',
+      label: contextSelection.text ? '与 Agent 讨论选段' : '与 Agent 讨论此文件',
+      icon: 'i-mingcute-chat-3-line'
+    },
+    {
+      id: 'reference',
+      label: contextSelection.text ? '选段加入写作参考' : '文件加入写作参考',
+      disabled: props.dirty || props.saving,
+      icon: 'i-mingcute-bookmark-add-line'
+    },
+    { id: 'candidate', label: '生成候选稿…', disabled: props.readonly || props.dirty || props.saving },
+    { id: 'undo', label: '撤销', shortcut: 'Ctrl+Z', disabled: props.readonly, separatorBefore: true },
+    { id: 'redo', label: '重做', shortcut: 'Ctrl+Y', disabled: props.readonly },
+    {
+      id: 'cut',
+      label: '剪切',
+      shortcut: 'Ctrl+X',
+      disabled: props.readonly || !contextSelection.text,
+      separatorBefore: true
+    },
+    { id: 'copy', label: '复制', shortcut: 'Ctrl+C', disabled: !contextSelection.text, icon: 'i-mingcute-copy-2-line' },
+    { id: 'paste', label: '粘贴', shortcut: 'Ctrl+V', disabled: props.readonly },
+    { id: 'selectAll', label: '全选', shortcut: 'Ctrl+A' },
+    { id: 'find', label: '查找与替换', shortcut: 'Ctrl+F', separatorBefore: true },
+    {
+      id: 'save',
+      label: '保存',
+      shortcut: 'Ctrl+S',
+      disabled: !props.dirty || props.saving,
+      icon: 'i-mingcute-save-line'
+    },
+    { id: 'versions', label: '查看版本历史' },
+    { id: 'reveal', label: '在系统文件管理器中显示' }
+  ];
+}
+async function selectContext(id: string) {
+  try {
+    if (id === 'agent') {
+      if (contextSelection.text.length > 32000) throw new Error('选段超过 32000 字符，请缩小选区');
+      if (!contextSelection.text) fileActions.askAgent(props.document.relativePath);
+      else
+        navigation.askAgent(
+          props.document.rootPath,
+          `请围绕《${props.document.relativePath}》的这段文字协助创作${props.dirty ? '（来自未保存的编辑缓冲）' : ''}：\n\n${contextSelection.text}`
+        );
+    } else if (id === 'reference') {
+      library.add(props.document.relativePath, contextSelection.text || undefined);
+      navigation.showAuxiliary('references');
+    } else if (id === 'candidate') await writing.prepare();
+    else if (id === 'save') emit('save');
+    else if (id === 'versions') await versions.open();
+    else if (id === 'reveal') await fileActions.reveal(props.document.relativePath);
+    else if (id === 'find') find();
+    else if (id === 'undo' || id === 'redo') view?.[id]();
+    else {
+      view?.goTo(contextSelection.from, contextSelection.to);
+      await getDesktopApi().editCommand(id as EditCommand);
+    }
+  } catch (cause) {
+    linkError.value = toErrorMessage(cause);
+  }
+}
 const showForm = ref(false);
 const formValues = ref<Record<string, unknown>>({});
 const formError = ref('');
@@ -120,7 +193,7 @@ function addSelection() {
     return;
   }
   library.add(props.document.relativePath, selection.text);
-  navigation.auxiliary = 'references';
+  navigation.showAuxiliary('references');
 }
 
 onMounted(() => {
@@ -228,7 +301,13 @@ watch(
         </AppButton>
       </AppTooltip>
       <AppTooltip v-if="!large" text="资产引用与提议">
-        <AppButton icon size="xs" variant="ghost" aria-label="资产引用与提议" @click="navigation.auxiliary = 'assets'">
+        <AppButton
+          icon
+          size="xs"
+          variant="ghost"
+          aria-label="资产引用与提议"
+          @click="navigation.showAuxiliary('assets')"
+        >
           <span class="i-mingcute-link-line size-3.5" aria-hidden="true" />
         </AppButton>
       </AppTooltip>
@@ -316,7 +395,7 @@ watch(
           :disabled="dirty || saving"
           @click="
             library.useScene(document.relativePath);
-            navigation.auxiliary = 'references';
+            navigation.showAuxiliary('references');
           "
           >组装本次参考</AppButton
         >
@@ -338,13 +417,16 @@ watch(
           </AppButton>
         </nav>
       </AppScrollArea>
-      <div ref="host" class="document-codemirror" />
+      <AppContextMenu :items="contextItems" @prepare="prepareContext" @select="selectContext">
+        <div ref="host" class="document-codemirror" />
+      </AppContextMenu>
       <span v-if="!(buffer?.state.doc.length ?? document.content.length)" class="document-empty" role="status"
         >空文件</span
       >
     </div>
     <footer class="document-footer">
-      <span v-if="notice" class="mr-auto truncate" role="status">{{ notice }}</span>
+      <span class="document-words">{{ editor.activeTab?.words ?? 0 }} 字</span>
+      <span v-if="notice" class="truncate" role="status">{{ notice }}</span>
       <span v-if="large">大文件模式</span>
       <span>UTF-8</span>
       <span>{{ size }}</span>
@@ -443,5 +525,9 @@ watch(
 
   border-color: var(--border-subtle);
   color: var(--muted-foreground);
+}
+.document-words {
+  margin-right: auto;
+  white-space: nowrap;
 }
 </style>

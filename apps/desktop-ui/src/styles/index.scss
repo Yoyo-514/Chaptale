@@ -453,6 +453,28 @@ body {
   font-family: 'DM Sans', sans-serif;
 }
 
+:root {
+  --selection-background: #b8dcef;
+  --selection-foreground: #082d42;
+}
+
+.dark {
+  --selection-background: #315c70;
+  --selection-foreground: #f1f7fa;
+}
+
+::selection {
+  background: var(--selection-background);
+  color: var(--selection-foreground);
+}
+
+// CodeMirror 自绘背景；选中文字仍使用高对比前景，覆盖语法着色。
+.cm-content ::selection,
+.cm-content::selection {
+  background: transparent;
+  color: var(--selection-foreground);
+}
+
 html,
 body,
 #root {

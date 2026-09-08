@@ -31,22 +31,44 @@ const activities = [
           size="lg"
           variant="ghost"
           type="button"
-          :selected="activity.id === navigation.sidebar"
+          :selected="activity.id === navigation.sidebar && navigation.sidebarOpen && !navigation.focusMode"
           :disabled="!activity.available"
-          :aria-current="activity.id === navigation.sidebar ? 'page' : undefined"
+          :aria-current="activity.id === navigation.sidebar && navigation.sidebarOpen ? 'page' : undefined"
           :aria-label="activity.label"
-          @click="navigation.sidebar = activity.id"
+          @click="navigation.toggleSidebar(activity.id)"
         >
-          <span :class="[activity.icon, 'size-5']" aria-hidden="true" />
+          <span :class="[activity.icon, 'activity-icon']" aria-hidden="true" />
         </AppButton>
       </AppTooltip>
     </nav>
 
     <div class="activity-bar-spacer" />
 
+    <AppTooltip
+      :text="
+        navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode
+          ? '隐藏 Agent'
+          : '打开 Agent'
+      "
+      side="right"
+      :side-offset="6"
+    >
+      <AppButton
+        icon
+        size="lg"
+        variant="ghost"
+        type="button"
+        aria-label="切换 Agent 面板"
+        :aria-pressed="navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode"
+        :selected="navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode"
+        @click="navigation.toggleAgent"
+      >
+        <span class="i-mingcute-chat-3-line activity-icon" aria-hidden="true" />
+      </AppButton>
+    </AppTooltip>
     <AppTooltip text="设置" side="right" :side-offset="6" with-arrow>
       <AppButton icon size="lg" variant="ghost" type="button" aria-label="打开设置" @click="settingsStore.openPanel()">
-        <span class="i-mingcute-settings-3-line size-5" aria-hidden="true" />
+        <span class="i-mingcute-settings-3-line activity-icon" aria-hidden="true" />
       </AppButton>
     </AppTooltip>
   </aside>
@@ -67,5 +89,10 @@ const activities = [
 
 .activity-bar-spacer {
   @apply flex-1;
+}
+.activity-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 24px;
 }
 </style>

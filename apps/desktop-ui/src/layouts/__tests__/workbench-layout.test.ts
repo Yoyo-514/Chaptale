@@ -8,32 +8,20 @@ vi.mock('../AgentPanel.vue', () => ({
   default: { template: '<div data-test="agent-panel" />' }
 }));
 
-const splitterStubs = {
-  SplitterGroup: {
-    template: '<div data-test="splitter-group"><slot /></div>'
-  },
-  SplitterPanel: {
-    template: '<div data-test="splitter-panel"><slot /></div>'
-  },
-  SplitterResizeHandle: {
-    template: '<div data-test="splitter-handle" />'
-  }
-};
-
 describe('WorkbenchLayout', () => {
   it('defines the primary sidebar, editor and auxiliary regions', () => {
     const wrapper = mount(WorkbenchLayout, {
       global: {
         plugins: [createPinia()],
-        stubs: { ...splitterStubs, WorkspaceExplorer: { template: '<div data-test="workspace-explorer" />' } }
+        stubs: { WorkspaceExplorer: { template: '<div data-test="workspace-explorer" />' } }
       }
     });
 
     expect(wrapper.get('[aria-label="工作区侧栏"]').attributes('aria-label')).toBe('工作区侧栏');
     expect(wrapper.get('[aria-label="编辑器区域"]').attributes('aria-label')).toBe('编辑器区域');
     expect(wrapper.get('[aria-label="辅助栏"]').attributes('aria-label')).toBe('辅助栏');
-    expect(wrapper.findAll('[data-test="splitter-panel"]')).toHaveLength(3);
-    expect(wrapper.findAll('[data-test="splitter-handle"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-panel]')).toHaveLength(3);
+    expect(wrapper.findAll('[data-panel-resize-handle-id]')).toHaveLength(2);
     expect(wrapper.get('[data-test="agent-panel"]').attributes('data-test')).toBe('agent-panel');
   });
 
@@ -41,7 +29,7 @@ describe('WorkbenchLayout', () => {
     const wrapper = mount(WorkbenchLayout, {
       global: {
         plugins: [createPinia()],
-        stubs: { ...splitterStubs, WorkspaceExplorer: { template: '<div data-test="workspace-explorer" />' } }
+        stubs: { WorkspaceExplorer: { template: '<div data-test="workspace-explorer" />' } }
       }
     });
     const tabs = wrapper.findAll('.workbench-auxiliary-bar [role="tab"]');

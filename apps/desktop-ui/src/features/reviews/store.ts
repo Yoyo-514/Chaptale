@@ -97,14 +97,14 @@ export const useReviewStore = defineStore('review-workflow', () => {
       details.value = result;
       error.value = '';
       selectedIssue.value = null;
-      navigation.auxiliary = 'review';
+      navigation.showAuxiliary('review');
       if (!result.job.candidateId) await editor.openDocument(result.job.targetPath);
     } catch (cause) {
       error.value = toErrorMessage(cause);
     }
   }
   async function prepare(personaId?: string, candidate?: Candidate) {
-    navigation.auxiliary = 'review';
+    navigation.showAuxiliary('review');
     const tab = editor.activeTab;
     if (!candidate && (!tab?.document || tab.dirty || tab.saving || tab.readonly || tab.external)) {
       error.value = '请先打开并保存正文';
@@ -179,7 +179,7 @@ export const useReviewStore = defineStore('review-workflow', () => {
   }
   async function locate(index: number) {
     selectedIssue.value = index;
-    navigation.auxiliary = 'review';
+    navigation.showAuxiliary('review');
     const value = issues.value[index];
     const job = details.value?.job;
     if (!value || value.anchor.stale || !job || job.candidateId) return;
@@ -187,7 +187,7 @@ export const useReviewStore = defineStore('review-workflow', () => {
   }
   function selectMark(id: string) {
     selectedIssue.value = Number(id);
-    navigation.auxiliary = 'review';
+    navigation.showAuxiliary('review');
   }
   watch(
     () => workspace.rootPath,

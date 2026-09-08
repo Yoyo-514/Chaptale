@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { MergeView } from '@codemirror/merge';
 import { EditorState } from '@codemirror/state';
-import { EditorView, lineNumbers } from '@codemirror/view';
+import { drawSelection, EditorView, lineNumbers } from '@codemirror/view';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = withDefaults(
@@ -24,12 +24,14 @@ function render() {
     EditorView.editable.of(false),
     EditorView.lineWrapping,
     lineNumbers(),
+    drawSelection(),
     EditorState.phrases.of({ '$ unchanged lines': '$ 行未改动' }),
     EditorView.theme({
       '&': { fontSize: '14px', background: 'var(--background)', color: 'var(--foreground)' },
       '.cm-scroller': { fontFamily: 'inherit', lineHeight: '1.7' },
       '.cm-gutters': { color: 'var(--muted-foreground)', background: 'var(--surface-muted)' },
-      '.cm-content': { padding: '8px 0' }
+      '.cm-content': { padding: '8px 0' },
+      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { background: 'var(--selection-background)' }
     })
   ];
   view = new MergeView({

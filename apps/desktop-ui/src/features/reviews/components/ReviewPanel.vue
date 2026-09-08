@@ -61,7 +61,7 @@ async function locate(index: number) {
         variant="ghost"
         aria-label="打开审查中心"
         title="打开审查中心"
-        @click="navigation.sidebar = 'review'"
+        @click="navigation.showSidebar('review')"
         ><span class="i-mingcute-list-check-line size-3.5"
       /></AppButton>
     </header>

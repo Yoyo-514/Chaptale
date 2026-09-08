@@ -96,7 +96,7 @@ export const useRunStore = defineStore('run-history', () => {
     const requestedEpoch = epoch;
     close();
     const token = readSequence;
-    navigation.auxiliary = 'runs';
+    navigation.showAuxiliary('runs');
     try {
       const result = await getDesktopApi().tasks.listRuns({ rootPath, runId, limit: 1 });
       if (epoch !== requestedEpoch || token !== readSequence) return;

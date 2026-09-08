@@ -1,7 +1,7 @@
 import { defaultKeymap, historyKeymap, redo, undo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import {
-  defaultHighlightStyle,
+  HighlightStyle,
   foldEffect,
   foldGutter,
   foldedRanges,
@@ -19,6 +19,7 @@ import {
   keymap,
   lineNumbers
 } from '@codemirror/view';
+import { tags } from '@lezer/highlight';
 
 import type { AssetRecord, ReviewMark } from '@chaptale/shared';
 
@@ -61,9 +62,9 @@ const theme = EditorView.theme({
     border: '1px solid var(--border-subtle)',
     borderRadius: 'var(--radius-control-sm)'
   },
-  '.cm-selectionBackground': { backgroundColor: 'var(--accent)' },
+  '.cm-selectionBackground': { backgroundColor: 'var(--selection-background)' },
   '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'color-mix(in srgb, var(--primary-solid) 24%, transparent)'
+    backgroundColor: 'var(--selection-background)'
   },
   '.cm-cursor': { borderLeftColor: 'var(--foreground)' },
   '.cm-panels': { color: 'var(--foreground)', backgroundColor: 'var(--surface-muted)' },
@@ -116,6 +117,15 @@ const theme = EditorView.theme({
   '.cm-searchMatch': { backgroundColor: 'var(--accent)' },
   '.cm-searchMatch-selected': { outline: '1px solid var(--primary-solid)' }
 });
+const writingHighlight = HighlightStyle.define([
+  { tag: tags.heading, fontWeight: '600', color: 'var(--foreground)' },
+  { tag: tags.strong, fontWeight: '600' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: [tags.link, tags.url], color: 'var(--primary-solid)', textDecoration: 'underline' },
+  { tag: [tags.meta, tags.comment], color: 'var(--muted-foreground)' },
+  { tag: [tags.string, tags.monospace, tags.quote], color: 'var(--foreground)' }
+]);
 
 /** 视图可卸载，正文、原始换行与撤销历史由标签的 DocumentBuffer 持有。 */
 export function createDocumentView(
@@ -172,7 +182,7 @@ export function createDocumentView(
     options.markdown && !options.large
       ? [
           markdown(),
-          syntaxHighlighting(defaultHighlightStyle),
+          syntaxHighlighting(writingHighlight),
           foldGutter(),
           foldService.of((state, from) => (from === 0 ? documentHeadRange(state) : null)),
           ...(options.assets && options.onOpenLink
@@ -232,6 +242,7 @@ export function createDocumentView(
 
   return {
     buffer,
+    focus: () => view.focus(),
     setReviewMarks: (marks: ReviewMark[]) => view.dispatch({ effects: setReviewMarks.of(marks) }),
     find: () => openSearchPanel(view),
     undo: () => undo(view),

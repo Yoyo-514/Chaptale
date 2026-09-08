@@ -10,6 +10,7 @@ import { confirmWorkspaceTransition } from '@/utils/workspace-transition';
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
     isOpening: false,
+    newWorkspaceOpen: false,
     error: '',
     rootPath: null as string | null,
     displayName: null as string | null,

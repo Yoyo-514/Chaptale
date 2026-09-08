@@ -56,7 +56,7 @@ export const useAssetStore = defineStore('assets', () => {
   }
   async function open(sourcePath: string) {
     await editor.openDocument(sourcePath);
-    navigation.auxiliary = 'assets';
+    navigation.showAuxiliary('assets');
   }
   async function identify(templateId: string) {
     const tab = editor.activeTab;

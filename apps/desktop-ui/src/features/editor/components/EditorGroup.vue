@@ -3,8 +3,10 @@ import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import { computed, defineAsyncComponent, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useWorkspaceStore, useWorkspaceActions } from '@/features/workspace';
 import { APP_ICON_URL } from '@/utils/app-icon';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
@@ -16,6 +18,47 @@ const DocumentView = defineAsyncComponent(() => import('./DocumentView.vue'));
 const ExternalChangeDialog = defineAsyncComponent(() => import('./ExternalChangeDialog.vue'));
 
 const editor = useEditorStore();
+const workspace = useWorkspaceStore();
+const actions = useWorkspaceActions();
+const contextTabId = ref('');
+const tabMenu = computed<AppContextMenuItem[]>(() => {
+  const tab = editor.tabs.find(item => item.id === contextTabId.value);
+  const index = editor.tabs.findIndex(item => item.id === contextTabId.value);
+  return [
+    { id: 'close', label: '关闭', shortcut: 'Ctrl+W', icon: 'i-mingcute-close-line' },
+    { id: 'close-others', label: '关闭其他标签', disabled: editor.tabs.length < 2 },
+    { id: 'close-right', label: '关闭右侧标签', disabled: index >= editor.tabs.length - 1 },
+    { id: 'close-saved', label: '关闭已保存标签', disabled: !editor.tabs.some(item => !item.dirty && !item.saving) },
+    { id: 'close-all', label: '关闭全部标签' },
+    { id: 'save', label: '保存', shortcut: 'Ctrl+S', disabled: !tab?.dirty, separatorBefore: true },
+    { id: 'save-all', label: '全部保存', disabled: !editor.hasUnsaved },
+    { id: 'copy-path', label: '复制相对路径', separatorBefore: true },
+    { id: 'reveal', label: '在系统文件管理器中显示' },
+    { id: 'rename', label: '重命名…' },
+    { id: 'agent', label: '与 Agent 讨论此文件', separatorBefore: true, icon: 'i-mingcute-chat-3-line' }
+  ];
+});
+async function selectTabMenu(id: string) {
+  const tab = editor.tabs.find(item => item.id === contextTabId.value);
+  if (!tab) return;
+  const index = editor.tabs.indexOf(tab);
+  if (id === 'close') await closeTab(tab.id);
+  else if (id.startsWith('close-')) {
+    const candidates = editor.tabs.filter(
+      (item, i) =>
+        id === 'close-all' ||
+        (id === 'close-others' && item.id !== tab.id) ||
+        (id === 'close-right' && i > index) ||
+        (id === 'close-saved' && !item.dirty && !item.saving)
+    );
+    await editor.closeTabs(candidates.map(item => item.id));
+  } else if (id === 'save') await editor.saveDocument(tab.id);
+  else if (id === 'save-all') await editor.saveAll();
+  else if (id === 'copy-path') await actions.copyPath(tab.path);
+  else if (id === 'reveal') await actions.reveal(tab.path);
+  else if (id === 'rename') await actions.prepare('rename', tab.path);
+  else if (id === 'agent') actions.askAgent(tab.path);
+}
 let unsubscribeClose: (() => void) | undefined;
 const tabList = ref<HTMLElement | null>(null);
 const duplicateTitles = computed(() => {
@@ -102,45 +145,51 @@ watch(
       <AppScrollArea orientation="horizontal" class="editor-tabs-area" viewport-class="editor-tabs-viewport">
         <TabsList class="editor-tabs" aria-label="编辑器标签">
           <TabsTrigger v-if="!editor.tabs.length" value="welcome" class="editor-tab">欢迎</TabsTrigger>
-          <div
+          <AppContextMenu
             v-for="tab in editor.tabs"
             :key="tab.id"
-            class="editor-tab-shell"
-            :class="{ 'is-active': tab.id === editor.activeId }"
-            @auxclick.middle.prevent="closeTab(tab.id)"
+            :items="tabMenu"
+            @prepare="contextTabId = tab.id"
+            @select="selectTabMenu"
           >
-            <TabsTrigger
-              :value="tab.id"
-              class="editor-tab"
-              :aria-label="tab.path"
-              :title="tab.path"
-              @keydown.delete.prevent="closeTab(tab.id)"
+            <div
+              class="editor-tab-shell"
+              :class="{ 'is-active': tab.id === editor.activeId }"
+              @auxclick.middle.prevent="closeTab(tab.id)"
             >
-              <span
-                class="size-3.5 shrink-0"
-                :class="tab.status === 'error' ? 'i-mingcute-warning-line' : 'i-mingcute-file-line'"
-                aria-hidden="true"
-              />
-              <span class="editor-tab-title">{{ tab.title }}</span>
-              <span v-if="tab.dirty" class="editor-dirty" aria-label="未保存" />
-              <span v-if="duplicateTitles.has(tab.title)" class="editor-tab-parent">{{
-                tab.path.split('/').slice(0, -1).join('/') || '/'
-              }}</span>
-            </TabsTrigger>
-            <AppTooltip :text="`关闭 ${tab.path}`" side="bottom">
-              <AppButton
-                icon
-                size="xs"
-                variant="ghost"
-                class="editor-tab-close"
-                :aria-label="`关闭 ${tab.path}`"
-                :tabindex="tab.id === editor.activeId ? 0 : -1"
-                @click.stop="closeTab(tab.id)"
+              <TabsTrigger
+                :value="tab.id"
+                class="editor-tab"
+                :aria-label="tab.path"
+                :title="tab.path"
+                @keydown.delete.prevent="closeTab(tab.id)"
               >
-                <span class="i-mingcute-close-line size-3" aria-hidden="true" />
-              </AppButton>
-            </AppTooltip>
-          </div>
+                <span
+                  class="size-3.5 shrink-0"
+                  :class="tab.status === 'error' ? 'i-mingcute-warning-line' : 'i-mingcute-file-line'"
+                  aria-hidden="true"
+                />
+                <span class="editor-tab-title">{{ tab.title }}</span>
+                <span v-if="tab.dirty" class="editor-dirty" aria-label="未保存" />
+                <span v-if="duplicateTitles.has(tab.title)" class="editor-tab-parent">{{
+                  tab.path.split('/').slice(0, -1).join('/') || '/'
+                }}</span>
+              </TabsTrigger>
+              <AppTooltip :text="`关闭 ${tab.path}`" side="bottom">
+                <AppButton
+                  icon
+                  size="xs"
+                  variant="ghost"
+                  class="editor-tab-close"
+                  :aria-label="`关闭 ${tab.path}`"
+                  :tabindex="tab.id === editor.activeId ? 0 : -1"
+                  @click.stop="closeTab(tab.id)"
+                >
+                  <span class="i-mingcute-close-line size-3" aria-hidden="true" />
+                </AppButton>
+              </AppTooltip>
+            </div>
+          </AppContextMenu>
         </TabsList>
       </AppScrollArea>
     </div>
@@ -149,6 +198,15 @@ watch(
       <img :src="APP_ICON_URL" alt="" width="44" height="44" aria-hidden="true" />
       <h1>Chaptale</h1>
       <p>尚未打开文件</p>
+      <div class="editor-state-actions">
+        <AppButton variant="primary" @click="workspace.newWorkspaceOpen = true"
+          ><span class="i-mingcute-book-2-line size-4" aria-hidden="true" />新建作品</AppButton
+        >
+        <AppButton @click="workspace.openWorkspace"
+          ><span class="i-mingcute-folder-open-2-line size-4" aria-hidden="true" />打开作品</AppButton
+        >
+        <AppButton v-if="workspace.rootPath" @click="editor.newChapterOpen = true">新建章节</AppButton>
+      </div>
     </TabsContent>
     <TabsContent v-for="tab in editor.tabs" :key="tab.id" :value="tab.id" class="editor-tab-content">
       <div v-if="tab.status === 'loading'" class="editor-state" role="status">

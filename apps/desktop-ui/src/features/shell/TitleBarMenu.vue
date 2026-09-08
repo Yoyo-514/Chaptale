@@ -2,9 +2,11 @@
 import { computed } from 'vue';
 
 import { isChaptaleTheme } from '@chaptale/ipc-contract';
+import type { EditCommand } from '@chaptale/ipc-contract';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useEditorStore } from '@/features/editor';
+import { useNotificationStore } from '@/features/notifications';
 import { useReviewStore } from '@/features/reviews';
 import { useSettingsStore } from '@/features/settings';
 import { useSettlementStore } from '@/features/settlement';
@@ -13,6 +15,8 @@ import { useVersionStore } from '@/features/versions';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 import { useWritingStore } from '@/features/writing';
+import { toErrorMessage } from '@/utils/desktop-api';
+import { captureEditingTarget } from '@/utils/editing-target';
 
 const workspaceStore = useWorkspaceStore();
 const settingsStore = useSettingsStore();
@@ -23,6 +27,10 @@ const reviews = useReviewStore();
 const templates = useTemplateStore();
 const settlement = useSettlementStore();
 const versions = useVersionStore();
+let editTarget: ReturnType<typeof captureEditingTarget> | undefined;
+function captureEditTarget() {
+  editTarget = captureEditingTarget();
+}
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
 const THEME_ITEM_PREFIX = 'view.theme.';
@@ -46,7 +54,7 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'file',
     label: '文件',
     items: [
-      { id: 'file.new-workspace', label: '新建作品…', disabled: true },
+      { id: 'file.new-workspace', label: '新建作品…', disabled: workspaceStore.isOpening },
       { id: 'file.open-workspace', label: '打开工作区…', disabled: workspaceStore.isOpening },
       {
         id: 'file.open-recent',
@@ -61,8 +69,7 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       { id: 'file.new-asset', label: '从模板新建', disabled: !workspaceStore.rootPath },
       { id: 'file.save', label: '保存', shortcut: 'Ctrl+S', disabled: !editor.activeTab?.dirty, separatorBefore: true },
       { id: 'file.save-all', label: '全部保存', shortcut: 'Ctrl+Shift+S', disabled: !editor.hasUnsaved },
-      { id: 'file.auto-save', label: '自动保存', checked: editor.autoSave },
-      { id: 'file.exit', label: '退出', separatorBefore: true }
+      { id: 'file.auto-save', label: '自动保存', checked: editor.autoSave }
     ]
   },
   {
@@ -71,9 +78,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     items: [
       { id: 'edit.undo', label: '撤销', shortcut: 'Ctrl+Z', disabled: !editor.activeTab || editor.activeTab.readonly },
       { id: 'edit.redo', label: '重做', shortcut: 'Ctrl+Y', disabled: !editor.activeTab || editor.activeTab.readonly },
-      { id: 'edit.cut', label: '剪切', shortcut: 'Ctrl+X', disabled: true, separatorBefore: true },
-      { id: 'edit.copy', label: '复制', shortcut: 'Ctrl+C', disabled: true },
-      { id: 'edit.paste', label: '粘贴', shortcut: 'Ctrl+V', disabled: true },
+      { id: 'edit.cut', label: '剪切', shortcut: 'Ctrl+X', separatorBefore: true },
+      { id: 'edit.copy', label: '复制', shortcut: 'Ctrl+C' },
+      { id: 'edit.paste', label: '粘贴', shortcut: 'Ctrl+V' },
+      { id: 'edit.selectAll', label: '全选', shortcut: 'Ctrl+A' },
       {
         id: 'edit.find',
         label: '查找',
@@ -93,10 +101,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'view',
     label: '视图',
     items: [
-      { id: 'view.primary-sidebar', label: '切换主侧栏', disabled: true },
-      { id: 'view.auxiliary-bar', label: '切换辅助栏', disabled: true },
-      { id: 'view.status-bar', label: '切换状态栏', disabled: true },
-      { id: 'view.focus-mode', label: '专注模式', disabled: true },
+      { id: 'view.primary-sidebar', label: '主侧栏', checked: navigation.sidebarOpen },
+      { id: 'view.auxiliary-bar', label: '辅助栏', checked: navigation.auxiliaryOpen },
+      { id: 'view.status-bar', label: '状态栏', checked: navigation.statusBarOpen },
+      { id: 'view.focus-mode', label: '专注模式', checked: navigation.focusMode },
       { id: 'view.appearance', label: '外观', separatorBefore: true, items: themeItems.value }
     ]
   },
@@ -149,6 +157,32 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (['edit.cut', 'edit.copy', 'edit.paste', 'edit.selectAll'].includes(itemId)) {
+    void editTarget
+      ?.execute(itemId.slice(5) as EditCommand)
+      .catch(error => useNotificationStore().error('编辑操作失败', toErrorMessage(error)));
+    return;
+  }
+  if (itemId === 'file.new-workspace') {
+    workspaceStore.newWorkspaceOpen = true;
+    return;
+  }
+  if (itemId === 'view.primary-sidebar') {
+    navigation.sidebarOpen = !navigation.sidebarOpen;
+    return;
+  }
+  if (itemId === 'view.auxiliary-bar') {
+    navigation.auxiliaryOpen = !navigation.auxiliaryOpen;
+    return;
+  }
+  if (itemId === 'view.status-bar') {
+    navigation.statusBarOpen = !navigation.statusBarOpen;
+    return;
+  }
+  if (itemId === 'view.focus-mode') {
+    navigation.focusMode = !navigation.focusMode;
+    return;
+  }
   if (itemId === 'writing.finalize') {
     versions.prepareFinal();
     return;
@@ -174,8 +208,8 @@ function handleSelect(itemId: string) {
     return;
   }
   if (itemId === 'review.center') {
-    navigation.sidebar = 'review';
-    navigation.auxiliary = 'review';
+    navigation.showSidebar('review');
+    navigation.showAuxiliary('review');
     return;
   }
   if (itemId.startsWith('review.')) {
@@ -187,7 +221,7 @@ function handleSelect(itemId: string) {
     return;
   }
   if (itemId === 'writing.context') {
-    navigation.auxiliary = 'references';
+    navigation.showAuxiliary('references');
     return;
   }
   if (itemId === 'file.new-chapter') {
@@ -204,10 +238,6 @@ function handleSelect(itemId: string) {
   }
   if (itemId === 'file.auto-save') {
     void editor.setAutoSave(!editor.autoSave);
-    return;
-  }
-  if (itemId === 'file.exit') {
-    void editor.requestWindowClose();
     return;
   }
   if (itemId === 'edit.undo' || itemId === 'edit.redo') {
@@ -246,5 +276,5 @@ function handleSelect(itemId: string) {
 </script>
 
 <template>
-  <AppMenubar :menus="menus" @select="handleSelect" />
+  <AppMenubar :menus="menus" @pointerdown.capture="captureEditTarget" @select="handleSelect" />
 </template>

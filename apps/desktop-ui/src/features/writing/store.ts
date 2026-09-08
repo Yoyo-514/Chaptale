@@ -73,7 +73,7 @@ export const useWritingStore = defineStore('writing', () => {
     if (library.scenePath && tab?.path === library.scenePath) {
       if (!library.chapterPath) {
         error.value = '场景卡未关联有效章节，请先选择目标正文';
-        navigation.auxiliary = 'candidates';
+        navigation.showAuxiliary('candidates');
         return;
       }
       await editor.openDocument(library.chapterPath);
@@ -81,11 +81,11 @@ export const useWritingStore = defineStore('writing', () => {
     }
     if (!tab?.document || tab.readonly || tab.dirty || tab.saving || tab.external) {
       error.value = '请打开已保存的 Markdown 正文';
-      navigation.auxiliary = 'candidates';
+      navigation.showAuxiliary('candidates');
       return;
     }
     if (!library.goal.trim()) {
-      navigation.auxiliary = 'references';
+      navigation.showAuxiliary('references');
       library.error = '请先填写本次写作目标';
       return;
     }
@@ -129,7 +129,7 @@ export const useWritingStore = defineStore('writing', () => {
       error.value = '';
     } catch (cause) {
       error.value = toErrorMessage(cause);
-      navigation.auxiliary = 'candidates';
+      navigation.showAuxiliary('candidates');
     }
   }
   async function generate() {
@@ -143,7 +143,7 @@ export const useWritingStore = defineStore('writing', () => {
     run: () => Promise<CandidateDetails>
   ) {
     running.value.push(request.candidateId);
-    navigation.auxiliary = 'candidates';
+    navigation.showAuxiliary('candidates');
     error.value = '';
     try {
       const result = await run();

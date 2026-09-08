@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { drawSelection, EditorView } from '@codemirror/view';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{ text: string; label: string }>();
@@ -14,13 +14,15 @@ onMounted(() => {
       EditorState.readOnly.of(true),
       EditorView.editable.of(false),
       EditorView.lineWrapping,
+      drawSelection(),
       EditorView.contentAttributes.of({ 'aria-label': props.label, tabindex: '0' }),
       EditorView.theme({
         '&': { height: '100%', fontSize: '14px', color: 'var(--foreground)', background: 'var(--background)' },
         '.cm-scroller': { overflow: 'auto', fontFamily: 'inherit', lineHeight: '1.7' },
         '.cm-content': { padding: '8px' },
         '&.cm-focused': { outline: 'none', boxShadow: 'var(--input-focus-shadow)' },
-        '.cm-selectionBackground': { background: 'var(--accent)' }
+        '.cm-selectionBackground': { background: 'var(--selection-background)' },
+        '&.cm-focused .cm-selectionBackground': { background: 'var(--selection-background)' }
       })
     ]
   });

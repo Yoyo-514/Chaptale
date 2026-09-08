@@ -10,7 +10,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggleWebSearch: [];
   addContextFiles: [];
-  runReview: [];
 }>();
 </script>
 
@@ -44,19 +43,6 @@ const emit = defineEmits<{
         <span class="chat-bottom-action-label">
           {{ props.contextFileCount > 0 ? `${props.contextFileCount} 个文件` : '添加文件' }}
         </span>
-      </AppButton>
-    </AppTooltip>
-    <AppTooltip text="对当前输入或附件的文本做三维审查" side="bottom">
-      <AppButton
-        variant="ghost"
-        size="xs"
-        class="chat-bottom-action"
-        type="button"
-        aria-label="三维审查"
-        @click="emit('runReview')"
-      >
-        <span class="i-mingcute-eye-line size-4" aria-hidden="true" />
-        <span class="chat-bottom-action-label">三维审查</span>
       </AppButton>
     </AppTooltip>
   </div>

@@ -5,9 +5,32 @@ import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
+import { useWorkbenchStore } from '@/features/workbench';
+import { useWorkspaceStore } from '@/features/workspace';
 
 const notificationStore = useNotificationStore();
 const editor = useEditorStore();
+const workspace = useWorkspaceStore();
+const navigation = useWorkbenchStore();
+const syncStatus = computed(() => {
+  if (!workspace.rootPath) return { label: '未打开作品', detail: '打开作品后显示本地文件状态。', error: false };
+  const conflicts = editor.tabs.filter(tab => tab.external || tab.saveError);
+  if (conflicts.length)
+    return {
+      label: `${conflicts.length} 个文件待处理`,
+      detail: `${conflicts.map(tab => tab.path).join('、')}；云端同步状态未知。`,
+      error: true
+    };
+  if (editor.tabs.some(tab => tab.saving))
+    return { label: '正在保存到本地', detail: '本地文件正在写入，尚不能确认云端同步状态。', error: false };
+  if (editor.hasUnsaved)
+    return { label: '等待本地保存', detail: '编辑器有未保存内容。网盘客户端只能同步已写入磁盘的文件。', error: false };
+  return {
+    label: '本地已保存 · 云端未知',
+    detail: `${workspace.rootPath}；Chaptale 未连接网盘客户端，无法确认远端是否同步。`,
+    error: false
+  };
+});
 
 const hasError = computed(() => notificationStore.items.some(item => item.kind === 'error'));
 const notificationCountLabel = computed(() =>
@@ -20,8 +43,20 @@ const notificationTooltip = computed(() =>
 
 <template>
   <footer class="status-bar" aria-label="状态栏">
-    <span v-if="editor.activeTab?.words !== undefined" class="px-2">{{ editor.activeTab.words }} 字</span>
+    <AppTooltip :text="syncStatus.detail" side="top">
+      <span class="status-sync" :class="{ 'has-error': syncStatus.error }" role="status">
+        <span
+          :class="syncStatus.error ? 'i-mingcute-cloud-warning-line' : 'i-mingcute-cloud-line'"
+          class="size-4 shrink-0"
+          aria-hidden="true"
+        />
+        <span class="truncate">{{ syncStatus.label }}</span>
+      </span>
+    </AppTooltip>
     <div class="status-bar-spacer" />
+    <AppButton v-if="navigation.focusMode" size="xs" variant="ghost" @click="navigation.focusMode = false"
+      >退出专注</AppButton
+    >
 
     <AppTooltip :text="notificationTooltip" side="top" :side-offset="6">
       <AppButton
@@ -54,6 +89,13 @@ const notificationTooltip = computed(() =>
 
 .status-bar-spacer {
   @apply flex-1;
+}
+.status-sync {
+  @apply flex min-w-0 items-center gap-1.5 px-2;
+  font-size: var(--ui-caption-size);
+}
+.has-error {
+  color: var(--destructive);
 }
 
 .status-notification-button {

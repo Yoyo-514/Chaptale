@@ -180,6 +180,7 @@ export function useChatController() {
     handleCancelEdit: editing.handleCancelEdit,
     handleRegenerateAssistantMessage: editing.handleRegenerateAssistantMessage,
     handleAddContextFiles: contextFiles.handleAddContextFiles,
+    addWorkspaceFiles: contextFiles.addWorkspaceFiles,
     handleDropContextFiles: contextFiles.handleDropContextFiles,
     handleRemoveContextFile: contextFiles.handleRemoveContextFile,
     handleOpenSettings,

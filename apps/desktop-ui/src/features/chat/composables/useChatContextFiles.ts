@@ -67,6 +67,13 @@ export function useChatContextFiles({ state, getDesktopApiOrNotify }: UseChatCon
   function handleRemoveContextFile(path: string) {
     state.contextFiles = state.contextFiles.filter(file => file.path !== path);
   }
+  async function addWorkspaceFiles(paths: string[], isCurrent: () => boolean = () => true) {
+    const api = getDesktopApiOrNotify();
+    if (!api) throw new Error('桌面接口不可用');
+    const inspected = await api.agent.inspectContextFiles(paths);
+    if (inspected.length !== paths.length) throw new Error('部分文件无法添加，请检查文件是否存在或超出附件限制');
+    if (isCurrent()) mergeContextFiles(inspected);
+  }
 
-  return { handleAddContextFiles, handleDropContextFiles, handleRemoveContextFile };
+  return { handleAddContextFiles, handleDropContextFiles, handleRemoveContextFile, addWorkspaceFiles };
 }

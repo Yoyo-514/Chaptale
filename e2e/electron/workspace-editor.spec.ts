@@ -3,7 +3,7 @@ import type { ElectronApplication, Page } from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -110,6 +110,202 @@ async function openChapter(folder = '正文') {
   await page.getByRole('treeitem', { name: folder, exact: true }).click();
   await page.locator(`[data-tree-path="${folder}/第一章.md"]`).click();
 }
+
+test('M6 新建作品可直接编辑，同名目录不覆盖', async () => {
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新建作品…', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '新建作品', exact: true });
+  await dialog.getByRole('textbox', { name: '作品名称', exact: true }).fill('新作品');
+  await dialog.getByRole('textbox', { name: '作品存放位置', exact: true }).fill(home);
+  await dialog.getByRole('textbox', { name: '创作守则', exact: true }).fill('第三人称有限视角。');
+  await dialog.getByRole('button', { name: '创建并打开', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '正文/0001-第一章.md', exact: true })).toBeVisible();
+  const root = path.join(home, '新作品');
+  const manifest = JSON.parse(await readFile(path.join(root, 'chaptale.json'), 'utf8'));
+  expect(manifest).toMatchObject({ title: '新作品', kind: 'novel', version: 1 });
+  expect(await readFile(path.join(root, '设定/创作守则.md'), 'utf8')).toContain('第三人称有限视角。');
+  await page.getByRole('textbox', { name: '文档正文', exact: true }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('新作品的第一句。');
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => readFile(path.join(root, '正文/0001-第一章.md'), 'utf8')).toContain('新作品的第一句。');
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新建作品…', exact: true }).click();
+  await dialog.getByRole('button', { name: '创建并打开', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('同名目录');
+  expect(JSON.parse(await readFile(path.join(root, 'chaptale.json'), 'utf8')).id).toBe(manifest.id);
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+});
+
+test('M6 面板隐藏保留 Agent 草稿，重开后拖动方向一致', async () => {
+  const input = page.getByPlaceholder('描述你的创作需求...');
+  await input.fill('尚未发送的创作草稿');
+  await page.getByRole('button', { name: '隐藏辅助栏', exact: true }).click();
+  await expect(input).not.toBeVisible();
+  await page.getByRole('button', { name: '切换 Agent 面板', exact: true }).click();
+  await expect(input).toHaveValue('尚未发送的创作草稿');
+  const sidebar = page.locator('#workbench-primary-sidebar');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.getByRole('button', { name: '工作区', exact: true }).click();
+    await expect.poll(async () => (await sidebar.boundingBox())?.width ?? 0).toBeLessThan(1);
+    await page.getByRole('button', { name: '工作区', exact: true }).click();
+    const before = (await sidebar.boundingBox())!.width;
+    const handle = (await page.getByRole('separator', { name: '调整工作区侧栏宽度', exact: true }).boundingBox())!;
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + 150);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + 40, handle.y + 150, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(async () => (await sidebar.boundingBox())!.width).toBeGreaterThan(before + 15);
+  }
+  const auxiliary = page.locator('#workbench-auxiliary-bar');
+  const before = (await auxiliary.boundingBox())!.width;
+  const handle = (await page.getByRole('separator', { name: '调整辅助栏宽度', exact: true }).boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + 180);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 35, handle.y + 180, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => (await auxiliary.boundingBox())!.width).toBeGreaterThan(before + 15);
+  await expect(input).toHaveValue('尚未发送的创作草稿');
+});
+
+test('M6 新作品创建后取消切换保留原稿，再次打开仅确认一次', async () => {
+  await openChapter();
+  await page.getByRole('textbox', { name: '文档正文', exact: true }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('保留在旧作品的草稿。');
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新建作品…', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '新建作品', exact: true });
+  await dialog.getByRole('textbox', { name: '作品名称', exact: true }).fill('另一作品');
+  await dialog.getByRole('textbox', { name: '作品存放位置', exact: true }).fill(home);
+  await dialog.getByRole('button', { name: '创建并打开', exact: true }).click();
+  const unsaved = page.getByRole('dialog', { name: '保存未保存的修改？', exact: true });
+  await unsaved.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(dialog).toContainText('作品已创建');
+  const root = path.join(home, '另一作品');
+  const first = JSON.parse(await readFile(path.join(root, 'chaptale.json'), 'utf8'));
+  await dialog.getByRole('button', { name: '打开作品', exact: true }).click();
+  await unsaved.getByRole('button', { name: '保存并继续', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '正文/0001-第一章.md', exact: true })).toBeVisible();
+  await expect(dialog).not.toBeVisible();
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toContain('保留在旧作品的草稿。');
+  expect(JSON.parse(await readFile(path.join(root, 'chaptale.json'), 'utf8')).id).toBe(first.id);
+});
+
+test('M6 右键菜单联动文件、标签、选区与 Agent，不自动发送', async () => {
+  await openChapter();
+  const content = page.getByRole('textbox', { name: '文档正文', exact: true });
+  await content.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.press('Control+Shift+Home');
+  await content.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '与 Agent 讨论选段', exact: true }).click();
+  await expect(page.getByPlaceholder('描述你的创作需求...')).toHaveValue(/雪落在窗沿/);
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+  await page.locator('[data-tree-path="正文/第一章.md"]').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '重命名…', exact: true }).click();
+  const renameDialog = page.getByRole('dialog', { name: '重命名', exact: true });
+  await renameDialog.getByRole('textbox', { name: '文件操作目标', exact: true }).fill('新章名.md');
+  await renameDialog.getByRole('button', { name: '重命名', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '正文/新章名.md', exact: true })).toBeVisible();
+  expect(await readFile(path.join(workspace, '正文/新章名.md'), 'utf8')).toBe(chapter);
+  await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).click();
+  await page.getByRole('tab', { name: '正文/新章名.md', exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '关闭其他标签', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '空文件.txt', exact: true })).toHaveCount(0);
+  await page.locator('[data-tree-path="正文/新章名.md"]').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '移到回收站…', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: '移到回收站', exact: true })
+    .getByRole('button', { name: '取消', exact: true })
+    .click();
+  expect(await readFile(path.join(workspace, '正文/新章名.md'), 'utf8')).toBe(chapter);
+  await expect(page.getByRole('button', { name: '三维审查', exact: true })).toHaveCount(0);
+  await expect(page.locator('.document-footer .document-words')).toBeVisible();
+  await expect(page.locator('.status-bar')).toContainText('云端未知');
+});
+
+test('M6 三主题文本选择和 skill 对比度、菜单文字列对齐', async () => {
+  const session = await page.evaluate(async () => {
+    const api = (window as DesktopWindow).chaptaleDesktop;
+    const created = await api.session.create({ name: '选区视觉检查' });
+    await api.settings.update({ lastSessionId: created.id });
+    return created;
+  });
+  expect(path.resolve(session.path).startsWith(path.resolve(home) + path.sep)).toBe(true);
+  await app!.close();
+  app = undefined;
+  const records = (await readFile(session.path, 'utf8'))
+    .trim()
+    .split('\n')
+    .map(line => JSON.parse(line));
+  await appendFile(
+    session.path,
+    JSON.stringify({
+      type: 'message',
+      id: 'visual-selection-user',
+      parentId: records.findLast(record => record.type !== 'session')?.id ?? null,
+      timestamp: new Date().toISOString(),
+      message: { role: 'user', content: '/skill:blueprint-interview 雪落在窗沿，林晚收起了信。', timestamp: Date.now() }
+    }) + '\n'
+  );
+  await launchApp();
+  const skill = page.locator('.user-message-skill');
+  await expect(skill).toHaveText('blueprint-interview');
+  await mkdir(visualDir, { recursive: true });
+  for (const theme of ['light', 'warm', 'dark'] as const) {
+    await page.evaluate(
+      async value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }),
+      theme
+    );
+    await page.reload();
+    await expect(skill).toBeVisible();
+    const ratios = await skill.evaluate(element => {
+      const ctx = document.createElement('canvas').getContext('2d')!;
+      const color = (value: string) => {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillStyle = value;
+        ctx.fillRect(0, 0, 1, 1);
+        return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+      };
+      const ratio = (a: string, b: string) => {
+        const [x, y] = [a, b].map(value =>
+          color(value)
+            .map(v => v / 255)
+            .map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+            .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i]!, 0)
+        ) as [number, number];
+        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+      };
+      const style = getComputedStyle(element);
+      const selected = getComputedStyle(element, '::selection');
+      return {
+        skill: ratio(style.color, style.backgroundColor),
+        selection: ratio(selected.color, selected.backgroundColor)
+      };
+    });
+    expect(ratios.skill).toBeGreaterThanOrEqual(4.5);
+    expect(ratios.selection).toBeGreaterThanOrEqual(4.5);
+    await page.locator('.user-message').evaluate(element => {
+      const selection = window.getSelection()!;
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    });
+    await page.screenshot({ path: path.join(visualDir, `m6-selection-${theme}.png`) });
+    await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+    const columns = await page
+      .locator(
+        '.app-menubar-content [data-item-id="file.auto-save"] .app-menubar-item-label, .app-menubar-content [data-item-id="file.save"] .app-menubar-item-label'
+      )
+      .evaluateAll(elements => elements.map(element => element.getBoundingClientRect().left));
+    expect(columns).toHaveLength(2);
+    expect(Math.abs(columns[0]! - columns[1]!)).toBeLessThan(1);
+    await expect(page.getByRole('menuitem', { name: '退出', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  }
+});
 
 test('资产库支持跨目录分组、关系反链、无损识别和三主题窄窗口', async () => {
   await mkdir(path.join(workspace, '角色/主要'), { recursive: true });

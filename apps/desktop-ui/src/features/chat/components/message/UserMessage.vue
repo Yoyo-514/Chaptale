@@ -130,10 +130,11 @@ function save() {
 }
 
 .user-message-skill {
-  @apply shrink-0 rounded-md px-1.5 py-0.5 font-mono text-xs font-semibold;
+  @apply min-w-0 rounded px-1.5 py-0.5 font-mono text-xs font-semibold;
 
-  background: var(--accent);
-  color: var(--accent-foreground);
+  background: color-mix(in srgb, var(--primary-foreground) 12%, var(--primary));
+  color: var(--primary-foreground);
+  overflow-wrap: anywhere;
 }
 
 .user-message-edit {

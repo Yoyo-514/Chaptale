@@ -6,9 +6,12 @@ import { REVIEWERS } from '@chaptale/shared';
 import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppTooltip } from '@/components/AppTooltip';
+import { useWorkbenchStore } from '@/features/workbench';
 
 import { useReviewStore } from '../store';
 const reviews = useReviewStore();
+const navigation = useWorkbenchStore();
 const chapter = ref('__all');
 const reviewer = ref('__all');
 const status = ref('__all');
@@ -32,6 +35,10 @@ onMounted(() => {
       ><AppButton icon size="xs" variant="ghost" title="刷新审查" aria-label="刷新审查" @click="reviews.refresh"
         ><span class="i-mingcute-refresh-3-line size-3.5"
       /></AppButton>
+      <AppTooltip text="隐藏侧栏"
+        ><AppButton icon size="xs" variant="ghost" aria-label="隐藏侧栏" @click="navigation.sidebarOpen = false"
+          ><span class="i-mingcute-close-line size-4" aria-hidden="true" /></AppButton
+      ></AppTooltip>
     </header>
     <div class="review-filters">
       <AppSelect v-model="chapter" aria-label="审查章节">

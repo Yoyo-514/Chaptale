@@ -190,18 +190,14 @@ describe('ChatInputBox', () => {
     expect(wrapper.emitted('selectReasoningEffort')).toEqual([['']]);
   });
 
-  it('starts the three-lane review from the toolbar without persona parameters', async () => {
+  it('keeps context attachment without a redundant review action', () => {
     const wrapper = mountInput();
     const addContextButton = wrapper.find('button[aria-label="添加上下文文件"]');
     const reviewButton = wrapper.find('button[aria-label="三维审查"]');
 
     expect(addContextButton.exists()).toBe(true);
-    expect(reviewButton.text()).toContain('三维审查');
+    expect(reviewButton.exists()).toBe(false);
     expect(wrapper.text()).not.toContain('审查连贯性');
-
-    await reviewButton.trigger('click');
-
-    expect(wrapper.emitted('runReview')).toEqual([[]]);
   });
 
   it('renders the status bar below the input container and opens settings sections', async () => {

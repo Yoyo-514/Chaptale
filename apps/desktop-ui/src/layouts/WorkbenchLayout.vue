@@ -10,7 +10,9 @@ import {
 } from 'reka-ui';
 import { nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 
+import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppTooltip } from '@/components/AppTooltip';
 import { AssetDialogs, AssetPanel, StructurePanel } from '@/features/assets';
 import { EditorGroup, useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore } from '@/features/library';
@@ -20,7 +22,13 @@ import { SettlementPanel, SettlementDialogs } from '@/features/settlement';
 import { CreateAssetDialog } from '@/features/templates';
 import { VersionDialogs } from '@/features/versions';
 import { useWorkbenchStore } from '@/features/workbench';
-import { WorkspaceExplorer, useFileTreeStore, useWorkspaceStore } from '@/features/workspace';
+import {
+  NewWorkspaceDialog,
+  WorkspaceActionDialogs,
+  WorkspaceExplorer,
+  useFileTreeStore,
+  useWorkspaceStore
+} from '@/features/workspace';
 import { CandidatePanel, WritingDialogs } from '@/features/writing';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
@@ -32,6 +40,18 @@ const tree = useFileTreeStore();
 const library = useLibraryStore();
 const navigation = useWorkbenchStore();
 const auxiliaryTabs = ref<{ $el: HTMLElement }>();
+const sidebarPanel = ref<InstanceType<typeof SplitterPanel>>();
+const auxiliaryPanel = ref<InstanceType<typeof SplitterPanel>>();
+function syncPanels() {
+  if (navigation.sidebarOpen && !navigation.focusMode) sidebarPanel.value?.expand();
+  else sidebarPanel.value?.collapse();
+  if (navigation.auxiliaryOpen && !navigation.focusMode) auxiliaryPanel.value?.expand();
+  else auxiliaryPanel.value?.collapse();
+}
+watch(() => [navigation.sidebarOpen, navigation.auxiliaryOpen, navigation.focusMode], syncPanels, { flush: 'post' });
+function onWindowKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && navigation.focusMode) navigation.focusMode = false;
+}
 watch(
   () => navigation.auxiliary,
   async () => {
@@ -43,6 +63,8 @@ watch(
 );
 let unsubscribe: (() => void) | undefined;
 onMounted(() => {
+  void nextTick(syncPanels);
+  window.addEventListener('keydown', onWindowKeydown);
   if (!hasDesktopApi()) return;
   unsubscribe = getDesktopApi().workspace?.onChanged?.(event => {
     if (event.rootPath !== workspace.rootPath) return;
@@ -51,7 +73,10 @@ onMounted(() => {
     if (library.snapshot) void library.refresh();
   });
 });
-onBeforeUnmount(() => unsubscribe?.());
+onBeforeUnmount(() => {
+  unsubscribe?.();
+  window.removeEventListener('keydown', onWindowKeydown);
+});
 </script>
 
 <template>
@@ -62,15 +87,24 @@ onBeforeUnmount(() => unsubscribe?.());
     class="workbench-layout"
   >
     <SplitterPanel
+      ref="sidebarPanel"
       id="workbench-primary-sidebar"
+      :order="1"
       :default-size="20"
       :min-size="15"
       :max-size="30"
       :collapsed-size="0"
       collapsible
       class="workbench-panel"
+      :inert="!navigation.sidebarOpen || navigation.focusMode"
+      @collapse="!navigation.focusMode && (navigation.sidebarOpen = false)"
+      @expand="!navigation.focusMode && (navigation.sidebarOpen = true)"
     >
-      <aside class="workbench-primary-sidebar" aria-label="工作区侧栏">
+      <aside
+        v-show="navigation.sidebarOpen && !navigation.focusMode"
+        class="workbench-primary-sidebar"
+        aria-label="工作区侧栏"
+      >
         <WorkspaceExplorer
           v-show="navigation.sidebar !== 'review' && navigation.sidebar !== 'structure'"
           @open-file="editor.openDocument"
@@ -80,39 +114,75 @@ onBeforeUnmount(() => unsubscribe?.());
       </aside>
     </SplitterPanel>
 
-    <SplitterResizeHandle class="workbench-resize-handle" aria-label="调整工作区侧栏宽度" />
+    <SplitterResizeHandle
+      v-show="navigation.sidebarOpen && !navigation.focusMode"
+      class="workbench-resize-handle"
+      aria-label="调整工作区侧栏宽度"
+    />
 
-    <SplitterPanel id="workbench-editor" :default-size="52" :min-size="35" class="workbench-panel">
+    <SplitterPanel id="workbench-editor" :order="2" :default-size="52" :min-size="35" class="workbench-panel">
       <main class="workbench-editor" aria-label="编辑器区域">
         <EditorGroup />
       </main>
     </SplitterPanel>
 
-    <SplitterResizeHandle class="workbench-resize-handle" aria-label="调整辅助栏宽度" />
+    <SplitterResizeHandle
+      v-show="navigation.auxiliaryOpen && !navigation.focusMode"
+      class="workbench-resize-handle"
+      aria-label="调整辅助栏宽度"
+    />
 
     <SplitterPanel
+      ref="auxiliaryPanel"
       id="workbench-auxiliary-bar"
+      :order="3"
       :default-size="28"
       :min-size="22"
       :max-size="45"
       :collapsed-size="0"
       collapsible
       class="workbench-panel"
+      :inert="!navigation.auxiliaryOpen || navigation.focusMode"
+      @collapse="!navigation.focusMode && (navigation.auxiliaryOpen = false)"
+      @expand="!navigation.focusMode && (navigation.auxiliaryOpen = true)"
     >
-      <aside class="workbench-auxiliary-bar" aria-label="辅助栏">
+      <aside
+        v-show="navigation.auxiliaryOpen && !navigation.focusMode"
+        class="workbench-auxiliary-bar"
+        aria-label="辅助栏"
+      >
         <TabsRoot v-model="navigation.auxiliary" class="workbench-auxiliary-root">
-          <AppScrollArea orientation="horizontal" class="workbench-tab-scroll">
-            <TabsList ref="auxiliaryTabs" class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
-              <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
-              <TabsTrigger class="workbench-auxiliary-tab" value="references">参考</TabsTrigger>
-              <TabsTrigger class="workbench-auxiliary-tab" value="candidates">候选</TabsTrigger>
-              <TabsTrigger class="workbench-auxiliary-tab" value="review">审查</TabsTrigger>
-              <TabsTrigger class="workbench-auxiliary-tab" value="settlement">结算</TabsTrigger>
-              <TabsTrigger class="workbench-auxiliary-tab" value="assets">资产</TabsTrigger>
-              <TabsTrigger class="workbench-auxiliary-tab" value="runs">运行</TabsTrigger>
-            </TabsList>
-          </AppScrollArea>
-          <TabsContent value="agent" class="workbench-auxiliary-content"><AgentPanel /></TabsContent>
+          <div class="workbench-auxiliary-header">
+            <AppScrollArea orientation="horizontal" class="workbench-tab-scroll">
+              <TabsList ref="auxiliaryTabs" class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
+                <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
+                <TabsTrigger class="workbench-auxiliary-tab" value="references">参考</TabsTrigger>
+                <TabsTrigger class="workbench-auxiliary-tab" value="candidates">候选</TabsTrigger>
+                <TabsTrigger class="workbench-auxiliary-tab" value="review">审查</TabsTrigger>
+                <TabsTrigger class="workbench-auxiliary-tab" value="settlement">结算</TabsTrigger>
+                <TabsTrigger class="workbench-auxiliary-tab" value="assets">资产</TabsTrigger>
+                <TabsTrigger class="workbench-auxiliary-tab" value="runs">运行</TabsTrigger>
+              </TabsList>
+            </AppScrollArea>
+            <AppTooltip text="隐藏辅助栏">
+              <AppButton
+                icon
+                size="xs"
+                variant="ghost"
+                aria-label="隐藏辅助栏"
+                @click="navigation.auxiliaryOpen = false"
+              >
+                <span class="i-mingcute-close-line size-4" aria-hidden="true" />
+              </AppButton>
+            </AppTooltip>
+          </div>
+          <TabsContent
+            value="agent"
+            force-mount
+            v-show="navigation.auxiliary === 'agent'"
+            class="workbench-auxiliary-content"
+            ><AgentPanel
+          /></TabsContent>
           <TabsContent value="references" class="workbench-auxiliary-content"><ReferencePanel /></TabsContent>
           <TabsContent value="candidates" class="workbench-auxiliary-content"><CandidatePanel /></TabsContent>
           <TabsContent value="review" class="workbench-auxiliary-content"><ReviewPanel /></TabsContent>
@@ -124,6 +194,8 @@ onBeforeUnmount(() => unsubscribe?.());
     </SplitterPanel>
   </SplitterGroup>
   <WritingDialogs />
+  <NewWorkspaceDialog />
+  <WorkspaceActionDialogs />
   <CreateAssetDialog />
   <SettlementDialogs />
   <AssetDialogs />
@@ -159,7 +231,10 @@ onBeforeUnmount(() => unsubscribe?.());
   border-color: var(--border-subtle);
 }
 .workbench-tab-scroll {
-  @apply h-9 min-w-0 shrink-0;
+  @apply h-9 min-w-0 flex-1;
+}
+.workbench-auxiliary-header {
+  @apply flex h-9 shrink-0 items-center pr-1;
 }
 
 .workbench-auxiliary-root,

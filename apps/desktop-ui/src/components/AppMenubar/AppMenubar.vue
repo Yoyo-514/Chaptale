@@ -127,7 +127,7 @@ const emit = defineEmits<{
 }
 
 .app-menubar-item {
-  @apply flex cursor-default items-center gap-2 px-2 py-1 outline-none;
+  @apply relative flex cursor-default items-center gap-2 pl-7 pr-2 py-1 outline-none;
 
   border-radius: var(--radius-control-sm);
   font-size: var(--ui-font-size);
@@ -147,9 +147,9 @@ const emit = defineEmits<{
   @apply pointer-events-none opacity-50;
 }
 
-// 固定宽度的勾位：未选中时留白，同组各项的文字才对得齐。
+// 勾号放在共同的内边距内，不参与文字布局。
 .app-menubar-item-check {
-  @apply size-3.5 shrink-0;
+  @apply absolute left-2 top-1/2 size-3.5 -translate-y-1/2;
 
   color: var(--primary-solid);
 }

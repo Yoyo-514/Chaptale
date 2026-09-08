@@ -54,13 +54,13 @@ export const useSettlementStore = defineStore('chapter-settlement', () => {
       if (targetPath !== undefined || batchId !== details.value?.batch.id) focusedTarget.value = targetPath ?? '';
       details.value = result;
       error.value = '';
-      navigation.auxiliary = 'settlement';
+      navigation.showAuxiliary('settlement');
     } catch (cause) {
       if (token === readSequence) error.value = toErrorMessage(cause);
     }
   }
   async function prepare(chapterPath?: string) {
-    navigation.auxiliary = 'settlement';
+    navigation.showAuxiliary('settlement');
     if (busy.value) return;
     const rootPath = workspace.rootPath;
     if (!rootPath) return;

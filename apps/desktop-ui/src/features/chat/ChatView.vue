@@ -4,12 +4,16 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { MemoryPendingCard, useMemoryPending } from '@/features/memory-review';
+import { useNotificationStore } from '@/features/notifications';
 import { PermissionRequestCard, usePermissionRequests } from '@/features/permissions';
 import { ReviewResultStrip, useReviewLanes } from '@/features/reviews';
 import { useSessionStore } from '@/features/sessions';
 import { SubagentTaskCard, useSubagentTasks } from '@/features/subagent-tasks';
 import { TodoProgressCard, useTodoProgress } from '@/features/todo-progress';
+import { useWorkbenchStore } from '@/features/workbench';
+import { useWorkspaceStore } from '@/features/workspace';
 import { cn } from '@/utils';
+import { toErrorMessage } from '@/utils/desktop-api';
 
 import ChatEmptyState from './components/ChatEmptyState.vue';
 import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
@@ -23,6 +27,41 @@ import { useContextCompaction } from './composables/useContextCompaction';
 
 const chat = useChatController();
 const sessionStore = useSessionStore();
+const navigation = useWorkbenchStore();
+const workspace = useWorkspaceStore();
+const root = ref<HTMLElement>();
+let applyingContext = false;
+async function applyContextRequests() {
+  if (applyingContext || chat.state.isConnecting || chat.state.isReplying) return;
+  applyingContext = true;
+  try {
+    while (navigation.agentRequests.length) {
+      const request = navigation.agentRequests[0]!;
+      if (request.rootPath !== workspace.rootPath) {
+        navigation.agentRequests.shift();
+        continue;
+      }
+      try {
+        if (request.files.length)
+          await chat.addWorkspaceFiles(request.files, () => request.rootPath === workspace.rootPath);
+        if (request.rootPath !== workspace.rootPath) continue;
+        chat.state.input = [chat.state.input.trim(), request.prompt].filter(Boolean).join('\n\n');
+      } catch (error) {
+        useNotificationStore().error('添加 Agent 上下文失败', toErrorMessage(error));
+      }
+      navigation.agentRequests.shift();
+    }
+    await nextTick();
+    root.value?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+  } finally {
+    applyingContext = false;
+  }
+}
+watch(
+  () => [navigation.agentRequests.length, chat.state.isConnecting, chat.state.isReplying],
+  () => void applyContextRequests(),
+  { immediate: true }
+);
 const todoProgress = useTodoProgress(() => sessionStore.currentSessionId);
 const permissionRequests = usePermissionRequests(() => sessionStore.currentSessionId);
 const memoryPending = useMemoryPending();
@@ -96,7 +135,12 @@ watch(
 );
 
 function handleGlobalKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+  if (
+    !event.defaultPrevented &&
+    root.value?.contains(event.target as Node) &&
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === 'f'
+  ) {
     event.preventDefault();
     search.open();
   }
@@ -107,7 +151,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
 </script>
 
 <template>
-  <main :class="cn('chat-main', chat.isWelcome.value && 'chat-main-welcome')">
+  <main ref="root" :class="cn('chat-main', chat.isWelcome.value && 'chat-main-welcome')">
     <section :class="cn('chat-messages-section', chat.isWelcome.value && 'chat-messages-section-welcome')">
       <ChatEmptyState
         v-if="chat.isWelcome.value"
@@ -225,7 +269,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       @drop-context-files="chat.handleDropContextFiles"
       @remove-context-file="chat.handleRemoveContextFile"
       @open-settings="chat.handleOpenSettings"
-      @run-review="review.startAll"
     />
   </main>
 </template>

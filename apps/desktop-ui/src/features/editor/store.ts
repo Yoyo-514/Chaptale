@@ -154,6 +154,9 @@ export const useEditorStore = defineStore('editor', () => {
   async function closeTab(id: string) {
     const tab = tabs.value.find(item => item.id === id);
     if ((tab?.dirty || tab?.saving) && !(await confirmClose([id]))) return;
+    removeTab(id);
+  }
+  function removeTab(id: string) {
     const index = tabs.value.findIndex(item => item.id === id);
     if (index < 0) return;
     pending.delete(id);
@@ -166,6 +169,35 @@ export const useEditorStore = defineStore('editor', () => {
     wordCountTimers.delete(id);
     tabs.value = tabs.value.filter(item => item.id !== id);
     if (activeId.value === id) activeId.value = tabs.value[Math.min(index, tabs.value.length - 1)]?.id ?? '';
+  }
+  async function closeTabs(ids: string[]) {
+    if (!(await confirmClose(ids))) return false;
+    for (const id of ids) removeTab(id);
+    return true;
+  }
+  function pathTabs(relativePath: string) {
+    return tabs.value.filter(tab => tab.path === relativePath || tab.path.startsWith(`${relativePath}/`));
+  }
+  function acceptPathRemoval(relativePath: string) {
+    for (const tab of pathTabs(relativePath)) removeTab(tab.id);
+  }
+  function acceptPathMove(from: string, to: string) {
+    for (const tab of pathTabs(from)) {
+      pending.delete(tab.id);
+      externalReads.delete(tab.id);
+      const nextPath = `${to}${tab.path.slice(from.length)}`;
+      if (tab.dirty && tab.document) buffers.set(tab.id, new DocumentBuffer(tab.document.content));
+      replaceTab({
+        ...tab,
+        path: nextPath,
+        title: nextPath.split('/').at(-1) ?? nextPath,
+        document: tab.document ? { ...tab.document, relativePath: nextPath } : null,
+        dirty: false,
+        external: undefined,
+        saveError: '',
+        generation: (tab.generation ?? 0) + 1
+      });
+    }
   }
 
   function rememberView(id: string, viewState: DocumentViewState) {
@@ -730,6 +762,10 @@ export const useEditorStore = defineStore('editor', () => {
     reloadDocument,
     selectTab,
     closeTab,
+    closeTabs,
+    pathTabs,
+    acceptPathRemoval,
+    acceptPathMove,
     rememberView,
     requestSearch,
     reset

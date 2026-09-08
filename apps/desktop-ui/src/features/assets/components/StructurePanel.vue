@@ -10,6 +10,7 @@ import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
 import { useTemplateStore } from '@/features/templates';
+import { useWorkbenchStore } from '@/features/workbench';
 
 import { assetKindLabel, assetViews, groupAssets, isUnclassified } from '../presentation';
 import { useAssetStore } from '../store';
@@ -18,6 +19,7 @@ const assets = useAssetStore();
 const library = useLibraryStore();
 const editor = useEditorStore();
 const templates = useTemplateStore();
+const navigation = useWorkbenchStore();
 const groups = computed(() =>
   groupAssets(library.assets, assets.view, assets.mode, assets.query, assets.includeArchived)
 );
@@ -52,6 +54,10 @@ onMounted(() => void assets.refresh());
           :disabled="library.loading"
           @click="assets.refresh"
           ><span class="i-mingcute-refresh-3-line" /></AppButton
+      ></AppTooltip>
+      <AppTooltip text="隐藏侧栏"
+        ><AppButton icon size="xs" variant="ghost" aria-label="隐藏侧栏" @click="navigation.sidebarOpen = false"
+          ><span class="i-mingcute-close-line size-4" aria-hidden="true" /></AppButton
       ></AppTooltip>
     </header>
     <TabsRoot v-model="assets.view" class="structure-tabs">
