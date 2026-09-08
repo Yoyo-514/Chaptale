@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import type { PermissionGatePort } from '../../core/agent/types';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { ModelService } from '../../core/models/service';
 import type { SettingsService } from '../../core/settings/service';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
+import { readManagedText } from '../../infra/filesystem/managed-text';
 import type { TaskPersonaSpec } from '../personas/task-spec';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
 import type { SkillProvider } from '../skills/provider-port';
@@ -124,8 +125,7 @@ async function composeTaskSystemPrompt(
       for (const name of spec.skills) {
         const skill = skills.find(value => value.name === name);
         if (!skill) throw new Error(`绑定技能不可用：${name}`);
-        const body = await readFile(skill.filePath, 'utf8');
-        if (body.length > 128_000) throw new Error(`技能超过长度上限：${name}`);
+        const body = await readManagedText(path.dirname(skill.filePath), path.basename(skill.filePath));
         layers.push(body);
       }
       return layers.join('\n\n');

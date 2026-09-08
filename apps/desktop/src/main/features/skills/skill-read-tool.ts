@@ -1,17 +1,19 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { opendir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from 'typebox';
 
 import { takeTextToTokenBudget } from '../../core/context/token-counter';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import { TOOL_RESULT_TOKEN_BUDGET } from '../../core/tool-protocol/model-output';
-import { isBinaryContent, resolveWithinCwd } from '../../infra/filesystem/path-guard';
+import { readManagedText, resolveManagedPath } from '../../infra/filesystem/managed-text';
 import type { SkillProvider } from './provider-port';
 
 export const SKILL_READ_TOOL_NAME = 'skill_read';
 
 /** 目录清单最多列出的辅助文件数：防超大目录把清单本身变成噪音。 */
 const MAX_LISTED_FILES = 30;
+const MAX_SCANNED_ENTRIES = 300;
+const MAX_DIRECTORY_DEPTH = 4;
 
 /**
  * 技能文本的自限预算，留在工具结果预算之下。
@@ -55,7 +57,7 @@ export type SkillReadToolOptions = {
  * 在 `~/.chaptale/` 下——不经本通道，模型永远读不到它们的正文。
  * 注入采用渐进披露（索引常驻、正文按需），模型用本工具取 SKILL.md 全文；
  * 目录型技能（SKILL.md 之外的辅助文件）经 path 参数读取，越界复用
- * resolveWithinCwd 守卫（词法 + realpath 双查，与 read 同一条红线）。
+ * managed-text 守卫（词法、真实路径、拒绝链接、128 KiB 字节上限和严格 UTF-8）。
  * 返回的 text 先按头部优先自限（见 SKILL_TEXT_TOKEN_BUDGET），再受工具结果预算兜底。
  */
 export function createSkillReadTool(options: SkillReadToolOptions): ToolDefinition<typeof skillReadParameters> {
@@ -84,7 +86,13 @@ export function createSkillReadTool(options: SkillReadToolOptions): ToolDefiniti
         return readSkillFile(skill, skillDir, params.path);
       }
 
-      const body = await readTextFile(skill.filePath).catch(() => '');
+      let body: string;
+      try {
+        body = await readManagedText(skillDir, path.basename(skill.filePath));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        return { text: `技能「${skill.name}」文件已不存在：${skill.filePath}`, details: { id: skill.name } };
+      }
       const listing = await listSkillFiles(skillDir);
 
       return {
@@ -112,22 +120,17 @@ async function readSkillFile(
   skillDir: string,
   target: string
 ): Promise<{ text: string; details?: unknown }> {
-  // 相对路径也必须先落地在技能目录内——resolveWithinCwd 同时挡住绝对路径与 .. 穿越（含符号链接）。
-  const filePath = await resolveWithinCwd(skillDir, target);
-
-  const info = await stat(filePath).catch(() => undefined);
+  const filePath = await resolveManagedPath(skillDir, target);
+  const info = await stat(filePath).catch(error => {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return undefined;
+  });
 
   if (!info?.isFile()) {
     return { text: `技能「${skill.name}」目录内不存在文件：${target}` };
   }
 
-  const buffer = await readFile(filePath);
-
-  if (isBinaryContent(buffer)) {
-    return { text: `二进制文件不支持读取：${target}` };
-  }
-
-  return { text: fitSkillText(buffer.toString('utf8')) };
+  return { text: fitSkillText(await readManagedText(skillDir, target)) };
 }
 
 /**
@@ -146,20 +149,35 @@ function fitSkillText(text: string): string {
   return `${head}\n\n…（正文超出单次读取预算，此处截断；建议把该技能拆成目录内的参考文件，用 skill_read 的 path 参数分篇读取）`;
 }
 
-async function readTextFile(filePath: string): Promise<string> {
-  return readFile(filePath, 'utf8');
-}
-
-/** 递归列出技能目录内的辅助文件（排除 SKILL.md 自身），相对路径、稳定排序、数量截断；截断必须显式告知余量，否则模型会把清单当全集。 */
+/** 流式扫描有深度与数量上限；只对已知全集报告精确余量。 */
 async function listSkillFiles(skillDir: string): Promise<string[]> {
-  const entries = await readdir(skillDir, { recursive: true, withFileTypes: true }).catch(() => []);
-  const files = entries
-    .filter(entry => entry.isFile() && !(entry.parentPath === skillDir && entry.name === 'SKILL.md'))
-    .map(entry => path.relative(skillDir, path.join(entry.parentPath, entry.name)).replaceAll(path.sep, '/'))
-    .toSorted();
-
-  const listed = files.slice(0, MAX_LISTED_FILES);
+  const pending = [{ relative: '.', depth: 0 }];
+  const files: string[] = [];
+  let scanned = 0;
+  let limited = false;
+  while (pending.length > 0 && scanned < MAX_SCANNED_ENTRIES) {
+    const current = pending.shift()!;
+    const directory = await opendir(await resolveManagedPath(skillDir, current.relative));
+    for await (const entry of directory) {
+      if (scanned === MAX_SCANNED_ENTRIES) {
+        limited = true;
+        break;
+      }
+      scanned++;
+      if (entry.isSymbolicLink()) continue;
+      const relative = current.relative === '.' ? entry.name : `${current.relative}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (current.depth < MAX_DIRECTORY_DEPTH) pending.push({ relative, depth: current.depth + 1 });
+        else limited = true;
+      } else if (entry.isFile() && relative !== 'SKILL.md') {
+        files.push(relative);
+      }
+    }
+  }
+  const listed = files.toSorted().slice(0, MAX_LISTED_FILES);
+  if (limited || pending.length > 0) {
+    return [...listed, '（清单已达到扫描数量或深度上限，未列全；已知路径仍可用 path 参数读取）'];
+  }
   const rest = files.length - listed.length;
-
   return rest > 0 ? [...listed, `（还有 ${rest} 个文件未列出，可用 skill_read 的 path 参数直接读取）`] : listed;
 }

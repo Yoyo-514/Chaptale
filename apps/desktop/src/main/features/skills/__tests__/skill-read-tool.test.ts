@@ -99,7 +99,7 @@ describe('createSkillReadTool', () => {
     expect(result.text).toContain('没有名为「review-checklist」的可用技能');
   });
 
-  it('正文读取失败降级为提示文本', async () => {
+  it('正文文件已删除时明确提示，不冒充空正文', async () => {
     const skill = {
       name: 'broken',
       description: '坏文件',
@@ -111,7 +111,7 @@ describe('createSkillReadTool', () => {
 
     const result = await tool.execute({ id: 'broken' });
 
-    expect(result.text).toContain('正文为空');
+    expect(result.text).toContain('文件已不存在');
   });
 
   it('目录型技能：SKILL.md 末尾附其他文件清单', async () => {
