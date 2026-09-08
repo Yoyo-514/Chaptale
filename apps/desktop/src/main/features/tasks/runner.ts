@@ -175,6 +175,8 @@ export class TaskRunner implements TaskRunnerPort {
     const record: AgentRunRecord = {
       id: runId,
       personaId: spec.personaId,
+      personaName: request.persona.name,
+      ...(request.persona.output ? { outputSchema: request.persona.output } : {}),
       execution: 'task',
       trigger: request.trigger,
       ...(request.parentSessionId ? { parentSessionId: request.parentSessionId } : {}),

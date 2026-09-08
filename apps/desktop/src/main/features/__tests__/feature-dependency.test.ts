@@ -12,8 +12,8 @@ const featuresRoot = path.join(mainRoot, 'features');
  * - 新增跨 feature 导入必须在此显式登记并通过评审；陈旧条目同样报错；
  * - 所有边必须保持无运行时环。反向运行时边现已归零：memory 目录布局（纯 path.join、
  *   零 feature 依赖、被 memory 与 search 共用）已上提到 core/memory-layout，
- *   原先唯一的 search -> memory/paths 因此消失；memory -> personas 与
- *   personas -> search 均为 type-only。
+ *   原先唯一的 search -> memory/paths 因此消失。memory -> personas/memory-access
+ *   复用纯权限求交函数，personas 与 memory 到 search 的边均为 type-only。
  * - 路径守卫归 infra/filesystem，skills 与文件工具共同复用，不保留跨 feature 例外。
  */
 const crossFeatureAllowlist = [
@@ -27,7 +27,6 @@ const crossFeatureAllowlist = [
   // 闸门在 chat-bundle 内做「三层规则求值 → broker 兜底」，因此同时依赖规则库与求值器。
   'agent -> permissions/engine',
   'agent -> permissions/rule-store',
-  'agent -> personas/builtin',
   'agent -> personas/memory-access',
   'agent -> personas/registry',
   'agent -> personas/task-spec',
@@ -50,7 +49,10 @@ const crossFeatureAllowlist = [
   'commands -> skills/provider-port',
   'library -> search/index/worker-client',
   'library -> workspace/service',
+  // 注入、检索和压缩按同一专员策略收窄，不在 memory 内复制权限判断。
+  'memory -> personas/memory-access',
   'memory -> personas/registry',
+  'memory -> search/types',
   'personas -> search/types',
   'prompts -> personas/builtin',
   'reviews -> library/service',

@@ -3,6 +3,7 @@ import { onMounted } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useDraggablePanel, type ResizeDirection } from '@/composables';
+import { ContentSettings } from '@/features/content';
 
 import SettingsSidebar from './components/SettingsSidebar.vue';
 import ConfigFilesSettings from './sections/ConfigFilesSettings.vue';
@@ -82,6 +83,7 @@ onMounted(() => {
             <PromptSettings v-else-if="settingsStore.activeSection === 'prompt'" />
             <WebToolsSettings v-else-if="settingsStore.activeSection === 'webTools'" />
             <PermissionsSettings v-else-if="settingsStore.activeSection === 'permissions'" />
+            <ContentSettings v-else-if="settingsStore.activeSection === 'content'" />
             <ConfigFilesSettings v-else />
           </main>
         </div>

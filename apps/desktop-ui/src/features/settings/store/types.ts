@@ -8,7 +8,7 @@ import type {
   UpdatePromptSettingsPayload
 } from '@chaptale/ipc-contract';
 
-export type SettingsSection = 'workspace' | 'llm' | 'prompt' | 'webTools' | 'permissions' | 'files';
+export type SettingsSection = 'workspace' | 'llm' | 'prompt' | 'webTools' | 'permissions' | 'files' | 'content';
 
 export type SettingsStoreState = {
   state: ChaptaleSettingsState | undefined;

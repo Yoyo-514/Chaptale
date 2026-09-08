@@ -273,7 +273,7 @@ describe('ReviewResultStrip', () => {
       lane({ key: 'style', status: 'idle' })
     ]);
 
-    expect(wrapper.find('section[aria-label="三维审查结果"]').exists()).toBe(true);
+    expect(wrapper.find('section[aria-label="委派审查结果"]').exists()).toBe(true);
 
     await wrapper.setProps({
       lanes: [
@@ -283,7 +283,7 @@ describe('ReviewResultStrip', () => {
       ]
     });
 
-    expect(wrapper.find('section[aria-label="三维审查结果"]').exists()).toBe(false);
+    expect(wrapper.find('section[aria-label="委派审查结果"]').exists()).toBe(false);
 
     wrapper.unmount();
   });

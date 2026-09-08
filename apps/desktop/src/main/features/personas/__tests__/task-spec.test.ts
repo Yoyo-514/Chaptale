@@ -28,7 +28,8 @@ describe('resolveTaskSpec', () => {
       systemPrompt: '你是测试审查专员。',
       tools: [],
       skills: [],
-      memoryReadDomains: []
+      memoryReadDomains: [],
+      authorMemoryRead: true
     });
   });
 

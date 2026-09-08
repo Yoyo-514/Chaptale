@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  ContentContextValidator,
+  ContentReadValidator,
+  ContentSaveValidator,
+  ContentExportValidator,
+  ContentBundleTextValidator,
+  ContentPreviewValidator,
+  ContentImportValidator,
   CreateWorkspaceArgsValidator,
   EditCommandValidator,
   EntryPathArgsValidator,
@@ -134,6 +141,14 @@ const validated = (channel: string, validator: IpcValidator): Registration => ({
 });
 
 const expectedRegistrations: Registration[] = [
+  validated(IPC_CHANNELS.content.list, ContentContextValidator),
+  validated(IPC_CHANNELS.content.read, ContentReadValidator),
+  validated(IPC_CHANNELS.content.save, ContentSaveValidator),
+  validated(IPC_CHANNELS.content.archive, ContentReadValidator),
+  validated(IPC_CHANNELS.content.previewExport, ContentExportValidator),
+  validated(IPC_CHANNELS.content.saveExport, ContentBundleTextValidator),
+  validated(IPC_CHANNELS.content.previewImport, ContentPreviewValidator),
+  validated(IPC_CHANNELS.content.import, ContentImportValidator),
   ...Object.entries(SettlementValidators).map(([key, validator]) =>
     validated(IPC_CHANNELS.settlement[key as keyof typeof SettlementValidators], validator)
   ),

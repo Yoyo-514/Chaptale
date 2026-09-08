@@ -3,7 +3,6 @@ import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
-  REVIEWERS,
   REVIEW_ISSUE_LABELS,
   type ReviewFeedbackList,
   type ReviewFeedbackSuggestion,
@@ -20,6 +19,14 @@ import type { ReviewWorkflowStore } from './workflow-store';
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 const decisionPath = '.chaptale/reviews/feedback.json';
 const key = (personaId: string, issueType: string) => `${personaId}:${issueType}`;
+const validPersona = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 64;
+const validIssueType = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.trim().length > 0 &&
+  value.length <= 80 &&
+  value.isWellFormed() &&
+  [...value].every(character => character.charCodeAt(0) >= 32);
 type FeedbackDecisions = Record<string, { suggestionId: string; dismissedAt: string }>;
 
 export class ReviewFeedbackStore {
@@ -63,9 +70,8 @@ export class ReviewFeedbackStore {
         if (
           head.status !== 'ok' ||
           head.frontmatter.kind !== 'preference' ||
-          !REVIEWERS.some(item => item.id === head.frontmatter.personaId) ||
-          typeof head.frontmatter.issueType !== 'string' ||
-          !REVIEW_ISSUE_LABELS[head.frontmatter.issueType] ||
+          !validPersona(head.frontmatter.personaId) ||
+          !validIssueType(head.frontmatter.issueType) ||
           typeof head.frontmatter.confirmedAt !== 'string' ||
           !head.body.trim()
         )
@@ -85,7 +91,7 @@ export class ReviewFeedbackStore {
     return { preferences, diagnostics };
   }
   async forPersona(personaId: string) {
-    if (!REVIEWERS.some(item => item.id === personaId)) return { prompt: '', memoryRefs: [] };
+    if (!validPersona(personaId)) return { prompt: '', memoryRefs: [] };
     const { preferences, diagnostics } = await this.preferences();
     if (diagnostics.length) throw new Error(`审查偏好读取失败：${diagnostics.join('\n')}`);
     const selected = preferences.filter(item => item.personaId === personaId);
@@ -109,7 +115,8 @@ export class ReviewFeedbackStore {
       if (
         entries.some(
           ([name, item]) =>
-            !/^[a-z-]+:[a-z_]+$/.test(name) ||
+            !validPersona(name.slice(0, name.indexOf(':'))) ||
+            !validIssueType(name.slice(name.indexOf(':') + 1)) ||
             !item ||
             typeof item !== 'object' ||
             Array.isArray(item) ||

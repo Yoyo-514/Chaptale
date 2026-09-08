@@ -6,6 +6,7 @@ import { isChaptaleTheme } from '@chaptale/ipc-contract';
 import type { EditCommand } from '@chaptale/ipc-contract';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
+import { useContentStore } from '@/features/content';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
 import { useReviewStore } from '@/features/reviews';
@@ -31,6 +32,7 @@ const settlement = useSettlementStore();
 const versions = useVersionStore();
 const sessions = useSessionStore();
 const router = useRouter();
+const content = useContentStore();
 const editTarget = shallowRef<ReturnType<typeof captureEditingTarget>>();
 function captureEditTarget() {
   editTarget.value = captureEditingTarget();
@@ -133,7 +135,19 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     label: 'Agent',
     items: [
       { id: 'agent.new-session', label: '新建会话', disabled: navigation.agentBusy },
-      { id: 'agent.switch-persona', label: '切换 Agent 角色', disabled: true },
+      {
+        id: 'agent.switch-persona',
+        label: '切换 Agent 角色',
+        disabled: navigation.agentBusy,
+        items: [
+          ...content.chats.map(persona => ({
+            id: `agent.persona.${persona.id}`,
+            label: persona.name,
+            checked: (sessions.currentSession?.personaId ?? 'companion') === persona.id
+          })),
+          { id: 'agent.manage-personas', label: '管理专员', separatorBefore: true }
+        ]
+      },
       { id: 'agent.tasks', label: '查看运行记录', separatorBefore: true },
       { id: 'agent.cancel', label: '停止当前对话', disabled: !navigation.agentBusy || navigation.agentCancelling }
     ]
@@ -160,11 +174,20 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
-  if (itemId === 'agent.new-session') {
+  if (itemId === 'agent.manage-personas') {
+    settingsStore.openPanel('content');
+    return;
+  }
+  if (itemId === 'agent.new-session' || itemId.startsWith('agent.persona.')) {
     if (navigation.agentBusy) return;
     navigation.showAuxiliary('agent');
     void sessions
-      .createSession({ name: '新会话' })
+      .createSession({
+        name: '新会话',
+        personaId: itemId.startsWith('agent.persona.')
+          ? itemId.slice('agent.persona.'.length)
+          : sessions.currentSession?.personaId
+      })
       .then(() => router.push({ name: 'chat' }))
       .catch(error => useNotificationStore().error('新建会话失败', toErrorMessage(error)));
     return;

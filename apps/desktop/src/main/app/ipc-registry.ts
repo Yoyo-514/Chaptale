@@ -2,6 +2,7 @@ import { EditCommandValidator, IPC_CHANNELS, type AppPlatformResult, type EditCo
 
 import { registerAgentIpc } from '../features/agent/ipc';
 import { registerSlashCommandIpc } from '../features/commands/ipc';
+import { registerContentIpc } from '../features/content/ipc';
 import { registerLibraryIpc } from '../features/library/ipc';
 import { registerMemoryIpc } from '../features/memory/ipc';
 import { registerModelsIpc } from '../features/models/ipc';
@@ -30,6 +31,7 @@ import type { AppContext } from './app-context';
  */
 export function registerApplicationIpc(context: AppContext): void {
   const ui = new ElectronUiShell();
+  registerContentIpc(context.contentService, ui);
   registerWorkspaceIpc(context.workspaceService, ui);
   registerLibraryIpc(context.libraryService);
   registerWritingIpc(context.writingService);

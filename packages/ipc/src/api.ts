@@ -20,6 +20,7 @@ import type {
   StreamAgentOptions
 } from './agent';
 import type { AppPlatformResult, EditCommand } from './app';
+import type { ContentApi } from './content';
 import type { LibraryApi } from './library';
 import type {
   AddCustomModelPayload,
@@ -101,6 +102,7 @@ import type { WritingApi } from './writing';
  * 该类型只描述可跨进程调用的稳定数据，不允许 Electron、Node 或具体 SDK 类型越过边界。
  */
 export type ChaptaleDesktopApi = {
+  content: ContentApi;
   settlement: SettlementApi;
   writing: WritingApi;
   templates: TemplatesApi;

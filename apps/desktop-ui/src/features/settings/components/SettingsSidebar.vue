@@ -1,9 +1,17 @@
 <script setup lang="ts">
+import { AppButton } from '@/components/AppButton';
+
 import { useSettingsStore, type SettingsSection } from '../store';
 
 const settingsStore = useSettingsStore();
 
 const sections: { id: SettingsSection; title: string; description: string; icon: string }[] = [
+  {
+    id: 'content',
+    title: '专员与内容',
+    description: '专员、技能、模板',
+    icon: 'i-mingcute-user-setting-line'
+  },
   {
     id: 'workspace',
     title: '工作区',
@@ -45,10 +53,11 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
 
 <template>
   <nav class="settings-panel-nav" aria-label="设置分类">
-    <button
+    <AppButton
       v-for="section in sections"
       :key="section.id"
       class="settings-nav-item"
+      variant="ghost"
       :class="{ 'is-active': settingsStore.activeSection === section.id }"
       type="button"
       @click="settingsStore.setSection(section.id)"
@@ -58,20 +67,22 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
         <span class="settings-nav-title">{{ section.title }}</span>
         <span class="settings-nav-description">{{ section.description }}</span>
       </span>
-    </button>
+    </AppButton>
   </nav>
 </template>
 
 <style scoped lang="scss">
 .settings-panel-nav {
-  @apply flex flex-col gap-2 border-r p-3;
+  @apply flex flex-col gap-1 overflow-auto border-r p-3;
 
   background: var(--surface-acrylic-subtle);
   border-color: var(--border-subtle);
 }
 
 .settings-nav-item {
-  @apply flex min-w-0 items-start gap-2 border px-2.5 py-2 text-left outline-none transition-colors duration-150;
+  @apply flex min-w-0 shrink-0 items-start justify-start gap-2 border px-2.5 py-2 text-left outline-none transition-colors duration-150;
+  height: auto;
+  white-space: normal;
 
   background: transparent;
   border-color: transparent;

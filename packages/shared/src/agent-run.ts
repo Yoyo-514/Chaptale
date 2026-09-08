@@ -23,6 +23,8 @@ export const AgentRunRecordSchema = Type.Object(
   {
     id: Type.String({ minLength: 1 }),
     personaId: Type.String({ minLength: 1 }),
+    personaName: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    outputSchema: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })),
     execution: Type.Union([Type.Literal('chat'), Type.Literal('task')]),
     trigger: Type.Union([Type.Literal('user'), Type.Literal('delegate'), Type.Literal('ui-action')]),
     parentSessionId: Type.Optional(Type.String()),

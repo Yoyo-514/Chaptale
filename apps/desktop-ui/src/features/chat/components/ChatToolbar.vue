@@ -1,17 +1,24 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AppButton } from '@/components/AppButton';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useContentStore } from '@/features/content';
 import { useNotificationStore } from '@/features/notifications';
 import { SessionRenameDialog, useSessionStore } from '@/features/sessions';
+import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
 const notificationStore = useNotificationStore();
 const navigation = useWorkbenchStore();
+const content = useContentStore();
+const settings = useSettingsStore();
+const switching = ref(false);
+const personaId = computed(() => currentSession.value?.personaId ?? 'companion');
 
 const currentSession = computed(() => sessionStore.currentSession);
 const sessionTitle = computed(() => {
@@ -21,12 +28,32 @@ const sessionTitle = computed(() => {
 
 onMounted(() => {
   void sessionStore.loadSessions();
+  void content.refresh();
 });
+watch(
+  () => content.context.rootPath,
+  () => void content.refresh()
+);
 
 async function handleCreateSession() {
-  const index = sessionStore.sessions.length + 1;
-  await sessionStore.createSession({ name: `新会话 ${index}` });
-  await router.push({ name: 'chat' });
+  await selectPersona(personaId.value, true);
+}
+async function selectPersona(id: string, force = false) {
+  if (id === '__manage') {
+    settings.openPanel('content');
+    return;
+  }
+  if (navigation.agentBusy || switching.value || (!force && currentSession.value && id === personaId.value)) return;
+  switching.value = true;
+  try {
+    const index = sessionStore.sessions.length + 1;
+    await sessionStore.createSession({ name: `新会话 ${index}`, ...(id !== 'companion' ? { personaId: id } : {}) });
+    await router.push({ name: 'chat' });
+  } catch (cause) {
+    notificationStore.error('创建会话失败', cause instanceof Error ? cause.message : String(cause));
+  } finally {
+    switching.value = false;
+  }
 }
 
 async function handleOpenHistory() {
@@ -57,6 +84,22 @@ async function handleExportSession() {
 
 <template>
   <div class="chat-toolbar" aria-label="聊天工具栏">
+    <div class="chat-persona">
+      <AppSelect
+        :model-value="personaId"
+        aria-label="对话专员"
+        :disabled="navigation.agentBusy || switching"
+        @update:model-value="selectPersona($event)"
+      >
+        <AppSelectItem v-for="persona in content.chats" :key="persona.id" :value="persona.id">{{
+          persona.name
+        }}</AppSelectItem>
+        <AppSelectItem v-if="!content.chats.some(item => item.id === personaId)" :value="personaId">{{
+          personaId === 'companion' ? '创作伙伴' : `${personaId} · 不可用`
+        }}</AppSelectItem>
+        <AppSelectItem value="__manage">管理专员</AppSelectItem>
+      </AppSelect>
+    </div>
     <div class="chat-toolbar-title" :title="sessionTitle">
       <span class="i-mingcute-chat-3-line chat-toolbar-title-icon" aria-hidden="true" />
       <span class="chat-toolbar-title-text">{{ sessionTitle }}</span>
@@ -116,9 +159,14 @@ async function handleExportSession() {
 
 <style scoped lang="scss">
 .chat-toolbar {
-  @apply flex min-w-0 items-center justify-between gap-2 border-b px-2 pb-1;
+  @apply flex min-w-0 flex-wrap items-center justify-between gap-2 border-b px-2 pb-1;
 
   border-color: var(--border-subtle);
+}
+.chat-persona {
+  @apply min-w-0;
+  width: 140px;
+  max-width: 100%;
 }
 
 .chat-toolbar-title {

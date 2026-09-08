@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
-import { REVIEWERS, REVIEW_ISSUE_LABELS } from '@chaptale/shared';
+import { REVIEW_ISSUE_LABELS } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
@@ -66,7 +66,7 @@ async function locate(index: number) {
       /></AppButton>
     </header>
     <div class="review-lanes">
-      <div v-for="reviewer in REVIEWERS" :key="reviewer.id" class="review-lane">
+      <div v-for="reviewer in reviews.reviewers" :key="reviewer.id" class="review-lane">
         <span>{{ reviewer.label }}</span>
         <AppButton size="xs" variant="ghost" @click="reviews.prepare(reviewer.id)">运行</AppButton>
         <div
@@ -86,7 +86,7 @@ async function locate(index: number) {
         @update:model-value="reviews.read"
       >
         <AppSelectItem v-for="item in reviews.jobs" :key="item.id" :value="item.id">
-          {{ REVIEWERS.find(reviewer => reviewer.id === item.personaId)?.label }} · {{ item.targetPath }} ·
+          {{ reviews.reviewerLabel(item.personaId, item.personaName) }} · {{ item.targetPath }} ·
           {{ labels[item.status] }} · {{ item.id.slice(0, 8) }}
         </AppSelectItem>
       </AppSelect>
@@ -107,7 +107,7 @@ async function locate(index: number) {
           :key="kind"
           :value="kind"
         >
-          {{ typeLabels[kind] }}
+          {{ typeLabels[kind] ?? kind }}
         </AppSelectItem>
       </AppSelect>
       <AppSelect v-model="reviews.issueStatus" aria-label="问题处理状态" content-size="sm">
@@ -145,7 +145,9 @@ async function locate(index: number) {
                     : selectedIssues.filter(index => index !== value.index)
               "
             />
-            <strong>{{ severityLabels[value.issue.severity] }} · {{ typeLabels[value.issue.type] }}</strong
+            <strong
+              >{{ severityLabels[value.issue.severity] }} ·
+              {{ typeLabels[value.issue.type] ?? value.issue.type }}</strong
             ><span v-if="value.anchor.stale">原文已变化</span>
           </div>
           <AppButton variant="link" class="issue-quote" :disabled="value.anchor.stale" @click="locate(value.index)">
@@ -206,7 +208,7 @@ async function locate(index: number) {
     <div v-if="reviews.confirmation" class="review-confirm">
       <p>{{ reviews.confirmation.targetPath }} · {{ reviews.confirmation.candidateId ? '候选稿' : '已保存正文' }}</p>
       <p>本次写作参考：{{ reviews.confirmation.packId?.slice(0, 8) ?? '未选择' }}</p>
-      <label v-for="reviewer in REVIEWERS" :key="reviewer.id"
+      <label v-for="reviewer in reviews.reviewers" :key="reviewer.id"
         ><AppCheckbox
           :model-value="reviews.enabled.includes(reviewer.id)"
           @update:model-value="

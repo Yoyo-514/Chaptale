@@ -1,7 +1,7 @@
 import { Type, type Static, type TSchema } from 'typebox';
 import { Check, Errors } from 'typebox/value';
 
-import { CharacterIssuesSchema, ContinuityIssuesSchema, StyleIssuesSchema } from '../reviews';
+import { CharacterIssuesSchema, ContinuityIssuesSchema, CustomReviewIssuesSchema, StyleIssuesSchema } from '../reviews';
 import { RewriteEditsSchema } from '../rewrite';
 import { ChapterSettlementSchema } from '../settlement';
 import { DraftMarkdownSchema } from '../writing';
@@ -45,6 +45,7 @@ export type CreativeCheckpoint = Static<typeof CreativeCheckpointSchema>;
 registerOutputSchema('continuity-issues', ContinuityIssuesSchema);
 registerOutputSchema('character-issues', CharacterIssuesSchema);
 registerOutputSchema('style-issues', StyleIssuesSchema);
+registerOutputSchema('custom-issues', CustomReviewIssuesSchema);
 registerOutputSchema('creative-checkpoint', CreativeCheckpointSchema);
 registerOutputSchema('draft-markdown', DraftMarkdownSchema);
 registerOutputSchema('rewrite-edits', RewriteEditsSchema);

@@ -7,11 +7,11 @@ import { decodeReviewIssues, resolveReviewAnchor, SUBAGENT_TERMINAL_STATES } fro
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 export type ReviewLaneStatus = 'idle' | 'running' | 'reading' | 'done' | 'failed' | 'cancelled' | 'read-failed';
-export type ReviewLaneKey = ReviewAgentType;
+export type ReviewLaneKey = string;
 
 type ReviewLaneConfig = {
   readonly key: ReviewLaneKey;
-  readonly personaId: 'continuity-reviewer' | 'character-reviewer' | 'style-reviewer';
+  readonly personaId: string;
   readonly agentType: ReviewAgentType;
   readonly brief: string;
 };
@@ -214,14 +214,7 @@ function failRead(lane: ReviewLaneState, token: number, runId: string, error: st
 }
 
 function decodeLaneIssues(kind: ReviewAgentType, value: unknown): ReviewIssues | undefined {
-  switch (kind) {
-    case 'continuity':
-      return decodeReviewIssues('continuity', value);
-    case 'character':
-      return decodeReviewIssues('character', value);
-    case 'style':
-      return decodeReviewIssues('style', value);
-  }
+  return decodeReviewIssues(kind, value);
 }
 
 async function readLaneOutput(lane: ReviewLaneState, tasks: TaskApi, token: number, runId: string, outputRef: string) {
@@ -253,7 +246,13 @@ async function readLaneOutput(lane: ReviewLaneState, tasks: TaskApi, token: numb
     return;
   }
 
-  const decoded = decodeLaneIssues(lane.agentType, envelope.output);
+  const decoded =
+    decodeLaneIssues(lane.agentType, envelope.output) ??
+    (lane.agentType === 'custom'
+      ? (decodeReviewIssues('style', envelope.output) ??
+        decodeReviewIssues('continuity', envelope.output) ??
+        decodeReviewIssues('character', envelope.output))
+      : undefined);
   if (!decoded) {
     failRead(lane, token, runId, '审查结果读取失败：输出结构不符合 schema');
     return;
@@ -473,7 +472,18 @@ export function useReviewLanes(getText: () => string, getContextFilePaths: () =>
     const reads: Promise<void>[] = [];
 
     for (const event of normalizeEvents(events)) {
-      const lane = findLaneByPersona(lanes, event.personaId);
+      let lane = findLaneByPersona(lanes, event.personaId);
+      if (
+        !lane &&
+        event.state === 'success' &&
+        event.outputRef?.startsWith('.chaptale/reviews/') &&
+        lanes.length < 32
+      ) {
+        lanes.push(
+          createInitialLane({ key: event.personaId, personaId: event.personaId, agentType: 'custom', brief: '' })
+        );
+        lane = findLaneByPersona(lanes, event.personaId);
+      }
       if (!lane) {
         continue;
       }

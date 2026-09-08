@@ -63,7 +63,7 @@ watch(
 );
 
 function laneLabel(key: ReviewLaneKey) {
-  return laneLabels[key];
+  return laneLabels[key] ?? props.lanes.find(lane => lane.key === key)?.personaId ?? key;
 }
 
 function tabId(key: ReviewLaneKey) {
@@ -175,12 +175,12 @@ function statusIcon(status: ReviewLaneStatus) {
 </script>
 
 <template>
-  <section v-if="visible" class="review-strip" aria-label="三维审查结果">
+  <section v-if="visible" class="review-strip" aria-label="委派审查结果">
     <AppCollapsible v-model="open" class="review-strip-collapsible" content-class="review-strip-content">
       <template #trigger="{ open: isOpen }">
         <button type="button" class="review-strip-trigger">
           <span class="i-mingcute-eye-line size-4 shrink-0" aria-hidden="true" />
-          <span class="review-strip-title">三维审查结果</span>
+          <span class="review-strip-title">委派审查结果</span>
           <span
             :class="['size-4 shrink-0 review-strip-chevron', isOpen ? 'i-mingcute-down-line' : 'i-mingcute-up-line']"
             aria-hidden="true"
@@ -303,7 +303,7 @@ function statusIcon(status: ReviewLaneStatus) {
 }
 
 .review-tabs {
-  @apply flex items-center gap-1;
+  @apply flex flex-wrap items-center gap-1;
 }
 
 .review-lane-tab {

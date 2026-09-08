@@ -12,6 +12,7 @@ export const RUN_PERSONA_LABELS: Record<string, string> = {
 export const runTitle = (record: AgentRunRecord) =>
   record.inputDigest.brief?.trim() ||
   record.inputDigest.files?.join('、') ||
+  record.personaName ||
   RUN_PERSONA_LABELS[record.personaId] ||
   record.personaId;
 export function runReference(reference: string) {

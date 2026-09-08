@@ -1,7 +1,8 @@
 import { Type, type Static } from 'typebox';
 import { Compile } from 'typebox/compile';
 
-import type { ReviewIssues } from './reviews';
+import type { PersonaFrontmatter } from './personas';
+import type { ReviewAgentType, ReviewIssues } from './reviews';
 import { WorkspaceRelativePathSchema } from './workspace';
 import { ArtifactIdSchema, ContentHashSchema, WritingModelSchema } from './writing';
 
@@ -10,17 +11,40 @@ export const REVIEWERS = [
   { id: 'character-reviewer', kind: 'character', label: '人物' },
   { id: 'style-reviewer', kind: 'style', label: '文风' }
 ] as const;
-export const ReviewerIdSchema = Type.Union([
-  Type.Literal('continuity-reviewer'),
-  Type.Literal('character-reviewer'),
-  Type.Literal('style-reviewer')
+export const ReviewerIdSchema = Type.String({ pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 64 });
+export const ReviewOutputSchema = Type.Union([
+  Type.Literal('continuity-issues'),
+  Type.Literal('character-issues'),
+  Type.Literal('style-issues'),
+  Type.Literal('custom-issues')
 ]);
+export type ReviewOutput = Static<typeof ReviewOutputSchema>;
+export type ReviewerOption = { id: string; label: string; kind: ReviewAgentType; output: ReviewOutput };
+export function reviewOutputKind(output: string | undefined): ReviewAgentType | undefined {
+  switch (output) {
+    case 'continuity-issues':
+      return 'continuity';
+    case 'character-issues':
+      return 'character';
+    case 'style-issues':
+      return 'style';
+    case 'custom-issues':
+      return 'custom';
+  }
+}
+export function reviewerOption(persona: PersonaFrontmatter): ReviewerOption | undefined {
+  const kind = reviewOutputKind(persona.output);
+  if (persona.enabled === false || persona.type !== 'review' || persona.execution !== 'task' || !kind) return;
+  return { id: persona.id, label: persona.name, kind, output: persona.output as ReviewOutput };
+}
 export const IssueStatusSchema = Type.Union([Type.Literal('open'), Type.Literal('resolved'), Type.Literal('ignored')]);
 export type IssueStatus = Static<typeof IssueStatusSchema>;
 export const ReviewJobSchema = Type.Object(
   {
     id: ArtifactIdSchema,
     personaId: ReviewerIdSchema,
+    personaName: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    outputSchema: Type.Optional(ReviewOutputSchema),
     targetPath: WorkspaceRelativePathSchema,
     candidateId: Type.Optional(ArtifactIdSchema),
     candidateRevision: Type.Optional(Type.Integer({ minimum: 1 })),

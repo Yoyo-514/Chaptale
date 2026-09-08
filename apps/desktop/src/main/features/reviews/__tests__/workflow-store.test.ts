@@ -53,6 +53,41 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 describe('审查留档与处理状态', () => {
+  it('自定义审查按冻结格式读取，不依赖当前专员定义', async () => {
+    const original = await fixture();
+    const job: ReviewJob = {
+      ...original,
+      id: 'custom',
+      runId: 'custom',
+      personaId: 'my-reviewer',
+      personaName: '叙事视角审查',
+      outputSchema: 'custom-issues',
+      outputRef: '.chaptale/reviews/custom.json'
+    };
+    const custom = {
+      summary: '视角问题',
+      issues: [
+        {
+          agentType: 'custom',
+          type: '视角跳转',
+          severity: 'medium',
+          quote: '第一句。',
+          reason: '在同一段切换了视角。',
+          suggestion: '统一当前段落的观察者。'
+        }
+      ]
+    };
+    await store.create(root, job);
+    await writeFile(path.join(root, job.outputRef!), JSON.stringify(custom));
+    expect((await store.read(root, job.id)).result).toEqual(custom);
+    await store.resolve(root, job.id, [0], 'ignored');
+    expect((await new ReviewWorkflowStore().read(root, job.id)).state?.issues['0']?.status).toBe('ignored');
+    await writeFile(
+      path.join(root, job.outputRef!),
+      JSON.stringify({ ...custom, issues: [{ ...custom.issues[0], quote: '' }] })
+    );
+    await expect(store.read(root, job.id)).rejects.toThrow('校验');
+  });
   it('运行完成即绑定输出，首次打开前的篡改也拒绝', async () => {
     const job = await fixture();
     await store.update(root, job.id, { status: 'running' });

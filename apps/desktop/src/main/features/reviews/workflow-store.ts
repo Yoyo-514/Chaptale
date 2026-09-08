@@ -5,6 +5,7 @@ import {
   ReviewJobValidator,
   ReviewStateValidator,
   decodeReviewIssues,
+  reviewOutputKind,
   type IssueStatus,
   type ReviewDetails,
   type ReviewJob,
@@ -91,7 +92,8 @@ export class ReviewWorkflowStore {
     if (!job.runId || job.outputRef !== `.chaptale/reviews/${job.runId}.json`) throw new Error('审查输出引用不合法');
     await resolveArtifactPath(rootPath, job.outputRef);
     const document = await readDocumentSnapshot({ rootPath, relativePath: job.outputRef, maxBytes: 8 * 1024 * 1024 });
-    const kind = REVIEWERS.find(reviewer => reviewer.id === job.personaId)!.kind;
+    const kind = reviewOutputKind(job.outputSchema) ?? REVIEWERS.find(reviewer => reviewer.id === job.personaId)?.kind;
+    if (!kind) throw new Error('审查记录缺少输出格式，请重新审查');
     const result = decodeReviewIssues(kind, JSON.parse(document.content));
     if (!result || result.issues.length > 1000) throw new Error('审查输出未通过校验');
     return { document, result };

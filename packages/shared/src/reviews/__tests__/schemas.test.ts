@@ -51,6 +51,28 @@ const stylePayload = {
 } as const;
 
 describe('review schemas', () => {
+  it('自定义审查复用锚点字段并拒绝空引用或错误类型', () => {
+    const payload = {
+      summary: '叙事检查',
+      issues: [
+        {
+          agentType: 'custom',
+          type: '视角跳转',
+          severity: 'medium',
+          quote: '她看见信封。',
+          reason: '视角未交代。',
+          suggestion: '补充观察者。'
+        }
+      ]
+    };
+    expect(decodeReviewIssues('custom', payload)).toEqual(payload);
+    expect(validateOutput('custom-issues', { summary: '未发现问题', issues: [] }).ok).toBe(true);
+    for (const change of [{ quote: '' }, { type: '' }, { agentType: 'other' }, { position: { start: -1 } }]) {
+      expect(validateOutput('custom-issues', { ...payload, issues: [{ ...payload.issues[0], ...change }] }).ok).toBe(
+        false
+      );
+    }
+  });
   it('decodeReviewIssues 返回 continuity v1 结果', () => {
     expect(decodeReviewIssues('continuity', continuityPayload)).toEqual(continuityPayload);
   });

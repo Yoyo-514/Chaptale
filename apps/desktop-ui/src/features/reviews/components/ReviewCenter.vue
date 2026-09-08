@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { REVIEWERS } from '@chaptale/shared';
-
 import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
@@ -49,7 +47,9 @@ onMounted(() => {
       </AppSelect>
       <AppSelect v-model="reviewer" aria-label="审查角色">
         <AppSelectItem value="__all">全部审查</AppSelectItem>
-        <AppSelectItem v-for="item in REVIEWERS" :key="item.id" :value="item.id">{{ item.label }}</AppSelectItem>
+        <AppSelectItem v-for="item in reviews.reviewerOptions" :key="item.id" :value="item.id">{{
+          item.label
+        }}</AppSelectItem>
       </AppSelect>
       <AppSelect v-model="status" aria-label="审查运行状态">
         <AppSelectItem value="__all">全部运行状态</AppSelectItem>
@@ -62,7 +62,7 @@ onMounted(() => {
       <AppButton v-for="job in jobs" :key="job.id" variant="ghost" class="review-job" @click="reviews.read(job.id)">
         <strong>{{ job.targetPath }}</strong
         ><span
-          >{{ REVIEWERS.find(item => item.id === job.personaId)?.label }} · {{ labels[job.status] }} ·
+          >{{ reviews.reviewerLabel(job.personaId, job.personaName) }} · {{ labels[job.status] }} ·
           {{ job.candidateId ? '候选稿' : '已保存正文' }}</span
         >
         <small>{{ new Date(job.createdAt).toLocaleString() }} · {{ job.id.slice(0, 8) }}</small>

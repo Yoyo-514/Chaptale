@@ -13,6 +13,7 @@ import {
   type ReviewMark
 } from '@chaptale/shared';
 
+import { useContentStore } from '@/features/content';
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
 import { useWorkbenchStore } from '@/features/workbench';
@@ -24,6 +25,21 @@ export const useReviewStore = defineStore('review-workflow', () => {
   const workspace = useWorkspaceStore();
   const library = useLibraryStore();
   const navigation = useWorkbenchStore();
+  const content = useContentStore();
+  const reviewers = computed(() => content.reviewers);
+  const reviewerOptions = computed(() => {
+    const options = new Map(reviewers.value.map(reviewer => [reviewer.id, reviewer.label]));
+    for (const job of jobs.value)
+      if (!options.has(job.personaId))
+        options.set(
+          job.personaId,
+          job.personaName ?? REVIEWERS.find(item => item.id === job.personaId)?.label ?? job.personaId
+        );
+    return [...options].map(([id, label]) => ({ id, label }));
+  });
+  function reviewerLabel(id: string, name?: string) {
+    return name ?? reviewerOptions.value.find(item => item.id === id)?.label ?? id;
+  }
   const jobs = shallowRef<ReviewJobSummary[]>([]);
   const details = shallowRef<ReviewDetails | null>(null);
   const confirmation = ref<Omit<ReviewRunArgs, 'requestId' | 'personaId'> | null>(null);
@@ -76,6 +92,7 @@ export const useReviewStore = defineStore('review-workflow', () => {
     );
   }
   async function refresh() {
+    await content.refresh();
     const rootPath = workspace.rootPath;
     if (!rootPath) return;
     const token = ++sequence;
@@ -112,12 +129,15 @@ export const useReviewStore = defineStore('review-workflow', () => {
     }
     const rootPath = workspace.rootPath!;
     try {
-      const available = await getDesktopApi().models.list();
+      const [available] = await Promise.all([getDesktopApi().models.list(), content.refresh()]);
       if (rootPath !== workspace.rootPath) return;
+      if (content.error) throw new Error(content.error);
       models.value = available.models.filter(model => model.authConfigured);
       const model = models.value.find(value => value.isDefault) ?? models.value[0];
       if (!model) throw new Error('尚未配置可用模型');
       if (personaId) enabled.value = [personaId];
+      enabled.value = enabled.value.filter(id => reviewers.value.some(item => item.id === id));
+      if (!reviewers.value.length) throw new Error('没有已启用的审查专员');
       const packId = candidate?.packId ?? library.frozen?.id;
       confirmation.value = {
         rootPath,
@@ -137,7 +157,7 @@ export const useReviewStore = defineStore('review-workflow', () => {
     const request = confirmation.value;
     if (!request) return;
     confirmation.value = null;
-    const selected = REVIEWERS.filter(reviewer => enabled.value.includes(reviewer.id));
+    const selected = reviewers.value.filter(reviewer => enabled.value.includes(reviewer.id));
     await Promise.allSettled(
       selected.map(async reviewer => {
         const id = crypto.randomUUID();
@@ -202,6 +222,9 @@ export const useReviewStore = defineStore('review-workflow', () => {
     }
   );
   return {
+    reviewers,
+    reviewerOptions,
+    reviewerLabel,
     jobs,
     details,
     confirmation,

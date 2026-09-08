@@ -1,8 +1,8 @@
-import type { PersonaDefinition, WritingModel } from '@chaptale/shared';
+import { getOutputSchema, type PersonaDefinition, type WritingModel } from '@chaptale/shared';
 
 import type { ToolCatalog } from '../../core/tool-protocol/catalog';
 import type { IndexDomain } from '../search/types';
-import { resolveReadableIndexDomains } from './memory-access';
+import { resolvePersonaMemoryPolicy, resolveReadableIndexDomains } from './memory-access';
 
 /** task 执行规格：由 persona 定义派生的执行参数。 */
 export type TaskPersonaSpec = {
@@ -15,6 +15,7 @@ export type TaskPersonaSpec = {
   skills: string[];
   /** persona 声明与角色类型安全上限求交后的可检索域。 */
   memoryReadDomains: IndexDomain[];
+  authorMemoryRead?: boolean;
   /**
    * 模型偏好：具体 "provider/modelId"；fast/quality 的成本护栏映射尚未实现，
    * 当前除显式 id 外一律跟随全局默认。undefined = 全局默认。
@@ -49,11 +50,15 @@ export function resolveTaskSpec(persona: PersonaDefinition, toolCatalog: ToolCat
 
   return {
     personaId: persona.id,
-    systemPrompt: persona.body,
+    systemPrompt:
+      persona.output === 'custom-issues'
+        ? `${persona.body}\n\n只输出一个 <output>...</output> 标签，内含符合以下 JSON Schema 的 JSON。quote 必须逐字引用目标原文，position 为 LF 文本的 UTF-16 偏移，不能确定时省略。无证据不报问题；无问题时 issues 为空数组。\n${JSON.stringify(getOutputSchema('custom-issues'))}`
+        : persona.body,
     // 未声明 tools/skills 均按最小能力处理；显式声明才注入。
     tools,
     skills: [...(persona.skills ?? [])],
     memoryReadDomains,
+    authorMemoryRead: resolvePersonaMemoryPolicy(persona).author,
     ...(persona.model?.preference ? { modelPreference: persona.model.preference } : {})
   };
 }

@@ -1,7 +1,7 @@
 import { Type, type Static, type TSchema } from 'typebox';
 import { Check } from 'typebox/value';
 
-export type ReviewAgentType = 'continuity' | 'character' | 'style';
+export type ReviewAgentType = 'continuity' | 'character' | 'style' | 'custom';
 
 export const ReviewPositionSchema = Type.Object(
   {
@@ -67,6 +67,15 @@ export const StyleIssueSchema = Type.Object(
   { additionalProperties: false }
 );
 
+export const CustomReviewIssueSchema = Type.Object(
+  {
+    ...reviewIssueBase,
+    agentType: Type.Literal('custom'),
+    type: Type.String({ minLength: 1, maxLength: 80 })
+  },
+  { additionalProperties: false }
+);
+
 function createReviewIssuesSchema<TIssue extends TSchema>(issueSchema: TIssue) {
   return Type.Object(
     {
@@ -80,22 +89,26 @@ function createReviewIssuesSchema<TIssue extends TSchema>(issueSchema: TIssue) {
 export const ContinuityIssuesSchema = createReviewIssuesSchema(ContinuityIssueSchema);
 export const CharacterIssuesSchema = createReviewIssuesSchema(CharacterIssueSchema);
 export const StyleIssuesSchema = createReviewIssuesSchema(StyleIssueSchema);
+export const CustomReviewIssuesSchema = createReviewIssuesSchema(CustomReviewIssueSchema);
 
 export type ContinuityIssue = Static<typeof ContinuityIssueSchema>;
 export type CharacterIssue = Static<typeof CharacterIssueSchema>;
 export type StyleIssue = Static<typeof StyleIssueSchema>;
+export type CustomReviewIssue = Static<typeof CustomReviewIssueSchema>;
 
-export type ReviewIssue = ContinuityIssue | CharacterIssue | StyleIssue;
+export type ReviewIssue = ContinuityIssue | CharacterIssue | StyleIssue | CustomReviewIssue;
 
 export type ContinuityIssues = Static<typeof ContinuityIssuesSchema>;
 export type CharacterIssues = Static<typeof CharacterIssuesSchema>;
 export type StyleIssues = Static<typeof StyleIssuesSchema>;
+export type CustomReviewIssues = Static<typeof CustomReviewIssuesSchema>;
 
-export type ReviewIssues = ContinuityIssues | CharacterIssues | StyleIssues;
+export type ReviewIssues = ContinuityIssues | CharacterIssues | StyleIssues | CustomReviewIssues;
 
 export function decodeReviewIssues(kind: 'continuity', value: unknown): ContinuityIssues | undefined;
 export function decodeReviewIssues(kind: 'character', value: unknown): CharacterIssues | undefined;
 export function decodeReviewIssues(kind: 'style', value: unknown): StyleIssues | undefined;
+export function decodeReviewIssues(kind: 'custom', value: unknown): CustomReviewIssues | undefined;
 export function decodeReviewIssues(kind: ReviewAgentType, value: unknown): ReviewIssues | undefined;
 export function decodeReviewIssues(kind: ReviewAgentType, value: unknown): ReviewIssues | undefined {
   switch (kind) {
@@ -105,5 +118,7 @@ export function decodeReviewIssues(kind: ReviewAgentType, value: unknown): Revie
       return Check(CharacterIssuesSchema, value) ? value : undefined;
     case 'style':
       return Check(StyleIssuesSchema, value) ? value : undefined;
+    case 'custom':
+      return Check(CustomReviewIssuesSchema, value) ? value : undefined;
   }
 }

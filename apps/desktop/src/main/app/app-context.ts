@@ -11,6 +11,7 @@ import { createChatRuntimeBundle } from '../features/agent/chat-bundle';
 import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { SlashCommandService } from '../features/commands/service';
+import { ContentService } from '../features/content/service';
 import { LibraryService } from '../features/library/service';
 import { CompactCoord } from '../features/memory/compaction/coord';
 import { CompactionSummaryStore } from '../features/memory/compaction/summary-store';
@@ -19,6 +20,7 @@ import { MemoryPendingStore } from '../features/memory/pending/store';
 import { MemoryService } from '../features/memory/service';
 import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
+import { builtinPersonaSources } from '../features/personas/builtin';
 import { resolvePersonaMemoryPolicy } from '../features/personas/memory-access';
 import { createDefaultPersonaRegistry } from '../features/personas/persona-registry-factory';
 import { PromptFileService } from '../features/prompts/file-service';
@@ -33,6 +35,7 @@ import { WorkspaceIndexWorker } from '../features/search/index/worker-client';
 import { MemorySearchService } from '../features/search/memory/service';
 import { JsonlSessionRepository } from '../features/sessions/repository';
 import { SettlementService } from '../features/settlement/service';
+import { builtinSkillSources } from '../features/skills/builtin';
 import { materializeBuiltinSkills } from '../features/skills/builtin-materializer';
 import { SkillsProvider } from '../features/skills/provider';
 import { SubagentPool } from '../features/subagent/pool';
@@ -40,6 +43,7 @@ import type { TaskOutputStorePort } from '../features/tasks/output-port';
 import { TaskRunner } from '../features/tasks/runner';
 import { TaskService } from '../features/tasks/service';
 import { TaskSessionFactory } from '../features/tasks/session-factory';
+import { builtinTemplates } from '../features/templates/builtin';
 import { TemplateService } from '../features/templates/service';
 import { TodoStore } from '../features/todo/store';
 import { WebToolsSettingsAdapter } from '../features/web-tools/adapter';
@@ -55,6 +59,7 @@ import { OfficeDocumentParser } from '../integrations/officeparser/parser';
 import { TaskOutputRouter } from './task-output-router';
 
 export type AppContext = {
+  contentService: ContentService;
   settingsService: SettingsService;
   workspaceService: WorkspaceService;
   sessionRepository: JsonlSessionRepository;
@@ -146,6 +151,15 @@ export function createAppContext(): AppContext {
   const indexSourceResolver = new WorkspaceIndexSourceResolver();
   const libraryService = new LibraryService(workspaceService, indexService);
   const templateService = new TemplateService(workspaceService, path.join(settingsService.rootDir, 'templates'));
+  const contentService = new ContentService({
+    userRoot: settingsService.rootDir,
+    currentWorkspace: async () => (await workspaceService.getState()).rootPath,
+    builtins: [
+      ...builtinPersonaSources.map(markdown => ({ kind: 'persona' as const, markdown })),
+      ...builtinSkillSources.map(item => ({ kind: 'skill' as const, markdown: item.source })),
+      ...builtinTemplates.map(markdown => ({ kind: 'template' as const, markdown }))
+    ]
+  });
   workspaceService.onChange(event => {
     void indexService
       .invalidate(
@@ -247,6 +261,7 @@ export function createAppContext(): AppContext {
   });
 
   return {
+    contentService,
     settingsService,
     workspaceService,
     sessionRepository,

@@ -69,7 +69,8 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
       ? await modelService.runtime.resolveModel(spec.model.provider, spec.model.modelId)
       : await resolveTaskModel(modelService, spec.modelPreference);
     const baseSystem = await composeTaskSystemPrompt(this.options.skillsProvider, cwd, spec);
-    const preferences = await this.options.reviewPreferences?.forPersona(spec.personaId);
+    const preferences =
+      spec.authorMemoryRead === false ? undefined : await this.options.reviewPreferences?.forPersona(spec.personaId);
     if (preferences?.memoryRefs.length) onMemoryRead?.(preferences.memoryRefs);
     const system = [baseSystem, preferences?.prompt].filter(Boolean).join('\n\n');
     const gate = createUnattendedGate();

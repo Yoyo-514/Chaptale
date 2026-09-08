@@ -133,6 +133,174 @@ async function createStoryAssets() {
   await writeFile(path.join(workspace, '设定/时间线/待定.md'), '---\nkind: timeline-event\ntitle: 待定事件\n---\n');
 }
 
+async function openContentSettings() {
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  await page.getByRole('button', { name: '专员与内容 专员、技能、模板', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '专员与创作内容' })).toBeVisible();
+}
+
+test('M6 专员表单落盘、切换创建新会话，停用后不回退身份', async () => {
+  await openContentSettings();
+  await page.getByRole('button', { name: '新建专员', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '新建专员', exact: true });
+  await dialog.getByRole('textbox', { name: '专员标识', exact: true }).fill('scene-helper');
+  await dialog.getByLabel('名称', { exact: true }).fill('场景助手');
+  await dialog.getByRole('checkbox', { name: '情节摘要', exact: true }).check();
+  await dialog.getByRole('tab', { name: '职责正文', exact: true }).click();
+  await dialog
+    .getByRole('textbox', { name: '职责正文', exact: true })
+    .fill('围绕角色选择讨论场景，保留作者明确的约束。');
+  await dialog.getByRole('button', { name: '保存专员', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const filename = path.join(home, '.chaptale/personas/scene-helper.md');
+  expect(await readFile(filename, 'utf8')).toContain('场景助手');
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await page.getByRole('combobox', { name: '对话专员', exact: true }).click();
+  await page.getByRole('option', { name: '场景助手', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '对话专员', exact: true })).toContainText('场景助手');
+  const sessions = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.session.list());
+  const selected = sessions.find(session => session.personaId === 'scene-helper');
+  expect(selected).toBeDefined();
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: '对话专员', exact: true })).toContainText('场景助手');
+  await openContentSettings();
+  await page.getByRole('button', { name: '场景助手 scene-helper', exact: true }).click();
+  const editing = page.getByRole('dialog', { name: '编辑专员', exact: true });
+  await editing.getByRole('tab', { name: '专员与权限', exact: true }).click();
+  await editing.getByRole('checkbox', { name: '启用', exact: true }).uncheck();
+  await editing.getByRole('button', { name: '保存专员', exact: true }).click();
+  await expect(editing).toBeHidden();
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '对话专员', exact: true })).toContainText('scene-helper · 不可用');
+  const failure = await page.evaluate(async id => {
+    try {
+      await (window as DesktopWindow).chaptaleDesktop.agent.getContextPressure(id);
+      return '';
+    } catch (error) {
+      return String(error);
+    }
+  }, selected!.id);
+  expect(failure).toContain('对话专员不可用');
+});
+
+test('M6 内容包预览降权，逐项导入后停用专员，真实文件冲突保留', async () => {
+  const rootPath = workspace;
+  const exported = await page.evaluate(async root => {
+    const api = (window as DesktopWindow).chaptaleDesktop;
+    const markdown =
+      '---\nid: shared-reviewer\nname: 分享审查\ntype: review\nexecution: task\noutput: custom-issues\ntools: [memory_search]\nmemory:\n  read: [canon, summaries]\nmodel:\n  preference: private/model\ndelegatable: true\nenabled: true\n---\n仅检查叙事视角。\n';
+    const document = await api.content.save({
+      rootPath: root,
+      scope: 'user',
+      kind: 'persona',
+      id: 'shared-reviewer',
+      markdown
+    });
+    const { kind, id, source, sourcePath, hash: contentHash } = document;
+    return api.content.previewExport({ rootPath: root, refs: [{ kind, id, source, sourcePath, hash: contentHash }] });
+  }, rootPath);
+  expect(exported).not.toContain('private/model');
+  expect(exported).toContain('enabled: false');
+  const bundle = path.join(home, 'shared-content.json');
+  await writeFile(bundle, exported);
+  await openContentSettings();
+  await page.getByRole('checkbox', { name: '选择 shared-reviewer 所有作品', exact: true }).check();
+  await page.getByRole('button', { name: '导出所选 (1)', exact: true }).click();
+  const exportDialog = page.getByRole('dialog', { name: '导出内容包', exact: true });
+  await expect(exportDialog.getByRole('textbox', { name: '实际导出内容', exact: true })).toHaveValue(exported);
+  await expect(exportDialog.getByRole('button', { name: '导出文件', exact: true })).toBeDisabled();
+  await exportDialog.getByRole('button', { name: '取消', exact: true }).click();
+  await page.getByRole('button', { name: '导入', exact: true }).click();
+  const importDialog = page.getByRole('dialog', { name: '导入内容包', exact: true });
+  await importDialog.getByRole('combobox', { name: '导入范围' }).click();
+  await page.getByRole('option', { name: '当前作品', exact: true }).click();
+  await importDialog.locator('input[type="file"]').setInputFiles(bundle);
+  await expect(importDialog.getByRole('textbox', { name: '将导入的完整内容' })).toHaveValue(/enabled: false/);
+  await importDialog.getByRole('button', { name: '导入所选 (1)', exact: true }).click();
+  await expect(importDialog).toBeHidden();
+  const importedPath = path.join(workspace, '.chaptale/personas/shared-reviewer.md');
+  expect(await readFile(importedPath, 'utf8')).toContain('enabled: false');
+  const workspaceRow = page.locator('.content-row').filter({ hasText: '当前作品 · 停用' });
+  await workspaceRow.getByRole('button', { name: '分享审查 shared-reviewer', exact: true }).click();
+  const editing = page.getByRole('dialog', { name: '编辑专员', exact: true });
+  await editing.getByRole('textbox', { name: '职责正文', exact: true }).fill('尚未保存的本机修改。');
+  const external = (await readFile(importedPath, 'utf8')).replace('仅检查叙事视角。', '外部更新。');
+  await writeFile(importedPath, external);
+  await editing.getByRole('button', { name: '保存专员', exact: true }).click();
+  await expect(editing.getByRole('alert')).toContainText('内容已变化');
+  await expect(editing.getByRole('textbox', { name: '职责正文', exact: true })).toHaveValue('尚未保存的本机修改。');
+  expect(await readFile(importedPath, 'utf8')).toBe(external);
+  await editing.getByRole('button', { name: '取消', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: '放弃未保存的内容？', exact: true })
+    .getByRole('button', { name: '放弃修改', exact: true })
+    .click();
+});
+
+test('M6 自定义审查留档可定位、处理，并在三主题内容管理中可读', async () => {
+  const result = {
+    summary: '一处视角问题',
+    issues: [
+      {
+        agentType: 'custom',
+        type: '视角跳转',
+        severity: 'medium',
+        quote: '林晚收起了信。',
+        reason: '观察者未明确。',
+        suggestion: '明确此处观察者。'
+      }
+    ]
+  };
+  await mkdir(path.join(workspace, '.chaptale/reviews/jobs'), { recursive: true });
+  const normalized = chapter.replace(/\r\n/g, '\n');
+  await writeFile(path.join(workspace, '.chaptale/reviews/custom-run.json'), JSON.stringify(result));
+  await writeFile(
+    path.join(workspace, '.chaptale/reviews/jobs/custom-job.json'),
+    JSON.stringify({
+      id: 'custom-job',
+      personaId: 'viewpoint-reviewer',
+      personaName: '叙事视角审查',
+      outputSchema: 'custom-issues',
+      targetPath: '正文/第一章.md',
+      baselineHash: hash(chapter),
+      text: normalized,
+      model: { provider: 'fixture', modelId: 'stored-output' },
+      memoryRefs: [],
+      excludedSources: [],
+      status: 'done',
+      runId: 'custom-run',
+      outputRef: '.chaptale/reviews/custom-run.json',
+      outputHash: hash(JSON.stringify(result)),
+      createdAt: '2026-09-09T01:00:00.000Z',
+      updatedAt: '2026-09-09T01:00:00.000Z'
+    })
+  );
+  await page.getByRole('button', { name: '审查', exact: true }).click();
+  await page.getByRole('region', { name: '审查中心' }).getByRole('button').filter({ hasText: '叙事视角审查' }).click();
+  const review = page.getByRole('region', { name: '独立审查', exact: true });
+  await expect(review).toContainText('视角跳转');
+  await review.getByRole('button', { name: '定位', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('林晚收起了信。');
+  await review.getByRole('button', { name: '已处理', exact: true }).click();
+  await expect(review).toContainText('没有符合筛选条件的问题');
+  expect(
+    JSON.parse(await readFile(path.join(workspace, '.chaptale/reviews/custom-run.state.json'), 'utf8')).issues['0']
+      .status
+  ).toBe('resolved');
+  await mkdir(visualDir, { recursive: true });
+  for (const theme of ['light', 'warm', 'dark'] as const) {
+    await page.evaluate(value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }), theme);
+    await page.reload();
+    await openContentSettings();
+    await page.getByRole('button', { name: '故事策划 blueprint', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '编辑专员', exact: true });
+    await expect(dialog.getByRole('textbox', { name: '职责正文', exact: true })).toHaveValue(/你与作者/);
+    await page.screenshot({ path: path.join(visualDir, `m6-content-${theme}.png`) });
+    await dialog.getByRole('button', { name: '取消', exact: true }).click();
+    await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  }
+});
+
 test('M6 全文搜索区分范围并定位正文，记忆原文可独立浏览', async () => {
   await mkdir(path.join(workspace, '.chaptale/memory/notes'), { recursive: true });
   await writeFile(
