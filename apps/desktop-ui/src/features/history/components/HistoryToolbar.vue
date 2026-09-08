@@ -203,9 +203,6 @@ function selectSortMode(value: string) {
 }
 
 .history-selection-mode-button {
-  @apply rounded-full;
-
-  background: var(--surface-acrylic-strong);
   color: var(--muted-foreground);
 }
 

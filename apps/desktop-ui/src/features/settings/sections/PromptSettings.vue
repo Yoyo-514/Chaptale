@@ -128,13 +128,14 @@ async function savePromptSettings() {
 }
 
 .prompt-settings-inline-actions {
-  @apply flex min-w-0 items-center justify-between gap-3;
+  @apply flex min-w-0 flex-wrap items-center justify-between gap-3;
 }
 
 .prompt-settings-inline-actions code {
-  @apply min-w-0 truncate text-[0.68rem];
+  @apply min-w-0 break-all;
 
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
 }
 
 .prompt-settings-status {

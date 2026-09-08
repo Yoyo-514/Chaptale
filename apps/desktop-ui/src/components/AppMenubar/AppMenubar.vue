@@ -97,10 +97,11 @@ const emit = defineEmits<{
 }
 
 .app-menubar-trigger {
-  @apply flex h-7 cursor-default items-center border-0 bg-transparent px-2 text-xs outline-none transition-colors duration-100;
+  @apply flex h-7 cursor-default items-center border-0 bg-transparent px-2 outline-none transition-colors duration-100;
 
   border-radius: var(--radius-control-sm);
   color: var(--titlebar-foreground);
+  font-size: var(--ui-font-size);
 }
 
 .app-menubar-trigger:hover,
@@ -116,6 +117,9 @@ const emit = defineEmits<{
 .app-menubar-content {
   @apply z-$z-popover min-w-48 border p-1 shadow-$shadow-float;
 
+  max-width: min(28rem, var(--reka-menubar-content-available-width));
+  max-height: var(--reka-menubar-content-available-height);
+  overflow-y: auto;
   background: var(--popover);
   border-color: var(--border-subtle);
   border-radius: var(--radius-control);
@@ -123,9 +127,11 @@ const emit = defineEmits<{
 }
 
 .app-menubar-item {
-  @apply flex min-h-7 cursor-default items-center gap-2 px-2 py-1 text-xs outline-none;
+  @apply flex cursor-default items-center gap-2 px-2 py-1 outline-none;
 
   border-radius: var(--radius-control-sm);
+  font-size: var(--ui-font-size);
+  min-height: var(--control-height-sm);
 }
 
 .app-menubar-item[data-highlighted] {
@@ -156,12 +162,14 @@ const emit = defineEmits<{
 
 .app-menubar-item-label {
   @apply min-w-0 flex-1;
+  overflow-wrap: anywhere;
 }
 
 .app-menubar-shortcut {
-  @apply ml-auto shrink-0 pl-4 text-[11px];
+  @apply ml-auto shrink-0 pl-4;
 
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
 }
 
 .app-menubar-separator {

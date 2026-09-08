@@ -307,10 +307,12 @@ function statusIcon(status: ReviewLaneStatus) {
 }
 
 .review-lane-tab {
-  @apply inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border px-2 py-1 text-xs font-medium;
+  @apply inline-flex min-w-0 flex-1 flex-wrap items-center justify-center gap-1 rounded-md border px-2 py-1 font-medium;
 
   border-color: var(--border-subtle);
   color: var(--muted-foreground);
+  font-size: var(--ui-font-size);
+  min-height: var(--control-height-sm);
 }
 
 .review-lane-tab-active {
@@ -319,9 +321,10 @@ function statusIcon(status: ReviewLaneStatus) {
 }
 
 .review-lane-badge {
-  @apply rounded px-1.5 py-0.5 text-[0.65rem] leading-none;
+  @apply rounded px-1.5 py-0.5 leading-4;
 
   background: var(--surface-acrylic-strong);
+  font-size: var(--ui-caption-size);
 }
 
 .review-lane-panel {

@@ -66,14 +66,18 @@ const contentClassName = computed(() =>
 
   border-radius: var(--radius-control-sm);
   color: var(--foreground);
+  font-size: var(--ui-font-size);
+  overflow-wrap: anywhere;
 }
 
 .app-dropdown-sub-trigger-sm {
-  @apply px-2.5 py-1.5 text-sm;
+  @apply px-2.5 py-1;
+  min-height: var(--control-height-sm);
 }
 
 .app-dropdown-sub-trigger-md {
-  @apply px-2 py-1.5 text-xs;
+  @apply px-2 py-1.5;
+  min-height: var(--control-height-md);
 }
 
 .app-dropdown-sub-trigger-copy {
@@ -117,6 +121,9 @@ const contentClassName = computed(() =>
   @apply z-$z-popover flex flex-col gap-1 border p-1 shadow-$shadow-float;
 
   width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 16rem));
+  max-width: min(32rem, var(--reka-dropdown-menu-content-available-width));
+  max-height: var(--reka-dropdown-menu-content-available-height);
+  overflow-y: auto;
   background: var(--popover);
   border-color: var(--border-subtle);
   border-radius: var(--radius-control);

@@ -135,21 +135,24 @@ function handleMainClick() {
 }
 
 .history-item-time {
-  @apply shrink-0 text-[0.65rem];
+  @apply shrink-0;
 
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
 }
 
 .history-item-preview {
-  @apply truncate text-[0.7rem];
+  @apply truncate;
 
   color: var(--muted-foreground);
+  font-size: var(--ui-font-size);
 }
 
 .history-item-workspace {
-  @apply flex min-w-0 items-center gap-1 text-[0.65rem];
+  @apply flex min-w-0 items-center gap-1;
 
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
 }
 
 .history-item-workspace > span:last-child {
@@ -157,9 +160,10 @@ function handleMainClick() {
 }
 
 .history-item-stats {
-  @apply flex min-w-0 flex-nowrap items-center overflow-hidden text-[0.65rem];
+  @apply flex min-w-0 flex-wrap items-center;
 
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
 }
 
 .history-item-stats span {

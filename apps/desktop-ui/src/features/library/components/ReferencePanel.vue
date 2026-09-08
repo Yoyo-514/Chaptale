@@ -3,11 +3,13 @@ import { computed, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
+import { AppCollapsible } from '@/components/AppCollapsible';
 import { AppInput } from '@/components/AppInput';
 import { AppNumberInput } from '@/components/AppNumberInput';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextarea } from '@/components/AppTextarea';
+import { AppTextView } from '@/components/AppTextView';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 import { useWorkspaceStore } from '@/features/workspace';
@@ -21,6 +23,7 @@ const workspace = useWorkspaceStore();
 const writing = useWritingStore();
 const query = ref('');
 const visibleLimit = ref(80);
+const expandedSources = ref(new Map<string, boolean>());
 const candidates = computed(() =>
   library.available.filter(
     asset =>
@@ -180,10 +183,14 @@ watch(
                 "
               />要点模式</label
             >
-            <details>
-              <summary>原文</summary>
-              <pre>{{ section.content }}</pre>
-            </details>
+            <AppCollapsible
+              title="原文"
+              variant="plain"
+              :model-value="expandedSources.get(section.sourcePath)"
+              @update:model-value="expandedSources.set(section.sourcePath, $event)"
+            >
+              <AppTextView :text="section.content" :label="`参考原文 ${section.title}`" />
+            </AppCollapsible>
           </article>
         </div>
         <section class="reference-section">
@@ -294,10 +301,6 @@ watch(
 .reference-mode {
   @apply mb-1 flex items-center gap-1;
 }
-.reference-item pre {
-  @apply max-h-64 overflow-auto whitespace-pre-wrap p-2 text-xs;
-  background: var(--surface-muted);
-}
 .reference-candidate {
   @apply flex min-w-0 items-center gap-1 border-b py-2;
   border-color: var(--border-subtle);
@@ -320,6 +323,6 @@ watch(
   color: var(--destructive);
 }
 .reference-stale {
-  color: var(--primary-solid);
+  color: var(--warning);
 }
 </style>

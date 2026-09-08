@@ -13,7 +13,9 @@
   }
 
   .settings-model-copy strong {
-    @apply text-xs font-semibold;
+    @apply font-semibold;
+    font-size: var(--ui-font-size);
+    overflow-wrap: anywhere;
   }
 
   .settings-model-copy span,
@@ -38,19 +40,21 @@
 }
 
 :where(.settings-dropdown-item-code) {
-  @apply break-all text-[0.68rem] leading-4;
+  @apply break-all leading-4;
 
   color: var(--muted-foreground);
   font-family: inherit;
+  font-size: var(--ui-caption-size);
 }
 
 :where(.settings-dropdown-item-badge) {
-  @apply shrink-0 border px-1.5 py-0.5 text-[0.65rem] leading-none;
+  @apply shrink-0 border px-1.5 py-0.5 leading-4;
 
   background: var(--secondary);
   border-color: var(--border-subtle);
   border-radius: var(--radius-control-sm);
   color: var(--secondary-foreground);
+  font-size: var(--ui-caption-size);
 }
 
 :where(.app-select-item[data-state='checked'] .settings-dropdown-item-code),

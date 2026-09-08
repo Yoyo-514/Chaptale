@@ -163,6 +163,8 @@ $media-overlay-tokens: (
   // 功能色彩（边框降饱和、偏灰青，避免大面积蓝色线条常驻视野）
   --destructive: var(--palette-danger-600);
   --warning: #946200;
+  --success: #236b4d;
+  --info: var(--primary-solid);
   --destructive-foreground: #ffffff;
   --destructive-background: var(--palette-danger-100);
   --destructive-background-foreground: var(--palette-danger-900);
@@ -267,6 +269,8 @@ $media-overlay-tokens: (
   // 功能色彩
   --destructive: var(--palette-danger-600);
   --warning: #946200;
+  --success: #236b4d;
+  --info: var(--primary-solid);
   --destructive-foreground: #ffffff;
   --destructive-background: var(--palette-danger-100);
   --destructive-background-foreground: var(--palette-danger-900);
@@ -375,6 +379,8 @@ $media-overlay-tokens: (
   // 功能色彩
   --destructive: #ff8a8a;
   --warning: #e9b44c;
+  --success: #7ce2ce;
+  --info: var(--primary-solid);
   --destructive-foreground: #2d0d0d;
   --destructive-background: rgb(255 138 138 / 0.14);
   --destructive-background-foreground: #ffd6d6;

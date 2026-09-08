@@ -71,6 +71,9 @@ const contentClassName = computed(() =>
   @apply z-$z-popover flex flex-col gap-1 border p-1 shadow-$shadow-float;
 
   width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 16rem));
+  max-width: min(32rem, var(--reka-dropdown-menu-content-available-width));
+  max-height: var(--reka-dropdown-menu-content-available-height);
+  overflow-y: auto;
   background: var(--popover);
   border-color: var(--border-subtle);
   border-radius: var(--radius-control);

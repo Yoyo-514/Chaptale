@@ -111,7 +111,7 @@ onMounted(() => {
 .settings-panel {
   @apply pointer-events-auto fixed left-0 top-0 flex flex-col overflow-hidden border shadow-$shadow-float;
 
-  background: var(--popover);
+  background: var(--surface-elevated);
   border-color: var(--border);
   border-radius: var(--radius-overlay);
   color: var(--popover-foreground);

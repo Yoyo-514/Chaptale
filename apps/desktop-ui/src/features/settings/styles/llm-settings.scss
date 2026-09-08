@@ -7,7 +7,7 @@
 
   .settings-provider-head,
   .settings-heading-actions {
-    @apply flex items-center justify-between gap-3;
+    @apply flex min-w-0 flex-wrap items-center justify-between gap-3;
   }
 
   .settings-heading-actions {
@@ -16,6 +16,7 @@
 
   .settings-subtitle {
     @apply m-0 text-sm font-semibold;
+    overflow-wrap: anywhere;
   }
 
   .settings-section-description {
@@ -40,8 +41,9 @@
   }
 
   .settings-summary-card {
-    @apply mb-3 flex items-center justify-between gap-3 px-3 py-2.5 text-xs;
+    @apply mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3 px-3 py-2.5 text-xs;
 
+    overflow-wrap: anywhere;
     background: var(--surface-muted);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-control);
@@ -63,7 +65,7 @@
   }
 
   .settings-model-actions {
-    @apply absolute top-1 right-2 flex min-w-0 items-center justify-end gap-2;
+    @apply flex min-w-0 flex-wrap items-center justify-end gap-2;
   }
 
   .settings-provider-card {
@@ -82,20 +84,23 @@
   }
 
   .settings-provider-name {
-    @apply text-xs font-semibold;
+    @apply font-semibold;
+    font-size: var(--ui-font-size);
+    overflow-wrap: anywhere;
   }
 
   .settings-model-title-line {
-    @apply flex min-w-0 items-center gap-2;
+    @apply flex min-w-0 flex-wrap items-center gap-2;
   }
 
   .settings-default-badge {
-    @apply shrink-0 border px-1.5 py-0.5 text-[0.65rem] leading-none;
+    @apply shrink-0 border px-1.5 py-0.5 leading-4;
 
     background: var(--secondary);
     border-color: var(--border-subtle);
     border-radius: var(--radius-control-sm);
     color: var(--secondary-foreground);
+    font-size: var(--ui-caption-size);
   }
 
   .settings-auth-panel {
@@ -117,7 +122,7 @@
   }
 
   .settings-model-row {
-    @apply grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-2.5 py-1.5 outline-none transition-colors duration-150;
+    @apply grid cursor-pointer grid-cols-[minmax(0,1fr)] items-start gap-2 px-2.5 py-2 outline-none transition-colors duration-150;
   }
 
   .settings-model-row:hover,

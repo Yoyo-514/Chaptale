@@ -431,6 +431,11 @@ test('通用表单在三种主题与窄窗口中保持可读尺寸，搜索选�
       await (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value });
     }, theme);
     await page.reload();
+    const statusColors = await page.evaluate(() => {
+      const styles = getComputedStyle(document.documentElement);
+      return ['--warning', '--success', '--info'].map(name => styles.getPropertyValue(name).trim());
+    });
+    expect(statusColors.every(color => color.length > 0)).toBe(true);
     await page.getByRole('menuitem', { name: '文件', exact: true }).click();
     await page.getByRole('menuitem', { name: '新建场景卡', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '新建场景卡', exact: true });
@@ -493,6 +498,108 @@ test('通用表单在三种主题与窄窗口中保持可读尺寸，搜索选�
   await page.screenshot({ path: path.join(visualDir, 'ui-history-controls.png') });
 });
 
+test('历史、设置和菜单遵守统一字号，长模型名称不与操作重叠', async () => {
+  test.setTimeout(60_000);
+  await page.evaluate(async root => {
+    const api = (window as DesktopWindow).chaptaleDesktop;
+    await api.session.create({ cwd: root, name: '排版校验：一个很长的创作会话标题，需要保持时间和操作清晰可见' });
+    await api.models.addCustomProvider({
+      provider: 'layout-check',
+      providerName: '排版校验服务',
+      baseUrl: 'https://example.invalid/v1',
+      api: 'openai-completions',
+      models: [
+        { modelId: 'draft-long-name', modelName: '长篇写作与人物连续性校验模型'.repeat(3), input: ['text'] },
+        { modelId: 'review', modelName: '独立审查', input: ['text'] }
+      ]
+    });
+    await api.models.setDefault({ provider: 'layout-check', modelId: 'draft-long-name' });
+  }, workspace);
+  await mkdir(visualDir, { recursive: true });
+
+  async function expectSizing(selector: string, font: number, height = 0) {
+    const sizes = await page.locator(selector).evaluateAll(elements =>
+      elements
+        .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
+        .map(element => {
+          const box = element.getBoundingClientRect();
+          return {
+            font: Number.parseFloat(getComputedStyle(element).fontSize),
+            height: box.height,
+            left: box.left,
+            right: box.right,
+            viewport: window.innerWidth
+          };
+        })
+    );
+    expect(sizes.length).toBeGreaterThan(0);
+    for (const size of sizes) {
+      expect(size.font).toBeGreaterThanOrEqual(font);
+      expect(size.height).toBeGreaterThanOrEqual(height);
+      expect(size.left).toBeGreaterThanOrEqual(0);
+      expect(size.right).toBeLessThanOrEqual(size.viewport);
+    }
+  }
+
+  for (const [theme, width] of [
+    ['light', 1440],
+    ['warm', 1024],
+    ['dark', 1024]
+  ] as const) {
+    await app!.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setSize(size, 800), width);
+    await page.evaluate(async value => {
+      await (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value });
+    }, theme);
+    await page.reload();
+    await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+    await expectSizing('.app-menubar-item', 13, 32);
+    await expectSizing('.app-menubar-shortcut', 12);
+    await page.screenshot({ path: path.join(visualDir, `ui-menubar-${theme}.png`) });
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('button', { name: '选择本轮推理档位', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: '跟随模型', exact: true })).toBeVisible();
+    await expectSizing('.app-dropdown-item', 13, 32);
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('button', { name: '打开设置', exact: true }).click();
+    expect(
+      await page.locator('.settings-panel').evaluate(element => getComputedStyle(element).backgroundColor)
+    ).not.toContain('rgba');
+    const categories = page.getByRole('navigation', { name: '设置分类' });
+    await categories.getByRole('button', { name: /^模型/ }).click();
+    await page.locator('.settings-provider-card').filter({ hasText: '排版校验服务' }).click();
+    await expect(page.locator('.settings-default-badge')).toBeVisible();
+    await expectSizing('.settings-provider-name, .settings-model-copy strong', 13);
+    await expectSizing('.settings-default-badge, .settings-provider-meta', 12);
+    const rows = await page.locator('.settings-model-row').evaluateAll(elements =>
+      elements.map(element => ({
+        copyBottom: element.querySelector('.settings-model-copy')!.getBoundingClientRect().bottom,
+        actionsTop: element.querySelector('.settings-model-actions')!.getBoundingClientRect().top
+      }))
+    );
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.actionsTop).toBeGreaterThanOrEqual(row.copyBottom);
+    await page.locator('.settings-model-row').first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(visualDir, `ui-model-settings-${theme}.png`) });
+
+    await categories.getByRole('button', { name: /^Prompt/ }).click();
+    await page.locator('.prompt-settings-inline-actions').first().scrollIntoViewIfNeeded();
+    await expectSizing('.prompt-settings-inline-actions code', 12);
+    await page.screenshot({ path: path.join(visualDir, `ui-prompt-settings-${theme}.png`) });
+    await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+
+    await page.getByRole('button', { name: '历史记录', exact: true }).click();
+    await page.getByRole('searchbox', { name: '搜索历史记录' }).fill('排版校验');
+    await expect(page.locator('.history-item-title')).toHaveCount(1);
+    await expectSizing('.history-item-title, .history-item-preview', 13);
+    await expectSizing('.history-item-time, .history-item-workspace, .history-item-stats', 12);
+    await expectSizing('.history-control', 13, 32);
+    await page.screenshot({ path: path.join(visualDir, `ui-history-${theme}.png`) });
+    await page.locator('.history-item-select').click();
+  }
+});
+
 test('场景模板创建、表单无损保存及场景参考通过真实 IPC 串联', async () => {
   await writeFile(
     path.join(workspace, '正文/第一章.md'),
@@ -538,7 +645,20 @@ test('场景模板创建、表单无损保存及场景参考通过真实 IPC 串
   await expect(references.getByRole('button', { name: '取消固定 林晚', exact: true })).toBeVisible();
   await references.getByRole('button', { name: '冻结参考', exact: true }).click();
   await expect(references.getByText(/已冻结/)).toBeVisible();
+  const characterSource = references.locator('.reference-item').filter({
+    has: page.getByRole('button', { name: '林晚', exact: true })
+  });
+  const preview = characterSource.locator('.app-text-view .cm-content');
+  await expect(preview).toHaveCount(0);
+  await characterSource.getByRole('button', { name: '原文', exact: true }).click();
+  await expect(preview).toContainText('尚未拆信');
+  await expect(preview).toHaveCSS('font-size', '14px');
+  await expect(preview).toHaveAttribute('contenteditable', 'false');
   await mkdir(visualDir, { recursive: true });
+  await preview.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(visualDir, 'ui-reference-source.png') });
+  await characterSource.getByRole('button', { name: '原文', exact: true }).click();
+  await expect(preview).toHaveCount(0);
   await page.screenshot({ path: path.join(visualDir, 'm5-scene-reference.png') });
 });
 

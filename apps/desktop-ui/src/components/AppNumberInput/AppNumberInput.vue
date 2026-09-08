@@ -241,7 +241,7 @@ function stepBy(direction: -1 | 1) {
 }
 
 .app-number-input-button {
-  @apply flex-center border-0 bg-transparent p-0 text-[0.65rem] outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-30;
+  @apply flex-center border-0 bg-transparent p-0 outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-30;
 
   color: var(--muted-foreground);
 }

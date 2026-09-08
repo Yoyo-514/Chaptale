@@ -110,7 +110,8 @@ function behindStyle(index: number) {
 }
 
 .app-image-gallery-count {
-  @apply pointer-events-none absolute bottom-4 right-5 z-5 rounded-$radius-pill px-2 py-0.5 text-[11px];
+  @apply pointer-events-none absolute bottom-4 right-5 z-5 rounded-$radius-pill px-2 py-0.5;
+  font-size: var(--ui-caption-size);
 
   background: var(--media-overlay-badge-background);
   color: var(--media-overlay-badge-foreground);

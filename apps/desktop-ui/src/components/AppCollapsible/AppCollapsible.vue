@@ -115,7 +115,8 @@ const rootAttrs = computed(() => {
 }
 
 .app-collapsible-title {
-  @apply text-xs font-semibold;
+  @apply font-semibold;
+  font-size: var(--ui-font-size);
 }
 
 .app-collapsible-description {

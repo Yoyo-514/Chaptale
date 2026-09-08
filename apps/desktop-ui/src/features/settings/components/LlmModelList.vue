@@ -27,8 +27,8 @@ const emit = defineEmits<{
       role="button"
       tabindex="0"
       @click="emit('setDefault', model.provider, model.id)"
-      @keydown.enter.prevent="emit('setDefault', model.provider, model.id)"
-      @keydown.space.prevent="emit('setDefault', model.provider, model.id)"
+      @keydown.enter.self.prevent="emit('setDefault', model.provider, model.id)"
+      @keydown.space.self.prevent="emit('setDefault', model.provider, model.id)"
     >
       <div class="settings-model-copy">
         <span class="settings-model-title-line">

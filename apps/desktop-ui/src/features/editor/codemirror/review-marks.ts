@@ -38,7 +38,7 @@ export function reviewDecorations(select: (id: string) => void) {
         cursor: 'pointer'
       },
       '.review-mark-high': { textDecorationColor: 'var(--destructive)' },
-      '.review-mark-medium': { textDecorationColor: '#ad760b' },
+      '.review-mark-medium': { textDecorationColor: 'var(--warning)' },
       '.review-mark-low': { textDecorationColor: 'var(--primary-solid)' }
     }),
     EditorView.domEventHandlers({

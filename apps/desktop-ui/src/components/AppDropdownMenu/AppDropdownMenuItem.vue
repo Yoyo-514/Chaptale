@@ -41,14 +41,18 @@ const itemClassName = computed(() => cn('app-dropdown-item', `app-dropdown-item-
 
   border-radius: var(--radius-control-sm);
   color: var(--foreground);
+  font-size: var(--ui-font-size);
+  overflow-wrap: anywhere;
 }
 
 .app-dropdown-item-sm {
-  @apply px-2.5 py-1.5 text-sm;
+  @apply px-2.5 py-1;
+  min-height: var(--control-height-sm);
 }
 
 .app-dropdown-item-md {
-  @apply flex flex-col gap-0.5 px-2 py-1.5 text-xs;
+  @apply flex flex-col justify-center gap-0.5 px-2 py-1.5;
+  min-height: var(--control-height-md);
 }
 
 .app-dropdown-item[data-highlighted],
