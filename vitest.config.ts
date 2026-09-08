@@ -24,6 +24,7 @@ export const vitestProjects = [
       environment: 'node',
       // 真实文件事务与 watcher 共用磁盘，过多 worker 会让校验时限变成磁盘竞争测试。
       maxWorkers: 2,
+      sequence: { groupOrder: 1 },
       include: ['src/**/*.test.ts']
     }
   }),

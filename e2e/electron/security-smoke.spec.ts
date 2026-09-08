@@ -43,6 +43,11 @@ test.beforeEach(async () => {
   env.NODE_ENV = 'production';
   env.HOME = testHome;
   env.USERPROFILE = testHome;
+  await fs.mkdir(path.join(testHome, '.chaptale'));
+  await fs.writeFile(
+    path.join(testHome, '.chaptale/settings.json'),
+    JSON.stringify({ version: 1, storage: { mode: 'global' }, onboarding: { completedVersion: 1 } })
+  );
 
   electronApp = await electron.launch({
     executablePath: electronExecutable,
@@ -57,6 +62,8 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   await electronApp.close();
+  expect(path.dirname(path.resolve(testHome))).toBe(path.resolve(os.tmpdir()));
+  expect(path.basename(testHome)).toMatch(/^chaptale-electron-e2e-/);
   await fs.rm(testHome, { recursive: true, force: true });
 });
 

@@ -82,6 +82,7 @@ test.beforeEach(async () => {
   await page.evaluate(async root => {
     await (window as DesktopWindow).chaptaleDesktop.settings.update({
       storage: { mode: 'workspace', workspacePath: root },
+      onboarding: { completedVersion: 1 },
       theme: 'light'
     });
   }, workspace);

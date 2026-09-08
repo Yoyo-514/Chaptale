@@ -72,6 +72,7 @@ export type ChaptaleSettings = {
   /** 资源管理器偏好；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
   explorer: ChaptaleExplorerSettings;
   editor?: { autoSave: boolean };
+  onboarding?: { completedVersion: number };
   /** 界面主题；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
   theme: ChaptaleTheme;
   /**

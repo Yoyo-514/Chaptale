@@ -26,6 +26,9 @@ export const UpdateChaptaleSettingsPayloadSchema = Type.Object(
     storage: Type.Optional(ChaptaleStorageSettingsUpdateSchema),
     explorer: Type.Optional(ChaptaleExplorerSettingsUpdateSchema),
     editor: Type.Optional(Type.Object({ autoSave: Type.Optional(Type.Boolean()) }, { additionalProperties: false })),
+    onboarding: Type.Optional(
+      Type.Object({ completedVersion: Type.Integer({ minimum: 0, maximum: 1000 }) }, { additionalProperties: false })
+    ),
     theme: Type.Optional(ChaptaleThemeSchema),
     lastSessionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     recentWorkspaces: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 8 }))

@@ -9,6 +9,7 @@ import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useContentStore } from '@/features/content';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
+import { useOnboardingStore } from '@/features/onboarding';
 import { useReviewStore } from '@/features/reviews';
 import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
@@ -167,13 +168,17 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'help',
     label: '帮助',
     items: [
-      { id: 'help.guide', label: '使用说明', disabled: true },
+      { id: 'help.guide', label: '开始引导' },
       { id: 'help.diagnostics', label: '配置与诊断' }
     ]
   }
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'help.guide') {
+    useOnboardingStore().show();
+    return;
+  }
   if (itemId === 'agent.manage-personas') {
     settingsStore.openPanel('content');
     return;

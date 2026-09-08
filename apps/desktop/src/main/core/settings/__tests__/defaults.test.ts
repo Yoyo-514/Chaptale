@@ -31,6 +31,7 @@ describe('settings defaults', () => {
       storage: { mode: 'workspace', workspacePath: 'E:/Stories' },
       explorer: { showInternalFiles: false },
       editor: { autoSave: false },
+      onboarding: { completedVersion: 0 },
       theme: 'dark'
     });
   });

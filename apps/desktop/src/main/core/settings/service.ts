@@ -115,6 +115,9 @@ export class SettingsService {
           ...payload.explorer
         },
         editor: { autoSave: payload.editor?.autoSave ?? current.editor?.autoSave ?? false },
+        onboarding: {
+          completedVersion: payload.onboarding?.completedVersion ?? current.onboarding?.completedVersion ?? 0
+        },
         theme: payload.theme ?? current.theme,
         ...(current.lastSessions && Object.keys(current.lastSessions).length > 0
           ? { lastSessions: { ...current.lastSessions } }

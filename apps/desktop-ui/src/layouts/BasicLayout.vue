@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { OnboardingDialog } from '@/features/onboarding';
 import { SettingsPanel } from '@/features/settings';
 import { ActivityBar, StatusBar, TextContextMenu, TitleBar } from '@/features/shell';
 import { useWorkbenchStore } from '@/features/workbench';
@@ -17,6 +18,7 @@ const navigation = useWorkbenchStore();
       </div>
       <StatusBar v-if="navigation.statusBarOpen && !navigation.focusMode" />
       <SettingsPanel />
+      <OnboardingDialog />
     </div>
   </TextContextMenu>
 </template>

@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
     showInternalFiles: false
   },
   editor: { autoSave: false },
+  onboarding: { completedVersion: 0 },
   // 与 Renderer 的 index.html 上那个静态主题类必须一致：
   // 两者不一致时每次冷启动都会先画一帧再跳色。
   theme: 'dark'
@@ -57,6 +58,15 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
         : {})
     },
     editor: { autoSave: value?.editor?.autoSave === true },
+    onboarding: {
+      completedVersion:
+        typeof value?.onboarding?.completedVersion === 'number' &&
+        Number.isInteger(value.onboarding.completedVersion) &&
+        value.onboarding.completedVersion >= 0 &&
+        value.onboarding.completedVersion <= 1000
+          ? value.onboarding.completedVersion
+          : 0
+    },
     // 认不出的主题回落默认，而不是原样透传：这个值最终会变成 <html> 上的类名，
     // 落一个没有对应样式的类，界面会退化成没有任何语义色的裸样式。
     theme: isChaptaleTheme(value?.theme) ? value.theme : DEFAULT_SETTINGS.theme,
