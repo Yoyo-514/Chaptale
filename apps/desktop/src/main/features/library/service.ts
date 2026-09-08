@@ -1,7 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { stringify } from 'yaml';
 
-import type { ComposePackArgs, PackFreshness, SceneReferencesArgs } from '@chaptale/ipc-contract';
+import type {
+  ComposePackArgs,
+  PackFreshness,
+  SceneReferencesArgs,
+  WorkspaceSearchArgs,
+  WorkspaceSearchResult
+} from '@chaptale/ipc-contract';
 import {
   escapeXmlAttribute,
   escapeXmlText,
@@ -15,6 +21,7 @@ import { estimateTextTokens } from '../../core/context/token-counter';
 import { createArtifact, resolveArtifactPath } from '../../core/workspace/artifacts';
 import type { WorkspaceIndexWorker } from '../search/index/worker-client';
 import type { WorkspaceService } from '../workspace/service';
+import { findTextMatches } from './text-search';
 
 export class LibraryService {
   constructor(
@@ -31,6 +38,62 @@ export class LibraryService {
     const snapshot = await this.index.listAssets(rootPath);
     await this.assertWorkspace(rootPath);
     return snapshot;
+  }
+
+  async search(args: WorkspaceSearchArgs): Promise<WorkspaceSearchResult> {
+    const snapshot = await this.listAssets(args.rootPath);
+    const result: WorkspaceSearchResult = {
+      matches: [],
+      scannedFiles: 0,
+      limited: false,
+      diagnostics: snapshot.diagnostics.map(item => `${item.sourcePath ?? ''} ${item.message}`.trim())
+    };
+    const files = snapshot.assets.filter(asset => {
+      if (asset.role === 'templates') return false;
+      const memory = asset.role === 'notes' || asset.role === 'summaries';
+      if (args.scope === 'memory') return memory;
+      if (memory) return false;
+      if (args.scope === 'manuscript') return asset.role === 'manuscript';
+      if (args.scope === 'assets') return asset.role !== 'manuscript' && asset.role !== 'drafts';
+      return true;
+    });
+    let bytes = 0;
+    const deadline = Date.now() + 15000;
+    for (const asset of files) {
+      await this.assertWorkspace(args.rootPath);
+      if (result.scannedFiles >= 2000 || bytes + asset.sizeBytes > 64 * 1024 * 1024 || Date.now() > deadline) {
+        result.limited = true;
+        break;
+      }
+      const read = await this.workspace.readDocument({
+        rootPath: args.rootPath,
+        relativePath: asset.sourcePath,
+        maxBytes: 8 * 1024 * 1024
+      });
+      result.scannedFiles++;
+      bytes += asset.sizeBytes;
+      if (!read.ok) {
+        result.diagnostics.push(`${asset.sourcePath}: ${read.message}`);
+        continue;
+      }
+      const matches = findTextMatches(read.document.content, args.query, args.matchCase, 201 - result.matches.length);
+      result.matches.push(
+        ...matches.map(match =>
+          Object.assign({}, match, {
+            sourcePath: asset.sourcePath,
+            title: asset.title,
+            contentHash: read.document.contentHash
+          })
+        )
+      );
+      if (result.matches.length > 200) {
+        result.matches.length = 200;
+        result.limited = true;
+        break;
+      }
+    }
+    await this.assertWorkspace(args.rootPath);
+    return result;
   }
 
   async resolveLink(rootPath: string, link: string) {

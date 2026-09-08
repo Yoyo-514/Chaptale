@@ -17,6 +17,8 @@ import { AssetDialogs, AssetPanel, StructurePanel } from '@/features/assets';
 import StoryDialogs from '@/features/assets/components/StoryDialogs.vue';
 import { useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore } from '@/features/library';
+import WorkspaceSearch from '@/features/library/WorkspaceSearch.vue';
+import MemoryPanel from '@/features/memory-review/MemoryPanel.vue';
 import { ReviewPanel, ReviewCenter } from '@/features/reviews';
 import { RunPanel, RunDetails } from '@/features/runs';
 import { SettlementPanel, SettlementDialogs } from '@/features/settlement';
@@ -53,6 +55,10 @@ function syncPanels() {
 watch(() => [navigation.sidebarOpen, navigation.auxiliaryOpen, navigation.focusMode], syncPanels, { flush: 'post' });
 function onWindowKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && navigation.focusMode) navigation.focusMode = false;
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    navigation.showSidebar('search');
+  }
 }
 watch(
   () => navigation.auxiliary,
@@ -107,12 +113,11 @@ onBeforeUnmount(() => {
         class="workbench-primary-sidebar"
         aria-label="工作区侧栏"
       >
-        <WorkspaceExplorer
-          v-show="navigation.sidebar !== 'review' && navigation.sidebar !== 'structure'"
-          @open-file="editor.openDocument"
-        />
+        <WorkspaceExplorer v-show="navigation.sidebar === 'workspace'" @open-file="editor.openDocument" />
         <ReviewCenter v-if="navigation.sidebar === 'review'" />
         <StructurePanel v-if="navigation.sidebar === 'structure'" />
+        <WorkspaceSearch v-if="navigation.sidebar === 'search'" />
+        <MemoryPanel v-if="navigation.sidebar === 'memory'" />
       </aside>
     </SplitterPanel>
 

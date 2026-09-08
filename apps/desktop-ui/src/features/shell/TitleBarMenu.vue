@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, shallowRef } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { isChaptaleTheme } from '@chaptale/ipc-contract';
 import type { EditCommand } from '@chaptale/ipc-contract';
@@ -8,6 +9,7 @@ import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
 import { useReviewStore } from '@/features/reviews';
+import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
 import { useSettlementStore } from '@/features/settlement';
 import { useTemplateStore } from '@/features/templates';
@@ -27,9 +29,11 @@ const reviews = useReviewStore();
 const templates = useTemplateStore();
 const settlement = useSettlementStore();
 const versions = useVersionStore();
-let editTarget: ReturnType<typeof captureEditingTarget> | undefined;
+const sessions = useSessionStore();
+const router = useRouter();
+const editTarget = shallowRef<ReturnType<typeof captureEditingTarget>>();
 function captureEditTarget() {
-  editTarget = captureEditingTarget();
+  editTarget.value = captureEditingTarget();
 }
 
 /** 主题项的 id 前缀；handleSelect 靠它还原出主题取值。 */
@@ -76,8 +80,8 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'edit',
     label: '编辑',
     items: [
-      { id: 'edit.undo', label: '撤销', shortcut: 'Ctrl+Z', disabled: !editor.activeTab || editor.activeTab.readonly },
-      { id: 'edit.redo', label: '重做', shortcut: 'Ctrl+Y', disabled: !editor.activeTab || editor.activeTab.readonly },
+      { id: 'edit.undo', label: '撤销', shortcut: 'Ctrl+Z', disabled: !editTarget.value?.editable },
+      { id: 'edit.redo', label: '重做', shortcut: 'Ctrl+Y', disabled: !editTarget.value?.editable },
       { id: 'edit.cut', label: '剪切', shortcut: 'Ctrl+X', separatorBefore: true },
       { id: 'edit.copy', label: '复制', shortcut: 'Ctrl+C' },
       { id: 'edit.paste', label: '粘贴', shortcut: 'Ctrl+V' },
@@ -128,10 +132,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'agent',
     label: 'Agent',
     items: [
-      { id: 'agent.new-session', label: '新建会话', disabled: true },
+      { id: 'agent.new-session', label: '新建会话', disabled: navigation.agentBusy },
       { id: 'agent.switch-persona', label: '切换 Agent 角色', disabled: true },
-      { id: 'agent.tasks', label: '查看任务', disabled: true, separatorBefore: true },
-      { id: 'agent.cancel', label: '取消当前任务', disabled: true }
+      { id: 'agent.tasks', label: '查看运行记录', separatorBefore: true },
+      { id: 'agent.cancel', label: '停止当前对话', disabled: !navigation.agentBusy || navigation.agentCancelling }
     ]
   },
   {
@@ -150,15 +154,40 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     label: '帮助',
     items: [
       { id: 'help.guide', label: '使用说明', disabled: true },
-      { id: 'help.diagnostics', label: '诊断信息', disabled: true },
-      { id: 'help.about', label: '关于 Chaptale', disabled: true, separatorBefore: true }
+      { id: 'help.diagnostics', label: '配置与诊断' }
     ]
   }
 ]);
 
 function handleSelect(itemId: string) {
-  if (['edit.cut', 'edit.copy', 'edit.paste', 'edit.selectAll'].includes(itemId)) {
-    void editTarget
+  if (itemId === 'agent.new-session') {
+    if (navigation.agentBusy) return;
+    navigation.showAuxiliary('agent');
+    void sessions
+      .createSession({ name: '新会话' })
+      .then(() => router.push({ name: 'chat' }))
+      .catch(error => useNotificationStore().error('新建会话失败', toErrorMessage(error)));
+    return;
+  }
+  if (itemId === 'agent.tasks') {
+    navigation.showAuxiliary('runs');
+    return;
+  }
+  if (itemId === 'agent.cancel') {
+    navigation.cancelAgentRequest++;
+    return;
+  }
+  if (itemId === 'help.diagnostics') {
+    settingsStore.openPanel('files');
+    return;
+  }
+  if (['edit.cut', 'edit.copy', 'edit.paste', 'edit.selectAll', 'edit.undo', 'edit.redo'].includes(itemId)) {
+    if ((itemId === 'edit.undo' || itemId === 'edit.redo') && editTarget.value?.element?.closest('.cm-editor')) {
+      editTarget.value.element.focus();
+      editor.requestCommand(itemId === 'edit.undo' ? 'undo' : 'redo');
+      return;
+    }
+    void editTarget.value
       ?.execute(itemId.slice(5) as EditCommand)
       .catch(error => useNotificationStore().error('编辑操作失败', toErrorMessage(error)));
     return;
@@ -238,10 +267,6 @@ function handleSelect(itemId: string) {
   }
   if (itemId === 'file.auto-save') {
     void editor.setAutoSave(!editor.autoSave);
-    return;
-  }
-  if (itemId === 'edit.undo' || itemId === 'edit.redo') {
-    editor.requestCommand(itemId === 'edit.undo' ? 'undo' : 'redo');
     return;
   }
   if (itemId === 'file.close-editor') {

@@ -64,7 +64,6 @@ describe('TitleBar', () => {
     await viewTrigger?.trigger('keydown', { key: 'Enter' });
     await nextTick();
 
-    // 视图菜单其余各项都还是占位；外观是这里唯一能用的入口。
     const appearance = document.body.querySelector<HTMLElement>('[data-item-id="view.appearance"]');
     expect(appearance?.textContent).toContain('外观');
     expect(appearance?.hasAttribute('data-disabled')).toBe(false);

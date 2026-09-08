@@ -42,6 +42,7 @@ export const IPC_CHANNELS = {
     restoreVersion: 'writing:restore-version'
   },
   library: {
+    search: 'library:search',
     sceneReferences: 'library:scene-references',
     listAssets: 'library:list-assets',
     resolveLink: 'library:resolve-link',

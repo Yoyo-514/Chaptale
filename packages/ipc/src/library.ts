@@ -55,7 +55,41 @@ export type PackFreshness = {
   stale: boolean;
   sources: Array<{ sourcePath: string; state: 'current' | 'changed' | 'missing' }>;
 };
+export const WorkspaceSearchArgsSchema = Type.Object(
+  {
+    ...WorkspaceRootArgsSchema.properties,
+    query: Type.String({ minLength: 1, maxLength: 200 }),
+    matchCase: Type.Boolean(),
+    scope: Type.Union([
+      Type.Literal('work'),
+      Type.Literal('manuscript'),
+      Type.Literal('assets'),
+      Type.Literal('memory')
+    ])
+  },
+  { additionalProperties: false }
+);
+export type WorkspaceSearchArgs = Static<typeof WorkspaceSearchArgsSchema>;
+export const WorkspaceSearchArgsValidator = Compile(Type.Tuple([WorkspaceSearchArgsSchema]));
+export type WorkspaceTextMatch = {
+  sourcePath: string;
+  title: string;
+  contentHash: string;
+  line: number;
+  from: number;
+  to: number;
+  before: string;
+  text: string;
+  after: string;
+};
+export type WorkspaceSearchResult = {
+  matches: WorkspaceTextMatch[];
+  scannedFiles: number;
+  diagnostics: string[];
+  limited: boolean;
+};
 export type LibraryApi = {
+  search: (args: WorkspaceSearchArgs) => Promise<WorkspaceSearchResult>;
   sceneReferences: (args: SceneReferencesArgs) => Promise<SceneReferences>;
   listAssets: (args: { rootPath: string }) => Promise<AssetSnapshot>;
   resolveLink: (args: Static<typeof LibraryLinkArgsSchema>) => Promise<AssetLink>;

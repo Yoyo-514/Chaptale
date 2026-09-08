@@ -175,6 +175,7 @@ export function useChatController() {
     recentSessions,
     handleSelectRecentSession: messages.handleSelectRecentSession,
     handleSend,
+    cancelActiveRun: streaming.cancelActiveRun,
     handleEditUserMessage,
     handleSaveUserMessage: editing.handleSaveUserMessage,
     handleCancelEdit: editing.handleCancelEdit,

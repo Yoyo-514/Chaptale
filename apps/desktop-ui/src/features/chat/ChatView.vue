@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
@@ -30,6 +30,18 @@ const sessionStore = useSessionStore();
 const navigation = useWorkbenchStore();
 const workspace = useWorkspaceStore();
 const root = ref<HTMLElement>();
+watchEffect(() => {
+  navigation.agentBusy = chat.state.isConnecting || chat.state.isReplying;
+  navigation.agentCancelling = chat.state.isCancelling;
+});
+watch(
+  () => navigation.cancelAgentRequest,
+  () => void chat.cancelActiveRun()
+);
+onBeforeUnmount(() => {
+  navigation.agentBusy = false;
+  navigation.agentCancelling = false;
+});
 let applyingContext = false;
 async function applyContextRequests() {
   if (applyingContext || chat.state.isConnecting || chat.state.isReplying) return;

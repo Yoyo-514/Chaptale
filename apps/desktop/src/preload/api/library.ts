@@ -4,6 +4,7 @@ import { IPC_CHANNELS, type LibraryApi } from '@chaptale/ipc-contract';
 
 export function createLibraryApi(): LibraryApi {
   return {
+    search: args => ipcRenderer.invoke(IPC_CHANNELS.library.search, args),
     sceneReferences: args => ipcRenderer.invoke(IPC_CHANNELS.library.sceneReferences, args),
     listAssets: args => ipcRenderer.invoke(IPC_CHANNELS.library.listAssets, args),
     resolveLink: args => ipcRenderer.invoke(IPC_CHANNELS.library.resolveLink, args),

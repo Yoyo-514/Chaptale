@@ -6,10 +6,12 @@ import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useNotificationStore } from '@/features/notifications';
 import { SessionRenameDialog, useSessionStore } from '@/features/sessions';
+import { useWorkbenchStore } from '@/features/workbench';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
 const notificationStore = useNotificationStore();
+const navigation = useWorkbenchStore();
 
 const currentSession = computed(() => sessionStore.currentSession);
 const sessionTitle = computed(() => {
@@ -82,13 +84,29 @@ async function handleExportSession() {
       </AppTooltip>
 
       <AppTooltip text="新建会话" side="bottom" :side-offset="3">
-        <AppButton icon variant="ghost" size="sm" type="button" aria-label="新建会话" @click="handleCreateSession">
+        <AppButton
+          icon
+          variant="ghost"
+          size="sm"
+          type="button"
+          aria-label="新建会话"
+          :disabled="navigation.agentBusy"
+          @click="handleCreateSession"
+        >
           <span class="i-mingcute-add-line size-4" aria-hidden="true" />
         </AppButton>
       </AppTooltip>
 
       <AppTooltip text="历史记录" side="bottom" :side-offset="3">
-        <AppButton icon variant="ghost" size="sm" type="button" aria-label="历史记录" @click="handleOpenHistory">
+        <AppButton
+          icon
+          variant="ghost"
+          size="sm"
+          type="button"
+          aria-label="历史记录"
+          :disabled="navigation.agentBusy"
+          @click="handleOpenHistory"
+        >
           <span class="i-mingcute-history-line size-4" aria-hidden="true" />
         </AppButton>
       </AppTooltip>

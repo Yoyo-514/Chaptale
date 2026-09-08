@@ -133,6 +133,55 @@ async function createStoryAssets() {
   await writeFile(path.join(workspace, '设定/时间线/待定.md'), '---\nkind: timeline-event\ntitle: 待定事件\n---\n');
 }
 
+test('M6 全文搜索区分范围并定位正文，记忆原文可独立浏览', async () => {
+  await mkdir(path.join(workspace, '.chaptale/memory/notes'), { recursive: true });
+  await writeFile(
+    path.join(workspace, '.chaptale/memory/notes/观察.md'),
+    '---\nkind: note\ntitle: 作者观察\n---\n林晚仍未拆信。\n'
+  );
+  await page.getByRole('button', { name: '搜索', exact: true }).click();
+  await page.getByRole('textbox', { name: '搜索作品文本', exact: true }).fill('林晚');
+  const search = page.getByRole('region', { name: '作品全文搜索' });
+  await expect(search.getByRole('status')).toHaveText('1 处匹配 · 3 个文件');
+  await search.getByRole('button').filter({ hasText: '雪落在窗沿' }).click();
+  await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('林晚');
+  await search.getByRole('combobox', { name: '搜索范围' }).click();
+  await page.getByRole('option', { name: '观察与摘要', exact: true }).click();
+  await expect(search.getByRole('button').filter({ hasText: '作者观察' })).toBeVisible();
+  await page.getByRole('button', { name: '记忆', exact: true }).click();
+  const memory = page.getByRole('region', { name: '作品记忆' });
+  await memory.getByRole('button').filter({ hasText: '作者观察' }).click();
+  await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toContainText('林晚仍未拆信');
+  await memory.getByRole('button', { name: '隐藏侧栏' }).click();
+  await expect(memory).toBeHidden();
+});
+
+test('M6 菜单作用于当前输入焦点，新会话和运行入口可用', async () => {
+  await openChapter();
+  const prompt = page.locator('.chat-main textarea').first();
+  await prompt.click();
+  await prompt.pressSequentially('draft text');
+  await page.getByRole('menuitem', { name: '编辑', exact: true }).click();
+  await page.getByRole('menuitem', { name: '撤销', exact: true }).click();
+  await expect(prompt).toHaveValue('');
+  await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toContainText('雪落在窗沿');
+  const count = await page.evaluate(
+    async () => (await (window as DesktopWindow).chaptaleDesktop.session.list()).length
+  );
+  await page.getByRole('menuitem', { name: 'Agent', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新建会话', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(async () => (await (window as DesktopWindow).chaptaleDesktop.session.list()).length))
+    .toBe(count + 1);
+  await page.getByRole('menuitem', { name: 'Agent', exact: true }).click();
+  await page.getByRole('menuitem', { name: '查看运行记录', exact: true }).click();
+  await expect(page.getByRole('region', { name: '运行记录' })).toBeVisible();
+  await page.getByRole('menuitem', { name: '帮助', exact: true }).click();
+  await page.getByRole('menuitem', { name: '配置与诊断', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '配置文件', exact: true })).toBeVisible();
+});
+
 test('M6 故事时间线按情节排序，编辑事件与新建资产保留文件事实', async () => {
   await createStoryAssets();
   await openChapter();

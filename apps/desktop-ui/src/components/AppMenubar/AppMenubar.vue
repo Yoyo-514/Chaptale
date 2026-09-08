@@ -47,6 +47,7 @@ const emit = defineEmits<{
                     :key="child.id"
                     class="app-menubar-item"
                     :disabled="child.disabled"
+                    :aria-label="child.label"
                     :data-item-id="child.id"
                     @select="emit('select', child.id)"
                   >
@@ -57,7 +58,9 @@ const emit = defineEmits<{
                       aria-hidden="true"
                     />
                     <span class="app-menubar-item-label">{{ child.label }}</span>
-                    <span v-if="child.shortcut" class="app-menubar-shortcut">{{ child.shortcut }}</span>
+                    <span v-if="child.shortcut" class="app-menubar-shortcut" aria-hidden="true">{{
+                      child.shortcut
+                    }}</span>
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarPortal>
@@ -69,6 +72,7 @@ const emit = defineEmits<{
               v-bind="item.checked === undefined ? {} : { modelValue: item.checked }"
               class="app-menubar-item"
               :disabled="item.disabled"
+              :aria-label="item.label"
               :data-item-id="item.id"
               @select="emit('select', item.id)"
             >
@@ -79,7 +83,7 @@ const emit = defineEmits<{
                 aria-hidden="true"
               />
               <span class="app-menubar-item-label">{{ item.label }}</span>
-              <span v-if="item.shortcut" class="app-menubar-shortcut">{{ item.shortcut }}</span>
+              <span v-if="item.shortcut" class="app-menubar-shortcut" aria-hidden="true">{{ item.shortcut }}</span>
             </component>
           </template>
         </MenubarContent>

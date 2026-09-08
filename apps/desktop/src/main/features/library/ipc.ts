@@ -4,13 +4,19 @@ import {
   WorkspaceRootArgsValidator,
   LibraryLinkArgsValidator,
   ComposePackArgsValidator,
-  PackIdArgsValidator
+  PackIdArgsValidator,
+  WorkspaceSearchArgsValidator
 } from '@chaptale/ipc-contract';
 
 import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import type { LibraryService } from './service';
 
 export function registerLibraryIpc(service: LibraryService) {
+  handleValidatedIpc(
+    IPC_CHANNELS.library.search,
+    WorkspaceSearchArgsValidator,
+    (_event, args: Parameters<LibraryService['search']>[0]) => service.search(args)
+  );
   handleValidatedIpc(
     IPC_CHANNELS.library.sceneReferences,
     SceneReferencesValidator,
