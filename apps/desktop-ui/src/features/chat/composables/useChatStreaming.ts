@@ -70,10 +70,10 @@ export function useChatStreaming({
   let pendingTerminalReload: Promise<void> | null = null;
 
   /** 收束当前运行的流式状态和临时用户消息队列，并作废旧代次的迟到事件。 */
-  function finishRun(): void {
+  function finishRun(restorePrompt = false): void {
     runEpoch += 1;
     assistantStreaming.finishMessages();
-    restoreUndeliveredSteers(pendingUsers.clear());
+    restoreUndeliveredInputs(pendingUsers.clear(restorePrompt));
     activeRunId.value = '';
     pendingRun = null;
     state.isReplying = false;
@@ -83,13 +83,13 @@ export function useChatStreaming({
   }
 
   /**
-   * 把没赶上这次运行的插话退还编辑器。
+   * 把未交付的输入退还编辑器，保留作者在等待期间继续写的草稿。
    *
    * 引擎读完最后一轮就不再回队列了，取消更是当场停手，两种收场都会剩下几条没被消费的插话。
    * 它们的展示消息必须撤掉（留着像是已经写进历史），但内容是作者敲的，
    * 不能跟着展示一起消失——附件同样带回，否则重发时少了一半东西。
    */
-  function restoreUndeliveredSteers(undelivered: PendingUserSubmission[]): void {
+  function restoreUndeliveredInputs(undelivered: PendingUserSubmission[]): void {
     if (undelivered.length === 0) {
       return;
     }
@@ -98,7 +98,10 @@ export function useChatStreaming({
 
     state.input = [queuedText, state.input].filter(text => text.trim()).join('\n\n');
     state.contextFiles = dedupeContextFiles([...undelivered.flatMap(item => item.contextFiles), ...state.contextFiles]);
-    notificationStore.info('插话未被处理', '本次运行已经结束，内容已退回输入框。');
+    notificationStore.info(
+      undelivered.some(item => item.kind === 'prompt') ? '输入尚未交付' : '插话未被处理',
+      '本次运行已经结束，内容已退回输入框。'
+    );
   }
 
   /** 登记终态回载，完成后自动释放，供下一次运行启动前等待。 */
@@ -299,7 +302,7 @@ export function useChatStreaming({
               return;
             }
 
-            finishRun();
+            finishRun(end.status === 'failed');
 
             if (end.status === 'failed') {
               notificationStore.error('AI 回复失败', end.message);
@@ -362,7 +365,7 @@ export function useChatStreaming({
       }
 
       const message = toErrorMessage(error);
-      finishRun();
+      finishRun(true);
       assistantStreaming.appendErrorMessage(message);
       notificationStore.error('发送失败', message);
     }

@@ -81,6 +81,7 @@ describe('usePendingUserMessages', () => {
     const state = createChatState();
     const pending = usePendingUserMessages(state);
     pending.enqueue('prompt', '初始问题', []);
+    pending.resolveNext({ role: 'user', content: '初始问题', timestamp: 1 });
     const queuedSteer = pending.enqueue('steer', '未交付调整', []);
     pending.markQueued(queuedSteer.id);
     pending.enqueue('steer', '提交中调整', []);
@@ -89,6 +90,31 @@ describe('usePendingUserMessages', () => {
 
     expect(state.messages.map(item => getUserText(item.message))).toEqual(['初始问题']);
     expect(state.messages[0]?.deliveryState).toBeUndefined();
+  });
+
+  it('失败时退还未交付的初始输入与附件，重复清理不重复退还', () => {
+    const state = createChatState();
+    const pending = usePendingUserMessages(state);
+    const file: ChatContextFile = { path: 'C:/novel/outline.md', name: 'outline.md', size: 2048, kind: 'text' };
+    pending.enqueue('prompt', '保留原稿', [file]);
+    file.name = 'changed.md';
+
+    expect(pending.clear(true)).toMatchObject([
+      { kind: 'prompt', query: '保留原稿', contextFiles: [{ name: 'outline.md' }] }
+    ]);
+    expect(state.messages).toEqual([]);
+    expect(pending.clear(true)).toEqual([]);
+  });
+
+  it('失败时只退还尚未交付的内容，不重复已经确认的正文', () => {
+    const state = createChatState();
+    const pending = usePendingUserMessages(state);
+    pending.enqueue('prompt', '已交付原稿', []);
+    pending.resolveNext({ role: 'user', content: '已交付原稿', timestamp: 1 });
+    pending.enqueue('steer', '未交付调整', []);
+
+    expect(pending.clear(true).map(item => item.query)).toEqual(['未交付调整']);
+    expect(state.messages.map(item => getUserText(item.message))).toEqual(['已交付原稿']);
   });
 
   it('回滚临时消息并保留上下文文件快照', () => {

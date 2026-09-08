@@ -23,8 +23,8 @@ export type PendingUserMessages = {
   resolveNext: (message: ChatMessage) => boolean;
   rollback: (id: string) => void;
   takeQueuedSteersFromTail: (count: number) => PendingUserSubmission[];
-  /** 收束队列，返回始终没能交付的 steer（调用方负责把内容退回编辑器）。 */
-  clear: () => PendingUserSubmission[];
+  /** 收束队列；失败时一并交还未收到规范 user event 的初始输入。 */
+  clear: (restorePrompt?: boolean) => PendingUserSubmission[];
 };
 
 /**
@@ -142,13 +142,14 @@ export function usePendingUserMessages(state: ChatState): PendingUserMessages {
    *
    * 未交付的 steer 必须从消息流里移除——留着会伪装成已持久化的历史；
    * 但那些字是作者写的，撤掉展示不等于可以把内容一起丢了，所以交回调用方退还编辑器。
-   * 启动过运行的 prompt 保留展示，仅清除临时交付标记。
+   * 正常收束保留 prompt 展示；失败前未获交付确认的输入连同附件退还。
    */
-  function clear(): PendingUserSubmission[] {
+  function clear(restorePrompt = false): PendingUserSubmission[] {
     const undelivered: PendingUserSubmission[] = [];
 
     for (const submission of submissions) {
-      if (submission.kind === 'steer') {
+      const restore = submission.kind === 'steer' || restorePrompt;
+      if (restore) {
         undelivered.push(submission);
       }
 
@@ -158,7 +159,7 @@ export function usePendingUserMessages(state: ChatState): PendingUserMessages {
         continue;
       }
 
-      if (submission.kind === 'steer') {
+      if (restore) {
         state.messages.splice(index, 1);
       } else {
         delete state.messages[index]!.deliveryState;

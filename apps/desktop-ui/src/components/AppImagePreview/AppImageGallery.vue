@@ -73,7 +73,7 @@ function behindStyle(index: number) {
 }
 
 .app-image-gallery-item {
-  @apply block max-w-full cursor-pointer overflow-hidden rounded-xl border p-0 outline-none transition-all duration-150;
+  @apply flex min-h-16 min-w-16 max-w-full items-center justify-center cursor-pointer overflow-hidden rounded-lg border p-0 outline-none transition-all duration-150;
 
   background: var(--surface-muted);
   border-color: var(--border-subtle);

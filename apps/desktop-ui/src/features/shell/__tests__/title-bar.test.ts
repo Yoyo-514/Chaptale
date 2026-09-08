@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
+import { createMemoryHistory, createRouter } from 'vue-router';
 
 import { useSettingsStore } from '@/features/settings';
 import { useWorkspaceStore } from '@/features/workspace';
@@ -12,13 +13,21 @@ beforeEach(() => {
   setActivePinia(createPinia());
 });
 
+function mountTitleBar() {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/', component: TitleBar }]
+  });
+  return mount(TitleBar, { attachTo: document.body, global: { plugins: [router] } });
+}
+
 afterEach(() => {
   document.body.innerHTML = '';
 });
 
 describe('TitleBar', () => {
   it('renders the creative workbench menus inside the frameless title bar', () => {
-    const wrapper = mount(TitleBar, { attachTo: document.body });
+    const wrapper = mountTitleBar();
 
     expect(wrapper.get('[role="menubar"]').attributes('aria-label')).toBe('应用菜单');
     // 菜单项经 reka-ui 渲染为 menuitem；不断言具体 class 名。
@@ -39,7 +48,7 @@ describe('TitleBar', () => {
   it('opens the file menu from the keyboard and delegates workspace selection', async () => {
     const workspaceStore = useWorkspaceStore();
     const openWorkspaceAction = vi.spyOn(workspaceStore, 'openWorkspace').mockResolvedValue(true);
-    const wrapper = mount(TitleBar, { attachTo: document.body });
+    const wrapper = mountTitleBar();
     const fileTrigger = wrapper.findAll('[role="menubar"] [role="menuitem"]')[0];
 
     await fileTrigger?.trigger('keydown', { key: 'Enter' });
@@ -58,7 +67,7 @@ describe('TitleBar', () => {
   it('从视图菜单的外观子菜单切换主题', async () => {
     const settingsStore = useSettingsStore();
     const setTheme = vi.spyOn(settingsStore, 'setTheme').mockResolvedValue(undefined);
-    const wrapper = mount(TitleBar, { attachTo: document.body });
+    const wrapper = mountTitleBar();
     const viewTrigger = wrapper.findAll('[role="menubar"] [role="menuitem"]')[2];
 
     await viewTrigger?.trigger('keydown', { key: 'Enter' });

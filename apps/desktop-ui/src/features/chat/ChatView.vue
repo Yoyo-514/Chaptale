@@ -182,19 +182,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
           @previous="search.goToPrevious"
         />
 
-        <AppTooltip v-if="!search.isOpen.value" text="搜索会话内容（Ctrl+F）" side="left" :side-offset="3">
-          <AppButton
-            icon
-            class="chat-search-trigger"
-            variant="ghost"
-            size="sm"
-            type="button"
-            aria-label="搜索会话内容"
-            @click="search.open"
-          >
-            <span class="i-mingcute-search-line size-4" aria-hidden="true" />
-          </AppButton>
-        </AppTooltip>
+        <div v-if="!search.isOpen.value" class="chat-message-toolbar">
+          <AppTooltip text="搜索会话内容（Ctrl+F）" side="left" :side-offset="3">
+            <AppButton
+              icon
+              class="chat-search-trigger"
+              variant="ghost"
+              size="sm"
+              type="button"
+              aria-label="搜索会话内容"
+              @click="search.open"
+            >
+              <span class="i-mingcute-search-line size-4" aria-hidden="true" />
+            </AppButton>
+          </AppTooltip>
+        </div>
 
         <ChatMessageList
           ref="messageListRef"
@@ -302,9 +304,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
   @apply mx-auto max-w-3xl justify-center gap-8 px-4 pb-6;
 }
 
-.chat-search-trigger {
-  @apply absolute right-4 top-0 z-$z-local-overlay;
+.chat-message-toolbar {
+  @apply flex shrink-0 justify-end px-4 pb-1;
+}
 
+.chat-search-trigger {
   background: var(--surface-acrylic-strong);
 }
 
