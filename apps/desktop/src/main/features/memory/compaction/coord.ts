@@ -2,6 +2,7 @@ import type { CreativeCheckpoint, PersonaDefinition } from '@chaptale/shared';
 import { validateOutput } from '@chaptale/shared';
 
 import { estimateTextTokens, fitTextToTokens } from '../../../core/context/token-counter';
+import { resolvePersonaMemoryPolicy } from '../../personas/memory-access';
 import type { PersonaRegistry } from '../../personas/registry';
 import type { MemorySections, MemoryService } from '../service';
 import type { CompactionSummaryStore } from './summary-store';
@@ -12,6 +13,7 @@ export type CompactInput = {
   sessionId: string;
   /** 会话创建时绑定的工作区，不能在压缩时改读全局 currentCwd。 */
   cwd: string;
+  personaId?: string;
   reason: CompactReason;
   /** 首条保留 entry；同时作为检查点幂等标识。 */
   checkpointId: string;
@@ -70,7 +72,11 @@ export class CompactCoord {
       throw new Error('memory-distiller persona 不可用，已取消会话压缩');
     }
 
-    const sections = await this.deps.memory.readSections(input.cwd);
+    const owner = await this.deps.personas.get(input.cwd, input.personaId ?? 'companion');
+    const sections = await this.deps.memory.readSections(
+      input.cwd,
+      owner ? resolvePersonaMemoryPolicy(owner) : { domains: [], author: false }
+    );
     const memoryRefs = collectMemoryRefs(sections);
     const task = await this.deps.tasks.run({
       persona,

@@ -13,6 +13,7 @@ export const CreateSessionOptionsSchema = Type.Object(
     id: Type.Optional(SessionIdSchema),
     name: Type.Optional(Type.String()),
     cwd: Type.Optional(Type.String()),
+    personaId: Type.Optional(Type.String({ pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 64 })),
     parentSessionPath: Type.Optional(Type.String())
   },
   { additionalProperties: false }

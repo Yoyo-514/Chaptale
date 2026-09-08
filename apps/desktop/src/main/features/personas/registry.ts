@@ -2,9 +2,10 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 import type { PersonaDefinition, PersonaDiagnostic, PersonaSource } from '@chaptale/shared';
-import { PersonaFrontmatterValidator } from '@chaptale/shared';
+import { getOutputSchema, PersonaFrontmatterValidator } from '@chaptale/shared';
 
 import type { FrontmatterParser } from '../../core/frontmatter/types';
+import { readManagedText, resolveManagedPath } from '../../infra/filesystem/managed-text';
 
 export type PersonaRegistryOptions = {
   parseFrontmatter: FrontmatterParser;
@@ -38,16 +39,20 @@ export class PersonaRegistry {
       this.register(byId, diagnostics, source, 'builtin', undefined);
     }
 
-    for (const { content, filePath } of await readPersonaFiles(this.options.userPersonasDir)) {
+    for (const { content, filePath } of await readPersonaFiles(
+      path.dirname(this.options.userPersonasDir),
+      path.basename(this.options.userPersonasDir),
+      'user',
+      diagnostics
+    )) {
       this.register(byId, diagnostics, content, 'user', filePath);
     }
 
-    const workspacePersonasDir = path.join(cwd, '.chaptale', 'personas');
-    for (const { content, filePath } of await readPersonaFiles(workspacePersonasDir)) {
+    for (const { content, filePath } of await readPersonaFiles(cwd, '.chaptale/personas', 'workspace', diagnostics)) {
       this.register(byId, diagnostics, content, 'workspace', filePath);
     }
 
-    return { personas: [...byId.values()], diagnostics };
+    return { personas: [...byId.values()].toSorted((a, b) => a.id.localeCompare(b.id)), diagnostics };
   }
 
   /** 按 id 取单个 persona；未启用（enabled: false）的 persona 不可获取。 */
@@ -87,8 +92,23 @@ export class PersonaRegistry {
       return;
     }
 
+    if (
+      parsed.frontmatter.execution === 'task' &&
+      (!parsed.frontmatter.output || !getOutputSchema(parsed.frontmatter.output))
+    ) {
+      diagnostics.push({ source, filePath, message: 'task 专员必须选择已注册的输出格式' });
+      return;
+    }
+
     byId.set(parsed.frontmatter.id, {
       ...parsed.frontmatter,
+      ...(source !== 'builtin'
+        ? {
+            tools: parsed.frontmatter.tools ?? [],
+            memory: parsed.frontmatter.memory ?? { read: [], write: [], propose: [] },
+            delegatable: parsed.frontmatter.delegatable ?? false
+          }
+        : {}),
       body: parsed.body,
       source,
       ...(filePath ? { filePath } : {})
@@ -96,26 +116,33 @@ export class PersonaRegistry {
   }
 }
 
-async function readPersonaFiles(dir: string): Promise<Array<{ content: string; filePath: string }>> {
-  let entries: string[];
+async function readPersonaFiles(
+  root: string,
+  relative: string,
+  source: PersonaSource,
+  diagnostics: PersonaDiagnostic[]
+): Promise<Array<{ content: string; filePath: string }>> {
+  let entries;
 
   try {
-    entries = await fs.readdir(dir);
-  } catch {
-    // 目录不存在是常态（用户从未创建 persona），静默返回空。
+    entries = await fs.readdir(await resolveManagedPath(root, relative), { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') diagnostics.push({ source, message: toMessage(error) });
     return [];
   }
 
   const files: Array<{ content: string; filePath: string }> = [];
 
   // 按文件名排序保证跨平台扫描顺序确定。
-  for (const entry of entries.filter(name => name.endsWith('.md')).toSorted()) {
-    const filePath = path.join(dir, entry);
+  if (entries.length > 300) diagnostics.push({ source, message: '专员目录超过 300 项，超出部分未读取' });
+  for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name)).slice(0, 300)) {
+    if (!entry.name.endsWith('.md')) continue;
+    const filePath = path.join(root, relative, entry.name);
 
     try {
-      files.push({ content: await fs.readFile(filePath, 'utf8'), filePath });
-    } catch {
-      // 单文件读取失败（权限/竞态删除）不阻塞其余 persona 加载。
+      files.push({ content: await readManagedText(root, `${relative}/${entry.name}`), filePath });
+    } catch (error) {
+      diagnostics.push({ source, filePath, message: toMessage(error) });
     }
   }
 

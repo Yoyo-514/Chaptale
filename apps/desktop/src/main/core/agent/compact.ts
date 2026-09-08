@@ -11,6 +11,7 @@ export type CompactSummaryInput = {
   sessionId: string;
   /** 会话创建时绑定的工作区，不能在压缩时改读全局 currentCwd。 */
   cwd: string;
+  personaId?: string;
   reason: CompactReason;
   /** 首条保留 entry；同时作为检查点幂等标识。 */
   checkpointId: string;
@@ -110,6 +111,7 @@ export async function compactSession(options: CompactOptions): Promise<CompactRe
   const produced = await summarize({
     sessionId,
     cwd: store.header.cwd,
+    ...(store.header.personaId ? { personaId: store.header.personaId } : {}),
     reason,
     checkpointId: cut.firstKeptEntryId,
     tokensBefore,

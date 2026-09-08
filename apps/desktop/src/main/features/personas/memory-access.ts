@@ -4,6 +4,13 @@ import type { IndexDomain } from '../search/types';
 
 const INDEX_DOMAINS: readonly IndexDomain[] = ['canon', 'notes', 'summaries'];
 
+export function resolvePersonaMemoryPolicy(persona: PersonaDefinition) {
+  return {
+    domains: resolveReadableIndexDomains(persona),
+    author: persona.source === 'builtin' || (persona.memory?.read ?? []).includes('author')
+  };
+}
+
 /**
  * persona 声明只能在角色类型的安全上限内做减法：review 永远不见 notes，
  * draft/rewrite 只能消费上游准备好的 Context Pack，不能直接查询作品库。

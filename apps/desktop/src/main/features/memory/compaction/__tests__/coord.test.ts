@@ -126,7 +126,7 @@ describe('CompactCoord', () => {
       memoryRefs: expect.arrayContaining(['author:preferences'])
     });
     expect(deps.personas.get).toHaveBeenCalledWith('/session-workspace', 'memory-distiller');
-    expect(deps.memory.readSections).toHaveBeenCalledWith('/session-workspace');
+    expect(deps.memory.readSections).toHaveBeenCalledWith('/session-workspace', { domains: [], author: true });
     expect(result.summary).toContain('## 当前目标');
   });
 

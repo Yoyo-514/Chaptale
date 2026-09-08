@@ -33,6 +33,7 @@ export function deriveSessionSummary(
   return {
     id: file.header.id,
     cwd: file.header.cwd,
+    ...(file.header.personaId ? { personaId: file.header.personaId } : {}),
     createdAt: file.header.timestamp,
     name,
     updatedAt,

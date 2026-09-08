@@ -37,6 +37,7 @@ export type SessionRepositoryOptions = {
   getStorageContext?: () => SessionStorageContext | Promise<SessionStorageContext>;
   /** 图片附件呈现端口（缩略图/尺寸）与 context-file 原图读取。 */
   imageAttachmentService?: ImageAttachmentService;
+  validatePersona?: (cwd: string, personaId: string) => Promise<void>;
 };
 
 /**
@@ -85,10 +86,11 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
   async create(options?: CreateSessionOptions): Promise<ChaptaleSessionMetadata> {
     const sessionDir = await this.storage.ensureSessionDir();
     const cwd = options?.cwd ?? (await this.storage.resolveCwd());
+    await this.options.validatePersona?.(cwd, options?.personaId ?? 'companion');
     const id = options?.id ?? randomUUID();
     const filePath = path.join(sessionDir, `${id}.jsonl`);
 
-    const store = await SessionStore.create(filePath, { cwd, id });
+    const store = await SessionStore.create(filePath, { cwd, id, personaId: options?.personaId });
     this.stores.set(id, store);
 
     if (options?.name) {
@@ -99,6 +101,7 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
       id,
       createdAt: store.header.timestamp,
       cwd,
+      ...(store.header.personaId ? { personaId: store.header.personaId } : {}),
       path: filePath,
       ...(options?.parentSessionPath ? { parentSessionPath: options.parentSessionPath } : {})
     };

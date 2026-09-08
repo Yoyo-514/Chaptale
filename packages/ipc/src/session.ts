@@ -95,6 +95,7 @@ export type ChaptaleSessionMetadata = {
   id: string;
   createdAt: string;
   cwd: string;
+  personaId?: string;
   path: string;
   parentSessionPath?: string;
 };

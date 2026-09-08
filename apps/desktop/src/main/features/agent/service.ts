@@ -40,7 +40,7 @@ export type ChatRuntimeBundle = {
    * 轻路径：只解析模型。上下文压力与压缩只要 contextWindow，
    * 走 resolve 会白装配全部工具、创建 delegate 工具并读遍 SKILL.md 正文。
    */
-  resolveModel: () => Promise<ResolvedModel>;
+  resolveModel: (input?: { cwd: string; personaId?: string }) => Promise<ResolvedModel>;
   resolve: (input: SessionCtx) => Promise<{
     model: ResolvedModel;
     system: string;
@@ -68,7 +68,7 @@ export type AgentServiceOptions = {
    */
   compactSummarizer: CompactSummarizer;
   /** 跨会话记忆注入端口（挂 user message 前缀；内容未变化时返回空串）；缺省不注入。 */
-  memoryInjector?: { resolvePrefix(sessionId: string, cwd: string): Promise<string> };
+  memoryInjector?: { resolvePrefix(sessionId: string, cwd: string, personaId?: string): Promise<string> };
   /** 单轮 step 上限（引擎缺省 32）；正常由无工具调用自然停止，此值是失控护栏。 */
   maxSteps?: number;
   /** run 级累计 token 预算（引擎缺省 200k）；超出即停，成本护栏。 */
@@ -134,7 +134,7 @@ export class AgentService implements AgentRuntime {
     const loop = this.driveRounds({
       sessionId,
       store,
-      sessionCtx: bound.ctx,
+      sessionCtx: { ...bound.ctx, personaId: store.header.personaId ?? 'companion' },
       run,
       signal,
       options,
@@ -250,7 +250,7 @@ export class AgentService implements AgentRuntime {
           sessionId,
           model,
           system: bundle.system,
-          cacheScope: `${sessionCtx.cwd}\ncompanion`,
+          cacheScope: `${sessionCtx.cwd}\n${store.header.personaId ?? 'companion'}`,
           messages: store.buildContextMessages(),
           tools: bundle.tools,
           // 每轮闸门绑定本会话 cwd（workspace 级规则据此定位 .chaptale/permissions.json）。
@@ -332,7 +332,7 @@ export class AgentService implements AgentRuntime {
     reason: 'threshold' | 'overflow'
   ): Promise<boolean> {
     try {
-      const model = await this.options.runtimeBundle.resolveModel();
+      const model = await this.options.runtimeBundle.resolveModel(store.header);
 
       if (model.contextWindow <= 0) {
         return false;
@@ -370,7 +370,11 @@ export class AgentService implements AgentRuntime {
       sessionId: input.sessionId,
       query: input.query,
       contextFilePaths: input.contextFilePaths,
-      memoryPrefix: await this.resolveMemoryPrefix(input.sessionId, input.store.header.cwd),
+      memoryPrefix: await this.resolveMemoryPrefix(
+        input.sessionId,
+        input.store.header.cwd,
+        input.store.header.personaId
+      ),
       signal: input.signal
     });
 
@@ -407,7 +411,7 @@ export class AgentService implements AgentRuntime {
   async getContextPressure(sessionId: string): Promise<MemoryContextPressureStatus> {
     const store = await this.options.sessionRepository.open(sessionId);
     // 只要 contextWindow：走 resolve 会白装配全部工具并读遍 SKILL.md。
-    const model = await this.options.runtimeBundle.resolveModel();
+    const model = await this.options.runtimeBundle.resolveModel(store.header);
     const messages = store.buildContextMessages();
 
     const contextWindow = model.contextWindow;
@@ -425,7 +429,7 @@ export class AgentService implements AgentRuntime {
     }
 
     const store = await this.options.sessionRepository.open(sessionId);
-    const model = await this.options.runtimeBundle.resolveModel();
+    const model = await this.options.runtimeBundle.resolveModel(store.header);
 
     const result = await compactSession({ sessionId, model, store, summarize: this.options.compactSummarizer });
 
@@ -445,8 +449,8 @@ export class AgentService implements AgentRuntime {
   }
 
   /** run 内按会话 cwd 取记忆注入前缀；未装配注入器时返回空串。 */
-  private async resolveMemoryPrefix(sessionId: string, cwd: string): Promise<string> {
-    return (await this.options.memoryInjector?.resolvePrefix(sessionId, cwd)) ?? '';
+  private async resolveMemoryPrefix(sessionId: string, cwd: string, personaId?: string): Promise<string> {
+    return (await this.options.memoryInjector?.resolvePrefix(sessionId, cwd, personaId)) ?? '';
   }
 
   private ensureRun(sessionId: string): ActiveRun {

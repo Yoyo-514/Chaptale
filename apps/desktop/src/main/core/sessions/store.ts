@@ -26,6 +26,7 @@ type SessionEntryDraft = DistributiveOmit<SessionEntry, 'id' | 'parentId' | 'tim
 
 export type CreateSessionStoreOptions = {
   cwd: string;
+  personaId?: string;
   /** 测试注入固定 id；生产默认 randomUUID。 */
   id?: string;
   timestamp?: string;
@@ -61,7 +62,8 @@ export class SessionStore {
       version: 1,
       id: options.id ?? randomUUID(),
       timestamp: options.timestamp ?? new Date().toISOString(),
-      cwd: options.cwd
+      cwd: options.cwd,
+      ...(options.personaId ? { personaId: options.personaId } : {})
     };
 
     const file: ParsedSessionFile = {

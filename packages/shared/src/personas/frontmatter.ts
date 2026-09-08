@@ -46,6 +46,7 @@ export const PersonaFrontmatterSchema = Type.Object(
       )
     ),
     output: Type.Optional(Type.String()),
+    delegatable: Type.Optional(Type.Boolean()),
     enabled: Type.Optional(Type.Boolean({ default: true }))
   },
   { additionalProperties: false }

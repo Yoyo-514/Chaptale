@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { buildMemoryInjectionBlock } from './injection-block';
-import { MemoryService } from './service';
+import { MemoryService, type MemoryReadPolicy } from './service';
 
 /**
  * memory 注入器：读取记忆节 → 组装注入块 → 按会话去重。
@@ -13,14 +13,17 @@ import { MemoryService } from './service';
 export class MemoryInjector {
   private readonly lastInjectedHash = new Map<string, string>();
 
-  constructor(private readonly memoryService: MemoryService) {}
+  constructor(
+    private readonly memoryService: MemoryService,
+    private readonly policy?: (cwd: string, personaId: string) => Promise<MemoryReadPolicy>
+  ) {}
 
   /** 返回本轮应注入的信封（含尾随空行分隔）；无内容或与上次相同时返回空串。 */
-  async resolvePrefix(sessionId: string, cwd: string): Promise<string> {
+  async resolvePrefix(sessionId: string, cwd: string, personaId = 'companion'): Promise<string> {
     let block: string | undefined;
 
     try {
-      const sections = await this.memoryService.readSections(cwd);
+      const sections = await this.memoryService.readSections(cwd, await this.policy?.(cwd, personaId));
       block = buildMemoryInjectionBlock(sections);
     } catch {
       // 记忆读取失败绝不阻塞对话主流程；下一轮自然重试。

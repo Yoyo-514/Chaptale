@@ -15,6 +15,7 @@ export type SessionHeader = {
   id: string;
   timestamp: string;
   cwd: string;
+  personaId?: string;
 };
 
 export type SessionTextPart = {
@@ -194,6 +195,7 @@ export type ParsedSessionFile = {
 export type SessionSummary = {
   id: string;
   cwd: string;
+  personaId?: string;
   createdAt: string;
   name?: string;
   updatedAt: string;

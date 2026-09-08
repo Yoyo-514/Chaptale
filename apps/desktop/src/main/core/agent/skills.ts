@@ -1,12 +1,15 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+import { parseDocumentFrontmatter } from '@chaptale/shared/document-frontmatter';
+
+import { readManagedText, resolveManagedPath } from '../../infra/filesystem/managed-text';
+
 /**
  * 自有 SKILL.md 加载器。
  *
  * 目录约定：<dir>/<skill-name>/SKILL.md（Kebab-case，与目录名一致）；
- * frontmatter 仅支持单行标量 name/description 与内联数组 appliesTo——
- * 这是文档约定的唯一格式，不支持的多行/嵌套语法按解析失败降级。
+ * frontmatter 与内容管理共用 YAML 解析，支持标准标量和 appliesTo 数组。
  */
 
 export type SkillSource = 'builtin' | 'user' | 'project';
@@ -38,7 +41,9 @@ export async function loadSkillsFromDir(dir: string, source: SkillSource): Promi
   let entries;
 
   try {
-    entries = await fs.readdir(dir, { withFileTypes: true });
+    entries = await fs.readdir(await resolveManagedPath(path.dirname(dir), path.basename(dir)), {
+      withFileTypes: true
+    });
   } catch {
     return { skills: [], diagnostics: [] };
   }
@@ -46,7 +51,8 @@ export async function loadSkillsFromDir(dir: string, source: SkillSource): Promi
   const skills: LoadedSkill[] = [];
   const diagnostics: SkillDiagnostic[] = [];
 
-  for (const entry of entries) {
+  if (entries.length > 300) diagnostics.push({ source, message: '技能目录超过 300 项，超出部分未读取' });
+  for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name)).slice(0, 300)) {
     if (!entry.isDirectory()) {
       continue;
     }
@@ -54,7 +60,7 @@ export async function loadSkillsFromDir(dir: string, source: SkillSource): Promi
     const filePath = path.join(dir, entry.name, SKILL_FILE);
 
     try {
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await readManagedText(path.dirname(dir), `${path.basename(dir)}/${entry.name}/${SKILL_FILE}`);
       const parsed = parseSkillFile(content);
 
       if (!parsed) {
@@ -84,44 +90,16 @@ export async function loadSkillsFromDir(dir: string, source: SkillSource): Promi
 
 /** 解析 SKILL.md：frontmatter 的 name/description/appliesTo（全部可选，name 缺失则按目录名推断由调用方处理）。 */
 export function parseSkillFile(content: string): { name: string; description: string; appliesTo: string[] } | null {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-
-  if (!match) {
+  const parsed = parseDocumentFrontmatter(content);
+  if (parsed.status !== 'ok') return null;
+  const { name, description, appliesTo } = parsed.frontmatter;
+  if (
+    (name !== undefined && typeof name !== 'string') ||
+    (description !== undefined && typeof description !== 'string') ||
+    (appliesTo !== undefined && (!Array.isArray(appliesTo) || appliesTo.some(item => typeof item !== 'string')))
+  )
     return null;
-  }
-
-  const frontmatter = match[1];
-  const name = matchScalar(frontmatter, 'name');
-  const description = matchScalar(frontmatter, 'description');
-  const appliesTo = matchInlineArray(frontmatter, 'appliesTo');
-
-  return {
-    name: name ?? '',
-    description: description ?? '',
-    appliesTo: appliesTo ?? []
-  };
-}
-
-function matchScalar(frontmatter: string, key: string): string | null {
-  const match = frontmatter.match(new RegExp(`^${key}:\\s*(.+?)\\s*$`, 'm'));
-  return match ? stripQuotes(match[1] ?? '') : null;
-}
-
-function matchInlineArray(frontmatter: string, key: string): string[] | null {
-  const match = frontmatter.match(new RegExp(`^${key}:\\s*\\[([^\\]]*)\\]\\s*$`, 'm'));
-
-  if (!match) {
-    return null;
-  }
-
-  return (match[1] ?? '')
-    .split(',')
-    .map(item => stripQuotes(item.trim()))
-    .filter(Boolean);
-}
-
-function stripQuotes(value: string): string {
-  return value.replace(/^['"]|['"]$/g, '');
+  return { name: name ?? '', description: description ?? '', appliesTo: appliesTo ?? [] };
 }
 
 /** appliesTo 绑定：缺省或空数组 = 全部 persona 可用。 */

@@ -20,6 +20,7 @@ export type SelectedSessionTools = {
 
 const TASK_DISALLOWED_TOOLS = new Set(['todo_write', 'delegate', 'memory_save', 'memory_propose']);
 const REVIEW_TOOLS = new Set(['memory_search']);
+const WORKSPACE_READ_TOOLS = new Set(['read', 'grep', 'find', 'ls']);
 
 /**
  * 工具名称、运行时归属、作用域与 persona 收窄规则的唯一事实源。
@@ -48,13 +49,21 @@ export class ToolCatalog {
       return [];
     }
 
-    const declared = persona.tools
+    const requested = persona.tools
       ? this.entries()
           .filter(entry => persona.tools!.includes(entry.name))
           .map(entry => entry.name)
       : this.entries()
           .filter(entry => entry.defaultForChat)
           .map(entry => entry.name);
+
+    // 文件工具覆盖整部作品，不能绕过更窄的记忆域；按需检索走 memory_search。
+    const declared = requested.filter(
+      name =>
+        persona.source === 'builtin' ||
+        !WORKSPACE_READ_TOOLS.has(name) ||
+        ['canon', 'notes', 'summaries'].every(domain => persona.memory?.read?.includes(domain))
+    );
 
     if (persona.type === 'review') {
       return declared.filter(name => REVIEW_TOOLS.has(name));

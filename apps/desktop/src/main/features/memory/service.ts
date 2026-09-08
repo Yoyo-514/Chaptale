@@ -5,8 +5,10 @@ import type { AssetSnapshot } from '@chaptale/shared';
 
 import { resolveAuthorMemoryPaths, resolveWorkspaceMemoryPaths } from '../../core/memory-layout/paths';
 import { WorkspaceLayoutService } from '../../core/workspace/layout';
-import { readOptionalTextFile } from '../../infra/filesystem/files';
-import { resolveWithinCwd } from '../../infra/filesystem/path-guard';
+import { readManagedText, resolveManagedPath } from '../../infra/filesystem/managed-text';
+import type { IndexDomain } from '../search/types';
+
+export type MemoryReadPolicy = { domains: readonly IndexDomain[]; author: boolean };
 
 export type MemorySections = {
   /** ① 作者偏好要点：MEMORY.md 头部 + preferences 摘录。 */
@@ -43,26 +45,40 @@ export class MemoryService {
   constructor(private readonly options: MemoryServiceOptions) {}
 
   /** 读取注入块的四个数据节。 */
-  async readSections(cwd: string): Promise<MemorySections> {
+  async readSections(
+    cwd: string,
+    policy: MemoryReadPolicy = { domains: ['canon', 'notes', 'summaries'], author: true }
+  ): Promise<MemorySections> {
     const authorPaths = resolveAuthorMemoryPaths(this.options.chaptaleRootDir);
     const workspacePaths = resolveWorkspaceMemoryPaths(cwd);
     const layout = await new WorkspaceLayoutService().read(cwd);
     const stylePath = `${layout.roles.world.relativePath}/创作守则.md`;
-    const readStyle = async () => readOptionalTextFile(await resolveWithinCwd(cwd, stylePath));
+    const readStyle = () => readOptionalMemory(cwd, stylePath);
 
     const [memoryIndex, preferenceEntries, styleGuide, recent, notes, catalog] = await Promise.all([
-      readOptionalTextFile(authorPaths.memoryIndex),
-      readMarkdownHeads(authorPaths.preferencesDir),
-      readStyle().catch(() => undefined),
-      readOptionalTextFile(workspacePaths.recent),
-      listMarkdownFirstLines(workspacePaths.notesDir),
-      this.options.listAssets?.(cwd).catch(() => undefined)
+      policy.author
+        ? readOptionalMemory(
+            this.options.chaptaleRootDir,
+            path.relative(this.options.chaptaleRootDir, authorPaths.memoryIndex)
+          )
+        : undefined,
+      policy.author ? readMarkdownHeads(this.options.chaptaleRootDir, 'memory/preferences') : [],
+      policy.domains.includes('canon') ? readStyle().catch(() => undefined) : undefined,
+      policy.domains.includes('summaries')
+        ? readOptionalMemory(cwd, path.relative(cwd, workspacePaths.recent))
+        : undefined,
+      policy.domains.includes('notes') ? listMarkdownFirstLines(cwd, '.chaptale/memory/notes') : undefined,
+      policy.domains.includes('canon') ? this.options.listAssets?.(cwd).catch(() => undefined) : undefined
     ]);
 
     const preferences = joinNonEmpty([takeHead(memoryIndex), ...preferenceEntries]);
     const assets =
       catalog?.assets.filter(
-        asset => asset.status !== 'archived' && asset.role !== 'notes' && asset.role !== 'templates'
+        asset =>
+          asset.status !== 'archived' &&
+          asset.role !== 'notes' &&
+          asset.role !== 'templates' &&
+          (asset.role !== 'summaries' || policy.domains.includes('summaries'))
       ) ?? [];
     const threads = assets.filter(
       asset => asset.kind === 'plot-thread' && ['planted', 'advanced'].includes(asset.status ?? '')
@@ -113,18 +129,18 @@ function takeHead(text: string | undefined): string | undefined {
 }
 
 /** 读取目录内全部 .md 的头部要点（按文件名排序保证确定性）。 */
-async function readMarkdownHeads(dir: string): Promise<string[]> {
-  const files = (await listMarkdownFiles(dir)).filter(
+async function readMarkdownHeads(root: string, relative: string): Promise<string[]> {
+  const files = (await listMarkdownFiles(root, relative)).filter(
     filePath => !/^review-[a-f0-9]{64}\.md$/.test(path.basename(filePath))
   );
-  const heads = await Promise.all(files.map(async filePath => takeHead(await readOptionalTextFile(filePath))));
+  const heads = await Promise.all(files.map(async filePath => takeHead(await readOptionalMemory(root, filePath))));
 
   return heads.filter((head): head is string => Boolean(head));
 }
 
 /** notes 清单：`文件名: 首行` 一行一条；超限截断附提示。 */
-async function listMarkdownFirstLines(dir: string): Promise<string | undefined> {
-  const files = await listMarkdownFiles(dir);
+async function listMarkdownFirstLines(root: string, relative: string): Promise<string | undefined> {
+  const files = await listMarkdownFiles(root, relative);
 
   if (files.length === 0) {
     return undefined;
@@ -132,26 +148,35 @@ async function listMarkdownFirstLines(dir: string): Promise<string | undefined> 
 
   const entries = await Promise.all(
     files.slice(0, NOTES_LIST_LIMIT).map(async filePath => {
-      const content = await readOptionalTextFile(filePath);
+      const content = await readOptionalMemory(root, filePath);
       const firstLine = firstContentLine(content);
       return `${path.basename(filePath)}: ${firstLine.slice(0, 200)}`;
     })
   );
 
   if (files.length > NOTES_LIST_LIMIT) {
-    entries.push(`（共 ${files.length} 条，其余用 read 查看 ${dir}）`);
+    entries.push(`（共 ${files.length} 条，其余用 memory_search 查看）`);
   }
 
   return entries.join('\n');
 }
 
-async function listMarkdownFiles(dir: string): Promise<string[]> {
+async function readOptionalMemory(root: string, relative: string): Promise<string | undefined> {
   try {
-    const entries = await fs.readdir(dir);
+    return await readManagedText(root, relative);
+  } catch {
+    return undefined;
+  }
+}
+
+async function listMarkdownFiles(root: string, relative: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(await resolveManagedPath(root, relative), { withFileTypes: true });
     return entries
-      .filter(name => name.endsWith('.md'))
-      .toSorted()
-      .map(name => path.join(dir, name));
+      .filter(entry => entry.isFile() && entry.name.endsWith('.md'))
+      .toSorted((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 300)
+      .map(entry => path.join(relative, entry.name));
   } catch {
     return [];
   }

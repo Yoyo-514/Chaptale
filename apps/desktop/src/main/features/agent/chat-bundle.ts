@@ -14,7 +14,6 @@ import { MEMORY_PROTOCOL } from '../memory/protocol';
 import type { PermissionBroker } from '../permissions/broker';
 import { evaluatePermission } from '../permissions/engine';
 import type { PermissionRuleStore } from '../permissions/rule-store';
-import { builtinCompanionBody } from '../personas/builtin';
 import type { PersonaRegistry } from '../personas/registry';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
 import { PRODUCT_DUTY } from '../prompts/product-duty';
@@ -58,23 +57,35 @@ export function createChatRuntimeBundle(deps: {
   permissionBroker?: Pick<PermissionBroker, 'ask'>;
   permissionRuleStore?: Pick<PermissionRuleStore, 'collect'>;
 }): ChatRuntimeBundle {
+  async function resolvePersona(cwd: string, id = 'companion') {
+    const persona = await deps.personaRegistry.get(cwd, id);
+    if (!persona || persona.execution !== 'chat') throw new Error(`对话专员不可用：${id}。请创建另一专员的新会话`);
+    return persona;
+  }
+  async function resolveModel(input?: { cwd: string; personaId?: string }) {
+    const persona = input ? await resolvePersona(input.cwd, input.personaId) : undefined;
+    const preference = persona?.model?.preference;
+    const separator = preference?.indexOf('/') ?? -1;
+    return preference && separator > 0
+      ? deps.modelService.runtime.resolveModel(preference.slice(0, separator), preference.slice(separator + 1))
+      : resolveDefaultModel(deps.modelService);
+  }
   return {
-    resolveModel: () => resolveDefaultModel(deps.modelService),
+    resolveModel,
     resolve: async input => {
-      const companion = (await deps.personaRegistry.get(input.cwd, 'companion')) ?? {
-        id: 'companion',
-        name: 'Companion',
-        type: 'chat' as const,
-        execution: 'chat' as const,
-        body: builtinCompanionBody,
-        source: 'builtin' as const
-      };
-      const personaBody = companion.body ?? builtinCompanionBody;
+      const companion = await resolvePersona(input.cwd, input.personaId);
+      const personaBody = companion.body;
       const selectedTools = deps.toolCatalog.selectSessionTools(companion);
 
       // 适用技能只加载一次：注入与 skill_read 通道共用同一份结果，避免两次 load 之间不一致。
       const skillInjection = deps.skillInjection ?? 'on-demand';
-      const skills = await loadChatSkills(deps.skillsProvider, input.cwd, skillInjection);
+      const skills = await loadChatSkills(
+        deps.skillsProvider,
+        input.cwd,
+        skillInjection,
+        companion.id,
+        companion.skills
+      );
 
       const registered = await buildChatSessionTools({
         sessionId: input.sessionId,
@@ -90,7 +101,7 @@ export function createChatRuntimeBundle(deps: {
         webToolsSettingsStore: deps.webToolsSettingsStore,
         // 有适用技能才挂 skill_read：模型拿得到正文，通道才有意义。
         ...(deps.skillsProvider && skills.length > 0
-          ? { skillRead: { provider: deps.skillsProvider, personaId: 'companion' } }
+          ? { skillRead: { provider: deps.skillsProvider, personaId: companion.id, allowedNames: companion.skills } }
           : {})
       });
 
@@ -111,7 +122,7 @@ export function createChatRuntimeBundle(deps: {
         mode: skillInjection
       });
 
-      const model = await resolveDefaultModel(deps.modelService);
+      const model = await resolveModel(input);
 
       return {
         model,
@@ -269,14 +280,19 @@ function composeChatSystemPrompt(options: {
 async function loadChatSkills(
   skillsProvider: Pick<SkillProvider, 'load'> | undefined,
   cwd: string,
-  mode: 'inline' | 'on-demand'
+  mode: 'inline' | 'on-demand',
+  personaId: string,
+  allowedNames?: readonly string[]
 ): Promise<ChatLoadedSkill[]> {
   if (!skillsProvider) {
     return [];
   }
 
   try {
-    const { skills } = await skillsProvider.load(cwd, 'companion');
+    const loaded = await skillsProvider.load(cwd, personaId);
+    const skills = loaded.skills
+      .filter(skill => !allowedNames || allowedNames.includes(skill.name))
+      .toSorted((a, b) => a.name.localeCompare(b.name));
 
     if (mode === 'on-demand') {
       return skills;

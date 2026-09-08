@@ -39,7 +39,11 @@ const DelegateParams = Type.Object(
 /** 可委派对象：启用的 task 型且声明了输出 schema 的 persona。 */
 function listDelegatablePersonas(personas: PersonaDefinition[]): PersonaDefinition[] {
   return personas.filter(
-    persona => persona.execution === 'task' && persona.enabled !== false && Boolean(persona.output)
+    persona =>
+      persona.execution === 'task' &&
+      persona.enabled !== false &&
+      Boolean(persona.output) &&
+      (persona.source === 'builtin' || persona.delegatable === true)
   );
 }
 

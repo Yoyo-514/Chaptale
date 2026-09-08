@@ -32,7 +32,7 @@ export type ChatToolContext = {
   /** web 工具读取同一份 web-tools.json；缺省使用全局 fetch。 */
   webToolsSettingsStore: WebToolsSettingsStore;
   /** skill_read 通道：resolve 已确认存在适用技能时才传入（有技能才挂工具）。 */
-  skillRead?: { provider: Pick<SkillProvider, 'load'>; personaId?: string };
+  skillRead?: { provider: Pick<SkillProvider, 'load'>; personaId?: string; allowedNames?: readonly string[] };
 };
 
 export type TaskToolContext = {
@@ -81,6 +81,7 @@ export async function buildChatSessionTools(context: ChatToolContext): Promise<T
           createSkillReadTool({
             skillsProvider: context.skillRead.provider,
             personaId: context.skillRead.personaId,
+            allowedNames: context.skillRead.allowedNames,
             cwd: context.cwd
           })
         ]

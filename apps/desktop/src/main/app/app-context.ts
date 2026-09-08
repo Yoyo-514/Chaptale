@@ -19,6 +19,7 @@ import { MemoryPendingStore } from '../features/memory/pending/store';
 import { MemoryService } from '../features/memory/service';
 import { PermissionBroker } from '../features/permissions/broker';
 import { PermissionRuleStore } from '../features/permissions/rule-store';
+import { resolvePersonaMemoryPolicy } from '../features/personas/memory-access';
 import { createDefaultPersonaRegistry } from '../features/personas/persona-registry-factory';
 import { PromptFileService } from '../features/prompts/file-service';
 import { ReviewFeedbackStore } from '../features/reviews/feedback';
@@ -84,6 +85,7 @@ export type AppContext = {
 
 export function createAppContext(): AppContext {
   const settingsService = new SettingsService(new WebToolsSettingsAdapter());
+  const personaRegistry = createDefaultPersonaRegistry(settingsService);
   const indexService = new WorkspaceIndexWorker(path.join(settingsService.rootDir, 'cache'));
   const versions = new VersionStore(async cwd => (await indexService.listAssets(cwd)).assets);
   const workspaceService = new WorkspaceService(
@@ -125,11 +127,14 @@ export function createAppContext(): AppContext {
     sessionDir: () => settingsService.getCurrentSessionDir(),
     sessionsRootDir: settingsService.sessionsRootDir,
     getStorageContext: () => settingsService.getStorageContext(),
-    imageAttachmentService
+    imageAttachmentService,
+    validatePersona: async (cwd, id) => {
+      const persona = await personaRegistry.get(cwd, id);
+      if (!persona || persona.execution !== 'chat') throw new Error('请选择已启用的对话专员');
+    }
   });
   const modelService = new ModelService({ modelsPath: settingsService.modelsPath });
   const promptFileService = new PromptFileService(settingsService.agentDir);
-  const personaRegistry = createDefaultPersonaRegistry(settingsService);
   const toolCatalog = createDefaultToolCatalog();
   const skillsProvider = new SkillsProvider(settingsService);
   const todoStore = new TodoStore(settingsService.todosDir);
@@ -234,7 +239,10 @@ export function createAppContext(): AppContext {
     runtimeBundle,
     contextFileService,
     imageAttachmentService,
-    memoryInjector: new MemoryInjector(memoryService),
+    memoryInjector: new MemoryInjector(memoryService, async (cwd, id) => {
+      const persona = await personaRegistry.get(cwd, id);
+      return persona ? resolvePersonaMemoryPolicy(persona) : { domains: [], author: false };
+    }),
     compactSummarizer: input => compactCoord.run(input)
   });
 

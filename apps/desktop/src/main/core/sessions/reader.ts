@@ -75,7 +75,10 @@ function parseHeader(line: string | undefined): SessionHeader | null {
     typeof value === 'object' &&
     (value as Record<string, unknown>).type === SESSION_HEADER_TYPE &&
     (value as Record<string, unknown>).version === 1 &&
-    typeof (value as Record<string, unknown>).id === 'string'
+    typeof (value as Record<string, unknown>).id === 'string' &&
+    ((value as Record<string, unknown>).personaId === undefined ||
+      (typeof (value as Record<string, unknown>).personaId === 'string' &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String((value as Record<string, unknown>).personaId))))
   ) {
     return value as unknown as SessionHeader;
   }

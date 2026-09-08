@@ -6,6 +6,7 @@ export type SessionCtx = {
   sessionId: string;
   cwd: string;
   scope: 'global' | 'workspace';
+  personaId?: string;
 };
 
 /** 把运行时会话对象与其持久化安全上下文一起传递，避免调用链丢失 workspace 归属。 */
