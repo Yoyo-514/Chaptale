@@ -123,22 +123,32 @@ export class VersionStore {
       throw error;
     }
     const snapshots: VersionSnapshot[] = [];
-    for (const name of names.filter(value => /^[a-zA-Z0-9-]+\.json$/.test(value))) {
-      const document = await readDocumentSnapshot({
-        rootPath,
-        relativePath: `${directory}/${name}`,
-        maxBytes: 128 * 1024
-      });
-      const snapshot: unknown = JSON.parse(document.content);
-      if (
-        !VersionSnapshotValidator.Check(snapshot) ||
-        versionDirectory(snapshot.targetPath) !== directory ||
-        snapshot.id !== name.slice(0, -5) ||
-        snapshot.contentPath !== `${directory}/${snapshot.id}.md`
-      ) {
-        throw new Error(`版本记录损坏：${name}`);
+    const metadataNames = names.filter(value => /^[a-zA-Z0-9-]+\.json$/.test(value));
+    // 有界并发减少保留策略反复扫描的等待，不同时打开整份历史，也不跳过失败项。
+    for (let offset = 0; offset < metadataNames.length; offset += 4) {
+      const batch = await Promise.allSettled(
+        metadataNames.slice(offset, offset + 4).map(async name => {
+          const document = await readDocumentSnapshot({
+            rootPath,
+            relativePath: `${directory}/${name}`,
+            maxBytes: 128 * 1024
+          });
+          const snapshot: unknown = JSON.parse(document.content);
+          if (
+            !VersionSnapshotValidator.Check(snapshot) ||
+            versionDirectory(snapshot.targetPath) !== directory ||
+            snapshot.id !== name.slice(0, -5) ||
+            snapshot.contentPath !== `${directory}/${snapshot.id}.md`
+          ) {
+            throw new Error(`版本记录损坏：${name}`);
+          }
+          return snapshot;
+        })
+      );
+      for (const result of batch) {
+        if (result.status === 'rejected') throw result.reason;
+        snapshots.push(result.value);
       }
-      snapshots.push(snapshot);
     }
     return snapshots;
   }

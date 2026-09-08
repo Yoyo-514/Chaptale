@@ -22,6 +22,8 @@ export const vitestProjects = [
       name: 'desktop',
       root: './apps/desktop',
       environment: 'node',
+      // 真实文件事务与 watcher 共用磁盘，过多 worker 会让校验时限变成磁盘竞争测试。
+      maxWorkers: 2,
       include: ['src/**/*.test.ts']
     }
   }),
