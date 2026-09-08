@@ -52,6 +52,11 @@ export const IPC_CHANNELS = {
   },
   workspace: {
     getState: 'workspace:get-state',
+    selectParent: 'workspace:select-parent',
+    createWorkspace: 'workspace:create-workspace',
+    inspectEntry: 'workspace:inspect-entry',
+    mutateEntry: 'workspace:mutate-entry',
+    revealEntry: 'workspace:reveal-entry',
     listDirectory: 'workspace:list-directory',
     createEntry: 'workspace:create-entry',
     readDocument: 'workspace:read-document',
@@ -65,7 +70,8 @@ export const IPC_CHANNELS = {
     discardRecovery: 'workspace:discard-recovery'
   },
   app: {
-    getPlatform: 'app:get-platform'
+    getPlatform: 'app:get-platform',
+    editCommand: 'app:edit-command'
   },
   window: {
     minimize: 'window:minimize',

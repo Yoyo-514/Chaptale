@@ -3,7 +3,7 @@ import { contextBridge } from 'electron';
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 
 import { createAgentApi } from './api/agent';
-import { createGetPlatformApi } from './api/app';
+import { createEditCommandApi, createGetPlatformApi } from './api/app';
 import { createSlashCommandsApi } from './api/commands';
 import { createLibraryApi } from './api/library';
 import { createMemoryApi } from './api/memory';
@@ -30,6 +30,7 @@ const desktopApi: ChaptaleDesktopApi = {
   library: createLibraryApi(),
   workspace: createWorkspaceApi(),
   getPlatform: createGetPlatformApi(),
+  editCommand: createEditCommandApi(),
   windowControl: createWindowControlApi(),
   session: createSessionApi(),
   settings: createSettingsApi(),

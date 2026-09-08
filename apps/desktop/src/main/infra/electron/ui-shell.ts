@@ -1,4 +1,4 @@
-import { BrowserWindow, type IpcMainInvokeEvent } from 'electron';
+import { BrowserWindow, shell, type IpcMainInvokeEvent } from 'electron';
 
 import type { NativeDialogPort, UiShell } from '../../core/ipc-ports';
 import { pickDirectory, pickSavePath } from './dialog';
@@ -33,5 +33,11 @@ export class ElectronUiShell implements UiShell {
 
   openPath(target: string): Promise<void> {
     return openPathOrThrow(target);
+  }
+  revealPath(target: string): void {
+    shell.showItemInFolder(target);
+  }
+  trashItem(target: string): Promise<void> {
+    return shell.trashItem(target);
   }
 }

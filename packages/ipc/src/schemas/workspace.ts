@@ -1,6 +1,8 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+import { WorkspaceRoleSchema } from '@chaptale/shared';
+
 import { MAX_DOCUMENT_BYTES } from '../workspace';
 
 /** 无穿越、无空段、无盘符与反斜杠的正斜杠相对路径；空串代表工作区根。 */
@@ -16,6 +18,19 @@ export const ListDirectoryArgsSchema = Type.Object(
 );
 export const ListDirectoryArgsValidator = Compile(Type.Tuple([ListDirectoryArgsSchema]));
 export const WorkspaceGetStateArgsValidator = Compile(Type.Tuple([]));
+export const CreateWorkspaceArgsSchema = Type.Object(
+  {
+    parentPath: Type.String({ minLength: 1, maxLength: 4096 }),
+    directoryName: Type.String({ minLength: 1, maxLength: 120 }),
+    title: Type.String({ minLength: 1, maxLength: 200 }),
+    kind: Type.Union([Type.Literal('novel'), Type.Literal('script')]),
+    roles: Type.Array(WorkspaceRoleSchema, { maxItems: 8, uniqueItems: true }),
+    firstChapter: Type.Boolean(),
+    styleGuide: Type.String({ maxLength: 32000 })
+  },
+  { additionalProperties: false }
+);
+export const CreateWorkspaceArgsValidator = Compile(Type.Tuple([CreateWorkspaceArgsSchema]));
 
 /** 新建目标必须指向工作区内某个具体条目；根目录已经存在，不接受空串。 */
 export const CreateEntryArgsSchema = Type.Object(
@@ -113,3 +128,22 @@ export const RecoveryDraftSchema = Type.Object({
   sizeBytes: Type.Integer({ minimum: 0 })
 });
 export const RecoveryDraftValidator = Compile(RecoveryDraftSchema);
+
+export const EntryPathArgsSchema = Type.Object(
+  {
+    rootPath: ReadDocumentArgsSchema.properties.rootPath,
+    relativePath: ListDirectoryArgsSchema.properties.relativePath
+  },
+  { additionalProperties: false }
+);
+export const EntryPathArgsValidator = Compile(Type.Tuple([EntryPathArgsSchema]));
+export const MutateEntryArgsSchema = Type.Object(
+  {
+    ...RecoveryPathArgsSchema.properties,
+    operation: Type.Union([Type.Literal('move'), Type.Literal('duplicate'), Type.Literal('trash')]),
+    expectedVersion: WriteDocumentArgsSchema.properties.expectedHash,
+    targetPath: Type.Optional(ReadDocumentArgsSchema.properties.relativePath)
+  },
+  { additionalProperties: false }
+);
+export const MutateEntryArgsValidator = Compile(Type.Tuple([MutateEntryArgsSchema]));

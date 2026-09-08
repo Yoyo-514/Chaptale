@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CreateWorkspaceArgsValidator,
+  EditCommandValidator,
+  EntryPathArgsValidator,
+  MutateEntryArgsValidator,
   AddCustomModelArgsValidator,
   AddCustomProviderArgsValidator,
   AgentCancelArgsValidator,
@@ -133,6 +137,7 @@ const expectedRegistrations: Registration[] = [
     validated(IPC_CHANNELS.settlement[key as keyof typeof SettlementValidators], validator)
   ),
   trusted(IPC_CHANNELS.app.getPlatform),
+  validated(IPC_CHANNELS.app.editCommand, EditCommandValidator),
   validated(IPC_CHANNELS.templates.list, WorkspaceRootArgsValidator),
   validated(IPC_CHANNELS.templates.create, CreateAssetValidator),
   validated(IPC_CHANNELS.templates.identify, IdentifyAssetValidator),
@@ -176,6 +181,11 @@ const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.settings.openConfigDir),
 
   validated(IPC_CHANNELS.workspace.getState, WorkspaceGetStateArgsValidator),
+  validated(IPC_CHANNELS.workspace.selectParent, WorkspaceGetStateArgsValidator),
+  validated(IPC_CHANNELS.workspace.createWorkspace, CreateWorkspaceArgsValidator),
+  validated(IPC_CHANNELS.workspace.inspectEntry, EntryPathArgsValidator),
+  validated(IPC_CHANNELS.workspace.mutateEntry, MutateEntryArgsValidator),
+  validated(IPC_CHANNELS.workspace.revealEntry, EntryPathArgsValidator),
   validated(IPC_CHANNELS.workspace.listDirectory, ListDirectoryArgsValidator),
   validated(IPC_CHANNELS.workspace.createEntry, CreateEntryArgsValidator),
   validated(IPC_CHANNELS.workspace.readDocument, ReadDocumentArgsValidator),

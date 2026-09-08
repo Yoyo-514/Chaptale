@@ -28,23 +28,10 @@ import { WorkspaceLayoutService } from '../../core/workspace/layout';
 import { createTextAtomically, writeTextAtomically } from '../../infra/filesystem/atomic-text';
 import { DEFAULT_IGNORED_DIRS, resolveWithinCwd } from '../../infra/filesystem/path-guard';
 import { withFileWriteLock } from '../../infra/filesystem/write-lock';
+import { isSafeRelativePath, validateEntryName } from './entry-path';
 import { DocumentReadError, readDocumentSnapshot, type DocumentReadOptions } from './read-document';
 import type { RecoveryStore } from './recovery';
 import type { WorkspaceWatcher } from './watcher';
-
-/** Windows 保留字符；跨平台统一按最严的一套挡，避免作品目录在另一台机器上打不开。 */
-const INVALID_NAME_CHARS = /[<>:"/\\|?*]/;
-/** 控制字符上限；用码位比较而不写进正则，字面控制字符在源码里是隐形的。 */
-const FIRST_PRINTABLE_CODE_POINT = 0x20;
-/** Windows 设备名；同名文件在资源管理器里无法访问。 */
-const RESERVED_NAMES = new Set([
-  'CON',
-  'PRN',
-  'AUX',
-  'NUL',
-  ...Array.from({ length: 9 }, (_, index) => `COM${index + 1}`),
-  ...Array.from({ length: 9 }, (_, index) => `LPT${index + 1}`)
-]);
 
 /** 工作区文件操作；根路径只认设置服务，Renderer 只能提供相对路径与预期工作区身份。 */
 export class WorkspaceService {
@@ -69,7 +56,12 @@ export class WorkspaceService {
           () => false
         )
       : false;
-    return { rootPath, displayName: rootPath ? path.basename(rootPath) : null, hasChaptaleMetadata };
+    const layout = rootPath ? await new WorkspaceLayoutService().read(rootPath) : null;
+    return {
+      rootPath,
+      displayName: layout?.manifest?.title ?? (rootPath ? path.basename(rootPath) : null),
+      hasChaptaleMetadata
+    };
   }
 
   onChange(listener: (event: WorkspaceChanged) => void) {
@@ -366,23 +358,4 @@ function compareEntries(a: DirectoryEntry, b: DirectoryEntry): number {
 
 function joinRelative(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name;
-}
-
-/** schema 已挡住主要形态，这里是主进程侧的独立复核：不接受绝对路径、盘符、反斜杠与 `.`/`..` 段。 */
-function isSafeRelativePath(relativePath: string): boolean {
-  if (path.isAbsolute(relativePath) || /[\\:\0]/.test(relativePath)) return false;
-  return relativePath.split('/').every(part => part && part !== '.' && part !== '..');
-}
-
-/** 返回错误说明，合法时返回 undefined。 */
-function validateEntryName(name: string): string | undefined {
-  if (!name) return '名称不能为空';
-  if (INVALID_NAME_CHARS.test(name)) return '名称不能包含 < > : " / \\ | ? *';
-  if ([...name].some(char => (char.codePointAt(0) ?? 0) < FIRST_PRINTABLE_CODE_POINT)) {
-    return '名称不能包含控制字符';
-  }
-  // Windows 会静默吃掉结尾的点和空格，落盘名与用户输入不一致。
-  if (name !== name.trim() || name.endsWith('.')) return '名称不能以空格或点结尾';
-  if (RESERVED_NAMES.has(name.split('.')[0]?.toUpperCase() ?? '')) return `${name} 是系统保留名称`;
-  return undefined;
 }

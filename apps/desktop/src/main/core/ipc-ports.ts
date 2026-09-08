@@ -22,6 +22,8 @@ export type NativeDialogPort = {
 export type ShellPort = {
   /** 在系统文件管理器中打开路径；失败时抛异常。 */
   openPath(target: string): Promise<void>;
+  revealPath(target: string): void;
+  trashItem(target: string): Promise<void>;
 };
 
 export type UiShell = IpcBroadcaster & IpcOwnerResolver & NativeDialogPort & ShellPort;

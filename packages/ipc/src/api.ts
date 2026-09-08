@@ -19,7 +19,7 @@ import type {
   StreamAgentHandlers,
   StreamAgentOptions
 } from './agent';
-import type { AppPlatformResult } from './app';
+import type { AppPlatformResult, EditCommand } from './app';
 import type { LibraryApi } from './library';
 import type {
   AddCustomModelPayload,
@@ -76,6 +76,12 @@ import type {
   ListDirectoryResult,
   CreateEntryArgs,
   CreateEntryResult,
+  CreateWorkspaceArgs,
+  CreateWorkspaceResult,
+  EntryPathArgs,
+  InspectEntryResult,
+  MutateEntryArgs,
+  MutateEntryResult,
   ReadDocumentArgs,
   ReadDocumentResult,
   WriteDocumentArgs,
@@ -102,6 +108,11 @@ export type ChaptaleDesktopApi = {
   library: LibraryApi;
   workspace: {
     getState: () => Promise<WorkspaceState>;
+    selectParent: () => Promise<string | null>;
+    createWorkspace: (args: CreateWorkspaceArgs) => Promise<CreateWorkspaceResult>;
+    inspectEntry: (args: EntryPathArgs) => Promise<InspectEntryResult>;
+    mutateEntry: (args: MutateEntryArgs) => Promise<MutateEntryResult>;
+    revealEntry: (args: EntryPathArgs) => Promise<void>;
     listDirectory: (args: ListDirectoryArgs) => Promise<ListDirectoryResult>;
     createEntry: (args: CreateEntryArgs) => Promise<CreateEntryResult>;
     readDocument: (args: ReadDocumentArgs) => Promise<ReadDocumentResult>;
@@ -115,6 +126,7 @@ export type ChaptaleDesktopApi = {
     discardRecovery: (args: RecoveryPathArgs) => Promise<void>;
   };
   getPlatform: () => Promise<AppPlatformResult>;
+  editCommand: (command: EditCommand) => Promise<void>;
   windowControl: {
     minimize: () => Promise<WindowStateResult>;
     toggleMaximize: () => Promise<WindowStateResult>;

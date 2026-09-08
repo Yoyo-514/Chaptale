@@ -8,6 +8,11 @@ import { onValidatedEvent } from './validated-event';
 export function createWorkspaceApi(): ChaptaleDesktopApi['workspace'] {
   return {
     getState: () => ipcRenderer.invoke(IPC_CHANNELS.workspace.getState),
+    selectParent: () => ipcRenderer.invoke(IPC_CHANNELS.workspace.selectParent),
+    createWorkspace: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.createWorkspace, args),
+    inspectEntry: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.inspectEntry, args),
+    mutateEntry: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.mutateEntry, args),
+    revealEntry: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.revealEntry, args),
     listDirectory: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.listDirectory, args),
     createEntry: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.createEntry, args),
     readDocument: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.readDocument, args),

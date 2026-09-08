@@ -1,4 +1,4 @@
-import { IPC_CHANNELS, type AppPlatformResult } from '@chaptale/ipc-contract';
+import { EditCommandValidator, IPC_CHANNELS, type AppPlatformResult, type EditCommand } from '@chaptale/ipc-contract';
 
 import { registerAgentIpc } from '../features/agent/ipc';
 import { registerSlashCommandIpc } from '../features/commands/ipc';
@@ -20,6 +20,7 @@ import { registerWritingIpc } from '../features/writing/ipc';
 import { ElectronUiShell } from '../infra/electron/ui-shell';
 import { registerWindowIpc } from '../infra/electron/window-ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
+import { handleValidatedIpc } from '../infra/security/validated-ipc';
 import type { AppContext } from './app-context';
 
 /**
@@ -35,6 +36,9 @@ export function registerApplicationIpc(context: AppContext): void {
   registerTemplatesIpc(context.templateService);
   registerReviewIpc(context.reviewService);
   registerSettlementIpc(context.settlementService);
+  handleValidatedIpc(IPC_CHANNELS.app.editCommand, EditCommandValidator, (event, command: EditCommand) => {
+    if (!event.sender.isDestroyed()) event.sender[command]();
+  });
 
   handleTrustedIpc(
     IPC_CHANNELS.app.getPlatform,

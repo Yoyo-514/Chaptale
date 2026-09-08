@@ -4,6 +4,9 @@ import type { WorkspaceLayout } from '@chaptale/shared';
 
 import type {
   CreateEntryArgsSchema,
+  CreateWorkspaceArgsSchema,
+  EntryPathArgsSchema,
+  MutateEntryArgsSchema,
   ListDirectoryArgsSchema,
   ReadDocumentArgsSchema,
   WriteDocumentArgsSchema,
@@ -17,6 +20,10 @@ import type {
 export const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
 
 export type WorkspaceState = { rootPath: string | null; displayName: string | null; hasChaptaleMetadata: boolean };
+export type CreateWorkspaceArgs = Static<typeof CreateWorkspaceArgsSchema>;
+export type CreateWorkspaceResult =
+  | { ok: true; rootPath: string; firstDocument: string; files: string[] }
+  | { ok: false; message: string; partialPath?: string };
 export type ListDirectoryArgs = Static<typeof ListDirectoryArgsSchema>;
 export type DirectoryEntry = {
   name: string;
@@ -89,3 +96,14 @@ export type RecoveryPathArgs = Static<typeof RecoveryPathArgsSchema>;
 export type SaveRecoveryArgs = Static<typeof SaveRecoveryArgsSchema>;
 export type RecoveryDraft = Static<typeof RecoveryDraftSchema>;
 export type RecoverySummary = Omit<RecoveryDraft, 'content'>;
+export type EntryPathArgs = Static<typeof EntryPathArgsSchema>;
+export type MutateEntryArgs = Static<typeof MutateEntryArgsSchema>;
+export type WorkspaceEntryInfo = {
+  relativePath: string;
+  kind: 'file' | 'directory';
+  version: string;
+  entries: number;
+  protectedReason?: string;
+};
+export type InspectEntryResult = { ok: true; entry: WorkspaceEntryInfo } | { ok: false; message: string };
+export type MutateEntryResult = { ok: true; relativePath?: string } | { ok: false; message: string };
