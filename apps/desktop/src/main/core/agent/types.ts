@@ -1,4 +1,4 @@
-import type { PermissionDecision, RiskLevel } from '@chaptale/shared';
+import type { PermissionDecision, RiskLevel, TokenUsage } from '@chaptale/shared';
 
 /**
  * core/agent 对外端口：实现在装配层注入，core 不依赖 features。
@@ -33,11 +33,7 @@ export type AssistantStepRecord = {
   /** 思维链文本（reasoning 模型；不进回放，仅供落盘展示）。 */
   reasoning?: string;
   toolCalls: { id: string; name: string; arguments: Record<string, unknown> }[];
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-  };
+  usage?: TokenUsage;
 };
 
 /** 工具结果载荷。 */

@@ -1,5 +1,5 @@
 import type { ChaptaleSessionScope } from '@chaptale/ipc-contract';
-import type { ChatContextFile } from '@chaptale/shared';
+import type { ChatContextFile, TokenUsage } from '@chaptale/shared';
 
 /**
  * 自有会话存储条目类型。
@@ -38,11 +38,7 @@ export type SessionToolCall = {
   arguments: Record<string, unknown>;
 };
 
-export type SessionUsage = {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-};
+export type SessionUsage = TokenUsage;
 
 export type SessionMessage =
   | {

@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 
+import { sumTokenUsage, type RecordedTokenUsage, type TokenUsage } from '@chaptale/shared';
+
 import { runAgentLoop, type AgentStopReason } from '../../core/agent/engine';
 import { toModelMessages } from '../../core/agent/messages';
 import type { PermissionGatePort } from '../../core/agent/types';
 import { estimateTextTokens } from '../../core/context/token-counter';
+import type { PromptCachePolicy } from '../../core/models/prompt-cache';
 import type { ResolvedModel } from '../../core/models/runtime';
 import type { SessionMessage } from '../../core/sessions/entry';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
@@ -13,12 +16,16 @@ import type { ToolDefinition } from '../../core/tool-protocol/definition';
  * 不落盘（task 会话不在历史扫描范围），多轮修复在内存消息数组上继续。
  */
 export type TaskSession = {
-  prompt(text: string): Promise<void>;
+  prompt(text: string, options?: { contextPrefix?: string }): Promise<void>;
   abort(): Promise<void>;
   getLastAssistantText(): string | undefined;
-  getUsage(): { inputTokens: number; outputTokens: number };
+  getUsage(): RecordedTokenUsage;
   getStopReason?(): AgentStopReason | undefined;
-  getMetadata?(): { model: { provider: string; modelId: string }; promptTemplateHash: string };
+  getMetadata?(): {
+    model: { provider: string; modelId: string };
+    promptTemplateHash: string;
+    cachePolicy?: PromptCachePolicy;
+  };
   dispose(): void;
 };
 
@@ -29,6 +36,7 @@ export type TaskSessionOptions = {
   tools: ToolDefinition[];
   gate?: PermissionGatePort;
   strictInputBudget?: boolean;
+  cacheScope?: string;
 };
 
 export function assertTaskInputBudget(input: string, model: Pick<ResolvedModel, 'contextWindow' | 'maxTokens'>) {
@@ -45,15 +53,20 @@ export function createTaskSession(options: TaskSessionOptions): TaskSession {
   const controller = new AbortController();
   const history: SessionMessage[] = [];
   let lastAssistantText: string | undefined;
-  let usage = { inputTokens: 0, outputTokens: 0 };
+  const usageSteps: TokenUsage[] = [];
+  let contextPrefix: string | undefined;
   let stopReason: AgentStopReason | undefined;
 
   return {
-    async prompt(text: string) {
+    async prompt(text: string, input?: { contextPrefix?: string }) {
+      if (input?.contextPrefix !== undefined) {
+        if (history.length) throw new Error('任务开始后不能替换冻结参考');
+        contextPrefix = input.contextPrefix;
+      }
       history.push({ role: 'user', content: text });
       if (options.strictInputBudget) {
         assertTaskInputBudget(
-          `${options.system}\n${JSON.stringify(history)}\n${JSON.stringify(options.tools.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })))}`,
+          `${options.system}\n${contextPrefix ?? ''}\n${JSON.stringify(history)}\n${JSON.stringify(options.tools.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })))}`,
           options.model
         );
       }
@@ -63,10 +76,14 @@ export function createTaskSession(options: TaskSessionOptions): TaskSession {
           sessionId: options.sessionId,
           model: options.model,
           system: options.system,
+          contextPrefix,
+          cacheMode: 'stable-prefix',
+          cacheScope: options.cacheScope,
           messages: [...history],
           tools: options.tools,
           gate: options.gate,
           abortSignal: controller.signal,
+          onStepUsage: usage => usageSteps.push(usage),
           // 内存历史：终态后由本函数自行折叠进 history（assistant 文本 + tool 轮）。
           onStepPersist: async stepMessages => {
             for (const message of stepMessages) {
@@ -75,10 +92,6 @@ export function createTaskSession(options: TaskSessionOptions): TaskSession {
           }
         });
 
-        usage = {
-          inputTokens: usage.inputTokens + result.totalUsage.inputTokens,
-          outputTokens: usage.outputTokens + result.totalUsage.outputTokens
-        };
         stopReason = result.stopReason;
       } finally {
         lastAssistantText = readLastAssistantText(history);
@@ -94,12 +107,13 @@ export function createTaskSession(options: TaskSessionOptions): TaskSession {
     },
 
     getUsage() {
-      return { ...usage };
+      return sumTokenUsage(usageSteps);
     },
     getStopReason: () => stopReason,
     getMetadata: () => ({
       model: { provider: options.model.provider, modelId: options.model.modelId },
-      promptTemplateHash: createHash('sha256').update(options.system).digest('hex')
+      promptTemplateHash: createHash('sha256').update(options.system).digest('hex'),
+      cachePolicy: options.model.promptCachePolicy ?? 'provider-default'
     }),
 
     dispose() {

@@ -86,6 +86,9 @@ const providerProps = hasSharedProvider
   border-color: var(--border);
   color: var(--popover-foreground);
   backdrop-filter: var(--blur-acrylic-subtle);
+  max-width: min(24rem, calc(100vw - 2rem));
+  overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .app-tooltip-arrow {

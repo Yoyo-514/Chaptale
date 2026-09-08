@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AssetCatalog } from '../../search/index/asset-catalog';
 import { WorkspaceService } from '../../workspace/service';
-import { LibraryService } from '../service';
+import { LibraryService, renderReferenceSources } from '../service';
 
 let home: string;
 let root: string;
@@ -126,6 +126,9 @@ describe('参考快照', () => {
     expect(first.prompt).toBe(second.prompt);
     expect(first.prompt).toContain('&amp; &lt;instruction&gt;');
     expect(first.prompt).not.toContain(first.id);
+    const changedGoal = await service.composePack({ ...args(), goal: '改变场景目标' });
+    expect(changedGoal.prompt).not.toBe(first.prompt);
+    expect(renderReferenceSources(changedGoal.sections)).toBe(renderReferenceSources(first.sections));
     expect(first.sections[0]?.content).toBe(original);
     expect(await service.readPack(root, first.id)).toMatchObject(first);
     expect(await readdir(path.join(root, '.chaptale/packs'))).toHaveLength(2);

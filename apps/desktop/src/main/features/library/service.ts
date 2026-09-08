@@ -187,16 +187,18 @@ export function referenceSummary(head: Record<string, unknown>, body: string) {
 
 /** 不把随机 id、冻结时间或文件 mtime 放入模型前缀。 */
 export function renderReferencePrompt(goal: string, sections: readonly ReferenceSection[]) {
+  return [renderReferenceSources(sections), '<writing_goal>', escapeXmlText(goal), '</writing_goal>'].join('\n');
+}
+
+/** 变化的写作目标不属于参考缓存边界，由任务作为当前输入传入。 */
+export function renderReferenceSources(sections: readonly ReferenceSection[]) {
   return [
     '<writing_reference trust="source-data">',
     ...sections.map(
       section =>
         `<source path="${escapeXmlAttribute(section.sourcePath)}">\n${escapeXmlText(section.content)}\n</source>`
     ),
-    '</writing_reference>',
-    '<writing_goal>',
-    escapeXmlText(goal),
-    '</writing_goal>'
+    '</writing_reference>'
   ].join('\n');
 }
 

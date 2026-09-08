@@ -1,7 +1,8 @@
-import type { ChatMessage } from '@chaptale/shared';
+import type { ChatMessage, TokenUsage } from '@chaptale/shared';
 import { errorToMessage } from '@chaptale/shared';
 
 import { parsePartialJsonObject } from '../../core/agent/partial-json';
+import { normalizeModelUsage } from '../../core/models/token-usage';
 
 /**
  * AI SDK 流上的 part → UI ChatMessage 的聚合翻译层。
@@ -37,7 +38,7 @@ export function createPartTranslator(emit: (message: ChatMessage) => void): Part
   let text = '';
   let reasoning = '';
   let toolCalls: Array<{ type: 'toolCall'; id: string; name: string; arguments: Record<string, unknown> }> = [];
-  let usage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
+  let usage: TokenUsage | undefined;
   /** 本步正在流式生成参数的工具调用。 */
   let pendingInputs = new Map<string, { name: string; raw: string; parsedAt: number }>();
 
@@ -209,15 +210,11 @@ export function createPartTranslator(emit: (message: ChatMessage) => void): Part
 
         case 'finish-step': {
           const step = part as {
-            usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+            usage?: Parameters<typeof normalizeModelUsage>[0];
           };
 
           if (step.usage) {
-            usage = {
-              inputTokens: step.usage.inputTokens ?? 0,
-              outputTokens: step.usage.outputTokens ?? 0,
-              totalTokens: step.usage.totalTokens ?? 0
-            };
+            usage = normalizeModelUsage(step.usage);
           }
 
           flushAssistant();

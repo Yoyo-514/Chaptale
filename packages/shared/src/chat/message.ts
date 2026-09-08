@@ -1,3 +1,4 @@
+import type { TokenUsage } from '../token-usage';
 import type { ChatTextPart, ChatToolCall, ChatUserContent } from './content';
 import type { ChatContextFile, ChatSkillInvocation } from './context';
 import type { ChatImageAttachment, ChatImageSource } from './image';
@@ -13,11 +14,7 @@ export type ChatRetryState = {
   finalError?: string;
 };
 
-export type ChatMessageUsage = {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-};
+export type ChatMessageUsage = TokenUsage;
 
 /**
  * 聊天消息（OpenAI Chat Messages 形状；store、engine、UI 三方同形状，映射层归零）。

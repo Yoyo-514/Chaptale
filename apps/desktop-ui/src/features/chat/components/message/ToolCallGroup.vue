@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
-import type { ChatMessage, ChatToolCall } from '@chaptale/shared';
+import { sumTokenUsage, type ChatMessage, type ChatToolCall } from '@chaptale/shared';
 
 import { AppCollapsible } from '@/components/AppCollapsible';
 import { AppImagePreview } from '@/components/AppImagePreview';
+import { AppUsageDetails } from '@/components/AppUsageDetails';
 import { formatTokenCount } from '@/utils/session-display';
 
 import type { ChatDisplayMessage, ChatSearchMatch } from '../../types';
@@ -99,13 +100,10 @@ const toolActivityTitle = computed(() => {
   return `${visibleNames} 等 ${names.length} 种`;
 });
 // 纯工具调用的 assistant 消息不会出现在普通消息行里，它的 token 用量在这里汇总展示。
-const totalTokens = computed(() =>
-  props.messages.reduce(
-    (sum, displayMessage) =>
-      displayMessage.message.role === 'assistant' ? sum + (displayMessage.message.usage?.totalTokens ?? 0) : sum,
-    0
-  )
+const usageSteps = computed(() =>
+  props.messages.flatMap(({ message }) => (message.role === 'assistant' && message.usage ? [message.usage] : []))
 );
+const usage = computed(() => sumTokenUsage(usageSteps.value));
 const summary = computed(() => {
   const total = executions.value.length;
   const parts = [`${total} 次调用`];
@@ -116,8 +114,8 @@ const summary = computed(() => {
     parts.push(props.isBusy ? `${completedCount.value} 次已完成` : '部分已中断');
   }
 
-  if (totalTokens.value > 0) {
-    parts.push(`${formatTokenCount(totalTokens.value)} tokens`);
+  if (usage.value.totalTokens > 0) {
+    parts.push(`${formatTokenCount(usage.value.totalTokens)} tokens`);
   }
 
   return parts.join(' · ');
@@ -166,6 +164,7 @@ watch(
         </button>
       </template>
 
+      <AppUsageDetails v-if="usageSteps.length" :usage="usage" class="px-3 py-2" />
       <div class="tool-call-group-list">
         <ToolCallItem
           v-for="execution in executions"

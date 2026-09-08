@@ -1,4 +1,4 @@
-import type { PersonaDefinition, WritingModel } from '@chaptale/shared';
+import type { PersonaDefinition, WritingModel, RecordedTokenUsage } from '@chaptale/shared';
 
 import type { TaskPersonaSpec } from '../personas/task-spec';
 import type { AgentRunTrigger } from '../runs/record';
@@ -32,10 +32,7 @@ export type TaskRunRequest = {
   signal?: AbortSignal;
 };
 
-export type TaskRunUsage = {
-  inputTokens: number;
-  outputTokens: number;
-};
+export type TaskRunUsage = RecordedTokenUsage;
 
 export type TaskRunResult =
   | { status: 'success'; runId: string; output: unknown; outputRef: string; usage: TaskRunUsage }

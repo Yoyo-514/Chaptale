@@ -15,7 +15,7 @@ import { patchDocumentFields } from '@chaptale/shared/document-frontmatter';
 import type { ModelService } from '../../core/models/service';
 import { resolveArtifactPath } from '../../core/workspace/artifacts';
 import { withFileWriteLock } from '../../infra/filesystem/write-lock';
-import type { LibraryService } from '../library/service';
+import { renderReferenceSources, type LibraryService } from '../library/service';
 import type { PersonaRegistry } from '../personas/registry';
 import type { TaskRunnerPort } from '../tasks/runner-port';
 import type { WorkspaceService } from '../workspace/service';
@@ -113,7 +113,7 @@ export class WritingService {
         strictInputBudget: true,
         brief: `创作指定范围的候选片段。目标：${pack.goal}\n目标文件：${args.targetPath}\nUTF-16/LF 范围：[${args.range.from}, ${args.range.to})；范围外仅供衔接，不要输出。`,
         text,
-        contextPrompt: pack.prompt,
+        contextPrompt: renderReferenceSources(pack.sections),
         files: [args.targetPath],
         packId: pack.id,
         memoryRefs: pack.sections.map(section => `${section.sourcePath}#${section.sourceHash}`),
@@ -233,12 +233,12 @@ export class WritingService {
         model: args.model,
         frozenContext: true,
         strictInputBudget: true,
-        brief: `只修复选中问题。允许修改行之外仅供衔接。输出逐条精确替换。\n${JSON.stringify({
+        brief: `只修复选中问题。允许修改行之外仅供衔接。输出逐条精确替换。\n写作目标：${pack.goal}\n${JSON.stringify({
           issues: plan.issues,
           allowedLines: plan.spans
         })}`,
         text: plan.sourceText,
-        contextPrompt: pack.prompt,
+        contextPrompt: renderReferenceSources(pack.sections),
         files: [plan.targetPath, `.chaptale/reviews/jobs/${args.reviewId}.json`],
         packId: pack.id,
         memoryRefs: pack.sections.map(section => `${section.sourcePath}#${section.sourceHash}`),

@@ -1,16 +1,15 @@
 import { Type, type Static } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+import { TokenUsageSchema } from './token-usage';
+
 export const AgentRunStatusSchema = Type.Union([
   Type.Literal('success'),
   Type.Literal('failed'),
   Type.Literal('cancelled'),
   Type.Literal('timeout')
 ]);
-export const AgentRunUsageSchema = Type.Object(
-  { inputTokens: Type.Number({ minimum: 0 }), outputTokens: Type.Number({ minimum: 0 }) },
-  { additionalProperties: false }
-);
+export const AgentRunUsageSchema = TokenUsageSchema;
 export const AgentRunInputDigestSchema = Type.Object(
   {
     brief: Type.Optional(Type.String()),
@@ -30,6 +29,14 @@ export const AgentRunRecordSchema = Type.Object(
     promptTemplateHash: Type.String(),
     model: Type.Optional(
       Type.Object({ provider: Type.String(), modelId: Type.String() }, { additionalProperties: false })
+    ),
+    cachePolicy: Type.Optional(
+      Type.Union([
+        Type.Literal('provider-default'),
+        Type.Literal('openai-automatic'),
+        Type.Literal('openai-explicit'),
+        Type.Literal('anthropic')
+      ])
     ),
     inputDigest: AgentRunInputDigestSchema,
     outputRef: Type.Optional(Type.String()),

@@ -1,9 +1,11 @@
 import { stepCountIs, streamText } from 'ai';
 import type { ModelMessage } from 'ai';
 
-import { errorToMessage } from '@chaptale/shared';
+import { errorToMessage, sumTokenUsage, type TokenUsage } from '@chaptale/shared';
 
+import { buildCachedPrompt, type PromptCacheMode } from '../models/prompt-cache';
 import type { ResolvedModel } from '../models/runtime';
+import { normalizeModelUsage } from '../models/token-usage';
 import type { SessionMessage } from '../sessions/entry';
 import { INTERRUPTED_TOOL_RESULT_TEXT } from '../sessions/tool-pairing';
 import { stepRecordsToSessionMessages, toModelMessages } from './messages';
@@ -17,10 +19,17 @@ export type RunAgentLoopOptions = {
   system: string;
   /** 回放产物（store.buildContextMessages()）。 */
   messages: SessionMessage[];
+  /** 冻结参考作为低权限 user 前缀独立传入，不解析任务正文来猜断点。 */
+  contextPrefix?: string;
+  cacheMode?: PromptCacheMode;
+  /** 稳定作品/persona 范围；只发送其不可逆摘要，不含运行 id。 */
+  cacheScope?: string;
   tools: Parameters<typeof toAiSdkTools>[0];
   gate?: PermissionGatePort;
   /** step 边界落盘回调；缺省不落盘（测试用）。 */
   onStepPersist?: (messages: SessionMessage[]) => Promise<void>;
+  /** 已收到的单步用量先于落盘与异常收尾通知，失败不能抹掉先前消耗。 */
+  onStepUsage?: (usage: TokenUsage) => void;
   /** 事件透传回调（IPC 信封已在调用方组装或此处直传 part）。 */
   onPart?: (envelope: AgentStreamEnvelope) => void;
   abortSignal?: AbortSignal;
@@ -62,7 +71,7 @@ export type PrepareStepContext = {
   /** 若不干预，引擎将以此原因停止；undefined 表示本来就要继续。 */
   pendingStop?: AgentStopReason;
   /** 截至目前的累计 usage。 */
-  totalUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
+  totalUsage: TokenUsage;
 };
 
 export type PrepareStepResult = {
@@ -128,7 +137,7 @@ export type AgentStopReason =
 export type AgentLoopResult = {
   /** 最后一次模型调用的原始停止原因。 */
   finishReason: string;
-  totalUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
+  totalUsage: TokenUsage;
   aborted: boolean;
   /** 循环为何停止；护栏截停与自然收尾在此可分辨。 */
   stopReason: AgentStopReason;
@@ -188,7 +197,8 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
   let aborted = false;
   let finishReason = 'unknown';
   let truncationRetries = 0;
-  const totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  const usageSteps: TokenUsage[] = [];
+  let totalUsage = sumTokenUsage(usageSteps);
 
   /**
    * 引擎「若不干预就会以此停止」的倾向。
@@ -234,9 +244,9 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     const step = await runStep();
 
     finishReason = step.finishReason;
-    totalUsage.inputTokens += step.usage.inputTokens;
-    totalUsage.outputTokens += step.usage.outputTokens;
-    totalUsage.totalTokens += step.usage.totalTokens;
+    usageSteps.push(step.usage);
+    totalUsage = sumTokenUsage(usageSteps);
+    options.onStepUsage?.(step.usage);
 
     // 落盘先于一切判断：中断与 provider 故障都要留下已收集的内容。
     await persistStep(step);
@@ -276,7 +286,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     let reasoning = '';
     const toolCalls: { id: string; name: string; arguments: Record<string, unknown> }[] = [];
     const toolResults: ToolResultRecord[] = [];
-    let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+    let usage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     let outputTruncated = false;
     // 取模型调用自身的停止原因，而不是流上的聚合值：同一次截断在聚合值里是 'other'，
     // 认不出来（这正是"整批作废"的判定依据，两者必须同源）。
@@ -286,8 +296,14 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
 
     const result = streamText({
       model: stepModel.model,
-      instructions: stepSystem,
-      messages: conversation,
+      ...buildCachedPrompt({
+        policy: stepModel.promptCachePolicy,
+        mode: options.cacheMode,
+        scope: options.cacheScope ?? sessionId,
+        system: stepSystem,
+        messages: conversation,
+        contextPrefix: options.contextPrefix
+      }),
       tools: toAiSdkTools(stepTools, { sessionId, gate, isOutputTruncated: () => outputTruncated }),
       // 单步：多步循环归引擎，SDK 不自行续跑。
       stopWhen: stepCountIs(1),
@@ -298,6 +314,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
       onLanguageModelCallEnd: event => {
         outputTruncated = event.finishReason === 'length';
         stepFinishReason = event.finishReason;
+        usage = normalizeModelUsage(event.usage);
       },
       // 模型级参数：未配置时不传，交由服务端默认（temperature/topP 仅 OpenAI 兼容系生效，其余协议忽略）。
       ...(stepModel.maxTokens !== undefined ? { maxOutputTokens: stepModel.maxTokens } : {}),
@@ -356,19 +373,24 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
           // 不能就地抛：先跳出循环把已收集内容落盘，再由调用方感知失败。
           streamError = part.error;
         } else if (part.type === 'finish-step') {
-          usage = normalizeUsage(part.usage);
+          usage = normalizeModelUsage(part.usage);
         } else if (part.type === 'abort') {
           stepAborted = true;
         }
       }
     } catch (error) {
-      if (!abortSignal?.aborted) {
-        throw error;
-      }
-
-      stepAborted = true;
+      if (abortSignal?.aborted) stepAborted = true;
+      else streamError = error;
     }
 
+    let responseMessages: ModelMessage[] = [];
+    if (streamError === undefined && !stepAborted) {
+      try {
+        responseMessages = await result.responseMessages;
+      } catch (error) {
+        streamError = error;
+      }
+    }
     return {
       text,
       reasoning,
@@ -380,7 +402,7 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
       error: streamError,
       // 失败与中断的响应消息不进会话：半截 step 不该参与下一步的上下文，
       // 而这两种情况下循环都会立即结束。
-      responseMessages: streamError === undefined && !stepAborted ? await result.responseMessages : []
+      responseMessages
     };
   }
 
@@ -389,7 +411,14 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
       return;
     }
 
-    if (!step.text && !step.reasoning && step.toolCalls.length === 0 && step.toolResults.length === 0) {
+    if (
+      !step.text &&
+      !step.reasoning &&
+      step.toolCalls.length === 0 &&
+      step.toolResults.length === 0 &&
+      step.usage.totalTokens === 0 &&
+      !step.usage.cache
+    ) {
       return;
     }
 
@@ -412,7 +441,7 @@ type StepOutcome = {
   reasoning: string;
   toolCalls: { id: string; name: string; arguments: Record<string, unknown> }[];
   toolResults: ToolResultRecord[];
-  usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+  usage: TokenUsage;
   finishReason: string;
   aborted: boolean;
   error: unknown;
@@ -591,12 +620,4 @@ function raceIdleTimeout<T>(next: Promise<T>, timeoutMs: number): Promise<T | ty
   ]).finally(() => {
     clearTimeout(timer);
   });
-}
-
-function normalizeUsage(usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number }) {
-  return {
-    inputTokens: usage.inputTokens ?? 0,
-    outputTokens: usage.outputTokens ?? 0,
-    totalTokens: usage.totalTokens ?? 0
-  };
 }

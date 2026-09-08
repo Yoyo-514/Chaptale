@@ -110,16 +110,14 @@ export class TaskRunner implements TaskRunnerPort {
     request: TaskRunRequest,
     schemaId: string
   ): Promise<{ ok: true; value: unknown; rawText: string } | { ok: false; errors: string[]; rawText: string }> {
-    let promptText =
-      request.maxPromptTokens !== undefined
-        ? renderTaskPromptWithinBudget(request.brief, request.text, request.contextPrompt, request.maxPromptTokens)
-        : renderTaskPrompt(request.brief, request.text, request.contextPrompt);
+    const prompt = renderTaskPromptParts(request.brief, request.text, request.contextPrompt, request.maxPromptTokens);
+    let promptText = prompt.text;
     let rawText = '';
     let errors: string[] = [];
 
     for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt += 1) {
       try {
-        await session.prompt(promptText);
+        await session.prompt(promptText, attempt === 0 ? { contextPrefix: prompt.contextPrefix } : undefined);
       } catch (error) {
         return {
           ok: false,
@@ -183,6 +181,7 @@ export class TaskRunner implements TaskRunnerPort {
       promptTemplateHash:
         session.getMetadata?.().promptTemplateHash ?? createHash('sha1').update(spec.systemPrompt).digest('hex'),
       ...(session.getMetadata ? { model: session.getMetadata().model } : {}),
+      ...(session.getMetadata?.().cachePolicy ? { cachePolicy: session.getMetadata().cachePolicy } : {}),
       inputDigest: {
         brief: request.brief,
         ...(request.files?.length ? { files: [...request.files] } : {}),
@@ -202,8 +201,7 @@ export class TaskRunner implements TaskRunnerPort {
 
 /** 从会话统计读取 token 消耗；落盘记录与返回值共用同一口径。 */
 function readUsage(session: TaskSession): TaskRunUsage {
-  const usage = session.getUsage();
-  return { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
+  return session.getUsage();
 }
 
 /** 转义嵌入 XML envelope 的文本，防止正文内容被误认为信封边界。 */
@@ -213,7 +211,7 @@ function escapeXmlText(text: string): string {
 
 /** 渲染任务提示词：简报 + 可选附件信封 + 待处理正文，各自装入独立段落。 */
 export function renderTaskPrompt(brief: string, text: string, contextPrompt?: string): string {
-  return renderEscapedTaskPrompt(escapeXmlText(brief.trim()), escapeXmlText(text), contextPrompt);
+  return joinTaskPrompt(renderTaskPromptParts(brief, text, contextPrompt));
 }
 
 /** 在 XML 转义后计算最终首轮 prompt，确保实体膨胀也不能突破模型预算。 */
@@ -223,10 +221,27 @@ export function renderTaskPromptWithinBudget(
   contextPrompt: string | undefined,
   maxTokens: number
 ): string {
-  const limit = Math.max(0, Math.floor(maxTokens));
+  return joinTaskPrompt(renderTaskPromptParts(brief, text, contextPrompt, maxTokens));
+}
+
+/** 参考与当前任务保留独立结构，缓存断点不依赖文本解析或用户可伪造的标签。 */
+export function renderTaskPromptParts(
+  brief: string,
+  text: string,
+  contextPrompt?: string,
+  maxTokens?: number
+): { text: string; contextPrefix?: string } {
+  const contextPrefix = contextPrompt?.trim() || undefined;
   const escapedBrief = escapeXmlText(brief.trim());
   const escapedText = escapeXmlText(text);
-  const fixed = renderEscapedTaskPrompt(escapedBrief, '', contextPrompt);
+  const render = (value: string) => ({
+    text: renderEscapedTaskPrompt(escapedBrief, value),
+    ...(contextPrefix ? { contextPrefix } : {})
+  });
+  if (maxTokens === undefined) return render(escapedText);
+
+  const limit = Math.max(0, Math.floor(maxTokens));
+  const fixed = joinTaskPrompt(render(''));
   const fixedTokens = estimateTextTokens(fixed);
 
   if (fixedTokens > limit) {
@@ -234,31 +249,26 @@ export function renderTaskPromptWithinBudget(
   }
 
   let textBudget = limit - fixedTokens;
-  let prompt = renderEscapedTaskPrompt(escapedBrief, fitTextToTokens(escapedText, textBudget), contextPrompt);
+  let prompt = render(fitTextToTokens(escapedText, textBudget));
 
-  while (estimateTextTokens(prompt) > limit && textBudget > 0) {
-    textBudget = Math.max(0, textBudget - (estimateTextTokens(prompt) - limit));
-    prompt = renderEscapedTaskPrompt(escapedBrief, fitTextToTokens(escapedText, textBudget), contextPrompt);
+  while (estimateTextTokens(joinTaskPrompt(prompt)) > limit && textBudget > 0) {
+    textBudget = Math.max(0, textBudget - (estimateTextTokens(joinTaskPrompt(prompt)) - limit));
+    prompt = render(fitTextToTokens(escapedText, textBudget));
   }
 
-  if (estimateTextTokens(prompt) > limit) {
-    throw new Error(`task prompt 无法收敛到预算：${estimateTextTokens(prompt)}/${limit} tokens`);
+  if (estimateTextTokens(joinTaskPrompt(prompt)) > limit) {
+    throw new Error(`task prompt 无法收敛到预算：${estimateTextTokens(joinTaskPrompt(prompt))}/${limit} tokens`);
   }
 
   return prompt;
 }
 
-function renderEscapedTaskPrompt(escapedBrief: string, escapedText: string, contextPrompt?: string): string {
-  return [
-    ...(contextPrompt ? [contextPrompt.trim(), ''] : []),
-    '<task_brief>',
-    escapedBrief,
-    '</task_brief>',
-    '',
-    '<task_input>',
-    escapedText,
-    '</task_input>'
-  ].join('\n');
+function joinTaskPrompt(prompt: { text: string; contextPrefix?: string }): string {
+  return prompt.contextPrefix ? `${prompt.contextPrefix}\n\n${prompt.text}` : prompt.text;
+}
+
+function renderEscapedTaskPrompt(escapedBrief: string, escapedText: string): string {
+  return ['<task_brief>', escapedBrief, '</task_brief>', '', '<task_input>', escapedText, '</task_input>'].join('\n');
 }
 
 /** 渲染修复提示词：携带校验错误，只要求重发修正后的输出块。 */

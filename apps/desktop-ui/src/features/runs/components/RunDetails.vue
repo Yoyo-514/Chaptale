@@ -5,6 +5,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppDialog } from '@/components/AppDialog';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTextView } from '@/components/AppTextView';
+import { AppUsageDetails } from '@/components/AppUsageDetails';
 import { useEditorStore } from '@/features/editor';
 
 import { RUN_PERSONA_LABELS, RUN_STATUS_LABELS, runReference, runTitle } from '../presentation';
@@ -33,6 +34,19 @@ async function openSource(sourcePath: string) {
           <dd>{{ record.model ? `${record.model.provider} / ${record.model.modelId}` : '未记录' }}</dd>
           <dt>输入 / 输出</dt>
           <dd>{{ record.usage.inputTokens }} / {{ record.usage.outputTokens }} tokens</dd>
+          <dt>缓存策略</dt>
+          <dd>
+            {{
+              record.cachePolicy
+                ? {
+                    'provider-default': '由服务商决定',
+                    'openai-automatic': 'OpenAI 自动前缀缓存',
+                    'openai-explicit': 'OpenAI 稳定前缀断点',
+                    anthropic: 'Anthropic 稳定前缀断点'
+                  }[record.cachePolicy]
+                : '未记录'
+            }}
+          </dd>
           <dt>开始</dt>
           <dd>{{ new Date(record.createdAt).toLocaleString() }}</dd>
           <dt>结束</dt>
@@ -52,6 +66,10 @@ async function openSource(sourcePath: string) {
             <code>{{ record.parentSessionId }}</code>
           </dd>
         </dl>
+        <section aria-label="运行用量明细">
+          <h3>用量明细</h3>
+          <AppUsageDetails :usage="record.usage" />
+        </section>
         <section v-if="record.inputDigest.files?.length">
           <h3>目标文件</h3>
           <p v-for="file in record.inputDigest.files" :key="file">{{ file }}</p>

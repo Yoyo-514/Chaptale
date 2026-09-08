@@ -59,6 +59,8 @@ const crossFeatureAllowlist = [
   'reviews -> workspace/read-document',
   'reviews -> workspace/service',
   'reviews -> writing/candidates',
+  // 运行留档绑定输出字节指纹，复用相同的受限快照读取，不另建文件读取入口。
+  'runs -> workspace/read-document',
   // 索引 worker 复用编辑器的安全快照读取和宽容 YAML，不另建不受限读取链路。
   'search -> workspace/read-document',
   'search -> workspace/frontmatter',

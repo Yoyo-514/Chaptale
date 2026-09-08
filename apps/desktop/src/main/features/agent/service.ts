@@ -250,6 +250,7 @@ export class AgentService implements AgentRuntime {
           sessionId,
           model,
           system: bundle.system,
+          cacheScope: `${sessionCtx.cwd}\ncompanion`,
           messages: store.buildContextMessages(),
           tools: bundle.tools,
           // 每轮闸门绑定本会话 cwd（workspace 级规则据此定位 .chaptale/permissions.json）。

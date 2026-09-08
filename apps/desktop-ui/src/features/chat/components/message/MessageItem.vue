@@ -2,10 +2,12 @@
 import { computed } from 'vue';
 
 import { AppImagePreview } from '@/components/AppImagePreview';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useNotificationStore } from '@/features/notifications';
 import { cn } from '@/utils';
 import { toErrorMessage } from '@/utils/desktop-api';
 import { formatMessageTime, formatTokenCount } from '@/utils/session-display';
+import { formatTokenUsageDetails } from '@/utils/token-usage';
 
 import type { ChatDisplayMessage } from '../../types';
 import { toInlineImageItems } from '../../utils/message/inline-images';
@@ -52,6 +54,9 @@ const emit = defineEmits<{
 
 const notificationStore = useNotificationStore();
 const message = computed(() => props.displayMessage.message);
+const usageDetails = computed(() =>
+  message.value.role === 'assistant' && message.value.usage ? formatTokenUsageDetails(message.value.usage) : ''
+);
 const isUserMessage = computed(() => message.value.role === 'user');
 const isAssistantMessage = computed(() => message.value.role === 'assistant');
 const isRenderable = computed(() => hasRenderableMessage(message.value));
@@ -263,7 +268,10 @@ async function copyRawText() {
           @edit="emit('editUser', displayMessage.id)"
           @regenerate="emit('regenerateAssistant', displayMessage.id)"
         />
-        <span v-if="messageMeta" class="message-meta">{{ messageMeta }}</span>
+        <AppTooltip v-if="messageMeta && usageDetails" :text="usageDetails">
+          <span class="message-meta" tabindex="0" aria-label="模型用量">{{ messageMeta }}</span>
+        </AppTooltip>
+        <span v-else-if="messageMeta" class="message-meta">{{ messageMeta }}</span>
       </div>
     </div>
   </div>

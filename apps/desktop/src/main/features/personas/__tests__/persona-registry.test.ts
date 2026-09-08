@@ -176,6 +176,7 @@ describe('PersonaRegistry', () => {
     const { personas, diagnostics } = await createRegistry().load(cwd);
 
     expect(personas.map(persona => persona.id).toSorted()).toEqual([
+      'chapter-distiller',
       'character-reviewer',
       'companion',
       'continuity-reviewer',

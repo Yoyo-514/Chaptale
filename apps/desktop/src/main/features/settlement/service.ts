@@ -4,7 +4,7 @@ import type { SettlementBatch, SettlementPlan } from '@chaptale/shared';
 import { estimateTextTokens } from '../../core/context/token-counter';
 import type { ModelService } from '../../core/models/service';
 import { resolveArtifactPath } from '../../core/workspace/artifacts';
-import type { LibraryService } from '../library/service';
+import { renderReferenceSources, type LibraryService } from '../library/service';
 import type { PersonaRegistry } from '../personas/registry';
 import type { TaskRunnerPort } from '../tasks/runner-port';
 import type { WorkspaceService } from '../workspace/service';
@@ -199,9 +199,9 @@ export class SettlementService {
         model: args.model,
         frozenContext: true,
         strictInputBudget: true,
-        brief: `结算章节 ${args.chapterPath}。只提出本章明确发生的事实。角色和伏笔的 edits 必须精确引用参考原文，不得重写未提供的内容。`,
+        brief: `结算章节 ${args.chapterPath}。只提出本章明确发生的事实。角色和伏笔的 edits 必须精确引用参考原文，不得重写未提供的内容。\n写作目标：${input.pack.goal}`,
         text: input.chapter.content,
-        contextPrompt: input.pack.prompt,
+        contextPrompt: renderReferenceSources(input.pack.sections),
         files: [args.chapterPath, ...input.plan.scenePaths],
         packId: input.pack.id,
         memoryRefs: [

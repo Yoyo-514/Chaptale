@@ -811,12 +811,13 @@ test('运行追溯读取跨年记录与冻结来源，拒绝变更输出并保�
       trigger: 'ui-action',
       promptTemplateHash: 'a'.repeat(64),
       model: { provider: 'offline-fixture', modelId: 'stored-output' },
+      cachePolicy: 'provider-default',
       inputDigest: { brief: '旧年候选', files: ['正文/第一章.md'], packId: frozen.id },
       outputRef: '.chaptale/runs/outputs/old-run.json',
       outputHash: hash(raw),
       memoryRefs: [`设定/第一章.md#${hash('设定中的同名文件')}`],
       status: 'success',
-      usage: { inputTokens: 1234, outputTokens: 234 },
+      usage: { inputTokens: 1234, outputTokens: 234, cache: { readTokens: 600, writeTokens: 0, partial: true } },
       createdAt: '2020-01-01T00:00:00.000Z',
       completedAt: '2020-01-01T00:01:00.000Z'
     }) + '\n'
@@ -834,6 +835,10 @@ test('运行追溯读取跨年记录与冻结来源，拒绝变更输出并保�
   const dialog = page.getByRole('dialog', { name: '运行详情', exact: true });
   await expect(dialog).toContainText('offline-fixture / stored-output');
   await expect(dialog).toContainText('1234 / 234 tokens');
+  await expect(dialog.getByRole('region', { name: '运行用量明细' })).toContainText('600 tokens');
+  await expect(dialog.getByRole('region', { name: '运行用量明细' })).toContainText('0 tokens');
+  await expect(dialog.getByRole('region', { name: '运行用量明细' })).toContainText('未返回');
+  await expect(dialog.getByRole('region', { name: '运行用量明细' })).toContainText('已报告部分');
   await expect(dialog.getByRole('region', { name: '运行读取来源' })).toContainText(hash('设定中的同名文件'));
   await dialog.locator('summary').click();
   await expect(dialog.getByRole('region', { name: '运行参考快照' })).toContainText('设定中的同名文件');

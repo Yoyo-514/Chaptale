@@ -5,6 +5,7 @@ import type { ChaptaleReasoningEffort } from '@chaptale/ipc-contract';
 import { effectiveContextWindow, normalizeModelInput } from './config-helpers';
 import type { ModelConfigRepository } from './config-repository';
 import type { ModelDefinition, ModelsConfig, ModelProviderConfig } from './config-types';
+import { resolvePromptCachePolicy, type PromptCachePolicy } from './prompt-cache';
 import { createProtocolLanguageModel } from './protocols';
 
 /** 引擎消费的解析产物：LanguageModel + 上下文估算与输入能力。 */
@@ -36,6 +37,7 @@ export type ResolvedModel = {
    * 作者在输入区选的档位经 `prepareStep` 换掉整个 ResolvedModel 生效。
    */
   reasoningEffort?: ChaptaleReasoningEffort;
+  promptCachePolicy?: PromptCachePolicy;
 };
 
 /**
@@ -80,7 +82,11 @@ export class ModelRuntime {
       maxTokens: model?.maxTokens,
       temperature: model?.temperature,
       topP: model?.topP,
-      reasoningEffort: model?.reasoningEffort
+      reasoningEffort: model?.reasoningEffort,
+      promptCachePolicy: resolvePromptCachePolicy(
+        { api: resolveApi(providerConfig, model), baseUrl: resolveBaseUrl(providerConfig, model) },
+        modelId
+      )
     };
   }
 }

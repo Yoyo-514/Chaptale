@@ -8,7 +8,6 @@ import type { SettingsService } from '../../core/settings/service';
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import type { TaskPersonaSpec } from '../personas/task-spec';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
-import type { ReviewFeedbackStore } from '../reviews/feedback';
 import type { SkillProvider } from '../skills/provider-port';
 import { createSkillReadTool } from '../skills/skill-read-tool';
 import type { TaskSessionFactoryPort } from './runner-port';
@@ -27,7 +26,9 @@ export type TaskSessionFactoryOptions = {
   buildTaskTools: TaskSessionToolBuilder;
   /** skills 查找端口；缺省不注入 skills 摘要。与 chat 侧共用同一 provider，保证三层目录一致。 */
   skillsProvider?: Pick<SkillProvider, 'load'>;
-  reviewPreferences?: Pick<ReviewFeedbackStore, 'forPersona'>;
+  reviewPreferences?: {
+    forPersona(personaId: string): Promise<{ prompt: string; memoryRefs: readonly string[] }>;
+  };
 };
 
 /**
@@ -78,6 +79,7 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
       sessionId: `task-${randomUUID()}`,
       model,
       system,
+      cacheScope: `${cwd}\n${spec.personaId}`,
       tools: skillRead ? [...taskTools, skillRead] : taskTools,
       gate,
       strictInputBudget: spec.strictInputBudget
