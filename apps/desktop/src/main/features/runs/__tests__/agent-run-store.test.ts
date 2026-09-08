@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { AgentRunRecord } from '../record';
 import { AgentRunStore } from '../store';
@@ -66,7 +66,8 @@ describe('AgentRunStore', () => {
   });
 
   afterEach(async () => {
-    vi.restoreAllMocks();
+    expect(path.dirname(path.resolve(cwd))).toBe(path.resolve(os.tmpdir()));
+    expect(path.basename(cwd).startsWith('chaptale-runs-')).toBe(true);
     await fs.rm(cwd, { recursive: true, force: true });
   });
 
@@ -158,10 +159,11 @@ describe('AgentRunStore', () => {
     }
   });
 
-  it('uses collision-resistant temporary files for concurrent raw output saves of the same runId', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(123);
-
-    await Promise.all(Array.from({ length: 8 }, (_, index) => store.saveOutput('same-run', `raw-${index}`, cwd)));
+  it('creates only one immutable output for concurrent saves of the same runId', async () => {
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, (_, index) => store.saveOutput('same-run', `raw-${index}`, cwd))
+    );
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
 
     const saved = JSON.parse(
       await fs.readFile(path.join(cwd, '.chaptale', 'runs', 'outputs', 'same-run.json'), 'utf8')
@@ -178,7 +180,13 @@ describe('AgentRunStore', () => {
   it('reads back saved outputs by outputRef', async () => {
     const outputRef = await store.saveOutput('run-50', '审查结果正文');
 
-    await expect(store.readOutput(outputRef)).resolves.toEqual({ runId: 'run-50', rawText: '审查结果正文' });
+    await expect(store.readOutput(outputRef)).resolves.toEqual({
+      runId: 'run-50',
+      rawText: '审查结果正文',
+      contentHash: createHash('sha256')
+        .update(await fs.readFile(path.join(cwd, outputRef)))
+        .digest('hex')
+    });
   });
 
   it('rejects output refs that escape the outputs directory or are not direct output files', async () => {
@@ -270,3 +278,4 @@ describe('AgentRunStore', () => {
     await expect(fs.readFile(nestedPath, 'utf8')).resolves.toBe('不能删除子目录文件');
   });
 });
+import { createHash } from 'node:crypto';

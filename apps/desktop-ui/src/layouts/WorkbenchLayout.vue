@@ -15,6 +15,7 @@ import { AssetDialogs, AssetPanel, StructurePanel } from '@/features/assets';
 import { EditorGroup, useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore } from '@/features/library';
 import { ReviewPanel, ReviewCenter } from '@/features/reviews';
+import { RunPanel, RunDetails } from '@/features/runs';
 import { SettlementPanel, SettlementDialogs } from '@/features/settlement';
 import { CreateAssetDialog } from '@/features/templates';
 import { VersionDialogs } from '@/features/versions';
@@ -108,6 +109,7 @@ onBeforeUnmount(() => unsubscribe?.());
               <TabsTrigger class="workbench-auxiliary-tab" value="review">审查</TabsTrigger>
               <TabsTrigger class="workbench-auxiliary-tab" value="settlement">结算</TabsTrigger>
               <TabsTrigger class="workbench-auxiliary-tab" value="assets">资产</TabsTrigger>
+              <TabsTrigger class="workbench-auxiliary-tab" value="runs">运行</TabsTrigger>
             </TabsList>
           </AppScrollArea>
           <TabsContent value="agent" class="workbench-auxiliary-content"><AgentPanel /></TabsContent>
@@ -116,6 +118,7 @@ onBeforeUnmount(() => unsubscribe?.());
           <TabsContent value="review" class="workbench-auxiliary-content"><ReviewPanel /></TabsContent>
           <TabsContent value="settlement" class="workbench-auxiliary-content"><SettlementPanel /></TabsContent>
           <TabsContent value="assets" class="workbench-auxiliary-content"><AssetPanel /></TabsContent>
+          <TabsContent value="runs" class="workbench-auxiliary-content"><RunPanel /></TabsContent>
         </TabsRoot>
       </aside>
     </SplitterPanel>
@@ -125,6 +128,7 @@ onBeforeUnmount(() => unsubscribe?.());
   <SettlementDialogs />
   <AssetDialogs />
   <VersionDialogs />
+  <RunDetails />
 </template>
 
 <style scoped lang="scss">

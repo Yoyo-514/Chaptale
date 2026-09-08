@@ -8,10 +8,12 @@ import { AppDiffView } from '@/components/AppDiffView';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextarea } from '@/components/AppTextarea';
 import { useEditorStore } from '@/features/editor';
+import { useRunStore } from '@/features/runs';
 
 import { useSettlementStore } from '../store';
 const settlement = useSettlementStore();
 const editor = useEditorStore();
+const runs = useRunStore();
 const batch = computed(() => settlement.details?.batch);
 const selected = ref('');
 const drafts = ref<Record<string, string>>({});
@@ -182,6 +184,15 @@ function selectModel(value: string) {
         >
         <AppButton v-if="complete" variant="primary" :disabled="settlement.busy" @click="settlement.complete"
           >完成结算</AppButton
+        >
+        <AppButton
+          v-if="batch.runId"
+          :disabled="settlement.busy"
+          @click="
+            runs.open(batch.runId);
+            settlement.details = null;
+          "
+          >查看运行</AppButton
         >
         <AppButton :disabled="settlement.busy" @click="settlement.details = null">关闭</AppButton>
       </footer>

@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ReviewOutputStore } from '../store';
 
@@ -37,7 +37,8 @@ describe('ReviewOutputStore', () => {
   });
 
   afterEach(async () => {
-    vi.restoreAllMocks();
+    expect(path.dirname(path.resolve(cwd))).toBe(path.resolve(os.tmpdir()));
+    expect(path.basename(cwd).startsWith('chaptale-reviews-')).toBe(true);
     await fs.rm(cwd, { recursive: true, force: true });
   });
 
@@ -48,7 +49,14 @@ describe('ReviewOutputStore', () => {
 
     expect(ref).toBe('.chaptale/reviews/run-1.json');
     expect(JSON.parse(await fs.readFile(path.join(cwd, ref), 'utf8'))).toEqual(output);
-    expect(await store.read(ref)).toEqual({ kind: 'review', runId: 'run-1', output });
+    expect(await store.read(ref)).toEqual({
+      kind: 'review',
+      runId: 'run-1',
+      output,
+      contentHash: createHash('sha256')
+        .update(await fs.readFile(path.join(cwd, ref)))
+        .digest('hex')
+    });
 
     const files = await fs.readdir(path.join(cwd, '.chaptale', 'reviews'));
     expect(files.filter(file => file.endsWith('.tmp'))).toEqual([]);
@@ -123,10 +131,11 @@ describe('ReviewOutputStore', () => {
     }
   });
 
-  it('uses collision-resistant temporary files for concurrent saves of the same runId', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(123);
-
-    await Promise.all(Array.from({ length: 8 }, (_, index) => store.save('same-run', { version: index }, cwd)));
+  it('creates only one immutable output for concurrent saves of the same runId', async () => {
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, (_, index) => store.save('same-run', { version: index }, cwd))
+    );
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
 
     const saved = JSON.parse(await fs.readFile(path.join(cwd, '.chaptale', 'reviews', 'same-run.json'), 'utf8')) as {
       version: number;
@@ -137,3 +146,4 @@ describe('ReviewOutputStore', () => {
     expect(files.filter(file => file.endsWith('.tmp'))).toEqual([]);
   });
 });
+import { createHash } from 'node:crypto';

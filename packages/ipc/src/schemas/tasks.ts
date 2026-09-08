@@ -1,6 +1,9 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
+import { AgentRunRecordSchema, AgentRunStatusSchema } from '@chaptale/shared';
+export { AgentRunRecordSchema } from '@chaptale/shared';
+
 /** tasks.run 的运行时参数边界；text 允许为空字符串，但 main 层要求 text 与附件至少其一非空。 */
 export const TaskRunPayloadSchema = Type.Object(
   {
@@ -27,8 +30,13 @@ export const TaskCancelArgsValidator = Compile(TaskCancelArgsSchema);
 
 export const TaskListRunsPayloadSchema = Type.Object(
   {
-    limit: Type.Optional(Type.Integer({ minimum: 1 })),
-    personaId: Type.Optional(Type.String({ minLength: 1 }))
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+    personaId: Type.Optional(Type.String({ minLength: 1 })),
+    status: Type.Optional(AgentRunStatusSchema),
+    query: Type.Optional(Type.String({ maxLength: 500 })),
+    runId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    before: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    rootPath: Type.Optional(Type.String({ minLength: 1 }))
   },
   { additionalProperties: false }
 );
@@ -44,7 +52,8 @@ export const TaskReadRunOutputResultSchema = Type.Union([
     {
       kind: Type.Literal('raw'),
       runId: Type.String(),
-      rawText: Type.String()
+      rawText: Type.String(),
+      contentHash: Type.Optional(Type.String())
     },
     { additionalProperties: false }
   ),
@@ -52,7 +61,8 @@ export const TaskReadRunOutputResultSchema = Type.Union([
     {
       kind: Type.Literal('review'),
       runId: Type.String(),
-      output: Type.Unknown()
+      output: Type.Unknown(),
+      contentHash: Type.Optional(Type.String())
     },
     { additionalProperties: false }
   )
@@ -62,45 +72,11 @@ export const TaskReadRunOutputResultValidator = Compile(TaskReadRunOutputResultS
 export const TaskReadRunOutputResponseSchema = Type.Union([TaskReadRunOutputResultSchema, Type.Null()]);
 export const TaskReadRunOutputResponseValidator = Compile(TaskReadRunOutputResponseSchema);
 
-/** 单次 persona 运行的可追溯记录；字段与 main 侧 AgentRunRecord 结构对齐。 */
-export const AgentRunRecordSchema = Type.Object(
-  {
-    id: Type.String(),
-    personaId: Type.String(),
-    execution: Type.Union([Type.Literal('chat'), Type.Literal('task')]),
-    trigger: Type.Union([Type.Literal('user'), Type.Literal('delegate'), Type.Literal('ui-action')]),
-    /** 委派/界面动作发起时，指向宿主主对话 session。 */
-    parentSessionId: Type.Optional(Type.String()),
-    promptTemplateHash: Type.String(),
-    inputDigest: Type.Object(
-      {
-        brief: Type.Optional(Type.String()),
-        files: Type.Optional(Type.Array(Type.String())),
-        packId: Type.Optional(Type.String())
-      },
-      { additionalProperties: false }
-    ),
-    /** 输出体的 workspace 相对路径。 */
-    outputRef: Type.Optional(Type.String()),
-    memoryRefs: Type.Array(Type.String()),
-    status: Type.Union([
-      Type.Literal('success'),
-      Type.Literal('failed'),
-      Type.Literal('cancelled'),
-      Type.Literal('timeout')
-    ]),
-    usage: Type.Object({ inputTokens: Type.Number(), outputTokens: Type.Number() }, { additionalProperties: false }),
-    /** ISO 8601 时间串。 */
-    createdAt: Type.String(),
-    completedAt: Type.Optional(Type.String())
-  },
-  { additionalProperties: false }
-);
-
 /** tasks.listRuns 的返回结果：记录列表 + 坏行诊断。 */
 export const AgentRunsListResultSchema = Type.Object(
   {
     records: Type.Array(AgentRunRecordSchema),
+    nextCursor: Type.Optional(Type.String()),
     diagnostics: Type.Array(
       Type.Object(
         {

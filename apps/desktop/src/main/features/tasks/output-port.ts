@@ -1,6 +1,6 @@
 export type TaskStoredOutput =
-  | { kind: 'raw'; runId: string; rawText: string }
-  | { kind: 'review'; runId: string; output: unknown };
+  | { kind: 'raw'; runId: string; rawText: string; contentHash?: string }
+  | { kind: 'review'; runId: string; output: unknown; contentHash?: string };
 
 export type TaskOutputStorePort = {
   saveSuccess(input: {

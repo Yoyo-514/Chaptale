@@ -1,5 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test';
 import type { ElectronApplication, Page } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -135,7 +136,12 @@ test('tasks.readRunOutput only reads direct review refs inside the configured wo
   expect(result).not.toBeNull();
   expect(result?.currentCwd).toBe(workspacePath);
   expect(result?.storage).toEqual({ mode: 'workspace', workspacePath });
-  expect(result?.valid).toEqual({ kind: 'review', runId: 'run-e2e', output: workspaceReviewOutput });
+  expect(result?.valid).toEqual({
+    kind: 'review',
+    runId: 'run-e2e',
+    output: workspaceReviewOutput,
+    contentHash: createHash('sha256').update(JSON.stringify(workspaceReviewOutput)).digest('hex')
+  });
   expect(result?.valid).not.toEqual({ kind: 'review', runId: 'run-e2e', output: globalReviewOutput });
   expect(result?.stateFile).toBeNull();
   expect(result?.traversal).toBeNull();

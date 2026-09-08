@@ -10,6 +10,7 @@ import { AppDiffView } from '@/components/AppDiffView';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useLibraryStore } from '@/features/library';
 import { useReviewStore } from '@/features/reviews';
+import { useRunStore } from '@/features/runs';
 
 import { useWritingStore } from '../store';
 import RewriteDialog from './RewriteDialog.vue';
@@ -17,6 +18,7 @@ import RewriteDialog from './RewriteDialog.vue';
 const writing = useWritingStore();
 const library = useLibraryStore();
 const reviews = useReviewStore();
+const runs = useRunStore();
 const selection = ref({ from: 0, to: 0 });
 const currentBlock = ref(0);
 const confirmAll = ref(false);
@@ -185,6 +187,16 @@ function changeModel(value: string) {
         <AppButton size="xs" @click="confirmAll = false">取消</AppButton>
       </div>
       <footer>
+        <AppButton
+          v-if="candidate.runId"
+          size="xs"
+          :disabled="writing.busy"
+          @click="
+            runs.open(candidate.runId);
+            writing.details = null;
+          "
+          >查看运行</AppButton
+        >
         <AppButton
           v-if="['ready', 'partially-accepted', 'accepted'].includes(candidate.status)"
           size="xs"

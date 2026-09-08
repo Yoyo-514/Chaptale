@@ -786,6 +786,89 @@ test('审查偏好必须经作者确认，通用表单在三主题可读且重�
   await expect(restoredFeedback).toContainText(preference);
 });
 
+test('运行追溯读取跨年记录与冻结来源，拒绝变更输出并保持三主题一致', async () => {
+  test.setTimeout(60_000);
+  const frozen = await page.evaluate(
+    rootPath =>
+      (window as DesktopWindow).chaptaleDesktop.library.freezePack({
+        rootPath,
+        goal: '冻结旧年创作参考',
+        budgetChars: 9000,
+        selections: [{ sourcePath: '设定/第一章.md', pinned: true, mode: 'full' }]
+      }),
+    workspace
+  );
+  const outputs = path.join(workspace, '.chaptale/runs/outputs');
+  await mkdir(outputs, { recursive: true });
+  const raw = JSON.stringify({ runId: 'old-run', rawText: '留档候选：窗沿的雪已经融了。' });
+  await writeFile(path.join(outputs, 'old-run.json'), raw);
+  await writeFile(
+    path.join(workspace, '.chaptale/runs/agent-runs-2020-01.jsonl'),
+    JSON.stringify({
+      id: 'old-run',
+      personaId: 'draft',
+      execution: 'task',
+      trigger: 'ui-action',
+      promptTemplateHash: 'a'.repeat(64),
+      model: { provider: 'offline-fixture', modelId: 'stored-output' },
+      inputDigest: { brief: '旧年候选', files: ['正文/第一章.md'], packId: frozen.id },
+      outputRef: '.chaptale/runs/outputs/old-run.json',
+      outputHash: hash(raw),
+      memoryRefs: [`设定/第一章.md#${hash('设定中的同名文件')}`],
+      status: 'success',
+      usage: { inputTokens: 1234, outputTokens: 234 },
+      createdAt: '2020-01-01T00:00:00.000Z',
+      completedAt: '2020-01-01T00:01:00.000Z'
+    }) + '\n'
+  );
+  await page.getByRole('tab', { name: '运行', exact: true }).click();
+  const history = page.getByRole('region', { name: '运行记录', exact: true });
+  await history.getByRole('textbox', { name: '搜索运行记录' }).fill('old-run');
+  await expect(history.getByRole('button', { name: /旧年候选/ })).toHaveCount(1);
+  await history.getByRole('combobox', { name: '运行状态', exact: true }).click();
+  await page.getByRole('option', { name: '失败', exact: true }).click();
+  await expect(history.getByText('没有符合条件的运行记录', { exact: true })).toBeVisible();
+  await history.getByRole('combobox', { name: '运行状态', exact: true }).click();
+  await page.getByRole('option', { name: '全部状态', exact: true }).click();
+  await history.getByRole('button', { name: /旧年候选/ }).click();
+  const dialog = page.getByRole('dialog', { name: '运行详情', exact: true });
+  await expect(dialog).toContainText('offline-fixture / stored-output');
+  await expect(dialog).toContainText('1234 / 234 tokens');
+  await expect(dialog.getByRole('region', { name: '运行读取来源' })).toContainText(hash('设定中的同名文件'));
+  await dialog.locator('summary').click();
+  await expect(dialog.getByRole('region', { name: '运行参考快照' })).toContainText('设定中的同名文件');
+  await expect(dialog.getByRole('region', { name: '运行原始输出' })).toContainText('留档候选：窗沿的雪已经融了。');
+  await mkdir(visualDir, { recursive: true });
+  for (const theme of ['light', 'warm', 'dark'] as const) {
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click();
+    await page.evaluate(value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }), theme);
+    await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1024, 800));
+    await page.reload();
+    await page.getByRole('tab', { name: '运行', exact: true }).click();
+    await history.getByRole('button', { name: /旧年候选/ }).click();
+    await expect(dialog.getByRole('region', { name: '运行原始输出' })).toContainText('留档候选');
+    const metrics = await dialog.locator('.run-details').evaluate(element => ({
+      fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+      width: element.getBoundingClientRect().width,
+      scrollWidth: element.scrollWidth
+    }));
+    expect(metrics.fontSize).toBeGreaterThanOrEqual(13);
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.width + 1);
+    await page.screenshot({ path: path.join(visualDir, `m5-run-details-${theme}.png`) });
+    const output = dialog.locator('.app-text-view').last();
+    await output.scrollIntoViewIfNeeded();
+    await expect(output.locator('.cm-editor')).toHaveCSS('font-size', '14px');
+    await expect(output.locator('.cm-content')).toHaveAttribute('contenteditable', 'false');
+    await page.screenshot({ path: path.join(visualDir, `m5-run-output-${theme}.png`) });
+  }
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click();
+  await writeFile(path.join(outputs, 'old-run.json'), JSON.stringify({ runId: 'old-run', rawText: '外部替换的输出' }));
+  await history.getByRole('button', { name: /旧年候选/ }).click();
+  await expect(dialog.getByRole('alert')).toContainText('输出内容已变化');
+  await expect(dialog).not.toContainText('外部替换的输出');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
+});
+
 test('真实 preload 读取保留原文和哈希，并验证工作区身份及非法参数', async () => {
   const result = await page.evaluate(async rootPath => {
     const api = (window as DesktopWindow).chaptaleDesktop.workspace;

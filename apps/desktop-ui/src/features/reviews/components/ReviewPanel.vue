@@ -8,6 +8,7 @@ import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppDialog } from '@/components/AppDialog';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { useRunStore } from '@/features/runs';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWritingStore } from '@/features/writing';
 
@@ -15,6 +16,7 @@ import { useReviewStore } from '../store';
 import ReviewFeedback from './ReviewFeedback.vue';
 const reviews = useReviewStore();
 const writing = useWritingStore();
+const runs = useRunStore();
 const navigation = useWorkbenchStore();
 const list = ref<HTMLElement | null>(null);
 const selectedIssues = ref<number[]>([]);
@@ -175,6 +177,7 @@ async function locate(index: number) {
       </div>
     </AppScrollArea>
     <footer v-if="job">
+      <AppButton v-if="job.runId" size="xs" @click="runs.open(job.runId)">查看运行</AppButton>
       <AppButton
         size="xs"
         :disabled="!selectedIssues.length"

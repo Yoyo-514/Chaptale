@@ -1,7 +1,8 @@
 import { promises as fs } from 'node:fs';
 
-import { writeJsonAtomically } from '../../infra/filesystem/atomic-json';
+import { createArtifact } from '../../core/workspace/artifacts';
 import { prepareSafeOutputFile, resolveExistingDirectJsonFile } from '../../infra/filesystem/safe-output-file';
+import { readDocumentSnapshot } from '../workspace/read-document';
 
 const REVIEW_OUTPUT_DIRECTORY = ['.chaptale', 'reviews'];
 
@@ -14,6 +15,7 @@ export type StoredReviewOutput = {
   kind: 'review';
   runId: string;
   output: unknown;
+  contentHash: string;
 };
 
 /**
@@ -25,12 +27,12 @@ export type StoredReviewOutput = {
 export class ReviewOutputStore {
   constructor(private readonly options: ReviewOutputStoreOptions) {}
 
-  /** 使用同目录临时文件 + rename 原子替换，避免半写 JSON 被读取。 */
+  /** 排他创建不可变输出；同一 run 不能覆盖已经留档的结果。 */
   async save(runId: string, output: unknown, cwdOverride?: string): Promise<string> {
     const cwd = cwdOverride ?? (await this.options.resolveCwd());
     const target = await prepareSafeOutputFile(cwd, REVIEW_OUTPUT_DIRECTORY, runId);
 
-    await writeJsonAtomically(target.filePath, output);
+    await createArtifact(cwd, target.outputRef, JSON.stringify(output));
 
     return target.outputRef;
   }
@@ -44,8 +46,13 @@ export class ReviewOutputStore {
     }
 
     try {
-      const output: unknown = JSON.parse(await fs.readFile(resolved.filePath, 'utf8'));
-      return { kind: 'review', runId: resolved.runId, output };
+      const snapshot = await readDocumentSnapshot({
+        rootPath: resolved.cwd,
+        relativePath: outputRef,
+        maxBytes: 8 * 1024 * 1024
+      });
+      const output: unknown = JSON.parse(snapshot.content);
+      return { kind: 'review', runId: resolved.runId, output, contentHash: snapshot.contentHash };
     } catch {
       return null;
     }
@@ -65,8 +72,9 @@ export class ReviewOutputStore {
   private async resolveReviewFile(
     outputRef: string,
     cwdOverride?: string
-  ): Promise<{ filePath: string; runId: string } | null> {
+  ): Promise<{ filePath: string; runId: string; cwd: string } | null> {
     const cwd = cwdOverride ?? (await this.options.resolveCwd());
-    return resolveExistingDirectJsonFile(cwd, outputRef, REVIEW_OUTPUT_DIRECTORY);
+    const resolved = await resolveExistingDirectJsonFile(cwd, outputRef, REVIEW_OUTPUT_DIRECTORY);
+    return resolved ? { ...resolved, cwd } : null;
   }
 }

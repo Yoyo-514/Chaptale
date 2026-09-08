@@ -21,6 +21,8 @@ describe('TaskOutputRouter', () => {
   });
 
   afterEach(async () => {
+    expect(path.dirname(path.resolve(cwd))).toBe(path.resolve(os.tmpdir()));
+    expect(path.basename(cwd).startsWith('chaptale-task-output-router-')).toBe(true);
     await fs.rm(cwd, { recursive: true, force: true });
   });
 
@@ -40,7 +42,14 @@ describe('TaskOutputRouter', () => {
     await expect(
       fs.readFile(path.join(cwd, '.chaptale', 'runs', 'outputs', 'review-run.json'), 'utf8')
     ).rejects.toThrow();
-    await expect(router.read(outputRef)).resolves.toEqual({ kind: 'review', runId: 'review-run', output });
+    await expect(router.read(outputRef)).resolves.toEqual({
+      kind: 'review',
+      runId: 'review-run',
+      output,
+      contentHash: createHash('sha256')
+        .update(await fs.readFile(path.join(cwd, outputRef)))
+        .digest('hex')
+    });
   });
 
   it('routes successful non-review and failed output to raw run outputs', async () => {
@@ -67,9 +76,19 @@ describe('TaskOutputRouter', () => {
     await expect(router.read(successRef)).resolves.toEqual({
       kind: 'raw',
       runId: 'raw-success',
-      rawText: 'raw success text'
+      rawText: 'raw success text',
+      contentHash: createHash('sha256')
+        .update(await fs.readFile(path.join(cwd, successRef)))
+        .digest('hex')
     });
-    await expect(router.read(failedRef)).resolves.toEqual({ kind: 'raw', runId: 'raw-failed', rawText: 'bad output' });
+    await expect(router.read(failedRef)).resolves.toEqual({
+      kind: 'raw',
+      runId: 'raw-failed',
+      rawText: 'bad output',
+      contentHash: createHash('sha256')
+        .update(await fs.readFile(path.join(cwd, failedRef)))
+        .digest('hex')
+    });
   });
 
   it('delegates reads through store safety checks and removes only matching output refs', async () => {
@@ -118,3 +137,4 @@ describe('TaskOutputRouter', () => {
     await expect(fs.readFile(path.join(cwd, rawRef), 'utf8')).resolves.toContain('raw');
   });
 });
+import { createHash } from 'node:crypto';
