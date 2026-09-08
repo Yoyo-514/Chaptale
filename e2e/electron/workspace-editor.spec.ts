@@ -111,6 +111,170 @@ async function openChapter(folder = '正文') {
   await page.locator(`[data-tree-path="${folder}/第一章.md"]`).click();
 }
 
+async function createStoryAssets() {
+  await mkdir(path.join(workspace, '角色'), { recursive: true });
+  await mkdir(path.join(workspace, '设定/时间线'), { recursive: true });
+  await writeFile(
+    path.join(workspace, '角色/林晚.md'),
+    '---\nid: linwan\nkind: character\ntitle: 林晚\ncustom: retained # 作者字段\nrelations:\n  - null\n  - { to: "[[顾沉]]", type: 师父, private: 暂不公开 }\n---\n林晚的原文。\n'
+  );
+  await writeFile(
+    path.join(workspace, '角色/顾沉.md'),
+    '---\nid: guchen\nkind: character\ntitle: 顾沉\n---\n远行归来。\n'
+  );
+  await writeFile(
+    path.join(workspace, '设定/时间线/夜航.md'),
+    '---\nkind: timeline-event\ntitle: 夜航\norder: 2\nwhen: 清河历八年冬\nstrand: 归途\nsummary: 二人乘舟过江。\ncast: ["[[林晚]]", "[[顾沉]]"]\nchapter: "[[正文/第一章.md]]"\ncustom: retained # 作者字段\n---\n事件原文。\n'
+  );
+  await writeFile(
+    path.join(workspace, '设定/时间线/相逢.md'),
+    '---\nkind: timeline-event\ntitle: 相逢\norder: 1\nwhen: 重逢前三日\nstrand: 归途\nsummary: 林晚收到来信。\n---\n'
+  );
+  await writeFile(path.join(workspace, '设定/时间线/待定.md'), '---\nkind: timeline-event\ntitle: 待定事件\n---\n');
+}
+
+test('M6 故事时间线按情节排序，编辑事件与新建资产保留文件事实', async () => {
+  await createStoryAssets();
+  await openChapter();
+  await page.getByRole('textbox', { name: '文档正文', exact: true }).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('切换资产视图仍保留的草稿。');
+  await page.getByRole('tab', { name: '资料库', exact: true }).click();
+  const library = page.getByRole('region', { name: '作品资料库', exact: true });
+  await library.getByRole('textbox', { name: '搜索资料库', exact: true }).fill('林晚');
+  await expect(library.locator('[data-asset-path]')).toHaveCount(2);
+  await library.getByRole('combobox', { name: '资料类型', exact: true }).click();
+  await page.getByRole('option', { name: '角色', exact: true }).click();
+  await expect(library.locator('[data-asset-path]')).toHaveCount(1);
+  await library.getByRole('button', { name: '资料列表视图', exact: true }).click();
+  await expect(library.locator('.asset-library-results')).toHaveClass(/list/);
+  await page.getByRole('tab', { name: '故事时间线', exact: true }).click();
+  const timeline = page.getByRole('region', { name: '作品故事时间线', exact: true });
+  await expect(timeline.locator('[data-event-path]')).toHaveCount(3);
+  expect(
+    await timeline
+      .locator('[data-event-path]')
+      .evaluateAll(elements => elements.map(element => element.getAttribute('data-event-path')))
+  ).toEqual(['设定/时间线/相逢.md', '设定/时间线/夜航.md', '设定/时间线/待定.md']);
+  await expect(timeline).toContainText('清河历八年冬');
+  await expect(timeline).toContainText('未排序事件');
+  await timeline
+    .locator('[data-event-path="设定/时间线/夜航.md"]')
+    .getByRole('button', { name: '编辑事件', exact: true })
+    .click();
+  const edit = page.getByRole('dialog', { name: '编辑故事事件', exact: true });
+  await edit.getByRole('spinbutton', { name: '故事顺序', exact: true }).fill('0.5');
+  await edit.getByRole('textbox', { name: '故事时间', exact: true }).fill('清河历八年冬，子夜之后');
+  await edit.getByRole('button', { name: '保存事件', exact: true }).click();
+  await expect(edit).not.toBeVisible();
+  const saved = await readFile(path.join(workspace, '设定/时间线/夜航.md'), 'utf8');
+  expect(saved).toContain('order: 0.5');
+  expect(saved).toContain('custom: retained # 作者字段');
+  expect(saved).toContain('事件原文。');
+  await expect(timeline.locator('[data-event-path]').first()).toHaveAttribute('data-event-path', '设定/时间线/夜航.md');
+  await timeline.getByRole('button', { name: '新建事件', exact: true }).click();
+  const create = page.getByRole('dialog', { name: '从模板新建', exact: true });
+  await create.getByRole('textbox', { name: '事件名称', exact: true }).fill('天亮');
+  await create.getByRole('textbox', { name: '故事时间', exact: true }).fill('翌日清晨');
+  await create.getByRole('button', { name: '创建文件', exact: true }).click();
+  await expect(page.getByRole('tab', { name: '设定/时间线/天亮.md', exact: true })).toBeVisible();
+  expect(await readFile(path.join(workspace, '设定/时间线/天亮.md'), 'utf8')).toContain('kind: timeline-event');
+  await page.getByRole('tab', { name: '正文/第一章.md', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toContainText(
+    '切换资产视图仍保留的草稿。'
+  );
+  await page.keyboard.press('Control+s');
+  await expect
+    .poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8'))
+    .toContain('切换资产视图仍保留的草稿。');
+});
+
+test('M6 角色关系可编辑新增移除，拖动布局重开恢复', async () => {
+  await createStoryAssets();
+  await page.getByRole('tab', { name: '角色关系', exact: true }).click();
+  const graph = page.getByRole('region', { name: '作品角色关系', exact: true });
+  await expect(graph.locator('.character-node')).toHaveCount(2);
+  await expect(graph.locator('.vue-flow__edge')).toHaveCount(1);
+  await graph.locator('.vue-flow__edge-text').filter({ hasText: '师父' }).click();
+  const edit = page.getByRole('dialog', { name: '编辑角色关系', exact: true });
+  await edit.getByRole('textbox', { name: '关系称谓', exact: true }).fill('旧友');
+  await edit.getByRole('textbox', { name: '关系备注', exact: true }).fill('事后反目');
+  await edit.getByRole('button', { name: '保存关系', exact: true }).click();
+  await expect(edit).not.toBeVisible();
+  const original = await readFile(path.join(workspace, '角色/林晚.md'), 'utf8');
+  expect(original).toContain('private: 暂不公开');
+  expect(original).toContain('custom: retained # 作者字段');
+  expect(original).toContain('旧友');
+  expect(original).toContain('林晚的原文。');
+  await expect(graph.locator('.vue-flow__edge-text')).toHaveText('旧友');
+  const node = graph.locator('[data-character-path="角色/林晚.md"]');
+  const before = (await node.boundingBox())!;
+  await page.mouse.move(before.x + before.width / 2, before.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(before.x + before.width / 2 + 60, before.y + 65, { steps: 10 });
+  await page.mouse.up();
+  await expect.poll(async () => (await node.boundingBox())!.x).toBeGreaterThan(before.x + 35);
+  const moved = (await node.boundingBox())!;
+  await page.reload();
+  await page.getByRole('tab', { name: '角色关系', exact: true }).click();
+  await expect(node).toBeVisible();
+  await expect.poll(async () => Math.abs((await node.boundingBox())!.x - moved.x)).toBeLessThan(3);
+  await graph.getByRole('button', { name: '新建关系', exact: true }).click();
+  const create = page.getByRole('dialog', { name: '新建角色关系', exact: true });
+  await create.getByRole('combobox', { name: '源角色', exact: true }).fill('角色/顾沉.md');
+  await create.getByRole('combobox', { name: '目标角色', exact: true }).fill('角色/林晚.md');
+  await create.getByRole('textbox', { name: '关系称谓', exact: true }).fill('学生');
+  await create.getByRole('button', { name: '保存关系', exact: true }).click();
+  await expect(create).not.toBeVisible();
+  await expect(graph.locator('.vue-flow__edge')).toHaveCount(2);
+  await graph.locator('.vue-flow__edge-text').filter({ hasText: '学生' }).click();
+  await edit.getByRole('button', { name: '移除关系…', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: '移除角色关系', exact: true })
+    .getByRole('button', { name: '确认移除关系', exact: true })
+    .click();
+  await expect(graph.locator('.vue-flow__edge')).toHaveCount(1);
+  expect(await readFile(path.join(workspace, '角色/顾沉.md'), 'utf8')).not.toContain('学生');
+  expect(await readFile(path.join(workspace, '角色/林晚.md'), 'utf8')).toBe(original);
+});
+
+test('M6 故事资产外部修改保护和三主题画布可读', async () => {
+  await createStoryAssets();
+  await mkdir(visualDir, { recursive: true });
+  for (const theme of ['light', 'warm', 'dark'] as const) {
+    await page.evaluate(
+      async value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }),
+      theme
+    );
+    await page.reload();
+    await page.getByRole('tab', { name: '角色关系', exact: true }).click();
+    await expect(page.locator('.character-node')).toHaveCount(2);
+    await expect(page.locator('.vue-flow__edge-path')).toHaveCount(1);
+    const pathData = await page.locator('.vue-flow__edge-path').getAttribute('d');
+    expect(pathData?.length).toBeGreaterThan(20);
+    await page.screenshot({ path: path.join(visualDir, `m6-relationships-${theme}.png`) });
+  }
+  await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1024, 720));
+  await page.getByRole('tab', { name: '故事时间线', exact: true }).click();
+  const timeline = page.getByRole('region', { name: '作品故事时间线', exact: true });
+  await expect(timeline.locator('[data-event-path]')).toHaveCount(3);
+  await page.screenshot({ path: path.join(visualDir, 'm6-timeline-dark-1024.png') });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await timeline
+    .locator('[data-event-path="设定/时间线/夜航.md"]')
+    .getByRole('button', { name: '编辑事件', exact: true })
+    .click();
+  const dialog = page.getByRole('dialog', { name: '编辑故事事件', exact: true });
+  await dialog.getByRole('textbox', { name: '事件名称', exact: true }).fill('不应覆盖');
+  const target = path.join(workspace, '设定/时间线/夜航.md');
+  const external = `${await readFile(target, 'utf8')}\n来自外部编辑器的新段落。\n`;
+  await writeFile(target, external);
+  await dialog.getByRole('button', { name: '保存事件', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText(/变化|冲突|保存/);
+  expect(await readFile(target, 'utf8')).toBe(external);
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+});
+
 test('M6 新建作品可直接编辑，同名目录不覆盖', async () => {
   await page.getByRole('menuitem', { name: '文件', exact: true }).click();
   await page.getByRole('menuitem', { name: '新建作品…', exact: true }).click();

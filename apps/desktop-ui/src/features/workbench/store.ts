@@ -8,6 +8,7 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
   const auxiliaryOpen = ref(true);
   const statusBarOpen = ref(true);
   const focusMode = ref(false);
+  const center = ref<'editor' | 'library' | 'timeline' | 'relationships'>('editor');
   const agentRequests = ref<Array<{ id: number; rootPath: string; prompt: string; files: string[] }>>([]);
   let requestId = 0;
   function toggleSidebar(view = sidebar.value) {
@@ -40,6 +41,7 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     auxiliaryOpen,
     statusBarOpen,
     focusMode,
+    center,
     toggleSidebar,
     showSidebar,
     showAuxiliary,

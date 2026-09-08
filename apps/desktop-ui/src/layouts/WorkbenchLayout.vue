@@ -14,7 +14,8 @@ import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { AssetDialogs, AssetPanel, StructurePanel } from '@/features/assets';
-import { EditorGroup, useEditorStore } from '@/features/editor';
+import StoryDialogs from '@/features/assets/components/StoryDialogs.vue';
+import { useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore } from '@/features/library';
 import { ReviewPanel, ReviewCenter } from '@/features/reviews';
 import { RunPanel, RunDetails } from '@/features/runs';
@@ -33,6 +34,7 @@ import { CandidatePanel, WritingDialogs } from '@/features/writing';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import AgentPanel from './AgentPanel.vue';
+import CreativeCenter from './CreativeCenter.vue';
 
 const editor = useEditorStore();
 const workspace = useWorkspaceStore();
@@ -122,7 +124,7 @@ onBeforeUnmount(() => {
 
     <SplitterPanel id="workbench-editor" :order="2" :default-size="52" :min-size="35" class="workbench-panel">
       <main class="workbench-editor" aria-label="编辑器区域">
-        <EditorGroup />
+        <CreativeCenter />
       </main>
     </SplitterPanel>
 
@@ -199,6 +201,7 @@ onBeforeUnmount(() => {
   <CreateAssetDialog />
   <SettlementDialogs />
   <AssetDialogs />
+  <StoryDialogs />
   <VersionDialogs />
   <RunDetails />
 </template>

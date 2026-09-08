@@ -57,6 +57,8 @@ describe('资产投影', () => {
       frontmatter: { relations: [null, { to: '[[乙]]', type: '未公开盟友', note: '双方知情' }, { to: 5 }] },
       links: [{ link: '[[乙]]', status: 'missing', candidates: [] }]
     });
-    expect(relations(target)).toEqual([{ to: '[[乙]]', type: '未公开盟友', note: '双方知情', link: target.links[0] }]);
+    expect(relations(target)).toEqual([
+      { index: 1, to: '[[乙]]', type: '未公开盟友', note: '双方知情', link: target.links[0] }
+    ]);
   });
 });

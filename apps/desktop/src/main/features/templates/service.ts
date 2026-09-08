@@ -10,6 +10,7 @@ import {
 import {
   TemplateHeaderValidator,
   templateDefaults,
+  templateSubdirectory,
   validateTemplateValues,
   type AssetTemplate,
   type TemplateList
@@ -117,8 +118,7 @@ export class TemplateService {
     if (errors.length) throw new Error(errors.join('\n'));
     const layout = await new WorkspaceLayoutService().read(args.rootPath);
     const directory =
-      args.directory ??
-      `${layout.roles[template.targetRole].relativePath}${template.template === 'scene-card' ? '/场景卡' : ''}`;
+      args.directory ?? `${layout.roles[template.targetRole].relativePath}${templateSubdirectory(template.template)}`;
     if (!args.filename.endsWith('.md')) throw new Error('资产文件名必须以 .md 结尾');
     const body = template.body.replace(/\{\{([a-zA-Z_][a-zA-Z0-9_-]*)\}\}/g, (_match, key: string) =>
       String(values[key] ?? '')

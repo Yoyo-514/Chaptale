@@ -28,11 +28,17 @@ export const TemplateFieldSchema = Type.Object(
   {
     key: Type.String({ pattern: '^[a-zA-Z_][a-zA-Z0-9_-]{0,63}$' }),
     label: Type.String({ minLength: 1, maxLength: 100 }),
-    type: Type.Union(
-      ['text', 'textarea', 'select', 'tags', 'number', 'date', 'link', 'relations', 'checkbox'].map(value =>
-        Type.Literal(value)
-      )
-    ),
+    type: Type.Union([
+      Type.Literal('text'),
+      Type.Literal('textarea'),
+      Type.Literal('select'),
+      Type.Literal('tags'),
+      Type.Literal('number'),
+      Type.Literal('date'),
+      Type.Literal('link'),
+      Type.Literal('relations'),
+      Type.Literal('checkbox')
+    ]),
     required: Type.Optional(Type.Boolean()),
     options: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 100 })),
     targetKind: Type.Optional(Type.String({ maxLength: 100 })),
@@ -60,6 +66,12 @@ export type AssetTemplate = Static<typeof TemplateHeaderSchema> & {
 };
 export type TemplateList = { templates: AssetTemplate[]; diagnostics: string[] };
 
+export function templateSubdirectory(templateId: string) {
+  if (templateId === 'scene-card') return '/场景卡';
+  if (templateId === 'story-event') return '/时间线';
+  return '';
+}
+
 export function templateDefaults(template: AssetTemplate): Record<string, AssetFieldValue> {
   return Object.fromEntries(
     template.fields.filter(field => field.default !== undefined).map(field => [field.key, field.default!])
@@ -76,7 +88,7 @@ export function validateTemplateValues(
   }
   for (const field of template.fields) {
     const value = values[field.key];
-    if (value === undefined || value === null || value === '') {
+    if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) {
       if (creating && field.required) errors.push(`${field.label}不能为空`);
       continue;
     }

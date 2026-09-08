@@ -106,25 +106,28 @@ function addLink(key: string, value: string) {
       </template>
       <div v-else-if="field.type === 'relations'" class="relations">
         <div v-for="(row, index) in relationRows(field.key)" :key="index" class="relation-row">
-          <AppCombobox
-            :model-value="row.to"
-            :aria-label="`${field.label} ${index + 1} 目标`"
-            :options="relationOptions()"
-            :disabled="disabled"
-            @update:model-value="relation(field.key, index, { to: $event })"
-          />
-          <AppInput
-            :model-value="row.type"
-            :aria-label="`${field.label} ${index + 1} 类型`"
-            :disabled="disabled"
-            @update:model-value="relation(field.key, index, { type: $event })"
-          />
-          <AppInput
-            :model-value="row.note ?? ''"
-            :aria-label="`${field.label} ${index + 1} 备注`"
-            :disabled="disabled"
-            @update:model-value="relation(field.key, index, { note: $event })"
-          />
+          <template v-if="row && typeof row.to === 'string' && typeof row.type === 'string'">
+            <AppCombobox
+              :model-value="row.to"
+              :aria-label="`${field.label} ${index + 1} 目标`"
+              :options="relationOptions()"
+              :disabled="disabled"
+              @update:model-value="relation(field.key, index, { to: $event })"
+            />
+            <AppInput
+              :model-value="row.type"
+              :aria-label="`${field.label} ${index + 1} 类型`"
+              :disabled="disabled"
+              @update:model-value="relation(field.key, index, { type: $event })"
+            />
+            <AppInput
+              :model-value="row.note ?? ''"
+              :aria-label="`${field.label} ${index + 1} 备注`"
+              :disabled="disabled"
+              @update:model-value="relation(field.key, index, { note: $event })"
+            />
+          </template>
+          <p v-else class="relation-invalid" role="status">第 {{ index + 1 }} 项关系格式无效，可移除或在源文件中修正</p>
           <AppButton
             icon
             size="xs"
@@ -214,6 +217,12 @@ label {
 }
 .relation-row {
   @apply grid min-w-0 grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)_auto] items-center gap-1;
+}
+.relation-invalid {
+  @apply m-0;
+  grid-column: 1 / -2;
+  color: var(--warning);
+  overflow-wrap: anywhere;
 }
 @media (max-width: 900px) {
   .template-fields {

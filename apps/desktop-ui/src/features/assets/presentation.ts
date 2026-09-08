@@ -6,11 +6,12 @@ export const assetViews = [
   { id: 'characters', label: '角色', kind: 'character', role: 'characters', template: 'character-main' },
   { id: 'world', label: '设定', kind: 'world', role: 'world', template: 'worldview' },
   { id: 'threads', label: '伏笔', kind: 'plot-thread', role: 'threads', template: 'plot-thread' },
+  { id: 'timeline', label: '时间线', kind: 'timeline-event', role: 'world', template: 'story-event' },
   { id: 'unclassified', label: '未分类', kind: '', role: '', template: 'character-main' }
 ] as const;
 export type AssetViewId = (typeof assetViews)[number]['id'];
 export type AssetGroup = { label: string; assets: AssetRecord[] };
-const knownKinds = new Set(['chapter', 'outline', 'scene-card', 'character', 'world', 'plot-thread']);
+const knownKinds = new Set(['chapter', 'outline', 'scene-card', 'character', 'world', 'plot-thread', 'timeline-event']);
 const names: Record<string, string> = {
   main: '主要角色',
   secondary: '次要角色',
@@ -37,6 +38,7 @@ const kindLabels: Record<string, string> = {
   character: '角色',
   world: '设定',
   'plot-thread': '伏笔',
+  'timeline-event': '故事事件',
   note: '笔记'
 };
 export const assetKindLabel = (kind?: string) => (kind ? (kindLabels[kind] ?? kind) : '未分类');
@@ -107,10 +109,11 @@ export function groupAssets(
 export function relations(asset: AssetRecord) {
   const values = asset.frontmatter.relations;
   if (!Array.isArray(values)) return [];
-  return values.flatMap((value: unknown) => {
+  return values.flatMap((value: unknown, index) => {
     if (!value || typeof value !== 'object' || !('to' in value) || typeof value.to !== 'string') return [];
     return [
       {
+        index,
         to: value.to,
         type: 'type' in value && typeof value.type === 'string' ? value.type : '关联',
         note: 'note' in value && typeof value.note === 'string' ? value.note : '',

@@ -35,6 +35,10 @@ onMounted(() => void assets.refresh());
   <section class="structure-panel" aria-label="作品结构">
     <header>
       <h2>结构</h2>
+      <AppTooltip text="打开中央资料库"
+        ><AppButton icon size="xs" variant="ghost" aria-label="打开中央资料库" @click="navigation.center = 'library'"
+          ><span class="i-mingcute-grid-line" aria-hidden="true" /></AppButton
+      ></AppTooltip>
       <AppTooltip text="新建资产"
         ><AppButton
           icon

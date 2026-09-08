@@ -64,8 +64,8 @@ describe('模板三层与文件创建', () => {
     await expect(service.identify({ ...args, expectedHash: broken.contentHash })).rejects.toThrow('修正元数据');
     expect(await readFile(path.join(root, '随记.md'), 'utf8')).toBe(broken.content);
   });
-  it('内置十二种，作品覆盖作者版本，坏模板诊断且不覆盖合法定义', async () => {
-    expect((await service.list(root)).templates).toHaveLength(12);
+  it('内置十三种，作品覆盖作者版本，坏模板诊断且不覆盖合法定义', async () => {
+    expect((await service.list(root)).templates).toHaveLength(13);
     await writeFile(path.join(home, 'templates/scene.md'), custom('作者版本'));
     expect((await service.list(root)).templates.find(value => value.template === 'scene-card')?.name).toBe('作者版本');
     await writeFile(path.join(root, '卡片模板/scene.md'), custom('作品版本'));
@@ -76,6 +76,21 @@ describe('模板三层与文件创建', () => {
       source: 'workspace'
     });
     expect(result.diagnostics).toHaveLength(1);
+  });
+  it('故事事件保留虚构纪年并落在作品设定的时间线中', async () => {
+    const template = (await service.list(root)).templates.find(value => value.template === 'story-event')!;
+    const args = {
+      rootPath: root,
+      templateId: template.template,
+      templateHash: template.hash,
+      filename: '夜航.md',
+      values: { title: '夜航', order: -0.5, when: '清河历八年冬，子夜之后', strand: '归途' }
+    };
+    const document = await service.create(args);
+    expect(document.relativePath).toBe('设定/时间线/夜航.md');
+    expect(document.head).toMatchObject({ status: 'ok', frontmatter: { kind: 'timeline-event', ...args.values } });
+    expect(await readFile(path.join(root, document.relativePath), 'utf8')).toBe(document.content);
+    await expect(service.create({ ...args, filename: '空.md', values: { title: '   ' } })).rejects.toThrow('不能为空');
   });
   it('生成文件遵守目录角色、稳定 id 与模板 hash，同名绝不覆盖', async () => {
     const template = (await service.list(root)).templates.find(value => value.template === 'scene-card')!;

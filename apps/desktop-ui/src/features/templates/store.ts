@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref, shallowRef, toRaw, watch } from 'vue';
 
-import { templateDefaults, type AssetTemplate, type AssetFieldValue, type WorkspaceLayout } from '@chaptale/shared';
+import {
+  templateDefaults,
+  templateSubdirectory,
+  type AssetTemplate,
+  type AssetFieldValue,
+  type WorkspaceLayout
+} from '@chaptale/shared';
 
 import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
@@ -49,7 +55,7 @@ export const useTemplateStore = defineStore('templates', () => {
       templateId,
       values: { ...templateDefaults(template), ...initial },
       filename: '',
-      directory: `${layout.value.roles[template.targetRole].relativePath}${template.template === 'scene-card' ? '/场景卡' : ''}`
+      directory: `${layout.value.roles[template.targetRole].relativePath}${templateSubdirectory(template.template)}`
     };
   }
   async function openCreate(templateId = 'chapter', initial: Record<string, AssetFieldValue> = {}) {

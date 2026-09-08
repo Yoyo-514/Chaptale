@@ -9,6 +9,7 @@ import rough from './outline-rough.md?raw';
 import thread from './plot-thread.md?raw';
 import power from './power-system.md?raw';
 import scene from './scene-card.md?raw';
+import event from './story-event.md?raw';
 import world from './worldview.md?raw';
 export const builtinTemplates = [
   chapter,
@@ -22,5 +23,6 @@ export const builtinTemplates = [
   thread,
   power,
   scene,
+  event,
   world
 ].map(source => source.replace(/\r\n/g, '\n'));

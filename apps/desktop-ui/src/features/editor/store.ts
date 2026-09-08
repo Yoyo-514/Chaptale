@@ -9,6 +9,7 @@ import {
 } from '@chaptale/ipc-contract';
 
 import { useSettingsStore } from '@/features/settings';
+import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
@@ -64,8 +65,9 @@ export const useEditorStore = defineStore('editor', () => {
     if (tabs.value.some(tab => tab.id === id)) activeId.value = id;
   }
 
-  async function openDocument(relativePath: string) {
+  async function openDocument(relativePath: string, reveal = true) {
     if (!workspace.rootPath) return;
+    if (reveal) useWorkbenchStore().center = 'editor';
     const existing = tabs.value.find(tab => tab.path === relativePath);
     if (existing) {
       activeId.value = existing.id;
@@ -320,7 +322,7 @@ export const useEditorStore = defineStore('editor', () => {
     expectedHash: string,
     action: () => Promise<T>
   ): Promise<T> {
-    await openDocument(targetPath);
+    await openDocument(targetPath, false);
     const tab = tabs.value.find(value => value.path === targetPath);
     if (!tab?.document || tab.readonly || tab.dirty || tab.saving || tab.external)
       throw new Error('请先保存正文并处理磁盘冲突');
