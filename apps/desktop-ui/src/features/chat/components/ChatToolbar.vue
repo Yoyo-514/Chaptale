@@ -19,6 +19,17 @@ const content = useContentStore();
 const settings = useSettingsStore();
 const switching = ref(false);
 const personaId = computed(() => currentSession.value?.personaId ?? 'companion');
+// 清单与兜底共用同一 key，避免旧选项卸载时注销异步载入的新标签。
+const personaOptions = computed(() => {
+  const options = content.chats.map(persona => ({ id: persona.id, name: persona.name }));
+  if (!options.some(persona => persona.id === personaId.value)) {
+    options.unshift({
+      id: personaId.value,
+      name: personaId.value === 'companion' ? '创作伙伴' : `${personaId.value} · 不可用`
+    });
+  }
+  return options;
+});
 
 const currentSession = computed(() => sessionStore.currentSession);
 const sessionTitle = computed(() => {
@@ -91,11 +102,8 @@ async function handleExportSession() {
         :disabled="navigation.agentBusy || switching"
         @update:model-value="selectPersona($event)"
       >
-        <AppSelectItem v-for="persona in content.chats" :key="persona.id" :value="persona.id">{{
+        <AppSelectItem v-for="persona in personaOptions" :key="persona.id" :value="persona.id">{{
           persona.name
-        }}</AppSelectItem>
-        <AppSelectItem v-if="!content.chats.some(item => item.id === personaId)" :value="personaId">{{
-          personaId === 'companion' ? '创作伙伴' : `${personaId} · 不可用`
         }}</AppSelectItem>
         <AppSelectItem value="__manage">管理专员</AppSelectItem>
       </AppSelect>

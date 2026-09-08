@@ -51,6 +51,18 @@ test.afterEach(async () => {
   expect(errors).toEqual([]);
 });
 
+test('M6 默认专员在异步加载和重启后始终显示名称', async () => {
+  const selector = () => page.getByRole('combobox', { name: '对话专员', exact: true });
+  await expect(selector()).toContainText('创作伙伴');
+  await selector().click();
+  await expect(page.getByRole('option', { name: '创作伙伴', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(selector()).toContainText('创作伙伴');
+  await app.close();
+  await launch();
+  await expect(selector()).toContainText('创作伙伴');
+});
+
 test('M6 slash 设置命令打开真实面板，不发送 Agent 消息', async () => {
   const input = page.getByPlaceholder('描述你的创作需求...');
   await input.fill('/set');
