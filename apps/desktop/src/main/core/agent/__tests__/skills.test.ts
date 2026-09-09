@@ -12,6 +12,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  expect(path.dirname(path.resolve(dir))).toBe(path.resolve(os.tmpdir()));
+  expect(path.basename(dir)).toMatch(/^chaptale-skills-/);
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -41,6 +43,15 @@ describe('loadSkillsFromDir', () => {
     const result = await loadSkillsFromDir(path.join(dir, 'ghost'), 'builtin');
 
     expect(result.skills).toEqual([]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('不加载归档或隐藏目录，也不为其生成失败诊断', async () => {
+    await writeSkill('outline-helper', 'name: outline-helper\ndescription: 大纲助手');
+    await writeSkill('.archive', 'name: archived-skill\ndescription: 已归档');
+    await mkdir(path.join(dir, '.hidden'));
+    const result = await loadSkillsFromDir(dir, 'user');
+    expect(result.skills.map(skill => skill.name)).toEqual(['outline-helper']);
     expect(result.diagnostics).toEqual([]);
   });
 

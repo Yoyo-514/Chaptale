@@ -51,8 +51,9 @@ export async function loadSkillsFromDir(dir: string, source: SkillSource): Promi
   const skills: LoadedSkill[] = [];
   const diagnostics: SkillDiagnostic[] = [];
 
-  if (entries.length > 300) diagnostics.push({ source, message: '技能目录超过 300 项，超出部分未读取' });
-  for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name)).slice(0, 300)) {
+  const visible = entries.filter(entry => !entry.name.startsWith('.'));
+  if (visible.length > 300) diagnostics.push({ source, message: '技能目录超过 300 项，超出部分未读取' });
+  for (const entry of visible.toSorted((a, b) => a.name.localeCompare(b.name)).slice(0, 300)) {
     if (!entry.isDirectory()) {
       continue;
     }

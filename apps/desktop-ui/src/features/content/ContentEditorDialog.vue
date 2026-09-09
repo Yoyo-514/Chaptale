@@ -17,7 +17,7 @@ import PersonaFields from './PersonaFields.vue';
 import { toContentRef, useContentStore } from './store';
 
 const props = defineProps<{ open: boolean; kind: ContentKind; document: ContentDocument | null }>();
-const emit = defineEmits<{ 'update:open': [value: boolean]; saved: [] }>();
+const emit = defineEmits<{ 'update:open': [value: boolean]; saved: []; remove: [document: ContentDocument] }>();
 const content = useContentStore();
 const id = ref('');
 const scope = ref<ContentScope>('user');
@@ -32,7 +32,7 @@ const discard = ref(false);
 const archive = ref(false);
 let context: { rootPath?: string } = {};
 let baseline = '';
-const readonly = computed(() => props.document?.source === 'builtin' && !copied.value);
+const readonly = computed(() => (props.document?.source === 'builtin' || props.document?.archived) && !copied.value);
 const personaForm = computed(
   () => props.kind === 'persona' && (persona.value.execution === 'chat' || persona.value.type === 'review')
 );
@@ -139,7 +139,7 @@ async function confirmArchive() {
 <template>
   <AppDialog
     :open="open"
-    :title="`${document ? '编辑' : '新建'}${labels[kind]}`"
+    :title="`${document?.archived ? '查看已归档' : document ? '编辑' : '新建'}${labels[kind]}`"
     content-size="lg"
     @update:open="value => !value && requestClose()"
   >
@@ -162,7 +162,7 @@ async function confirmArchive() {
             ><AppSelectItem v-if="context.rootPath" value="workspace">当前作品</AppSelectItem>
           </AppSelect></label
         >
-        <span v-if="readonly">内置 · 只读</span>
+        <span v-if="readonly">{{ document?.archived ? '已归档' : '内置' }} · 只读</span>
       </div>
       <AppTabs
         v-if="personaForm"
@@ -210,6 +210,13 @@ async function confirmArchive() {
       <footer>
         <AppButton v-if="document" :disabled="busy" @click="copy">复制为自定义</AppButton>
         <AppButton v-if="document && !readonly && !copied" :disabled="busy" @click="archive = true">归档</AppButton>
+        <AppButton
+          v-if="document && document.source !== 'builtin' && !copied"
+          variant="danger"
+          :disabled="busy"
+          @click="emit('remove', document)"
+          >永久删除</AppButton
+        >
         <span class="editor-save-state">{{ dirty ? '未保存' : '' }}</span>
         <AppButton :disabled="busy" @click="requestClose">取消</AppButton>
         <AppButton v-if="!readonly" variant="primary" :disabled="busy || !serialized.trim()" @click="save"
@@ -234,7 +241,7 @@ async function confirmArchive() {
   <AppDialog
     :open="archive"
     title="归档此内容？"
-    description="归档后不再加载；同名低优先级内容可能重新生效。原文件保留在内容目录的 .archive 中。"
+    description="归档后不再加载；同名低优先级内容可能重新生效。技能附件随目录保留，可以在已归档列表中恢复。"
     @update:open="archive = $event"
   >
     <div class="content-confirm">

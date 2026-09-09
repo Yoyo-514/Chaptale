@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { ContentDocument, ContentRef } from '@chaptale/shared';
+import type { ContentEntry, ContentRef } from '@chaptale/shared';
 import { parseDocumentFrontmatter, patchDocumentFields } from '@chaptale/shared/document-frontmatter';
 
 import { parseFrontmatter } from '../../../core/frontmatter/parse';
@@ -28,9 +29,9 @@ const skill =
   '---\nname: my-skill\ndescription: 检查场景转折\nappliesTo: [my-planner]\n---\n辨认场景中不可逆的选择。\n';
 const template =
   '---\ntemplate: my-template\nname: 我的模板\ntargetKind: note\ntargetRole: inspiration\nfields:\n  - key: title\n    label: 标题\n    type: text\n---\n# {{title}}\n\n正文。\n';
-function ref(document: ContentDocument): ContentRef {
+function ref(document: ContentEntry): ContentRef {
   const { kind, id, source, sourcePath, hash } = document;
-  return { kind, id, source, sourcePath, hash };
+  return { kind, id, source, sourcePath, hash, ...(document.archived ? { archived: true } : {}) };
 }
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), 'chaptale-content-'));
@@ -134,6 +135,190 @@ describe('local content management', () => {
     expect(() =>
       describeContent('persona', persona.replace('execution: chat', 'execution: task\noutput: unknown'))
     ).toThrow('输出格式');
+  });
+});
+
+describe('content lifecycle', () => {
+  const archived = async (kind: ContentRef['kind']) => {
+    const entry = (await service.list({ rootPath: work })).entries.find(item => item.archived && item.kind === kind);
+    expect(entry).toBeDefined();
+    return ref(entry!);
+  };
+  const createSkill = () =>
+    service.save({ rootPath: work, scope: 'workspace', kind: 'skill', id: 'my-skill', markdown: skill });
+  const remove = async (reference: ContentRef) => {
+    const args = { rootPath: work, ref: reference };
+    const preview = await service.previewDelete(args);
+    await service.delete({ ...args, fingerprint: preview.fingerprint });
+  };
+  it.each([
+    { kind: 'persona', id: 'my-planner', markdown: persona },
+    { kind: 'skill', id: 'my-skill', markdown: skill },
+    { kind: 'template', id: 'my-template', markdown: template }
+  ] as const)('permanently deletes active and archived $kind without trash', async definition => {
+    const args = { rootPath: work, scope: 'workspace' as const, ...definition };
+    await remove(ref(await service.save(args)));
+    expect((await service.list({ rootPath: work })).entries.filter(item => item.source === 'workspace')).toEqual([]);
+    const saved = await service.save(args);
+    await service.archive({ rootPath: work, ref: ref(saved) });
+    const reference = await archived(definition.kind);
+    const document = await service.read({ rootPath: work, ref: reference });
+    expect(document).toMatchObject({ markdown: definition.markdown, archived: true, effective: false });
+    await remove(reference);
+    expect((await service.list({ rootPath: work })).entries.filter(item => item.source === 'workspace')).toEqual([]);
+  });
+  it('restores an override without changing historical files or other layers', async () => {
+    await createPersona();
+    const saved = await createPersona('workspace', persona.replace('情节策划', '作品策划'));
+    const history = path.join(work, '.chaptale/runs/previous.json');
+    await mkdir(path.dirname(history), { recursive: true });
+    await writeFile(history, '{"personaId":"my-planner","output":"历史正文"}');
+    await service.archive({ rootPath: work, ref: ref(saved) });
+    const reference = await archived('persona');
+    const restored = await service.restore({ rootPath: work, ref: reference });
+    expect(restored).toMatchObject({ sourcePath: 'my-planner.md', archived: false, name: '作品策划' });
+    expect((await service.list({ rootPath: work })).entries.filter(item => item.effective)).toEqual([
+      expect.objectContaining({ source: 'workspace', name: '作品策划' })
+    ]);
+    await remove(ref(restored));
+    expect(await readFile(history, 'utf8')).toBe('{"personaId":"my-planner","output":"历史正文"}');
+    expect((await service.list({ rootPath: work })).entries.find(item => item.effective)?.source).toBe('user');
+  });
+  it('archives and restores the whole skill directory including hidden and binary attachments', async () => {
+    const saved = await createSkill();
+    const directory = path.join(work, '.chaptale/skills/my-skill');
+    await mkdir(path.join(directory, 'references/empty'), { recursive: true });
+    await writeFile(path.join(directory, 'references/cover.png'), Buffer.from([0, 1, 2, 3]));
+    await writeFile(path.join(directory, '.notes'), '原始笔记');
+    await service.archive({ rootPath: work, ref: ref(saved) });
+    await expect(readdir(directory)).rejects.toMatchObject({ code: 'ENOENT' });
+    const reference = await archived('skill');
+    const preview = await service.previewDelete({ rootPath: work, ref: reference });
+    expect(preview.files).toHaveLength(3);
+    expect(preview.files.some(file => file.path.endsWith('references/cover.png'))).toBe(true);
+    await service.restore({ rootPath: work, ref: reference });
+    expect(await readFile(path.join(directory, 'references/cover.png'))).toEqual(Buffer.from([0, 1, 2, 3]));
+    expect(await readFile(path.join(directory, '.notes'), 'utf8')).toBe('原始笔记');
+    expect(await readdir(path.join(directory, 'references/empty'))).toEqual([]);
+    await remove(ref(saved));
+    await expect(readdir(directory)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+  it('never deletes a newer active skill when removing a legacy file archive', async () => {
+    const saved = await createSkill();
+    const directory = path.join(work, '.chaptale/skills');
+    const archivePath = `.archive/my-skill-${randomUUID()}.md`;
+    await mkdir(path.join(directory, '.archive'));
+    await writeFile(path.join(directory, archivePath), skill);
+    await writeFile(path.join(directory, 'my-skill/new-reference.txt'), '新技能资料');
+    const reference = await archived('skill');
+    const preview = await service.previewDelete({ rootPath: work, ref: reference });
+    expect(preview.files).toHaveLength(1);
+    expect(preview.warnings.join(' ')).toContain('旧格式');
+    await service.delete({ rootPath: work, ref: reference, fingerprint: preview.fingerprint });
+    expect((await service.read({ rootPath: work, ref: ref(saved) })).markdown).toBe(skill);
+    expect(await readFile(path.join(directory, 'my-skill/new-reference.txt'), 'utf8')).toBe('新技能资料');
+  });
+  it('restores a legacy skill file without replacing its remaining attachments', async () => {
+    const directory = path.join(work, '.chaptale/skills');
+    await mkdir(path.join(directory, '.archive'), { recursive: true });
+    await mkdir(path.join(directory, 'my-skill'));
+    await writeFile(path.join(directory, `.archive/my-skill-${randomUUID()}.md`), skill);
+    await writeFile(path.join(directory, 'my-skill/reference.txt'), '旧资源');
+    await service.restore({ rootPath: work, ref: await archived('skill') });
+    expect(await readFile(path.join(directory, 'my-skill/SKILL.md'), 'utf8')).toBe(skill);
+    expect(await readFile(path.join(directory, 'my-skill/reference.txt'), 'utf8')).toBe('旧资源');
+  });
+  it('rejects restore conflicts and leaves both copies intact', async () => {
+    const saved = await createPersona();
+    await service.archive({ rootPath: work, ref: ref(saved) });
+    const reference = await archived('persona');
+    await createPersona('user', persona.replace('情节策划', '更新版'));
+    await expect(service.restore({ rootPath: work, ref: reference })).rejects.toThrow('同 id');
+    expect((await service.read({ rootPath: work, ref: reference })).markdown).toBe(persona);
+    expect(await readFile(path.join(user, 'personas/my-planner.md'), 'utf8')).toContain('更新版');
+  });
+  it('does not mistake archives for active import conflicts', async () => {
+    const saved = await createPersona();
+    const bundles = new ContentBundles(service);
+    const text = await bundles.previewExport({ rootPath: work, refs: [ref(saved)] });
+    await service.archive({ rootPath: work, ref: ref(saved) });
+    expect((await bundles.previewImport({ rootPath: work, scope: 'user', text })).entries[0].conflict).toBeUndefined();
+    expect(
+      await bundles.import({
+        rootPath: work,
+        scope: 'user',
+        text,
+        selected: [{ kind: 'persona', id: 'my-planner' }]
+      })
+    ).toEqual({ imported: ['persona:my-planner'], errors: [] });
+    expect((await service.list({ rootPath: work })).entries.filter(item => item.source === 'user')).toHaveLength(2);
+  });
+  it.each(['changed', 'added', 'removed', 'empty-directory'] as const)(
+    'rejects a delete confirmation after an attachment is %s',
+    async change => {
+      const saved = await createSkill();
+      const directory = path.join(work, '.chaptale/skills/my-skill');
+      const attachment = path.join(directory, 'reference.txt');
+      await writeFile(attachment, 'before');
+      const args = { rootPath: work, ref: ref(saved) };
+      const preview = await service.previewDelete(args);
+      if (change === 'changed') await writeFile(attachment, 'after!');
+      if (change === 'added') await writeFile(path.join(directory, 'new.txt'), 'new');
+      if (change === 'removed') await rm(attachment);
+      if (change === 'empty-directory') await mkdir(path.join(directory, 'new'));
+      await expect(service.delete({ ...args, fingerprint: preview.fingerprint })).rejects.toThrow('删除范围已变化');
+      expect(await readFile(path.join(directory, 'SKILL.md'), 'utf8')).toBe(skill);
+    }
+  );
+  it('rejects stale source hashes and stale workspaces before deletion', async () => {
+    const saved = await createPersona();
+    const args = { rootPath: work, ref: ref(saved) };
+    const preview = await service.previewDelete(args);
+    await writeFile(path.join(user, 'personas/my-planner.md'), persona + '外部修订');
+    await expect(service.delete({ ...args, fingerprint: preview.fingerprint })).rejects.toThrow('内容已变化');
+    const other = path.join(root, 'other');
+    await mkdir(other);
+    await settings.update({ storage: { mode: 'workspace', workspacePath: other } });
+    await expect(service.delete({ ...args, fingerprint: preview.fingerprint })).rejects.toThrow('作品已切换');
+    expect(await readFile(path.join(user, 'personas/my-planner.md'), 'utf8')).toBe(persona + '外部修订');
+  });
+  it('keeps builtins read-only and rejects arbitrary archive paths', async () => {
+    const builtin = ref((await service.list({ rootPath: work })).entries[0]);
+    const args = { rootPath: work, ref: builtin };
+    await expect(service.previewDelete(args)).rejects.toThrow('内置');
+    await expect(service.delete({ ...args, fingerprint: '0'.repeat(64) })).rejects.toThrow('内置');
+    await expect(service.restore({ ...args, ref: { ...builtin, archived: true } })).rejects.toThrow('内置');
+    const saved = await createPersona();
+    for (const sourcePath of ['.archive/../../settings.json', '.archive/my-planner.md', '.hidden/my-planner.md']) {
+      await expect(
+        service.read({ rootPath: work, ref: { ...ref(saved), sourcePath, archived: true } })
+      ).rejects.toThrow();
+    }
+    await service.archive({ rootPath: work, ref: ref(saved) });
+    const reference = await archived('persona');
+    await expect(service.read({ rootPath: work, ref: { ...reference, archived: false } })).rejects.toThrow('路径');
+  });
+  it('rejects linked skill attachments and never touches their targets', async () => {
+    const saved = await createSkill();
+    const outside = path.join(root, 'outside');
+    await mkdir(outside);
+    await writeFile(path.join(outside, 'keep.txt'), '不可删除');
+    await symlink(
+      outside,
+      path.join(work, '.chaptale/skills/my-skill/linked'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+    await expect(service.previewDelete({ rootPath: work, ref: ref(saved) })).rejects.toThrow();
+    await expect(service.archive({ rootPath: work, ref: ref(saved) })).rejects.toThrow();
+    expect(await readFile(path.join(outside, 'keep.txt'), 'utf8')).toBe('不可删除');
+  });
+  it('refuses oversized attachment scans without deleting anything', async () => {
+    const saved = await createSkill();
+    const attachment = path.join(work, '.chaptale/skills/my-skill/large.bin');
+    await writeFile(attachment, '');
+    await truncate(attachment, 64 * 1024 * 1024 + 1);
+    await expect(service.previewDelete({ rootPath: work, ref: ref(saved) })).rejects.toThrow('64 MiB');
+    expect((await service.read({ rootPath: work, ref: ref(saved) })).markdown).toBe(skill);
   });
 });
 

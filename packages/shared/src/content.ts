@@ -9,6 +9,7 @@ export type ContentRef = {
   source: ContentSource;
   sourcePath: string;
   hash: string;
+  archived?: boolean;
 };
 export type ContentEntry = ContentRef & {
   name: string;
@@ -17,6 +18,12 @@ export type ContentEntry = ContentRef & {
 };
 export type ContentList = { entries: ContentEntry[]; diagnostics: string[] };
 export type ContentDocument = ContentEntry & { markdown: string };
+export type ContentDeletePreview = {
+  fingerprint: string;
+  files: { path: string; bytes: number }[];
+  bytes: number;
+  warnings: string[];
+};
 export type ContentImportEntry = {
   kind: ContentKind;
   id: string;

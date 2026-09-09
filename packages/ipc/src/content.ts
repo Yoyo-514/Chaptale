@@ -4,6 +4,7 @@ import { Compile } from 'typebox/compile';
 import {
   ContentHashSchema,
   WorkspaceRelativePathSchema,
+  type ContentDeletePreview,
   type ContentDocument,
   type ContentImportPreview,
   type ContentList
@@ -26,7 +27,8 @@ export const ContentRefSchema = Type.Object(
     id: IdSchema,
     source: Type.Union([Type.Literal('builtin'), ScopeSchema]),
     sourcePath: WorkspaceRelativePathSchema,
-    hash: ContentHashSchema
+    hash: ContentHashSchema,
+    archived: Type.Optional(Type.Boolean())
   },
   { additionalProperties: false }
 );
@@ -34,6 +36,13 @@ const ReadSchema = Type.Object(
   {
     ...ContentContextSchema.properties,
     ref: ContentRefSchema
+  },
+  { additionalProperties: false }
+);
+const DeleteSchema = Type.Object(
+  {
+    ...ReadSchema.properties,
+    fingerprint: ContentHashSchema
   },
   { additionalProperties: false }
 );
@@ -102,6 +111,7 @@ export const ContentBundleSchema = Type.Object(
 );
 export type ContentContext = Static<typeof ContentContextSchema>;
 export type ContentReadArgs = Static<typeof ReadSchema>;
+export type ContentDeleteArgs = Static<typeof DeleteSchema>;
 export type ContentSaveArgs = Static<typeof ContentSaveSchema>;
 export type ContentExportArgs = Static<typeof ExportSchema>;
 export type ContentPreviewArgs = Static<typeof BundleContextSchema>;
@@ -109,6 +119,7 @@ export type ContentImportArgs = Static<typeof ImportSchema>;
 export type ContentBundle = Static<typeof ContentBundleSchema>;
 export const ContentContextValidator = Compile(Type.Tuple([ContentContextSchema]));
 export const ContentReadValidator = Compile(Type.Tuple([ReadSchema]));
+export const ContentDeleteValidator = Compile(Type.Tuple([DeleteSchema]));
 export const ContentSaveValidator = Compile(Type.Tuple([ContentSaveSchema]));
 export const ContentExportValidator = Compile(Type.Tuple([ExportSchema]));
 export const ContentPreviewValidator = Compile(Type.Tuple([BundleContextSchema]));
@@ -122,6 +133,9 @@ export type ContentApi = {
   read: (args: ContentReadArgs) => Promise<ContentDocument>;
   save: (args: ContentSaveArgs) => Promise<ContentDocument>;
   archive: (args: ContentReadArgs) => Promise<void>;
+  restore: (args: ContentReadArgs) => Promise<ContentDocument>;
+  previewDelete: (args: ContentReadArgs) => Promise<ContentDeletePreview>;
+  delete: (args: ContentDeleteArgs) => Promise<void>;
   previewExport: (args: ContentExportArgs) => Promise<string>;
   saveExport: (args: { text: string }) => Promise<string | null>;
   previewImport: (args: ContentPreviewArgs) => Promise<ContentImportPreview>;

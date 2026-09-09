@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from 'vue';
+import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 
-import type { ContentDocument, ContentKind } from '@chaptale/shared';
+import type { ContentDocument, ContentEntry, ContentKind } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppInput } from '@/components/AppInput';
 import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTabs } from '@/components/AppTabs';
 import { AppTooltip } from '@/components/AppTooltip';
 import { SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
+import ContentActionDialog from './ContentActionDialog.vue';
 import ContentEditorDialog from './ContentEditorDialog.vue';
 import ContentShareDialog from './ContentShareDialog.vue';
 import { contentKey, toContentRef, useContentStore } from './store';
@@ -19,20 +21,30 @@ import { contentKey, toContentRef, useContentStore } from './store';
 const content = useContentStore();
 const kind = ref('persona');
 const search = ref('');
+const state = ref('active');
 const selected = ref<string[]>([]);
 const editing = ref(false);
 const document = shallowRef<ContentDocument | null>(null);
 const sharing = ref(false);
 const shareMode = ref<'import' | 'export'>('import');
 const error = ref('');
+const actionOpen = ref(false);
+const action = ref<'delete' | 'restore'>('delete');
+const actionEntry = shallowRef<ContentEntry | null>(null);
 const entries = computed(() =>
   content.entries.filter(
     item =>
       item.kind === kind.value &&
+      Boolean(item.archived) === (state.value === 'archived') &&
       `${item.id} ${item.name}`.toLocaleLowerCase().includes(search.value.toLocaleLowerCase())
   )
 );
 const selectedEntries = computed(() => content.entries.filter(item => selected.value.includes(contentKey(item))));
+watch([kind, state], () => (selected.value = []));
+watch(
+  () => content.entries,
+  items => (selected.value = selected.value.filter(key => items.some(item => contentKey(item) === key)))
+);
 const labels = { builtin: '内置', user: '所有作品', workspace: '当前作品' };
 const kinds = [
   { value: 'persona', label: '专员' },
@@ -60,6 +72,15 @@ function share(mode: 'import' | 'export') {
   shareMode.value = mode;
   sharing.value = true;
 }
+function manage(entry: ContentEntry, mode: 'delete' | 'restore') {
+  actionEntry.value = entry;
+  action.value = mode;
+  actionOpen.value = true;
+}
+async function managed(entry: ContentEntry) {
+  if (document.value && contentKey(document.value) === contentKey(entry)) editing.value = false;
+  await content.refresh();
+}
 </script>
 <template>
   <SettingsSection title="专员与创作内容" title-id="settings-content-title" :scrollable="false">
@@ -68,6 +89,10 @@ function share(mode: 'import' | 'export') {
         <AppInput v-model="search" aria-label="筛选创作内容" placeholder="筛选名称或标识"
           ><template #prefix><span class="i-mingcute-search-line size-4" aria-hidden="true" /></template
         ></AppInput>
+        <AppSelect v-model="state" aria-label="内容状态" class="content-state">
+          <AppSelectItem value="active">未归档</AppSelectItem>
+          <AppSelectItem value="archived">已归档</AppSelectItem>
+        </AppSelect>
         <AppTooltip text="刷新内容"
           ><AppButton icon variant="ghost" aria-label="刷新内容" :disabled="content.loading" @click="content.refresh"
             ><span class="i-mingcute-refresh-3-line size-4" aria-hidden="true" /></AppButton
@@ -99,8 +124,28 @@ function share(mode: 'import' | 'export') {
           </AppButton>
           <span class="content-source-label"
             >{{ labels[entry.source]
-            }}{{ !entry.effective ? ' · 已覆盖' : entry.persona?.enabled === false ? ' · 停用' : '' }}</span
+            }}{{
+              entry.archived
+                ? ' · 已归档'
+                : !entry.effective
+                  ? ' · 已覆盖'
+                  : entry.persona?.enabled === false
+                    ? ' · 停用'
+                    : ''
+            }}</span
           >
+          <div v-if="entry.source !== 'builtin'" class="content-actions">
+            <AppTooltip v-if="entry.archived" text="恢复内容">
+              <AppButton icon variant="ghost" :aria-label="`恢复 ${entry.name}`" @click="manage(entry, 'restore')"
+                ><span class="i-mingcute-back-2-line size-4" aria-hidden="true"
+              /></AppButton>
+            </AppTooltip>
+            <AppTooltip text="永久删除">
+              <AppButton icon variant="ghost" :aria-label="`永久删除 ${entry.name}`" @click="manage(entry, 'delete')"
+                ><span class="i-mingcute-delete-2-line size-4" aria-hidden="true"
+              /></AppButton>
+            </AppTooltip>
+          </div>
         </div>
       </AppScrollArea>
       <footer>
@@ -120,15 +165,23 @@ function share(mode: 'import' | 'export') {
     :kind="kind as ContentKind"
     :document="document"
     @saved="content.refresh"
+    @remove="entry => manage(entry, 'delete')"
   />
+  <ContentActionDialog v-model:open="actionOpen" :action="action" :entry="actionEntry" @saved="managed" />
   <ContentShareDialog v-model:open="sharing" :mode="shareMode" :entries="selectedEntries" @saved="content.refresh" />
 </template>
 <style scoped lang="scss">
 .content-toolbar {
-  @apply flex min-w-0 shrink-0 items-center gap-2 py-3;
+  @apply flex min-w-0 shrink-0 flex-wrap items-center gap-2 py-3;
 }
 .content-toolbar :deep(.app-input) {
   @apply min-w-0 flex-1;
+}
+.content-toolbar :deep(.content-state) {
+  @apply w-28 shrink-0;
+}
+.content-actions {
+  @apply flex shrink-0 items-center gap-1;
 }
 .content-list {
   @apply min-h-0 flex-1;

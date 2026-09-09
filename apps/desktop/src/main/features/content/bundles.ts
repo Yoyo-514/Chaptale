@@ -52,7 +52,7 @@ export class ContentBundles {
         const { markdown, warnings } = portableContent(item.kind, item.markdown);
         const described = describeContent(item.kind, markdown);
         const conflicts = entries.filter(
-          entry => entry.source === args.scope && entry.id === item.id && entry.kind === item.kind
+          entry => !entry.archived && entry.source === args.scope && entry.id === item.id && entry.kind === item.kind
         );
         if (conflicts.length > 1) throw new Error(`同层存在重复 id，先整理原文件：${item.id}`);
         const conflict = conflicts[0];

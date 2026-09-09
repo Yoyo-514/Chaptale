@@ -214,3 +214,26 @@ test('侧栏只通过活动栏收起，保留辅助栏视图与 Agent 草稿', a
     await expect(page.getByRole('complementary', { name: '工作区侧栏', exact: true })).toBeHidden();
   }
 });
+
+test('开发态内容删除按钮能打开完整预览且无组件解析警告', async () => {
+  await page.evaluate(async rootPath => {
+    await (window as Window & { chaptaleDesktop: ChaptaleDesktopApi }).chaptaleDesktop.content.save({
+      rootPath,
+      scope: 'user',
+      kind: 'persona',
+      id: 'temporary-planner',
+      markdown: '---\nid: temporary-planner\nname: 临时策划\ntype: custom\nexecution: chat\n---\n检查故事目标。\n'
+    });
+  }, workspace);
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  await page.getByRole('button', { name: '专员与内容 专员、技能、模板', exact: true }).click();
+  const filter = await page.getByRole('textbox', { name: '筛选创作内容', exact: true }).boundingBox();
+  const state = await page.getByRole('combobox', { name: '内容状态', exact: true }).boundingBox();
+  expect(Math.abs(filter!.y + filter!.height / 2 - state!.y - state!.height / 2)).toBeLessThan(1);
+  await page.getByRole('button', { name: '永久删除 临时策划', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '永久删除此内容？', exact: true });
+  await expect(dialog).toContainText('temporary-planner.md');
+  await dialog.getByRole('button', { name: '永久删除', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button', { name: '临时策划 temporary-planner', exact: true })).toHaveCount(0);
+});

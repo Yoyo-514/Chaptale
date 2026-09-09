@@ -1,6 +1,7 @@
 import {
   ContentBundleTextValidator,
   ContentContextValidator,
+  ContentDeleteValidator,
   ContentExportValidator,
   ContentImportValidator,
   ContentPreviewValidator,
@@ -8,6 +9,7 @@ import {
   ContentSaveValidator,
   IPC_CHANNELS,
   type ContentContext,
+  type ContentDeleteArgs,
   type ContentExportArgs,
   type ContentImportArgs,
   type ContentPreviewArgs,
@@ -35,6 +37,15 @@ export function registerContentIpc(service: ContentService, ui: UiShell) {
   );
   handleValidatedIpc(IPC_CHANNELS.content.archive, ContentReadValidator, (_event, args: ContentReadArgs) =>
     service.archive(args)
+  );
+  handleValidatedIpc(IPC_CHANNELS.content.restore, ContentReadValidator, (_event, args: ContentReadArgs) =>
+    service.restore(args)
+  );
+  handleValidatedIpc(IPC_CHANNELS.content.previewDelete, ContentReadValidator, (_event, args: ContentReadArgs) =>
+    service.previewDelete(args)
+  );
+  handleValidatedIpc(IPC_CHANNELS.content.delete, ContentDeleteValidator, (_event, args: ContentDeleteArgs) =>
+    service.delete(args)
   );
   handleValidatedIpc(IPC_CHANNELS.content.previewExport, ContentExportValidator, (_event, args: ContentExportArgs) =>
     bundles.previewExport(args)

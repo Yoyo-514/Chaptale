@@ -9,7 +9,14 @@ import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 export const contentKey = (entry: Pick<ContentEntry, 'source' | 'kind' | 'sourcePath'>) =>
   `${entry.source}:${entry.kind}:${entry.sourcePath}`;
 export function toContentRef(entry: ContentEntry): ContentRef {
-  return { kind: entry.kind, id: entry.id, source: entry.source, sourcePath: entry.sourcePath, hash: entry.hash };
+  return {
+    kind: entry.kind,
+    id: entry.id,
+    source: entry.source,
+    sourcePath: entry.sourcePath,
+    hash: entry.hash,
+    ...(entry.archived ? { archived: true } : {})
+  };
 }
 export const useContentStore = defineStore('content', () => {
   const workspace = useWorkspaceStore();
