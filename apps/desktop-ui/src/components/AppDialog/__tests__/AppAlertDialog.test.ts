@@ -9,6 +9,15 @@ afterEach(() => {
 });
 
 describe('AppAlertDialog', () => {
+  it('does not reference a missing description', async () => {
+    const wrapper = mount(AppAlertDialog, {
+      attachTo: document.body,
+      props: { open: true, title: '确认操作', confirmLabel: '确认' }
+    });
+    await nextTick();
+    expect(document.querySelector('[role="alertdialog"]')?.hasAttribute('aria-describedby')).toBe(false);
+    wrapper.unmount();
+  });
   it('supports a controlled dialog without a trigger slot', async () => {
     const wrapper = mount(AppAlertDialog, {
       attachTo: document.body,

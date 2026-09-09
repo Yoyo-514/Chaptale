@@ -54,7 +54,7 @@ const contentClassName = computed(() =>
 );
 const contentAttrs = computed(() => {
   const { class: _class, ...rest } = attrs;
-  return rest;
+  return hasDescription.value ? rest : { 'aria-describedby': undefined, ...rest };
 });
 
 function closeDialog() {

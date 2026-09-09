@@ -49,7 +49,7 @@ const overlayClassName = computed(() => cn('app-alert-dialog-overlay', props.ove
 const contentClassName = computed(() => cn('app-alert-dialog-content', props.contentClass, attrs.class));
 const contentAttrs = computed(() => {
   const { class: _class, ...rest } = attrs;
-  return rest;
+  return hasDescription.value ? rest : { 'aria-describedby': undefined, ...rest };
 });
 </script>
 
