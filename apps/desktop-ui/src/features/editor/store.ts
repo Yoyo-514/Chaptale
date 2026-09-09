@@ -42,6 +42,7 @@ export const useEditorStore = defineStore('editor', () => {
   const externalReads = new Map<string, symbol>();
   let recoveryLoad = 0;
   const pending = new Map<string, symbol>();
+  const refreshAfterLoad = new Set<string>();
   let decision:
     | { promise: Promise<'save' | 'discard' | 'cancel'>; resolve: (choice: 'save' | 'discard' | 'cancel') => void }
     | undefined;
@@ -149,7 +150,10 @@ export const useEditorStore = defineStore('editor', () => {
         });
       }
     } finally {
-      if (pending.get(id) === token) pending.delete(id);
+      if (pending.get(id) === token) {
+        pending.delete(id);
+        if (refreshAfterLoad.delete(id)) await refreshDocuments([id]);
+      }
     }
   }
 
@@ -162,6 +166,7 @@ export const useEditorStore = defineStore('editor', () => {
     const index = tabs.value.findIndex(item => item.id === id);
     if (index < 0) return;
     pending.delete(id);
+    refreshAfterLoad.delete(id);
     buffers.delete(id);
     clearTimeout(autoSaveTimers.get(id));
     autoSaveTimers.delete(id);
@@ -186,6 +191,7 @@ export const useEditorStore = defineStore('editor', () => {
   function acceptPathMove(from: string, to: string) {
     for (const tab of pathTabs(from)) {
       pending.delete(tab.id);
+      refreshAfterLoad.delete(tab.id);
       externalReads.delete(tab.id);
       const nextPath = `${to}${tab.path.slice(from.length)}`;
       if (tab.dirty && tab.document) buffers.set(tab.id, new DocumentBuffer(tab.document.content));
@@ -529,8 +535,13 @@ export const useEditorStore = defineStore('editor', () => {
     const rootPath = workspace.rootPath;
     if (!rootPath) return;
     for (const tab of tabs.value.filter(item => ids.includes(item.id))) {
+      // 读取中的磁盘事件合并到完成后处理，避免再次进入未保存确认。
+      if (tab.status === 'loading') {
+        refreshAfterLoad.add(tab.id);
+        continue;
+      }
       if (!tab.document) {
-        await reloadDocument(tab.id);
+        if (!tab.dirty && !tab.saving) await reloadDocument(tab.id);
         continue;
       }
       if (saves.has(tab.id)) await saves.get(tab.id);
@@ -709,6 +720,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   function reset() {
     pending.clear();
+    refreshAfterLoad.clear();
     externalReads.clear();
     recoveryLoad += 1;
     buffers.clear();

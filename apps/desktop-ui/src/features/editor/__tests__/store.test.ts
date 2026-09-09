@@ -114,4 +114,31 @@ describe('只读标签生命周期', () => {
     editor.requestSearch();
     expect(editor.searchRequest).toBe(1);
   });
+
+  it.each([
+    { name: '正在读取的干净标签', status: 'loading' as const, dirty: false },
+    { name: '已经确认重新读取的脏标签', status: 'loading' as const, dirty: true },
+    { name: '读取失败但仍保留草稿的标签', status: 'error' as const, dirty: true }
+  ])('刷新 $name 时不重复读取或询问', async ({ status, dirty }) => {
+    const editor = useEditorStore();
+    const original: EditorTab = {
+      ...tab('a'),
+      status,
+      dirty,
+      document: null,
+      error: status === 'error' ? { ok: false, code: 'read-failed', message: '文件暂时不可读' } : null
+    };
+    editor.tabs = [original];
+    editor.activeId = 'a';
+
+    const refreshing = editor.refreshDocuments();
+    try {
+      expect(editor.unsavedPrompt).toBeNull();
+      await refreshing;
+      expect(editor.tabs).toEqual([original]);
+    } finally {
+      editor.resolveUnsaved('cancel');
+      await refreshing;
+    }
+  });
 });
