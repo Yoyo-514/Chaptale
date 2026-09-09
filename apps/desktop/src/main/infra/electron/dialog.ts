@@ -5,8 +5,8 @@ export function showOpenDialog(owner: BrowserWindow | null | undefined, options:
 }
 
 /** 选择单个目录；用户取消时返回 undefined。 */
-export async function pickDirectory(owner: BrowserWindow | null | undefined, title: string) {
-  const result = await showOpenDialog(owner, { title, properties: ['openDirectory', 'createDirectory'] });
+export async function pickDirectory(owner: BrowserWindow | null | undefined, title: string, defaultPath?: string) {
+  const result = await showOpenDialog(owner, { title, defaultPath, properties: ['openDirectory', 'createDirectory'] });
   return result.canceled ? undefined : result.filePaths[0];
 }
 

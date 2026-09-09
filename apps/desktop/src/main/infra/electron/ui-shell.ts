@@ -23,8 +23,8 @@ export class ElectronUiShell implements UiShell {
     return BrowserWindow.fromWebContents(event.sender);
   }
 
-  pickDirectory(owner: unknown, title: string): Promise<string | undefined> {
-    return pickDirectory(owner as BrowserWindow | null | undefined, title);
+  pickDirectory(owner: unknown, title: string, defaultPath?: string): Promise<string | undefined> {
+    return pickDirectory(owner as BrowserWindow | null | undefined, title, defaultPath);
   }
 
   pickSavePath(options: Parameters<NativeDialogPort['pickSavePath']>[0]): Promise<string | undefined> {

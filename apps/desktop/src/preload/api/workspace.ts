@@ -8,7 +8,9 @@ import { onValidatedEvent } from './validated-event';
 export function createWorkspaceApi(): ChaptaleDesktopApi['workspace'] {
   return {
     getState: () => ipcRenderer.invoke(IPC_CHANNELS.workspace.getState),
-    selectParent: () => ipcRenderer.invoke(IPC_CHANNELS.workspace.selectParent),
+    getSyncState: () => ipcRenderer.invoke(IPC_CHANNELS.workspace.getSyncState),
+    revealSyncRoot: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.revealSyncRoot, args),
+    selectParent: (args = {}) => ipcRenderer.invoke(IPC_CHANNELS.workspace.selectParent, args),
     createWorkspace: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.createWorkspace, args),
     inspectEntry: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.inspectEntry, args),
     mutateEntry: args => ipcRenderer.invoke(IPC_CHANNELS.workspace.mutateEntry, args),

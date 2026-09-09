@@ -513,27 +513,42 @@ export const useEditorStore = defineStore('editor', () => {
   async function handleWorkspaceChanged(event: WorkspaceChanged) {
     if (event.rootPath !== workspace.rootPath) return;
     if (event.error) recoveryError.value = `文件监听异常：${event.error}`;
-    for (const tab of tabs.value) {
-      if (
-        !event.changes.some(
+    const ids = tabs.value
+      .filter(tab =>
+        event.changes.some(
           change =>
             change.relativePath === tab.path ||
             (change.type === 'unlinkDir' && (!change.relativePath || tab.path.startsWith(`${change.relativePath}/`)))
         )
       )
+      .map(tab => tab.id);
+    await refreshDocuments(ids);
+  }
+
+  async function refreshDocuments(ids = tabs.value.map(tab => tab.id)) {
+    const rootPath = workspace.rootPath;
+    if (!rootPath) return;
+    for (const tab of tabs.value.filter(item => ids.includes(item.id))) {
+      if (!tab.document) {
+        await reloadDocument(tab.id);
         continue;
+      }
       if (saves.has(tab.id)) await saves.get(tab.id);
       const token = Symbol();
       externalReads.set(tab.id, token);
       try {
         const result = await getDesktopApi().workspace.readDocument({
-          rootPath: event.rootPath,
+          rootPath,
           relativePath: tab.path,
           maxBytes: tab.allowLarge ? MAX_DOCUMENT_BYTES : NORMAL_PREVIEW_BYTES
         });
-        if (workspace.rootPath !== event.rootPath || externalReads.get(tab.id) !== token) continue;
+        if (workspace.rootPath !== rootPath || externalReads.get(tab.id) !== token) continue;
         const current = tabs.value.find(item => item.id === tab.id);
-        if (!current?.document || (result.ok && result.document.contentHash === current.document.contentHash)) continue;
+        if (!current?.document) continue;
+        if (result.ok && result.document.contentHash === current.document.contentHash) {
+          if (current.external) replaceTab({ ...current, external: undefined, saveError: '', notice: '' });
+          continue;
+        }
         if (!current.dirty && result.ok) {
           buffers.delete(tab.id);
           replaceTab({
@@ -745,6 +760,7 @@ export const useEditorStore = defineStore('editor', () => {
     discardRecovery,
     persistRecovery,
     handleWorkspaceChanged,
+    refreshDocuments,
     acceptExternal,
     keepLocal,
     saveConflictCopy,

@@ -265,7 +265,7 @@ watch(selectedId, async () => {
         <AppButton variant="primary" @click="workspace.newWorkspaceOpen = true"
           ><span class="i-mingcute-book-2-line size-4" aria-hidden="true" />新建作品</AppButton
         >
-        <AppButton @click="workspace.openWorkspace"
+        <AppButton @click="workspace.openWorkspace()"
           ><span class="i-mingcute-folder-open-2-line size-4" aria-hidden="true" />打开作品</AppButton
         >
         <AppButton v-if="workspace.rootPath" @click="editor.newChapterOpen = true">新建章节</AppButton>

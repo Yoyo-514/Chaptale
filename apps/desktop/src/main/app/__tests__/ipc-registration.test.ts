@@ -55,6 +55,7 @@ import {
   UpdateWebToolsSettingsArgsValidator,
   UpdatePromptSettingsArgsValidator,
   WorkspaceGetStateArgsValidator,
+  SelectDirectoryArgsValidator,
   ListDirectoryArgsValidator,
   CreateEntryArgsValidator,
   ReadDocumentArgsValidator,
@@ -201,7 +202,9 @@ const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.settings.openConfigDir),
 
   validated(IPC_CHANNELS.workspace.getState, WorkspaceGetStateArgsValidator),
-  validated(IPC_CHANNELS.workspace.selectParent, WorkspaceGetStateArgsValidator),
+  validated(IPC_CHANNELS.workspace.getSyncState, WorkspaceGetStateArgsValidator),
+  validated(IPC_CHANNELS.workspace.revealSyncRoot, WorkspaceRootArgsValidator),
+  validated(IPC_CHANNELS.workspace.selectParent, SelectDirectoryArgsValidator),
   validated(IPC_CHANNELS.workspace.createWorkspace, CreateWorkspaceArgsValidator),
   validated(IPC_CHANNELS.workspace.inspectEntry, EntryPathArgsValidator),
   validated(IPC_CHANNELS.workspace.mutateEntry, MutateEntryArgsValidator),

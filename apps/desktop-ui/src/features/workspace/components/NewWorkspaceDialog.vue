@@ -52,12 +52,18 @@ watch(
     if (open) {
       error.value = '';
       created.value = null;
+      if (workspace.newWorkspaceParentPath !== null) {
+        parentPath.value = workspace.newWorkspaceParentPath;
+        workspace.newWorkspaceParentPath = null;
+      }
     }
   }
 );
 async function selectParent() {
   try {
-    const selected = await getDesktopApi().workspace.selectParent();
+    const selected = await getDesktopApi().workspace.selectParent(
+      parentPath.value ? { defaultPath: parentPath.value } : undefined
+    );
     if (selected) parentPath.value = selected;
   } catch (cause) {
     error.value = toErrorMessage(cause);

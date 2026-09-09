@@ -276,7 +276,7 @@ watch(
       <div v-if="!workspace.rootPath" class="workspace-explorer-placeholder">
         <p>尚未打开工作区</p>
         <AppButton size="sm" variant="primary" @click="workspace.newWorkspaceOpen = true">新建作品</AppButton>
-        <AppButton size="sm" @click="workspace.openWorkspace">打开工作区</AppButton>
+        <AppButton size="sm" @click="workspace.openWorkspace()">打开工作区</AppButton>
       </div>
       <!-- 占位只属于「根目录从未加载过」：刷新/显隐切换会清缓存重排（闪一下），
          不显示占位面板，与 VS Code 的刷新观感一致。 -->

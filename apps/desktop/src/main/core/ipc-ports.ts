@@ -11,7 +11,7 @@ export type IpcOwnerResolver = {
 };
 
 export type NativeDialogPort = {
-  pickDirectory(owner: unknown, title: string): Promise<string | undefined>;
+  pickDirectory(owner: unknown, title: string, defaultPath?: string): Promise<string | undefined>;
   pickSavePath(options: {
     title: string;
     defaultPath?: string;

@@ -37,6 +37,9 @@ test.beforeEach(async () => {
       ...process.env,
       HOME: home,
       USERPROFILE: home,
+      OneDrive: '',
+      OneDriveConsumer: '',
+      OneDriveCommercial: '',
       NODE_ENV: 'production',
       VITE_DEV_SERVER_URL: 'http://localhost:4318'
     }
@@ -78,7 +81,7 @@ test.afterEach(async () => {
     await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
   expect(errors).toEqual([]);
-  expect(diagnostics.filter(message => message.startsWith('error:') || message.includes('[Vue warn]'))).toEqual([]);
+  expect(diagnostics).toEqual([]);
 });
 
 test('开发态正文挂载、切换与返回保留内容', async () => {
@@ -236,4 +239,40 @@ test('开发态内容删除按钮能打开完整预览且无组件解析警告',
   await dialog.getByRole('button', { name: '永久删除', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByRole('button', { name: '临时策划 temporary-planner', exact: true })).toHaveCount(0);
+});
+
+test('开发态同步详情可保存正文并返回编辑区', async () => {
+  await page.getByRole('treeitem', { name: '正文', exact: true }).click();
+  await page.locator('[data-tree-path="正文/第一章.md"]').click();
+  const body = page.getByRole('textbox', { name: '文档正文', exact: true });
+  await body.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('同步详情内保存的段落。');
+  await page.getByRole('button', { name: '文件与同步', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '文件与同步', exact: true });
+  await expect(dialog).toContainText(workspace);
+  await expect(dialog).toContainText('云端状态未知');
+  await dialog.getByRole('button', { name: '全部保存', exact: true }).click();
+  await expect(dialog.locator('.sync-file')).toContainText('本地已保存');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toContain('同步详情内保存的段落');
+  await dialog.getByRole('button', { name: '定位 正文/第一章.md', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(body).toContainText('同步详情内保存的段落');
+});
+
+test('开发态技能和模板结构化表单可挂载且保留完整文件视图', async () => {
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  await page.getByRole('button', { name: '专员与内容 专员、技能、模板', exact: true }).click();
+  for (const kind of ['技能', '模板']) {
+    await page.getByRole('tab', { name: kind, exact: true }).click();
+    await page.getByRole('button', { name: `新建${kind}`, exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: `新建${kind}`, exact: true });
+    await expect(dialog.getByRole('textbox', { name: `${kind}标识`, exact: true })).toBeVisible();
+    await dialog.getByRole('tab', { name: '正文', exact: true }).click();
+    await expect(dialog.getByRole('textbox', { name: '内容正文', exact: true })).toBeVisible();
+    await dialog.getByRole('tab', { name: '完整文件', exact: true }).click();
+    await expect(dialog.getByRole('textbox', { name: '内容 Markdown', exact: true })).toHaveValue(/---/);
+    await dialog.getByRole('button', { name: '取消', exact: true }).click();
+    await expect(dialog).toBeHidden();
+  }
 });

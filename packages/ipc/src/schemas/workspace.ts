@@ -18,6 +18,16 @@ export const ListDirectoryArgsSchema = Type.Object(
 );
 export const ListDirectoryArgsValidator = Compile(Type.Tuple([ListDirectoryArgsSchema]));
 export const WorkspaceGetStateArgsValidator = Compile(Type.Tuple([]));
+export const SelectDirectoryArgsSchema = Type.Object(
+  {
+    defaultPath: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+    purpose: Type.Optional(Type.Union([Type.Literal('open'), Type.Literal('create')]))
+  },
+  { additionalProperties: false }
+);
+export const SelectDirectoryArgsValidator = Compile(
+  Type.Union([Type.Tuple([]), Type.Tuple([SelectDirectoryArgsSchema])])
+);
 export const CreateWorkspaceArgsSchema = Type.Object(
   {
     parentPath: Type.String({ minLength: 1, maxLength: 4096 }),

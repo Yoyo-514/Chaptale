@@ -88,7 +88,8 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         separatorBefore: true
       },
       { id: 'file.save-all', label: '全部保存', shortcut: 'Ctrl+Shift+S', disabled: !editor.hasUnsaved },
-      { id: 'file.auto-save', label: '自动保存', checked: editor.autoSave }
+      { id: 'file.auto-save', label: '自动保存', checked: editor.autoSave },
+      { id: 'file.sync', label: '文件与同步…', separatorBefore: true }
     ]
   },
   {
@@ -238,6 +239,10 @@ function handleSelect(itemId: string) {
   }
   if (itemId === 'file.new-workspace') {
     workspaceStore.newWorkspaceOpen = true;
+    return;
+  }
+  if (itemId === 'file.sync') {
+    workspaceStore.syncOpen = true;
     return;
   }
   if (itemId === 'view.primary-sidebar') {

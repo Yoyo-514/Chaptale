@@ -18,6 +18,8 @@ import {
   type SaveRecoveryArgs,
   type CreateChapterArgs,
   WorkspaceGetStateArgsValidator,
+  SelectDirectoryArgsValidator,
+  type SelectDirectoryArgs,
   type CreateEntryArgs,
   type ListDirectoryArgs,
   type ReadDocumentArgs,
@@ -29,14 +31,36 @@ import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import { createWorkspace } from './create-workspace';
 import { inspectWorkspaceEntry, mutateWorkspaceEntry, revealWorkspaceEntry } from './entry-operations';
 import type { WorkspaceService } from './service';
+import { inspectWorkspaceSync, resolveDirectory, resolveOneDriveFolder } from './sync';
 
 export function registerWorkspaceIpc(service: WorkspaceService, ui?: UiShell) {
   service.onChange(event => ui?.broadcast(IPC_CHANNELS.workspace.changed, event));
   handleValidatedIpc(IPC_CHANNELS.workspace.getState, WorkspaceGetStateArgsValidator, () => service.getState());
+  handleValidatedIpc(IPC_CHANNELS.workspace.getSyncState, WorkspaceGetStateArgsValidator, async () =>
+    inspectWorkspaceSync((await service.getState()).rootPath)
+  );
+  handleValidatedIpc(
+    IPC_CHANNELS.workspace.revealSyncRoot,
+    WorkspaceRootArgsValidator,
+    async (_event, args: { rootPath: string }) => {
+      if (!ui) throw new Error('系统文件管理器不可用');
+      await ui.openPath(await resolveOneDriveFolder(args.rootPath));
+    }
+  );
   handleValidatedIpc(
     IPC_CHANNELS.workspace.selectParent,
-    WorkspaceGetStateArgsValidator,
-    async event => (await ui?.pickDirectory(ui.resolveOwner(event), '选择新作品的存放位置')) ?? null
+    SelectDirectoryArgsValidator,
+    async (event, args: SelectDirectoryArgs = {}) => {
+      if (!ui) throw new Error('系统目录选择器不可用');
+      const defaultPath = args.defaultPath ? await resolveDirectory(args.defaultPath) : undefined;
+      return (
+        (await ui.pickDirectory(
+          ui.resolveOwner(event),
+          args.purpose === 'open' ? '选择已有作品目录' : '选择新作品的存放位置',
+          defaultPath
+        )) ?? null
+      );
+    }
   );
   handleValidatedIpc(
     IPC_CHANNELS.workspace.createWorkspace,

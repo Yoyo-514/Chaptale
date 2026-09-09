@@ -14,12 +14,29 @@ import type {
   WorkspaceChangedSchema,
   RecoveryPathArgsSchema,
   SaveRecoveryArgsSchema,
-  RecoveryDraftSchema
+  RecoveryDraftSchema,
+  SelectDirectoryArgsSchema
 } from './schemas/workspace';
 
 export const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
 
 export type WorkspaceState = { rootPath: string | null; displayName: string | null; hasChaptaleMetadata: boolean };
+export type SelectDirectoryArgs = Static<typeof SelectDirectoryArgsSchema>;
+export type OneDriveFolder = {
+  path: string;
+  kind: 'personal' | 'business' | 'default';
+  available: boolean;
+  error?: string;
+};
+/** 只确认本机目录归属，不推断客户端运行、账号授权或远端同步完成。 */
+export type WorkspaceSyncState = {
+  rootPath: string | null;
+  folders: OneDriveFolder[];
+  oneDriveRoot: string | null;
+  remoteState: 'unknown';
+  checkedAt: string;
+  workspaceError?: string;
+};
 export type CreateWorkspaceArgs = Static<typeof CreateWorkspaceArgsSchema>;
 export type CreateWorkspaceResult =
   | { ok: true; rootPath: string; firstDocument: string; files: string[] }

@@ -73,6 +73,8 @@ import type { TodosUpdatedEvent } from './todos';
 import type { WindowStateResult } from './window';
 import type {
   WorkspaceState,
+  WorkspaceSyncState,
+  SelectDirectoryArgs,
   ListDirectoryArgs,
   ListDirectoryResult,
   CreateEntryArgs,
@@ -110,7 +112,9 @@ export type ChaptaleDesktopApi = {
   library: LibraryApi;
   workspace: {
     getState: () => Promise<WorkspaceState>;
-    selectParent: () => Promise<string | null>;
+    getSyncState: () => Promise<WorkspaceSyncState>;
+    revealSyncRoot: (args: { rootPath: string }) => Promise<void>;
+    selectParent: (args?: SelectDirectoryArgs) => Promise<string | null>;
     createWorkspace: (args: CreateWorkspaceArgs) => Promise<CreateWorkspaceResult>;
     inspectEntry: (args: EntryPathArgs) => Promise<InspectEntryResult>;
     mutateEntry: (args: MutateEntryArgs) => Promise<MutateEntryResult>;

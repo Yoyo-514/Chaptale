@@ -66,6 +66,8 @@ export const IPC_CHANNELS = {
   },
   workspace: {
     getState: 'workspace:get-state',
+    getSyncState: 'workspace:get-sync-state',
+    revealSyncRoot: 'workspace:reveal-sync-root',
     selectParent: 'workspace:select-parent',
     createWorkspace: 'workspace:create-workspace',
     inspectEntry: 'workspace:inspect-entry',
