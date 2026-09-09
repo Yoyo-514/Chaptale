@@ -8,6 +8,8 @@ import path from 'node:path';
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 import type { ContentKind } from '@chaptale/shared';
 
+import { parseDocumentFrontmatter } from '../../packages/shared/src/document-frontmatter';
+
 const desktopDir = path.resolve('apps/desktop');
 const executablePath = createRequire(path.join(desktopDir, 'package.json'))('electron') as string;
 const visualDir = path.resolve('temp/visual-qa', `content-management-${Date.now()}`);
@@ -173,4 +175,121 @@ test('技能删除预览包含附件，确认期间变化会保留文件', async
   await dialog.locator('footer').getByRole('button', { name: '关闭', exact: true }).click();
   await remove('场景检查');
   await expect(readFile(filename)).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('技能与专员互相使用动态选项，删除后保留失效关联', async () => {
+  await save('persona');
+  await page.getByRole('tab', { name: '技能', exact: true }).click();
+  await page.getByRole('button', { name: '新建技能', exact: true }).click();
+  const skillEditor = page.getByRole('dialog', { name: '新建技能', exact: true });
+  await skillEditor.getByRole('textbox', { name: '技能标识', exact: true }).fill('target-skill');
+  await skillEditor.getByRole('textbox', { name: '技能描述', exact: true }).fill('定制场景检查');
+  await skillEditor.getByRole('checkbox', { name: '适用 自定义策划', exact: true }).check();
+  await skillEditor.getByRole('tab', { name: '正文', exact: true }).click();
+  await skillEditor.getByRole('textbox', { name: '内容正文', exact: true }).fill('检查人物选择，不替作者定稿。');
+  await skillEditor.getByRole('button', { name: '保存技能', exact: true }).click();
+  await expect(skillEditor).toBeHidden();
+  const filename = path.join(home, '.chaptale/skills/target-skill/SKILL.md');
+  expect(parseDocumentFrontmatter(await readFile(filename, 'utf8'))).toMatchObject({
+    status: 'ok',
+    frontmatter: { appliesTo: ['custom-planner'] },
+    body: '检查人物选择，不替作者定稿。'
+  });
+  await page.getByRole('tab', { name: '专员', exact: true }).click();
+  await page.getByRole('button', { name: '自定义策划 custom-planner', exact: true }).click();
+  const personaEditor = page.getByRole('dialog', { name: '编辑专员', exact: true });
+  await personaEditor.getByRole('tab', { name: '专员与权限', exact: true }).click();
+  await personaEditor.getByRole('checkbox', { name: /定制场景检查.*target-skill/ }).check();
+  await personaEditor.getByRole('button', { name: '保存专员', exact: true }).click();
+  await expect(personaEditor).toBeHidden();
+  expect(await readFile(path.join(home, '.chaptale/personas/custom-planner.md'), 'utf8')).toContain('target-skill');
+  await remove('自定义策划');
+  await page.getByRole('tab', { name: '技能', exact: true }).click();
+  await page.getByRole('button', { name: '定制场景检查 target-skill', exact: true }).click();
+  const editing = page.getByRole('dialog', { name: '编辑技能', exact: true });
+  await editing.getByRole('tab', { name: '技能与关联', exact: true }).click();
+  await expect(editing.getByRole('checkbox', { name: '适用 custom-planner', exact: true })).toBeChecked();
+  await expect(editing).toContainText('不可用');
+  await editing.getByRole('button', { name: '保存技能', exact: true }).click();
+  await expect(editing).toBeHidden();
+  expect(parseDocumentFrontmatter(await readFile(filename, 'utf8'))).toMatchObject({
+    frontmatter: { appliesTo: ['custom-planner'] }
+  });
+});
+
+test('模板类型与字段关联取自当前内容和资产，并允许自定义类型', async () => {
+  await page.evaluate(async rootPath => {
+    await (window as DesktopWindow).chaptaleDesktop.content.save({
+      rootPath,
+      scope: 'user',
+      kind: 'template',
+      id: 'source-template',
+      markdown:
+        '---\ntemplate: source-template\nname: 器物来源\ntargetKind: relic\ntargetRole: world\nfields:\n  - key: title\n    label: 标题\n    type: text\n---\n# {{title}}\n'
+    });
+  }, work);
+  await mkdir(path.join(work, '设定'), { recursive: true });
+  await writeFile(path.join(work, '设定/地点.md'), '---\nkind: story-place\ntitle: 北岸\n---\n渡口。\n');
+  await page.getByRole('button', { name: '刷新内容', exact: true }).click();
+  await page.getByRole('tab', { name: '模板', exact: true }).click();
+  await page.getByRole('button', { name: '新建模板', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '新建模板', exact: true });
+  await editor.getByRole('textbox', { name: '模板标识', exact: true }).fill('linked-relic');
+  await editor.getByRole('textbox', { name: '模板名称', exact: true }).fill('器物关联');
+  const kind = editor.getByRole('combobox', { name: '模板资料类型', exact: true });
+  await kind.fill('relic');
+  await expect(page.getByRole('option').filter({ hasText: 'relic' })).toBeVisible();
+  await page.getByRole('option').filter({ hasText: 'relic' }).click();
+  await kind.fill('artifact-record');
+  await kind.press('Tab');
+  await editor.getByRole('button', { name: '添加字段', exact: true }).click();
+  await editor.getByRole('textbox', { name: '字段 2 标识', exact: true }).fill('target');
+  await editor.getByRole('textbox', { name: '字段 2 名称', exact: true }).fill('关联地点');
+  await editor.getByRole('combobox', { name: '字段 2 类型', exact: true }).click();
+  await page.getByRole('option', { name: '资料链接', exact: true }).click();
+  await editor.getByRole('combobox', { name: '字段 2 关联类型', exact: true }).fill('story-place');
+  await expect(page.getByRole('option').filter({ hasText: 'story-place' })).toBeVisible();
+  await page.getByRole('option').filter({ hasText: 'story-place' }).click();
+  await editor.getByRole('tab', { name: '正文', exact: true }).click();
+  await editor.getByRole('textbox', { name: '内容正文', exact: true }).fill('# {{title}}\n\n{{target}}\n');
+  await editor.getByRole('button', { name: '保存模板', exact: true }).click();
+  await expect(editor).toBeHidden();
+  const parsed = parseDocumentFrontmatter(
+    await readFile(path.join(home, '.chaptale/templates/linked-relic.md'), 'utf8')
+  );
+  expect(parsed).toMatchObject({
+    frontmatter: {
+      targetKind: 'artifact-record',
+      fields: [
+        { key: 'title', type: 'text' },
+        { key: 'target', type: 'link', targetKind: 'story-place' }
+      ]
+    }
+  });
+  await page.getByRole('button', { name: '新建模板', exact: true }).click();
+  await editor.getByRole('combobox', { name: '模板资料类型', exact: true }).fill('artifact-record');
+  await expect(page.getByRole('option').filter({ hasText: 'artifact-record' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await editor.getByRole('button', { name: '取消', exact: true }).click();
+  await page.getByRole('button', { name: '放弃修改', exact: true }).click();
+});
+
+test('资产关联可以搜索列表第 200 项之后的角色', async () => {
+  await mkdir(path.join(work, '角色'), { recursive: true });
+  await Promise.all(
+    Array.from({ length: 260 }, (_, index) =>
+      writeFile(
+        path.join(work, `角色/人物${String(index).padStart(3, '0')}.md`),
+        `---\nkind: character\ntitle: 人物${index}\n---\n角色资料。\n`
+      )
+    )
+  );
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await page.getByRole('menuitem', { name: '文件', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新建场景卡', exact: true }).click();
+  const create = page.getByRole('dialog', { name: '新建场景卡', exact: true });
+  await create.getByRole('combobox', { name: '添加出场角色', exact: true }).fill('人物259');
+  await page.getByRole('option', { name: /人物259.*角色\/人物259\.md/ }).click();
+  await expect(create.getByRole('textbox', { name: '出场角色', exact: true })).toHaveValue('[[角色/人物259.md]]');
+  await create.getByRole('button', { name: '取消', exact: true }).click();
 });

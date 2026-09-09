@@ -47,6 +47,15 @@ export function parseDocumentFrontmatter(content: string): DocumentFrontmatter {
   }
 }
 
+/** 正文编辑保留原始元数据、注释、BOM 与换行格式。 */
+export function replaceDocumentBody(content: string, body: string): string {
+  const parsed = parseDocumentFrontmatter(content);
+  if (parsed.status === 'invalid') throw new Error(parsed.error);
+  const range = headRange(content);
+  if (!range) return body;
+  return content.slice(0, range.bodyStart) + body.replace(/\r?\n/g, range.eol);
+}
+
 /** 只替换指定 pair 的源码范围；未知字段和正文从原字符串直接保留。null 表示删除。 */
 export function patchDocumentFields(content: string, values: Readonly<Record<string, unknown>>): string {
   const entries = Object.entries(values);

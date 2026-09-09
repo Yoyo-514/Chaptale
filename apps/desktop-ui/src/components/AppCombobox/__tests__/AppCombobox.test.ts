@@ -12,14 +12,14 @@ const options = [
 let wrapper: VueWrapper;
 afterEach(() => wrapper?.unmount());
 
-function mountControlled(initial = '') {
+function mountControlled(initial = '', choices = options) {
   const value = ref(initial);
   wrapper = mount(
     defineComponent({
       setup: () => () =>
         h(AppCombobox, {
           modelValue: value.value,
-          options,
+          options: choices,
           'aria-label': '目标来源',
           'onUpdate:modelValue': next => {
             value.value = next;
@@ -59,6 +59,25 @@ describe('AppCombobox', () => {
     await wrapper.get('input').trigger('keydown', { key: 'ArrowDown' });
     await wrapper.get('input').trigger('keydown', { key: 'Enter' });
     await vi.waitFor(() => expect(options.map(option => option.value)).toContain(value.value));
+  });
+
+  it('先检索全部选项再限制可见数量，保留列表末尾的已选项', async () => {
+    const choices = Array.from({ length: 450 }, (_, index) => ({
+      value: `[[角色/人物${index}.md]]`,
+      label: `人物${index}`,
+      description: `角色/人物${index}.md`
+    }));
+    const value = mountControlled('', choices);
+    await wrapper.get('button').trigger('click');
+    await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]')).toHaveLength(200));
+    await wrapper.get('input').setValue('人物449');
+    await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]')).toHaveLength(1));
+    (document.querySelector('[role="option"]') as HTMLElement).click();
+    await vi.waitFor(() => expect(value.value).toBe('[[角色/人物449.md]]'));
+    expect(wrapper.findComponent(AppCombobox).emitted('select')).toEqual([['[[角色/人物449.md]]']]);
+    await wrapper.get('button').trigger('click');
+    await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]')).toHaveLength(200));
+    expect(document.querySelector('[role="option"]')?.textContent).toContain('人物449');
   });
 
   it('继承表单禁用状态并将错误与标签属性传到输入框', () => {

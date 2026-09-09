@@ -1213,7 +1213,7 @@ test('场景模板创建、表单无损保存及场景参考通过真实 IPC 串
   await create.getByRole('textbox', { name: '场景目标', exact: true }).fill('收到来信');
   await create.getByRole('combobox', { name: '所属章节', exact: true }).fill('[[正文/第一章.md]]');
   await create.getByRole('combobox', { name: '添加出场角色', exact: true }).click();
-  await page.getByRole('option', { name: '林晚 · 角色/林晚.md', exact: true }).click();
+  await page.getByRole('option', { name: /林晚.*角色\/林晚\.md/ }).click();
   await expect(create.getByRole('textbox', { name: '出场角色', exact: true })).toHaveValue('[[角色/林晚.md]]');
   await create.getByRole('button', { name: '创建文件', exact: true }).click();
   const scenePath = '大纲/场景卡/夜访.md';

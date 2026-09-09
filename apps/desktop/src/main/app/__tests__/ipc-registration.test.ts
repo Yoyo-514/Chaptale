@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ContentContextValidator,
   ContentReadValidator,
+  ContentDeleteValidator,
   ContentSaveValidator,
   ContentExportValidator,
   ContentBundleTextValidator,
@@ -145,6 +146,9 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.content.read, ContentReadValidator),
   validated(IPC_CHANNELS.content.save, ContentSaveValidator),
   validated(IPC_CHANNELS.content.archive, ContentReadValidator),
+  validated(IPC_CHANNELS.content.restore, ContentReadValidator),
+  validated(IPC_CHANNELS.content.previewDelete, ContentReadValidator),
+  validated(IPC_CHANNELS.content.delete, ContentDeleteValidator),
   validated(IPC_CHANNELS.content.previewExport, ContentExportValidator),
   validated(IPC_CHANNELS.content.saveExport, ContentBundleTextValidator),
   validated(IPC_CHANNELS.content.previewImport, ContentPreviewValidator),

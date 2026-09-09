@@ -30,7 +30,7 @@ const props = withDefaults(
   }>(),
   { modelValue: '', disabled: false, invalid: false, placeholder: undefined }
 );
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
+const emit = defineEmits<{ 'update:modelValue': [value: string]; select: [value: string] }>();
 const attrs = useAttrs();
 const form = inject(appFormContextKey, undefined);
 const disabled = computed(() => props.disabled || form?.disabled.value === true);
@@ -41,12 +41,22 @@ const inputAttrs = computed(() => {
 });
 const layer = useOverlayLayer();
 const options = computed(() => {
-  if (props.options.some(option => option.value === props.modelValue)) return props.options;
+  const selected = props.options.find(option => option.value === props.modelValue);
   const query = props.modelValue.toLocaleLowerCase().replace(/^\[\[|\]\]$/g, '');
-  return props.options.filter(option =>
-    `${option.label} ${option.value} ${option.description ?? ''}`.toLocaleLowerCase().includes(query)
-  );
+  const filtered = selected
+    ? props.options
+    : props.options.filter(option =>
+        `${option.label} ${option.value} ${option.description ?? ''}`.toLocaleLowerCase().includes(query)
+      );
+  const visible = filtered.slice(0, 200);
+  if (selected && !visible.includes(selected)) return [selected, ...visible.slice(0, 199)];
+  return visible;
 });
+function choose(value: unknown) {
+  const selected = String(value ?? '');
+  emit('update:modelValue', selected);
+  emit('select', selected);
+}
 </script>
 <template>
   <ComboboxRoot
@@ -56,7 +66,7 @@ const options = computed(() => {
     open-on-click
     :reset-search-term-on-blur="false"
     :reset-search-term-on-select="false"
-    @update:model-value="emit('update:modelValue', String($event ?? ''))"
+    @update:model-value="choose"
   >
     <ComboboxAnchor
       :class="cn('app-combobox-anchor', attrs.class)"
@@ -96,7 +106,7 @@ const options = computed(() => {
         :style="{ zIndex: `var(--z-${layer})` }"
       >
         <ComboboxViewport class="app-combobox-viewport">
-          <ComboboxEmpty class="app-combobox-empty">无匹配来源</ComboboxEmpty>
+          <ComboboxEmpty class="app-combobox-empty">没有匹配项</ComboboxEmpty>
           <ComboboxItem v-for="option in options" :key="option.value" :value="option.value" class="app-combobox-item">
             <span class="app-combobox-copy"
               ><span>{{ option.label }}</span

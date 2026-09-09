@@ -15,6 +15,7 @@ export type ContentEntry = ContentRef & {
   name: string;
   effective: boolean;
   persona?: PersonaFrontmatter;
+  targetKind?: string;
 };
 export type ContentList = { entries: ContentEntry[]; diagnostics: string[] };
 export type ContentDocument = ContentEntry & { markdown: string };

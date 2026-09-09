@@ -73,6 +73,7 @@ function share(mode: 'import' | 'export') {
   sharing.value = true;
 }
 function manage(entry: ContentEntry, mode: 'delete' | 'restore') {
+  if (content.loading) return;
   actionEntry.value = entry;
   action.value = mode;
   actionOpen.value = true;
@@ -97,7 +98,7 @@ async function managed(entry: ContentEntry) {
           ><AppButton icon variant="ghost" aria-label="刷新内容" :disabled="content.loading" @click="content.refresh"
             ><span class="i-mingcute-refresh-3-line size-4" aria-hidden="true" /></AppButton
         ></AppTooltip>
-        <AppButton @click="create"
+        <AppButton :disabled="content.loading" @click="create"
           ><span class="i-mingcute-add-line size-4" aria-hidden="true" />新建{{
             kinds.find(item => item.value === kind)?.label
           }}</AppButton
@@ -118,7 +119,7 @@ async function managed(entry: ContentEntry) {
                   : selected.filter(key => key !== contentKey(entry))
             "
           />
-          <AppButton variant="ghost" class="content-item" @click="open(entry)">
+          <AppButton variant="ghost" class="content-item" :disabled="content.loading" @click="open(entry)">
             <strong>{{ entry.name }}</strong
             ><span>{{ entry.id }}</span>
           </AppButton>
@@ -136,12 +137,22 @@ async function managed(entry: ContentEntry) {
           >
           <div v-if="entry.source !== 'builtin'" class="content-actions">
             <AppTooltip v-if="entry.archived" text="恢复内容">
-              <AppButton icon variant="ghost" :aria-label="`恢复 ${entry.name}`" @click="manage(entry, 'restore')"
+              <AppButton
+                icon
+                variant="ghost"
+                :disabled="content.loading"
+                :aria-label="`恢复 ${entry.name}`"
+                @click="manage(entry, 'restore')"
                 ><span class="i-mingcute-back-2-line size-4" aria-hidden="true"
               /></AppButton>
             </AppTooltip>
             <AppTooltip text="永久删除">
-              <AppButton icon variant="ghost" :aria-label="`永久删除 ${entry.name}`" @click="manage(entry, 'delete')"
+              <AppButton
+                icon
+                variant="ghost"
+                :disabled="content.loading"
+                :aria-label="`永久删除 ${entry.name}`"
+                @click="manage(entry, 'delete')"
                 ><span class="i-mingcute-delete-2-line size-4" aria-hidden="true"
               /></AppButton>
             </AppTooltip>

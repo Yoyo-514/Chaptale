@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useId } from 'vue';
+import { reactive, useId } from 'vue';
 
 import type { AssetFieldValue, AssetRecord, TemplateField } from '@chaptale/shared';
 
@@ -18,6 +18,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ field: [key: string, value: AssetFieldValue] }>();
 const id = useId();
+const linkDrafts = reactive<Record<string, string>>({});
 type Relation = { to: string; type: string; note?: string };
 const relationRows = (key: string) => (Array.isArray(props.values[key]) ? props.values[key] : []) as Relation[];
 function relation(key: string, index: number, patch: Partial<Relation>) {
@@ -32,29 +33,23 @@ function tags(value: unknown) {
   return Array.isArray(value) ? value.join('\n') : text(value);
 }
 const choices = (field: TemplateField) =>
-  (props.assets ?? [])
-    .filter(
-      asset =>
-        !field.targetKind ||
-        asset.kind === field.targetKind ||
-        (field.targetKind === 'chapter' && asset.role === 'manuscript' && !asset.kind)
-    )
-    .slice(0, 200);
+  (props.assets ?? []).filter(
+    asset =>
+      !field.targetKind ||
+      asset.kind === field.targetKind ||
+      (field.targetKind === 'chapter' && asset.role === 'manuscript' && !asset.kind)
+  );
 const linkOptions = (field: TemplateField) =>
   choices(field).map(asset => ({
     value: `[[${asset.sourcePath}]]`,
     label: asset.title,
     description: asset.sourcePath
   }));
-const relationOptions = () =>
-  (props.assets ?? []).slice(0, 200).map(asset => ({
-    value: `[[${asset.sourcePath}]]`,
-    label: asset.title,
-    description: asset.sourcePath
-  }));
 function addLink(key: string, value: string) {
-  if (value !== '__add')
+  if (value) {
     emit('field', key, [...new Set([...tags(props.values[key]).split('\n').filter(Boolean), value])]);
+    linkDrafts[key] = '';
+  }
 }
 </script>
 <template>
@@ -91,18 +86,15 @@ function addLink(key: string, value: string) {
           :disabled="disabled"
           @update:model-value="emit('field', field.key, $event.split(/\r?\n/))"
         />
-        <AppSelect
+        <AppCombobox
           v-if="field.targetKind"
-          model-value="__add"
+          :model-value="linkDrafts[field.key] ?? ''"
           :aria-label="`添加${field.label}`"
+          :options="linkOptions(field)"
           :disabled="disabled"
-          @update:model-value="addLink(field.key, $event)"
-        >
-          <AppSelectItem value="__add" disabled>添加{{ field.label }}</AppSelectItem>
-          <AppSelectItem v-for="asset in choices(field)" :key="asset.sourcePath" :value="`[[${asset.sourcePath}]]`">
-            {{ asset.title }} · {{ asset.sourcePath }}
-          </AppSelectItem>
-        </AppSelect>
+          @update:model-value="linkDrafts[field.key] = $event"
+          @select="addLink(field.key, $event)"
+        />
       </template>
       <div v-else-if="field.type === 'relations'" class="relations">
         <div v-for="(row, index) in relationRows(field.key)" :key="index" class="relation-row">
@@ -110,7 +102,7 @@ function addLink(key: string, value: string) {
             <AppCombobox
               :model-value="row.to"
               :aria-label="`${field.label} ${index + 1} 目标`"
-              :options="relationOptions()"
+              :options="linkOptions(field)"
               :disabled="disabled"
               @update:model-value="relation(field.key, index, { to: $event })"
             />

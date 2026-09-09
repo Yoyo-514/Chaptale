@@ -29,7 +29,7 @@ const protectedFields = new Set([
 export function describeContent(
   kind: ContentKind,
   markdown: string
-): { id: string; name: string; persona?: PersonaFrontmatter } {
+): { id: string; name: string; persona?: PersonaFrontmatter; targetKind?: string } {
   if (!markdown.isWellFormed() || markdown.includes('\0') || Buffer.byteLength(markdown) > MAX_MANAGED_TEXT_BYTES)
     throw new Error('内容必须是 128 KiB 以内的 UTF-8 文本');
   const head = parseDocumentFrontmatter(markdown);
@@ -59,7 +59,7 @@ export function describeContent(
     template.fields.some(field => protectedFields.has(field.key))
   )
     throw new Error('模板字段重复或包含受保护字段');
-  return { id: template.template, name: template.name };
+  return { id: template.template, name: template.name, targetKind: template.targetKind };
 }
 
 /** 分享的是内容，不是本机授权；正文完整保留供作者检查，不声称能自动识别秘密。 */

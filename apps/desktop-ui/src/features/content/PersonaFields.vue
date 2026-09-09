@@ -8,6 +8,7 @@ import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useSettingsStore } from '@/features/settings';
 
+import { contentOptions } from './options';
 import { useContentStore } from './store';
 
 const props = defineProps<{ modelValue: PersonaFrontmatter; readonly?: boolean }>();
@@ -15,14 +16,8 @@ const emit = defineEmits<{ 'update:modelValue': [value: PersonaFrontmatter] }>()
 const content = useContentStore();
 const settings = useSettingsStore();
 const review = computed(() => props.modelValue.type === 'review');
-const skills = computed(() =>
-  [
-    ...new Set([
-      ...content.entries.filter(item => item.kind === 'skill' && item.effective).map(item => item.id),
-      ...(props.modelValue.skills ?? [])
-    ])
-  ].toSorted()
-);
+const skills = computed(() => contentOptions('skill', content.entries, props.modelValue.skills ?? []));
+const availableModels = computed(() => settings.models?.models.filter(item => item.authConfigured) ?? []);
 function patch(value: Partial<PersonaFrontmatter>) {
   emit('update:modelValue', { ...props.modelValue, ...value });
 }
@@ -80,7 +75,7 @@ function setRole(value: string) {
       >
         <AppSelectItem value="__default">使用默认模型</AppSelectItem>
         <AppSelectItem
-          v-for="model in settings.models?.models.filter(item => item.authConfigured)"
+          v-for="model in availableModels"
           :key="`${model.provider}/${model.id}`"
           :value="`${model.provider}/${model.id}`"
           >{{ model.providerName }} / {{ model.name }}</AppSelectItem
@@ -88,10 +83,10 @@ function setRole(value: string) {
         <AppSelectItem
           v-if="
             modelValue.model?.preference &&
-            !settings.models?.models.some(item => `${item.provider}/${item.id}` === modelValue.model?.preference)
+            !availableModels.some(item => `${item.provider}/${item.id}` === modelValue.model?.preference)
           "
           :value="modelValue.model.preference"
-          >{{ modelValue.model.preference }}</AppSelectItem
+          >{{ modelValue.model.preference }} · 不可用</AppSelectItem
         >
       </AppSelect></label
     >
@@ -146,12 +141,12 @@ function setRole(value: string) {
     </fieldset>
     <fieldset>
       <legend>绑定技能</legend>
-      <label v-for="skill in skills" :key="skill" class="inline">
+      <label v-for="skill in skills" :key="skill.value" class="inline">
         <AppCheckbox
-          :model-value="modelValue.skills?.includes(skill) ?? false"
+          :model-value="modelValue.skills?.includes(skill.value) ?? false"
           :disabled="readonly"
-          @update:model-value="patch({ skills: toggle(modelValue.skills, skill, $event === true) })"
-        />{{ skill }}
+          @update:model-value="patch({ skills: toggle(modelValue.skills, skill.value, $event === true) })"
+        /><span>{{ skill.label }} · {{ skill.detail }}</span>
       </label>
       <span v-if="!skills.length">暂无技能</span>
     </fieldset>

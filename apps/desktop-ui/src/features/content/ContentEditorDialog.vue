@@ -2,7 +2,11 @@
 import { computed, ref, toRaw, watch } from 'vue';
 
 import type { ContentDocument, ContentKind, ContentScope, PersonaFrontmatter } from '@chaptale/shared';
-import { parseDocumentFrontmatter, patchDocumentFields } from '@chaptale/shared/document-frontmatter';
+import {
+  parseDocumentFrontmatter,
+  patchDocumentFields,
+  replaceDocumentBody
+} from '@chaptale/shared/document-frontmatter';
 
 import { AppButton } from '@/components/AppButton';
 import { AppDialog } from '@/components/AppDialog';
@@ -13,6 +17,7 @@ import { AppTabs } from '@/components/AppTabs';
 import { AppTextarea } from '@/components/AppTextarea';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
+import ContentDefinitionFields from './ContentDefinitionFields.vue';
 import PersonaFields from './PersonaFields.vue';
 import { toContentRef, useContentStore } from './store';
 
@@ -37,6 +42,7 @@ const personaForm = computed(
   () => props.kind === 'persona' && (persona.value.execution === 'chat' || persona.value.type === 'review')
 );
 const labels = { persona: '专员', skill: '技能', template: '模板' };
+const parsedMarkdown = computed(() => parseDocumentFrontmatter(markdown.value));
 const serialized = computed(() => {
   if (!personaForm.value) return markdown.value;
   const header = { ...persona.value, id: id.value };
@@ -89,6 +95,14 @@ function copy() {
   if (!personaForm.value) {
     const field = props.kind === 'persona' ? 'id' : props.kind === 'skill' ? 'name' : 'template';
     markdown.value = patchDocumentFields(markdown.value, { [field]: id.value });
+  }
+}
+function updateBody(value: string) {
+  try {
+    markdown.value = replaceDocumentBody(markdown.value, value);
+    error.value = '';
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
   }
 }
 async function save() {
@@ -194,6 +208,45 @@ async function confirmArchive() {
           readonly
           :rows="15"
           resize="none"
+        />
+      </AppTabs>
+      <AppTabs
+        v-else-if="kind === 'skill' || kind === 'template'"
+        v-model="tab"
+        :items="[
+          { value: 'body', label: '正文' },
+          { value: 'settings', label: kind === 'skill' ? '技能与关联' : '模板与字段' },
+          { value: 'source', label: '完整文件' }
+        ]"
+        label="内容编辑视图"
+      >
+        <AppTextarea
+          v-if="tab === 'body'"
+          :model-value="parsedMarkdown.status === 'ok' ? parsedMarkdown.body : markdown"
+          class="content-source"
+          aria-label="内容正文"
+          :readonly="readonly || parsedMarkdown.status !== 'ok'"
+          :rows="15"
+          resize="none"
+          @update:model-value="updateBody"
+        />
+        <AppScrollArea v-else-if="tab === 'settings'" class="content-form-scroll">
+          <ContentDefinitionFields
+            v-model="markdown"
+            :kind="kind"
+            :readonly="readonly"
+            :id-locked="Boolean(document && !copied)"
+          />
+        </AppScrollArea>
+        <AppTextarea
+          v-else
+          v-model="markdown"
+          class="content-source"
+          aria-label="内容 Markdown"
+          :readonly="readonly"
+          :rows="15"
+          resize="none"
+          spellcheck="false"
         />
       </AppTabs>
       <AppTextarea
