@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test';
 import type { ElectronApplication, Page } from '@playwright/test';
-import { appendFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -73,6 +73,85 @@ test('M6 slash 设置命令打开真实面板，不发送 Agent 消息', async (
   await expect(page.getByRole('heading', { name: '设置', exact: true })).toBeVisible();
   const sessions = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.session.list());
   expect(sessions.every(session => session.messageCount === 0)).toBe(true);
+});
+
+test('设置按实际访问加载，重开保留窗口位置和创作草稿', async () => {
+  const renderer = path.join(desktopDir, 'dist/renderer');
+  const manifest = JSON.parse(await readFile(path.join(renderer, '.vite/manifest.json'), 'utf8')) as Record<
+    string,
+    { file: string; src?: string; isEntry?: boolean; imports?: string[] }
+  >;
+  const chunk = (name: string) => {
+    const entry = Object.values(manifest).find(item => item.src?.endsWith(`/${name}.vue`));
+    expect(entry, name).toBeDefined();
+    return entry!.file;
+  };
+  const files = [
+    ...new Set(
+      Object.values(manifest)
+        .map(item => item.file)
+        .filter(file => file.endsWith('.js'))
+    )
+  ];
+  for (const file of files) expect((await stat(path.join(renderer, file))).size, file).toBeLessThan(500_000);
+
+  const requests = new Set<string>();
+  page.on('request', request => requests.add(request.url()));
+  await page.reload();
+  await expect(page.getByPlaceholder('描述你的创作需求...')).toBeVisible();
+  await test.info().attach('renderer-resources', {
+    body: JSON.stringify(
+      {
+        requests: [...requests],
+        timings: await page.evaluate(() => performance.getEntriesByType('resource').map(entry => entry.name))
+      },
+      null,
+      2
+    ),
+    contentType: 'application/json'
+  });
+  const loaded = (file: string) => [...requests].some(url => url.endsWith(`/${file}`));
+  const entry = Object.values(manifest).find(item => item.isEntry)!;
+  expect(loaded(entry.file)).toBe(true);
+  for (const name of ['SettingsPanel', 'WorkspaceSettings', 'LLMSettings', 'PromptSettings', 'ContentSettings']) {
+    expect(loaded(chunk(name)), name).toBe(false);
+  }
+
+  const draft = page.getByPlaceholder('描述你的创作需求...');
+  await draft.fill('关闭设置后继续推敲的段落。');
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '工作区与会话存储', exact: true })).toBeVisible();
+  expect(loaded(chunk('SettingsPanel'))).toBe(true);
+  expect(loaded(chunk('WorkspaceSettings'))).toBe(true);
+  expect(loaded(chunk('LLMSettings'))).toBe(false);
+
+  const panel = page.locator('.settings-panel');
+  const initial = (await panel.boundingBox())!;
+  await page.mouse.move(initial.x + 200, initial.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(initial.x + 224, initial.y + 36, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (await panel.boundingBox())!.x).toBeGreaterThan(initial.x + 10);
+  const moved = (await panel.boundingBox())!;
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  const reopened = (await panel.boundingBox())!;
+  expect(Math.abs(reopened.x - moved.x)).toBeLessThan(1);
+  expect(Math.abs(reopened.y - moved.y)).toBeLessThan(1);
+
+  await page.getByRole('button', { name: '模型 供应商、API Key 与默认模型', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '模型服务', exact: true })).toBeVisible();
+  expect(loaded(chunk('LLMSettings'))).toBe(true);
+  expect(loaded(chunk('PromptSettings'))).toBe(false);
+  expect(loaded(chunk('ContentSettings'))).toBe(false);
+  await page.getByRole('button', { name: /Prompt System 与追加提示/ }).click();
+  await expect(page.getByRole('textbox', { name: 'System Prompt', exact: true })).toBeVisible();
+  expect(loaded(chunk('PromptSettings'))).toBe(true);
+  await page.getByRole('button', { name: '专员与内容 专员、技能、模板', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '专员与创作内容', exact: true })).toBeVisible();
+  expect(loaded(chunk('ContentSettings'))).toBe(true);
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await expect(draft).toHaveValue('关闭设置后继续推敲的段落。');
 });
 
 test('M6 Prompt 设置经真实文件保存、重载并恢复内置正文', async () => {
@@ -183,14 +262,19 @@ test('M6 落盘技能与图片经真实消息投影回放，原图可预览', as
       .toPNG()
       .toString('base64')
   );
-  const session = await page.evaluate(async () => {
-    const api = (window as DesktopWindow).chaptaleDesktop;
-    const created = await api.session.create({ name: '附件回放' });
-    await api.settings.update({ lastSessionId: created.id });
-    return created;
-  });
+  const session = await page.evaluate(() =>
+    (window as DesktopWindow).chaptaleDesktop.session.create({ name: '附件回放' })
+  );
+  await page.getByRole('button', { name: '历史记录', exact: true }).click();
+  await page.locator('.history-item-select').filter({ hasText: '附件回放' }).click();
+  await expect(page.getByRole('region', { name: '历史记录', exact: true })).toBeHidden();
+  await expect(
+    page.getByLabel('聊天工具栏').getByRole('button', { name: '重命名 附件回放', exact: true })
+  ).toBeVisible();
   expect(path.resolve(session.path).startsWith(path.resolve(home) + path.sep)).toBe(true);
   await app.close();
+  const persistedSettings = JSON.parse(await readFile(path.join(home, '.chaptale/settings.json'), 'utf8'));
+  expect(Object.values(persistedSettings.lastSessions ?? {})).toContain(session.id);
   await appendFile(
     session.path,
     JSON.stringify({

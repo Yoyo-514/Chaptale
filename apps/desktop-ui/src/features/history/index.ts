@@ -1,1 +1,1 @@
-export { default as HistoryView } from './HistoryView.vue';
+export const loadHistoryView = () => import('./HistoryView.vue');

@@ -626,15 +626,20 @@ test('M6 右键菜单联动文件、标签、选区与 Agent，不自动发送',
 });
 
 test('M6 三主题文本选择和 skill 对比度、菜单文字列对齐', async () => {
-  const session = await page.evaluate(async () => {
-    const api = (window as DesktopWindow).chaptaleDesktop;
-    const created = await api.session.create({ name: '选区视觉检查' });
-    await api.settings.update({ lastSessionId: created.id });
-    return created;
-  });
+  const session = await page.evaluate(() =>
+    (window as DesktopWindow).chaptaleDesktop.session.create({ name: '选区视觉检查' })
+  );
+  await page.getByRole('button', { name: '历史记录', exact: true }).click();
+  await page.locator('.history-item-select').filter({ hasText: '选区视觉检查' }).click();
+  await expect(page.getByRole('region', { name: '历史记录', exact: true })).toBeHidden();
+  await expect(
+    page.getByLabel('聊天工具栏').getByRole('button', { name: '重命名 选区视觉检查', exact: true })
+  ).toBeVisible();
   expect(path.resolve(session.path).startsWith(path.resolve(home) + path.sep)).toBe(true);
   await app!.close();
   app = undefined;
+  const persistedSettings = JSON.parse(await readFile(path.join(home, '.chaptale/settings.json'), 'utf8'));
+  expect(Object.values(persistedSettings.lastSessions ?? {})).toContain(session.id);
   const records = (await readFile(session.path, 'utf8'))
     .trim()
     .split('\n')

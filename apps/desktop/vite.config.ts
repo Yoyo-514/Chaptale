@@ -82,8 +82,22 @@ export default defineConfig(async () => ({
   build: {
     outDir: path.resolve(desktopRoot, 'dist/renderer'),
     emptyOutDir: true,
+    manifest: true,
     rolldownOptions: {
-      input: path.resolve(rendererRoot, 'index.html')
+      input: path.resolve(rendererRoot, 'index.html'),
+      output: {
+        chunkFileNames: (chunk: { name: string }) =>
+          chunk.name.startsWith('editor-engine') ? 'assets/editor-engine-[hash].js' : 'assets/[name]-[hash].js',
+        codeSplitting: {
+          groups: [
+            {
+              name: 'editor-engine',
+              test: /node_modules[\\/]@codemirror[\\/](state|view|commands|language|merge)[\\/]/,
+              entriesAware: true
+            }
+          ]
+        }
+      }
     }
   }
 }));

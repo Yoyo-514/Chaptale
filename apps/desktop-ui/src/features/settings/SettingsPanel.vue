@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { defineAsyncComponent, onMounted } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useDraggablePanel, type ResizeDirection } from '@/composables';
 import { ContentSettings } from '@/features/content';
 
 import SettingsSidebar from './components/SettingsSidebar.vue';
-import ConfigFilesSettings from './sections/ConfigFilesSettings.vue';
-import LLMSettings from './sections/LLMSettings.vue';
-import PermissionsSettings from './sections/PermissionsSettings.vue';
-import PromptSettings from './sections/PromptSettings.vue';
-import WebToolsSettings from './sections/WebToolsSettings.vue';
-import WorkspaceSettings from './sections/WorkspaceSettings.vue';
 import { useSettingsStore } from './store';
+
+const WorkspaceSettings = defineAsyncComponent(() => import('./sections/WorkspaceSettings.vue'));
+const LLMSettings = defineAsyncComponent(() => import('./sections/LLMSettings.vue'));
+const PromptSettings = defineAsyncComponent(() => import('./sections/PromptSettings.vue'));
+const WebToolsSettings = defineAsyncComponent(() => import('./sections/WebToolsSettings.vue'));
+const PermissionsSettings = defineAsyncComponent(() => import('./sections/PermissionsSettings.vue'));
+const ConfigFilesSettings = defineAsyncComponent(() => import('./sections/ConfigFilesSettings.vue'));
 
 const resizeDirections: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 

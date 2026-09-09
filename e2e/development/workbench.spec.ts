@@ -276,3 +276,19 @@ test('开发态技能和模板结构化表单可挂载且保留完整文件视�
     await expect(dialog).toBeHidden();
   }
 });
+
+test('开发态所有设置分类按需挂载，无运行时警告或空白页', async () => {
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  for (const [button, heading] of [
+    ['工作区 会话位置与存储模式', '工作区与会话存储'],
+    ['模型 供应商、API Key 与默认模型', '模型服务'],
+    ['Prompt System 与追加提示词', 'Prompt 自定义'],
+    ['联网 搜索、提取与 API Key', '联网与内容提取'],
+    ['权限 工具授权与持久规则', '权限'],
+    ['配置文件 应用与模型配置路径', '配置文件'],
+    ['专员与内容 专员、技能、模板', '专员与创作内容']
+  ]) {
+    await page.getByRole('button', { name: button, exact: true }).click();
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+  }
+});

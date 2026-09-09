@@ -1,2 +1,2 @@
 export { default as ChatToolbar } from './components/ChatToolbar.vue';
-export { default as ChatView } from './ChatView.vue';
+export const loadChatView = () => import('./ChatView.vue');
