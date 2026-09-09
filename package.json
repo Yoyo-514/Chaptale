@@ -41,6 +41,7 @@
     "test:coverage:all": "vitest run --config vitest.coverage.config.ts --coverage",
     "test:coverage:core": "vitest run --config vitest.config.ts --coverage",
     "test:e2e": "pnpm test:e2e:electron",
+    "test:e2e:development": "pnpm build:desktop && playwright test --config playwright.development.config.ts",
     "test:e2e:electron": "pnpm build:desktop && playwright test --config playwright.electron.config.ts",
     "test:unit": "turbo run test --concurrency=1",
     "test:watch": "vitest --config vitest.config.ts",

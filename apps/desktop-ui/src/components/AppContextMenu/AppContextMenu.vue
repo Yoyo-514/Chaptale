@@ -48,6 +48,7 @@ function keyboard(event: KeyboardEvent) {
   overflow: auto;
   background: var(--popover);
   color: var(--popover-foreground);
+  border-color: var(--border-subtle);
   border-radius: var(--radius-control);
   font-size: var(--ui-font-size);
 }

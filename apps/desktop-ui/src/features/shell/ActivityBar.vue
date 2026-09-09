@@ -44,33 +44,42 @@ const activities = [
 
     <div class="activity-bar-spacer" />
 
-    <AppTooltip
-      :text="
-        navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode
-          ? '隐藏 Agent'
-          : '打开 Agent'
-      "
-      side="right"
-      :side-offset="6"
-    >
-      <AppButton
-        icon
-        size="lg"
-        variant="ghost"
-        type="button"
-        aria-label="切换 Agent 面板"
-        :aria-pressed="navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode"
-        :selected="navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode"
-        @click="navigation.toggleAgent"
+    <div class="activity-bar-secondary">
+      <AppTooltip
+        :text="
+          navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode
+            ? '隐藏 Agent'
+            : '打开 Agent'
+        "
+        side="right"
+        :side-offset="6"
       >
-        <span class="i-mingcute-chat-3-line activity-icon" aria-hidden="true" />
-      </AppButton>
-    </AppTooltip>
-    <AppTooltip text="设置" side="right" :side-offset="6" with-arrow>
-      <AppButton icon size="lg" variant="ghost" type="button" aria-label="打开设置" @click="settingsStore.openPanel()">
-        <span class="i-mingcute-settings-3-line activity-icon" aria-hidden="true" />
-      </AppButton>
-    </AppTooltip>
+        <AppButton
+          icon
+          size="lg"
+          variant="ghost"
+          type="button"
+          aria-label="切换 Agent 面板"
+          :aria-pressed="navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode"
+          :selected="navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode"
+          @click="navigation.toggleAgent"
+        >
+          <span class="i-mingcute-chat-3-line activity-icon" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip text="设置" side="right" :side-offset="6" with-arrow>
+        <AppButton
+          icon
+          size="lg"
+          variant="ghost"
+          type="button"
+          aria-label="打开设置"
+          @click="settingsStore.openPanel()"
+        >
+          <span class="i-mingcute-settings-3-line activity-icon" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+    </div>
   </aside>
 </template>
 
@@ -83,7 +92,8 @@ const activities = [
   backdrop-filter: var(--blur-acrylic-subtle);
 }
 
-.activity-bar-primary {
+.activity-bar-primary,
+.activity-bar-secondary {
   @apply flex flex-col items-center gap-1;
 }
 

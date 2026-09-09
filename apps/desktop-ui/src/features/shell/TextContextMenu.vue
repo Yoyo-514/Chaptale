@@ -63,9 +63,9 @@ async function execute(id: string) {
 </script>
 <template>
   <slot />
-  <AppContextMenu :items="items" @select="execute"
-    ><span ref="anchor" class="text-menu-anchor" aria-hidden="true"
-  /></AppContextMenu>
+  <AppContextMenu :items="items" @select="execute">
+    <span class="text-menu-anchor" aria-hidden="true"><span ref="anchor" /></span>
+  </AppContextMenu>
 </template>
 <style scoped>
 .text-menu-anchor {

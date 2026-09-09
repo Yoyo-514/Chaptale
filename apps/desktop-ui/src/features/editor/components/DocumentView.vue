@@ -418,7 +418,10 @@ watch(
         </nav>
       </AppScrollArea>
       <AppContextMenu :items="contextItems" @prepare="prepareContext" @select="selectContext">
-        <div ref="host" class="document-codemirror" />
+        <div class="document-codemirror">
+          <!-- 插槽根节点可能被上层克隆；编辑器挂载引用由本组件内部节点持有。 -->
+          <div ref="host" class="document-codemirror-host" />
+        </div>
       </AppContextMenu>
       <span v-if="!(buffer?.state.doc.length ?? document.content.length)" class="document-empty" role="status"
         >空文件</span
@@ -479,6 +482,9 @@ watch(
 
 .document-codemirror {
   @apply h-full min-h-0 min-w-0 flex-1;
+}
+.document-codemirror-host {
+  @apply h-full min-h-0 min-w-0;
 }
 .document-outline {
   @apply h-full w-40 max-w-[35%] shrink-0 border-r;

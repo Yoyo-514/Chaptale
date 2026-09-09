@@ -111,7 +111,9 @@ onBeforeUnmount(() => {
         class="workbench-primary-sidebar"
         aria-label="工作区侧栏"
       >
-        <WorkspaceExplorer v-show="navigation.sidebar === 'workspace'" @open-file="editor.openDocument" />
+        <div v-show="navigation.sidebar === 'workspace'" class="workbench-sidebar-view">
+          <WorkspaceExplorer @open-file="editor.openDocument" />
+        </div>
         <ReviewCenter v-if="navigation.sidebar === 'review'" />
         <StructurePanel v-if="navigation.sidebar === 'structure'" />
         <WorkspaceSearch v-if="navigation.sidebar === 'search'" />
@@ -224,6 +226,10 @@ onBeforeUnmount(() => {
 .workbench-editor,
 .workbench-auxiliary-bar {
   @apply flex h-full min-w-0 flex-col overflow-hidden;
+}
+
+.workbench-sidebar-view {
+  @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden;
 }
 
 .workbench-primary-sidebar,
