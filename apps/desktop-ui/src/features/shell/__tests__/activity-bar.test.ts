@@ -18,7 +18,7 @@ describe('ActivityBar', () => {
     expect(activityButtons.map(button => button.attributes('aria-label'))).toEqual([
       '工作区',
       '搜索',
-      '结构',
+      '资料库',
       '审查',
       '记忆'
     ]);

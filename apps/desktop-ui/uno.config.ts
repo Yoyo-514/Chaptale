@@ -9,7 +9,10 @@ import {
   transformerVariantGroup
 } from 'unocss';
 
+import { workspaceViews } from './src/features/workbench/views';
+
 export default defineConfig({
+  safelist: workspaceViews.map(view => view.icon),
   presets: [
     presetWind4(),
     presetAttributify(),

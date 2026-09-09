@@ -140,6 +140,17 @@ async function openContentSettings() {
   await expect(page.getByRole('heading', { name: '专员与创作内容' })).toBeVisible();
 }
 
+async function openWorkspaceView(label: '资料库' | '故事时间线' | '角色关系') {
+  const tab = page.getByRole('tab', { name: label, exact: true });
+  if (await tab.count()) await tab.click();
+  else {
+    if (!(await page.getByRole('region', { name: '资料库导航', exact: true }).isVisible()))
+      await page.getByRole('button', { name: '资料库', exact: true }).click();
+    await page.getByRole('button', { name: `打开${label}`, exact: true }).click();
+  }
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+}
+
 test('M6 专员表单落盘、切换创建新会话，停用后不回退身份', async () => {
   await openContentSettings();
   await page.getByRole('button', { name: '新建专员', exact: true }).click();
@@ -322,7 +333,7 @@ test('M6 全文搜索区分范围并定位正文，记忆原文可独立浏览',
   const memory = page.getByRole('region', { name: '作品记忆' });
   await memory.getByRole('button').filter({ hasText: '作者观察' }).click();
   await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toContainText('林晚仍未拆信');
-  await memory.getByRole('button', { name: '隐藏侧栏' }).click();
+  await page.getByRole('button', { name: '记忆', exact: true }).click();
   await expect(memory).toBeHidden();
 });
 
@@ -357,7 +368,7 @@ test('M6 故事时间线按情节排序，编辑事件与新建资产保留文�
   await page.getByRole('textbox', { name: '文档正文', exact: true }).click();
   await page.keyboard.press('Control+End');
   await page.keyboard.insertText('切换资产视图仍保留的草稿。');
-  await page.getByRole('tab', { name: '资料库', exact: true }).click();
+  await openWorkspaceView('资料库');
   const library = page.getByRole('region', { name: '作品资料库', exact: true });
   await library.getByRole('textbox', { name: '搜索资料库', exact: true }).fill('林晚');
   await expect(library.locator('[data-asset-path]')).toHaveCount(2);
@@ -366,7 +377,7 @@ test('M6 故事时间线按情节排序，编辑事件与新建资产保留文�
   await expect(library.locator('[data-asset-path]')).toHaveCount(1);
   await library.getByRole('button', { name: '资料列表视图', exact: true }).click();
   await expect(library.locator('.asset-library-results')).toHaveClass(/list/);
-  await page.getByRole('tab', { name: '故事时间线', exact: true }).click();
+  await openWorkspaceView('故事时间线');
   const timeline = page.getByRole('region', { name: '作品故事时间线', exact: true });
   await expect(timeline.locator('[data-event-path]')).toHaveCount(3);
   expect(
@@ -409,7 +420,7 @@ test('M6 故事时间线按情节排序，编辑事件与新建资产保留文�
 
 test('M6 角色关系可编辑新增移除，拖动布局重开恢复', async () => {
   await createStoryAssets();
-  await page.getByRole('tab', { name: '角色关系', exact: true }).click();
+  await openWorkspaceView('角色关系');
   const graph = page.getByRole('region', { name: '作品角色关系', exact: true });
   await expect(graph.locator('.character-node')).toHaveCount(2);
   await expect(graph.locator('.vue-flow__edge')).toHaveCount(1);
@@ -434,7 +445,7 @@ test('M6 角色关系可编辑新增移除，拖动布局重开恢复', async ()
   await expect.poll(async () => (await node.boundingBox())!.x).toBeGreaterThan(before.x + 35);
   const moved = (await node.boundingBox())!;
   await page.reload();
-  await page.getByRole('tab', { name: '角色关系', exact: true }).click();
+  await openWorkspaceView('角色关系');
   await expect(node).toBeVisible();
   await expect.poll(async () => Math.abs((await node.boundingBox())!.x - moved.x)).toBeLessThan(3);
   await graph.getByRole('button', { name: '新建关系', exact: true }).click();
@@ -465,15 +476,22 @@ test('M6 故事资产外部修改保护和三主题画布可读', async () => {
       theme
     );
     await page.reload();
-    await page.getByRole('tab', { name: '角色关系', exact: true }).click();
+    await openWorkspaceView('角色关系');
     await expect(page.locator('.character-node')).toHaveCount(2);
     await expect(page.locator('.vue-flow__edge-path')).toHaveCount(1);
     const pathData = await page.locator('.vue-flow__edge-path').getAttribute('d');
     expect(pathData?.length).toBeGreaterThan(20);
+    const graphIcon = page.getByRole('tab', { name: '角色关系', exact: true }).locator('[aria-hidden="true"]');
+    await expect.poll(() => graphIcon.evaluate(element => getComputedStyle(element).maskImage)).not.toBe('none');
     await page.screenshot({ path: path.join(visualDir, `m6-relationships-${theme}.png`) });
+    await openWorkspaceView('资料库');
+    await expect(page.locator('.asset-card').first()).toBeVisible();
+    await expect(page.locator('.asset-card').first()).toHaveCSS('text-align', 'left');
+    await page.screenshot({ path: path.join(visualDir, `workbench-library-${theme}.png`) });
   }
   await app!.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1024, 720));
-  await page.getByRole('tab', { name: '故事时间线', exact: true }).click();
+  await page.screenshot({ path: path.join(visualDir, 'workbench-library-dark-1024.png') });
+  await openWorkspaceView('故事时间线');
   const timeline = page.getByRole('region', { name: '作品故事时间线', exact: true });
   await expect(timeline.locator('[data-event-path]')).toHaveCount(3);
   await page.screenshot({ path: path.join(visualDir, 'm6-timeline-dark-1024.png') });
@@ -522,7 +540,7 @@ test('M6 新建作品可直接编辑，同名目录不覆盖', async () => {
 test('M6 面板隐藏保留 Agent 草稿，重开后拖动方向一致', async () => {
   const input = page.getByPlaceholder('描述你的创作需求...');
   await input.fill('尚未发送的创作草稿');
-  await page.getByRole('button', { name: '隐藏辅助栏', exact: true }).click();
+  await page.getByRole('button', { name: '切换 Agent 面板', exact: true }).click();
   await expect(input).not.toBeVisible();
   await page.getByRole('button', { name: '切换 Agent 面板', exact: true }).click();
   await expect(input).toHaveValue('尚未发送的创作草稿');
@@ -708,8 +726,8 @@ test('资产库支持跨目录分组、关系反链、无损识别和三主题�
   await writeFile(path.join(workspace, '角色/林晚 (conflicted copy).md'), '同步产生的待处理副本。');
   const unclassified = '---\ncustom: 0xFF # 保留\n---\n作者的自由文字。\n';
   await writeFile(path.join(workspace, '草记.md'), unclassified);
-  await page.getByRole('button', { name: '结构', exact: true }).click();
-  const structure = page.getByRole('region', { name: '作品结构' });
+  await page.getByRole('button', { name: '资料库', exact: true }).click();
+  const structure = page.getByRole('region', { name: '资料库导航' });
   await page.getByRole('tab', { name: '角色', exact: true }).click();
   await page.getByRole('button', { name: '分组视图', exact: true }).click();
   await expect(page.locator('.structure-group summary', { hasText: '主要角色' })).toHaveCount(1);
@@ -750,7 +768,7 @@ test('资产库支持跨目录分组、关系反链、无损识别和三主题�
       theme
     );
     await page.reload();
-    await page.getByRole('button', { name: '结构', exact: true }).click();
+    await page.getByRole('button', { name: '资料库', exact: true }).click();
     await page.getByRole('tab', { name: '角色', exact: true }).click();
     await page.getByRole('button', { name: '分组视图', exact: true }).click();
     await page.getByRole('button', { name: '打开资产 林晚 角色/主要/林晚.md', exact: true }).click();
@@ -780,7 +798,7 @@ test('资产库待确认差异经真实 IPC 接受并可撤销，未接受前不
     path.join(workspace, '.chaptale/memory/pending/p-asset.md'),
     `---\nkind: proposal\nid: p-asset\nproposalType: update\ntitle: 林晚状态\nreason: 收到来信\nsource: saved-output\ncreatedAt: "2026-09-08T00:00:00.000Z"\ntargetPath: "角色/林晚.md"\ncontentHash: "${fingerprint}"\n---\n${modified}`
   );
-  await page.getByRole('button', { name: '结构', exact: true }).click();
+  await page.getByRole('button', { name: '资料库', exact: true }).click();
   await page.getByRole('tab', { name: '角色', exact: true }).click();
   await page.getByRole('button', { name: '打开资产 林晚 角色/林晚.md', exact: true }).click();
   await page.getByRole('region', { name: '资产详情' }).getByRole('button', { name: '林晚状态', exact: true }).click();

@@ -234,11 +234,6 @@ watch(
               />
             </AppButton>
           </AppTooltip>
-          <AppTooltip text="隐藏侧栏">
-            <AppButton icon size="xs" variant="ghost" aria-label="隐藏侧栏" @click="navigation.sidebarOpen = false">
-              <span class="i-mingcute-close-line size-4" aria-hidden="true" />
-            </AppButton>
-          </AppTooltip>
         </div>
       </header>
 

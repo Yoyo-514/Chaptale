@@ -26,6 +26,7 @@ const workspaceStore = useWorkspaceStore();
 const settingsStore = useSettingsStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
+const activeDocument = computed(() => (navigation.center === 'editor' ? editor.activeTab : undefined));
 const writing = useWritingStore();
 const reviews = useReviewStore();
 const templates = useTemplateStore();
@@ -70,11 +71,22 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         items: recentItems.value
       },
       { id: 'file.close-workspace', label: '关闭工作区', disabled: !workspaceStore.rootPath, separatorBefore: true },
-      { id: 'file.close-editor', label: '关闭文件', shortcut: 'Ctrl+W', disabled: !editor.activeId },
+      {
+        id: 'file.close-editor',
+        label: '关闭标签',
+        shortcut: 'Ctrl+W',
+        disabled: navigation.center === 'editor' && !editor.activeId
+      },
       { id: 'file.new-chapter', label: '新建章节', disabled: !workspaceStore.rootPath, separatorBefore: true },
       { id: 'file.new-scene-card', label: '新建场景卡', disabled: !workspaceStore.rootPath },
       { id: 'file.new-asset', label: '从模板新建', disabled: !workspaceStore.rootPath },
-      { id: 'file.save', label: '保存', shortcut: 'Ctrl+S', disabled: !editor.activeTab?.dirty, separatorBefore: true },
+      {
+        id: 'file.save',
+        label: '保存',
+        shortcut: 'Ctrl+S',
+        disabled: !activeDocument.value?.dirty,
+        separatorBefore: true
+      },
       { id: 'file.save-all', label: '全部保存', shortcut: 'Ctrl+Shift+S', disabled: !editor.hasUnsaved },
       { id: 'file.auto-save', label: '自动保存', checked: editor.autoSave }
     ]
@@ -93,14 +105,14 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         id: 'edit.find',
         label: '查找',
         shortcut: 'Ctrl+F',
-        disabled: editor.activeTab?.status !== 'ready',
+        disabled: activeDocument.value?.status !== 'ready',
         separatorBefore: true
       },
       {
         id: 'edit.replace',
         label: '替换',
         shortcut: 'Ctrl+H',
-        disabled: !editor.activeTab || editor.activeTab.readonly
+        disabled: !activeDocument.value || activeDocument.value.readonly
       }
     ]
   },
@@ -120,15 +132,19 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     label: '写作',
     items: [
       { id: 'writing.context', label: '组装本次参考', disabled: !workspaceStore.rootPath },
-      { id: 'writing.generate', label: '生成候选稿', disabled: !editor.activeTab || editor.activeTab.readonly },
+      { id: 'writing.generate', label: '生成候选稿', disabled: !activeDocument.value || activeDocument.value.readonly },
       {
         id: 'writing.settle',
         label: '结算当前章节',
-        disabled: !editor.activeTab || editor.activeTab.readonly,
+        disabled: !activeDocument.value || activeDocument.value.readonly,
         separatorBefore: true
       },
-      { id: 'writing.finalize', label: '定稿当前章节', disabled: !editor.activeTab || editor.activeTab.readonly },
-      { id: 'writing.versions', label: '查看文档版本', disabled: !editor.activeTab?.document }
+      {
+        id: 'writing.finalize',
+        label: '定稿当前章节',
+        disabled: !activeDocument.value || activeDocument.value.readonly
+      },
+      { id: 'writing.versions', label: '查看文档版本', disabled: !activeDocument.value?.document }
     ]
   },
   {
@@ -157,10 +173,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'review',
     label: '审查',
     items: [
-      { id: 'review.continuity', label: '运行连贯性审查', disabled: !editor.activeTab },
-      { id: 'review.character', label: '运行人物审查', disabled: !editor.activeTab },
-      { id: 'review.style', label: '运行文风审查', disabled: !editor.activeTab },
-      { id: 'review.enabled', label: '运行已启用审查', disabled: !editor.activeTab, separatorBefore: true },
+      { id: 'review.continuity', label: '运行连贯性审查', disabled: !activeDocument.value },
+      { id: 'review.character', label: '运行人物审查', disabled: !activeDocument.value },
+      { id: 'review.style', label: '运行文风审查', disabled: !activeDocument.value },
+      { id: 'review.enabled', label: '运行已启用审查', disabled: !activeDocument.value, separatorBefore: true },
       { id: 'review.center', label: '打开审查中心', disabled: !workspaceStore.rootPath, separatorBefore: true }
     ]
   },
@@ -253,7 +269,7 @@ function handleSelect(itemId: string) {
     return;
   }
   if (itemId === 'file.new-scene-card' || itemId === 'file.new-asset') {
-    const tab = editor.activeTab;
+    const tab = activeDocument.value;
     void templates.openCreate(
       itemId === 'file.new-scene-card' ? 'scene-card' : 'chapter',
       itemId === 'file.new-scene-card' &&
@@ -298,7 +314,8 @@ function handleSelect(itemId: string) {
     return;
   }
   if (itemId === 'file.close-editor') {
-    editor.closeTab(editor.activeId);
+    if (navigation.center !== 'editor') navigation.closeView(navigation.center);
+    else void editor.closeTab(editor.activeId);
     return;
   }
   if (itemId === 'edit.find' || itemId === 'edit.replace') {

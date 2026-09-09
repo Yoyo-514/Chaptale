@@ -9,13 +9,11 @@ import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
-import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 const workspace = useWorkspaceStore();
 const editor = useEditorStore();
-const navigation = useWorkbenchStore();
 const query = ref('');
 const matchCase = ref(false);
 const scope = ref<WorkspaceSearchArgs['scope']>('work');
@@ -81,10 +79,6 @@ onBeforeUnmount(() => {
       <AppTooltip text="重新搜索"
         ><AppButton icon size="xs" variant="ghost" aria-label="重新搜索" :disabled="busy || !query" @click="search"
           ><span class="i-mingcute-refresh-3-line" /></AppButton
-      ></AppTooltip>
-      <AppTooltip text="隐藏侧栏"
-        ><AppButton icon size="xs" variant="ghost" aria-label="隐藏侧栏" @click="navigation.sidebarOpen = false"
-          ><span class="i-mingcute-close-line" /></AppButton
       ></AppTooltip>
     </header>
     <form class="search-filters" @submit.prevent="search">

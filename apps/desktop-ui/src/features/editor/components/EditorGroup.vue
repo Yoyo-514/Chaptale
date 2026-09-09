@@ -6,6 +6,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useWorkbenchStore, workspaceViews, type WorkspaceView } from '@/features/workbench';
 import { useWorkspaceStore, useWorkspaceActions } from '@/features/workspace';
 import { APP_ICON_URL } from '@/utils/app-icon';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
@@ -20,39 +21,65 @@ const ExternalChangeDialog = defineAsyncComponent(() => import('./ExternalChange
 const editor = useEditorStore();
 const workspace = useWorkspaceStore();
 const actions = useWorkspaceActions();
+const navigation = useWorkbenchStore();
 const contextTabId = ref('');
+const viewId = (view: WorkspaceView) => `view:${view}`;
+const openViews = computed(() => navigation.viewTabs.flatMap(id => workspaceViews.filter(view => view.id === id)));
+const orderedIds = computed(() => [...editor.tabs.map(tab => tab.id), ...navigation.viewTabs.map(viewId)]);
+const selectedId = computed(() =>
+  navigation.center === 'editor' ? editor.activeId || 'welcome' : viewId(navigation.center)
+);
+function selectTab(id: string | number) {
+  const view = workspaceViews.find(item => viewId(item.id) === id);
+  if (view) navigation.openView(view.id);
+  else {
+    navigation.center = 'editor';
+    editor.selectTab(String(id));
+  }
+}
 const tabMenu = computed<AppContextMenuItem[]>(() => {
   const tab = editor.tabs.find(item => item.id === contextTabId.value);
-  const index = editor.tabs.findIndex(item => item.id === contextTabId.value);
+  const index = orderedIds.value.indexOf(contextTabId.value);
   return [
     { id: 'close', label: '关闭', shortcut: 'Ctrl+W', icon: 'i-mingcute-close-line' },
-    { id: 'close-others', label: '关闭其他标签', disabled: editor.tabs.length < 2 },
-    { id: 'close-right', label: '关闭右侧标签', disabled: index >= editor.tabs.length - 1 },
-    { id: 'close-saved', label: '关闭已保存标签', disabled: !editor.tabs.some(item => !item.dirty && !item.saving) },
+    { id: 'close-others', label: '关闭其他标签', disabled: orderedIds.value.length < 2 },
+    { id: 'close-right', label: '关闭右侧标签', disabled: index >= orderedIds.value.length - 1 },
+    {
+      id: 'close-saved',
+      label: '关闭已保存标签',
+      disabled: !navigation.viewTabs.length && !editor.tabs.some(item => !item.dirty && !item.saving)
+    },
     { id: 'close-all', label: '关闭全部标签' },
-    { id: 'save', label: '保存', shortcut: 'Ctrl+S', disabled: !tab?.dirty, separatorBefore: true },
-    { id: 'save-all', label: '全部保存', disabled: !editor.hasUnsaved },
-    { id: 'copy-path', label: '复制相对路径', separatorBefore: true },
-    { id: 'reveal', label: '在系统文件管理器中显示' },
-    { id: 'rename', label: '重命名…' },
-    { id: 'agent', label: '与 Agent 讨论此文件', separatorBefore: true, icon: 'i-mingcute-chat-3-line' }
+    ...(tab
+      ? [
+          { id: 'save', label: '保存', shortcut: 'Ctrl+S', disabled: !tab.dirty, separatorBefore: true },
+          { id: 'save-all', label: '全部保存', disabled: !editor.hasUnsaved },
+          { id: 'copy-path', label: '复制相对路径', separatorBefore: true },
+          { id: 'reveal', label: '在系统文件管理器中显示' },
+          { id: 'rename', label: '重命名…' },
+          { id: 'agent', label: '与 Agent 讨论此文件', separatorBefore: true, icon: 'i-mingcute-chat-3-line' }
+        ]
+      : [])
   ];
 });
 async function selectTabMenu(id: string) {
   const tab = editor.tabs.find(item => item.id === contextTabId.value);
-  if (!tab) return;
-  const index = editor.tabs.indexOf(tab);
-  if (id === 'close') await closeTab(tab.id);
+  const index = orderedIds.value.indexOf(contextTabId.value);
+  if (id === 'close') await closeTab(contextTabId.value);
   else if (id.startsWith('close-')) {
-    const candidates = editor.tabs.filter(
+    const candidates = orderedIds.value.filter(
       (item, i) =>
         id === 'close-all' ||
-        (id === 'close-others' && item.id !== tab.id) ||
+        (id === 'close-others' && item !== contextTabId.value) ||
         (id === 'close-right' && i > index) ||
-        (id === 'close-saved' && !item.dirty && !item.saving)
+        (id === 'close-saved' &&
+          !editor.tabs.some(document => document.id === item && (document.dirty || document.saving)))
     );
-    await editor.closeTabs(candidates.map(item => item.id));
-  } else if (id === 'save') await editor.saveDocument(tab.id);
+    const documents = candidates.filter(item => editor.tabs.some(document => document.id === item));
+    if (!(await editor.closeTabs(documents))) return;
+    for (const view of navigation.viewTabs) if (candidates.includes(viewId(view))) navigation.closeView(view);
+  } else if (!tab) return;
+  else if (id === 'save') await editor.saveDocument(tab.id);
   else if (id === 'save-all') await editor.saveAll();
   else if (id === 'copy-path') await actions.copyPath(tab.path);
   else if (id === 'reveal') await actions.reveal(tab.path);
@@ -69,7 +96,9 @@ const duplicateTitles = computed(() => {
 
 async function closeTab(id: string) {
   const focusedInside = tabList.value?.contains(document.activeElement);
-  await editor.closeTab(id);
+  const view = workspaceViews.find(item => viewId(item.id) === id);
+  if (view) navigation.closeView(view.id);
+  else await editor.closeTab(id);
   if (focusedInside) {
     await nextTick();
     tabList.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
@@ -88,14 +117,20 @@ function scrollTabs(event: WheelEvent) {
 function handleKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
+    if (navigation.center !== 'editor' && !event.shiftKey) return;
     if (event.shiftKey) void editor.saveAll();
     else void editor.saveDocument();
     return;
   }
-  if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'w' && editor.activeId) {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    !event.shiftKey &&
+    event.key.toLowerCase() === 'w' &&
+    selectedId.value !== 'welcome'
+  ) {
     event.preventDefault();
     event.stopPropagation();
-    void closeTab(editor.activeId);
+    void closeTab(selectedId.value);
   }
 }
 
@@ -113,15 +148,12 @@ onBeforeUnmount(() => {
   unsubscribeClose?.();
 });
 
-watch(
-  () => editor.activeId,
-  async () => {
-    await nextTick();
-    tabList.value
-      ?.querySelector('[role="tab"][aria-selected="true"]')
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }
-);
+watch(selectedId, async () => {
+  await nextTick();
+  tabList.value
+    ?.querySelector('[role="tab"][aria-selected="true"]')
+    ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+});
 </script>
 
 <template>
@@ -136,11 +168,7 @@ watch(
       </div>
     </details>
   </div>
-  <TabsRoot
-    :model-value="editor.activeId || 'welcome'"
-    class="editor-group"
-    @update:model-value="value => editor.selectTab(String(value))"
-  >
+  <TabsRoot :model-value="selectedId" class="editor-group" @update:model-value="selectTab">
     <div ref="tabList" class="editor-tabs-scroll" @wheel="scrollTabs">
       <AppScrollArea orientation="horizontal" class="editor-tabs-area" viewport-class="editor-tabs-viewport">
         <TabsList class="editor-tabs" aria-label="编辑器标签">
@@ -154,7 +182,7 @@ watch(
           >
             <div
               class="editor-tab-shell"
-              :class="{ 'is-active': tab.id === editor.activeId }"
+              :class="{ 'is-active': tab.id === selectedId }"
               @auxclick.middle.prevent="closeTab(tab.id)"
             >
               <TabsTrigger
@@ -182,8 +210,43 @@ watch(
                   variant="ghost"
                   class="editor-tab-close"
                   :aria-label="`关闭 ${tab.path}`"
-                  :tabindex="tab.id === editor.activeId ? 0 : -1"
+                  :tabindex="tab.id === selectedId ? 0 : -1"
                   @click.stop="closeTab(tab.id)"
+                >
+                  <span class="i-mingcute-close-line size-3" aria-hidden="true" />
+                </AppButton>
+              </AppTooltip>
+            </div>
+          </AppContextMenu>
+          <AppContextMenu
+            v-for="view in openViews"
+            :key="view.id"
+            :items="tabMenu"
+            @prepare="contextTabId = viewId(view.id)"
+            @select="selectTabMenu"
+          >
+            <div
+              class="editor-tab-shell"
+              :class="{ 'is-active': navigation.center === view.id }"
+              @auxclick.middle.prevent="closeTab(viewId(view.id))"
+            >
+              <TabsTrigger
+                :value="viewId(view.id)"
+                class="editor-tab"
+                @keydown.delete.prevent="closeTab(viewId(view.id))"
+              >
+                <span :class="view.icon" class="size-3.5 shrink-0" aria-hidden="true" />
+                <span class="editor-tab-title">{{ view.label }}</span>
+              </TabsTrigger>
+              <AppTooltip :text="`关闭 ${view.label}`" side="bottom">
+                <AppButton
+                  icon
+                  size="xs"
+                  variant="ghost"
+                  class="editor-tab-close"
+                  :aria-label="`关闭 ${view.label}`"
+                  :tabindex="navigation.center === view.id ? 0 : -1"
+                  @click.stop="closeTab(viewId(view.id))"
                 >
                   <span class="i-mingcute-close-line size-3" aria-hidden="true" />
                 </AppButton>
@@ -207,6 +270,9 @@ watch(
         >
         <AppButton v-if="workspace.rootPath" @click="editor.newChapterOpen = true">新建章节</AppButton>
       </div>
+    </TabsContent>
+    <TabsContent v-for="view in openViews" :key="view.id" :value="viewId(view.id)" class="editor-workspace-content">
+      <slot :name="view.id" />
     </TabsContent>
     <TabsContent v-for="tab in editor.tabs" :key="tab.id" :value="tab.id" class="editor-tab-content">
       <div v-if="tab.status === 'loading'" class="editor-state" role="status">
@@ -355,6 +421,12 @@ watch(
 }
 
 .editor-tab-content[data-state='inactive'] {
+  display: none;
+}
+.editor-workspace-content {
+  @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none;
+}
+.editor-workspace-content[data-state='inactive'] {
   display: none;
 }
 

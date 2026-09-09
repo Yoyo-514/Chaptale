@@ -10,7 +10,7 @@ const navigation = useWorkbenchStore();
 const activities = [
   { id: 'workspace', label: '工作区', icon: 'i-mingcute-folder-2-line', available: true },
   { id: 'search', label: '搜索', icon: 'i-mingcute-search-line', available: true },
-  { id: 'structure', label: '结构', icon: 'i-mingcute-list-check-line', available: true },
+  { id: 'structure', label: '资料库', icon: 'i-mingcute-grid-line', available: true },
   { id: 'review', label: '审查', icon: 'i-mingcute-check-circle-line', available: true },
   { id: 'memory', label: '记忆', icon: 'i-mingcute-brain-line', available: true }
 ] as const;
@@ -33,7 +33,9 @@ const activities = [
           type="button"
           :selected="activity.id === navigation.sidebar && navigation.sidebarOpen && !navigation.focusMode"
           :disabled="!activity.available"
-          :aria-current="activity.id === navigation.sidebar && navigation.sidebarOpen ? 'page' : undefined"
+          :aria-current="
+            activity.id === navigation.sidebar && navigation.sidebarOpen && !navigation.focusMode ? 'page' : undefined
+          "
           :aria-label="activity.label"
           @click="navigation.toggleSidebar(activity.id)"
         >
@@ -46,11 +48,7 @@ const activities = [
 
     <div class="activity-bar-secondary">
       <AppTooltip
-        :text="
-          navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode
-            ? '隐藏 Agent'
-            : '打开 Agent'
-        "
+        :text="navigation.auxiliaryOpen && !navigation.focusMode ? '隐藏辅助栏' : '打开辅助栏'"
         side="right"
         :side-offset="6"
       >
@@ -60,9 +58,9 @@ const activities = [
           variant="ghost"
           type="button"
           aria-label="切换 Agent 面板"
-          :aria-pressed="navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode"
-          :selected="navigation.auxiliaryOpen && navigation.auxiliary === 'agent' && !navigation.focusMode"
-          @click="navigation.toggleAgent"
+          :aria-pressed="navigation.auxiliaryOpen && !navigation.focusMode"
+          :selected="navigation.auxiliaryOpen && !navigation.focusMode"
+          @click="navigation.toggleAuxiliary"
         >
           <span class="i-mingcute-chat-3-line activity-icon" aria-hidden="true" />
         </AppButton>

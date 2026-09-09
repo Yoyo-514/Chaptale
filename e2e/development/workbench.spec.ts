@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test';
 import type { ElectronApplication, Page } from '@playwright/test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,6 +13,7 @@ const visualDir = path.resolve('temp/visual-qa', `development-${Date.now()}`);
 let app: ElectronApplication | undefined;
 let page: Page;
 let home: string;
+let workspace: string;
 let diagnostics: string[];
 let errors: string[];
 
@@ -20,10 +21,15 @@ test.beforeEach(async () => {
   diagnostics = [];
   errors = [];
   home = await mkdtemp(path.join(os.tmpdir(), 'chaptale-development-e2e-'));
-  const workspace = path.join(home, 'work');
+  workspace = path.join(home, 'work');
   await mkdir(path.join(workspace, '正文'), { recursive: true });
   await writeFile(path.join(workspace, '正文/第一章.md'), '# 第一章\n\n开发态也应当显示的正文。\n');
   await writeFile(path.join(workspace, '正文/第二章.md'), '# 第二章\n\n另一份正文。\n');
+  await mkdir(path.join(workspace, '角色'));
+  await writeFile(
+    path.join(workspace, '角色/林晚.md'),
+    '---\nid: linwan\nkind: character\ntitle: 林晚\n---\n远行的人。\n'
+  );
   app = await electron.launch({
     executablePath: requireDesktop('electron') as string,
     args: [desktop, `--user-data-dir=${path.join(home, 'user-data')}`],
@@ -57,12 +63,15 @@ test.afterEach(async () => {
     contentType: 'application/json'
   });
   try {
-    if (page && !page.isClosed()) {
-      await mkdir(visualDir, { recursive: true });
-      await page.screenshot({ path: path.join(visualDir, `${test.info().testId}.png`) });
+    try {
+      if (page && !page.isClosed()) {
+        await mkdir(visualDir, { recursive: true });
+        await page.screenshot({ path: path.join(visualDir, `${test.info().testId}.png`), timeout: 5000 });
+      }
+    } finally {
+      await app?.close();
+      app = undefined;
     }
-    await app?.close();
-    app = undefined;
   } finally {
     expect(path.dirname(path.resolve(home))).toBe(path.resolve(os.tmpdir()));
     expect(path.basename(home).startsWith('chaptale-development-e2e-')).toBe(true);
@@ -125,5 +134,83 @@ test('三主题菜单使用柔和边框，活动栏底部保持独立间距', as
     await mkdir(visualDir, { recursive: true });
     await page.screenshot({ path: path.join(visualDir, `context-menu-${theme}.png`) });
     await page.keyboard.press('Escape');
+  }
+});
+
+test('资料库视图按需打开为工作标签，关闭后保留正文草稿与撤销', async () => {
+  await page.getByRole('treeitem', { name: '正文', exact: true }).click();
+  await page.locator('[data-tree-path="正文/第一章.md"]').click();
+  const body = page.getByRole('textbox', { name: '文档正文', exact: true });
+  await body.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.insertText('尚未保存的段落。');
+  await expect(page.getByRole('tablist', { name: '作品视图', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: '角色关系', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '资料库', exact: true }).click();
+  const graphIcon = page.getByRole('button', { name: '打开角色关系', exact: true }).locator('[aria-hidden="true"]');
+  await expect.poll(() => graphIcon.evaluate(element => getComputedStyle(element).maskImage)).not.toBe('none');
+  await page.getByRole('button', { name: '打开角色关系', exact: true }).click();
+  await expect(page.locator('.character-node')).toHaveCount(1);
+  const graphTab = page.getByRole('tab', { name: '角色关系', exact: true });
+  await expect(graphTab).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: '打开角色关系', exact: true }).click();
+  await expect(graphTab).toHaveCount(1);
+  await page.keyboard.press('Control+s');
+  expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).not.toContain('尚未保存');
+  await page.keyboard.press('Control+w');
+  await expect(graphTab).toHaveCount(0);
+  await expect(body).toContainText('尚未保存的段落');
+  await body.click();
+  await page.keyboard.press('Control+z');
+  await expect(body).not.toContainText('尚未保存的段落');
+  await page.getByRole('button', { name: '打开资料库', exact: true }).click();
+  const card = page.locator('.asset-card[data-asset-path="角色/林晚.md"]');
+  await expect(card).toBeVisible();
+  const alignment = await card.evaluate(element => {
+    const style = getComputedStyle(element);
+    const bounds = element.getBoundingClientRect();
+    const left = bounds.left + parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth);
+    const top = bounds.top + parseFloat(style.paddingTop) + parseFloat(style.borderTopWidth);
+    const children = [...element.children].map(child => child.getBoundingClientRect());
+    return {
+      text: style.textAlign,
+      leftOffsets: children.map(child => Math.abs(child.left - left)),
+      topOffset: Math.abs(children[0]!.top - top)
+    };
+  });
+  expect(alignment.text).toBe('left');
+  expect(alignment.leftOffsets.every(offset => offset < 1)).toBe(true);
+  expect(alignment.topOffset).toBeLessThan(1);
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'library-card-alignment.png') });
+  const libraryTab = page.getByRole('tab', { name: '资料库', exact: true });
+  await libraryTab.click({ button: 'right' });
+  await expect(page.getByRole('menuitem', { name: '与 Agent 讨论此文件', exact: true })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: '关闭', exact: true }).click();
+  await expect(libraryTab).toHaveCount(0);
+  await expect(body).toContainText('开发态也应当显示的正文');
+});
+
+test('侧栏只通过活动栏收起，保留辅助栏视图与 Agent 草稿', async () => {
+  await expect(page.getByRole('button', { name: '隐藏侧栏', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '隐藏辅助栏', exact: true })).toHaveCount(0);
+  const draft = page.getByPlaceholder('描述你的创作需求...');
+  await draft.fill('保留的讨论草稿');
+  await page.getByRole('tab', { name: '参考', exact: true }).click();
+  const toggle = page.getByRole('button', { name: '切换 Agent 面板', exact: true });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click();
+  await expect(page.getByRole('complementary', { name: '辅助栏', exact: true })).toBeHidden();
+  await toggle.click();
+  await expect(page.getByRole('tab', { name: '参考', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Agent', exact: true }).click();
+  await expect(draft).toHaveValue('保留的讨论草稿');
+  for (const label of ['搜索', '资料库', '审查', '记忆', '工作区']) {
+    const button = page.getByRole('button', { name: label, exact: true });
+    await button.click();
+    await expect(page.getByRole('complementary', { name: '工作区侧栏', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '隐藏侧栏', exact: true })).toHaveCount(0);
+    await button.click();
+    await expect(page.getByRole('complementary', { name: '工作区侧栏', exact: true })).toBeHidden();
   }
 });

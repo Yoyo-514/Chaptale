@@ -10,7 +10,8 @@ import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
 import { useTemplateStore } from '@/features/templates';
-import { useWorkbenchStore } from '@/features/workbench';
+import { useWorkbenchStore, workspaceViews } from '@/features/workbench';
+import { useWorkspaceStore } from '@/features/workspace';
 
 import { assetKindLabel, assetViews, groupAssets, isUnclassified } from '../presentation';
 import { useAssetStore } from '../store';
@@ -20,6 +21,7 @@ const library = useLibraryStore();
 const editor = useEditorStore();
 const templates = useTemplateStore();
 const navigation = useWorkbenchStore();
+const workspace = useWorkspaceStore();
 const groups = computed(() =>
   groupAssets(library.assets, assets.view, assets.mode, assets.query, assets.includeArchived)
 );
@@ -32,13 +34,9 @@ const diagnostics = computed(
 onMounted(() => void assets.refresh());
 </script>
 <template>
-  <section class="structure-panel" aria-label="作品结构">
+  <section class="structure-panel" aria-label="资料库导航">
     <header>
-      <h2>结构</h2>
-      <AppTooltip text="打开中央资料库"
-        ><AppButton icon size="xs" variant="ghost" aria-label="打开中央资料库" @click="navigation.center = 'library'"
-          ><span class="i-mingcute-grid-line" aria-hidden="true" /></AppButton
-      ></AppTooltip>
+      <h2>资料库</h2>
       <AppTooltip text="新建资产"
         ><AppButton
           icon
@@ -59,11 +57,21 @@ onMounted(() => void assets.refresh());
           @click="assets.refresh"
           ><span class="i-mingcute-refresh-3-line" /></AppButton
       ></AppTooltip>
-      <AppTooltip text="隐藏侧栏"
-        ><AppButton icon size="xs" variant="ghost" aria-label="隐藏侧栏" @click="navigation.sidebarOpen = false"
-          ><span class="i-mingcute-close-line size-4" aria-hidden="true" /></AppButton
-      ></AppTooltip>
     </header>
+    <nav class="library-view-navigation" aria-label="资料库视图">
+      <AppButton
+        v-for="view in workspaceViews"
+        :key="view.id"
+        variant="ghost"
+        :aria-label="`打开${view.label}`"
+        :selected="navigation.center === view.id"
+        :disabled="!workspace.rootPath"
+        @click="navigation.openView(view.id)"
+      >
+        <span :class="view.icon" class="size-4 shrink-0" aria-hidden="true" />
+        {{ view.id === 'library' ? '全部资料' : view.label }}
+      </AppButton>
+    </nav>
     <TabsRoot v-model="assets.view" class="structure-tabs">
       <AppScrollArea orientation="horizontal" class="structure-tab-scroll">
         <TabsList aria-label="资产类型" class="structure-tab-list">
@@ -185,6 +193,13 @@ onMounted(() => void assets.refresh());
 .structure-panel {
   @apply flex h-full min-h-0 min-w-0 flex-col;
   font-size: var(--ui-font-size);
+}
+.library-view-navigation {
+  @apply flex shrink-0 flex-col gap-1 border-b p-2;
+  border-color: var(--border-subtle);
+}
+.library-view-navigation button {
+  @apply w-full justify-start;
 }
 header {
   @apply flex h-9 shrink-0 items-center gap-1 border-b px-3;

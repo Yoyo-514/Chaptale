@@ -164,12 +164,18 @@ function assetIcon(assetKind?: string) {
   grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
 }
 .asset-card {
-  @apply relative grid min-w-0 content-start gap-2 border p-4 text-left;
+  @apply relative grid min-w-0 content-start items-start justify-items-start gap-2 border p-4 text-left;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
   border-color: var(--border-subtle);
   background: var(--surface-elevated);
   border-radius: 6px;
   white-space: normal;
   min-height: 184px;
+}
+.asset-card > * {
+  min-width: 0;
+  max-width: 100%;
 }
 .asset-card strong {
   @apply text-sm font-semibold;

@@ -10,9 +10,7 @@ import {
 } from 'reka-ui';
 import { nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 
-import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
-import { AppTooltip } from '@/components/AppTooltip';
 import { AssetDialogs, AssetPanel, StructurePanel, StoryDialogs } from '@/features/assets';
 import { useEditorStore } from '@/features/editor';
 import { ReferencePanel, useLibraryStore, WorkspaceSearch } from '@/features/library';
@@ -171,17 +169,6 @@ onBeforeUnmount(() => {
                 <TabsTrigger class="workbench-auxiliary-tab" value="runs">运行</TabsTrigger>
               </TabsList>
             </AppScrollArea>
-            <AppTooltip text="隐藏辅助栏">
-              <AppButton
-                icon
-                size="xs"
-                variant="ghost"
-                aria-label="隐藏辅助栏"
-                @click="navigation.auxiliaryOpen = false"
-              >
-                <span class="i-mingcute-close-line size-4" aria-hidden="true" />
-              </AppButton>
-            </AppTooltip>
           </div>
           <TabsContent
             value="agent"
@@ -246,7 +233,7 @@ onBeforeUnmount(() => {
   @apply h-9 min-w-0 flex-1;
 }
 .workbench-auxiliary-header {
-  @apply flex h-9 shrink-0 items-center pr-1;
+  @apply flex h-9 shrink-0 items-center;
 }
 
 .workbench-auxiliary-root,

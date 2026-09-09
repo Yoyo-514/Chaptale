@@ -8,13 +8,11 @@ import { AppTooltip } from '@/components/AppTooltip';
 import { AssetContextMenu, useAssetStore } from '@/features/assets';
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
-import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 const library = useLibraryStore();
 const assets = useAssetStore();
 const editor = useEditorStore();
-const navigation = useWorkbenchStore();
 const query = ref('');
 const groups = computed(() =>
   [
@@ -55,10 +53,6 @@ onBeforeUnmount(() => unsubscribe?.());
           :disabled="library.loading"
           @click="assets.refresh"
           ><span class="i-mingcute-refresh-3-line" /></AppButton
-      ></AppTooltip>
-      <AppTooltip text="隐藏侧栏"
-        ><AppButton icon size="xs" variant="ghost" aria-label="隐藏侧栏" @click="navigation.sidebarOpen = false"
-          ><span class="i-mingcute-close-line" /></AppButton
       ></AppTooltip>
     </header>
     <div class="memory-filter">

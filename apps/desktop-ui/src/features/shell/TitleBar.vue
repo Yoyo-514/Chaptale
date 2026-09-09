@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import { useEditorStore } from '@/features/editor';
+import { useWorkbenchStore, workspaceViews } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 import { APP_ICON_URL } from '@/utils/app-icon';
 
@@ -11,8 +12,17 @@ import { useWindowControls } from './useWindowControls';
 const appIconUrl = APP_ICON_URL;
 const workspace = useWorkspaceStore();
 const editor = useEditorStore();
+const navigation = useWorkbenchStore();
 const documentTitle = computed(
-  () => [editor.activeTab?.title, workspace.displayName].filter(Boolean).join(' - ') || 'Chaptale'
+  () =>
+    [
+      navigation.center === 'editor'
+        ? editor.activeTab?.title
+        : workspaceViews.find(view => view.id === navigation.center)?.label,
+      workspace.displayName
+    ]
+      .filter(Boolean)
+      .join(' - ') || 'Chaptale'
 );
 
 const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowControls();
