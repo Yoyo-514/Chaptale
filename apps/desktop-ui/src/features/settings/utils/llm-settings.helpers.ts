@@ -11,19 +11,27 @@ export type ProviderView = ChaptaleProviderInfo;
 
 /**
  * 以当前分组可见模型重新计算供应商计数，同时复用后端返回的认证来源与展示名称。
+ * providers 列表是骨架：即使供应商还没有模型（新建后尚未添加），也必须出现在列表中，
+ * 否则用户新建供应商后看不到入口。models 中额外出现的 provider 一并兜底保留。
  * 已认证供应商排在前面，组内按名称排序，减少列表跳动。
  */
 export function createProviderViews(models: ChaptaleModelInfo[], providers: ChaptaleProviderInfo[]): ProviderView[] {
   const providerMap = new Map(providers.map(provider => [provider.provider, provider]));
   const modelCountsByProvider = counting(models, model => model.provider);
-  const providerViews = Object.entries(modelCountsByProvider).map(([provider, modelCount]) => {
+  const viewIds = new Set(providers.map(provider => provider.provider));
+
+  for (const model of models) {
+    viewIds.add(model.provider);
+  }
+
+  const providerViews = [...viewIds].map(provider => {
     const baseProvider = providerMap.get(provider);
     return {
       provider,
       providerName: baseProvider?.providerName ?? provider,
       authConfigured: Boolean(baseProvider?.authConfigured),
       authSource: baseProvider?.authSource,
-      modelCount
+      modelCount: modelCountsByProvider[provider] ?? 0
     } satisfies ProviderView;
   });
 

@@ -71,6 +71,19 @@ describe('llm-settings helpers', () => {
     expect(getProviderModels(models, undefined)).toEqual([]);
   });
 
+  it('keeps providers without models visible (newly created provider entry point)', () => {
+    const models = [createModel({ provider: 'alpha', id: 'a' })];
+    const providers = [
+      createProvider({ provider: 'alpha', providerName: 'Alpha', modelCount: 1 }),
+      createProvider({ provider: 'empty', providerName: 'Empty Provider', modelCount: 0 })
+    ];
+
+    expect(createProviderViews(models, providers)).toEqual([
+      expect.objectContaining({ provider: 'alpha', providerName: 'Alpha', modelCount: 1 }),
+      expect.objectContaining({ provider: 'empty', providerName: 'Empty Provider', modelCount: 0 })
+    ]);
+  });
+
   it('marks fetched models that already exist in selected provider', () => {
     const fetchedModels: FetchedCustomProviderModel[] = [{ id: 'exists' }, { id: 'new-model' }];
     const selectedProviderModels = [createModel({ id: 'exists' })];

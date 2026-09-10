@@ -176,4 +176,44 @@ describe('LLM settings composables', () => {
     expect(store.updateCustomModelInput).toHaveBeenNthCalledWith(1, 'custom', 'model-a', ['text', 'image']);
     expect(store.updateCustomModelInput).toHaveBeenNthCalledWith(2, 'custom', 'model-a', ['text']);
   });
+
+  it('submits a filled model draft even when it was never staged', async () => {
+    const store = createSettingsStore();
+    const notification = { success: vi.fn(), error: vi.fn() } as any;
+    const selectedProviderId = ref('');
+    const selectedProviderModels = computed(() => store.models.models);
+    const forms = useLlmCustomModelForms(store, notification, selectedProviderId, selectedProviderModels as any);
+
+    forms.customProvider.provider = 'custom';
+    forms.customProvider.providerName = 'Custom';
+    forms.customProvider.baseUrl = 'https://api.example.com';
+    // 只填写模型草稿，不调用 stageProviderModel——模拟用户直接点「添加供应商」。
+    forms.providerModelDraft.modelId = 'unstaged-model';
+    forms.providerModelDraft.modelName = 'Unstaged';
+    forms.providerModelDraft.contextWindow = '8192';
+
+    await forms.submitCustomProvider();
+
+    expect(store.addCustomProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        models: [{ modelId: 'unstaged-model', modelName: 'Unstaged', input: ['text'], contextWindow: 8192 }]
+      })
+    );
+  });
+
+  it('leaves the staged list empty when the model draft is blank on submit', async () => {
+    const store = createSettingsStore();
+    const notification = { success: vi.fn(), error: vi.fn() } as any;
+    const selectedProviderId = ref('');
+    const selectedProviderModels = computed(() => store.models.models);
+    const forms = useLlmCustomModelForms(store, notification, selectedProviderId, selectedProviderModels as any);
+
+    forms.customProvider.provider = 'custom';
+    forms.customProvider.providerName = 'Custom';
+    forms.customProvider.baseUrl = 'https://api.example.com';
+
+    await forms.submitCustomProvider();
+
+    expect(store.addCustomProvider).toHaveBeenCalledWith(expect.objectContaining({ models: [] }));
+  });
 });

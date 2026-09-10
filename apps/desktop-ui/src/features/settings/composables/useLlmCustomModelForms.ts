@@ -173,6 +173,12 @@ export function useLlmCustomModelForms(
   }
 
   async function submitCustomProvider() {
+    // 用户在模型表单里填写了内容但未点「加入待添加列表」时，提交前自动并入草稿：
+    // 表单内容必须写入文件，不能静默丢弃。stageProviderModel 对重复 modelId 做替换，安全幂等。
+    if (providerModelDraft.modelId.trim()) {
+      stageProviderModel();
+    }
+
     // 提交前复制 staged input，避免关闭弹窗后的草稿重置影响正在进行的异步请求。
     // 整体带过去而不是逐个挑字段：漏挑等于把该模型的高级参数静默丢掉，而漏挑是看不出来的。
     const providerId = customProvider.provider.trim();
