@@ -281,6 +281,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       :is-replying="chat.state.isReplying"
       :is-submitting-steer="chat.state.isSubmittingSteer"
       :is-enabled-web-search="chat.state.isEnabledWebSearch"
+      :is-workspace-missing="chat.isWorkspaceMissing.value"
       :reasoning-effort="chat.state.reasoningEffort"
       :context-files="chat.state.contextFiles"
       :slash-commands="chat.state.slashCommands"

@@ -37,7 +37,7 @@ describe('SettingsService', () => {
       JSON.stringify(
         {
           version: 1,
-          storage: { mode: 'global' }
+          workspace: {}
         },
         null,
         2
@@ -107,79 +107,83 @@ describe('SettingsService', () => {
     expect(config.keys?.braveApiKey).toBe('');
   });
 
-  it('falls back to global storage when workspace mode has no workspace path', async () => {
+  it('没有作品时没有 cwd、没有会话目录', async () => {
     const service = createService();
 
-    const state = await service.update({ storage: { mode: 'workspace', workspacePath: undefined } });
+    const state = await service.update({ workspace: { path: null } });
 
-    expect(state.settings.storage.mode).toBe('global');
-    expect(state.paths.currentCwd).toBe(path.join(service.agentDir, 'global'));
-    expect(state.paths.effectiveSessionDir).toBe(path.join(service.sessionsRootDir, 'global'));
+    expect(state.settings.workspace).toEqual({});
+    expect(state.paths.currentCwd).toBe('');
+    expect(state.paths.effectiveSessionDir).toBe('');
+    expect(await service.getStorageContext()).toEqual({ workspacePath: undefined });
   });
 
   it('resolves workspace cwd, storage context, and session directory from user settings', async () => {
     const service = createService();
     const workspacePath = path.join(rootDir, 'Story Workspace');
 
-    const state = await service.update({ storage: { mode: 'workspace', workspacePath } });
+    const state = await service.update({ workspace: { path: workspacePath } });
 
     expect(await service.getCurrentCwd()).toBe(workspacePath);
-    expect(await service.getStorageContext()).toEqual({ storageMode: 'workspace', workspacePath });
+    expect(await service.getStorageContext()).toEqual({ workspacePath });
     expect(await service.getCurrentSessionDir()).toBe(state.paths.effectiveSessionDir);
     expect(state.paths.currentCwd).toBe(workspacePath);
     expect(state.paths.effectiveSessionDir).toContain('Story Workspace-');
   });
 
-  it('persists and clears the last opened session per storage domain', async () => {
+  it('persists and clears the last opened session of the current work', async () => {
     const service = createService();
     const workspacePath = path.join(rootDir, 'Story Workspace');
-    const domainKey = `workspace:${workspacePath}`;
+    const slotKey = path.resolve(workspacePath);
 
-    await service.update({ storage: { mode: 'workspace', workspacePath } });
+    await service.update({ workspace: { path: workspacePath } });
     const persisted = await service.update({ lastSessionId: 'session-2' });
 
-    // 合成视图按当前域返回；落盘只写域槽位。
+    // 合成视图按当前作品返回；落盘只写作品槽位。
     expect(persisted.settings.lastSessionId).toBe('session-2');
-    expect(persisted.settings.lastSessions).toEqual({ [domainKey]: 'session-2' });
+    expect(persisted.settings.lastSessions).toEqual({ [slotKey]: 'session-2' });
 
     const cleared = await service.update({ lastSessionId: null });
     expect(cleared.settings.lastSessionId).toBeUndefined();
     expect(cleared.settings.lastSessions).toBeUndefined();
   });
 
-  it('clears workspacePath when switching back to global mode', async () => {
+  it('关闭作品时清空路径，但保留各作品记住的会话', async () => {
     const service = createService();
     const workspacePath = path.join(rootDir, 'Story Workspace');
+    const slotKey = path.resolve(workspacePath);
 
-    await service.update({ storage: { mode: 'workspace', workspacePath } });
-    const state = await service.update({ storage: { mode: 'global' } });
+    await service.update({ workspace: { path: workspacePath } });
+    await service.update({ lastSessionId: 'session-1' });
 
-    expect(state.settings.storage).toEqual({ mode: 'global' });
+    const closed = await service.update({ workspace: { path: null } });
+    expect(closed.settings.workspace).toEqual({});
+    expect(closed.settings.lastSessionId).toBeUndefined();
+    // 槽位留着：下次打开同一部作品还要接着上次聊。
+    expect(closed.settings.lastSessions).toEqual({ [slotKey]: 'session-1' });
 
-    const raw = JSON.parse(await readFile(service.settingsPath, 'utf8')) as { storage?: { workspacePath?: string } };
-    expect(raw.storage?.workspacePath).toBeUndefined();
+    const raw = JSON.parse(await readFile(service.settingsPath, 'utf8')) as { workspace?: { path?: string } };
+    expect(raw.workspace).toEqual({});
   });
 
-  it('isolates last session slots across storage domains', async () => {
+  it('isolates last session slots across works', async () => {
     const service = createService();
     const workspaceA = path.join(rootDir, 'Story A');
     const workspaceB = path.join(rootDir, 'Story B');
 
-    // global 域记一个槽。
-    await service.update({ lastSessionId: 'global-session' });
-
-    // 切到 A 记槽，再切到 B：B 无槽。
-    await service.update({ storage: { mode: 'workspace', workspacePath: workspaceA } });
+    // 打开 A 记槽，再切到 B：B 无槽，不该沿用 A 的会话。
+    await service.update({ workspace: { path: workspaceA } });
     await service.update({ lastSessionId: 'session-a' });
-    await service.update({ storage: { mode: 'workspace', workspacePath: workspaceB } });
+    await service.update({ workspace: { path: workspaceB } });
     expect((await service.getState()).settings.lastSessionId).toBeUndefined();
 
-    // 切回 A 恢复 A 槽；切回 global 恢复 global 槽。
-    await service.update({ storage: { mode: 'workspace', workspacePath: workspaceA } });
+    // 切回 A 恢复 A 槽。
+    await service.update({ workspace: { path: workspaceA } });
     expect((await service.getState()).settings.lastSessionId).toBe('session-a');
 
-    await service.update({ storage: { mode: 'global' } });
-    expect((await service.getState()).settings.lastSessionId).toBe('global-session');
+    // 关掉作品后没有槽位可读。
+    await service.update({ workspace: { path: null } });
+    expect((await service.getState()).settings.lastSessionId).toBeUndefined();
   });
 
   it('writes web-tools config when web tools settings are updated', async () => {
@@ -203,7 +207,7 @@ describe('SettingsService', () => {
     const settings = JSON.parse(await readFile(service.settingsPath, 'utf8')) as Record<string, unknown>;
     expect(settings).toEqual({
       version: 1,
-      storage: { mode: 'global' },
+      workspace: {},
       explorer: { showInternalFiles: false },
       editor: { autoSave: false },
       onboarding: { completedVersion: 0 },

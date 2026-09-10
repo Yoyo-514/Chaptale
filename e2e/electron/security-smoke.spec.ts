@@ -46,7 +46,7 @@ test.beforeEach(async () => {
   await fs.mkdir(path.join(testHome, '.chaptale'));
   await fs.writeFile(
     path.join(testHome, '.chaptale/settings.json'),
-    JSON.stringify({ version: 1, storage: { mode: 'global' }, onboarding: { completedVersion: 1 } })
+    JSON.stringify({ version: 1, workspace: {}, onboarding: { completedVersion: 1 } })
   );
 
   electronApp = await electron.launch({
@@ -77,9 +77,10 @@ test('production renderer exposes the trusted preload IPC facade', async () => {
 
 test('tasks.readRunOutput only reads direct review refs inside the configured workspace', async () => {
   const workspacePath = path.join(testHome, 'workspace');
-  const globalCwdPath = path.join(testHome, '.chaptale', 'agent', 'global');
+  // 诱饵目录：读取必须落在当前作品，不能回退到配置目录。
+  const decoyCwdPath = path.join(testHome, '.chaptale', 'agent', 'global');
   const workspaceReviewOutput = {
-    summary: '工作区审查摘要',
+    summary: '作品审查摘要',
     issues: [
       {
         agentType: 'continuity',
@@ -91,25 +92,25 @@ test('tasks.readRunOutput only reads direct review refs inside the configured wo
       }
     ]
   };
-  const globalReviewOutput = {
-    summary: '全局审查摘要',
+  const decoyReviewOutput = {
+    summary: '配置目录里的旧摘要',
     issues: [
       {
         agentType: 'continuity',
         type: 'timeline',
         severity: 'medium',
         quote: '全局目录里的旧结果',
-        reason: '用于验证不能回退到 global cwd',
-        suggestion: '应优先读取 workspace'
+        reason: '用于验证不能回退到配置目录',
+        suggestion: '应优先读取当前作品'
       }
     ]
   };
 
-  await fs.mkdir(path.join(globalCwdPath, '.chaptale', 'reviews'), { recursive: true });
+  await fs.mkdir(path.join(decoyCwdPath, '.chaptale', 'reviews'), { recursive: true });
   await fs.mkdir(path.join(workspacePath, '.chaptale', 'reviews'), { recursive: true });
   await fs.writeFile(
-    path.join(globalCwdPath, '.chaptale', 'reviews', 'run-e2e.json'),
-    JSON.stringify(globalReviewOutput),
+    path.join(decoyCwdPath, '.chaptale', 'reviews', 'run-e2e.json'),
+    JSON.stringify(decoyReviewOutput),
     'utf8'
   );
   await fs.writeFile(
@@ -124,7 +125,7 @@ test('tasks.readRunOutput only reads direct review refs inside the configured wo
       return null;
     }
 
-    const state = await api.settings.update({ storage: { mode: 'workspace', workspacePath: workspace } });
+    const state = await api.settings.update({ workspace: { path: workspace } });
     const valid = await api.tasks.readRunOutput('.chaptale/reviews/run-e2e.json');
     const stateFile = await api.tasks.readRunOutput('.chaptale/reviews/run-e2e.state.json');
     const traversal = await api.tasks.readRunOutput('../run-e2e.json');
@@ -132,7 +133,7 @@ test('tasks.readRunOutput only reads direct review refs inside the configured wo
 
     return {
       currentCwd: state.paths.currentCwd,
-      storage: state.settings.storage,
+      workspace: state.settings.workspace,
       valid,
       stateFile,
       traversal,
@@ -142,14 +143,14 @@ test('tasks.readRunOutput only reads direct review refs inside the configured wo
 
   expect(result).not.toBeNull();
   expect(result?.currentCwd).toBe(workspacePath);
-  expect(result?.storage).toEqual({ mode: 'workspace', workspacePath });
+  expect(result?.workspace).toEqual({ path: workspacePath });
   expect(result?.valid).toEqual({
     kind: 'review',
     runId: 'run-e2e',
     output: workspaceReviewOutput,
     contentHash: createHash('sha256').update(JSON.stringify(workspaceReviewOutput)).digest('hex')
   });
-  expect(result?.valid).not.toEqual({ kind: 'review', runId: 'run-e2e', output: globalReviewOutput });
+  expect(result?.valid).not.toEqual({ kind: 'review', runId: 'run-e2e', output: decoyReviewOutput });
   expect(result?.stateFile).toBeNull();
   expect(result?.traversal).toBeNull();
   expect(result?.wrongDirectory).toBeNull();

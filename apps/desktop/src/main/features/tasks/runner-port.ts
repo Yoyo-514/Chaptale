@@ -5,7 +5,7 @@ import type { AgentRunTrigger } from '../runs/record';
 
 export type TaskRunRequest = {
   persona: PersonaDefinition;
-  /** 启动时绑定的工作区；task session、输出和 AgentRun 必须使用同一值。 */
+  /** 启动时绑定的作品；task session、输出和 AgentRun 必须使用同一值。 */
   cwd: string;
   /** 任务简报：要做什么。 */
   brief: string;

@@ -7,7 +7,7 @@ export type SessionSelectionInput = {
   allSessions: ChaptaleSessionListItem[];
   currentSessionId: string;
   selectionRestored: boolean;
-  /** 当前存储域的持久化槽位（主进程 getState 合成）。 */
+  /** 当前作品的持久化槽位（主进程 getState 按当前作品合成）。 */
   persistedSessionId: string;
 };
 
@@ -18,10 +18,13 @@ export type SessionSelectionResult = {
 
 /**
  * 会话选择恢复规则（纯函数，与列表加载 IO 解耦）：
- * - 首次恢复：运行期选择优先，其次当前域槽位（全量列表判断存活，跨 workspace/global 的槽位不被
- *   cwd 候选过滤丢弃）；都不存活回退候选第一个。
- * - 已恢复：运行期选择存活即保留；失效（含 bindCwd 切域清空）回退候选第一个——槽位不参与，
- *   避免切域后跳回其他域的会话。
+ * - 首次恢复：运行期选择优先，其次当前作品槽位（全量列表判断存活，从历史点进来的其他作品会话
+ *   不被 cwd 候选过滤丢弃）；都不存活回退候选第一个。
+ * - 已恢复：运行期选择存活即保留；失效（含 bindCwd 换作品清空）回退候选第一个——槽位不参与，
+ *   避免换作品后跳回上一部作品的会话。
+ *
+ * 两条路径都只在结果与槽位不一致时才要求写回：改完才发现槽位里早就存的是这个会话（甚至两边都
+ * 为空）时，多写一次 IPC 既无意义，也会让"没打开作品"这种状态去动它本来就没有的槽位。
  */
 export function resolveSessionSelection(input: SessionSelectionInput): SessionSelectionResult {
   if (!input.selectionRestored) {
@@ -39,5 +42,7 @@ export function resolveSessionSelection(input: SessionSelectionInput): SessionSe
     return { nextSessionId: input.currentSessionId, shouldPersist: false };
   }
 
-  return { nextSessionId: input.candidates[0]?.id ?? '', shouldPersist: true };
+  const fallbackId = input.candidates[0]?.id ?? '';
+
+  return { nextSessionId: fallbackId, shouldPersist: fallbackId !== input.persistedSessionId };
 }

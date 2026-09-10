@@ -81,13 +81,13 @@ test.beforeEach(async () => {
   await launchApp();
   await page.evaluate(async root => {
     await (window as DesktopWindow).chaptaleDesktop.settings.update({
-      storage: { mode: 'workspace', workspacePath: root },
+      workspace: { path: root },
       onboarding: { completedVersion: 1 },
       theme: 'light'
     });
   }, workspace);
   await page.reload();
-  await expect(page.getByRole('tree', { name: '工作区文件树' })).toBeVisible();
+  await expect(page.getByRole('tree', { name: '作品文件树' })).toBeVisible();
 });
 
 test.afterEach(async () => {
@@ -546,11 +546,11 @@ test('M6 面板隐藏保留 Agent 草稿，重开后拖动方向一致', async (
   await expect(input).toHaveValue('尚未发送的创作草稿');
   const sidebar = page.locator('#workbench-primary-sidebar');
   for (let attempt = 0; attempt < 2; attempt++) {
-    await page.getByRole('button', { name: '工作区', exact: true }).click();
+    await page.getByRole('button', { name: '作品', exact: true }).click();
     await expect.poll(async () => (await sidebar.boundingBox())?.width ?? 0).toBeLessThan(1);
-    await page.getByRole('button', { name: '工作区', exact: true }).click();
+    await page.getByRole('button', { name: '作品', exact: true }).click();
     const before = (await sidebar.boundingBox())!.width;
-    const handle = (await page.getByRole('separator', { name: '调整工作区侧栏宽度', exact: true }).boundingBox())!;
+    const handle = (await page.getByRole('separator', { name: '调整作品侧栏宽度', exact: true }).boundingBox())!;
     await page.mouse.move(handle.x + handle.width / 2, handle.y + 150);
     await page.mouse.down();
     await page.mouse.move(handle.x + 40, handle.y + 150, { steps: 8 });
@@ -651,7 +651,11 @@ test('M6 三主题文本选择和 skill 对比度、菜单文字列对齐', asyn
       id: 'visual-selection-user',
       parentId: records.findLast(record => record.type !== 'session')?.id ?? null,
       timestamp: new Date().toISOString(),
-      message: { role: 'user', content: '/skill:blueprint-interview 雪落在窗沿，林晚收起了信。', timestamp: Date.now() }
+      message: {
+        role: 'user',
+        content: '/skill:blueprint-interview 雪落在窗沿，林晚收起了信。',
+        timestamp: Date.now()
+      }
     }) + '\n'
   );
   await launchApp();
@@ -1595,7 +1599,7 @@ test('运行追溯读取跨年记录与冻结来源，拒绝变更输出并保�
   expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
 });
 
-test('真实 preload 读取保留原文和哈希，并验证工作区身份及非法参数', async () => {
+test('真实 preload 读取保留原文和哈希，并验证作品身份及非法参数', async () => {
   const result = await page.evaluate(async rootPath => {
     const api = (window as DesktopWindow).chaptaleDesktop.workspace;
     const valid = await api.readDocument({ rootPath, relativePath: '正文/第一章.md' });
@@ -1776,19 +1780,19 @@ test('磁盘冲突不覆盖任一方，重新读取需要显式放弃本地修�
   await expect(content).toContainText('外部的新正文');
 });
 
-test('关闭工作区先保护脏缓冲，取消不改变工作区', async () => {
+test('关闭作品先保护脏缓冲，取消不改变作品', async () => {
   await openChapter();
   await page.getByRole('textbox', { name: '文档正文' }).click();
   await page.keyboard.press('Control+End');
   await page.keyboard.insertText('保留文字');
   await page.getByRole('menuitem', { name: '文件', exact: true }).click();
-  await page.getByRole('menuitem', { name: '关闭工作区', exact: true }).click();
+  await page.getByRole('menuitem', { name: '关闭作品', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click();
   await expect(page.getByRole('textbox', { name: '文档正文' })).toContainText('保留文字');
   await page.getByRole('menuitem', { name: '文件', exact: true }).click();
-  await page.getByRole('menuitem', { name: '关闭工作区', exact: true }).click();
+  await page.getByRole('menuitem', { name: '关闭作品', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: '不保存', exact: true }).click();
-  await expect(page.getByText('尚未打开工作区', { exact: true })).toBeVisible();
+  await expect(page.getByText('尚未打开作品', { exact: true })).toBeVisible();
   expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
 });
 
@@ -1979,14 +1983,14 @@ test('损坏元数据和空文件可打开，读取失败可在原标签重试',
   await expect(page.getByRole('tab', { name: '二进制.bin', exact: true })).toHaveCount(1);
 });
 
-test('关闭工作区清空标签和正文', async () => {
+test('关闭作品清空标签和正文', async () => {
   await openChapter();
   await expect(page.getByRole('textbox', { name: '文档正文' })).toBeVisible();
   await page.getByRole('menuitem', { name: '文件', exact: true }).click();
-  await page.getByRole('menuitem', { name: '关闭工作区', exact: true }).click();
+  await page.getByRole('menuitem', { name: '关闭作品', exact: true }).click();
   await expect(page.getByRole('tab', { name: '欢迎', exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: '文档正文' })).toHaveCount(0);
-  await expect(page.getByText('尚未打开工作区', { exact: true })).toBeVisible();
+  await expect(page.getByText('尚未打开作品', { exact: true })).toBeVisible();
 });
 
 test('HTML 作为源码显示，不执行脚本或加载文档中的远程图片', async () => {

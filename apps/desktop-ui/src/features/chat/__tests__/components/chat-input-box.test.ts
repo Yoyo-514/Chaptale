@@ -18,6 +18,7 @@ function mountInput(props?: Partial<InstanceType<typeof ChatInputBox>['$props']>
       isReplying: false,
       isSubmittingSteer: false,
       isEnabledWebSearch: true,
+      isWorkspaceMissing: false,
       reasoningEffort: '' as const,
       contextFiles: [],
       slashCommands: [],
@@ -25,7 +26,7 @@ function mountInput(props?: Partial<InstanceType<typeof ChatInputBox>['$props']>
       personaOptions: [{ id: 'companion', name: '创作伙伴' }],
       personaDisabled: false,
       modelLabel: 'openai / gpt-4.1',
-      workspaceLabel: '全局会话',
+      workspaceLabel: '作品：E:/Stories/Story-1',
       ...props
     }
   });
@@ -209,7 +210,7 @@ describe('ChatInputBox', () => {
 
     expect(wrapper.find('.chat-status-bar').exists()).toBe(true);
     expect(statusItems[0]?.text()).toContain('openai / gpt-4.1');
-    expect(statusItems[1]?.text()).toContain('全局会话');
+    expect(statusItems[1]?.text()).toContain('作品：E:/Stories/Story-1');
 
     await statusItems[0]?.trigger('click');
     await statusItems[1]?.trigger('click');

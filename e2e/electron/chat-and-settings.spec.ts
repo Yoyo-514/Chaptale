@@ -12,6 +12,7 @@ const executablePath = createRequire(path.join(desktopDir, 'package.json'))('ele
 const visualDir = path.resolve('temp/visual-qa', `chat-acceptance-${Date.now()}`);
 type DesktopWindow = Window & { chaptaleDesktop: ChaptaleDesktopApi };
 let home: string;
+let workspace: string;
 let app: ElectronApplication;
 let page: Page;
 let errors: string[];
@@ -30,9 +31,12 @@ async function launch() {
 test.beforeEach(async () => {
   home = await mkdtemp(path.join(os.tmpdir(), 'chaptale-chat-e2e-'));
   await mkdir(path.join(home, '.chaptale'));
+  // 会话归作品所有：这些用例都要能发消息，所以启动时就打开一部真实作品。
+  workspace = path.join(home, 'novel');
+  await mkdir(workspace);
   await writeFile(
     path.join(home, '.chaptale/settings.json'),
-    JSON.stringify({ version: 1, storage: { mode: 'global' }, onboarding: { completedVersion: 1 } })
+    JSON.stringify({ version: 1, workspace: { path: workspace }, onboarding: { completedVersion: 1 } })
   );
   errors = [];
   await launch();
@@ -120,7 +124,7 @@ test('设置按实际访问加载，重开保留窗口位置和创作草稿', as
   const draft = page.getByPlaceholder('描述你的创作需求...');
   await draft.fill('关闭设置后继续推敲的段落。');
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '工作区与会话存储', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '作品与会话存储', exact: true })).toBeVisible();
   expect(loaded(chunk('SettingsPanel'))).toBe(true);
   expect(loaded(chunk('WorkspaceSettings'))).toBe(true);
   expect(loaded(chunk('LLMSettings'))).toBe(false);
@@ -250,7 +254,20 @@ test('M6 会话目录写入失败会退还未交付草稿，且不残留虚假�
   const state = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.settings.getState());
   const directory = path.resolve(state.paths.effectiveSessionDir);
   expect(directory.startsWith(path.resolve(home) + path.sep)).toBe(true);
-  await rename(directory, `${directory}.previous`);
+  // Windows 上写盘句柄释放得慢，刚启动时的目录可能还被占着：重试而不是把它当成测试失败。
+  await expect
+    .poll(
+      async () => {
+        try {
+          await rename(directory, `${directory}.previous`);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 10_000 }
+    )
+    .toBe(true);
   await writeFile(directory, 'session storage unavailable');
 
   const input = page.getByPlaceholder('描述你的创作需求...');

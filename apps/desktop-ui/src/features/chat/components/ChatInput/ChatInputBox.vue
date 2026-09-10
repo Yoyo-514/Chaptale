@@ -19,6 +19,8 @@ const props = defineProps<{
   /** steer IPC 提交期间锁定输入，避免重复发送。 */
   isSubmittingSteer: boolean;
   isEnabledWebSearch: boolean;
+  /** 没有打开作品：没有会话落脚点，输入区锁上并把原因写在占位符里。 */
+  isWorkspaceMissing: boolean;
   reasoningEffort: ChaptaleReasoningEffort | '';
   contextFiles: ChatContextFile[];
   slashCommands: SlashCommand[];
@@ -111,6 +113,7 @@ function handleDrop(event: DragEvent) {
 
       <ChatPromptInput
         :model-value="props.modelValue"
+        :is-workspace-missing="props.isWorkspaceMissing"
         :is-connecting="props.isConnecting"
         :is-replying="props.isReplying"
         :is-submitting-steer="props.isSubmittingSteer"

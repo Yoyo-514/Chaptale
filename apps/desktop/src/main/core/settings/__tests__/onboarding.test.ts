@@ -49,7 +49,7 @@ describe('引导完成标记', () => {
       settings.update({ editor: { autoSave: true } })
     ]);
     expect((await settings.getState()).settings).toMatchObject({
-      storage: { mode: 'global' },
+      workspace: {},
       onboarding: { completedVersion: 1 },
       theme: 'light',
       editor: { autoSave: true }

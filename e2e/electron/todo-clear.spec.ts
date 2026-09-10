@@ -11,15 +11,19 @@ const desktopDir = path.resolve('apps/desktop');
 const executablePath = createRequire(path.join(desktopDir, 'package.json'))('electron') as string;
 type DesktopWindow = Window & { chaptaleDesktop: ChaptaleDesktopApi };
 let home: string;
+let workspace: string;
 let app: ElectronApplication;
 let page: Page;
 
 test.beforeEach(async () => {
   home = await mkdtemp(path.join(os.tmpdir(), 'chaptale-todo-e2e-'));
   await mkdir(path.join(home, '.chaptale'));
+  // 有作品才有会话落脚点：会话与待办清单都挂在当前作品下。
+  workspace = path.join(home, 'novel');
+  await mkdir(workspace);
   await writeFile(
     path.join(home, '.chaptale/settings.json'),
-    JSON.stringify({ version: 1, storage: { mode: 'global' }, onboarding: { completedVersion: 1 } })
+    JSON.stringify({ version: 1, workspace: { path: workspace }, onboarding: { completedVersion: 1 } })
   );
   const env = { ...process.env, NODE_ENV: 'production', HOME: home, USERPROFILE: home };
   delete (env as NodeJS.ProcessEnv).VITE_DEV_SERVER_URL;

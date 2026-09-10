@@ -9,7 +9,7 @@ import { AppInput } from '@/components/AppInput';
 const props = defineProps<{
   open: boolean;
   kind: 'file' | 'directory';
-  /** 目标父目录的相对路径；空串表示工作区根。 */
+  /** 目标父目录的相对路径；空串表示作品根。 */
   parent: string;
 }>();
 
@@ -45,7 +45,7 @@ function submit() {
   <AppDialog
     :open="props.open"
     :title="props.kind === 'directory' ? '新建文件夹' : '新建文件'"
-    :description="props.parent ? `将创建在 ${props.parent}/ 下` : '将创建在工作区根目录下'"
+    :description="props.parent ? `将创建在 ${props.parent}/ 下` : '将创建在作品根目录下'"
     @update:open="emit('update:open', $event)"
   >
     <AppForm class="workspace-create-form" @submit="submit">

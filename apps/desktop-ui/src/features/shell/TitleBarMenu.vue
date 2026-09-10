@@ -62,14 +62,14 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     label: '文件',
     items: [
       { id: 'file.new-workspace', label: '新建作品…', disabled: workspaceStore.isOpening },
-      { id: 'file.open-workspace', label: '打开工作区…', disabled: workspaceStore.isOpening },
+      { id: 'file.open-workspace', label: '打开作品…', disabled: workspaceStore.isOpening },
       {
         id: 'file.open-recent',
-        label: '打开最近工作区…',
+        label: '打开最近作品…',
         disabled: recentItems.value.length === 0,
         items: recentItems.value
       },
-      { id: 'file.close-workspace', label: '关闭工作区', disabled: !workspaceStore.rootPath, separatorBefore: true },
+      { id: 'file.close-workspace', label: '关闭作品', disabled: !workspaceStore.rootPath, separatorBefore: true },
       {
         id: 'file.close-editor',
         label: '关闭标签',

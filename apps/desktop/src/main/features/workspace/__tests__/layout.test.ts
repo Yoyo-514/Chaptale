@@ -44,7 +44,7 @@ describe('目录角色与章节', () => {
 
   it('显式新建章节才建默认目录，稳定 id 和 frontmatter 完整，重名不覆盖', async () => {
     const service = new WorkspaceService({
-      getStorageContext: async () => ({ storageMode: 'workspace', workspacePath: root })
+      getStorageContext: async () => ({ workspacePath: root })
     });
     const args = { rootPath: root, title: '初雪', filename: '0001-初雪.md', order: 1 };
     const result = await service.createChapter(args);

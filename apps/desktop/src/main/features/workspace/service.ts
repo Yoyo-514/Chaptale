@@ -33,7 +33,7 @@ import { DocumentReadError, readDocumentSnapshot, type DocumentReadOptions } fro
 import type { RecoveryStore } from './recovery';
 import type { WorkspaceWatcher } from './watcher';
 
-/** 工作区文件操作；根路径只认设置服务，Renderer 只能提供相对路径与预期工作区身份。 */
+/** 作品文件操作；根路径只认设置服务，Renderer 只能提供相对路径与预期作品身份。 */
 export class WorkspaceService {
   constructor(
     private readonly settings: Pick<SettingsService, 'getStorageContext'>,
@@ -48,7 +48,7 @@ export class WorkspaceService {
 
   async getState(): Promise<WorkspaceState> {
     const context = await this.settings.getStorageContext();
-    const rootPath = context.storageMode === 'workspace' && context.workspacePath ? context.workspacePath : null;
+    const rootPath = context.workspacePath ?? null;
     await this.watcher?.setRoot(rootPath);
     const hasChaptaleMetadata = rootPath
       ? await fs.stat(path.join(rootPath, '.chaptale')).then(
@@ -74,7 +74,7 @@ export class WorkspaceService {
 
   private async assertWorkspace(rootPath: string) {
     const context = await this.settings.getStorageContext();
-    if (context.storageMode !== 'workspace' || context.workspacePath !== rootPath) throw new Error('工作区已经切换');
+    if (context.workspacePath !== rootPath) throw new Error('作品已经切换');
   }
 
   async listRecoveries(rootPath: string) {
@@ -101,9 +101,9 @@ export class WorkspaceService {
 
   async listDirectory(args: ListDirectoryArgs): Promise<ListDirectoryResult> {
     const { rootPath } = await this.getState();
-    if (!rootPath) return { ok: false, code: 'no-workspace', message: '请先打开工作区' };
+    if (!rootPath) return { ok: false, code: 'no-workspace', message: '请先打开作品' };
     if (args.relativePath && !isSafeRelativePath(args.relativePath)) {
-      return { ok: false, code: 'outside-workspace', message: '只能读取工作区内的相对路径' };
+      return { ok: false, code: 'outside-workspace', message: '只能读取作品内的相对路径' };
     }
     try {
       const directory = await resolveWithinCwd(rootPath, args.relativePath);
@@ -111,7 +111,7 @@ export class WorkspaceService {
       const entries: DirectoryEntry[] = [];
       for (const child of children) {
         if (DEFAULT_IGNORED_DIRS.has(child.name) || (!args.includeInternal && child.name === '.chaptale')) continue;
-        // 不跟随链接：避免越界目录及递归展开形成环，工作区根本身仍可为链接。
+        // 不跟随链接：避免越界目录及递归展开形成环，作品根本身仍可为链接。
         if (child.isSymbolicLink() || (!child.isDirectory() && !child.isFile())) continue;
         entries.push({
           name: child.name,
@@ -126,7 +126,7 @@ export class WorkspaceService {
       const code = (error as NodeJS.ErrnoException).code;
       return {
         ok: false,
-        code: message.includes('工作区之外')
+        code: message.includes('作品之外')
           ? 'outside-workspace'
           : code === 'ENOENT'
             ? 'not-found'
@@ -141,19 +141,19 @@ export class WorkspaceService {
   async readDocument(args: ReadDocumentArgs): Promise<ReadDocumentResult> {
     try {
       const context = await this.settings.getStorageContext();
-      const rootPath = context.storageMode === 'workspace' ? context.workspacePath : undefined;
-      if (!rootPath) return { ok: false, code: 'no-workspace', message: '请先打开工作区' };
+      const rootPath = context.workspacePath;
+      if (!rootPath) return { ok: false, code: 'no-workspace', message: '请先打开作品' };
       if (args.rootPath !== rootPath) {
-        return { ok: false, code: 'workspace-changed', message: '工作区已经切换，请重新打开文件' };
+        return { ok: false, code: 'workspace-changed', message: '作品已经切换，请重新打开文件' };
       }
       if (!isSafeRelativePath(args.relativePath)) {
-        return { ok: false, code: 'outside-workspace', message: '只能读取工作区内的相对路径' };
+        return { ok: false, code: 'outside-workspace', message: '只能读取作品内的相对路径' };
       }
 
       const document = await readDocumentSnapshot({ ...args, rootPath }, this.documentReadOptions);
       const current = await this.settings.getStorageContext();
-      if (current.storageMode !== 'workspace' || current.workspacePath !== rootPath) {
-        return { ok: false, code: 'workspace-changed', message: '工作区已经切换，已丢弃旧文件读取结果' };
+      if (current.workspacePath !== rootPath) {
+        return { ok: false, code: 'workspace-changed', message: '作品已经切换，已丢弃旧文件读取结果' };
       }
       return { ok: true, document };
     } catch (error) {
@@ -162,7 +162,7 @@ export class WorkspaceService {
       const code = (error as NodeJS.ErrnoException).code;
       return {
         ok: false,
-        code: message.includes('工作区之外')
+        code: message.includes('作品之外')
           ? 'outside-workspace'
           : code === 'ENOENT' || code === 'ENOTDIR'
             ? 'not-found'
@@ -182,12 +182,12 @@ export class WorkspaceService {
       return { ok: false, code: 'too-large', message: '正文超过 100 MiB 保存上限' };
     }
     if (!isSafeRelativePath(args.relativePath)) {
-      return { ok: false, code: 'outside-workspace', message: '只能保存工作区内的相对路径' };
+      return { ok: false, code: 'outside-workspace', message: '只能保存作品内的相对路径' };
     }
     try {
       const context = await this.settings.getStorageContext();
-      if (context.storageMode !== 'workspace' || context.workspacePath !== args.rootPath) {
-        return { ok: false, code: 'workspace-changed', message: '工作区已变化，未保存旧工作区文件' };
+      if (context.workspacePath !== args.rootPath) {
+        return { ok: false, code: 'workspace-changed', message: '作品已变化，未保存旧作品文件' };
       }
       const target = await resolveWithinCwd(args.rootPath, args.relativePath);
       return await withFileWriteLock(target, async () => {
@@ -217,14 +217,14 @@ export class WorkspaceService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return { ok: false, code: message.includes('工作区之外') ? 'outside-workspace' : 'write-failed', message };
+      return { ok: false, code: message.includes('作品之外') ? 'outside-workspace' : 'write-failed', message };
     }
   }
 
   async getLayout(rootPath: string): Promise<WorkspaceLayoutResult> {
     const context = await this.settings.getStorageContext();
-    if (context.storageMode !== 'workspace' || context.workspacePath !== rootPath) {
-      return { ok: false, message: '工作区已经切换' };
+    if (context.workspacePath !== rootPath) {
+      return { ok: false, message: '作品已经切换' };
     }
     return { ok: true, layout: await new WorkspaceLayoutService().read(rootPath) };
   }
@@ -308,16 +308,16 @@ export class WorkspaceService {
   }
 
   /**
-   * 在工作区内新建空文件或目录。
+   * 在作品内新建空文件或目录。
    *
    * 只做「不存在则创建」：已存在一律报错而不是覆盖——这里的目标是作者的正文，
    * 静默截断一个同名章节比让用户改个名字糟糕得多。
    */
   async createEntry(args: CreateEntryArgs): Promise<CreateEntryResult> {
     const { rootPath } = await this.getState();
-    if (!rootPath) return { ok: false, code: 'no-workspace', message: '请先打开工作区' };
+    if (!rootPath) return { ok: false, code: 'no-workspace', message: '请先打开作品' };
     if (!isSafeRelativePath(args.relativePath)) {
-      return { ok: false, code: 'outside-workspace', message: '只能在工作区内新建' };
+      return { ok: false, code: 'outside-workspace', message: '只能在作品内新建' };
     }
 
     const name = args.relativePath.split('/').at(-1) ?? '';
@@ -340,7 +340,7 @@ export class WorkspaceService {
       const message = error instanceof Error ? error.message : String(error);
       const code = (error as NodeJS.ErrnoException).code;
 
-      if (message.includes('工作区之外')) return { ok: false, code: 'outside-workspace', message };
+      if (message.includes('作品之外')) return { ok: false, code: 'outside-workspace', message };
       if (code === 'EEXIST') return { ok: false, code: 'already-exists', message: `${name} 已存在` };
 
       return { ok: false, code: 'write-failed', message };

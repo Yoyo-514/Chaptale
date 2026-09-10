@@ -15,7 +15,7 @@ import { withFileWriteLock } from '../../infra/filesystem/write-lock';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 
-/** 恢复草稿在本机缓存，按工作区与相对路径隔离，不写回作者文件。 */
+/** 恢复草稿在本机缓存，按作品与相对路径隔离，不写回作者文件。 */
 export class RecoveryStore {
   constructor(private readonly cacheRoot: string) {}
 

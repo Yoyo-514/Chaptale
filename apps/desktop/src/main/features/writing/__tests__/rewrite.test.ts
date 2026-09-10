@@ -67,7 +67,7 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), 'chaptale-rewrite-'));
   reviews = new ReviewWorkflowStore();
   workspace = new WorkspaceService({
-    getStorageContext: async () => ({ storageMode: 'workspace', workspacePath: root })
+    getStorageContext: async () => ({ workspacePath: root })
   });
   candidates = new CandidateStore(workspace);
   await writeFile(path.join(root, '正文.md'), text);

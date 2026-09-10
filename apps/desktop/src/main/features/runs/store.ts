@@ -13,7 +13,7 @@ import type { AgentRunRecord } from './record';
 const RAW_OUTPUT_DIRECTORY = ['.chaptale', 'runs', 'outputs'];
 
 export type AgentRunStoreOptions = {
-  /** 解析当前 workspace 根目录（作品文件夹）；每次落盘/读取时求值，跟随工作区切换。 */
+  /** 解析当前作品根目录；每次落盘/读取时求值，跟随作品切换。 */
   resolveCwd: () => Promise<string> | string;
 };
 
@@ -54,7 +54,7 @@ export type AgentRunListResult = {
 export class AgentRunStore {
   constructor(private readonly options: AgentRunStoreOptions) {}
 
-  /** 追加一条终态记录；cwdOverride 用于把一次运行固定在启动时的工作区。 */
+  /** 追加一条终态记录；cwdOverride 用于把一次运行固定在启动时的作品。 */
   async append(record: AgentRunRecord, cwdOverride?: string): Promise<void> {
     const cwd = cwdOverride ?? (await this.options.resolveCwd());
     if (!AgentRunRecordValidator.Check(record)) throw new Error('运行记录字段无效');
@@ -94,7 +94,7 @@ export class AgentRunStore {
     });
   }
 
-  /** 落盘输出体；cwdOverride 与 append 共用，避免工作区切换把同一 run 拆开。 */
+  /** 落盘输出体；cwdOverride 与 append 共用，避免作品切换把同一 run 拆开。 */
   async saveOutput(runId: string, rawText: string, cwdOverride?: string): Promise<string> {
     const cwd = cwdOverride ?? (await this.options.resolveCwd());
     const target = await prepareSafeOutputFile(cwd, RAW_OUTPUT_DIRECTORY, runId);
@@ -160,7 +160,7 @@ export class AgentRunStore {
   /** 读取全部月份，坏行和不可读文件保留诊断，不能伪装为没有历史。 */
   async list(options: AgentRunListOptions = {}): Promise<AgentRunListResult> {
     const cwd = await this.options.resolveCwd();
-    if (options.rootPath && path.resolve(options.rootPath) !== path.resolve(cwd)) throw new Error('工作区已切换');
+    if (options.rootPath && path.resolve(options.rootPath) !== path.resolve(cwd)) throw new Error('作品已切换');
     const limit = options.limit ?? 100;
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error('运行记录分页大小无效');
     const records: AgentRunRecord[] = [];

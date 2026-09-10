@@ -64,7 +64,7 @@ describe('运行追溯', () => {
       'failed'
     );
     expect((await store.list({ status: 'cancelled' })).records).toEqual([]);
-    await expect(store.list({ rootPath: `${root}-old` })).rejects.toThrow('工作区已切换');
+    await expect(store.list({ rootPath: `${root}-old` })).rejects.toThrow('作品已切换');
     for (const limit of [0, -1, 201, 0.5]) await expect(store.list({ limit })).rejects.toThrow('分页');
   });
   it('完整校验坏行和重复 id，残缺末行不吞掉后续追加', async () => {

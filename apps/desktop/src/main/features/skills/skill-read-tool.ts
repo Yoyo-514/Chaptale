@@ -53,7 +53,7 @@ export type SkillReadToolOptions = {
 /**
  * 技能文件的按需读取通道。
  *
- * read 工具被 resolveWithinCwd 限制在会话工作区内，而用户级与内置技能
+ * read 工具被 resolveWithinCwd 限制在会话作品内，而用户级与内置技能
  * 在 `~/.chaptale/` 下——不经本通道，模型永远读不到它们的正文。
  * 注入采用渐进披露（索引常驻、正文按需），模型用本工具取 SKILL.md 全文；
  * 目录型技能（SKILL.md 之外的辅助文件）经 path 参数读取，越界复用

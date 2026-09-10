@@ -115,7 +115,7 @@ async function seedSession(sessionId: string, count: number) {
 }
 
 describe('会话压缩管线', () => {
-  it('检查点先落盘到会话工作区，会话流写入同一正文', async () => {
+  it('检查点先落盘到会话作品，会话流写入同一正文', async () => {
     await seedSession('s1', 12);
     const { service } = createPipeline();
 
@@ -142,7 +142,7 @@ describe('会话压缩管线', () => {
     expect(result.estimatedTokensAfter).toBeLessThan(result.tokensBefore);
   });
 
-  it('蒸馏用的是会话绑定的工作区，不是全局 currentCwd', async () => {
+  it('蒸馏用的是会话绑定的作品，不是全局 currentCwd', async () => {
     await seedSession('s1', 4);
     const { service, taskRun } = createPipeline();
 

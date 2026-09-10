@@ -17,6 +17,8 @@ const props = defineProps<{
   isReplying: boolean;
   /** steer IPC 提交期间锁定输入，避免草稿与回滚状态发生竞态。 */
   isSubmittingSteer: boolean;
+  /** 没打开作品时不能聊：没有作品就没有会话可写。 */
+  isWorkspaceMissing: boolean;
   slashCommands: SlashCommand[];
 }>();
 
@@ -50,8 +52,10 @@ const filteredSlashCommands = computed(() => {
     .slice(0, 8);
 });
 const isCommandMenuOpen = computed(() => filteredSlashCommands.value.length > 0);
-/** 只有初次连接或 steer IPC 提交期间锁定编辑器；回复重试期间仍允许排队 steer。 */
-const isInputDisabled = computed(() => (props.isConnecting && !props.isReplying) || props.isSubmittingSteer);
+/** 只有初次连接、steer IPC 提交期间、以及没有作品时锁定编辑器；回复重试期间仍允许排队 steer。 */
+const isInputDisabled = computed(
+  () => props.isWorkspaceMissing || (props.isConnecting && !props.isReplying) || props.isSubmittingSteer
+);
 /** 回复中有非空文本时主按钮发送 steer，否则保持中断语义。 */
 const isSteerReady = computed(() => props.isReplying && props.modelValue.trim().length > 0);
 const { resize: resizeTextarea } = useAutosizeTextarea(() => textareaRef.value?.getElement(), {
@@ -151,7 +155,7 @@ function handleKeydown(event: KeyboardEvent) {
     size="lg"
     resize="none"
     variant="plain"
-    placeholder="描述你的创作需求..."
+    :placeholder="props.isWorkspaceMissing ? '先新建或打开作品，再开始对话' : '描述你的创作需求...'"
     :disabled="isInputDisabled"
     @update:model-value="handleInput"
     @keydown="handleKeydown"

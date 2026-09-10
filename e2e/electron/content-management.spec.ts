@@ -59,7 +59,7 @@ test.beforeEach(async () => {
     path.join(home, '.chaptale/settings.json'),
     JSON.stringify({
       version: 1,
-      storage: { mode: 'workspace', workspacePath: work },
+      workspace: { path: work },
       onboarding: { completedVersion: 1 }
     })
   );

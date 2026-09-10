@@ -39,7 +39,7 @@ export class TemplateService {
     private readonly userDirectory: string
   ) {}
   private async assertWorkspace(rootPath: string) {
-    if ((await this.workspace.getState()).rootPath !== rootPath) throw new Error('工作区已切换');
+    if ((await this.workspace.getState()).rootPath !== rootPath) throw new Error('作品已切换');
   }
   async list(rootPath: string): Promise<TemplateList> {
     await this.assertWorkspace(rootPath);

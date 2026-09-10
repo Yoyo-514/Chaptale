@@ -30,7 +30,7 @@ export class LibraryService {
   ) {}
 
   async assertWorkspace(rootPath: string) {
-    if ((await this.workspace.getState()).rootPath !== rootPath) throw new Error('工作区已经切换');
+    if ((await this.workspace.getState()).rootPath !== rootPath) throw new Error('作品已经切换');
   }
 
   async listAssets(rootPath: string) {

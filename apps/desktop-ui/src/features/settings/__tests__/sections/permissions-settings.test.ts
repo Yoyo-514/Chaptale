@@ -64,7 +64,7 @@ describe('PermissionsSettings', () => {
     const wrapper = mount(PermissionsSettings);
 
     await vi.waitFor(() => expect(wrapper.text()).toContain('write(src/example.ts)'));
-    await wrapper.get('button[aria-label="删除本工作区规则 write(src/example.ts)"]').trigger('click');
+    await wrapper.get('button[aria-label="删除本作品规则 write(src/example.ts)"]').trigger('click');
     wrapper.getComponent(AppAlertDialog).vm.$emit('confirm');
 
     await vi.waitFor(() => expect(permissions.removeRule).toHaveBeenCalledOnce());

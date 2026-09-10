@@ -7,17 +7,18 @@ import { useNotificationStore } from '@/features/notifications';
 
 import { useChatController } from '../../composables/useChatController';
 
+const WORKSPACE = 'E:/backend-study/Chaptale';
+
 function createSession() {
   return {
     id: 'session-1',
     createdAt: '2026-07-06T00:00:00.000Z',
     updatedAt: '2026-07-06T00:00:00.000Z',
-    cwd: 'E:/backend-study/Chaptale',
+    cwd: WORKSPACE,
     path: 'session.jsonl',
     leafId: null,
     messageCount: 1,
     lastMessagePreview: '最近消息',
-    scope: 'global' as const,
     totalTokens: 0,
     totalCost: 0
   };
@@ -33,14 +34,14 @@ function createDeferred<T>() {
 
 function installDesktopMock(cancel: ReturnType<typeof vi.fn>) {
   const settings = {
-    settings: { version: 1, storage: { mode: 'global' as const }, lastSessionId: 'session-1' },
+    settings: { version: 1, workspace: { path: WORKSPACE }, lastSessionId: 'session-1' },
     webTools: {
       search: { enabled: true, provider: 'duckduckgo' as const },
       keys: {},
       fetch: { timeoutSeconds: 30, maxBytes: 2 * 1024 * 1024 },
       ssrf: { allowRanges: [] }
     },
-    paths: {}
+    paths: { currentCwd: WORKSPACE }
   };
   let streamHandlers: any;
   const api = {

@@ -35,7 +35,7 @@ async function documentFile(content: string | Buffer, name = 'chapter.md') {
   return { rootPath, relativePath: name };
 }
 
-describe('工作区文档读取', () => {
+describe('作品文档读取', () => {
   it('返回完整原文、字节数、文件时间和实际字节的 SHA-256', async () => {
     const content = '\uFEFF---\r\ntitle: 初雪\r\n---\r\n第一行。\r\n第二行。\n末行';
     const args = await documentFile(content);
@@ -134,7 +134,7 @@ describe('工作区文档读取', () => {
     expect(await readFile(path.join(args.rootPath, args.relativePath), 'utf8')).toBe(content);
   });
 
-  it('没有工作区时不回退到全局目录', async () => {
+  it('没有作品时不回退到全局目录', async () => {
     const args = await documentFile('正文');
     workspacePath = undefined;
     expect(await new WorkspaceService(settings).readDocument(args)).toMatchObject({
@@ -143,11 +143,11 @@ describe('工作区文档读取', () => {
     });
   });
 
-  it('拒绝旧工作区发来的读取请求', async () => {
-    const args = await documentFile('工作区 A');
+  it('拒绝旧作品发来的读取请求', async () => {
+    const args = await documentFile('作品 A');
     workspacePath = path.join(testRoot, 'another');
     await mkdir(workspacePath);
-    await writeFile(path.join(workspacePath, args.relativePath), '工作区 B');
+    await writeFile(path.join(workspacePath, args.relativePath), '作品 B');
 
     expect(await new WorkspaceService(settings).readDocument(args)).toMatchObject({
       ok: false,
@@ -155,8 +155,8 @@ describe('工作区文档读取', () => {
     });
   });
 
-  it('读取过程中切换工作区，旧结果失效', async () => {
-    const args = await documentFile('工作区 A');
+  it('读取过程中切换作品，旧结果失效', async () => {
+    const args = await documentFile('作品 A');
     const pending = new WorkspaceService(settings).readDocument(args);
     workspacePath = undefined;
 
@@ -182,7 +182,7 @@ describe('工作区文档读取', () => {
     );
   });
 
-  it('拒绝目录链接逃逸，允许工作区内的目录链接', async () => {
+  it('拒绝目录链接逃逸，允许作品内的目录链接', async () => {
     const outside = path.join(testRoot, 'outside');
     await mkdir(outside);
     await writeFile(path.join(outside, 'secret.md'), '不可读取');

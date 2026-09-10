@@ -5,7 +5,7 @@ import path from 'node:path';
 import type {
   ChaptaleSettings,
   ChaptaleSettingsState,
-  ChaptaleStorageSettings,
+  ChaptaleWorkspaceSettings,
   UpdateChaptaleSettingsPayload,
   UpdateWebToolsSettingsPayload,
   WebToolsSettings
@@ -51,13 +51,39 @@ function sanitizeWebToolsKeysPayload(payload: UpdateWebToolsSettingsPayload): Up
   return Object.keys(keys).length > 0 ? { ...payload, keys } : { ...payload, keys: undefined };
 }
 
-/** 存储域槽位 key：global 单槽；workspace 按 resolve 后的路径各占一槽。 */
-function storageDomainKey(storage: ChaptaleStorageSettings): string {
-  if (storage.mode === 'workspace' && storage.workspacePath) {
-    return `workspace:${path.resolve(storage.workspacePath)}`;
+/**
+ * 最近会话槽位 key：作品绝对路径。没打开作品就没有槽位可言。
+ *
+ * 键用 resolve 后的路径而不是作品目录名，是为了让手改过 settings.json 的人看得懂自己删的是哪一行。
+ */
+function workspaceSlotKey(workspace: ChaptaleWorkspaceSettings): string | undefined {
+  return workspace.path ? path.resolve(workspace.path) : undefined;
+}
+
+/** 合成当前作品的最近会话：取当前作品槽位，没打开作品时无值。 */
+function currentLastSessionId(settings: ChaptaleSettings): string | undefined {
+  const slotKey = workspaceSlotKey(settings.workspace);
+
+  return slotKey ? settings.lastSessions?.[slotKey] : undefined;
+}
+
+/**
+ * 合并作品目录更新：undefined 保持不动，null 或空串关闭当前作品。
+ *
+ * 「关闭」落盘时不留 `path: undefined` 这类空字段：settings.json 是手改得动的文件，
+ * 留一个空壳字段会让人以为还有作品。
+ */
+function mergeWorkspace(
+  current: ChaptaleWorkspaceSettings,
+  payload: UpdateChaptaleSettingsPayload['workspace']
+): ChaptaleWorkspaceSettings {
+  if (!payload || payload.path === undefined) {
+    return { ...current };
   }
 
-  return 'global';
+  const nextPath = payload.path?.trim();
+
+  return nextPath ? { path: nextPath } : {};
 }
 
 export type SettingsServiceOptions = {
@@ -106,10 +132,7 @@ export class SettingsService {
       const current = await this.readSettingsUnsafe();
       const next: ChaptaleSettings = {
         version: current.version,
-        storage: {
-          ...current.storage,
-          ...payload.storage
-        },
+        workspace: mergeWorkspace(current.workspace, payload.workspace),
         explorer: {
           ...current.explorer,
           ...payload.explorer
@@ -125,31 +148,24 @@ export class SettingsService {
         ...(current.recentWorkspaces ? { recentWorkspaces: [...current.recentWorkspaces] } : {})
       };
 
-      // workspace 模式必须绑定有效路径；不完整的设置回退到 global，避免生成不可定位的会话目录。
-      if (next.storage.mode === 'workspace' && !next.storage.workspacePath) {
-        next.storage.mode = 'global';
-      }
-      if (next.storage.mode === 'workspace' && next.storage.workspacePath) {
+      if (next.workspace.path) {
         next.recentWorkspaces = [
-          next.storage.workspacePath,
-          ...(next.recentWorkspaces ?? []).filter(item => item !== next.storage.workspacePath)
+          next.workspace.path,
+          ...(next.recentWorkspaces ?? []).filter(item => item !== next.workspace.path)
         ].slice(0, 8);
       }
 
-      // 切回 global 时清掉工作区路径：避免设置面板残留显示，保持落盘数据与模式一致。
-      if (next.storage.mode === 'global') {
-        delete next.storage.workspacePath;
-      }
+      // lastSessionId：null=清除当前作品槽位；string=写当前作品槽位；undefined=保持不动。
+      // 没有作品时整块不动：写出去只会是个无主槽位，谁也取不回来。
+      const slotKey = workspaceSlotKey(next.workspace);
 
-      // lastSessionId：null=清除当前域槽位；string=写当前域槽位；undefined=保持不动。
-      if (payload.lastSessionId !== undefined) {
+      if (payload.lastSessionId !== undefined && slotKey) {
         const slots = { ...next.lastSessions };
-        const domainKey = storageDomainKey(next.storage);
 
         if (payload.lastSessionId === null) {
-          delete slots[domainKey];
+          delete slots[slotKey];
         } else if (payload.lastSessionId) {
-          slots[domainKey] = payload.lastSessionId;
+          slots[slotKey] = payload.lastSessionId;
         }
 
         next.lastSessions = Object.keys(slots).length > 0 ? slots : undefined;
@@ -172,12 +188,14 @@ export class SettingsService {
 
   async ensureBaseDirs(settings?: ChaptaleSettings) {
     const resolvedSettings = settings ?? (await this.readSettings());
+    const sessionDir = this.getSessionDir(resolvedSettings.workspace);
+
     await Promise.all([
       fs.mkdir(this.rootDir, { recursive: true }),
       fs.mkdir(this.agentDir, { recursive: true }),
       fs.mkdir(this.sessionsRootDir, { recursive: true }),
-      fs.mkdir(this.getSessionDir(resolvedSettings.storage), { recursive: true }),
-      fs.mkdir(path.join(this.agentDir, 'global'), { recursive: true })
+      // 没有作品就没有会话目录；空串交给 mkdir 会落到进程 cwd。
+      ...(sessionDir ? [fs.mkdir(sessionDir, { recursive: true })] : [])
     ]);
 
     await this.ensureSettingsFile(resolvedSettings);
@@ -189,7 +207,7 @@ export class SettingsService {
 
   /** 只补齐缺失的配置文件；已有文件即使内容不完整也交给 merge 逻辑兼容，避免覆盖用户设置。 */
   async ensureSettingsFile(settings?: ChaptaleSettings) {
-    // 缺失检查与回填也必须串行，否则旧的初始化快照会覆盖刚完成的工作区更新。
+    // 缺失检查与回填也必须串行，否则旧的初始化快照会覆盖刚完成的作品更新。
     await this.enqueue(async () => {
       const rawSettings = await this.readRawSettingsFile();
 
@@ -204,32 +222,36 @@ export class SettingsService {
   async getCurrentSessionDir() {
     const settings = await this.readSettings();
     await this.ensureBaseDirs(settings);
-    return this.getSessionDir(settings.storage);
+    return this.getSessionDir(settings.workspace);
   }
 
+  /** 会话归属的作品目录；没打开作品时为空串（Renderer 据此判定"不能聊"）。 */
   async getCurrentCwd() {
     const settings = await this.readSettings();
-    return this.getCurrentCwdFromStorage(settings.storage);
+    return this.getCurrentCwdFromWorkspace(settings.workspace);
   }
 
   async getStorageContext() {
     const settings = await this.readSettings();
-    return {
-      storageMode: settings.storage.mode,
-      workspacePath: settings.storage.workspacePath
-    };
+    return { workspacePath: settings.workspace.path };
   }
 
   /**
-   * 将存储设置映射为稳定的会话目录。
-   * 工作区路径先转换为安全目录名，避免把绝对路径层级直接拼入应用数据目录。
+   * 应用级数据的落脚目录（运行记录、审查产物、权限规则、记忆待办）。
+   *
+   * 这些数据归属作品，但读取入口不依赖作品是否打开——没有作品时退回配置目录，
+   * 免得空 cwd 经 path.join 变成相对路径落到进程 cwd。
    */
-  getSessionDir(storage: ChaptaleStorageSettings) {
-    if (storage.mode === 'workspace' && storage.workspacePath) {
-      return path.join(this.sessionsRootDir, toWorkspaceSessionDirName(storage.workspacePath));
-    }
+  async getAppStateCwd() {
+    return (await this.getCurrentCwd()) || this.agentDir;
+  }
 
-    return path.join(this.sessionsRootDir, 'global');
+  /**
+   * 将作品目录映射为稳定的会话目录。
+   * 作品路径先转换为安全目录名，避免把绝对路径层级直接拼入应用数据目录。
+   */
+  getSessionDir(workspace: ChaptaleWorkspaceSettings) {
+    return workspace.path ? path.join(this.sessionsRootDir, toWorkspaceSessionDirName(workspace.path)) : '';
   }
 
   private async readSettingsUnsafe(): Promise<ChaptaleSettings> {
@@ -253,8 +275,8 @@ export class SettingsService {
     return {
       settings: {
         ...settings,
-        // 合成视图：按当前 storage 域取槽位；不落盘（落盘只写 lastSessions）。
-        lastSessionId: settings.lastSessions?.[storageDomainKey(settings.storage)]
+        // 合成视图：按当前作品取槽位；不落盘（落盘只写 lastSessions）。
+        lastSessionId: currentLastSessionId(settings)
       },
       webTools: { ...webTools, keys: maskWebToolsKeys(webTools.keys) },
       paths: {
@@ -264,19 +286,15 @@ export class SettingsService {
         modelsPath: this.modelsPath,
         webToolsConfigPath: this.webToolsConfigPath,
         sessionsRootDir: this.sessionsRootDir,
-        effectiveSessionDir: this.getSessionDir(settings.storage),
-        currentCwd: this.getCurrentCwdFromStorage(settings.storage)
+        effectiveSessionDir: this.getSessionDir(settings.workspace),
+        currentCwd: this.getCurrentCwdFromWorkspace(settings.workspace)
       }
     };
   }
 
-  /** currentCwd 是 Renderer 绑定会话的权威来源；workspace 路径只在 Main 侧解析，避免前端自行猜测。 */
-  private getCurrentCwdFromStorage(storage: ChaptaleStorageSettings) {
-    if (storage.mode === 'workspace' && storage.workspacePath) {
-      return storage.workspacePath;
-    }
-
-    return path.join(this.agentDir, 'global');
+  /** currentCwd 是 Renderer 绑定会话的权威来源；作品路径只在 Main 侧解析，避免前端自行猜测。 */
+  private getCurrentCwdFromWorkspace(workspace: ChaptaleWorkspaceSettings) {
+    return workspace.path ?? '';
   }
 
   private async readWebToolsConfig(): Promise<UpdateWebToolsSettingsPayload> {

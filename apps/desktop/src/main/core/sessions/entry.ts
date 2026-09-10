@@ -1,4 +1,3 @@
-import type { ChaptaleSessionScope } from '@chaptale/ipc-contract';
 import type { ChatContextFile, TokenUsage } from '@chaptale/shared';
 
 /**
@@ -203,7 +202,6 @@ export type SessionSummary = {
   messageCount: number;
   lastMessagePreview?: string;
   totalTokens: number;
-  scope: ChaptaleSessionScope;
   /**
    * 文件里读不回来的记录数；无损坏时不带此字段。
    *

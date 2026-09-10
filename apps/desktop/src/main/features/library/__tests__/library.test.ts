@@ -26,7 +26,7 @@ beforeEach(async () => {
   await mkdir(root);
   catalog = new AssetCatalog(path.join(home, 'cache'));
   const workspace = new WorkspaceService({
-    getStorageContext: async () => ({ storageMode: 'workspace', workspacePath: currentRoot })
+    getStorageContext: async () => ({ workspacePath: currentRoot })
   });
   service = new LibraryService(workspace, {
     listAssets: cwd => catalog.list(cwd),
@@ -169,14 +169,14 @@ describe('参考快照', () => {
     await expect(stat(path.join(root, '.chaptale/packs'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
-  it('快照正文被修改时拒绝使用，工作区身份与链接目录不允许绕过', async () => {
+  it('快照正文被修改时拒绝使用，作品身份与链接目录不允许绕过', async () => {
     await put('角色/甲.md', '原文');
     const pack = await service.freezePack(args());
     const packFile = path.join(root, `.chaptale/packs/${pack.id}.md`);
     await writeFile(packFile, (await readFile(packFile, 'utf8')).replace('原文', '改动'));
     await expect(service.readPack(root, pack.id)).rejects.toThrow('正文已被修改');
     currentRoot = home;
-    await expect(service.listAssets(root)).rejects.toThrow('工作区已经切换');
+    await expect(service.listAssets(root)).rejects.toThrow('作品已经切换');
     currentRoot = root;
     await expect(service.readPack(root, '../other')).rejects.toThrow('id 不合法');
     const linkedRoot = path.join(home, 'linked');

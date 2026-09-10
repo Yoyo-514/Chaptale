@@ -124,13 +124,13 @@ function selectReasoningEffort(value: string) {
       </AppDropdownMenuItem>
     </AppDropdownMenu>
     <span class="chat-status-divider" aria-hidden="true" />
-    <AppTooltip text="打开工作区设置" side="top">
+    <AppTooltip text="打开作品设置" side="top">
       <AppButton
         variant="ghost"
         size="xs"
         class="chat-status-item"
         type="button"
-        aria-label="打开工作区设置"
+        aria-label="打开作品设置"
         @click="emit('openSettings', 'workspace')"
       >
         <span class="i-mingcute-folder-line" aria-hidden="true" />
@@ -157,7 +157,7 @@ function selectReasoningEffort(value: string) {
   font-weight: 500;
 }
 
-/* 专员与档位文案很短，不参与等分：占掉三分之一只会把模型与工作区挤成省略号。 */
+/* 专员与档位文案很短，不参与等分：占掉三分之一只会把模型与作品挤成省略号。 */
 .chat-status-compact {
   @apply min-w-0 shrink-0 justify-start;
 }

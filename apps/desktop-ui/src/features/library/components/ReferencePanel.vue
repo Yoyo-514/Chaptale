@@ -69,7 +69,7 @@ watch(
     </header>
     <AppScrollArea class="reference-scroll">
       <div class="reference-content">
-        <p v-if="!workspace.rootPath">尚未打开工作区</p>
+        <p v-if="!workspace.rootPath">尚未打开作品</p>
         <label class="reference-field"
           >场景<AppSelect
             aria-label="写作场景"

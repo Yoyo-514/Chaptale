@@ -5,7 +5,7 @@ import type { SettingsService } from '../../core/settings/service';
 import type { SkillLoadResult, SkillProvider } from './provider-port';
 
 /**
- * 自有 SkillsProvider：三层目录（builtin < 用户 < 工作区）同名覆盖 + appliesTo 过滤。
+ * 自有 SkillsProvider：三层目录（builtin < 用户 < 作品）同名覆盖 + appliesTo 过滤。
  * 同名覆盖后过滤以最终生效文件的声明为准。
  */
 export class SkillsProvider implements SkillProvider {

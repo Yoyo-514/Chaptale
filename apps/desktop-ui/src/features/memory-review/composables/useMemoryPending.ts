@@ -7,7 +7,7 @@ import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 /**
  * 待确认的记忆提议列表：挂载时拉取，之后跟随 pendingChanged 信号重新拉取。
  *
- * pending 归属工作区而非会话，切会话不重建；数据始终以主进程落盘为准，
+ * pending 归属作品而非会话，切会话不重建；数据始终以主进程落盘为准，
  * 本地不做乐观更新——resolve 后由 changed 信号驱动刷新。
  */
 export function useMemoryPending() {

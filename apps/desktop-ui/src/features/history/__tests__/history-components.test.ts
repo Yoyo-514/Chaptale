@@ -11,13 +11,12 @@ function createSession(): ChaptaleSessionListItem {
     id: 'session-1',
     name: '第一章讨论',
     cwd: 'E:/novel',
-    path: 'E:/novel/.chaptale/session.jsonl',
+    path: 'E:/chaptale/sessions/novel/session.jsonl',
     messageCount: 6,
     lastMessagePreview: '继续完善这一章的冲突。',
     leafId: null,
     createdAt: '2026-07-04T00:00:00.000Z',
     updatedAt: '2026-07-04T08:05:00.000Z',
-    scope: 'workspace',
     totalTokens: 12_300
   };
 }
@@ -29,7 +28,8 @@ describe('history compact components', () => {
         searchQuery: '',
         scopeFilter: 'all',
         sortMode: 'latest',
-        isSelectionMode: false
+        isSelectionMode: false,
+        scopeOptions: [{ value: 'all', label: '全部' }]
       }
     });
 

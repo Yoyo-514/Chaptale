@@ -44,7 +44,7 @@ export class MemoryInjector {
     return `${block}\n\n`;
   }
 
-  /** 会话缓存失效（工作区切换等）时同步清空注入记录。 */
+  /** 会话缓存失效（作品切换等）时同步清空注入记录。 */
   reset() {
     this.lastInjectedHash.clear();
   }

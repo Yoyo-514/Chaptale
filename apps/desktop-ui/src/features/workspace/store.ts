@@ -8,7 +8,7 @@ import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { confirmWorkspaceTransition } from '@/utils/workspace-transition';
 
-/** 工作区生命周期入口；迁移期复用 settings IPC，但不再由设置 UI 发起目录选择。 */
+/** 作品生命周期入口；迁移期复用 settings IPC，但不再由设置 UI 发起目录选择。 */
 export const useWorkspaceStore = defineStore('workspace', {
   state: () => ({
     isOpening: false,
@@ -83,7 +83,7 @@ export const useWorkspaceStore = defineStore('workspace', {
         if (defaultPath) {
           const selected = await api.workspace.selectParent({ defaultPath, purpose: 'open' });
           if (!selected) return false;
-          nextState = await api.settings.update({ storage: { mode: 'workspace', workspacePath: selected } });
+          nextState = await api.settings.update({ workspace: { path: selected } });
         } else {
           const result = await api.settings.selectWorkspaceDir();
           if (result.canceled || !result.state) return false;
@@ -97,18 +97,21 @@ export const useWorkspaceStore = defineStore('workspace', {
         return true;
       } catch (error) {
         this.error = toErrorMessage(error);
-        useNotificationStore().error('打开工作区失败', this.error);
+        useNotificationStore().error('打开作品失败', this.error);
         return false;
       } finally {
         this.isOpening = false;
       }
     },
+    /** 关闭作品：此后没有会话落脚点，聊天随之停用，直到再次新建或打开作品。 */
     async closeWorkspace() {
-      if (!(await useSettingsStore().update({ storage: { mode: 'global' } }))) return;
+      if (!(await useSettingsStore().update({ workspace: { path: null } }))) return;
       await this.refreshState();
+      // update 已把会话 cwd 绑成空；这里补一次存储信息，免得设置面板还显示上一部作品的目录。
+      await useSessionStore().loadStorageDebugInfo();
     },
     async openRecent(path: string) {
-      if (!(await useSettingsStore().update({ storage: { mode: 'workspace', workspacePath: path } }))) return;
+      if (!(await useSettingsStore().update({ workspace: { path } }))) return;
       await this.refreshState();
       await this.syncSession();
     }

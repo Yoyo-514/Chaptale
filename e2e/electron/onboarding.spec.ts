@@ -69,7 +69,9 @@ test('首启自动弹出新建作品，取消后不再自动重弹', async () =>
 
   await createDialog().getByRole('button', { name: '取消', exact: true }).click();
   await expect(createDialog()).toBeHidden();
-  await expect(composer()).toBeVisible();
+  // 没有作品就没有会话落脚点：输入区锁上并把原因写在占位符里，而不是让作者写完才发现发不出去。
+  await expect(page.getByPlaceholder('先新建或打开作品，再开始对话')).toBeVisible();
+  await expect(composer()).toHaveCount(0);
   // 没有默认模型时，状态栏的「未选择模型」应当是醒目态，而不是一片灰字里的一行。
   await expect(page.getByRole('button', { name: '打开模型设置', exact: true })).toHaveClass(/chat-status-item-missing/);
 
@@ -84,7 +86,7 @@ test('首启自动弹出新建作品，取消后不再自动重弹', async () =>
 
   await app.close();
   await launch();
-  await expect(composer()).toBeVisible();
+  await expect(page.getByPlaceholder('先新建或打开作品，再开始对话')).toBeVisible();
   await expect(createDialog()).toBeHidden();
 });
 

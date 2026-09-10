@@ -14,9 +14,12 @@ let page: Page;
 test.beforeEach(async () => {
   home = await mkdtemp(path.join(os.tmpdir(), 'chaptale-provider-e2e-'));
   await mkdir(path.join(home, '.chaptale'));
+  // 有作品才有会话落脚点：没有作品时输入区是锁上的。
+  const workspace = path.join(home, 'novel');
+  await mkdir(workspace);
   await writeFile(
     path.join(home, '.chaptale/settings.json'),
-    JSON.stringify({ version: 1, storage: { mode: 'global' }, onboarding: { completedVersion: 1 } })
+    JSON.stringify({ version: 1, workspace: { path: workspace }, onboarding: { completedVersion: 1 } })
   );
   const env = { ...process.env, NODE_ENV: 'production', HOME: home, USERPROFILE: home };
   delete (env as NodeJS.ProcessEnv).VITE_DEV_SERVER_URL;

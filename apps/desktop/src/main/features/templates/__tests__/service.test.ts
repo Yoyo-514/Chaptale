@@ -25,7 +25,7 @@ beforeEach(async () => {
   );
   service = new TemplateService(
     new WorkspaceService({
-      getStorageContext: async () => ({ storageMode: 'workspace', workspacePath: root })
+      getStorageContext: async () => ({ workspacePath: root })
     }),
     path.join(home, 'templates')
   );

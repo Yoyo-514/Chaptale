@@ -26,7 +26,7 @@ export class SettlementStore {
   constructor(private readonly workspace: WorkspaceService) {}
 
   private async assertWorkspace(rootPath: string) {
-    if ((await this.workspace.getState()).rootPath !== rootPath) throw new Error('工作区已经切换');
+    if ((await this.workspace.getState()).rootPath !== rootPath) throw new Error('作品已经切换');
   }
   async create(rootPath: string, batch: SettlementBatch) {
     await this.assertWorkspace(rootPath);

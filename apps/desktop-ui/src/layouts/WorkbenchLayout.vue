@@ -107,7 +107,7 @@ onBeforeUnmount(() => {
       <aside
         v-show="navigation.sidebarOpen && !navigation.focusMode"
         class="workbench-primary-sidebar"
-        aria-label="工作区侧栏"
+        aria-label="作品侧栏"
       >
         <div v-show="navigation.sidebar === 'workspace'" class="workbench-sidebar-view">
           <WorkspaceExplorer @open-file="editor.openDocument" />
@@ -122,7 +122,7 @@ onBeforeUnmount(() => {
     <SplitterResizeHandle
       v-show="navigation.sidebarOpen && !navigation.focusMode"
       class="workbench-resize-handle"
-      aria-label="调整工作区侧栏宽度"
+      aria-label="调整作品侧栏宽度"
     />
 
     <SplitterPanel id="workbench-editor" :order="2" :default-size="52" :min-size="35" class="workbench-panel">

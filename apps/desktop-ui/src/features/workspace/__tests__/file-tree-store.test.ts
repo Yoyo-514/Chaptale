@@ -49,7 +49,7 @@ function installDesktopApi(layout: Record<string, Entry[]>, internalLayout: Reco
 function installSettings(showInternalFiles: boolean) {
   const store = useSettingsStore();
   store.state = {
-    settings: { version: 1, storage: { mode: 'global' }, explorer: { showInternalFiles }, theme: 'dark' },
+    settings: { version: 1, workspace: {}, explorer: { showInternalFiles }, theme: 'dark' },
     paths: { currentCwd: '/w', effectiveSessionDir: '/w/.chaptale' }
   } as never;
   return store;
@@ -139,7 +139,10 @@ describe('file tree store', () => {
       // 真实 settings store 会整体替换快照；这里照做，让 watch 拿到新值。
       settings.state = {
         ...settings.state,
-        settings: { ...settings.state!.settings, explorer: { showInternalFiles: payload.explorer!.showInternalFiles! } }
+        settings: {
+          ...settings.state!.settings,
+          explorer: { showInternalFiles: payload.explorer!.showInternalFiles! }
+        }
       } as never;
       return settings.state;
     });

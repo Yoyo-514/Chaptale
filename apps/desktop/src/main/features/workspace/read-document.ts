@@ -67,7 +67,7 @@ async function readSnapshot(
 ): Promise<WorkspaceDocument> {
   const guardedPath = await resolveWithinCwd(args.rootPath, args.relativePath);
   const [realRoot, target] = await Promise.all([realpath(args.rootPath), realpath(guardedPath)]);
-  // 打开已校验的真实路径；再次复核，防止前一次检查期间链接被换到工作区外。
+  // 打开已校验的真实路径；再次复核，防止前一次检查期间链接被换到作品外。
   await resolveWithinCwd(realRoot, target);
   checkDeadline();
   const initial = await stat(target);

@@ -16,7 +16,7 @@ describe('ActivityBar', () => {
     const activityButtons = wrapper.get('[aria-label="创作视图"]').findAll('button');
 
     expect(activityButtons.map(button => button.attributes('aria-label'))).toEqual([
-      '工作区',
+      '作品',
       '搜索',
       '资料库',
       '审查',

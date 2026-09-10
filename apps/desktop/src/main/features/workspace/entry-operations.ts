@@ -23,7 +23,7 @@ import type { WorkspaceService } from './service';
 type Workspace = Pick<WorkspaceService, 'getState' | 'getLayout'>;
 
 async function assertRoot(workspace: Workspace, rootPath: string) {
-  if ((await workspace.getState()).rootPath !== rootPath) throw new Error('工作区已经切换');
+  if ((await workspace.getState()).rootPath !== rootPath) throw new Error('作品已经切换');
 }
 async function fingerprint(target: string) {
   const hash = createHash('sha256');

@@ -6,7 +6,7 @@ import type { SessionCtx } from '../../../core/session-ctx/types';
 import type { PermissionRule } from '../../permissions/protocol';
 import { createBrokerPermissionGate, toPermissionSubject } from '../chat-bundle';
 
-const CTX: SessionCtx = { sessionId: 's1', cwd: '/works/novel', scope: 'workspace' };
+const CTX: SessionCtx = { sessionId: 's1', cwd: '/works/novel' };
 
 function createGate(rules: PermissionRule[], decision: PermissionDecision = { outcome: 'allow-once' }) {
   const ask = vi.fn(async () => decision);
@@ -28,7 +28,7 @@ function check(gate: ReturnType<typeof createGate>['gate'], overrides: Partial<P
 
 describe('createBrokerPermissionGate 规则前置', () => {
   it('命中 allow 规则时直行，不再弹授权卡片', async () => {
-    // 闸门不读规则库的话，「本工作区始终允许」落库后依然每次弹卡。
+    // 闸门不读规则库的话，「本作品始终允许」落库后依然每次弹卡。
     const { gate, ask } = createGate([{ pattern: 'write', action: 'allow' }]);
 
     await expect(check(gate)).resolves.toEqual({ outcome: 'allow-once' });

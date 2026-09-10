@@ -32,7 +32,7 @@ Chaptale 不是单纯的聊天机器人，也不是普通文档编辑器。
 
 ## 当前核心体验
 
-### 作品工作区
+### 作品目录
 
 新建作品会建立章节、角色、设定、大纲和草稿目录，生成作品清单、创作守则与首章。也可以打开已有作品目录。没有配置模型时，文件编辑、资料管理和版本功能仍然可用。
 
@@ -104,10 +104,9 @@ pnpm test:unit
 pnpm lint
 pnpm format:check
 pnpm test:e2e
-pnpm test:e2e:development
 ```
 
-两套端到端验收都启动真实 Electron，使用独立 HOME、USERPROFILE 和 user-data，不替换桌面桥，也不需要配置模型。`test:e2e` 验证生产产物；`test:e2e:development` 使用 Vite 渲染器，额外检查开发态组件挂载与运行时警告。两套图形测试应串行运行，避免争夺系统焦点。
+端到端验收启动真实 Electron，使用独立 HOME、USERPROFILE 和 user-data，不替换桌面桥，也不需要配置模型。图形测试应串行运行，避免争夺系统焦点。
 
 需要跳过 Turbo 缓存验证生产构建时，直接运行 `pnpm --filter @chaptale/desktop build`。类型检查会重建共享契约，不应与依赖同一产物的构建或测试并行运行。
 

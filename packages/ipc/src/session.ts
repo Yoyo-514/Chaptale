@@ -12,7 +12,6 @@ import type {
   RenameSessionPayloadSchema,
   SetSessionLeafPayloadSchema
 } from './schemas/sessions';
-import type { ChaptaleStorageMode } from './settings';
 
 export type ChaptaleSessionEntry = {
   type: 'session';
@@ -100,17 +99,12 @@ export type ChaptaleSessionMetadata = {
   parentSessionPath?: string;
 };
 
-/** 会话存储范围：与设置里的存储模式同源（'global' | 'workspace'）。 */
-export type ChaptaleSessionScope = ChaptaleStorageMode;
-
 export type ChaptaleSessionListItem = ChaptaleSessionMetadata & {
   name?: string;
   updatedAt: string;
   leafId: string | null;
   messageCount: number;
   lastMessagePreview?: string;
-  /** 会话存储范围：全局目录或当前工作区目录 */
-  scope: ChaptaleSessionScope;
   /** 会话内 assistant 消息累计 token 消耗 */
   totalTokens: number;
   /**
@@ -145,8 +139,8 @@ export type ReadSessionImageResult = {
 
 export type ChaptaleSessionStorageDebugInfo = {
   rootDir: string;
+  /** 当前作品的会话目录；没有打开作品时为空串。 */
   sessionDir: string;
   cwd: string;
-  storageMode?: ChaptaleStorageMode;
   workspacePath?: string;
 };

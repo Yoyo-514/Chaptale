@@ -31,7 +31,7 @@ describe('应用共享写入队列', () => {
     ]);
     expect(await readFile(path.join(workspace, 'a.md'), 'utf8')).toBe('甲新\n乙新');
     const service = new WorkspaceService({
-      getStorageContext: async () => ({ storageMode: 'workspace' as const, workspacePath: workspace })
+      getStorageContext: async () => ({ workspacePath: workspace })
     });
     expect(
       await service.writeDocument({
@@ -64,7 +64,7 @@ describe('应用共享写入队列', () => {
     expect(await store.resolve(workspace, applied.id, 'accept')).toMatchObject({ status: 'missing' });
   });
 
-  it('提议不能通过链接写工作区外或应用内部目录', async () => {
+  it('提议不能通过链接写作品外或应用内部目录', async () => {
     const outside = path.join(root, 'outside');
     await mkdir(outside);
     await mkdir(path.join(workspace, '.chaptale'));

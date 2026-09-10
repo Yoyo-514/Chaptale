@@ -45,7 +45,7 @@ describe('PermissionRequestCard', () => {
 
   it('仍保留放行该工具全部调用的入口', async () => {
     const wrapper = mountCard();
-    await clickButton(wrapper, '本工作区始终允许');
+    await clickButton(wrapper, '本作品始终允许');
 
     expect(wrapper.emitted('decide')).toEqual([
       [
@@ -73,6 +73,6 @@ describe('PermissionRequestCard', () => {
     const wrapper = mountCard({ subject: '' });
 
     expect(wrapper.findAll('button').filter(item => item.text().startsWith('始终允许'))).toHaveLength(0);
-    expect(wrapper.findAll('button').filter(item => item.text() === '本工作区始终允许')).toHaveLength(1);
+    expect(wrapper.findAll('button').filter(item => item.text() === '本作品始终允许')).toHaveLength(1);
   });
 });

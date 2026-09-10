@@ -1,14 +1,11 @@
 import type { Static } from 'typebox';
 
 import type {
-  ChaptaleStorageModeSchema,
   ChaptaleThemeSchema,
   UpdateChaptaleSettingsPayloadSchema,
   UpdateWebToolsSettingsPayloadSchema,
   WebToolsProviderSchema
 } from './schemas/settings';
-
-export type ChaptaleStorageMode = Static<typeof ChaptaleStorageModeSchema>;
 
 /** 界面主题；每个取值对应样式表里的一套语义色。 */
 export type ChaptaleTheme = Static<typeof ChaptaleThemeSchema>;
@@ -31,13 +28,12 @@ export function isChaptaleTheme(value: unknown): value is ChaptaleTheme {
   return typeof value === 'string' && Object.hasOwn(THEME_VALUES, value);
 }
 
-/** 会话存储策略；workspacePath 只在 workspace 模式下生效。 */
-export type ChaptaleStorageSettings = {
-  mode: ChaptaleStorageMode;
-  workspacePath?: string;
+/** 当前打开的作品；没有打开作品时 path 缺省，此时既没有会话目录也不能聊天。 */
+export type ChaptaleWorkspaceSettings = {
+  path?: string;
 };
 
-/** 资源管理器偏好；属于“这个人想看到什么”，不随工作区变。 */
+/** 资源管理器偏好；属于“这个人想看到什么”，不随作品变。 */
 export type ChaptaleExplorerSettings = {
   /** 是否在文件树里展示 `.chaptale/` 等应用内部文件。 */
   showInternalFiles: boolean;
@@ -68,7 +64,8 @@ export type WebToolsSettings = {
 
 export type ChaptaleSettings = {
   version: 1;
-  storage: ChaptaleStorageSettings;
+  /** 当前打开的作品；作者没打开作品时说话没有落脚点，聊天因此不可用。 */
+  workspace: ChaptaleWorkspaceSettings;
   /** 资源管理器偏好；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
   explorer: ChaptaleExplorerSettings;
   editor?: { autoSave: boolean };
@@ -76,11 +73,11 @@ export type ChaptaleSettings = {
   /** 界面主题；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
   theme: ChaptaleTheme;
   /**
-   * 按存储域记忆的最近会话（global 槽 + 每工作区一槽）。
-   * 落盘字段；lastSessionId 为按当前域合成的视图。
+   * 按作品记忆的最近会话（作品路径 → 会话 id）。
+   * 落盘字段；lastSessionId 为当前作品的合成视图。
    */
   lastSessions?: Record<string, string>;
-  /** 当前存储域的最近会话（合成值，不落盘）；不存在或已删除时由 Renderer 回退。 */
+  /** 当前作品的最近会话（合成值，不落盘）；不存在或已删除时由 Renderer 回退。 */
   lastSessionId?: string;
   recentWorkspaces?: string[];
 };

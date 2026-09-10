@@ -16,7 +16,7 @@ beforeEach(async () => {
   cwd = path.join(root, 'workspace');
   await mkdir(cwd);
   service = new WorkspaceService({
-    getStorageContext: async () => ({ storageMode: 'workspace' as const, workspacePath: cwd })
+    getStorageContext: async () => ({ workspacePath: cwd })
   });
 });
 
@@ -60,7 +60,7 @@ describe('文档受控保存', () => {
     });
   });
 
-  it('拒绝工作区过期、越界和删除后自动重建', async () => {
+  it('拒绝作品过期、越界和删除后自动重建', async () => {
     const args = { rootPath: cwd, relativePath: 'missing.md', expectedHash: hash('原文'), content: '新文' };
     expect(await service.writeDocument(args)).toMatchObject({ ok: false, code: 'not-found' });
     expect(await service.writeDocument({ ...args, rootPath: `${cwd}-old` })).toMatchObject({

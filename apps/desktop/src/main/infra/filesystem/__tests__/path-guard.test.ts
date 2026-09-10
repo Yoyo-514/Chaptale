@@ -57,10 +57,10 @@ describe('isBinaryContent', () => {
 
 describe('resolveWithinCwd', () => {
   it('词法越界（../ 序列）直接拒绝', async () => {
-    await expect(resolveWithinCwd(path.join(dir, 'ws'), '../outside.txt')).rejects.toThrow(/工作区之外/);
+    await expect(resolveWithinCwd(path.join(dir, 'ws'), '../outside.txt')).rejects.toThrow(/作品之外/);
   });
 
-  it('工作区内路径放行；相对路径与绝对路径等价', async () => {
+  it('作品内路径放行；相对路径与绝对路径等价', async () => {
     await mkdir(path.join(dir, 'ws'), { recursive: true });
     await writeFile(path.join(dir, 'ws', 'a.txt'), 'x');
 
@@ -77,7 +77,7 @@ describe('resolveWithinCwd', () => {
     await expect(resolveWithinCwd(link, 'a.txt')).resolves.toBe(path.join(link, 'a.txt'));
   });
 
-  it('工作区内符号链接指向外部：realpath 复核拒绝', async () => {
+  it('作品内符号链接指向外部：realpath 复核拒绝', async () => {
     await mkdir(path.join(dir, 'ws'), { recursive: true });
     await mkdir(path.join(dir, 'outside'), { recursive: true });
     await writeFile(path.join(dir, 'outside', 'secret.txt'), '机密');

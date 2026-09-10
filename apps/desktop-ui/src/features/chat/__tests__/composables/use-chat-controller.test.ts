@@ -8,11 +8,13 @@ import { useSettingsStore } from '@/features/settings';
 
 import { useChatController } from '../../composables/useChatController';
 
+const WORKSPACE = 'E:/backend-study/Chaptale';
+
 function createSettingsState(webSearchEnabled = true) {
   return {
     settings: {
       version: 1,
-      storage: { mode: 'global' }
+      workspace: { path: WORKSPACE }
     },
     webTools: {
       search: { enabled: webSearchEnabled, provider: 'duckduckgo' },
@@ -27,7 +29,8 @@ function createSettingsState(webSearchEnabled = true) {
       modelsPath: 'C:/Users/Test/.chaptale/agent/models.json',
       webToolsConfigPath: 'C:/Users/Test/.chaptale/agent/web-tools.json',
       sessionsRootDir: 'C:/Users/Test/.chaptale/agent/sessions',
-      effectiveSessionDir: 'C:/Users/Test/.chaptale/agent/sessions/global'
+      effectiveSessionDir: 'C:/Users/Test/.chaptale/agent/sessions/Story-1',
+      currentCwd: WORKSPACE
     }
   };
 }
@@ -37,12 +40,11 @@ function createSession(id = 'session-1') {
     id,
     createdAt: '2026-07-06T00:00:00.000Z',
     updatedAt: '2026-07-06T00:00:00.000Z',
-    cwd: 'E:/backend-study/Chaptale',
+    cwd: WORKSPACE,
     path: 'session.jsonl',
     leafId: null,
     messageCount: 1,
     lastMessagePreview: '最近消息',
-    scope: 'global' as const,
     totalTokens: 0,
     totalCost: 0
   };
@@ -59,9 +61,8 @@ function installDesktopMock(overrides: Partial<NonNullable<typeof window.chaptal
       getEntries: vi.fn().mockResolvedValue([]),
       getStorageDebugInfo: vi.fn().mockResolvedValue({
         rootDir: 'C:/Users/Test/.chaptale',
-        sessionDir: 'C:/Users/Test/.chaptale/agent/sessions/global',
-        cwd: 'E:/backend-study/Chaptale',
-        storageMode: 'global'
+        sessionDir: 'C:/Users/Test/.chaptale/agent/sessions/Story-1',
+        cwd: 'E:/backend-study/Chaptale'
       }),
       openStorageDir: vi.fn().mockResolvedValue(undefined),
       setLeaf: vi.fn().mockResolvedValue(undefined)

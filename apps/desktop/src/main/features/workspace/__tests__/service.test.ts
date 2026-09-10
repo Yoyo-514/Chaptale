@@ -10,8 +10,8 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
 const settings = (root: string | null) => ({
-  getStorageContext: async (): Promise<{ storageMode: 'global' | 'workspace'; workspacePath: string | undefined }> =>
-    root ? { storageMode: 'workspace', workspacePath: root } : { storageMode: 'global', workspacePath: undefined }
+  getStorageContext: async (): Promise<{ workspacePath: string | undefined }> =>
+    root ? { workspacePath: root } : { workspacePath: undefined }
 });
 
 describe('WorkspaceService', () => {
@@ -100,7 +100,7 @@ describe('WorkspaceService', () => {
     expect(await readFile(path.join(root, '第一章.md'), 'utf8')).toBe('已写好的正文');
   });
 
-  it('拒绝非法名称、路径穿越与无工作区时的新建', async () => {
+  it('拒绝非法名称、路径穿越与无作品时的新建', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'chaptale-workspace-'));
     dirs.push(root);
     const service = new WorkspaceService(settings(root));

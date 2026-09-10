@@ -8,7 +8,7 @@ const settingsStore = useSettingsStore();
 const navigation = useWorkbenchStore();
 
 const activities = [
-  { id: 'workspace', label: '工作区', icon: 'i-mingcute-folder-2-line', available: true },
+  { id: 'workspace', label: '作品', icon: 'i-mingcute-folder-2-line', available: true },
   { id: 'search', label: '搜索', icon: 'i-mingcute-search-line', available: true },
   { id: 'structure', label: '资料库', icon: 'i-mingcute-grid-line', available: true },
   { id: 'review', label: '审查', icon: 'i-mingcute-check-circle-line', available: true },

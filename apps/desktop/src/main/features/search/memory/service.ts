@@ -11,7 +11,7 @@ import type {
   IndexSourceResolver
 } from '../types';
 
-const LITERAL_SEARCH_FAILURE_MESSAGE = '本地检索失败；如当前角色获准使用 grep/read，可继续检查工作区文件。';
+const LITERAL_SEARCH_FAILURE_MESSAGE = '本地检索失败；如当前角色获准使用 grep/read，可继续检查作品文件。';
 
 export type SearchLevel = 'l1' | 'l2' | 'l3';
 export type SearchAttempt = {

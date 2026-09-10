@@ -15,20 +15,19 @@ describe('settings defaults', () => {
     const first = cloneDefaultSettings();
     const second = cloneDefaultSettings();
 
-    first.storage.mode = 'workspace';
-    first.storage.workspacePath = 'E:/Stories';
+    first.workspace.path = 'E:/Stories';
 
-    expect(second.storage).toEqual({ mode: 'global' });
+    expect(second.workspace).toEqual({});
   });
 
   it('merges app settings without carrying web tools fields', () => {
     const settings = mergeSettings({
-      storage: { mode: 'workspace', workspacePath: 'E:/Stories' }
+      workspace: { path: 'E:/Stories' }
     });
 
     expect(settings).toEqual({
       version: 1,
-      storage: { mode: 'workspace', workspacePath: 'E:/Stories' },
+      workspace: { path: 'E:/Stories' },
       explorer: { showInternalFiles: false },
       editor: { autoSave: false },
       onboarding: { completedVersion: 0 },

@@ -23,11 +23,10 @@ function createSession(overrides: Partial<ChaptaleSessionListItem> = {}): Chapta
     name: '理清这个故事',
     createdAt: '2026-07-06T00:00:00.000Z',
     updatedAt: '2026-07-06T00:00:00.000Z',
-    cwd: 'E:/backend-study/Chaptale',
+    cwd: 'E:/Stories/Story-1',
     path: 'session.jsonl',
     leafId: null,
     messageCount: 0,
-    scope: 'global',
     totalTokens: 0,
     ...overrides
   };
@@ -49,7 +48,7 @@ function createPersonaEntry(id: string, name: string): ContentEntry {
 /** 专员清单来自内容目录，所以测试必须让 content.list 真的返回一份清单。 */
 function installDesktopMock(entries: ContentEntry[]) {
   const state = {
-    settings: { version: 1, storage: { mode: 'global' as const }, theme: 'light' as const },
+    settings: { version: 1, workspace: {}, theme: 'light' as const },
     webTools: {
       search: { enabled: false, provider: 'duckduckgo' as const },
       keys: {},

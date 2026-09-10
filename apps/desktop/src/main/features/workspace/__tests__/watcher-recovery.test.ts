@@ -64,7 +64,7 @@ describe('真实文件监听', () => {
       .toBe(true);
   });
 
-  it('切换工作区不再推送旧目录事件，不跟随内部链接', async () => {
+  it('切换作品不再推送旧目录事件，不跟随内部链接', async () => {
     const other = path.join(root, 'other');
     await mkdir(other);
     await symlink(other, path.join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
@@ -80,7 +80,7 @@ describe('真实文件监听', () => {
 });
 
 describe('本机恢复草稿', () => {
-  it('重建存储后可读，原文不写入作品且工作区隔离', async () => {
+  it('重建存储后可读，原文不写入作品且作品隔离', async () => {
     const cacheRoot = path.join(root, 'cache');
     const store = new RecoveryStore(cacheRoot);
     const content = '\uFEFF甲\r\n乙\n丙\r';

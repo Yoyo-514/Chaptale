@@ -27,7 +27,7 @@ afterEach(async () => {
 describe('不可变版本', () => {
   it('表单和源文件保存为 final 时先留存完整定稿，普通后续编辑不重复快照', async () => {
     const workspace = new WorkspaceService(
-      { getStorageContext: async () => ({ storageMode: 'workspace' as const, workspacePath: root }) },
+      { getStorageContext: async () => ({ workspacePath: root }) },
       {},
       undefined,
       undefined,
@@ -56,7 +56,7 @@ describe('不可变版本', () => {
   });
   it('新建定稿同样留档，快照目录损坏时不写正文', async () => {
     const workspace = new WorkspaceService(
-      { getStorageContext: async () => ({ storageMode: 'workspace' as const, workspacePath: root }) },
+      { getStorageContext: async () => ({ workspacePath: root }) },
       {},
       undefined,
       undefined,
@@ -73,7 +73,7 @@ describe('不可变版本', () => {
     await mkdir(path.join(otherRoot, '.chaptale'), { recursive: true });
     await writeFile(path.join(otherRoot, '.chaptale/revisions'), '不是目录');
     const blocked = new WorkspaceService(
-      { getStorageContext: async () => ({ storageMode: 'workspace' as const, workspacePath: otherRoot }) },
+      { getStorageContext: async () => ({ workspacePath: otherRoot }) },
       {},
       undefined,
       undefined,

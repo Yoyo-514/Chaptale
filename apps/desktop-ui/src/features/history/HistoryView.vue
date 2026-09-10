@@ -12,19 +12,20 @@ import HistorySelectionToolbar from './components/HistorySelectionToolbar.vue';
 import HistorySessionList from './components/HistorySessionList.vue';
 import HistoryToolbar from './components/HistoryToolbar.vue';
 import { useHistorySessions } from './composables/useHistorySessions';
+import { HISTORY_SCOPE_ALL } from './composables/useHistorySessions';
 import type { HistoryScopeFilter, HistorySortMode } from './composables/useHistorySessions';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
 
 const searchQuery = ref('');
-const scopeFilter = ref<HistoryScopeFilter>('all');
+const scopeFilter = ref<HistoryScopeFilter>(HISTORY_SCOPE_ALL);
 const sortMode = ref<HistorySortMode>('latest');
 const isSelectionMode = ref(false);
 const selectedIds = ref(new Set<string>());
 const sessions = computed(() => sessionStore.sessions);
 const currentWorkspacePath = computed(() => sessionStore.storageDebugInfo?.workspacePath ?? '');
-const { filteredSessions } = useHistorySessions({
+const { filteredSessions, scopeOptions } = useHistorySessions({
   sessions,
   searchQuery,
   scopeFilter,
@@ -119,7 +120,7 @@ async function deleteSelectedSessions() {
         v-model:scope-filter="scopeFilter"
         v-model:sort-mode="sortMode"
         :is-selection-mode="isSelectionMode"
-        :current-workspace-path="currentWorkspacePath"
+        :scope-options="scopeOptions"
         @toggle-selection-mode="toggleSelectionMode"
       />
       <HistorySelectionToolbar

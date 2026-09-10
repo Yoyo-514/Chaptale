@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { getSessionScope, SessionStorageResolver } from '../storage';
+import { SessionStorageResolver } from '../storage';
 
 let root: string;
 
@@ -66,9 +66,45 @@ describe('SessionStorageResolver', () => {
   });
 });
 
-describe('getSessionScope', () => {
-  it('目录名 global → global，其余 → workspace', () => {
-    expect(getSessionScope(path.join('a', 'b', 'global'))).toBe('global');
-    expect(getSessionScope(path.join('a', 'b', 'Story-xyz'))).toBe('workspace');
+describe('getKnownSessionDirs', () => {
+  it('列出所有作品的会话目录，当前作品排在首位', async () => {
+    const sessionsRootDir = path.join(root, 'sessions');
+    await mkdir(path.join(sessionsRootDir, 'Story-a'), { recursive: true });
+    await mkdir(path.join(sessionsRootDir, 'Story-b'), { recursive: true });
+    await writeFile(path.join(sessionsRootDir, 'stray.txt'), 'not a dir', 'utf8');
+
+    const resolver = new SessionStorageResolver({
+      rootDir: root,
+      cwd: '/story-b',
+      sessionDir: path.join(sessionsRootDir, 'Story-b'),
+      sessionsRootDir
+    });
+
+    expect(await resolver.getKnownSessionDirs()).toEqual([
+      path.join(sessionsRootDir, 'Story-b'),
+      path.join(sessionsRootDir, 'Story-a')
+    ]);
+  });
+
+  it('没有打开作品时只剩既存目录，不建当前目录', async () => {
+    const sessionsRootDir = path.join(root, 'sessions');
+    await mkdir(path.join(sessionsRootDir, 'Story-a'), { recursive: true });
+
+    const resolver = new SessionStorageResolver({
+      rootDir: root,
+      cwd: '',
+      sessionDir: '',
+      sessionsRootDir
+    });
+
+    expect(await resolver.getKnownSessionDirs()).toEqual([path.join(sessionsRootDir, 'Story-a')]);
+  });
+});
+
+describe('ensureSessionDir', () => {
+  it('没有作品时拒绝建会话目录，避免落到进程 cwd', async () => {
+    const resolver = new SessionStorageResolver({ rootDir: root, cwd: '', sessionDir: '' });
+
+    await expect(resolver.ensureSessionDir()).rejects.toThrow('请先打开作品');
   });
 });

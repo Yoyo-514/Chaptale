@@ -28,21 +28,21 @@ const globalRules = computed(() => rules.value.filter(rule => rule.scope === 'gl
 const ruleGroups = computed(() => [
   {
     scope: 'workspace' as const,
-    title: '本工作区规则',
-    description: '仅影响当前打开的工作区，随工作区文件一起保存。',
-    emptyText: '暂无工作区规则',
+    title: '本作品规则',
+    description: '仅影响当前打开的作品，随作品文件一起保存。',
+    emptyText: '暂无作品规则',
     rules: workspaceRules.value
   },
   {
     scope: 'global' as const,
     title: '全局规则',
-    description: '影响所有工作区，请谨慎保留允许类规则。',
+    description: '影响所有作品，请谨慎保留允许类规则。',
     emptyText: '暂无全局规则',
     rules: globalRules.value
   }
 ]);
 const removeDialogTitle = computed(() =>
-  pendingRule.value?.scope === 'global' ? '删除这条全局权限规则？' : '删除这条工作区权限规则？'
+  pendingRule.value?.scope === 'global' ? '删除这条全局权限规则？' : '删除这条作品权限规则？'
 );
 const removeDialogDescription = computed(() => (pendingRule.value ? describeRemoval(pendingRule.value) : ''));
 const removeDialogConfirmLabel = computed(() => (pendingRule.value?.scope === 'global' ? '删除全局规则' : '删除规则'));
@@ -52,7 +52,7 @@ function ruleKey(rule: PermissionRuleEntry): string {
 }
 
 function describeRemoval(rule: PermissionRuleEntry): string {
-  const scopeDescription = rule.scope === 'global' ? '所有工作区' : '本工作区';
+  const scopeDescription = rule.scope === 'global' ? '所有作品' : '本作品';
   return `删除后，“${rule.pattern}” 将不再从${scopeDescription}的这条规则获得权限。`;
 }
 

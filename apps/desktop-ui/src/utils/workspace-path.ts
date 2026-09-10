@@ -1,4 +1,4 @@
-// Renderer 侧统一工作区路径比较：历史筛选与 session store 必须保持同一语义。
+// Renderer 侧统一作品路径比较：历史筛选与 session store 必须保持同一语义。
 export function normalizeWorkspacePath(value: string) {
   return value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
 }

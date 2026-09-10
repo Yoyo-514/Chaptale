@@ -193,7 +193,7 @@ async function handleCreate(name: string) {
 }
 
 onMounted(async () => {
-  // 严格先后：工作区状态刷新会触发下面那个 revision 监听并立即取数，
+  // 严格先后：作品状态刷新会触发下面那个 revision 监听并立即取数，
   // 先拿到「显示内部文件」偏好，首次请求才不会按默认值白拉一遍。
   await tree.loadPreferences();
   await workspace.refreshState();
@@ -203,7 +203,7 @@ onMounted(async () => {
 watch(
   () => workspace.revision,
   async () => {
-    // 换了工作区，旧缓存与展开态全部作废。
+    // 换了作品，旧缓存与展开态全部作废。
     tree.reset();
     if (workspace.rootPath) await tree.load();
   }
@@ -237,7 +237,7 @@ watch(
         </div>
       </header>
 
-      <!-- 根节点行：工作区名 + 针对根目录的操作，按钮在 hover/键盘聚焦时出现。 -->
+      <!-- 根节点行：作品名 + 针对根目录的操作，按钮在 hover/键盘聚焦时出现。 -->
       <div v-if="workspace.rootPath" class="workspace-explorer-root">
         <span class="workspace-explorer-root-name" :title="workspace.rootPath">
           {{ workspace.displayName ?? workspace.rootPath }}
@@ -274,9 +274,9 @@ watch(
       </div>
 
       <div v-if="!workspace.rootPath" class="workspace-explorer-placeholder">
-        <p>尚未打开工作区</p>
+        <p>尚未打开作品</p>
         <AppButton size="sm" variant="primary" @click="workspace.newWorkspaceOpen = true">新建作品</AppButton>
-        <AppButton size="sm" @click="workspace.openWorkspace()">打开工作区</AppButton>
+        <AppButton size="sm" @click="workspace.openWorkspace()">打开作品</AppButton>
       </div>
       <!-- 占位只属于「根目录从未加载过」：刷新/显隐切换会清缓存重排（闪一下），
          不显示占位面板，与 VS Code 的刷新观感一致。 -->
@@ -286,7 +286,7 @@ watch(
       <div v-else-if="tree.errors['']" class="workspace-explorer-placeholder">
         <p>{{ tree.errors[''] }}</p>
       </div>
-      <div v-else ref="scrollElementRef" role="tree" aria-label="工作区文件树" class="workspace-tree">
+      <div v-else ref="scrollElementRef" role="tree" aria-label="作品文件树" class="workspace-tree">
         <div class="workspace-tree-spacer" :style="{ height: `${totalSize}px` }">
           <template v-for="item in virtualItems" :key="String(item.key)">
             <div
@@ -367,7 +367,7 @@ watch(
             </div>
           </template>
         </div>
-        <p v-if="tree.rootLoaded && !rows.length && !tree.loading['']" class="workspace-tree-empty">工作区为空</p>
+        <p v-if="tree.rootLoaded && !rows.length && !tree.loading['']" class="workspace-tree-empty">作品为空</p>
       </div>
 
       <WorkspaceCreateEntryDialog
@@ -392,7 +392,7 @@ watch(
   @apply flex h-9 shrink-0 items-center justify-between gap-1 pl-3 pr-1.5;
 }
 
-/* 标题是定位信息不是重点内容，加粗会盖过下面的工作区名。 */
+/* 标题是定位信息不是重点内容，加粗会盖过下面的作品名。 */
 .workspace-explorer-title {
   @apply truncate text-xs font-normal;
 
@@ -411,7 +411,7 @@ watch(
   color: var(--foreground);
 }
 
-/* 操作按钮平时让位给工作区名；指针进到侧栏或键盘进到按钮时才出现。 */
+/* 操作按钮平时让位给作品名；指针进到侧栏或键盘进到按钮时才出现。 */
 .workspace-explorer-root-actions {
   @apply flex shrink-0 items-center opacity-0;
 }

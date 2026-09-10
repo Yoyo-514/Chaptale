@@ -15,7 +15,7 @@ vi.mock('../../../infra/security/validated-ipc', () => ({
   })
 }));
 
-const WORKSPACE_A_CTX: SessionCtx = { sessionId: 's1', cwd: '/workspace-a', scope: 'workspace' };
+const WORKSPACE_A_CTX: SessionCtx = { sessionId: 's1', cwd: '/workspace-a' };
 
 beforeEach(() => {
   ipcMock.listeners.clear();

@@ -27,7 +27,7 @@ export const useSessionStore = defineStore('session', {
   state: () => ({
     sessions: [] as ChaptaleSessionListItem[],
     currentSessionId: '',
-    /** 当前 workspace 的权威 cwd，由 Settings Main 返回；为空时沿用全量历史选择。 */
+    /** 当前作品的权威 cwd，由 Settings Main 返回；为空表示没打开作品，此时不能建会话。 */
     activeCwd: '',
     selectionRestored: false,
     storageDebugInfo: undefined as ChaptaleSessionStorageDebugInfo | undefined,
@@ -38,10 +38,11 @@ export const useSessionStore = defineStore('session', {
     currentSession(state) {
       return state.sessions.find(session => session.id === state.currentSessionId);
     },
+    /**
+     * 当前作品下的会话；没打开作品时为空——历史仍能看全量，但聊天面板不该给出别的作品的会话。
+     */
     cwdSessions(state) {
-      return state.activeCwd
-        ? state.sessions.filter(session => isSameWorkspacePath(session.cwd, state.activeCwd))
-        : state.sessions;
+      return state.activeCwd ? state.sessions.filter(session => isSameWorkspacePath(session.cwd, state.activeCwd)) : [];
     }
   },
   actions: {
@@ -67,8 +68,8 @@ export const useSessionStore = defineStore('session', {
       try {
         const desktopApi = getDesktopApi();
         this.sessions = await desktopApi.session.list();
-        // 每次加载都读当前域的持久化槽位；运行期选择优先级高于槽位（resolveSessionSelection 内保证），
-        // 使 bindCwd 切换域后能恢复新域的最近会话，而不总是回退候选第一个。
+        // 每次加载都读当前作品的持久化槽位；运行期选择优先级高于槽位（resolveSessionSelection 内保证），
+        // 使 bindCwd 切换作品后能恢复该作品上次的会话，而不总是回退候选第一个。
         const persistedSessionId = await desktopApi.settings
           .getState()
           .then(state => state.settings.lastSessionId ?? '')
@@ -97,6 +98,11 @@ export const useSessionStore = defineStore('session', {
     },
 
     async ensureActiveSession() {
+      // 没有作品就没有会话目录：这里必须早失败，否则会写出一份没有归属的会话文件。
+      if (!this.activeCwd) {
+        throw new Error('请先打开作品');
+      }
+
       const loaded = await this.loadSessions();
       if (!loaded) {
         // 加载失败与成功空列表必须区分；失败时创建新会话会把真实错误伪装成空状态。
@@ -112,8 +118,8 @@ export const useSessionStore = defineStore('session', {
     },
 
     async bindCwd(cwd: string) {
-      // cwd 未变化：打开设置面板等场景不应重置用户当前选择（含跨域会话）。
-      if (this.activeCwd && isSameWorkspacePath(this.activeCwd, cwd)) {
+      // cwd 未变化（含"两边都没打开作品"）：打开设置面板等场景不应重置用户当前选择。
+      if (this.activeCwd === cwd || isSameWorkspacePath(this.activeCwd, cwd)) {
         return;
       }
 

@@ -13,7 +13,7 @@ describe('ConfigFilesSettings', () => {
   it('renders config paths and opens the config directory', async () => {
     const settingsStore = useSettingsStore();
     settingsStore.state = {
-      settings: { version: 1, storage: { mode: 'global' } },
+      settings: { version: 1, workspace: {} },
       webTools: {} as any,
       paths: {
         rootDir: 'root',

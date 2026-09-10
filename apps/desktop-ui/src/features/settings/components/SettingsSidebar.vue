@@ -14,8 +14,8 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
   },
   {
     id: 'workspace',
-    title: '工作区',
-    description: '会话位置与存储模式',
+    title: '作品',
+    description: '会话目录与开关',
     icon: 'i-mingcute-folder-2-line'
   },
   {

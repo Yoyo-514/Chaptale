@@ -38,7 +38,7 @@ function tab(id: string, path = `${id}.md`): EditorTab {
 }
 
 describe('只读标签生命周期', () => {
-  it('未打开工作区时不创建标签', async () => {
+  it('未打开作品时不创建标签', async () => {
     useWorkspaceStore().rootPath = null;
     const editor = useEditorStore();
     await editor.openDocument('chapter.md');
@@ -75,7 +75,7 @@ describe('只读标签生命周期', () => {
     expect(editor.tabs).toEqual([]);
   });
 
-  it('工作区路径或代次变化立即清空全部标签', () => {
+  it('作品路径或代次变化立即清空全部标签', () => {
     const workspace = useWorkspaceStore();
     const editor = useEditorStore();
     editor.tabs = [tab('a')];

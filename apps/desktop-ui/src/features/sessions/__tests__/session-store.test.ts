@@ -3,16 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSessionStore } from '../store';
 
+const WORKSPACE = 'E:/Stories/Story-1';
+const OTHER_WORKSPACE = 'E:/Stories/Story-2';
+
 function createSession(id: string, overrides = {}) {
   return {
     id,
     createdAt: '2026-07-06T00:00:00.000Z',
     updatedAt: '2026-07-06T00:00:00.000Z',
-    cwd: 'E:/backend-study/Chaptale',
+    cwd: WORKSPACE,
     path: `${id}.jsonl`,
     leafId: null,
     messageCount: 1,
-    scope: 'global' as const,
     totalTokens: 0,
     totalCost: 0,
     ...overrides
@@ -35,9 +37,7 @@ function installDesktopApi(overrides: Record<string, any> = {}) {
           message: { role: 'user', content: 'hi' }
         }
       ]),
-      getStorageDebugInfo: vi
-        .fn()
-        .mockResolvedValue({ rootDir: 'root', sessionDir: 'sessions', cwd: 'cwd', storageMode: 'global' }),
+      getStorageDebugInfo: vi.fn().mockResolvedValue({ rootDir: 'root', sessionDir: 'sessions', cwd: 'cwd' }),
       openStorageDir: vi.fn().mockResolvedValue(undefined),
       setLeaf: vi.fn().mockResolvedValue(undefined),
       rename: vi
@@ -46,13 +46,23 @@ function installDesktopApi(overrides: Record<string, any> = {}) {
       exportHtml: vi.fn().mockResolvedValue('C:/exports/会话.html')
     },
     settings: {
-      getState: vi.fn().mockResolvedValue({ settings: { version: 1, storage: { mode: 'global' } } }),
-      update: vi.fn().mockResolvedValue({ settings: { version: 1, storage: { mode: 'global' } } })
+      getState: vi.fn().mockResolvedValue({ settings: { version: 1, workspace: {} } }),
+      update: vi.fn().mockResolvedValue({ settings: { version: 1, workspace: {} } })
     },
     ...overrides
   };
   window.chaptaleDesktop = api as any;
   return api;
+}
+
+/**
+ * 会话归作品所有：store 的候选来自绑定的 cwd，所以测试要先绑一个作品。
+ * 没有绑定就是"没打开作品"，此时 store 拿不到任何候选，也不该建会话。
+ */
+function useBoundStore(workspace = WORKSPACE) {
+  const store = useSessionStore();
+  store.activeCwd = workspace;
+  return store;
 }
 
 beforeEach(() => {
@@ -64,7 +74,7 @@ beforeEach(() => {
 describe('session store', () => {
   it('loads sessions and selects the first session by default', async () => {
     const api = installDesktopApi();
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     await store.loadSessions();
 
@@ -79,7 +89,7 @@ describe('session store', () => {
     api.session.list.mockImplementation(
       () => new Promise(resolve => setTimeout(() => resolve([createSession('session-1')]), 10))
     );
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     const [first, second] = await Promise.all([store.loadSessions(), store.loadSessions()]);
 
@@ -93,12 +103,12 @@ describe('session store', () => {
     expect(api.session.list).toHaveBeenCalledTimes(2);
   });
 
-  it('restores the last opened session when it still exists', async () => {
+  it('restores the remembered session of the current work when it still exists', async () => {
     const api = installDesktopApi();
     api.settings.getState.mockResolvedValue({
-      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-2' }
+      settings: { version: 1, workspace: { path: WORKSPACE }, lastSessionId: 'session-2' }
     });
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     await store.loadSessions();
 
@@ -109,9 +119,9 @@ describe('session store', () => {
   it('falls back to the newest session when the remembered session no longer exists', async () => {
     const api = installDesktopApi();
     api.settings.getState.mockResolvedValue({
-      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'deleted-session' }
+      settings: { version: 1, workspace: { path: WORKSPACE }, lastSessionId: 'deleted-session' }
     });
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     await store.loadSessions();
 
@@ -121,7 +131,7 @@ describe('session store', () => {
 
   it('persists explicit session selection', async () => {
     const api = installDesktopApi();
-    const store = useSessionStore();
+    const store = useBoundStore();
     await store.loadSessions();
     api.settings.update.mockClear();
 
@@ -131,7 +141,7 @@ describe('session store', () => {
     expect(api.settings.update).toHaveBeenCalledWith({ lastSessionId: 'session-2' });
   });
 
-  it('creates a fallback session when no active session exists', async () => {
+  it('creates a fallback session when the work has no session yet', async () => {
     const api = installDesktopApi({
       session: {
         ...installDesktopApi().session,
@@ -141,7 +151,7 @@ describe('session store', () => {
           .mockResolvedValueOnce([createSession('created')])
       }
     });
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     const sessionId = await store.ensureActiveSession();
 
@@ -149,14 +159,14 @@ describe('session store', () => {
     expect(sessionId).toBe('created');
   });
 
-  it('does not create a fallback session when loading sessions fails', async () => {
+  it('does not create a session when loading sessions fails', async () => {
     const api = installDesktopApi({
       session: {
         ...installDesktopApi().session,
         list: vi.fn().mockRejectedValue(new Error('list failed'))
       }
     });
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     await expect(store.ensureActiveSession()).rejects.toThrow('list failed');
 
@@ -164,193 +174,140 @@ describe('session store', () => {
     expect(store.error).toBe('list failed');
   });
 
-  it('preserves an explicit cross-workspace session across reloads and current entry reads', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const workspaceB = 'E:/workspace-b';
+  it('refuses to start a session without a work', async () => {
+    const api = installDesktopApi();
+    const store = useSessionStore();
+
+    await expect(store.ensureActiveSession()).rejects.toThrow('请先打开作品');
+
+    expect(api.session.list).not.toHaveBeenCalled();
+    expect(api.session.create).not.toHaveBeenCalled();
+  });
+
+  it('offers no candidates without a work, yet still lists other works for history', async () => {
     const api = installDesktopApi();
     api.session.list.mockResolvedValue([
-      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
-      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+      createSession('session-a', { cwd: WORKSPACE }),
+      createSession('session-b', { cwd: OTHER_WORKSPACE })
     ]);
-    // selectSession 已把跨域选择同步进当前域槽位。
-    api.settings.getState.mockResolvedValue({
-      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-a' }
-    });
     const store = useSessionStore();
-    store.activeCwd = workspaceB;
-    store.currentSessionId = 'session-a';
+
+    await store.loadSessions();
+
+    expect(store.cwdSessions).toEqual([]);
+    expect(store.sessions.map(session => session.id)).toEqual(['session-a', 'session-b']);
+    expect(store.currentSessionId).toBe('');
+  });
+
+  it('keeps a session picked from another work (history) selected across reloads', async () => {
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([
+      createSession('session-a', { cwd: WORKSPACE }),
+      createSession('session-b', { cwd: OTHER_WORKSPACE })
+    ]);
+    const store = useBoundStore();
+    store.currentSessionId = 'session-b';
     store.selectionRestored = true;
 
     await store.loadSessions();
 
-    expect(store.currentSessionId).toBe('session-a');
-    expect(store.currentSession?.id).toBe('session-a');
-    expect(api.settings.update).not.toHaveBeenCalled();
+    expect(store.currentSessionId).toBe('session-b');
+    expect(store.currentSession?.id).toBe('session-b');
 
     await store.getCurrentEntries();
 
     expect(api.session.create).not.toHaveBeenCalled();
-    expect(api.session.getEntries).toHaveBeenCalledWith('session-a');
-    expect(store.currentSessionId).toBe('session-a');
-  });
-
-  it('restores the persisted cross-domain slot even when it is not in the current cwd candidates', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const api = installDesktopApi();
-    api.session.list.mockResolvedValue([
-      createSession('session-global', { cwd: workspaceA, scope: 'global' }),
-      createSession('session-a', { cwd: workspaceA, scope: 'workspace' })
-    ]);
-    api.settings.getState.mockResolvedValue({
-      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-global' }
-    });
-    const store = useSessionStore();
-    store.activeCwd = workspaceA;
-
-    await store.loadSessions();
-
-    // 槽位里的跨域会话在全量列表存活，不被 activeCwd 候选过滤丢弃。
-    expect(store.currentSessionId).toBe('session-global');
-  });
-
-  it('bindCwd keeps the current selection when the cwd is unchanged', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const api = installDesktopApi();
-    api.session.list.mockResolvedValue([createSession('session-a', { cwd: workspaceA, scope: 'workspace' })]);
-    const store = useSessionStore();
-    store.activeCwd = workspaceA;
-    store.currentSessionId = 'session-a';
-    store.selectionRestored = true;
-    api.settings.getState.mockResolvedValue({
-      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-a' }
-    });
-
-    // 打开设置面板 → bindCwd 收到相同 cwd：选择不应被重置，也不应触发列表刷新。
-    await store.bindCwd(workspaceA);
-
-    expect(store.currentSessionId).toBe('session-a');
-    expect(api.session.list).not.toHaveBeenCalled();
-  });
-
-  it('bindCwd falls back to the target domain latest session and ignores a cross-domain slot on real switch', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const workspaceB = 'E:/workspace-b';
-    const globalCwd = 'E:/global';
-    const api = installDesktopApi();
-    api.session.list.mockResolvedValue([
-      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
-      createSession('session-b', { cwd: workspaceB, scope: 'workspace' }),
-      createSession('session-global', { cwd: globalCwd, scope: 'global' })
-    ]);
-    // B 域槽位存的是跨域会话（曾在 B 里最后看过 global 会话）：切域时不应回跳它。
-    api.settings.getState.mockResolvedValue({
-      settings: { version: 1, storage: { mode: 'global' }, lastSessionId: 'session-global' }
-    });
-    const store = useSessionStore();
-    store.activeCwd = workspaceA;
-    store.currentSessionId = 'session-a';
-    store.selectionRestored = true;
-
-    await store.bindCwd(workspaceB);
-
-    // 切域后落在目标域的最新会话，而非槽位里的跨域会话。
+    expect(api.session.getEntries).toHaveBeenCalledWith('session-b');
     expect(store.currentSessionId).toBe('session-b');
-    expect(store.activeCwd).toBe(workspaceB);
   });
 
-  it('bindCwd keeps the restored selection on initial binding', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const globalCwd = 'E:/global';
-    const api = installDesktopApi();
-    api.session.list.mockResolvedValue([
-      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
-      createSession('session-global', { cwd: globalCwd, scope: 'global' })
-    ]);
-    const store = useSessionStore();
-    // 启动首次恢复已选中跨域会话，activeCwd 尚未绑定。
-    store.currentSessionId = 'session-global';
-    store.selectionRestored = true;
-
-    await store.bindCwd(workspaceA);
-
-    // 首次绑定不是切域：已恢复的选择保留。
-    expect(store.currentSessionId).toBe('session-global');
-    expect(store.activeCwd).toBe(workspaceA);
-  });
-
-  it('keeps an explicitly selected global session when the active cwd points to a sibling workspace', async () => {
-    const workspaceA = 'E:/Work/Novel';
-    const workspaceB = 'E:/Work/Novel-2';
-    const api = installDesktopApi();
-    api.session.list.mockResolvedValue([
-      createSession('session-global', { cwd: workspaceA, scope: 'global' }),
-      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
-    ]);
-    const store = useSessionStore();
-    store.activeCwd = workspaceB;
-    store.currentSessionId = 'session-global';
-    store.selectionRestored = true;
-
-    await store.loadSessions();
-
-    expect(store.currentSessionId).toBe('session-global');
-    expect(store.currentSession?.id).toBe('session-global');
-
-    await store.getCurrentEntries();
-
-    expect(api.session.getEntries).toHaveBeenCalledWith('session-global');
-    expect(store.currentSessionId).toBe('session-global');
-  });
-
-  it('matches current workspace sessions with normalized cwd paths', () => {
+  it('matches current work sessions with normalized cwd paths', () => {
     const store = useSessionStore();
     store.activeCwd = 'E:/Work/Novel/';
     store.sessions = [
-      createSession('same-workspace', { cwd: 'e:\\work\\novel', scope: 'workspace' }),
-      createSession('other-workspace', { cwd: 'E:/Work/Other', scope: 'workspace' })
+      createSession('same-workspace', { cwd: 'e:\\work\\novel' }),
+      createSession('other-workspace', { cwd: 'E:/Work/Other' })
     ];
 
     expect(store.cwdSessions.map(session => session.id)).toEqual(['same-workspace']);
   });
 
-  it('rebinds the current session to the selected workspace cwd', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const workspaceB = 'E:/workspace-b';
+  it('bindCwd keeps the current selection when the cwd is unchanged', async () => {
     const api = installDesktopApi();
-    api.session.list.mockResolvedValue([
-      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
-      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
-    ]);
-    const store = useSessionStore();
-    store.activeCwd = workspaceA;
+    api.session.list.mockResolvedValue([createSession('session-a')]);
+    const store = useBoundStore();
     store.currentSessionId = 'session-a';
     store.selectionRestored = true;
 
-    await store.bindCwd(workspaceB);
+    // 打开设置面板 → bindCwd 收到相同 cwd：选择不应被重置，也不应触发列表刷新。
+    await store.bindCwd(WORKSPACE);
 
-    expect(store.activeCwd).toBe(workspaceB);
-    expect(store.currentSessionId).toBe('session-b');
-    expect(store.currentSession?.cwd).toBe(workspaceB);
+    expect(store.currentSessionId).toBe('session-a');
+    expect(api.session.list).not.toHaveBeenCalled();
   });
 
-  it('clears the current session for a workspace with no sessions and creates only on demand', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const workspaceB = 'E:/workspace-b';
+  it('bindCwd rebinds to the target work and drops the previous selection', async () => {
     const api = installDesktopApi();
-    api.session.list
-      .mockResolvedValueOnce([createSession('session-a', { cwd: workspaceA, scope: 'workspace' })])
-      .mockResolvedValueOnce([createSession('session-a', { cwd: workspaceA, scope: 'workspace' })])
-      .mockResolvedValueOnce([createSession('created', { cwd: workspaceB, scope: 'workspace' })]);
-    api.session.create.mockResolvedValue(createSession('created', { cwd: workspaceB, scope: 'workspace' }));
-    const store = useSessionStore();
-    store.activeCwd = workspaceA;
+    api.session.list.mockResolvedValue([
+      createSession('session-a', { cwd: WORKSPACE }),
+      createSession('session-b', { cwd: OTHER_WORKSPACE })
+    ]);
+    const store = useBoundStore();
     store.currentSessionId = 'session-a';
     store.selectionRestored = true;
 
-    await store.bindCwd(workspaceB);
+    await store.bindCwd(OTHER_WORKSPACE);
+
+    expect(store.activeCwd).toBe(OTHER_WORKSPACE);
+    expect(store.currentSessionId).toBe('session-b');
+    expect(store.currentSession?.cwd).toBe(OTHER_WORKSPACE);
+  });
+
+  it('bindCwd keeps the restored selection on initial binding', async () => {
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([createSession('session-a')]);
+    const store = useSessionStore();
+    // 启动首次恢复已经选中了别的作品的会话（从历史点进来），activeCwd 尚未绑定。
+    store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
+
+    await store.bindCwd(WORKSPACE);
+
+    expect(store.currentSessionId).toBe('session-a');
+    expect(store.activeCwd).toBe(WORKSPACE);
+  });
+
+  it('binding an empty cwd (closed work) clears the selection without touching slots', async () => {
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([createSession('session-a')]);
+    const store = useBoundStore();
+    store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
+    api.settings.update.mockClear();
+
+    await store.bindCwd('');
+
+    expect(store.activeCwd).toBe('');
+    expect(store.currentSessionId).toBe('');
+    expect(store.cwdSessions).toEqual([]);
+    expect(api.settings.update).not.toHaveBeenCalled();
+  });
+
+  it('clears the selection for a work with no sessions and creates only on demand', async () => {
+    const api = installDesktopApi();
+    api.session.list.mockResolvedValue([createSession('session-a', { cwd: WORKSPACE })]);
+    const store = useBoundStore();
+    store.currentSessionId = 'session-a';
+    store.selectionRestored = true;
+    api.session.list.mockResolvedValueOnce([createSession('session-a')]).mockResolvedValueOnce([]);
+
+    await store.bindCwd(OTHER_WORKSPACE);
 
     expect(store.currentSessionId).toBe('');
     expect(api.session.create).not.toHaveBeenCalled();
+
+    api.session.create.mockResolvedValue(createSession('created', { cwd: OTHER_WORKSPACE }));
+    api.session.list.mockResolvedValue([createSession('created', { cwd: OTHER_WORKSPACE })]);
 
     const sessionId = await store.ensureActiveSession();
 
@@ -358,31 +315,27 @@ describe('session store', () => {
     expect(sessionId).toBe('created');
   });
 
-  it('keeps the requested cwd and clears selection when workspace rebind loading fails', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const workspaceB = 'E:/workspace-b';
+  it('keeps the requested cwd and clears selection when rebinding fails', async () => {
     const api = installDesktopApi({
       session: {
         ...installDesktopApi().session,
         list: vi.fn().mockRejectedValue(new Error('list failed'))
       }
     });
-    const store = useSessionStore();
-    store.sessions = [createSession('session-a', { cwd: workspaceA, scope: 'workspace' })];
-    store.activeCwd = workspaceA;
+    const store = useBoundStore();
+    store.sessions = [createSession('session-a')];
     store.currentSessionId = 'session-a';
 
-    await expect(store.bindCwd(workspaceB)).rejects.toThrow('list failed');
+    await expect(store.bindCwd(OTHER_WORKSPACE)).rejects.toThrow('list failed');
 
-    expect(store.activeCwd).toBe(workspaceB);
+    expect(store.activeCwd).toBe(OTHER_WORKSPACE);
     expect(store.currentSessionId).toBe('');
-    expect(store.sessions.map(session => session.id)).toEqual(['session-a']);
     expect(api.session.create).not.toHaveBeenCalled();
   });
 
   it('deletes one or many sessions and moves selection away from deleted current session', async () => {
     const api = installDesktopApi();
-    const store = useSessionStore();
+    const store = useBoundStore();
     store.sessions = [createSession('session-1'), createSession('session-2'), createSession('session-3')];
     store.currentSessionId = 'session-1';
     api.session.list.mockResolvedValue([createSession('session-2'), createSession('session-3')]);
@@ -400,18 +353,14 @@ describe('session store', () => {
     expect(store.currentSessionId).toBe('session-3');
   });
 
-  it('falls back to a current-cwd session after deleting an explicit cross-workspace current session', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const workspaceB = 'E:/workspace-b';
-    const workspaceC = 'E:/workspace-c';
+  it('falls back to a session of the current work after deleting a session picked from another work', async () => {
     const api = installDesktopApi();
     const remainingSessions = [
-      createSession('session-c', { cwd: workspaceC, scope: 'workspace' }),
-      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+      createSession('session-other', { cwd: OTHER_WORKSPACE }),
+      createSession('session-b', { cwd: WORKSPACE })
     ];
-    const store = useSessionStore();
-    store.sessions = [createSession('session-a', { cwd: workspaceA, scope: 'workspace' }), ...remainingSessions];
-    store.activeCwd = workspaceB;
+    const store = useBoundStore();
+    store.sessions = [createSession('session-a', { cwd: OTHER_WORKSPACE }), ...remainingSessions];
     store.currentSessionId = 'session-a';
     store.selectionRestored = true;
     api.session.list.mockResolvedValue(remainingSessions);
@@ -419,37 +368,26 @@ describe('session store', () => {
     await store.deleteSession('session-a');
 
     expect(store.currentSessionId).toBe('session-b');
-    expect(api.settings.update).not.toHaveBeenCalledWith({ lastSessionId: 'session-c' });
+    expect(api.settings.update).not.toHaveBeenCalledWith({ lastSessionId: 'session-other' });
     expect(api.settings.update).toHaveBeenLastCalledWith({ lastSessionId: 'session-b' });
   });
 
-  it('falls back to a current-cwd session after deleting an explicit cross-workspace current session in bulk', async () => {
-    const workspaceA = 'E:/workspace-a';
-    const workspaceB = 'E:/workspace-b';
-    const workspaceC = 'E:/workspace-c';
+  it('clears the remembered session when the work loses its last session', async () => {
     const api = installDesktopApi();
-    const remainingSessions = [
-      createSession('session-c', { cwd: workspaceC, scope: 'workspace' }),
-      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
-    ];
-    const store = useSessionStore();
-    store.sessions = [createSession('session-a', { cwd: workspaceA, scope: 'workspace' }), ...remainingSessions];
-    store.activeCwd = workspaceB;
-    store.currentSessionId = 'session-a';
-    store.selectionRestored = true;
-    api.session.list.mockResolvedValue(remainingSessions);
+    const store = useBoundStore();
+    store.sessions = [createSession('session-1')];
+    store.currentSessionId = 'session-1';
+    api.session.list.mockResolvedValue([]);
 
-    await store.deleteSessions(['session-a', 'session-a']);
+    await store.deleteSession('session-1');
 
-    expect(api.session.deleteMany).toHaveBeenCalledWith(['session-a']);
-    expect(store.currentSessionId).toBe('session-b');
-    expect(api.settings.update).not.toHaveBeenCalledWith({ lastSessionId: 'session-c' });
-    expect(api.settings.update).toHaveBeenLastCalledWith({ lastSessionId: 'session-b' });
+    expect(store.currentSessionId).toBe('');
+    expect(api.settings.update).toHaveBeenLastCalledWith({ lastSessionId: null });
   });
 
   it('renames a session, ignoring empty names, and reloads the list', async () => {
     const api = installDesktopApi();
-    const store = useSessionStore();
+    const store = useBoundStore();
     api.session.list.mockResolvedValue([createSession('session-1', { name: '新名字' }), createSession('session-2')]);
 
     await store.renameSession('session-1', '  新名字  ');
@@ -468,7 +406,7 @@ describe('session store', () => {
 
   it('exports the current branch as html and surfaces failures', async () => {
     const api = installDesktopApi();
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     await expect(store.exportSessionHtml('session-1')).resolves.toBe('C:/exports/会话.html');
     expect(api.session.exportHtml).toHaveBeenCalledWith('session-1');
@@ -484,7 +422,7 @@ describe('session store', () => {
 
   it('reads storage debug info, entries, and updates the current leaf', async () => {
     const api = installDesktopApi();
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     await store.loadStorageDebugInfo();
     await expect(store.getCurrentEntries()).resolves.toHaveLength(1);
@@ -494,8 +432,7 @@ describe('session store', () => {
     expect(store.storageDebugInfo).toEqual({
       rootDir: 'root',
       sessionDir: 'sessions',
-      cwd: 'cwd',
-      storageMode: 'global'
+      cwd: 'cwd'
     });
     expect(api.session.setLeaf).toHaveBeenCalledWith('session-1', 'entry-1');
     expect(api.session.openStorageDir).toHaveBeenCalled();
@@ -511,7 +448,7 @@ describe('session store', () => {
         openStorageDir: vi.fn().mockRejectedValue(new Error('open failed'))
       }
     });
-    const store = useSessionStore();
+    const store = useBoundStore();
 
     await store.loadSessions();
     expect(store.error).toBe('boom');

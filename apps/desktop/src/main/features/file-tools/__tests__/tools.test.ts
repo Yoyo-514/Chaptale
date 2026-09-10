@@ -55,7 +55,7 @@ describe('安全边界（六工具共用）', () => {
                   ? { pattern: '*.txt', path: '../..' }
                   : { path: '../..' };
 
-      await expect(target.execute(payload as never), name).rejects.toThrow(/工作区之外/);
+      await expect(target.execute(payload as never), name).rejects.toThrow(/作品之外/);
     }
   });
 

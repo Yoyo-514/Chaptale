@@ -138,9 +138,9 @@ describe('createSkillReadTool', () => {
     const { skill } = await createSkillWithAuxiliary();
     const tool = createSkillReadTool({ skillsProvider: fakeProvider([skill]), cwd: '/cwd' });
 
-    await expect(tool.execute({ id: 'review-checklist', path: '../secret.txt' })).rejects.toThrow('工作区之外');
+    await expect(tool.execute({ id: 'review-checklist', path: '../secret.txt' })).rejects.toThrow('作品之外');
     await expect(tool.execute({ id: 'review-checklist', path: 'C:/windows/system32/x.md' })).rejects.toThrow(
-      '工作区之外'
+      '作品之外'
     );
   });
 

@@ -25,7 +25,7 @@ export function registerSettingsIpc(settingsService: SettingsService, ui: UiShel
     async (_event, payload: UpdateChaptaleSettingsPayload) => {
       const state = await settingsService.update(payload);
 
-      if (payload.storage) {
+      if (payload.workspace) {
         onStorageChanged?.();
       }
 
@@ -40,13 +40,13 @@ export function registerSettingsIpc(settingsService: SettingsService, ui: UiShel
   );
 
   handleTrustedIpc(IPC_CHANNELS.settings.selectWorkspaceDir, async (event): Promise<SelectWorkspaceDirResult> => {
-    const workspacePath = await ui.pickDirectory(ui.resolveOwner(event), '选择 Chaptale 工作区');
+    const workspacePath = await ui.pickDirectory(ui.resolveOwner(event), '选择 Chaptale 作品');
 
     if (!workspacePath) {
       return { canceled: true };
     }
 
-    const state = await settingsService.update({ storage: { mode: 'workspace', workspacePath } });
+    const state = await settingsService.update({ workspace: { path: workspacePath } });
     onStorageChanged?.();
 
     return { canceled: false, workspacePath, state };

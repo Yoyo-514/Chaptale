@@ -45,10 +45,10 @@ afterEach(async () => {
 });
 
 describe('JsonlSessionRepository', () => {
-  it('openOrCreateBound 按持久化目录返回 global scope，而非按 cwd 猜测', async () => {
+  it('openOrCreateBound 用会话文件里的 cwd，而不是当前作品的 cwd', async () => {
     const bound = await repository.openOrCreateBound('global-bound', '/workspace');
 
-    expect(bound.ctx).toEqual({ sessionId: 'global-bound', cwd: '/workspace', scope: 'global' });
+    expect(bound.ctx).toEqual({ sessionId: 'global-bound', cwd: '/workspace' });
     expect(bound.session.header.cwd).toBe('/workspace');
   });
 
@@ -72,33 +72,32 @@ describe('JsonlSessionRepository', () => {
       name: '雨夜构思',
       messageCount: 2,
       lastMessagePreview: '雨夜开场。',
-      totalTokens: 150,
-      scope: 'global'
+      totalTokens: 150
     });
   });
 
-  it('list 跨目录（global + workspace）且忽略非会话文件', async () => {
-    await repository.create({ id: 'g1', name: '全局' });
+  it('list 覆盖所有作品的会话目录，并忽略非会话文件', async () => {
+    await repository.create({ id: 's1', name: '本部作品' });
 
-    const workspaceDir = path.join(root, 'agent', 'sessions', 'Story-xyz');
-    await mkdir(workspaceDir, { recursive: true });
+    const otherDir = path.join(root, 'agent', 'sessions', 'Story-xyz');
+    await mkdir(otherDir, { recursive: true });
     await writeFile(
-      path.join(workspaceDir, 'w1.jsonl'),
+      path.join(otherDir, 'w1.jsonl'),
       [
         '{"type":"chaptale-session","version":1,"id":"w1","timestamp":"2026-01-01T00:00:00.000Z","cwd":"/story"}',
-        '{"type":"message","id":"m1","parentId":null,"timestamp":"2026-01-01T00:00:01.000Z","message":{"role":"user","content":"工作区消息"}}'
+        '{"type":"message","id":"m1","parentId":null,"timestamp":"2026-01-01T00:00:01.000Z","message":{"role":"user","content":"别的作品的消息"}}'
       ].join('\n'),
       'utf8'
     );
-    await writeFile(path.join(workspaceDir, 'junk.jsonl'), 'not a session\n', 'utf8');
+    await writeFile(path.join(otherDir, 'junk.jsonl'), 'not a session\n', 'utf8');
 
     const items = await repository.list();
 
-    expect(items.map(item => item.id).toSorted()).toEqual(['g1', 'w1']);
-    expect(items.find(item => item.id === 'w1')).toMatchObject({ scope: 'workspace', messageCount: 1 });
+    expect(items.map(item => item.id).toSorted()).toEqual(['s1', 'w1']);
+    expect(items.find(item => item.id === 'w1')).toMatchObject({ cwd: '/story', messageCount: 1 });
   });
 
-  it('跨 scope 目录也能按 sessionId 打开（global 会话在 workspace 模式下可读）', async () => {
+  it('别的作品目录里的会话也能按 sessionId 打开', async () => {
     // 另一个仓储实例（sessionDir 指向 archive-scope）创建会话。
     const archiveDir = path.join(root, 'agent', 'sessions', 'archive-scope');
     const archiveRepo = new JsonlSessionRepository({

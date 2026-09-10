@@ -36,7 +36,11 @@ const output: ChapterSettlement = {
       reason: '本章已经拆信',
       edits: [{ original: '尚未拆信。', replacement: '已拆信，得知约见地点。', rationale: '正文事实' }]
     },
-    { sourcePath: threadPath, reason: '秘密已揭示', thread: { status: 'resolved', advances: ['第一章：读到约见地点'] } }
+    {
+      sourcePath: threadPath,
+      reason: '秘密已揭示',
+      thread: { status: 'resolved', advances: ['第一章：读到约见地点'] }
+    }
   ],
   events: [{ title: '拆开来信', when: '', description: '林晚读到约见地点。', participants: ['[[角色/林晚.md]]'] }]
 };
@@ -110,7 +114,7 @@ beforeEach(async () => {
   await mkdir(root);
   store = new SettlementStore(
     new WorkspaceService({
-      getStorageContext: async () => ({ storageMode: 'workspace', workspacePath: currentRoot })
+      getStorageContext: async () => ({ workspacePath: currentRoot })
     })
   );
 });
@@ -275,7 +279,7 @@ describe('章节结算文件确认链路', () => {
     await expect(store.read(root, batch.id)).rejects.toThrow('场景意图损坏');
   });
 
-  it('拒绝元数据破坏、越界目标、内部目录链接、旧 revision 和工作区切换', async () => {
+  it('拒绝元数据破坏、越界目标、内部目录链接、旧 revision 和作品切换', async () => {
     const batch = await finish(await create());
     const item = batch.items.find(value => value.id === 'asset-0')!;
     await expect(
@@ -296,7 +300,7 @@ describe('章节结算文件确认链路', () => {
     await put(batchPath(batch.id), JSON.stringify(batch));
     await expect(store.read(root, batch.id)).rejects.toThrow('损坏');
     currentRoot = home;
-    await expect(store.list(root)).rejects.toThrow('工作区已经切换');
+    await expect(store.list(root)).rejects.toThrow('作品已经切换');
   });
 });
 

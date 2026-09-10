@@ -1,6 +1,5 @@
 import type { ParsedSessionFile, SessionMessage, SessionSummary } from './entry';
 import { buildReplay } from './replay';
-import { getSessionScope } from './storage';
 
 const PREVIEW_MAX_LENGTH = 80;
 
@@ -8,11 +7,7 @@ const PREVIEW_MAX_LENGTH = 80;
  * 从解析结果推导列表项摘要（会话名/时间/leaf/预览/累计 token 与费用）。
  * 供 SessionRepository.list() 组装；纯函数，无 IO。
  */
-export function deriveSessionSummary(
-  file: ParsedSessionFile,
-  sessionDir: string,
-  filePath: string
-): SessionSummary & { path: string } {
+export function deriveSessionSummary(file: ParsedSessionFile, filePath: string): SessionSummary & { path: string } {
   const replay = buildReplay(file);
   const name = findSessionName(file);
   const messages = replay.path.filter(entry => entry.type === 'message');
@@ -41,7 +36,6 @@ export function deriveSessionSummary(
     messageCount: messages.length,
     lastMessagePreview: extractPreview(lastMessagePayload),
     totalTokens,
-    scope: getSessionScope(sessionDir),
     path: filePath,
     ...(file.skippedMidLines > 0 ? { damagedEntryCount: file.skippedMidLines } : {})
   };

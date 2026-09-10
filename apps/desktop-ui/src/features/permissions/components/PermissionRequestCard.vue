@@ -127,7 +127,7 @@ function deny() {
         :title="`规则：${current.toolName}（该工具的全部调用）`"
         @click="allowAlways(current.toolName)"
       >
-        本工作区始终允许
+        本作品始终允许
       </AppButton>
       <AppButton variant="danger" size="xs" type="button" :disabled="isSubmitting" @click="deny">
         {{ showDenyInput ? '确认拒绝' : '拒绝' }}

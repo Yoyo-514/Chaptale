@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 
-import { formatSessionScope, formatSessionTime, formatTokenCount, getSessionTitle } from '../session-display';
+import { formatSessionTime, formatTokenCount, getSessionTitle } from '../session-display';
 
 function createSession(overrides: Partial<ChaptaleSessionListItem>): ChaptaleSessionListItem {
   const session = {
@@ -15,14 +15,12 @@ function createSession(overrides: Partial<ChaptaleSessionListItem>): ChaptaleSes
     leafId: null,
     createdAt: '2026-07-04T00:00:00.000Z',
     updatedAt: '2026-07-04T00:00:00.000Z',
-    scope: 'global' as const,
     totalTokens: 0,
     ...overrides
   };
 
   return {
     ...session,
-    scope: session.scope ?? 'global',
     totalTokens: session.totalTokens ?? 0
   };
 }
@@ -37,9 +35,7 @@ describe('session-display', () => {
     expect(getSessionTitle(createSession({}))).toBe('未命名会话');
   });
 
-  it('formats session scope and updated time for list display', () => {
-    expect(formatSessionScope('global')).toBe('全局');
-    expect(formatSessionScope('workspace')).toBe('工作区');
+  it('formats updated time for list display', () => {
     expect(formatSessionTime('2026-07-04T08:05:00.000Z')).toMatch(/\d{2}\/\d{2}.*\d{2}:\d{2}/);
   });
 

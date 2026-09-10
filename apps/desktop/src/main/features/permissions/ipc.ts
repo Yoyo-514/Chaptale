@@ -15,7 +15,7 @@ import type { PermissionBroker } from './broker';
 import type { PermissionRuleStore } from './rule-store';
 
 interface PermissionsIpcOptions {
-  /** 设置页按 UI 当前工作区展示/删除持久规则；工具调用授权不得使用这个动态 cwd。 */
+  /** 设置页按 UI 当前作品展示/删除持久规则；工具调用授权不得使用这个动态 cwd。 */
   resolveCwd: () => Promise<string | null> | string | null;
 }
 

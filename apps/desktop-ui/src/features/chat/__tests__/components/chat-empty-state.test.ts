@@ -25,11 +25,10 @@ describe('聊天空态', () => {
           name: '理清这个故事',
           createdAt: new Date(2026, 0, 2, 10, 0).toISOString(),
           updatedAt: new Date(2026, 0, 2, 10, 30).toISOString(),
-          cwd: 'C:/chaptale/global',
-          path: 'C:/chaptale/global/s1.jsonl',
+          cwd: 'C:/Stories/Story-1',
+          path: 'C:/chaptale/sessions/Story-1/s1.jsonl',
           leafId: null,
           messageCount: 2,
-          scope: 'global',
           totalTokens: 0
         }
       ]

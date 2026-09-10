@@ -84,7 +84,7 @@ describe('scanIndexSources', () => {
   it('拒绝指向 workspace 外部的根目录符号链接', async () => {
     const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'chaptale-index-outside-'));
     try {
-      await fs.writeFile(path.join(outside, '秘密.md'), '工作区外内容', 'utf8');
+      await fs.writeFile(path.join(outside, '秘密.md'), '作品外内容', 'utf8');
       await fs.rm(root.absolutePath, { recursive: true, force: true });
       await fs.symlink(outside, root.absolutePath, process.platform === 'win32' ? 'junction' : 'dir');
 

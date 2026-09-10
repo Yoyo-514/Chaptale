@@ -11,7 +11,7 @@ function createSettingsState(workspacePath = 'E:/workspace-b') {
   return {
     settings: {
       version: 1,
-      storage: { mode: 'workspace' as const, workspacePath }
+      workspace: { path: workspacePath }
     },
     webAccess: {
       webSearchEnabled: true,
@@ -72,8 +72,7 @@ function installDesktopApi(state = createSettingsState()) {
       getStorageDebugInfo: vi.fn().mockResolvedValue({
         rootDir: 'root',
         sessionDir: 'sessions',
-        cwd: state.paths.currentCwd,
-        storageMode: 'workspace'
+        cwd: state.paths.currentCwd
       })
     }
   };
@@ -140,7 +139,7 @@ describe('workspace store', () => {
     expect(workspaceStore.error).toBe('list failed');
     expect(notifications.items.at(-1)).toMatchObject({
       kind: 'error',
-      title: '打开工作区失败',
+      title: '打开作品失败',
       description: 'list failed'
     });
   });

@@ -3,19 +3,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationStore } from '@/features/notifications';
 import { useSessionStore } from '@/features/sessions';
+import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
 import { useSettingsStore } from '../store';
 
 function createSettingsState(
   webSearchEnabled = true,
-  currentCwd = 'agent/global',
-  storage: { mode: 'global' | 'workspace'; workspacePath?: string } = { mode: 'global' },
+  currentCwd = 'E:/Stories/Story-1',
+  workspacePath = 'E:/Stories/Story-1',
   lastSessionId?: string
 ) {
   return {
     settings: {
       version: 1,
-      storage,
+      workspace: { path: workspacePath },
       ...(lastSessionId ? { lastSessionId } : {})
     },
     webAccess: {
@@ -36,7 +37,7 @@ function createSettingsState(
       modelsPath: 'agent/models.json',
       webToolsConfigPath: 'agent/web-tools.json',
       sessionsRootDir: 'agent/sessions',
-      effectiveSessionDir: 'agent/sessions/global',
+      effectiveSessionDir: 'agent/sessions/Story-1',
       currentCwd
     }
   };
@@ -47,11 +48,10 @@ function createSession(id: string, overrides = {}) {
     id,
     createdAt: '2026-07-06T00:00:00.000Z',
     updatedAt: '2026-07-06T00:00:00.000Z',
-    cwd: 'E:/backend-study/Chaptale',
+    cwd: 'E:/Stories/Story-1',
     path: `${id}.jsonl`,
     leafId: null,
     messageCount: 1,
-    scope: 'global' as const,
     totalTokens: 0,
     totalCost: 0,
     ...overrides
@@ -87,7 +87,7 @@ function installDesktopApi() {
       updateWebTools: vi.fn().mockResolvedValue(settingsState),
       selectWorkspaceDir: vi.fn().mockResolvedValue({
         canceled: false,
-        state: createSettingsState(false, 'E:/workspace-b', { mode: 'workspace', workspacePath: 'E:/workspace-b' })
+        state: createSettingsState(false, 'E:/workspace-b', 'E:/workspace-b')
       }),
       openConfigDir: vi.fn().mockResolvedValue(undefined)
     },
@@ -95,8 +95,8 @@ function installDesktopApi() {
       list: vi
         .fn()
         .mockResolvedValue([
-          createSession('session-a', { cwd: 'E:/workspace-a', scope: 'workspace' }),
-          createSession('session-b', { cwd: 'E:/workspace-b', scope: 'workspace' })
+          createSession('session-a', { cwd: 'E:/workspace-a' }),
+          createSession('session-b', { cwd: 'E:/workspace-b' })
         ]),
       create: vi.fn().mockResolvedValue(createSession('created'))
     },
@@ -145,12 +145,12 @@ describe('settings store', () => {
     const workspaceA = 'E:/workspace-a';
     const workspaceB = 'E:/workspace-b';
     const api = installDesktopApi();
-    // B 域槽位为空：绑定 B 后应回退 B 域候选第一个，而不是沿用旧全局单槽里的 A 域会话。
-    const state = createSettingsState(true, workspaceB, { mode: 'workspace', workspacePath: workspaceB }, '');
+    // B 作品槽位为空：绑定 B 后应回退 B 作品候选第一个，而不是沿用 A 作品槽位里的会话。
+    const state = createSettingsState(true, workspaceB, workspaceB, '');
     api.settings.getState.mockResolvedValue(state);
     api.session.list.mockResolvedValue([
-      createSession('session-a', { cwd: workspaceA, scope: 'workspace' }),
-      createSession('session-b', { cwd: workspaceB, scope: 'workspace' })
+      createSession('session-a', { cwd: workspaceA }),
+      createSession('session-b', { cwd: workspaceB })
     ]);
     const store = useSettingsStore();
     const sessionStore = useSessionStore();
@@ -181,26 +181,40 @@ describe('settings store', () => {
     expect(store.isOpen).toBe(false);
   });
 
-  it('updates workspace settings and opens the config directory', async () => {
+  it('updates web tools and opens the config directory', async () => {
     const api = installDesktopApi();
     const store = useSettingsStore();
     const sessionStore = useSessionStore();
     const bindCwd = vi.spyOn(sessionStore, 'bindCwd').mockResolvedValue(undefined);
-    const updatedState = createSettingsState(false, 'agent/global');
+    const updatedState = createSettingsState(false, 'E:/Stories/Story-2', 'E:/Stories/Story-2');
     api.settings.updateWebTools.mockResolvedValue(updatedState);
 
     await expect(store.updateWebTools({ search: { enabled: false } })).resolves.toBe(true);
     expect(store.state).toStrictEqual(updatedState);
 
-    await store.useGlobalStorage();
     await store.openConfigDir();
 
     expect(api.settings.updateWebTools).toHaveBeenCalledWith({ search: { enabled: false } });
     expect(api.settings.selectWorkspaceDir).not.toHaveBeenCalled();
-    expect(api.settings.update).toHaveBeenCalledWith({ storage: { mode: 'global' } });
-    expect(bindCwd).toHaveBeenCalledOnce();
-    expect(bindCwd).toHaveBeenCalledWith('agent/global');
+    // 联网设置与作品无关：不该顺带把会话重绑一次。
+    expect(bindCwd).not.toHaveBeenCalled();
     expect(api.settings.openConfigDir).toHaveBeenCalled();
+  });
+
+  it('switching the workspace still asks for confirmation first', async () => {
+    const api = installDesktopApi();
+    const store = useSettingsStore();
+    const confirm = vi.fn().mockResolvedValue(false);
+    const unregister = registerWorkspaceTransitionGuard(confirm);
+
+    try {
+      await expect(store.update({ workspace: { path: 'E:/workspace-b' } })).resolves.toBe(false);
+    } finally {
+      unregister();
+    }
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(api.settings.update).not.toHaveBeenCalled();
   });
 
   it('surfaces web access save failures through the shared action runner', async () => {

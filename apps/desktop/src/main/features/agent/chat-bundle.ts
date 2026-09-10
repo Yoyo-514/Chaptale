@@ -134,11 +134,7 @@ export function createChatRuntimeBundle(deps: {
               gate: createBrokerPermissionGate({
                 broker: deps.permissionBroker,
                 ruleStore: deps.permissionRuleStore,
-                ctx: {
-                  sessionId: input.sessionId,
-                  cwd: input.cwd,
-                  scope: input.scope
-                }
+                ctx: { sessionId: input.sessionId, cwd: input.cwd }
               })
             }
           : {})
@@ -181,9 +177,9 @@ export function toPermissionSubject(args: Record<string, unknown>): string {
  * PermissionBroker + 规则库 → core/agent 权限闸门端口。
  *
  * 求值顺序是三层规则先行、broker 兜底：allow 直行、deny 直接拒绝、ask 才弹授权卡片——
- * 否则「本工作区始终允许」落库后依然每次弹卡，deny 规则与 destructive 默认拒绝也永不生效。
- * ctx 必须是发起本次调用的会话上下文（cwd 决定读哪个工作区的 permissions.json），
- * 不能用 UI 当前工作区，也不能留空。
+ * 否则「本作品始终允许」落库后依然每次弹卡，deny 规则与 destructive 默认拒绝也永不生效。
+ * ctx 必须是发起本次调用的会话上下文（cwd 决定读哪个作品的 permissions.json），
+ * 不能用 UI 当前作品，也不能留空。
  */
 export function createBrokerPermissionGate(deps: {
   broker: Pick<PermissionBroker, 'ask'>;

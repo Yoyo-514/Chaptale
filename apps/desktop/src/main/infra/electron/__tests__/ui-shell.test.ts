@@ -55,9 +55,9 @@ describe('ElectronUiShell', () => {
     const owner = { id: 'window-1' };
     electronMock.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['C:/work'] });
 
-    await expect(new ElectronUiShell().pickDirectory(owner, '选择工作区')).resolves.toBe('C:/work');
+    await expect(new ElectronUiShell().pickDirectory(owner, '选择作品')).resolves.toBe('C:/work');
     expect(electronMock.dialog.showOpenDialog).toHaveBeenCalledWith(owner, {
-      title: '选择工作区',
+      title: '选择作品',
       properties: ['openDirectory', 'createDirectory']
     });
   });

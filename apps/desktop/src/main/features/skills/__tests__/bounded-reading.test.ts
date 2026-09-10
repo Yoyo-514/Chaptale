@@ -56,7 +56,7 @@ describe('真实技能文件读取', () => {
     await writeFile(path.join(outside, 'private.md'), '目录外的文本');
     await symlink(outside, path.join(skillDir, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');
     await expect(tool().execute({ id: 'bounded-skill', path: 'linked/private.md' })).rejects.toThrow();
-    await expect(tool().execute({ id: 'bounded-skill', path: '../../private.md' })).rejects.toThrow('工作区之外');
+    await expect(tool().execute({ id: 'bounded-skill', path: '../../private.md' })).rejects.toThrow('作品之外');
     expect((await tool().execute({ id: 'bounded-skill' })).text).not.toContain('linked');
   });
 

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useSessionStore } from '@/features/sessions';
+import { useWorkspaceStore } from '@/features/workspace';
 
 import SettingsPathCard from '../components/SettingsPathCard.vue';
 import SettingsSection from '../components/SettingsSection.vue';
@@ -11,16 +12,22 @@ import { useSettingsStore } from '../store';
 
 const settingsStore = useSettingsStore();
 const sessionStore = useSessionStore();
+const workspaceStore = useWorkspaceStore();
 
 const state = computed(() => settingsStore.state);
-const storage = computed(() => state.value?.settings.storage);
+const workspacePath = computed(() => state.value?.settings.workspace.path ?? '');
 const paths = computed(() => state.value?.paths);
 const showInternalFiles = computed(() => state.value?.settings.explorer?.showInternalFiles ?? false);
 
-async function useGlobalStorage() {
-  await settingsStore.useGlobalStorage();
+// 作品切换顺带刷新会话目录信息：这里显示的是"现在写到哪"，不能停在上一部作品。
+async function openWorkspace() {
+  await workspaceStore.openWorkspace();
   await sessionStore.loadStorageDebugInfo();
-  await sessionStore.loadSessions();
+}
+
+async function closeWorkspace() {
+  await workspaceStore.closeWorkspace();
+  await sessionStore.loadStorageDebugInfo();
 }
 
 async function setShowInternalFiles(value: boolean) {
@@ -30,30 +37,33 @@ async function setShowInternalFiles(value: boolean) {
 
 <template>
   <SettingsSection
-    title="工作区与会话存储"
+    title="作品与会话存储"
     title-id="settings-storage-title"
-    description="Global 适合单机默认使用；工作区模式会按项目路径隔离会话目录，方便不同项目独立保存历史记录。"
+    description="会话按作品目录隔离保存；没有打开作品时不能开始新的对话。"
   >
     <template #badge>
-      <span class="settings-pill">{{ storage?.mode === 'workspace' ? '工作区模式' : 'Global 模式' }}</span>
+      <span class="settings-pill">{{ workspacePath ? '已打开作品' : '未打开作品' }}</span>
     </template>
 
     <SettingsPathCard
-      label="当前会话目录"
-      :value="paths?.effectiveSessionDir"
+      label="当前作品"
+      :value="workspacePath || '尚未打开作品'"
       emphasis
       class="settings-path-card-spacing"
     />
 
     <SettingsPathCard
-      v-if="storage?.mode === 'workspace' && storage?.workspacePath"
-      label="工作区路径"
-      :value="storage.workspacePath"
+      v-if="paths?.effectiveSessionDir"
+      label="当前会话目录"
+      :value="paths.effectiveSessionDir"
       class="settings-path-card-spacing"
     />
 
     <div class="settings-actions">
-      <AppButton type="button" :disabled="settingsStore.isLoading" @click="useGlobalStorage">使用 Global</AppButton>
+      <AppButton type="button" :disabled="settingsStore.isLoading" @click="openWorkspace">打开作品…</AppButton>
+      <AppButton v-if="workspacePath" type="button" :disabled="settingsStore.isLoading" @click="closeWorkspace">
+        关闭作品
+      </AppButton>
     </div>
   </SettingsSection>
 
@@ -78,16 +88,16 @@ async function setShowInternalFiles(value: boolean) {
 .settings-pill {
   @apply shrink-0 border px-2 py-1 text-xs;
 
-  background: var(--surface-acrylic-strong);
-  border-color: var(--border-subtle);
-  border-radius: var(--radius-control);
-}
-
-.settings-path-card-spacing {
-  @apply mt-2;
+  border-color: var(--border);
+  border-radius: var(--radius-control-sm);
+  color: var(--muted-foreground);
 }
 
 .settings-actions {
-  @apply mt-3 flex flex-wrap justify-end gap-2;
+  @apply flex flex-wrap gap-2 pt-1;
+}
+
+.settings-path-card-spacing {
+  @apply mb-2;
 }
 </style>

@@ -37,7 +37,7 @@ export const useLibraryStore = defineStore('library', () => {
   const largest = computed(() => pack.value?.sections.toSorted((a, b) => b.chars - a.chars)[0]?.sourcePath);
 
   function args() {
-    if (!workspace.rootPath) throw new Error('请先打开工作区');
+    if (!workspace.rootPath) throw new Error('请先打开作品');
     return {
       rootPath: workspace.rootPath,
       goal: goal.value,

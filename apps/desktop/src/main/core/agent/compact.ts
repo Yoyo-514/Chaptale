@@ -9,7 +9,7 @@ export type CompactReason = 'manual' | 'threshold' | 'overflow';
 /** 交给摘要生产者的折叠区间与预算。 */
 export type CompactSummaryInput = {
   sessionId: string;
-  /** 会话创建时绑定的工作区，不能在压缩时改读全局 currentCwd。 */
+  /** 会话创建时绑定的作品，不能在压缩时改读全局 currentCwd。 */
   cwd: string;
   personaId?: string;
   reason: CompactReason;

@@ -18,19 +18,19 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('设置初始化与工作区更新', () => {
+describe('设置初始化与作品更新', () => {
   it('更新已经入队时，配置初始化必须等待写入再检查文件是否存在', async () => {
     const service = new SettingsService(new WebToolsSettingsAdapter(), { rootDir: root });
     const workspacePath = path.join(root, 'novel');
-    const update = service.update({ storage: { mode: 'workspace', workspacePath } });
+    const update = service.update({ workspace: { path: workspacePath } });
     // 让已入队的更新开始真实 I/O；初始化不能在队列外凭旧的缺失检查回填默认值。
     await Promise.resolve();
     await Promise.all([update, service.ensureSettingsFile()]);
 
-    expect(await service.getStorageContext()).toEqual({ storageMode: 'workspace', workspacePath });
+    expect(await service.getStorageContext()).toEqual({ workspacePath });
   });
 
-  it('并发补齐初始配置不能覆盖刚保存的工作区或偏好', async () => {
+  it('并发补齐初始配置不能覆盖刚保存的作品或偏好', async () => {
     for (let index = 0; index < 20; index += 1) {
       const rootDir = path.join(root, String(index));
       await mkdir(rootDir);
@@ -40,16 +40,13 @@ describe('设置初始化与工作区更新', () => {
       await Promise.all([
         service.getState(),
         service.getCurrentSessionDir(),
-        service.update({ storage: { mode: 'workspace', workspacePath }, theme: 'light' }),
+        service.update({ workspace: { path: workspacePath }, theme: 'light' }),
         service.update({ explorer: { showInternalFiles: true } })
       ]);
 
-      expect(await service.getStorageContext(), `第 ${index + 1} 次冷启动`).toEqual({
-        storageMode: 'workspace',
-        workspacePath
-      });
+      expect(await service.getStorageContext(), `第 ${index + 1} 次冷启动`).toEqual({ workspacePath });
       expect(JSON.parse(await readFile(service.settingsPath, 'utf8'))).toMatchObject({
-        storage: { mode: 'workspace', workspacePath },
+        workspace: { path: workspacePath },
         theme: 'light',
         explorer: { showInternalFiles: true }
       });

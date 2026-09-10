@@ -4,7 +4,7 @@ import type { ChaptaleSessionListItem } from '@chaptale/ipc-contract';
 import { AppCheckbox } from '@/components/AppCheckbox';
 import { SessionRenameDialog } from '@/features/sessions';
 import { cn } from '@/utils';
-import { formatSessionScope, formatSessionTime, formatTokenCount, getSessionTitle } from '@/utils/session-display';
+import { formatSessionTime, formatTokenCount, getSessionTitle } from '@/utils/session-display';
 
 import HistoryDeleteSessionDialog from './HistoryDeleteSessionDialog.vue';
 
@@ -61,12 +61,11 @@ function handleMainClick() {
         <span class="history-item-preview">
           {{ props.session.lastMessagePreview || '暂无消息' }}
         </span>
-        <span v-if="props.session.scope === 'workspace'" class="history-item-workspace" :title="props.session.cwd">
+        <span class="history-item-workspace" :title="props.session.cwd">
           <span class="i-mingcute-folder-line" aria-hidden="true" />
           <span>{{ props.session.cwd }}</span>
         </span>
         <span class="history-item-stats" aria-label="会话统计">
-          <span>{{ formatSessionScope(props.session.scope) }}</span>
           <span>{{ props.session.messageCount }} 条</span>
           <span>{{ formatTokenCount(props.session.totalTokens) }} token</span>
         </span>

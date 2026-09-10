@@ -12,7 +12,11 @@ function mountToolbar(searchQuery = '') {
       isSelectionMode: false,
       searchQuery,
       scopeFilter: 'all',
-      sortMode: 'latest'
+      sortMode: 'latest',
+      scopeOptions: [
+        { value: 'all', label: '全部' },
+        { value: 'E:/Stories/Story-1', label: 'E:/Stories/Story-1 · 当前' }
+      ]
     }
   });
 }
@@ -41,10 +45,17 @@ describe('HistoryToolbar', () => {
     const wrapper = mountToolbar();
     const selects = wrapper.findAllComponents(AppSelect);
 
-    selects[0]!.vm.$emit('update:modelValue', 'workspace');
+    selects[0]!.vm.$emit('update:modelValue', 'E:/Stories/Story-1');
     selects[1]!.vm.$emit('update:modelValue', 'oldest');
 
-    expect(wrapper.emitted('update:scopeFilter')?.at(-1)?.[0]).toBe('workspace');
+    expect(wrapper.emitted('update:scopeFilter')?.at(-1)?.[0]).toBe('E:/Stories/Story-1');
     expect(wrapper.emitted('update:sortMode')?.at(-1)?.[0]).toBe('oldest');
+  });
+
+  it('labels the current work directory so the filter reads as a place, not a mode', () => {
+    const wrapper = mountToolbar();
+
+    expect(wrapper.get('button[aria-label="范围：全部"]').text()).toContain('范围');
+    expect(wrapper.findAllComponents(AppSelect)[0]!.props('modelValue')).toBe('all');
   });
 });

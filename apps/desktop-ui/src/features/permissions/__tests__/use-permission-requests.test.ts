@@ -62,7 +62,7 @@ describe('usePermissionRequests', () => {
     expect(permissionRequests.requests.value).toHaveLength(0);
     expect(useNotificationStore().items.at(-1)).toMatchObject({
       kind: 'success',
-      title: '已添加工作区授权规则',
+      title: '已添加作品授权规则',
       description: 'write · 保存于 .chaptale/permissions.json'
     });
     wrapper.unmount();

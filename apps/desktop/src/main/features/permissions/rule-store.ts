@@ -23,7 +23,7 @@ export class PermissionRuleStore {
 
   constructor(private readonly options: PermissionRuleStoreOptions) {}
 
-  /** 合并三层规则；安全边界必须来自发起工具调用的不可变会话 ctx，不能读取 UI 当前工作区。 */
+  /** 合并三层规则；安全边界必须来自发起工具调用的不可变会话 ctx，不能读取 UI 当前作品。 */
   async collect(ctx: SessionCtx): Promise<PermissionRule[]> {
     return [
       ...(this.sessionRules.get(ctx.sessionId) || []),
@@ -46,7 +46,7 @@ export class PermissionRuleStore {
     await this.mutatePersistentRules(scope, scope === 'workspace' ? ctx.cwd : null, rules => [...rules, rule]);
   }
 
-  /** 分层读取持久规则；设置页显式传入 UI 当前工作区，避免 RuleStore 内部保存可漂移 cwd。 */
+  /** 分层读取持久规则；设置页显式传入 UI 当前作品，避免 RuleStore 内部保存可漂移 cwd。 */
   async listPersistentRules(cwd: string | null): Promise<{ workspace: PermissionRule[]; global: PermissionRule[] }> {
     return {
       workspace: readRuleFile(workspaceFilePath(cwd)),
@@ -80,7 +80,7 @@ export class PermissionRuleStore {
         scope === 'workspace' ? workspaceFilePath(cwd) : path.join(this.options.globalDir, PERMISSIONS_FILE);
 
       if (!filePath) {
-        throw new Error('当前没有工作区，无法操作 workspace 级规则');
+        throw new Error('当前没有作品，无法操作作品级规则');
       }
 
       const next = mutator(readRuleFile(filePath));

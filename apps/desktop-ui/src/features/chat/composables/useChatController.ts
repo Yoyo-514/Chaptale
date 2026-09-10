@@ -44,18 +44,16 @@ export function useChatController() {
 
     return settingsStore.isModelsLoading ? '读取模型中' : '未选择模型';
   });
+  // 没有作品就没有会话：输入区据此禁用，而不是让作者写完才发现发不出去。
+  const isWorkspaceMissing = computed(() => !settingsStore.state?.settings.workspace.path);
   const workspaceLabel = computed(() => {
-    const storage = settingsStore.state?.settings.storage;
+    const workspacePath = settingsStore.state?.settings.workspace.path;
 
-    if (!storage) {
-      return '读取工作区中';
+    if (!settingsStore.state) {
+      return '读取作品中';
     }
 
-    if (storage.mode === 'workspace') {
-      return storage.workspacePath ? `工作区：${storage.workspacePath}` : '未选择工作区';
-    }
-
-    return '全局会话';
+    return workspacePath ? `作品：${workspacePath}` : '未打开作品';
   });
   const recentSessions = computed(() =>
     sessionStore.sessions
@@ -178,6 +176,7 @@ export function useChatController() {
   return {
     state,
     isWelcome,
+    isWorkspaceMissing,
     isModelMissing,
     currentModelLabel,
     workspaceLabel,

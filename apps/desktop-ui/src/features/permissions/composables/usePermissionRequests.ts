@@ -66,10 +66,7 @@ export function usePermissionRequests(getSessionId: () => string) {
       }
 
       if (args.decision.outcome === 'allow-always') {
-        notificationStore.success(
-          '已添加工作区授权规则',
-          `${args.decision.pattern} · 保存于 .chaptale/permissions.json`
-        );
+        notificationStore.success('已添加作品授权规则', `${args.decision.pattern} · 保存于 .chaptale/permissions.json`);
       }
 
       requests.value = requests.value.filter(item => item.requestId !== args.requestId);

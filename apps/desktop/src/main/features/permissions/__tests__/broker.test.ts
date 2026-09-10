@@ -5,7 +5,7 @@ import type { PermissionAskEvent } from '@chaptale/ipc-contract';
 import type { SessionCtx } from '../../../core/session-ctx/types';
 import { PermissionBroker } from '../broker';
 
-const SESSION_CTX: SessionCtx = { sessionId: 's1', cwd: '/workspace-a', scope: 'workspace' };
+const SESSION_CTX: SessionCtx = { sessionId: 's1', cwd: '/workspace-a' };
 
 function createBroker(timeoutMs = 1000) {
   const asks: PermissionAskEvent[] = [];

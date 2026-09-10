@@ -190,7 +190,12 @@ describe('AgentService.stream', () => {
               index: 0,
               delta: {
                 tool_calls: [
-                  { index: 0, id: 'call_1', type: 'function', function: { name: 'echo', arguments: '{"text":"你好"}' } }
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'echo', arguments: '{"text":"你好"}' }
+                  }
                 ]
               }
             }
@@ -599,10 +604,10 @@ describe('AgentService.stream', () => {
       sessionRepository: {
         open: async () => store,
         openOrCreate: async () => store,
-        openBound: async () => ({ session: store, ctx: { sessionId: 's1', cwd: '/workspace', scope: 'workspace' } }),
+        openBound: async () => ({ session: store, ctx: { sessionId: 's1', cwd: '/workspace' } }),
         openOrCreateBound: async () => ({
           session: store,
-          ctx: { sessionId: 's1', cwd: '/workspace', scope: 'workspace' }
+          ctx: { sessionId: 's1', cwd: '/workspace' }
         })
       },
       modelService: {} as never,
@@ -722,7 +727,12 @@ describe('AgentService.stream', () => {
                 index: 0,
                 delta: {
                   tool_calls: [
-                    { index: 0, id: 'call_1', type: 'function', function: { name: 'echo', arguments: '{"text":"甲"}' } }
+                    {
+                      index: 0,
+                      id: 'call_1',
+                      type: 'function',
+                      function: { name: 'echo', arguments: '{"text":"甲"}' }
+                    }
                   ]
                 }
               }

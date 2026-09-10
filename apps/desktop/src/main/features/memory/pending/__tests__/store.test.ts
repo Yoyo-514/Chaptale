@@ -80,7 +80,7 @@ describe('MemoryPendingStore', () => {
     const proposal = await store.add(workspaceA, {
       proposalType: 'create',
       title: '新增角色：沈青',
-      reason: '只属于 A 工作区',
+      reason: '只属于 A 作品',
       targetPath: '角色/沈青.md',
       source: 'session:s-1',
       content: '---\nkind: character\ntitle: 沈青\n---\n\n沈青只在 A。\n'

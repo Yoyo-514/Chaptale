@@ -281,7 +281,7 @@ describe('MemorySearchService', () => {
 
     expect(result.failure).toEqual({
       code: 'literal-search-failed',
-      message: '本地检索失败；如当前角色获准使用 grep/read，可继续检查工作区文件。'
+      message: '本地检索失败；如当前角色获准使用 grep/read，可继续检查作品文件。'
     });
     expect(JSON.stringify(result)).not.toContain('C:/private/path');
   });

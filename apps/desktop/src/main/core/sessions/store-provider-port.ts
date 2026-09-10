@@ -13,7 +13,7 @@ import type { SessionStore } from './store';
 export type SessionStoreProvider = {
   /** 打开已存在的会话；不存在时由实现方抛可读错误。 */
   open(sessionId: string): Promise<SessionStore>;
-  /** 打开或创建（首轮对话前调用）；cwd 缺省时由实现方解析当前工作区。 */
+  /** 打开或创建（首轮对话前调用）；cwd 缺省时由实现方解析当前作品。 */
   openOrCreate(sessionId: string, cwd?: string): Promise<SessionStore>;
   /** 打开会话并带出由持久化目录解析的安全上下文。 */
   openBound(sessionId: string): Promise<BoundSession<SessionStore>>;

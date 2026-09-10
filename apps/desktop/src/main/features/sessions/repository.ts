@@ -22,7 +22,6 @@ import { isSessionRunStopReason } from '../../core/sessions/entry';
 import { parseSessionContent } from '../../core/sessions/reader';
 import type { SessionStorageContext } from '../../core/sessions/storage';
 import { SessionStorageResolver } from '../../core/sessions/storage';
-import { getSessionScope } from '../../core/sessions/storage';
 import { SessionStore } from '../../core/sessions/store';
 import type { SessionStoreProvider } from '../../core/sessions/store-provider-port';
 import { deriveSessionSummary } from '../../core/sessions/summary';
@@ -73,7 +72,7 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
 
         try {
           const parsed = parseSessionContent(await fs.readFile(filePath, 'utf8'));
-          items.push(deriveSessionSummary(parsed, dir, filePath));
+          items.push(deriveSessionSummary(parsed, filePath));
         } catch {
           // 非会话文件（缺 header/坏文件）：列表静默跳过，具体错误留给打开操作。
         }
@@ -233,7 +232,6 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
       rootDir: this.storage.rootDir,
       sessionDir: await this.storage.resolveSessionDir(),
       cwd: await this.storage.resolveCwd(),
-      ...(context.storageMode ? { storageMode: context.storageMode } : {}),
       ...(context.workspacePath ? { workspacePath: context.workspacePath } : {})
     };
   }
@@ -242,8 +240,7 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
     return this.storage.ensureSessionDir();
   }
 
-  /** 打开（带缓存的）会话 store。 */
-  /** 打开（带缓存的）会话 store：先查当前目录，再扫 sessions 根下全部已知目录（跨 global/workspace）。 */
+  /** 打开（带缓存的）会话 store：先查当前目录，再扫 sessions 根下全部已知目录（没打开作品也能看）。 */
   async open(sessionId: string): Promise<SessionStore> {
     const cached = this.stores.get(sessionId);
 
@@ -260,14 +257,14 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
 
   async openBound(sessionId: string): Promise<BoundSession<SessionStore>> {
     const store = await this.open(sessionId);
-    const filePath = await this.locateSessionFile(sessionId);
+
     return {
       session: store,
-      ctx: { sessionId, cwd: store.header.cwd, scope: getSessionScope(path.dirname(filePath)) }
+      ctx: { sessionId, cwd: store.header.cwd }
     };
   }
 
-  /** 会话文件定位：列表来自多个 scope 目录，打开时按 sessionId 全域查找。 */
+  /** 会话文件定位：列表来自所有作品目录，打开时按 sessionId 全域查找。 */
   private async locateSessionFile(sessionId: string): Promise<string> {
     const dirs = await this.storage.getKnownSessionDirs();
 
@@ -309,11 +306,11 @@ export class JsonlSessionRepository implements SessionRepository, SessionStorePr
 
   async openOrCreateBound(sessionId: string, cwd?: string): Promise<BoundSession<SessionStore>> {
     const store = await this.openOrCreate(sessionId, cwd);
-    const sessionDir = path.dirname(await this.locateSessionFile(sessionId));
-    return { session: store, ctx: { sessionId, cwd: store.header.cwd, scope: getSessionScope(sessionDir) } };
+
+    return { session: store, ctx: { sessionId, cwd: store.header.cwd } };
   }
 
-  /** 会话 cwd（已落盘则读 header，否则当前工作区）。 */
+  /** 会话 cwd（已落盘则读 header，否则当前作品）。 */
   async resolveSessionCwd(sessionId: string): Promise<string> {
     try {
       const store = await this.open(sessionId);

@@ -40,7 +40,7 @@ describe('新建作品', () => {
     expect(layout.roles.characters.exists).toBe(true);
     expect(layout.roles.threads.exists).toBe(false);
     const service = new WorkspaceService({
-      getStorageContext: async () => ({ storageMode: 'workspace', workspacePath: result.rootPath })
+      getStorageContext: async () => ({ workspacePath: result.rootPath })
     });
     expect(await service.getState()).toMatchObject({ displayName: '青岚纪事', hasChaptaleMetadata: true });
     expect(await service.readDocument({ rootPath: result.rootPath, relativePath: result.firstDocument })).toMatchObject(

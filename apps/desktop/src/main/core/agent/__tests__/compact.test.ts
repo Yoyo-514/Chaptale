@@ -129,7 +129,7 @@ describe('compactSession', () => {
 
     expect(seen[0]).toMatchObject({
       sessionId: 'session-1',
-      // 压缩必须用会话创建时绑定的工作区，不能改读全局 currentCwd。
+      // 压缩必须用会话创建时绑定的作品，不能改读全局 currentCwd。
       cwd: '/w',
       reason: 'manual',
       checkpointId: result.firstKeptEntryId

@@ -1,19 +1,15 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-
 import { AppButton } from '@/components/AppButton';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 
-import type { HistoryScopeFilter, HistorySortMode } from '../composables/useHistorySessions';
+import type { HistoryScopeFilter, HistoryScopeOption, HistorySortMode } from '../composables/useHistorySessions';
 
-const props = withDefaults(
-  defineProps<{
-    isSelectionMode: boolean;
-    currentWorkspacePath?: string;
-  }>(),
-  { currentWorkspacePath: '' }
-);
+const props = defineProps<{
+  isSelectionMode: boolean;
+  /** 全部 + 每个会话所在目录；当前作品标「当前」。由会话列表推导，故从外部传入。 */
+  scopeOptions: HistoryScopeOption[];
+}>();
 
 const emit = defineEmits<{
   toggleSelectionMode: [];
@@ -22,12 +18,6 @@ const emit = defineEmits<{
 const searchQuery = defineModel<string>('searchQuery', { required: true });
 const scopeFilter = defineModel<HistoryScopeFilter>('scopeFilter', { required: true });
 const sortMode = defineModel<HistorySortMode>('sortMode', { required: true });
-
-const scopeOptions = computed<{ value: HistoryScopeFilter; label: string }[]>(() => [
-  { value: 'all', label: '全部' },
-  { value: 'workspace', label: props.currentWorkspacePath || '未选择工作区' },
-  { value: 'global', label: '全局' }
-]);
 
 const sortOptions: { value: HistorySortMode; label: string }[] = [
   { value: 'latest', label: '最新' },
@@ -56,7 +46,7 @@ function clearSearch() {
 }
 
 function getScopeLabel(value: HistoryScopeFilter) {
-  return scopeOptions.value.find(option => option.value === value)?.label ?? '全部';
+  return props.scopeOptions.find(option => option.value === value)?.label ?? '全部';
 }
 
 function getSortLabel(value: HistorySortMode) {
@@ -150,7 +140,7 @@ function selectSortMode(value: string) {
             <span class="i-mingcute-down-line history-control-icon" aria-hidden="true" />
           </button>
         </template>
-        <AppSelectItem v-for="option in scopeOptions" :key="option.value" :value="option.value" density="sm">
+        <AppSelectItem v-for="option in props.scopeOptions" :key="option.value" :value="option.value" density="sm">
           {{ option.label }}
         </AppSelectItem>
       </AppSelect>

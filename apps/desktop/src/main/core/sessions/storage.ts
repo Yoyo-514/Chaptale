@@ -2,10 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { unique } from 'radash';
 
-import type { ChaptaleSessionScope, ChaptaleStorageMode } from '@chaptale/ipc-contract';
-
 export type SessionStorageContext = {
-  storageMode?: ChaptaleStorageMode;
   workspacePath?: string;
 };
 
@@ -49,16 +46,29 @@ export class SessionStorageResolver {
     return path.dirname(await this.resolveSessionDir());
   }
 
+  /**
+   * 建会话前必须有一个落脚的作品：没有作品时没有会话目录，空串会让 mkdir 落到进程 cwd。
+   */
   async ensureSessionDir() {
     const sessionDir = await this.resolveSessionDir();
+
+    if (!sessionDir) {
+      throw new Error('请先打开作品');
+    }
+
     await fs.mkdir(sessionDir, { recursive: true });
     return sessionDir;
   }
 
-  /** 当前生效目录 + sessions 根目录下的全部子目录（跨 global/workspace 列表用）。 */
+  /**
+   * sessions 根目录 + 其下全部子目录；当前作品的目录排在首位。
+   *
+   * 历史要能一次看全所有作品的会话（删起来不用逐个作品打开目录），因此这里不按当前作品收窄。
+   * 没有打开作品时只剩既存目录：此时读得到、删得掉，但没有新会话的落脚点。
+   */
   async getKnownSessionDirs() {
     const [currentSessionDir, sessionsRootDir] = await Promise.all([
-      this.ensureSessionDir(),
+      this.resolveSessionDir(),
       this.resolveSessionsRootDir()
     ]);
     await fs.mkdir(sessionsRootDir, { recursive: true });
@@ -66,6 +76,11 @@ export class SessionStorageResolver {
     const entries = await fs.readdir(sessionsRootDir, { withFileTypes: true });
     const dirs = entries.filter(entry => entry.isDirectory()).map(entry => path.join(sessionsRootDir, entry.name));
 
+    if (!currentSessionDir) {
+      return unique(dirs);
+    }
+
+    await fs.mkdir(currentSessionDir, { recursive: true });
     return unique([currentSessionDir, ...dirs]);
   }
 
@@ -81,8 +96,4 @@ export class SessionStorageResolver {
 
     await fs.unlink(resolvedSessionPath);
   }
-}
-
-export function getSessionScope(sessionDir: string): ChaptaleSessionScope {
-  return path.basename(sessionDir) === 'global' ? 'global' : 'workspace';
 }

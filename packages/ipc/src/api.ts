@@ -250,7 +250,7 @@ export type ChaptaleDesktopApi = {
     /** 指定会话的待授权请求，供挂载/刷新后恢复卡片。 */
     getPending: (sessionId: string) => Promise<PermissionAskEvent[]>;
     decide: (args: PermissionDecideArgs) => Promise<PermissionDecideResult>;
-    /** 列出工作区与全局两层持久规则。 */
+    /** 列出作品与全局两层持久规则。 */
     listRules: () => Promise<PermissionRuleEntry[]>;
     /** 删除指定持久层内所有完全相同的规则并返回最新列表。 */
     removeRule: (args: PermissionRemoveRuleArgs) => Promise<PermissionRuleEntry[]>;

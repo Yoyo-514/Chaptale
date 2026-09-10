@@ -16,7 +16,7 @@ describe('模板和场景 IPC', () => {
     expect(CreateAssetValidator.Check([{ ...args, content: '未经模板验证的正文' }])).toBe(false);
     expect(CreateAssetValidator.Check([{ ...args, templateHash: '' }])).toBe(false);
   });
-  it('参考选择和排除只接受有界工作区相对路径', () => {
+  it('参考选择和排除只接受有界作品相对路径', () => {
     const args = { rootPath: 'E:/book', scenePath: '大纲/场景卡/一.md', selections: [], excluded: [] };
     expect(SceneReferencesValidator.Check([args])).toBe(true);
     expect(SceneReferencesValidator.Check([{ ...args, excluded: ['C:/outside.md'] }])).toBe(false);

@@ -15,7 +15,7 @@ function createTempDir() {
 }
 
 function ctx(sessionId: string, cwd: string): SessionCtx {
-  return { sessionId, cwd, scope: 'workspace' };
+  return { sessionId, cwd };
 }
 
 afterEach(() => {
@@ -49,7 +49,7 @@ describe('PermissionRuleStore', () => {
     await store.addRule({ pattern: 'write(a.md)', action: 'allow' }, 'workspace', ctx('session-a', workspaceA));
     await store.addRule({ pattern: 'write(b.md)', action: 'deny' }, 'workspace', ctx('session-b', workspaceB));
 
-    const rules = await store.collect({ sessionId: 'session-a', cwd: workspaceA, scope: 'workspace' });
+    const rules = await store.collect({ sessionId: 'session-a', cwd: workspaceA });
 
     expect(rules).toEqual([{ pattern: 'write(a.md)', action: 'allow' }]);
   });
@@ -121,15 +121,13 @@ describe('PermissionRuleStore', () => {
     await expect(
       store.addRule({ pattern: 'write', action: 'allow' }, 'workspace', {
         sessionId: 's1',
-        cwd: '',
-        scope: 'workspace'
+        cwd: ''
       })
     ).rejects.toThrow();
     await expect(
       store.addRule({ pattern: 'write', action: 'allow' }, 'session', {
         sessionId: '',
-        cwd: createTempDir(),
-        scope: 'workspace'
+        cwd: createTempDir()
       })
     ).rejects.toThrow();
   });

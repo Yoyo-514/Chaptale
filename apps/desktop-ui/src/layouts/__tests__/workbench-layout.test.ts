@@ -17,7 +17,7 @@ describe('WorkbenchLayout', () => {
       }
     });
 
-    expect(wrapper.get('[aria-label="工作区侧栏"]').attributes('aria-label')).toBe('工作区侧栏');
+    expect(wrapper.get('[aria-label="作品侧栏"]').attributes('aria-label')).toBe('作品侧栏');
     expect(wrapper.get('[aria-label="编辑器区域"]').attributes('aria-label')).toBe('编辑器区域');
     expect(wrapper.get('[aria-label="辅助栏"]').attributes('aria-label')).toBe('辅助栏');
     expect(wrapper.findAll('[data-panel]')).toHaveLength(3);

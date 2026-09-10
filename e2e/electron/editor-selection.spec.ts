@@ -62,12 +62,12 @@ test.beforeEach(async () => {
   await launch();
   await page.evaluate(async root => {
     await (window as DesktopWindow).chaptaleDesktop.settings.update({
-      storage: { mode: 'workspace', workspacePath: root },
+      workspace: { path: root },
       onboarding: { completedVersion: 1 }
     });
   }, workspace);
   await page.reload();
-  await expect(page.getByRole('tree', { name: '工作区文件树' })).toBeVisible();
+  await expect(page.getByRole('tree', { name: '作品文件树' })).toBeVisible();
 });
 
 test.afterEach(async () => {

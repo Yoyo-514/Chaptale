@@ -55,7 +55,7 @@ describe('TitleBar', () => {
     await nextTick();
 
     const openWorkspace = document.body.querySelector<HTMLElement>('[data-item-id="file.open-workspace"]');
-    expect(openWorkspace?.textContent).toContain('打开工作区');
+    expect(openWorkspace?.textContent).toContain('打开作品');
     expect(openWorkspace?.hasAttribute('data-disabled')).toBe(false);
 
     openWorkspace?.click();

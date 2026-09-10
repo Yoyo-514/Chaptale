@@ -19,7 +19,7 @@ beforeEach(async () => {
   await mkdir(path.join(workspace, '角色'));
   await writeFile(path.join(workspace, '角色/林晚.md'), original);
   service = new WorkspaceService({
-    getStorageContext: async () => ({ storageMode: 'workspace', workspacePath: workspace })
+    getStorageContext: async () => ({ workspacePath: workspace })
   });
 });
 afterEach(async () => {
@@ -131,7 +131,7 @@ describe('作者文件操作', () => {
     ).toMatchObject({ ok: false, message: expect.stringContaining('没有删除') });
     expect(await readFile(path.join(workspace, '角色/林晚.md'), 'utf8')).toBe(original);
   });
-  it('拒绝工作区错配、穿越和越界链接', async () => {
+  it('拒绝作品错配、穿越和越界链接', async () => {
     const expectedVersion = await version();
     for (const targetPath of ['../越界.md', '.chaptale/秘密.md', 'chaptale.json']) {
       expect(

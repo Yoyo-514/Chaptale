@@ -49,7 +49,7 @@ beforeEach(async () => {
   await mkdir(root);
   store = new CandidateStore(
     new WorkspaceService({
-      getStorageContext: async () => ({ storageMode: 'workspace', workspacePath: currentRoot })
+      getStorageContext: async () => ({ workspacePath: currentRoot })
     })
   );
 });
@@ -109,18 +109,28 @@ describe('候选文件事务', () => {
     const stale = await store.read(root, candidate.id);
     expect(stale.candidate.status).toBe('stale');
     await expect(
-      store.apply({ rootPath: root, candidateId: candidate.id, revision: stale.candidate.revision, changeIndexes: [0] })
+      store.apply({
+        rootPath: root,
+        candidateId: candidate.id,
+        revision: stale.candidate.revision,
+        changeIndexes: [0]
+      })
     ).rejects.toThrow();
     await store.setStatus(root, candidate.id, 'discarded');
     expect(await readFile(path.join(root, 'chapter.md'), 'utf8')).toBe('外部修改');
   });
-  it('切换工作区不误标启动时的候选，但禁止写入旧工作区', async () => {
+  it('切换作品不误标启动时的候选，但禁止写入旧作品', async () => {
     const candidate = await create('原文');
     currentRoot = home;
     const ready = await store.finish(root, candidate.id, '新稿', 'run-1', '.chaptale/runs/outputs/run-1.json');
     expect(ready.candidate.status).toBe('ready');
     await expect(
-      store.apply({ rootPath: root, candidateId: candidate.id, revision: ready.candidate.revision, changeIndexes: [0] })
+      store.apply({
+        rootPath: root,
+        candidateId: candidate.id,
+        revision: ready.candidate.revision,
+        changeIndexes: [0]
+      })
     ).rejects.toThrow();
     expect(await readFile(path.join(root, 'chapter.md'), 'utf8')).toBe('原文');
   });

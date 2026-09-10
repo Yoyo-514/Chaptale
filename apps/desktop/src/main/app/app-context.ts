@@ -173,9 +173,10 @@ export function createAppContext(): AppContext {
     literalSearch: { search: input => indexService.literalSearch(input) },
     sourceResolver: indexSourceResolver
   });
-  // runs/reviews 归属工作区：审查历史是创作产物，随作品同步。
-  const runStore = new AgentRunStore({ resolveCwd: () => settingsService.getCurrentCwd() });
-  const reviewStore = new ReviewOutputStore({ resolveCwd: () => settingsService.getCurrentCwd() });
+  // runs/reviews 归属作品：审查历史是创作产物，随作品同步；没打开作品时退回配置目录而不是空 cwd。
+  const appStateCwd = () => settingsService.getAppStateCwd();
+  const runStore = new AgentRunStore({ resolveCwd: appStateCwd });
+  const reviewStore = new ReviewOutputStore({ resolveCwd: appStateCwd });
   const taskOutputStore = new TaskOutputRouter({ runStore, reviewStore });
   const reviewWorkflowStore = new ReviewWorkflowStore();
   const reviewFeedbackStore = new ReviewFeedbackStore(reviewWorkflowStore, settingsService.rootDir);
@@ -284,7 +285,7 @@ export function createAppContext(): AppContext {
     settlementService,
     permissionBroker,
     permissionRuleStore,
-    getPermissionSettingsCwd: () => settingsService.getCurrentCwd(),
-    getMemoryPendingCwd: () => settingsService.getCurrentCwd()
+    getPermissionSettingsCwd: appStateCwd,
+    getMemoryPendingCwd: appStateCwd
   };
 }

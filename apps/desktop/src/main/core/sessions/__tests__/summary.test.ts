@@ -9,7 +9,7 @@ const goldenDir = path.join(__dirname, 'golden');
 describe('deriveSessionSummary', () => {
   it('linear golden：名称/leaf/计数/预览/累计 token 与费用', async () => {
     const file = await readSessionFile(path.join(goldenDir, 'linear.jsonl'));
-    const summary = deriveSessionSummary(file, path.join('sessions', 'global'), '/store/linear.jsonl');
+    const summary = deriveSessionSummary(file, '/store/linear.jsonl');
 
     expect(summary).toMatchObject({
       id: 'golden-linear',
@@ -21,18 +21,16 @@ describe('deriveSessionSummary', () => {
       messageCount: 5,
       lastMessagePreview: '继续',
       totalTokens: 400,
-      scope: 'global',
       path: '/store/linear.jsonl'
     });
     // updatedAt 取最后 entry 时间（s1）。
     expect(summary.updatedAt).toBe('2026-01-01T00:00:08.000Z');
   });
 
-  it('branch golden：scope 按目录名判 workspace', async () => {
+  it('branch golden：自然分支的计数与预览', async () => {
     const file = await readSessionFile(path.join(goldenDir, 'branch.jsonl'));
-    const summary = deriveSessionSummary(file, path.join('sessions', 'Story-abc123'), '/store/branch.jsonl');
+    const summary = deriveSessionSummary(file, '/store/branch.jsonl');
 
-    expect(summary.scope).toBe('workspace');
     // 自然分支路径 m1→m5→m6 上的 message 数。
     expect(summary.messageCount).toBe(3);
     expect(summary.lastMessagePreview).toBe('就这个');
@@ -49,7 +47,7 @@ describe('deriveSessionSummary', () => {
       message: { role: 'user', content: '长'.repeat(200) }
     });
 
-    const summary = deriveSessionSummary(file, path.join('sessions', 'global'), '/store/linear.jsonl');
+    const summary = deriveSessionSummary(file, '/store/linear.jsonl');
 
     expect(summary.lastMessagePreview).toHaveLength(81);
     expect(summary.lastMessagePreview?.endsWith('…')).toBe(true);
@@ -69,7 +67,6 @@ describe('deriveSessionSummary', () => {
         skippedMidLines: 0,
         skippedTailLines: 0
       },
-      path.join('sessions', 'global'),
       '/store/empty.jsonl'
     );
 
@@ -85,12 +82,10 @@ describe('deriveSessionSummary', () => {
     const intact =
       '{"type":"message","id":"m1","parentId":null,"timestamp":"2026-07-11T00:00:01.000Z","message":{"role":"user","content":"开头"}}';
     const halfWritten = '{"type":"message","id":"m2","paren';
-    const dir = path.join('sessions', 'global');
 
     // 中间行坏：单写者 append-only 下写完的行不该再变，出现即意味着有外因动过文件。
     const damaged = deriveSessionSummary(
       parseSessionContent([header, halfWritten, intact].join('\n')),
-      dir,
       '/store/damaged.jsonl'
     );
 
@@ -99,7 +94,6 @@ describe('deriveSessionSummary', () => {
     // 末行写到一半：掉电留下的正常损耗，报出来只会让作者疑神疑鬼。
     const truncated = deriveSessionSummary(
       parseSessionContent([header, intact, halfWritten].join('\n')),
-      dir,
       '/store/truncated.jsonl'
     );
 

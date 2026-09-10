@@ -31,12 +31,12 @@ export function registerMemoryIpc(
 
   handleValidatedIpc(IPC_CHANNELS.memory.resolvePending, MemoryResolvePendingArgsValidator, async (_event, payload) => {
     const cwd = await options.resolveCwd();
-    if (payload.rootPath && payload.rootPath !== cwd) throw new Error('工作区已切换');
+    if (payload.rootPath && payload.rootPath !== cwd) throw new Error('作品已切换');
     return pendingStore.resolve(cwd, payload.id, payload.action, payload.expectedProposalHash);
   });
   handleValidatedIpc(IPC_CHANNELS.memory.inspectPending, MemoryInspectPendingArgsValidator, async (_event, payload) => {
     const cwd = await options.resolveCwd();
-    if (payload.rootPath && payload.rootPath !== cwd) throw new Error('工作区已切换');
+    if (payload.rootPath && payload.rootPath !== cwd) throw new Error('作品已切换');
     return pendingStore.inspect(cwd, payload.id);
   });
 

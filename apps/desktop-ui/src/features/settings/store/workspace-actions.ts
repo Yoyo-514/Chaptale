@@ -35,7 +35,7 @@ export const workspaceSettingsActions = {
   },
 
   async update(this: SettingsStoreContext, payload: UpdateChaptaleSettingsPayload) {
-    if (payload.storage && !(await confirmWorkspaceTransition())) return false;
+    if (payload.workspace && !(await confirmWorkspaceTransition())) return false;
     this.isLoading = true;
 
     try {
@@ -78,10 +78,6 @@ export const workspaceSettingsActions = {
     applyTheme(theme);
     cacheTheme(theme);
     await this.update({ theme });
-  },
-
-  async useGlobalStorage(this: SettingsStoreContext) {
-    await this.update({ storage: { mode: 'global' } });
   },
 
   async openConfigDir(this: SettingsStoreContext) {

@@ -39,7 +39,7 @@ beforeEach(async () => {
   user = path.join(root, 'user');
   await mkdir(work);
   settings = new SettingsService(new WebToolsSettingsAdapter(), { rootDir: user });
-  await settings.update({ storage: { mode: 'workspace', workspacePath: work } });
+  await settings.update({ workspace: { path: work } });
   workspace = new WorkspaceService(settings);
   service = new ContentService({
     userRoot: user,
@@ -110,7 +110,7 @@ describe('local content management', () => {
     await createPersona();
     const other = path.join(root, 'other');
     await mkdir(other);
-    await settings.update({ storage: { mode: 'workspace', workspacePath: other } });
+    await settings.update({ workspace: { path: other } });
     await expect(createPersona('workspace')).rejects.toThrow('作品已切换');
     await expect(service.list({ rootPath: work })).rejects.toThrow('作品已切换');
   });
@@ -278,7 +278,7 @@ describe('content lifecycle', () => {
     await expect(service.delete({ ...args, fingerprint: preview.fingerprint })).rejects.toThrow('内容已变化');
     const other = path.join(root, 'other');
     await mkdir(other);
-    await settings.update({ storage: { mode: 'workspace', workspacePath: other } });
+    await settings.update({ workspace: { path: other } });
     await expect(service.delete({ ...args, fingerprint: preview.fingerprint })).rejects.toThrow('作品已切换');
     expect(await readFile(path.join(user, 'personas/my-planner.md'), 'utf8')).toBe(persona + '外部修订');
   });

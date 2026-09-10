@@ -5,7 +5,7 @@ import { WorkspaceRoleSchema } from '@chaptale/shared';
 
 import { MAX_DOCUMENT_BYTES } from '../workspace';
 
-/** 无穿越、无空段、无盘符与反斜杠的正斜杠相对路径；空串代表工作区根。 */
+/** 无穿越、无空段、无盘符与反斜杠的正斜杠相对路径；空串代表作品根。 */
 const WORKSPACE_RELATIVE_PATH_PATTERN = '^(?!.*(?:^|/)\\.\\.(?:/|$))(?!/)(?!.*//)[^\\\\:\\x00]*$';
 
 /** 空串为根目录；其他值必须是无穿越、无空段的正斜杠相对路径。 */
@@ -42,7 +42,7 @@ export const CreateWorkspaceArgsSchema = Type.Object(
 );
 export const CreateWorkspaceArgsValidator = Compile(Type.Tuple([CreateWorkspaceArgsSchema]));
 
-/** 新建目标必须指向工作区内某个具体条目；根目录已经存在，不接受空串。 */
+/** 新建目标必须指向作品内某个具体条目；根目录已经存在，不接受空串。 */
 export const CreateEntryArgsSchema = Type.Object(
   {
     relativePath: Type.String({ pattern: WORKSPACE_RELATIVE_PATH_PATTERN, minLength: 1 }),
@@ -54,7 +54,7 @@ export const CreateEntryArgsValidator = Compile(Type.Tuple([CreateEntryArgsSchem
 
 export const ReadDocumentArgsSchema = Type.Object(
   {
-    /** 仅校验工作区身份，不作为读取根目录；真正的根目录仍取自 Main 设置。 */
+    /** 仅校验作品身份，不作为读取根目录；真正的根目录仍取自 Main 设置。 */
     rootPath: Type.String({ minLength: 1 }),
     relativePath: Type.String({
       minLength: 1,

@@ -344,7 +344,7 @@ export const useEditorStore = defineStore('editor', () => {
         result = await action();
         const current = tabs.value.find(value => value.id === tab.id);
         if (!current || workspace.rootPath !== result.document.rootPath)
-          throw new Error('工作区已切换，写入结果将在重新打开时载入');
+          throw new Error('作品已切换，写入结果将在重新打开时载入');
         buffer.replaceContent(result.document.content, true);
         buffer.markSaved(buffer.state);
         replaceTab({ ...current, document: result.document, dirty: false, saving: false, saveError: '' });
