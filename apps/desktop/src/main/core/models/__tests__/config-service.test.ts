@@ -294,6 +294,28 @@ describe('CustomModelConfigService', () => {
     expect(getConfig().providers.overridden).toBeUndefined();
   });
 
+  it('removes a provider entirely with its models and api key', async () => {
+    const { repository, getConfig } = createRepository({
+      providers: {
+        custom: { name: 'Custom', apiKey: 'sk', models: [{ id: 'model-a' }] },
+        kept: { name: 'Kept', models: [{ id: 'model-b' }] }
+      }
+    });
+    const service = new CustomModelConfigService(repository as unknown as ModelConfigRepository);
+
+    await service.removeProvider({ provider: ' custom ' });
+
+    expect(getConfig().providers.custom).toBeUndefined();
+    expect(getConfig().providers.kept).toEqual({ name: 'Kept', models: [{ id: 'model-b' }] });
+  });
+
+  it('throws user-readable error when removing a missing provider', async () => {
+    const { repository } = createRepository({ providers: { kept: { name: 'Kept', models: [] } } });
+    const service = new CustomModelConfigService(repository as unknown as ModelConfigRepository);
+
+    await expect(service.removeProvider({ provider: 'missing' })).rejects.toThrow('未找到自定义供应商：missing');
+  });
+
   it('throws user-readable errors when custom provider or model is missing', async () => {
     const { repository } = createRepository({ providers: { custom: { name: 'Custom', models: [{ id: 'model-a' }] } } });
     const service = new CustomModelConfigService(repository as unknown as ModelConfigRepository);

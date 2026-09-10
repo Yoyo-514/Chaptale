@@ -8,6 +8,7 @@ import type {
   ListModelsResult,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
+  RemoveCustomProviderPayload,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
   UpdateCustomModelInputPayload
@@ -124,6 +125,19 @@ export class ModelService {
 
   async removeCustomProviderApiKey(payload: RemoveCustomProviderApiKeyPayload): Promise<ListModelsResult> {
     await this.customConfig.removeProviderApiKey(payload);
+    return this.listModels();
+  }
+
+  async removeCustomProvider(payload: RemoveCustomProviderPayload): Promise<ListModelsResult> {
+    await this.customConfig.removeProvider(payload);
+
+    // 默认模型指向被删供应商时同步清除，避免 listModels 悬空引用。
+    const current = await this.repository.getDefaultModel();
+
+    if (current?.provider === payload.provider) {
+      await this.repository.setDefaultModel(undefined);
+    }
+
     return this.listModels();
   }
 

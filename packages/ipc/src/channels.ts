@@ -161,6 +161,7 @@ export const IPC_CHANNELS = {
     addCustomModel: 'models:add-custom-model',
     setCustomProviderApiKey: 'models:set-custom-provider-api-key',
     removeCustomProviderApiKey: 'models:remove-custom-provider-api-key',
+    removeCustomProvider: 'models:remove-custom-provider',
     updateCustomModelInput: 'models:update-custom-model-input',
     removeCustomModel: 'models:remove-custom-model'
   },

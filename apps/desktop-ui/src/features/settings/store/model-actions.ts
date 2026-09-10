@@ -83,6 +83,18 @@ export const modelSettingsActions = {
     );
   },
 
+  async removeCustomProvider(this: SettingsStoreContext, provider: string) {
+    this.isModelsLoading = true;
+
+    try {
+      return await this.runModelsAction('删除供应商失败', () =>
+        getDesktopApi().models.removeCustomProvider({ provider })
+      );
+    } finally {
+      this.isModelsLoading = false;
+    }
+  },
+
   updateCustomModelInput(this: SettingsStoreContext, provider: string, modelId: string, input: ChaptaleModelInput[]) {
     return this.runModelsAction('更新模型能力失败', () =>
       getDesktopApi().models.updateCustomModelInput({ provider, modelId, input })

@@ -10,6 +10,7 @@ import type {
   FetchCustomProviderModelsPayloadSchema,
   RemoveCustomModelPayloadSchema,
   RemoveCustomProviderApiKeyPayloadSchema,
+  RemoveCustomProviderPayloadSchema,
   SetCustomProviderApiKeyPayloadSchema,
   SetDefaultModelPayloadSchema,
   UpdateCustomModelInputPayloadSchema
@@ -85,6 +86,8 @@ export type AddCustomModelPayload = Static<typeof AddCustomModelPayloadSchema>;
 export type SetCustomProviderApiKeyPayload = Static<typeof SetCustomProviderApiKeyPayloadSchema>;
 
 export type RemoveCustomProviderApiKeyPayload = Static<typeof RemoveCustomProviderApiKeyPayloadSchema>;
+
+export type RemoveCustomProviderPayload = Static<typeof RemoveCustomProviderPayloadSchema>;
 
 export type UpdateCustomModelInputPayload = Static<typeof UpdateCustomModelInputPayloadSchema>;
 

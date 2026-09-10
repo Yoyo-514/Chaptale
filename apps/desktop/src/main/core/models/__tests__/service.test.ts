@@ -97,6 +97,25 @@ describe('ModelService.listModels', () => {
     expect(result.defaultModel).toBeUndefined();
     expect(result.models.some(model => model.provider === 'deepseek')).toBe(false);
   });
+
+  it('removeCustomProvider 删除整个供应商并同步清除指向自身的默认模型', async () => {
+    const service = await createService();
+
+    await service.setDefaultModel({ provider: 'deepseek', modelId: 'deepseek-chat' });
+    await service.removeCustomProvider({ provider: 'deepseek' });
+
+    const result = await service.listModels();
+
+    expect(result.providers.map(provider => provider.provider)).toEqual(['no-key']);
+    expect(result.models.some(model => model.provider === 'deepseek')).toBe(false);
+    expect(result.defaultModel).toBeUndefined();
+  });
+
+  it('removeCustomProvider 拒绝不存在的供应商', async () => {
+    const service = await createService();
+
+    await expect(service.removeCustomProvider({ provider: 'ghost' })).rejects.toThrow('未找到自定义供应商：ghost');
+  });
 });
 
 describe('ModelService.checkAuth 三态', () => {

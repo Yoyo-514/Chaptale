@@ -5,6 +5,7 @@ import {
   IPC_CHANNELS,
   RemoveCustomModelArgsValidator,
   RemoveCustomProviderApiKeyArgsValidator,
+  RemoveCustomProviderArgsValidator,
   SetCustomProviderApiKeyArgsValidator,
   SetDefaultModelArgsValidator,
   UpdateCustomModelInputArgsValidator
@@ -15,6 +16,7 @@ import type {
   FetchCustomProviderModelsPayload,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
+  RemoveCustomProviderPayload,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
   UpdateCustomModelInputPayload
@@ -62,6 +64,12 @@ export function registerModelsIpc(modelService: ModelServicePort) {
     IPC_CHANNELS.models.removeCustomProviderApiKey,
     RemoveCustomProviderApiKeyArgsValidator,
     (_event, payload: RemoveCustomProviderApiKeyPayload) => modelService.removeCustomProviderApiKey(payload)
+  );
+
+  handleValidatedIpc(
+    IPC_CHANNELS.models.removeCustomProvider,
+    RemoveCustomProviderArgsValidator,
+    (_event, payload: RemoveCustomProviderPayload) => modelService.removeCustomProvider(payload)
   );
 
   handleValidatedIpc(

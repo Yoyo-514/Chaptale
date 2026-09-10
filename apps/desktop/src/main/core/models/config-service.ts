@@ -6,6 +6,7 @@ import type {
   FetchCustomProviderModelsPayload,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
+  RemoveCustomProviderPayload,
   SetCustomProviderApiKeyPayload,
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
@@ -117,6 +118,18 @@ export class CustomModelConfigService {
 
     await this.repository.update(config => {
       delete getProviderOrThrow(config, provider).apiKey;
+    });
+  }
+
+  async removeProvider(payload: RemoveCustomProviderPayload) {
+    const provider = normalizeProviderId(payload.provider);
+
+    await this.repository.update(config => {
+      if (!config.providers[provider]) {
+        throw new Error(`未找到自定义供应商：${provider}`);
+      }
+
+      delete config.providers[provider];
     });
   }
 

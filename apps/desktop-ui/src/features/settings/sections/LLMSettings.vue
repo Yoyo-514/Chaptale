@@ -46,7 +46,8 @@ const {
   submitCustomModelToProvider,
   submitCustomProvider
 } = useLlmCustomModelForms(settingsStore, notificationStore, selectedProviderId, selectedProviderModels);
-const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActions(settingsStore);
+const { removeCustomModel, removeCustomProvider, setDefaultModel, toggleImageInput } =
+  useLlmModelActions(settingsStore);
 </script>
 
 <template>
@@ -98,6 +99,7 @@ const { removeCustomModel, setDefaultModel, toggleImageInput } = useLlmModelActi
         @set-default="setDefaultModel"
         @toggle-image-input="toggleImageInput"
         @remove-custom-model="removeCustomModel"
+        @remove-provider="removeCustomProvider"
       />
     </div>
 

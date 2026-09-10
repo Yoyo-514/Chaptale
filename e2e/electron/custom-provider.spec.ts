@@ -83,3 +83,31 @@ test('不带模型的供应商也显示在列表，作为后续添加模型的�
   await expect(page.getByRole('button', { name: /Empty Provider/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Empty Provider/ })).toContainText('0 个模型');
 });
+
+test('删除供应商经确认后从列表与 models.json 移除', async () => {
+  const dialog = await openCustomProviderDialog(page);
+
+  await dialog.getByLabel('供应商 ID').fill('doomed-provider');
+  await dialog.getByLabel('显示名称').fill('Doomed Provider');
+  await dialog.getByLabel('Base URL').fill('https://doomed.example.com/v1');
+  await dialog.getByRole('button', { name: '添加供应商', exact: true }).click();
+  await expect(dialog).toBeHidden();
+
+  const providerCard = page.getByRole('button', { name: /Doomed Provider/ });
+  await expect(providerCard).toBeVisible();
+
+  // 详情面板中的删除入口需要二次确认。
+  await page.getByRole('button', { name: '删除供应商', exact: true }).click();
+  const confirmDialog = page.getByRole('alertdialog');
+  await expect(confirmDialog).toContainText('删除供应商「Doomed Provider」？');
+  await expect(confirmDialog).toContainText('此操作不可撤销');
+  await confirmDialog.getByRole('button', { name: '删除供应商', exact: true }).click();
+
+  await expect(providerCard).toHaveCount(0);
+  await expect(page.getByText('暂无模型供应商')).toBeVisible();
+
+  const modelsJson = JSON.parse(await readFile(path.join(home, '.chaptale/agent/models.json'), 'utf8')) as {
+    providers: Record<string, unknown>;
+  };
+  expect(modelsJson.providers['doomed-provider']).toBeUndefined();
+});

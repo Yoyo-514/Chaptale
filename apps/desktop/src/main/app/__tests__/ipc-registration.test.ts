@@ -38,6 +38,7 @@ import {
   ReadSessionImageArgsValidator,
   RemoveCustomModelArgsValidator,
   RemoveCustomProviderApiKeyArgsValidator,
+  RemoveCustomProviderArgsValidator,
   RenameSessionArgsValidator,
   SessionIdArgsValidator,
   SetCustomProviderApiKeyArgsValidator,
@@ -238,6 +239,7 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.models.addCustomModel, AddCustomModelArgsValidator),
   validated(IPC_CHANNELS.models.setCustomProviderApiKey, SetCustomProviderApiKeyArgsValidator),
   validated(IPC_CHANNELS.models.removeCustomProviderApiKey, RemoveCustomProviderApiKeyArgsValidator),
+  validated(IPC_CHANNELS.models.removeCustomProvider, RemoveCustomProviderArgsValidator),
   validated(IPC_CHANNELS.models.updateCustomModelInput, UpdateCustomModelInputArgsValidator),
   validated(IPC_CHANNELS.models.removeCustomModel, RemoveCustomModelArgsValidator),
 

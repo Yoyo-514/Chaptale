@@ -113,6 +113,13 @@ export const RemoveCustomProviderApiKeyPayloadSchema = Type.Object(
 export const RemoveCustomProviderApiKeyArgsSchema = Type.Tuple([RemoveCustomProviderApiKeyPayloadSchema]);
 export const RemoveCustomProviderApiKeyArgsValidator = Compile(RemoveCustomProviderApiKeyArgsSchema);
 
+export const RemoveCustomProviderPayloadSchema = Type.Object(
+  { provider: Type.String() },
+  { additionalProperties: false }
+);
+export const RemoveCustomProviderArgsSchema = Type.Tuple([RemoveCustomProviderPayloadSchema]);
+export const RemoveCustomProviderArgsValidator = Compile(RemoveCustomProviderArgsSchema);
+
 export const UpdateCustomModelInputPayloadSchema = Type.Object(
   {
     provider: Type.String(),

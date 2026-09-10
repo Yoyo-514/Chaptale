@@ -109,6 +109,7 @@ function installDesktopApi() {
       addCustomModel: vi.fn().mockResolvedValue(modelsResult),
       setCustomProviderApiKey: vi.fn().mockResolvedValue(modelsResult),
       removeCustomProviderApiKey: vi.fn().mockResolvedValue(modelsResult),
+      removeCustomProvider: vi.fn().mockResolvedValue(modelsResult),
       updateCustomModelInput: vi.fn().mockResolvedValue(modelsResult),
       removeCustomModel: vi.fn().mockResolvedValue(modelsResult),
       removeProviderAuth: vi.fn().mockResolvedValue(modelsResult)
@@ -240,10 +241,12 @@ describe('settings store', () => {
     await expect(store.removeCustomProviderApiKey('custom')).resolves.toBe(true);
     await expect(store.updateCustomModelInput('custom', 'm2', ['text', 'image'])).resolves.toBe(true);
     await expect(store.removeCustomModel('custom', 'm2')).resolves.toBe(true);
+    await expect(store.removeCustomProvider('custom')).resolves.toBe(true);
 
     expect(api.models.setDefault).toHaveBeenCalledWith({ provider: 'openai', modelId: 'gpt-4.1' });
     expect(api.models.addCustomProvider).toHaveBeenCalled();
     expect(api.models.addCustomModel).toHaveBeenCalledWith({ provider: 'custom', modelId: 'm2', input: ['text'] });
+    expect(api.models.removeCustomProvider).toHaveBeenCalledWith({ provider: 'custom' });
     expect(store.models).toEqual(createModelsResult({ provider: 'openai', modelId: 'gpt-4.1' }));
     expect(store.isModelsLoading).toBe(false);
   });

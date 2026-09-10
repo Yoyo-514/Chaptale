@@ -2,6 +2,7 @@
 import type { ChaptaleModelInfo } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
+import { AppAlertDialog } from '@/components/AppDialog';
 import { AppScrollArea } from '@/components/AppScrollArea';
 
 import type { ProviderView } from '../utils/llm-settings.helpers';
@@ -26,6 +27,7 @@ const emit = defineEmits<{
   setDefault: [provider: string, modelId: string];
   toggleImageInput: [model: ChaptaleModelInfo, checked: boolean];
   removeCustomModel: [provider: string, modelId: string];
+  removeProvider: [provider: string];
 }>();
 </script>
 
@@ -54,6 +56,16 @@ const emit = defineEmits<{
 
       <div class="settings-actions compact">
         <AppButton variant="primary" type="button" @click="emit('openCustomModelDialog')">添加模型</AppButton>
+        <AppAlertDialog
+          :title="`删除供应商「${props.provider.providerName}」？`"
+          :description="`将删除该供应商下的全部 ${props.models.length} 个模型与已保存的 API Key，此操作不可撤销。`"
+          confirm-label="删除供应商"
+          @confirm="emit('removeProvider', props.provider.provider)"
+        >
+          <template #trigger>
+            <AppButton variant="danger" type="button" :disabled="props.isModelsLoading">删除供应商</AppButton>
+          </template>
+        </AppAlertDialog>
       </div>
 
       <LlmModelList

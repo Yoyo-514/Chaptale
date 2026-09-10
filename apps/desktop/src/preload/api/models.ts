@@ -9,6 +9,7 @@ import type {
   ListModelsResult,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
+  RemoveCustomProviderPayload,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
   UpdateCustomModelInputPayload
@@ -34,6 +35,8 @@ export function createModelsApi(): ChaptaleDesktopApi['models'] {
       ipcRenderer.invoke(IPC_CHANNELS.models.setCustomProviderApiKey, payload) as Promise<ListModelsResult>,
     removeCustomProviderApiKey: (payload: RemoveCustomProviderApiKeyPayload) =>
       ipcRenderer.invoke(IPC_CHANNELS.models.removeCustomProviderApiKey, payload) as Promise<ListModelsResult>,
+    removeCustomProvider: (payload: RemoveCustomProviderPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.models.removeCustomProvider, payload) as Promise<ListModelsResult>,
     updateCustomModelInput: (payload: UpdateCustomModelInputPayload) =>
       ipcRenderer.invoke(IPC_CHANNELS.models.updateCustomModelInput, payload) as Promise<ListModelsResult>,
     removeCustomModel: (payload: RemoveCustomModelPayload) =>

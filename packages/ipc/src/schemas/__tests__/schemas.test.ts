@@ -25,6 +25,7 @@ import {
   ReadSessionImageArgsValidator,
   RemoveCustomModelArgsValidator,
   RemoveCustomProviderApiKeyArgsValidator,
+  RemoveCustomProviderArgsValidator,
   RenameSessionArgsValidator,
   SessionIdArgsValidator,
   SetCustomProviderApiKeyArgsValidator,
@@ -225,6 +226,7 @@ describe('IPC 参数 Schema', () => {
     });
     expectStrictObject(SetCustomProviderApiKeyArgsValidator, { provider: '', apiKey: '' });
     expectStrictObject(RemoveCustomProviderApiKeyArgsValidator, { provider: '' });
+    expectStrictObject(RemoveCustomProviderArgsValidator, { provider: '' });
     expectStrictObject(UpdateCustomModelInputArgsValidator, { provider: '', modelId: '', input: [] });
     expectStrictObject(RemoveCustomModelArgsValidator, { provider: '', modelId: '' });
 

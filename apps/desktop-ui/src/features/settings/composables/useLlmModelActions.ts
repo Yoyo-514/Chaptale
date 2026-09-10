@@ -9,6 +9,10 @@ export function useLlmModelActions(settingsStore: SettingsStore) {
     await settingsStore.removeCustomModel(provider, modelId);
   }
 
+  async function removeCustomProvider(provider: string) {
+    await settingsStore.removeCustomProvider(provider);
+  }
+
   async function setDefaultModel(provider: string, modelId: string) {
     await settingsStore.setDefaultModel(provider, modelId);
   }
@@ -20,6 +24,7 @@ export function useLlmModelActions(settingsStore: SettingsStore) {
 
   return {
     removeCustomModel,
+    removeCustomProvider,
     setDefaultModel,
     toggleImageInput
   };

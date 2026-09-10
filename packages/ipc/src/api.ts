@@ -30,6 +30,7 @@ import type {
   ListModelsResult,
   RemoveCustomModelPayload,
   RemoveCustomProviderApiKeyPayload,
+  RemoveCustomProviderPayload,
   SetCustomProviderApiKeyPayload,
   SetDefaultModelPayload,
   UpdateCustomModelInputPayload
@@ -180,6 +181,7 @@ export type ChaptaleDesktopApi = {
     addCustomModel: (payload: AddCustomModelPayload) => Promise<ListModelsResult>;
     setCustomProviderApiKey: (payload: SetCustomProviderApiKeyPayload) => Promise<ListModelsResult>;
     removeCustomProviderApiKey: (payload: RemoveCustomProviderApiKeyPayload) => Promise<ListModelsResult>;
+    removeCustomProvider: (payload: RemoveCustomProviderPayload) => Promise<ListModelsResult>;
     updateCustomModelInput: (payload: UpdateCustomModelInputPayload) => Promise<ListModelsResult>;
     removeCustomModel: (payload: RemoveCustomModelPayload) => Promise<ListModelsResult>;
   };
