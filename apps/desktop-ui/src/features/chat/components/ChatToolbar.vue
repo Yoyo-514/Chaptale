@@ -1,35 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AppButton } from '@/components/AppButton';
-import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useContentStore } from '@/features/content';
 import { useNotificationStore } from '@/features/notifications';
 import { SessionRenameDialog, useSessionStore } from '@/features/sessions';
-import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
+
+import { useChatPersona } from '../composables/useChatPersona';
 
 const router = useRouter();
 const sessionStore = useSessionStore();
 const notificationStore = useNotificationStore();
 const navigation = useWorkbenchStore();
 const content = useContentStore();
-const settings = useSettingsStore();
-const switching = ref(false);
-const personaId = computed(() => currentSession.value?.personaId ?? 'companion');
-// 清单与兜底共用同一 key，避免旧选项卸载时注销异步载入的新标签。
-const personaOptions = computed(() => {
-  const options = content.chats.map(persona => ({ id: persona.id, name: persona.name }));
-  if (!options.some(persona => persona.id === personaId.value)) {
-    options.unshift({
-      id: personaId.value,
-      name: personaId.value === 'companion' ? '创作伙伴' : `${personaId.value} · 不可用`
-    });
-  }
-  return options;
-});
+// 专员选择器已移到输入框状态栏；工具栏只保留会话本身的操作，换专员统一走这里。
+const persona = useChatPersona();
 
 const currentSession = computed(() => sessionStore.currentSession);
 const sessionTitle = computed(() => {
@@ -47,24 +35,8 @@ watch(
 );
 
 async function handleCreateSession() {
-  await selectPersona(personaId.value, true);
-}
-async function selectPersona(id: string, force = false) {
-  if (id === '__manage') {
-    settings.openPanel('content');
-    return;
-  }
-  if (navigation.agentBusy || switching.value || (!force && currentSession.value && id === personaId.value)) return;
-  switching.value = true;
-  try {
-    const index = sessionStore.sessions.length + 1;
-    await sessionStore.createSession({ name: `新会话 ${index}`, ...(id !== 'companion' ? { personaId: id } : {}) });
-    await router.push({ name: 'chat' });
-  } catch (cause) {
-    notificationStore.error('创建会话失败', cause instanceof Error ? cause.message : String(cause));
-  } finally {
-    switching.value = false;
-  }
+  // 新建会话沿用当前专员，但不触发切换确认：这一步是作者主动要新会话。
+  await persona.createSessionWith(persona.personaId.value);
 }
 
 async function handleOpenHistory() {
@@ -95,19 +67,6 @@ async function handleExportSession() {
 
 <template>
   <div class="chat-toolbar" aria-label="聊天工具栏">
-    <div class="chat-persona">
-      <AppSelect
-        :model-value="personaId"
-        aria-label="对话专员"
-        :disabled="navigation.agentBusy || switching"
-        @update:model-value="selectPersona($event)"
-      >
-        <AppSelectItem v-for="persona in personaOptions" :key="persona.id" :value="persona.id">{{
-          persona.name
-        }}</AppSelectItem>
-        <AppSelectItem value="__manage">管理专员</AppSelectItem>
-      </AppSelect>
-    </div>
     <div class="chat-toolbar-title" :title="sessionTitle">
       <span class="i-mingcute-chat-3-line chat-toolbar-title-icon" aria-hidden="true" />
       <span class="chat-toolbar-title-text">{{ sessionTitle }}</span>
@@ -171,12 +130,6 @@ async function handleExportSession() {
 
   border-color: var(--border-subtle);
 }
-.chat-persona {
-  @apply min-w-0;
-  width: 140px;
-  max-width: 100%;
-}
-
 .chat-toolbar-title {
   @apply flex min-w-0 flex-1 items-center gap-1.5 text-xs font-medium;
 

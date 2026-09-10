@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { computed, shallowRef } from 'vue';
-import { useRouter } from 'vue-router';
 
 import { isChaptaleTheme } from '@chaptale/ipc-contract';
 import type { EditCommand } from '@chaptale/ipc-contract';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
+import { PersonaSwitchConfirmDialog, useChatPersona } from '@/features/chat';
 import { useContentStore } from '@/features/content';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
-import { useOnboardingStore } from '@/features/onboarding';
 import { useReviewStore } from '@/features/reviews';
 import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
@@ -33,7 +32,7 @@ const templates = useTemplateStore();
 const settlement = useSettlementStore();
 const versions = useVersionStore();
 const sessions = useSessionStore();
-const router = useRouter();
+const persona = useChatPersona();
 const content = useContentStore();
 const editTarget = shallowRef<ReturnType<typeof captureEditingTarget>>();
 function captureEditTarget() {
@@ -158,10 +157,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         label: '切换 Agent 角色',
         disabled: navigation.agentBusy,
         items: [
-          ...content.chats.map(persona => ({
-            id: `agent.persona.${persona.id}`,
-            label: persona.name,
-            checked: (sessions.currentSession?.personaId ?? 'companion') === persona.id
+          ...content.chats.map(item => ({
+            id: `agent.persona.${item.id}`,
+            label: item.name,
+            checked: (sessions.currentSession?.personaId ?? 'companion') === item.id
           })),
           { id: 'agent.manage-personas', label: '管理专员', separatorBefore: true }
         ]
@@ -184,18 +183,11 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
   {
     id: 'help',
     label: '帮助',
-    items: [
-      { id: 'help.guide', label: '开始引导' },
-      { id: 'help.diagnostics', label: '配置与诊断' }
-    ]
+    items: [{ id: 'help.diagnostics', label: '配置与诊断' }]
   }
 ]);
 
 function handleSelect(itemId: string) {
-  if (itemId === 'help.guide') {
-    useOnboardingStore().show();
-    return;
-  }
   if (itemId === 'agent.manage-personas') {
     settingsStore.openPanel('content');
     return;
@@ -203,15 +195,13 @@ function handleSelect(itemId: string) {
   if (itemId === 'agent.new-session' || itemId.startsWith('agent.persona.')) {
     if (navigation.agentBusy) return;
     navigation.showAuxiliary('agent');
-    void sessions
-      .createSession({
-        name: '新会话',
-        personaId: itemId.startsWith('agent.persona.')
-          ? itemId.slice('agent.persona.'.length)
-          : sessions.currentSession?.personaId
-      })
-      .then(() => router.push({ name: 'chat' }))
-      .catch(error => useNotificationStore().error('新建会话失败', toErrorMessage(error)));
+    if (itemId.startsWith('agent.persona.')) {
+      // 「切换 Agent 角色」与输入区选择器是同一件事：已有消息的会话要先确认，不能从这里静默换走。
+      persona.requestSwitch(itemId.slice('agent.persona.'.length));
+      return;
+    }
+    // 「新建会话」是作者主动要一个新会话：沿用当前专员，不需要确认。
+    void persona.createSessionWith(persona.personaId.value);
     return;
   }
   if (itemId === 'agent.tasks') {
@@ -352,4 +342,10 @@ function handleSelect(itemId: string) {
 
 <template>
   <AppMenubar :menus="menus" @pointerdown.capture="captureEditTarget" @select="handleSelect" />
+  <PersonaSwitchConfirmDialog
+    :open="persona.isSwitchPromptOpen.value"
+    :persona-name="persona.pendingPersonaName.value"
+    @update:open="persona.syncSwitchDialog"
+    @confirm="persona.confirmSwitch"
+  />
 </template>

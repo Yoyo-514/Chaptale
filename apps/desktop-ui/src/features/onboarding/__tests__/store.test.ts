@@ -4,27 +4,23 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ONBOARDING_VERSION, useOnboardingStore } from '../store';
 
 beforeEach(() => setActivePinia(createPinia()));
-describe('开始引导状态', () => {
-  it('旧设置首次显示，关闭后设置刷新不会反复弹出', () => {
-    const guide = useOnboardingStore();
-    guide.consider(undefined);
-    expect(guide.isOpen).toBe(true);
-    guide.isOpen = false;
-    guide.consider(0);
-    expect(guide.isOpen).toBe(false);
+describe('首启判定', () => {
+  it('未完成过的设置需要提示，完成过的与未来版本都不提示', () => {
+    expect(useOnboardingStore().consider(undefined)).toBe(true);
+
+    setActivePinia(createPinia());
+    expect(useOnboardingStore().consider(0)).toBe(true);
+
+    setActivePinia(createPinia());
+    expect(useOnboardingStore().consider(ONBOARDING_VERSION)).toBe(false);
+
+    setActivePinia(createPinia());
+    expect(useOnboardingStore().consider(ONBOARDING_VERSION + 1)).toBe(false);
   });
-  it('完成标记只控制自动显示，帮助入口仍能重进', () => {
+  it('同一次运行内只判定一次，设置刷新不会重复弹出', () => {
     const guide = useOnboardingStore();
-    guide.consider(ONBOARDING_VERSION);
-    expect(guide.isOpen).toBe(false);
-    guide.step = 'assistant';
-    guide.show();
-    expect(guide.isOpen).toBe(true);
-    expect(guide.step).toBe('workspace');
-  });
-  it('未来版本不被当作未完成', () => {
-    const guide = useOnboardingStore();
-    guide.consider(ONBOARDING_VERSION + 1);
-    expect(guide.isOpen).toBe(false);
+    expect(guide.consider(0)).toBe(true);
+    expect(guide.consider(0)).toBe(false);
+    expect(guide.consider(undefined)).toBe(false);
   });
 });

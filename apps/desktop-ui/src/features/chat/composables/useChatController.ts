@@ -28,6 +28,12 @@ export function useChatController() {
   const state = reactive(createChatState());
 
   const isWelcome = computed(() => !state.isLoadingMessages && state.messages.length === 0);
+  // 模型没配好是首启最常见的断点：单独暴露给状态栏做醒目提示。
+  // 读取中（models 还没到）不算缺失，否则每次启动都会先闪一下警告。
+  const isModelMissing = computed(() => {
+    const models = settingsStore.models;
+    return models !== undefined && !models.defaultModel;
+  });
   const currentModelLabel = computed(() => {
     // 默认模型持久化于 models.json（models.setDefault），这里读 models 列表的 defaultModel。
     const defaultModel = settingsStore.models?.defaultModel;
@@ -57,6 +63,8 @@ export function useChatController() {
       .filter(session => session.messageCount > 0 || session.lastMessagePreview || session.name)
       .slice(0, 2)
   );
+  /** 还没开始过任何会话：空态才值得解释一遍专员与技能的分工，老作者不必再看。 */
+  const isFirstRun = computed(() => sessionStore.sessions.every(session => session.messageCount === 0));
 
   const assistantStreaming = useAssistantStreamingMessages({
     getMessages: () => state.messages,
@@ -170,9 +178,11 @@ export function useChatController() {
   return {
     state,
     isWelcome,
+    isModelMissing,
     currentModelLabel,
     workspaceLabel,
     recentSessions,
+    isFirstRun,
     handleSelectRecentSession: messages.handleSelectRecentSession,
     handleSend,
     cancelActiveRun: streaming.cancelActiveRun,

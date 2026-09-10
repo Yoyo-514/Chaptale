@@ -21,6 +21,9 @@ function mountInput(props?: Partial<InstanceType<typeof ChatInputBox>['$props']>
       reasoningEffort: '' as const,
       contextFiles: [],
       slashCommands: [],
+      personaId: 'companion',
+      personaOptions: [{ id: 'companion', name: '创作伙伴' }],
+      personaDisabled: false,
       modelLabel: 'openai / gpt-4.1',
       workspaceLabel: '全局会话',
       ...props
@@ -254,5 +257,12 @@ describe('ChatInputBox', () => {
     });
 
     expect(wrapper.emitted('dropContextFiles')).toEqual([[[droppedFile]]]);
+  });
+  it('marks the model status as missing only when the default model is unset', () => {
+    const missing = mountInput({ modelLabel: '未选择模型', modelMissing: true });
+    expect(missing.find('.chat-status-item').classes()).toContain('chat-status-item-missing');
+
+    const configured = mountInput({ modelLabel: 'openai / gpt-4.1' });
+    expect(configured.find('.chat-status-item').classes()).not.toContain('chat-status-item-missing');
   });
 });

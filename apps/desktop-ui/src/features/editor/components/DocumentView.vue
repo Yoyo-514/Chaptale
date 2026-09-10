@@ -10,6 +10,7 @@ import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContext
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useLibraryStore } from '@/features/library';
+import { StartFromScratchCard, useStartGuide } from '@/features/onboarding';
 import { useReviewStore } from '@/features/reviews';
 import { TemplateFields, useTemplateStore } from '@/features/templates';
 import { useVersionStore } from '@/features/versions';
@@ -54,6 +55,12 @@ const templates = useTemplateStore();
 const versions = useVersionStore();
 const fileActions = useWorkspaceActions();
 const writing = useWritingStore();
+// 长篇的第一步：作品刚建好、首章还是空的时候，把作者送去和「故事策划」把故事想清楚。
+const {
+  shouldShow: showStartGuide,
+  isStarting: isStartingGuide,
+  start: startGuide
+} = useStartGuide(() => props.document);
 const contextItems = ref<AppContextMenuItem[]>([]);
 let contextSelection = { from: 0, to: 0, text: '' };
 function prepareContext() {
@@ -401,6 +408,8 @@ watch(
         >
       </div>
     </AppScrollArea>
+    <!-- 放在编辑器上方而非浮动层：空章节里还有标题行，浮上去会把标题盖住。 -->
+    <StartFromScratchCard v-if="showStartGuide" :busy="isStartingGuide" @start="startGuide" />
     <div class="document-surface">
       <AppScrollArea v-if="showOutline" class="document-outline">
         <nav aria-label="标题大纲">

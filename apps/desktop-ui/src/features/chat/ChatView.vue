@@ -20,12 +20,15 @@ import ChatInputBox from './components/ChatInput/ChatInputBox.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
 import ChatSearchBar from './components/ChatSearchBar.vue';
 import ContextPressureCard from './components/ContextPressureCard.vue';
+import PersonaSwitchConfirmDialog from './components/PersonaSwitchConfirmDialog.vue';
 import SessionDamageNotice from './components/SessionDamageNotice.vue';
 import { useChatController } from './composables/useChatController';
+import { useChatPersona } from './composables/useChatPersona';
 import { useChatSearch } from './composables/useChatSearch';
 import { useContextCompaction } from './composables/useContextCompaction';
 
 const chat = useChatController();
+const persona = useChatPersona();
 const sessionStore = useSessionStore();
 const navigation = useWorkbenchStore();
 const workspace = useWorkspaceStore();
@@ -168,6 +171,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       <ChatEmptyState
         v-if="chat.isWelcome.value"
         :recent-sessions="chat.recentSessions.value"
+        :show-concepts="chat.isFirstRun.value"
         @select-session="chat.handleSelectRecentSession"
       />
 
@@ -270,6 +274,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
 
     <ChatInputBox
       v-model="chat.state.input"
+      :persona-id="persona.personaId.value"
+      :persona-options="persona.personaOptions.value"
+      :persona-disabled="persona.isSwitchDisabled.value"
       :is-connecting="chat.state.isConnecting"
       :is-replying="chat.state.isReplying"
       :is-submitting-steer="chat.state.isSubmittingSteer"
@@ -278,6 +285,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       :context-files="chat.state.contextFiles"
       :slash-commands="chat.state.slashCommands"
       :model-label="chat.currentModelLabel.value"
+      :model-missing="chat.isModelMissing.value"
       :workspace-label="chat.workspaceLabel.value"
       @submit="handleSend"
       @toggle-web-search="chat.handleToggleWebSearch"
@@ -286,6 +294,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       @drop-context-files="chat.handleDropContextFiles"
       @remove-context-file="chat.handleRemoveContextFile"
       @open-settings="chat.handleOpenSettings"
+      @select-persona="persona.requestSwitch"
+    />
+
+    <!-- 确认弹窗与选择器同级：弹窗本体经 Portal 挂到 body，不会参与输入区的 flex 布局。 -->
+    <PersonaSwitchConfirmDialog
+      :open="persona.isSwitchPromptOpen.value"
+      :persona-name="persona.pendingPersonaName.value"
+      @update:open="persona.syncSwitchDialog"
+      @confirm="persona.confirmSwitch"
     />
   </main>
 </template>

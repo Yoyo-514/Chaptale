@@ -6,6 +6,7 @@ import type { ChatContextFile } from '@chaptale/shared';
 
 import { cn } from '@/utils';
 
+import type { PersonaOption } from '../../composables/useChatPersona';
 import ChatContextFiles from './ChatContextFiles.vue';
 import ChatInputStatusBar from './ChatInputStatusBar.vue';
 import ChatInputToolbar from './ChatInputToolbar.vue';
@@ -21,7 +22,13 @@ const props = defineProps<{
   reasoningEffort: ChaptaleReasoningEffort | '';
   contextFiles: ChatContextFile[];
   slashCommands: SlashCommand[];
+  /** 本项目由哪个专员看稿；选择器已从工具栏移到输入框状态栏。 */
+  personaId: string;
+  personaOptions: PersonaOption[];
+  personaDisabled: boolean;
   modelLabel: string;
+  /** 默认模型尚未配置：状态栏需要比常规灰字更醒目，否则跳过配置的作者看不到断点。 */
+  modelMissing?: boolean;
   workspaceLabel: string;
 }>();
 
@@ -33,6 +40,7 @@ const emit = defineEmits<{
   addContextFiles: [];
   dropContextFiles: [files: File[]];
   removeContextFile: [path: string];
+  selectPersona: [id: string];
   openSettings: [section: 'workspace' | 'llm'];
 }>();
 
@@ -125,11 +133,16 @@ function handleDrop(event: DragEvent) {
     </div>
 
     <ChatInputStatusBar
+      :persona-id="props.personaId"
+      :persona-options="props.personaOptions"
+      :persona-disabled="props.personaDisabled"
       :model-label="props.modelLabel"
+      :model-missing="props.modelMissing"
       :workspace-label="props.workspaceLabel"
       :reasoning-effort="props.reasoningEffort"
       @open-settings="emit('openSettings', $event)"
       @select-reasoning-effort="emit('selectReasoningEffort', $event)"
+      @select-persona="emit('selectPersona', $event)"
     />
   </section>
 </template>

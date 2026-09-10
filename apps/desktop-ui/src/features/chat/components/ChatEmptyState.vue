@@ -8,6 +8,8 @@ const appIconUrl = APP_ICON_URL;
 
 const props = defineProps<{
   recentSessions: ChaptaleSessionListItem[];
+  /** 作者还没开始过时才会出现概念说明：老作者不需要每次新会话都重读一遍。 */
+  showConcepts: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +21,10 @@ const emit = defineEmits<{
   <div class="chat-empty-state">
     <img class="chat-empty-icon" :src="appIconUrl" alt="Chaptale" />
     <p class="chat-empty-tip">今天想写什么？</p>
+
+    <p v-if="props.showConcepts" class="chat-empty-concepts">
+      每个会话由一位专员负责：故事策划陪你定方向，候选稿写作负责成稿，审查专员挑毛病。
+    </p>
 
     <div v-if="props.recentSessions.length > 0" class="chat-recent-section">
       <div class="chat-recent-title">最近任务</div>
@@ -56,6 +62,14 @@ const emit = defineEmits<{
   color: var(--muted-foreground);
   font-size: var(--chat-content-font-size, 0.875rem);
   line-height: var(--chat-content-line-height, 1.5rem);
+}
+
+.chat-empty-concepts {
+  @apply mt-2 mb-0 max-w-sm;
+
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.5;
 }
 
 .chat-recent-section {

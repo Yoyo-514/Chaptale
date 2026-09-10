@@ -218,6 +218,34 @@ test('M6 无模型回复明确失败，已交付输入仍可回放和编辑', as
   await page.getByRole('button', { name: '取消', exact: true }).click();
 });
 
+test('M6 已有消息的会话切换专员前先确认，取消不换会话，确认才新建', async () => {
+  const selector = () => page.getByRole('combobox', { name: '对话专员', exact: true });
+  const sessionCount = () =>
+    page.evaluate(async () => (await (window as DesktopWindow).chaptaleDesktop.session.list()).length);
+
+  // 先让当前会话有内容：无模型回复会失败，但用户消息已经落盘，会话不再为空。
+  const input = page.getByPlaceholder('描述你的创作需求...');
+  await input.fill('这份草稿属于当前会话。');
+  await page.locator('.chat-send-button').click();
+  await expect(page.locator('.notification-center')).toContainText('未配置默认模型');
+  const before = await sessionCount();
+
+  await selector().click();
+  await page.getByRole('option', { name: '故事策划', exact: true }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('切换专员会新建一个会话');
+  await dialog.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(await sessionCount()).toBe(before);
+  await expect(selector()).toContainText('创作伙伴');
+
+  await selector().click();
+  await page.getByRole('option', { name: '故事策划', exact: true }).click();
+  await page.getByRole('button', { name: '切换并新建会话', exact: true }).click();
+  await expect.poll(sessionCount).toBe(before + 1);
+  await expect(selector()).toContainText('故事策划');
+});
+
 test('M6 会话目录写入失败会退还未交付草稿，且不残留虚假消息', async () => {
   const state = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.settings.getState());
   const directory = path.resolve(state.paths.effectiveSessionDir);
