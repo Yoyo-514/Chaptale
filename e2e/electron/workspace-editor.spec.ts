@@ -167,14 +167,14 @@ test('M6 专员表单落盘、切换创建新会话，停用后不回退身份',
   const filename = path.join(home, '.chaptale/personas/scene-helper.md');
   expect(await readFile(filename, 'utf8')).toContain('场景助手');
   await page.getByRole('button', { name: '关闭设置', exact: true }).click();
-  await page.getByRole('combobox', { name: '对话专员', exact: true }).click();
-  await page.getByRole('option', { name: '场景助手', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: '对话专员', exact: true })).toContainText('场景助手');
+  await page.getByRole('button', { name: '对话专员', exact: true }).click();
+  await page.getByRole('menuitem', { name: '场景助手', exact: true }).click();
+  await expect(page.getByRole('button', { name: '对话专员', exact: true })).toContainText('场景助手');
   const sessions = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.session.list());
   const selected = sessions.find(session => session.personaId === 'scene-helper');
   expect(selected).toBeDefined();
   await page.reload();
-  await expect(page.getByRole('combobox', { name: '对话专员', exact: true })).toContainText('场景助手');
+  await expect(page.getByRole('button', { name: '对话专员', exact: true })).toContainText('场景助手');
   await openContentSettings();
   await page.getByRole('button', { name: '场景助手 scene-helper', exact: true }).click();
   const editing = page.getByRole('dialog', { name: '编辑专员', exact: true });
@@ -183,7 +183,7 @@ test('M6 专员表单落盘、切换创建新会话，停用后不回退身份',
   await editing.getByRole('button', { name: '保存专员', exact: true }).click();
   await expect(editing).toBeHidden();
   await page.getByRole('button', { name: '关闭设置', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: '对话专员', exact: true })).toContainText('scene-helper · 不可用');
+  await expect(page.getByRole('button', { name: '对话专员', exact: true })).toContainText('scene-helper · 不可用');
   const failure = await page.evaluate(async id => {
     try {
       await (window as DesktopWindow).chaptaleDesktop.agent.getContextPressure(id);

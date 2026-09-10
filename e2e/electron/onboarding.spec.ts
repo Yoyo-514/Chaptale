@@ -97,7 +97,7 @@ test('没有配置模型也能建作品，空章节给出第一步并送到故�
   await startGuide().getByRole('button', { name: '帮我理清这个故事', exact: true }).click();
 
   // 第一步落在「故事策划」的会话里，话术已预填但尚未发出——发不发由作者决定。
-  await expect(page.getByRole('combobox', { name: '对话专员', exact: true })).toContainText('故事策划');
+  await expect(page.getByRole('button', { name: '对话专员', exact: true })).toContainText('故事策划');
   await expect(composer()).toHaveValue(/我要写：/);
   await expect(composer()).toHaveValue(/暂时不用动笔/);
   await expect(startGuide()).toBeHidden();

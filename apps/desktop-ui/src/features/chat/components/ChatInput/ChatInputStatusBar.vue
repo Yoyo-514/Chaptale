@@ -5,7 +5,6 @@ import type { ChaptaleReasoningEffort } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
-import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTooltip } from '@/components/AppTooltip';
 import { cn } from '@/utils/clsx';
 import { REASONING_EFFORT_LABELS, REASONING_EFFORT_VALUES } from '@/utils/reasoning-effort';
@@ -44,6 +43,10 @@ const emit = defineEmits<{
 const selectedEffortValue = computed(() => props.reasoningEffort || FOLLOW_MODEL);
 // 跟随模型态显示“推理”而非某个具体档位名——写成 medium 会让作者以为自己选过。
 const effortLabel = computed(() => props.reasoningEffort || '推理');
+// 选择器只显示名字：专员 id 是落盘标识，作者不需要看到 companion 这种字串。
+const personaLabel = computed(
+  () => props.personaOptions.find(persona => persona.id === props.personaId)?.name ?? props.personaId
+);
 
 function selectReasoningEffort(value: string) {
   emit('selectReasoningEffort', value === FOLLOW_MODEL ? '' : (value as ChaptaleReasoningEffort));
@@ -53,23 +56,34 @@ function selectReasoningEffort(value: string) {
 <template>
   <div class="chat-status-bar">
     <!-- 专员在最左：它决定这一轮由谁来看稿，比模型和档位更靠前。 -->
-    <div class="chat-status-persona">
-      <AppSelect
-        :model-value="props.personaId"
-        aria-label="对话专员"
-        variant="muted"
-        content-size="sm"
-        align="start"
-        :disabled="props.personaDisabled"
-        title="专员决定这一轮由谁来看稿；换专员会新建一个会话"
-        @update:model-value="emit('selectPersona', $event)"
+    <AppDropdownMenu content-size="sm" align="start">
+      <template #trigger>
+        <AppButton
+          variant="ghost"
+          size="xs"
+          class="chat-status-compact"
+          type="button"
+          aria-label="对话专员"
+          :disabled="props.personaDisabled"
+          :title="`当前专员：${personaLabel}；换专员会新建一个会话`"
+        >
+          <span class="i-mingcute-user-3-line" aria-hidden="true" />
+          <span class="chat-status-text">{{ personaLabel }}</span>
+        </AppButton>
+      </template>
+      <AppDropdownMenuItem
+        v-for="persona in props.personaOptions"
+        :key="persona.id"
+        density="sm"
+        :active="persona.id === props.personaId"
+        @select="emit('selectPersona', persona.id)"
       >
-        <AppSelectItem v-for="persona in props.personaOptions" :key="persona.id" :value="persona.id">{{
-          persona.name
-        }}</AppSelectItem>
-        <AppSelectItem :value="MANAGE_PERSONA_OPTION">管理专员</AppSelectItem>
-      </AppSelect>
-    </div>
+        {{ persona.name }}
+      </AppDropdownMenuItem>
+      <AppDropdownMenuItem density="sm" @select="emit('selectPersona', MANAGE_PERSONA_OPTION)">
+        管理专员
+      </AppDropdownMenuItem>
+    </AppDropdownMenu>
     <AppTooltip :text="props.modelMissing ? '尚未选择模型，点这里配置' : '打开模型设置'" side="top">
       <AppButton
         variant="ghost"
@@ -89,7 +103,7 @@ function selectReasoningEffort(value: string) {
         <AppButton
           variant="ghost"
           size="xs"
-          class="chat-status-effort"
+          class="chat-status-compact"
           type="button"
           :selected="Boolean(props.reasoningEffort)"
           aria-label="选择本轮推理档位"
@@ -133,14 +147,6 @@ function selectReasoningEffort(value: string) {
   color: var(--muted-foreground);
 }
 
-.chat-status-persona {
-  @apply min-w-0 shrink-0;
-
-  /* 选择器内部是 w-full：必须由外层给宽度，否则它会撑满整行。 */
-  width: 8.75rem;
-  max-width: 100%;
-}
-
 .chat-status-item {
   @apply min-w-0 flex-1 justify-start;
 }
@@ -151,8 +157,8 @@ function selectReasoningEffort(value: string) {
   font-weight: 500;
 }
 
-/* 档位文案很短，不参与等分：占掉三分之一只会把模型与工作区挤成省略号。 */
-.chat-status-effort {
+/* 专员与档位文案很短，不参与等分：占掉三分之一只会把模型与工作区挤成省略号。 */
+.chat-status-compact {
   @apply min-w-0 shrink-0 justify-start;
 }
 

@@ -52,10 +52,10 @@ test.afterEach(async () => {
 });
 
 test('M6 默认专员在异步加载和重启后始终显示名称', async () => {
-  const selector = () => page.getByRole('combobox', { name: '对话专员', exact: true });
+  const selector = () => page.getByRole('button', { name: '对话专员', exact: true });
   await expect(selector()).toContainText('创作伙伴');
   await selector().click();
-  await expect(page.getByRole('option', { name: '创作伙伴', exact: true })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: '创作伙伴', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(selector()).toContainText('创作伙伴');
   await app.close();
@@ -219,7 +219,7 @@ test('M6 无模型回复明确失败，已交付输入仍可回放和编辑', as
 });
 
 test('M6 已有消息的会话切换专员前先确认，取消不换会话，确认才新建', async () => {
-  const selector = () => page.getByRole('combobox', { name: '对话专员', exact: true });
+  const selector = () => page.getByRole('button', { name: '对话专员', exact: true });
   const sessionCount = () =>
     page.evaluate(async () => (await (window as DesktopWindow).chaptaleDesktop.session.list()).length);
 
@@ -231,7 +231,7 @@ test('M6 已有消息的会话切换专员前先确认，取消不换会话，�
   const before = await sessionCount();
 
   await selector().click();
-  await page.getByRole('option', { name: '故事策划', exact: true }).click();
+  await page.getByRole('menuitem', { name: '故事策划', exact: true }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('切换专员会新建一个会话');
   await dialog.getByRole('button', { name: '取消', exact: true }).click();
@@ -240,7 +240,7 @@ test('M6 已有消息的会话切换专员前先确认，取消不换会话，�
   await expect(selector()).toContainText('创作伙伴');
 
   await selector().click();
-  await page.getByRole('option', { name: '故事策划', exact: true }).click();
+  await page.getByRole('menuitem', { name: '故事策划', exact: true }).click();
   await page.getByRole('button', { name: '切换并新建会话', exact: true }).click();
   await expect.poll(sessionCount).toBe(before + 1);
   await expect(selector()).toContainText('故事策划');
