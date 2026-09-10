@@ -3,6 +3,8 @@ import { EditorState } from '@codemirror/state';
 import { drawSelection, EditorView } from '@codemirror/view';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { selectionBackgroundTheme } from '@/utils/codemirror-selection';
+
 const props = defineProps<{ text: string; label: string }>();
 const host = ref<HTMLElement>();
 let view: EditorView | undefined;
@@ -21,8 +23,7 @@ onMounted(() => {
         '.cm-scroller': { overflow: 'auto', fontFamily: 'inherit', lineHeight: '1.7' },
         '.cm-content': { padding: '8px' },
         '&.cm-focused': { outline: 'none', boxShadow: 'var(--input-focus-shadow)' },
-        '.cm-selectionBackground': { background: 'var(--selection-background)' },
-        '&.cm-focused .cm-selectionBackground': { background: 'var(--selection-background)' }
+        ...selectionBackgroundTheme
       })
     ]
   });

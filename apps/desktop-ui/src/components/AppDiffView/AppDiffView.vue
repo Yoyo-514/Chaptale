@@ -4,6 +4,8 @@ import { EditorState } from '@codemirror/state';
 import { drawSelection, EditorView, lineNumbers } from '@codemirror/view';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { selectionBackgroundTheme } from '@/utils/codemirror-selection';
+
 const props = withDefaults(
   defineProps<{
     original: string;
@@ -31,7 +33,7 @@ function render() {
       '.cm-scroller': { fontFamily: 'inherit', lineHeight: '1.7' },
       '.cm-gutters': { color: 'var(--muted-foreground)', background: 'var(--surface-muted)' },
       '.cm-content': { padding: '8px 0' },
-      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { background: 'var(--selection-background)' }
+      ...selectionBackgroundTheme
     })
   ];
   view = new MergeView({

@@ -23,12 +23,15 @@ import { tags } from '@lezer/highlight';
 
 import type { AssetRecord, ReviewMark } from '@chaptale/shared';
 
+import { selectionBackgroundTheme } from '@/utils/codemirror-selection';
+
 import type { DocumentViewState } from '../types';
 import { DocumentBuffer } from './document-buffer';
 import { documentHeadings, documentHeadRange, wikiLinks } from './markdown-navigation';
 import { reviewDecorations, setReviewMarks } from './review-marks';
 
 const theme = EditorView.theme({
+  ...selectionBackgroundTheme,
   '&': { height: '100%', fontSize: '14px', color: 'var(--foreground)', backgroundColor: 'var(--mica-background)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { overflow: 'auto', fontFamily: 'inherit', lineHeight: '26px' },
@@ -61,10 +64,6 @@ const theme = EditorView.theme({
     color: 'var(--muted-foreground)',
     border: '1px solid var(--border-subtle)',
     borderRadius: 'var(--radius-control-sm)'
-  },
-  '.cm-selectionBackground': { backgroundColor: 'var(--selection-background)' },
-  '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'var(--selection-background)'
   },
   '.cm-cursor': { borderLeftColor: 'var(--foreground)' },
   '.cm-panels': { color: 'var(--foreground)', backgroundColor: 'var(--surface-muted)' },
