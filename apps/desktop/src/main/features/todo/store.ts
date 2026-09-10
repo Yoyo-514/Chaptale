@@ -57,6 +57,16 @@ export class TodoStore {
     await this.mutate(sessionId, () => items);
   }
 
+  /**
+   * 用户手动清理：all 清空整表；completed 只移除已完成项。
+   * 走 mutate 队列，与其他工具写入保持同一原子语义；返回清理后的新表。
+   */
+  async clear(sessionId: string, scope: 'all' | 'completed'): Promise<TodoItem[]> {
+    return this.mutate(sessionId, current =>
+      scope === 'all' ? [] : current.filter(item => item.status !== 'completed')
+    );
+  }
+
   /** 随会话删除清理对应 todo 文件；文件不存在时静默成功。 */
   async remove(sessionId: string): Promise<void> {
     await fs.rm(this.fileFor(sessionId), { force: true });

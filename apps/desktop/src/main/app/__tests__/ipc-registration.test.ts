@@ -47,6 +47,7 @@ import {
   TaskCancelArgsValidator,
   TaskListRunsArgsValidator,
   TaskRunArgsValidator,
+  TodosClearArgsValidator,
   TodosGetArgsValidator,
   SubagentListActiveArgsValidator,
   SubagentCancelArgsValidator,
@@ -260,6 +261,7 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.tasks.readRunOutput, TaskReadRunOutputArgsValidator),
 
   validated(IPC_CHANNELS.todos.get, TodosGetArgsValidator),
+  validated(IPC_CHANNELS.todos.clear, TodosClearArgsValidator),
 
   validated(IPC_CHANNELS.subagent.listActive, SubagentListActiveArgsValidator),
   validated(IPC_CHANNELS.subagent.cancel, SubagentCancelArgsValidator),

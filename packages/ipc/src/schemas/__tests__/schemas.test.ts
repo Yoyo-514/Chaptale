@@ -37,6 +37,7 @@ import {
   TaskReadRunOutputResponseValidator,
   TaskReadRunOutputResultValidator,
   TaskRunArgsValidator,
+  TodosClearArgsValidator,
   TodosGetArgsValidator,
   UpdateChaptaleSettingsArgsValidator,
   UpdateCustomModelInputArgsValidator,
@@ -355,6 +356,14 @@ describe('IPC 参数 Schema', () => {
     expect(TodosGetArgsValidator.Check([''])).toBe(false);
     expect(TodosGetArgsValidator.Check([])).toBe(false);
     expect(TodosGetArgsValidator.Check([1])).toBe(false);
+  });
+
+  it('校验 todo 清理参数：sessionId 非空且 scope 仅 all / completed', () => {
+    expect(TodosClearArgsValidator.Check([{ sessionId: 'session-1', scope: 'all' }])).toBe(true);
+    expect(TodosClearArgsValidator.Check([{ sessionId: 'session-1', scope: 'completed' }])).toBe(true);
+    expect(TodosClearArgsValidator.Check([{ sessionId: 'session-1', scope: 'pending' }])).toBe(false);
+    expect(TodosClearArgsValidator.Check([{ sessionId: '', scope: 'all' }])).toBe(false);
+    expect(TodosClearArgsValidator.Check([{ sessionId: 'session-1', scope: 'all', extra: 1 }])).toBe(false);
   });
 
   it('校验授权决策参数：三类决策各自的字段约束', () => {

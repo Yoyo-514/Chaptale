@@ -263,6 +263,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown)
       :items="todoProgress.items.value"
       :total="todoProgress.total.value"
       :completed-count="todoProgress.completedCount.value"
+      :is-clearing="todoProgress.isClearing.value"
+      @clear-all="todoProgress.clearAll"
+      @clear-completed="todoProgress.clearCompleted"
     />
 
     <ChatInputBox

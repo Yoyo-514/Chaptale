@@ -97,6 +97,35 @@ describe('TodoStore', () => {
     await expect(store.read('s2')).resolves.toEqual(items);
   });
 
+  it('clears only completed items while keeping pending and in_progress', async () => {
+    const { store } = createStore();
+    const mixed: TodoItem[] = [
+      { id: '1', content: '已完成', status: 'completed' },
+      { id: '2', content: '进行中', status: 'in_progress' },
+      { id: '3', content: '待办', status: 'pending' }
+    ];
+    await store.replace('s1', mixed);
+
+    const next = await store.clear('s1', 'completed');
+
+    expect(next.map(item => item.id)).toEqual(['2', '3']);
+    await expect(store.read('s1')).resolves.toEqual([mixed[1], mixed[2]]);
+  });
+
+  it('clears the whole list and notifies listeners', async () => {
+    const { store } = createStore();
+    const listener = vi.fn();
+    store.onChange(listener);
+    await store.replace('s1', items);
+    listener.mockClear();
+
+    const next = await store.clear('s1', 'all');
+
+    expect(next).toEqual([]);
+    expect(listener).toHaveBeenCalledWith('s1', []);
+    await expect(store.read('s1')).resolves.toEqual([]);
+  });
+
   it('sanitizes session ids so they cannot escape the todos directory', async () => {
     const { store, dir } = createStore();
 

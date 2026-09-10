@@ -70,7 +70,7 @@ import type {
   TaskRunPayload
 } from './tasks';
 import type { TemplatesApi } from './templates';
-import type { TodosUpdatedEvent } from './todos';
+import type { TodosClearPayload, TodosUpdatedEvent } from './todos';
 import type { WindowStateResult } from './window';
 import type {
   WorkspaceState,
@@ -219,6 +219,8 @@ export type ChaptaleDesktopApi = {
   todos: {
     /** 读取指定会话的 todo 清单；无清单时返回空表。 */
     get: (sessionId: string) => Promise<TodoItem[]>;
+    /** 用户手动清理：scope=all 清空整表；scope=completed 只移除已完成项。返回清理后的新表。 */
+    clear: (payload: TodosClearPayload) => Promise<TodoItem[]>;
     /** 订阅清单变更（整表推送）；返回取消订阅函数。 */
     onUpdated: (listener: (event: TodosUpdatedEvent) => void) => () => void;
   };

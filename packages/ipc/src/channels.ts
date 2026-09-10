@@ -130,6 +130,7 @@ export const IPC_CHANNELS = {
   },
   todos: {
     get: 'todos:get',
+    clear: 'todos:clear',
     updated: 'todos:updated'
   },
   subagent: {

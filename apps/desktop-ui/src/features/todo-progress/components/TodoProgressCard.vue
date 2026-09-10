@@ -3,13 +3,21 @@ import { computed, ref, watch } from 'vue';
 
 import type { TodoItem } from '@chaptale/shared';
 
+import { AppButton } from '@/components/AppButton';
 import { AppCollapsible } from '@/components/AppCollapsible';
+import { AppAlertDialog } from '@/components/AppDialog';
 import { AppScrollArea } from '@/components/AppScrollArea';
 
 const props = defineProps<{
   items: TodoItem[];
   total: number;
   completedCount: number;
+  isClearing: boolean;
+}>();
+
+const emit = defineEmits<{
+  clearAll: [];
+  clearCompleted: [];
 }>();
 
 // 默认收起：折叠行已含当前进行项与进度，展开仅用于查看全表。
@@ -76,6 +84,28 @@ const statusMeta: Record<TodoItem['status'], { icon: string; className: string }
         </li>
       </ul>
     </AppScrollArea>
+
+    <div class="todo-progress-actions">
+      <AppButton
+        size="xs"
+        variant="ghost"
+        type="button"
+        :disabled="props.isClearing || props.completedCount === 0"
+        @click="emit('clearCompleted')"
+      >
+        清空已完成
+      </AppButton>
+      <AppAlertDialog
+        :title="`清空全部任务？`"
+        :description="`将删除当前清单的全部 ${props.total} 项任务，此操作不可撤销。`"
+        confirm-label="清空全部"
+        @confirm="emit('clearAll')"
+      >
+        <template #trigger>
+          <AppButton size="xs" variant="ghost" type="button" :disabled="props.isClearing"> 清空全部 </AppButton>
+        </template>
+      </AppAlertDialog>
+    </div>
   </AppCollapsible>
 </template>
 
@@ -143,5 +173,9 @@ const statusMeta: Record<TodoItem['status'], { icon: string; className: string }
 
 .todo-item-pending {
   @apply text-muted-foreground;
+}
+
+.todo-progress-actions {
+  @apply flex items-center justify-end gap-1 px-2 py-0.5;
 }
 </style>
