@@ -1,38 +1,46 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import type { OneDriveFolder } from '@chaptale/ipc-contract';
+import { CLOUD_PROVIDER_LABELS } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppDialog } from '@/components/AppDialog';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
+import { formatSize, formatWhen, useCloudSyncStore } from '@/features/cloud-sync';
 import { useEditorStore } from '@/features/editor';
+import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import { useWorkspaceStore } from '../store';
 import { describeSyncFile, localSyncSummary } from '../sync-status';
 
+const cloud = useCloudSyncStore();
+const settings = useSettingsStore();
 const workspace = useWorkspaceStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
 const busy = ref(false);
 const error = ref('');
-const disabled = computed(() => busy.value || workspace.isOpening || workspace.syncLoading);
+const disabled = computed(() => busy.value || workspace.isOpening);
 const summary = computed(() => localSyncSummary(workspace.rootPath, editor.tabs));
 const files = computed(() => editor.tabs.map(tab => ({ tab, status: describeSyncFile(tab) })));
-const folderNames: Record<OneDriveFolder['kind'], string> = {
-  personal: 'OneDrive 个人',
-  business: 'OneDrive 工作或学校',
-  default: 'OneDrive'
-};
+const bindingProvider = computed(() => (cloud.binding ? CLOUD_PROVIDER_LABELS[cloud.binding.provider] : ''));
 
+// 面板打开时才去问云端：状态是给“要不要手动备一次”看的，代价只能是用户主动打开这一下。
 watch(
-  () => workspace.revision,
-  () => void workspace.refreshSyncState(),
-  { immediate: true }
+  () => workspace.syncOpen,
+  open => {
+    if (open) void cloud.refreshCloud();
+  }
 );
+
+/** 账户、绑定与归档明细都在设置里；这里只给状态与手动备份，不重复一套管理界面。 */
+function openCloudSettings() {
+  workspace.syncOpen = false;
+  settings.openPanel('cloudSync');
+}
 
 async function run(action: () => Promise<unknown>) {
   if (disabled.value) return;
@@ -47,7 +55,7 @@ async function run(action: () => Promise<unknown>) {
   }
 }
 function refresh() {
-  return run(() => Promise.all([workspace.refreshSyncState(), editor.refreshDocuments()]));
+  return run(() => editor.refreshDocuments());
 }
 function saveAll() {
   return run(async () => {
@@ -70,9 +78,6 @@ function openWorkspace(folder?: string) {
 function revealWorkspace() {
   const rootPath = workspace.rootPath;
   if (rootPath) return run(() => getDesktopApi().workspace.revealEntry({ rootPath, relativePath: '' }));
-}
-function revealFolder(rootPath: string) {
-  return run(() => getDesktopApi().workspace.revealSyncRoot({ rootPath }));
 }
 </script>
 <template>
@@ -98,9 +103,6 @@ function revealFolder(rootPath: string) {
             <div class="sync-location-copy">
               <strong>{{ workspace.displayName }}</strong>
               <span class="sync-path">{{ workspace.rootPath }}</span>
-              <span class="sync-muted">{{
-                workspace.syncState?.oneDriveRoot ? '位于 OneDrive 本机目录' : '本地目录'
-              }}</span>
             </div>
             <AppTooltip text="在文件管理器中打开">
               <AppButton
@@ -115,48 +117,52 @@ function revealFolder(rootPath: string) {
             </AppTooltip>
           </div>
           <p v-else class="sync-muted">未打开作品</p>
-          <p v-if="workspace.syncState?.workspaceError" class="has-error" role="alert">
-            {{ workspace.syncState.workspaceError }}
-          </p>
         </section>
-        <section aria-labelledby="sync-onedrive-title">
+        <section aria-labelledby="sync-cloud-title">
           <div class="sync-section-heading">
-            <h3 id="sync-onedrive-title">OneDrive</h3>
-            <span class="sync-muted">云端状态未知</span>
+            <h3 id="sync-cloud-title">云端备份</h3>
+            <AppButton
+              variant="ghost"
+              size="sm"
+              type="button"
+              :disabled="disabled || cloud.isBackupLoading"
+              @click="cloud.refreshCloud()"
+            >
+              <span class="i-mingcute-refresh-3-line size-4" aria-hidden="true" />刷新云端
+            </AppButton>
           </div>
-          <p class="sync-muted">本地保存不代表上传完成。客户端运行状态、远端进度和冲突副本未获确认。</p>
-          <p v-if="workspace.syncLoading && !workspace.syncState" role="status">正在检查本机目录</p>
-          <p v-else-if="workspace.syncState && !workspace.syncState.folders.length" role="status">
-            未检测到 OneDrive 本机目录
-          </p>
-          <div v-for="folder in workspace.syncState?.folders" :key="folder.path" class="sync-folder">
-            <div class="sync-location">
-              <div class="sync-location-copy">
-                <strong>{{ folderNames[folder.kind] }}</strong>
-                <span class="sync-path">{{ folder.path }}</span>
-              </div>
-              <AppTooltip text="打开 OneDrive 目录">
-                <AppButton
-                  icon
-                  variant="ghost"
-                  :aria-label="`打开 ${folderNames[folder.kind]} 目录`"
-                  :disabled="disabled || !folder.available"
-                  @click="revealFolder(folder.path)"
-                >
-                  <span class="i-mingcute-folder-open-2-line size-4" aria-hidden="true" />
-                </AppButton>
-              </AppTooltip>
+
+          <p v-if="cloud.bindingError" class="has-error" role="alert">{{ cloud.bindingError }}</p>
+          <div v-else-if="cloud.binding" class="sync-location">
+            <div class="sync-location-copy">
+              <strong>{{ cloud.binding.folderName }}</strong>
+              <span class="sync-muted">
+                {{ bindingProvider }} · 云端归档 {{ cloud.archives.length }} 份 ·
+                {{ cloud.lastBackupAt ? `本机上次备份 ${formatWhen(cloud.lastBackupAt)}` : '本机还没备份过' }}
+              </span>
+              <span class="sync-muted">
+                {{
+                  cloud.quota
+                    ? `云端占用 ${formatSize(cloud.quota.usedBytes)} / ${formatSize(cloud.quota.totalBytes)}`
+                    : '云端配额：服务商未提供'
+                }}
+              </span>
+              <span v-if="cloud.isBackupRunning" class="sync-muted" role="status">{{ cloud.progressLabel }}</span>
             </div>
-            <p v-if="folder.error" class="has-error" role="status">{{ folder.error }}</p>
             <div class="sync-folder-actions">
-              <AppButton :disabled="disabled || !folder.available" @click="openWorkspace(folder.path)"
-                >打开作品</AppButton
-              >
-              <AppButton :disabled="disabled || !folder.available" @click="workspace.createWorkspaceAt(folder.path)"
-                ><span class="i-mingcute-add-line size-4" aria-hidden="true" />在此新建作品</AppButton
-              >
+              <AppButton :disabled="disabled || cloud.isBackupRunning" @click="cloud.createBackup()">
+                <span class="i-mingcute-cloud-line size-4" aria-hidden="true" />立即备份
+              </AppButton>
+              <AppButton variant="ghost" :disabled="disabled" @click="openCloudSettings()">云端详情</AppButton>
             </div>
           </div>
+          <div v-else class="sync-location">
+            <div class="sync-location-copy">
+              <span class="sync-muted">还没有绑定云端备份位置，无法手动备份。</span>
+            </div>
+            <AppButton variant="ghost" :disabled="disabled" @click="openCloudSettings()">去「设置 › 云同步」</AppButton>
+          </div>
+          <p v-if="cloud.backupError" class="has-error" role="alert">{{ cloud.backupError }}</p>
         </section>
         <section v-if="files.length" aria-labelledby="sync-files-title">
           <h3 id="sync-files-title">已打开的文件 · {{ files.length }}</h3>
@@ -190,12 +196,10 @@ function revealFolder(rootPath: string) {
             </li>
           </ul>
         </section>
-        <p v-if="error || workspace.syncError" class="has-error" role="alert">{{ error || workspace.syncError }}</p>
+        <p v-if="error" class="has-error" role="alert">{{ error }}</p>
       </AppScrollArea>
       <footer class="sync-footer">
-        <span class="sync-muted">{{
-          workspace.syncState ? `本机检查 ${new Date(workspace.syncState.checkedAt).toLocaleTimeString()}` : ''
-        }}</span>
+        <span class="sync-muted">这里只反映本机已打开文件的状态；云端备份在设置 › 云同步里。</span>
         <AppButton :disabled="disabled" @click="openWorkspace()">打开其他作品</AppButton>
       </footer>
     </div>

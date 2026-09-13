@@ -1,7 +1,5 @@
 import { defineStore } from 'pinia';
 
-import type { WorkspaceSyncState } from '@chaptale/ipc-contract';
-
 import { useNotificationStore } from '@/features/notifications';
 import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
@@ -15,10 +13,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     newWorkspaceOpen: false,
     newWorkspaceParentPath: null as string | null,
     syncOpen: false,
-    syncState: null as WorkspaceSyncState | null,
-    syncLoading: false,
-    syncError: '',
-    syncRequest: 0,
     error: '',
     rootPath: null as string | null,
     displayName: null as string | null,
@@ -41,26 +35,6 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.hasChaptaleMetadata = state.hasChaptaleMetadata;
       if (changed) {
         this.revision += 1;
-        this.syncState = null;
-        this.syncError = '';
-      }
-    },
-    async refreshSyncState() {
-      const request = ++this.syncRequest;
-      const revision = this.revision;
-      this.syncLoading = true;
-      this.syncError = '';
-      try {
-        const state = await getDesktopApi().workspace.getSyncState();
-        if (request !== this.syncRequest || revision !== this.revision || state.rootPath !== this.rootPath) return;
-        this.syncState = state;
-      } catch (error) {
-        if (request === this.syncRequest && revision === this.revision) {
-          this.syncState = null;
-          this.syncError = toErrorMessage(error);
-        }
-      } finally {
-        if (request === this.syncRequest) this.syncLoading = false;
       }
     },
     createWorkspaceAt(parentPath: string) {

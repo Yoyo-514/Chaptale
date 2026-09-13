@@ -14,7 +14,6 @@ const original = '# 原稿\n\n作者原有的段落。\n';
 type DesktopWindow = Window & { chaptaleDesktop: ChaptaleDesktopApi };
 let home: string;
 let work: string;
-let cloud: string;
 let app: ElectronApplication | undefined;
 let page: Page;
 let errors: string[];
@@ -23,9 +22,7 @@ test.setTimeout(60_000);
 test.beforeEach(async () => {
   home = await mkdtemp(path.join(os.tmpdir(), 'chaptale-sync-e2e-'));
   work = path.join(home, 'work');
-  cloud = path.join(home, 'OneDrive');
   await mkdir(work);
-  await mkdir(cloud);
   await mkdir(path.join(home, '.chaptale'));
   await writeFile(path.join(work, 'draft.md'), original);
   await writeFile(
@@ -53,15 +50,12 @@ test.afterEach(async () => {
   expect(errors).toEqual([]);
 });
 
-async function launch(oneDrivePath = cloud) {
+async function launch() {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     NODE_ENV: 'production',
     HOME: home,
-    USERPROFILE: home,
-    OneDrive: oneDrivePath,
-    OneDriveConsumer: oneDrivePath,
-    OneDriveCommercial: ''
+    USERPROFILE: home
   };
   delete env.VITE_DEV_SERVER_URL;
   app = await electron.launch({
@@ -93,13 +87,15 @@ async function editDraft(text: string) {
   await page.keyboard.insertText(text);
 }
 
-test('状态栏和文件菜单均能打开详情，未配置 OneDrive 时不伪造状态', async () => {
-  await launch('');
+test('状态栏和文件菜单均能打开详情，详情只讲本机文件状态', async () => {
+  await launch();
+  // 详情只列已打开的文件，所以先真的打开一个。
+  await page.getByRole('treeitem').filter({ hasText: 'draft.md' }).click();
   const dialog = await openDetails();
   await expect(dialog).toContainText(work);
-  await expect(dialog).toContainText('未检测到 OneDrive 本机目录');
-  await expect(dialog).toContainText('云端状态未知');
-  await expect(dialog.locator('.sync-folder')).toHaveCount(0);
+  await expect(dialog).toContainText('这里只反映本机已打开文件的状态');
+  await expect(dialog.locator('.sync-file')).toContainText('draft.md');
+  await expect(dialog.locator('.sync-file')).toContainText('本地已保存');
   await dialog.getByRole('button', { name: '关闭', exact: true }).click();
   await page.getByRole('menuitem', { name: '视图', exact: true }).click();
   await page.locator('[data-item-id="view.status-bar"]').click();
@@ -107,51 +103,12 @@ test('状态栏和文件菜单均能打开详情，未配置 OneDrive 时不伪�
   await page.getByRole('menuitem', { name: '文件', exact: true }).click();
   await page.locator('[data-item-id="file.sync"]').click();
   await expect(dialog).toBeVisible();
-});
-
-test('OneDrive 目录去重并可新建作品，三主题窄窗口状态可读', async () => {
-  await launch();
-  let dialog = await openDetails();
-  await expect(dialog.locator('.sync-folder')).toHaveCount(1);
-  await expect(dialog).toContainText('本地目录');
-  await dialog.getByRole('button', { name: '在此新建作品', exact: true }).click();
-  const create = page.getByRole('dialog', { name: '新建作品', exact: true });
-  await expect(create.getByRole('textbox', { name: '作品存放位置', exact: true })).toHaveValue(cloud);
-  await create.getByRole('textbox', { name: '作品名称', exact: true }).fill('云间');
-  await create.getByRole('button', { name: '创建并打开', exact: true }).click();
-  await expect(create).toBeHidden();
-  await expect(page.locator('.cm-content')).toContainText('第一章');
-  const target = path.join(cloud, '云间');
-  expect(JSON.parse(await readFile(path.join(target, 'chaptale.json'), 'utf8')).title).toBe('云间');
-  expect(await readFile(path.join(work, 'draft.md'), 'utf8')).toBe(original);
-  const state = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.workspace.getSyncState());
-  expect(state).toMatchObject({ rootPath: target, oneDriveRoot: cloud, remoteState: 'unknown' });
-  await mkdir(visualDir, { recursive: true });
-  for (const theme of ['light', 'warm', 'dark']) {
-    await page.getByRole('menuitem', { name: '视图', exact: true }).click();
-    await page.getByRole('menuitem', { name: '外观', exact: true }).hover();
-    await page.locator(`[data-item-id="view.theme.${theme}"]`).click();
-    await expect(page.locator('html')).toHaveClass(new RegExp(theme === 'dark' ? 'dark' : `theme-${theme}`));
-    await app!.evaluate(
-      ({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 760),
-      theme === 'dark' ? 1024 : 1360
-    );
-    dialog = await openDetails();
-    await expect(dialog).toContainText('位于 OneDrive 本机目录');
-    await expect(dialog).toContainText('云端状态未知');
-    expect(
-      await dialog.locator('.sync-toolbar .i-mingcute-cloud-line').evaluate(node => getComputedStyle(node).maskImage)
-    ).not.toBe('none');
-    const fits = await dialog.evaluate(node => ({
-      overflow: node.scrollWidth - node.clientWidth,
-      right: node.getBoundingClientRect().right,
-      width: window.innerWidth
-    }));
-    expect(fits.overflow).toBeLessThanOrEqual(1);
-    expect(fits.right).toBeLessThanOrEqual(fits.width);
-    await page.screenshot({ path: path.join(visualDir, `sync-${theme}.png`) });
-    await dialog.getByRole('button', { name: '关闭', exact: true }).click();
-  }
+  // 目录选择只接受绝对路径：对话框的初始位置同样走这道核验。
+  await expect(
+    page.evaluate(() =>
+      (window as DesktopWindow).chaptaleDesktop.workspace.selectParent({ defaultPath: '.', purpose: 'open' })
+    )
+  ).rejects.toThrow('绝对目录');
 });
 
 test('详情保存真实文件，外部冲突能定位处理且不自动覆盖', async () => {
@@ -178,7 +135,6 @@ test('详情保存真实文件，外部冲突能定位处理且不自动覆盖',
   await conflict.getByRole('button', { name: '保留我的', exact: true }).click();
   await expect(conflict).toBeHidden();
   expect(await readFile(path.join(work, 'draft.md'), 'utf8')).toContain('还未保存的作者修改');
-  await expect(page.getByRole('button', { name: '文件与同步', exact: true })).toContainText('云端未知');
 });
 
 test('磁盘恢复原始版本后刷新清除旧冲突，不丢未保存正文', async () => {
@@ -197,20 +153,37 @@ test('磁盘恢复原始版本后刷新清除旧冲突，不丢未保存正文',
   expect(await readFile(path.join(work, 'draft.md'), 'utf8')).toContain('仍在写的段落');
 });
 
-test('失效的 OneDrive 目录保留诊断，目录入口拒绝任意路径', async () => {
-  await launch(path.join(home, 'missing-OneDrive'));
-  const dialog = await openDetails();
-  await expect(dialog.locator('.sync-folder')).toHaveCount(1);
-  await expect(dialog.locator('.sync-folder [role="status"]')).not.toBeEmpty();
-  await expect(dialog.getByRole('button', { name: '在此新建作品', exact: true })).toBeDisabled();
-  await expect(dialog.getByRole('button', { name: '打开作品', exact: true })).toBeDisabled();
-  await expect(
-    page.evaluate(rootPath => (window as DesktopWindow).chaptaleDesktop.workspace.revealSyncRoot({ rootPath }), work)
-  ).rejects.toThrow('不在本机配置');
-  await expect(
-    page.evaluate(() =>
-      (window as DesktopWindow).chaptaleDesktop.workspace.selectParent({ defaultPath: '.', purpose: 'open' })
-    )
-  ).rejects.toThrow('绝对目录');
-  expect(await readFile(path.join(work, 'draft.md'), 'utf8')).toBe(original);
+test('三主题窄窗口下详情不溢出，状态栏图标保持可见', async () => {
+  await launch();
+  await page.getByRole('treeitem').filter({ hasText: 'draft.md' }).click();
+  await mkdir(visualDir, { recursive: true });
+
+  for (const theme of ['light', 'warm', 'dark']) {
+    await page.getByRole('menuitem', { name: '视图', exact: true }).click();
+    await page.getByRole('menuitem', { name: '外观', exact: true }).hover();
+    await page.locator(`[data-item-id="view.theme.${theme}"]`).click();
+    await expect(page.locator('html')).toHaveClass(new RegExp(theme === 'dark' ? 'dark' : `theme-${theme}`));
+    await app!.evaluate(
+      ({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 760),
+      theme === 'dark' ? 1024 : 1360
+    );
+
+    const dialog = await openDetails();
+
+    await expect(dialog.locator('.sync-file')).toContainText('draft.md');
+    expect(
+      await dialog.locator('.sync-toolbar .i-mingcute-cloud-line').evaluate(node => getComputedStyle(node).maskImage)
+    ).not.toBe('none');
+
+    const fits = await dialog.evaluate(node => ({
+      overflow: node.scrollWidth - node.clientWidth,
+      right: node.getBoundingClientRect().right,
+      width: window.innerWidth
+    }));
+
+    expect(fits.overflow).toBeLessThanOrEqual(1);
+    expect(fits.right).toBeLessThanOrEqual(fits.width);
+    await page.screenshot({ path: path.join(visualDir, `sync-${theme}.png`) });
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click();
+  }
 });

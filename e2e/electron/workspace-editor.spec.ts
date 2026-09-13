@@ -622,7 +622,8 @@ test('M6 右键菜单联动文件、标签、选区与 Agent，不自动发送',
   expect(await readFile(path.join(workspace, '正文/新章名.md'), 'utf8')).toBe(chapter);
   await expect(page.getByRole('button', { name: '三维审查', exact: true })).toHaveCount(0);
   await expect(page.locator('.document-footer .document-words')).toBeVisible();
-  await expect(page.locator('.status-bar')).toContainText('云端未知');
+  // 状态栏只陈述本机文件状态：不再有“云端未知”这类无法核实的话。
+  await expect(page.locator('.status-bar')).toContainText('本地已保存');
 });
 
 test('M6 三主题文本选择和 skill 对比度、菜单文字列对齐', async () => {

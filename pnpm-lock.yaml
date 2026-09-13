@@ -111,6 +111,9 @@ catalogs:
     electron-builder:
       specifier: ^26.16.0
       version: 26.16.0
+    fflate:
+      specifier: ^0.8.3
+      version: 0.8.3
     happy-dom:
       specifier: ^20.14.0
       version: 20.14.0
@@ -269,6 +272,9 @@ importers:
       chokidar:
         specifier: 'catalog:'
         version: 5.0.0
+      fflate:
+        specifier: 'catalog:'
+        version: 0.8.3
       klona:
         specifier: 'catalog:'
         version: 2.0.6

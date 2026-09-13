@@ -1,3 +1,6 @@
+import { realpath, stat } from 'node:fs/promises';
+import path from 'node:path';
+
 import {
   CreateEntryArgsValidator,
   CreateWorkspaceArgsValidator,
@@ -31,22 +34,21 @@ import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 import { createWorkspace } from './create-workspace';
 import { inspectWorkspaceEntry, mutateWorkspaceEntry, revealWorkspaceEntry } from './entry-operations';
 import type { WorkspaceService } from './service';
-import { inspectWorkspaceSync, resolveDirectory, resolveOneDriveFolder } from './sync';
+
+/** 绝对目录核验：存放位置与默认对话框位置都用它。realpath 之后确认是目录，避免链接指向文件。 */
+async function resolveDirectory(target: string): Promise<string> {
+  if (!path.isAbsolute(target)) throw new Error('存放位置必须是绝对目录路径');
+
+  const resolved = await realpath(target);
+
+  if (!(await stat(resolved)).isDirectory()) throw new Error('存放位置不是目录');
+
+  return resolved;
+}
 
 export function registerWorkspaceIpc(service: WorkspaceService, ui?: UiShell) {
   service.onChange(event => ui?.broadcast(IPC_CHANNELS.workspace.changed, event));
   handleValidatedIpc(IPC_CHANNELS.workspace.getState, WorkspaceGetStateArgsValidator, () => service.getState());
-  handleValidatedIpc(IPC_CHANNELS.workspace.getSyncState, WorkspaceGetStateArgsValidator, async () =>
-    inspectWorkspaceSync((await service.getState()).rootPath)
-  );
-  handleValidatedIpc(
-    IPC_CHANNELS.workspace.revealSyncRoot,
-    WorkspaceRootArgsValidator,
-    async (_event, args: { rootPath: string }) => {
-      if (!ui) throw new Error('系统文件管理器不可用');
-      await ui.openPath(await resolveOneDriveFolder(args.rootPath));
-    }
-  );
   handleValidatedIpc(
     IPC_CHANNELS.workspace.selectParent,
     SelectDirectoryArgsValidator,

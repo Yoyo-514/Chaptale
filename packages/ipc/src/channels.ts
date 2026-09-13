@@ -66,8 +66,6 @@ export const IPC_CHANNELS = {
   },
   workspace: {
     getState: 'workspace:get-state',
-    getSyncState: 'workspace:get-sync-state',
-    revealSyncRoot: 'workspace:reveal-sync-root',
     selectParent: 'workspace:select-parent',
     createWorkspace: 'workspace:create-workspace',
     inspectEntry: 'workspace:inspect-entry',
@@ -84,6 +82,24 @@ export const IPC_CHANNELS = {
     readRecovery: 'workspace:read-recovery',
     saveRecovery: 'workspace:save-recovery',
     discardRecovery: 'workspace:discard-recovery'
+  },
+  cloudSync: {
+    getState: 'cloud-sync:get-state',
+    getBinding: 'cloud-sync:get-binding',
+    beginAuth: 'cloud-sync:begin-auth',
+    cancelAuth: 'cloud-sync:cancel-auth',
+    signOut: 'cloud-sync:sign-out',
+    listFolders: 'cloud-sync:list-folders',
+    bind: 'cloud-sync:bind',
+    unbind: 'cloud-sync:unbind',
+    listBackups: 'cloud-sync:list-backups',
+    createBackup: 'cloud-sync:create-backup',
+    removeBackup: 'cloud-sync:remove-backup',
+    planRestore: 'cloud-sync:plan-restore',
+    readRestoreDiff: 'cloud-sync:read-restore-diff',
+    applyRestore: 'cloud-sync:apply-restore',
+    cancelRestore: 'cloud-sync:cancel-restore',
+    backupProgress: 'cloud-sync:backup-progress'
   },
   app: {
     getPlatform: 'app:get-platform',

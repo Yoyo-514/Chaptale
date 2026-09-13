@@ -4,6 +4,7 @@ import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 
 import { createAgentApi } from './api/agent';
 import { createEditCommandApi, createGetPlatformApi } from './api/app';
+import { createCloudSyncApi } from './api/cloud-sync';
 import { createSlashCommandsApi } from './api/commands';
 import { createContentApi } from './api/content';
 import { createLibraryApi } from './api/library';
@@ -31,6 +32,7 @@ const desktopApi: ChaptaleDesktopApi = {
   reviews: createReviewsApi(),
   library: createLibraryApi(),
   workspace: createWorkspaceApi(),
+  cloudSync: createCloudSyncApi(),
   getPlatform: createGetPlatformApi(),
   editCommand: createEditCommandApi(),
   windowControl: createWindowControlApi(),

@@ -1,6 +1,7 @@
 import { EditCommandValidator, IPC_CHANNELS, type AppPlatformResult, type EditCommand } from '@chaptale/ipc-contract';
 
 import { registerAgentIpc } from '../features/agent/ipc';
+import { registerCloudSyncIpc } from '../features/cloud-sync/ipc';
 import { registerSlashCommandIpc } from '../features/commands/ipc';
 import { registerContentIpc } from '../features/content/ipc';
 import { registerLibraryIpc } from '../features/library/ipc';
@@ -33,6 +34,7 @@ export function registerApplicationIpc(context: AppContext): void {
   const ui = new ElectronUiShell();
   registerContentIpc(context.contentService, ui);
   registerWorkspaceIpc(context.workspaceService, ui);
+  registerCloudSyncIpc(context.cloudSyncService, ui);
   registerLibraryIpc(context.libraryService);
   registerWritingIpc(context.writingService);
   registerTemplatesIpc(context.templateService);

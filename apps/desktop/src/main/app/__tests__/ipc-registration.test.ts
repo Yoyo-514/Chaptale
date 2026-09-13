@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CloudArchiveArgsValidator,
+  CloudBindArgsValidator,
+  CloudListFoldersArgsValidator,
+  CloudNoArgsValidator,
+  CloudProviderArgsValidator,
+  CloudRestoreArgsValidator,
+  CloudRestoreDiffArgsValidator,
   ContentContextValidator,
   ContentReadValidator,
   ContentDeleteValidator,
@@ -204,8 +211,6 @@ const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.settings.openConfigDir),
 
   validated(IPC_CHANNELS.workspace.getState, WorkspaceGetStateArgsValidator),
-  validated(IPC_CHANNELS.workspace.getSyncState, WorkspaceGetStateArgsValidator),
-  validated(IPC_CHANNELS.workspace.revealSyncRoot, WorkspaceRootArgsValidator),
   validated(IPC_CHANNELS.workspace.selectParent, SelectDirectoryArgsValidator),
   validated(IPC_CHANNELS.workspace.createWorkspace, CreateWorkspaceArgsValidator),
   validated(IPC_CHANNELS.workspace.inspectEntry, EntryPathArgsValidator),
@@ -221,6 +226,21 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.workspace.readRecovery, RecoveryPathArgsValidator),
   validated(IPC_CHANNELS.workspace.saveRecovery, SaveRecoveryArgsValidator),
   validated(IPC_CHANNELS.workspace.discardRecovery, RecoveryPathArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.getState, CloudNoArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.getBinding, CloudNoArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.beginAuth, CloudProviderArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.cancelAuth, CloudNoArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.signOut, CloudProviderArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.listFolders, CloudListFoldersArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.bind, CloudBindArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.unbind, CloudNoArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.listBackups, CloudNoArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.createBackup, CloudNoArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.planRestore, CloudArchiveArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.readRestoreDiff, CloudRestoreDiffArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.applyRestore, CloudRestoreArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.cancelRestore, CloudNoArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.removeBackup, CloudArchiveArgsValidator),
   validated(IPC_CHANNELS.library.listAssets, WorkspaceRootArgsValidator),
   validated(IPC_CHANNELS.library.search, WorkspaceSearchArgsValidator),
   validated(IPC_CHANNELS.library.sceneReferences, SceneReferencesValidator),
@@ -290,7 +310,8 @@ const mainToRendererEvents = new Set<string>([
   IPC_CHANNELS.memory.pendingChanged,
   IPC_CHANNELS.permissions.ask,
   IPC_CHANNELS.window.closeRequested,
-  IPC_CHANNELS.workspace.changed
+  IPC_CHANNELS.workspace.changed,
+  IPC_CHANNELS.cloudSync.backupProgress
 ]);
 
 function createContext(): AppContext {
@@ -317,6 +338,7 @@ function createContext(): AppContext {
     subagentPool: { onEvent: () => () => undefined, listActive: () => [], cancel: () => undefined },
     memoryPendingStore: { onChange: () => () => undefined, list: async () => ({ proposals: [], diagnostics: [] }) },
     permissionBroker: { onAsk: () => undefined, listPending: () => [], rejectSession: () => undefined },
+    cloudSyncService: { onProgress: () => () => undefined },
     permissionRuleStore: {
       addRule: async () => undefined,
       listPersistentRules: async () => ({ workspace: [], global: [] }),

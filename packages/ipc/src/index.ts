@@ -2,6 +2,7 @@ export * from './agent';
 export * from './api';
 export * from './app';
 export * from './channels';
+export * from './cloud-sync';
 export * from './models';
 export * from './prompt-settings';
 export * from './schemas';

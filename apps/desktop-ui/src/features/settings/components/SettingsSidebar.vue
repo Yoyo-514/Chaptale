@@ -43,6 +43,12 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
     icon: 'i-mingcute-shield-shape-line'
   },
   {
+    id: 'cloudSync',
+    title: '云同步',
+    description: '云服务商登录与云端目录',
+    icon: 'i-mingcute-cloud-line'
+  },
+  {
     id: 'files',
     title: '配置文件',
     description: '应用与模型配置路径',

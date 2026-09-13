@@ -1,22 +1,55 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
+
+import { CLOUD_PROVIDER_LABELS } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useCloudSyncStore, formatWhen } from '@/features/cloud-sync';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
 import { useWorkbenchStore } from '@/features/workbench';
 import { localSyncSummary, useWorkspaceStore } from '@/features/workspace';
+import { hasDesktopApi } from '@/utils/desktop-api';
 
+const cloud = useCloudSyncStore();
 const notificationStore = useNotificationStore();
 const editor = useEditorStore();
 const workspace = useWorkspaceStore();
 const navigation = useWorkbenchStore();
 const syncStatus = computed(() => localSyncSummary(workspace.rootPath, editor.tabs));
 const syncDetail = computed(
-  () =>
-    `${workspace.rootPath ?? '未打开作品'}；${workspace.syncState?.oneDriveRoot ? 'OneDrive 本机目录；' : ''}云端状态未知`
+  () => `${workspace.rootPath ?? '未打开作品'}；${syncStatus.value.label}；${cloudDetail.value}`
 );
+
+/** 云端状态只用本地就能回答：没登录、没绑定、已绑定；要不要再备一次看本机上次备份时间。 */
+const cloudLabel = computed(() => {
+  if (cloud.accounts.length === 0) return '云端未登录';
+
+  return cloud.binding ? '云端已绑定' : '未绑定云端';
+});
+
+const lastBackupLabel = computed(() =>
+  cloud.lastBackupAt ? `本机上次备份 ${formatWhen(cloud.lastBackupAt)}` : '本机还没备份过'
+);
+
+const cloudDetail = computed(
+  () =>
+    cloud.bindingError ||
+    (cloud.binding
+      ? `${CLOUD_PROVIDER_LABELS[cloud.binding.provider]} · ${cloud.binding.folderName}；${lastBackupLabel.value}`
+      : '点这里打开文件与同步面板')
+);
+
+function refreshCloud() {
+  if (!hasDesktopApi()) return;
+
+  void cloud.load();
+  void cloud.loadBinding();
+}
+
+// 换作品就要重新问一次绑定；绑定是按作品存的。
+watch(() => workspace.rootPath, refreshCloud, { immediate: true });
 
 const hasError = computed(() => notificationStore.items.some(item => item.kind === 'error'));
 const notificationCountLabel = computed(() =>
@@ -40,11 +73,16 @@ const notificationTooltip = computed(() =>
         @click="workspace.syncOpen = !workspace.syncOpen"
       >
         <span
-          :class="syncStatus.error ? 'i-mingcute-cloud-warning-line' : 'i-mingcute-cloud-line'"
+          :class="syncStatus.error ? 'i-mingcute-warning-line' : 'i-mingcute-file-line'"
           class="size-4 shrink-0"
           aria-hidden="true"
         />
-        <span class="truncate">{{ syncStatus.label }}{{ workspace.rootPath ? ' · 云端未知' : '' }}</span>
+        <span class="truncate">{{ syncStatus.label }}</span>
+        <span class="status-divider" aria-hidden="true">·</span>
+        <span class="status-cloud" :class="{ 'is-muted': !cloud.binding }" aria-hidden="true">
+          <span class="i-mingcute-cloud-line size-3.5 shrink-0" />
+          <span class="truncate">{{ cloudLabel }}</span>
+        </span>
       </AppButton>
     </AppTooltip>
     <div class="status-bar-spacer" />
@@ -87,6 +125,17 @@ const notificationTooltip = computed(() =>
 .status-sync {
   @apply flex min-w-0 items-center gap-1.5 px-2;
   font-size: var(--ui-caption-size);
+}
+.status-divider {
+  @apply shrink-0;
+}
+.status-cloud {
+  @apply flex min-w-0 shrink-0 items-center gap-1;
+
+  color: var(--primary-solid);
+}
+.status-cloud.is-muted {
+  color: var(--muted-foreground);
 }
 .has-error {
   color: var(--destructive);

@@ -10,6 +10,9 @@ import { createDefaultToolCatalog } from '../core/tool-protocol/catalog';
 import { createChatRuntimeBundle } from '../features/agent/chat-bundle';
 import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
+import { createCloudProviderAdapters } from '../features/cloud-sync/providers/registry';
+import { CloudSyncService } from '../features/cloud-sync/service';
+import { CloudSyncStore } from '../features/cloud-sync/store';
 import { SlashCommandService } from '../features/commands/service';
 import { ContentService } from '../features/content/service';
 import { LibraryService } from '../features/library/service';
@@ -54,7 +57,10 @@ import { WorkspaceWatcher } from '../features/workspace/watcher';
 import { WritingService } from '../features/writing/service';
 import { VersionStore } from '../features/writing/versions';
 import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
+import { openExternalUrl } from '../infra/electron/external-link';
+import { createSafeStorageCipher } from '../infra/electron/safe-storage';
 import { createElectronThumbnail } from '../infra/electron/thumbnail';
+import { TokenVault } from '../infra/security/token-vault';
 import { OfficeDocumentParser } from '../integrations/officeparser/parser';
 import { TaskOutputRouter } from './task-output-router';
 
@@ -82,6 +88,7 @@ export type AppContext = {
   settlementService: SettlementService;
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
+  cloudSyncService: CloudSyncService;
   /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
   getPermissionSettingsCwd: () => Promise<string | null>;
   /** Pending 面板只按 UI 当前 workspace 拉取，避免复用会话工具闭包 cwd。 */
@@ -101,6 +108,38 @@ export function createAppContext(): AppContext {
     (next, previous) => versions.preserveFinalization(next, previous)
   );
   const webToolsSettingsStore = new WebToolsSettingsStore({ configPath: settingsService.webToolsConfigPath });
+
+  // 云同步账户与绑定落应用配置目录：凭据经 safeStorage 加密后存盘，作品目录里不放任何 token。
+  const cloudSyncService = new CloudSyncService({
+    adapters: createCloudProviderAdapters(),
+    store: new CloudSyncStore(
+      new TokenVault(createSafeStorageCipher()),
+      path.join(settingsService.agentDir, 'cloud-sync.json')
+    ),
+    openExternal: openExternalUrl,
+    // 备份的身份标记靠作品清单的 id：没清单就无法核对，如实报第三种状态，不凑一个 id 出来。
+    resolveWorkspace: async () => {
+      const state = await workspaceService.getState();
+
+      if (!state.rootPath) {
+        return { status: 'none' as const };
+      }
+
+      const layout = await workspaceService.getLayout(state.rootPath);
+
+      if (!layout.ok || !layout.layout.manifest) {
+        return { status: 'unidentified' as const, rootPath: state.rootPath };
+      }
+
+      return {
+        status: 'ready' as const,
+        rootPath: state.rootPath,
+        id: layout.layout.manifest.id,
+        title: layout.layout.manifest.title
+      };
+    },
+    cacheRoot: path.join(settingsService.rootDir, 'cache')
+  });
 
   // 内置 skills 先于任何会话创建物化到磁盘；失败只影响内置 skills 可用性，不阻塞启动。
   try {
@@ -285,6 +324,7 @@ export function createAppContext(): AppContext {
     settlementService,
     permissionBroker,
     permissionRuleStore,
+    cloudSyncService,
     getPermissionSettingsCwd: appStateCwd,
     getMemoryPendingCwd: appStateCwd
   };

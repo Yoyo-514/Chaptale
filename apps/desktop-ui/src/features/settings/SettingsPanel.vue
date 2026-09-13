@@ -3,6 +3,7 @@ import { defineAsyncComponent, onMounted } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useDraggablePanel, type ResizeDirection } from '@/composables';
+import { CloudSyncSettings } from '@/features/cloud-sync';
 import { ContentSettings } from '@/features/content';
 
 import SettingsSidebar from './components/SettingsSidebar.vue';
@@ -84,6 +85,7 @@ onMounted(() => {
             <PromptSettings v-else-if="settingsStore.activeSection === 'prompt'" />
             <WebToolsSettings v-else-if="settingsStore.activeSection === 'webTools'" />
             <PermissionsSettings v-else-if="settingsStore.activeSection === 'permissions'" />
+            <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
             <ContentSettings v-else-if="settingsStore.activeSection === 'content'" />
             <ConfigFilesSettings v-else />
           </main>
