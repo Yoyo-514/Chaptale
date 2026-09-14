@@ -31,18 +31,24 @@ export type FetchClient = {
  */
 export async function fetchPage(url: string, client: FetchClient, options: FetchPageOptions): Promise<FetchedPage> {
   const doFetch = client.fetch ?? globalThis.fetch;
+  // 一次抓取（含重定向）共用预算；原生组合也保留已经发生的取消及其原因。
+  const timeout = AbortSignal.timeout(options.timeoutSeconds * 1000);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+  signal.throwIfAborted();
   let current = await assertFetchableUrl(url, { allowRanges: options.allowRanges });
 
   // 上限写在循环条件里：跳数是这个循环唯一的终止保证，藏在循环体里读不出来。
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    signal.throwIfAborted();
     const response = await doFetch(current, {
       redirect: 'manual',
       headers: { 'user-agent': UA, accept: 'text/html,text/plain,application/json;q=0.9,*/*;q=0.5' },
-      signal: combineSignals(options.signal, options.timeoutSeconds)
+      signal
     });
 
     if (isRedirect(response.status)) {
       const location = response.headers.get('location');
+      await response.body?.cancel();
 
       if (!location) {
         throw new Error(`重定向缺少 location（HTTP ${response.status}）`);
@@ -56,12 +62,14 @@ export async function fetchPage(url: string, client: FetchClient, options: Fetch
     }
 
     if (!response.ok) {
+      await response.body?.cancel();
       throw new Error(`抓取失败：HTTP ${response.status} ${current.toString()}`);
     }
 
     const contentType = (response.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
 
     if (contentType && !ALLOWED_CONTENT_TYPES.has(contentType)) {
+      await response.body?.cancel();
       throw new Error(`不支持的 Content-Type：${contentType || '未知'}（仅支持 HTML/纯文本/JSON/XML）`);
     }
 
@@ -119,22 +127,6 @@ async function readBody(
 
 function isRedirect(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
-}
-
-function combineSignals(external: AbortSignal | undefined, timeoutSeconds: number): AbortSignal {
-  const timeout = AbortSignal.timeout(timeoutSeconds * 1000);
-
-  if (!external) {
-    return timeout;
-  }
-
-  const controller = new AbortController();
-
-  const forward = () => controller.abort();
-  external.addEventListener('abort', forward, { once: true });
-  timeout.addEventListener('abort', forward, { once: true });
-
-  return controller.signal;
 }
 
 export { SsrfError };
