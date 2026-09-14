@@ -31,7 +31,7 @@ async function launch() {
 async function openCloudSync() {
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
   await page.getByRole('button', { name: '云端备份 云服务商登录与云端目录', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '云端备份', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '云端备份', exact: true, level: 3 })).toBeVisible();
 
   return page.locator('section[aria-labelledby="cloud-accounts-title"]');
 }
@@ -159,7 +159,9 @@ test('未绑定时备份区给出绑定引导，不编造归档或配额', async
   await expect(backup).toContainText('云端归档不会因此被删');
   await expect(backup.getByRole('button', { name: '立即备份', exact: true })).toHaveCount(0);
   await expect(backup.locator('.cloud-file')).toHaveCount(0);
-  await expect(accounts.getByRole('button', { name: '登录', exact: true })).toBeVisible();
+  const loginButtons = accounts.getByRole('button', { name: '登录', exact: true });
+  await expect(loginButtons).toHaveCount(2);
+  for (const button of await loginButtons.all()) await expect(button).toBeVisible();
 });
 
 test('已登录账户显示展示名，退出登录后凭据文件被真实清空', async () => {

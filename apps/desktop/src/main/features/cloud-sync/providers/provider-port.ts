@@ -74,8 +74,7 @@ export type CloudQuota = {
 /**
  * 服务商适配端口。
  *
- * **这里没有 `remove`**：远端只增不删是已确认的产品决策，端口层面就不给出删除能力，
- * 免得将来某个适配器顺手实现一个 delete 出来。
+ * 备份只上传新归档；remove 仅供作者明确确认的批量删除使用，自动备份不调用它。
  */
 export type CloudProviderAdapter = {
   id: CloudProvider;
