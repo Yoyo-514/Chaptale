@@ -10,47 +10,46 @@ export async function resolveWithinCwd(cwd: string, target: string): Promise<str
   const resolved = path.resolve(cwd, target);
   const normalizedCwd = path.resolve(cwd);
 
-  if (resolved !== normalizedCwd && !resolved.startsWith(`${normalizedCwd}${path.sep}`)) {
+  if (!isWithinDirectory(normalizedCwd, resolved)) {
     throw new Error(`拒绝访问作品之外的路径：${target}（边界目录：${normalizedCwd}）`);
   }
 
   const [realCwd, realTarget] = await Promise.all([fs.realpath(normalizedCwd), resolveWithRealAncestor(resolved)]);
 
-  if (realTarget !== realCwd && !realTarget.startsWith(`${realCwd}${path.sep}`)) {
+  if (!isWithinDirectory(realCwd, realTarget)) {
     throw new Error(`拒绝访问作品之外的路径（符号链接目标越界）：${target}（边界目录：${normalizedCwd}）`);
   }
 
   return resolved;
 }
 
+/** relative 同时处理根目录尾斜杠与 Windows 盘符大小写，不用字符串前缀猜目录归属。 */
+function isWithinDirectory(root: string, target: string): boolean {
+  const relative = path.relative(root, target);
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
 /** realpath 兜底：目标不存在时逐级向上取最近存在的祖先的真实路径，再拼回剩余段。 */
 async function resolveWithRealAncestor(resolved: string): Promise<string> {
-  try {
-    return await fs.realpath(resolved);
-  } catch {
-    const missing: string[] = [];
-    let probe = resolved;
+  const missing: string[] = [];
+  let probe = resolved;
 
-    for (let depth = 0; depth < 64; depth += 1) {
-      const parent = path.dirname(probe);
-
-      if (parent === probe) {
-        // 已到根目录仍无存在祖先：词法检查已通过，按原路径放行。
-        return resolved;
+  // 每轮都移向父目录，根目录即终点；固定层数会让深路径绕过真实路径校验。
+  while (true) {
+    try {
+      const realProbe = await fs.realpath(probe);
+      if (missing.length && !(await fs.stat(realProbe)).isDirectory()) {
+        throw Object.assign(new Error(`父路径不是目录：${probe}`), { code: 'ENOTDIR' });
       }
-
+      return path.join(realProbe, ...missing.toReversed());
+    } catch (error) {
+      // 权限、链接环和非目录错误不能当作“尚未创建”放行。
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      const parent = path.dirname(probe);
+      if (parent === probe) throw error;
       missing.push(path.basename(probe));
       probe = parent;
-
-      try {
-        const realProbe = await fs.realpath(probe);
-        return path.join(realProbe, ...missing.toReversed());
-      } catch {
-        // 继续向上找存在祖先。
-      }
     }
-
-    return resolved;
   }
 }
 
@@ -78,12 +77,14 @@ export function globToRegExp(pattern: string): RegExp {
 
     if (char === '*') {
       if (pattern[index + 1] === '*') {
-        regex += '.*';
         index += 2;
 
-        // `a/**/b` 同时匹配 `a/b`：吞掉 ** 后紧跟的分隔符。
+        // 目录可以省略，但存在时必须以 / 结束，不能吞掉 b 的文件名前缀。
         if (pattern[index] === '/') {
+          regex += '(?:[^/]+/)*';
           index += 1;
+        } else {
+          regex += '.*';
         }
       } else {
         regex += '[^/]*';

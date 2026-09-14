@@ -42,6 +42,15 @@ describe('globToRegExp', () => {
     expect(mid.test('a/x/y/b.md')).toBe(true);
     expect(mid.test('x/a/b.md')).toBe(false);
   });
+
+  it('**/ 只跨完整目录，不吞掉目标文件名的前缀', () => {
+    const pattern = globToRegExp('chapters/**/draft.md');
+
+    expect(pattern.test('chapters/draft.md')).toBe(true);
+    expect(pattern.test('chapters/part/scene/draft.md')).toBe(true);
+    expect(pattern.test('chapters/old-draft.md')).toBe(false);
+    expect(pattern.test('chapters/part/not-draft.md')).toBe(false);
+  });
 });
 
 describe('isBinaryContent', () => {
@@ -92,5 +101,26 @@ describe('resolveWithinCwd', () => {
     await expect(resolveWithinCwd(path.join(dir, 'ws'), 'new/deep/file.md')).resolves.toBe(
       path.join(dir, 'ws', 'new', 'deep', 'file.md')
     );
+  });
+
+  it('超过 64 层的未创建目录仍检查符号链接边界', async () => {
+    const workspace = path.join(dir, 'ws');
+    const outside = path.join(dir, 'outside');
+    await mkdir(workspace);
+    await mkdir(outside);
+    await symlink(outside, path.join(workspace, 'escape'), 'junction');
+    const target = ['escape', ...Array.from({ length: 70 }, () => 'd'), 'file.md'].join('/');
+
+    await expect(resolveWithinCwd(workspace, target)).rejects.toThrow(/符号链接目标越界/);
+  });
+
+  it('文件系统根目录也能作为边界，不因重复分隔符拒绝子路径', async () => {
+    await expect(resolveWithinCwd(path.parse(dir).root, dir)).resolves.toBe(dir);
+  });
+
+  it('普通文件不能冒充新文件的父目录', async () => {
+    await writeFile(path.join(dir, 'file'), '不是目录');
+
+    await expect(resolveWithinCwd(dir, 'file/child.md')).rejects.toThrow();
   });
 });
