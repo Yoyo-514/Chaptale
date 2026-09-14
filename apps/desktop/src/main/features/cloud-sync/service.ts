@@ -31,6 +31,7 @@ import { CLOUD_PROVIDER_LABELS, CLOUD_PROVIDERS } from '@chaptale/ipc-contract';
 
 import { toWorkspaceSessionDirName } from '../../core/settings/workspace-session-directory';
 import { writeBytesAtomically } from '../../infra/filesystem/atomic-bytes';
+import { resolveWithinCwd } from '../../infra/filesystem/path-guard';
 import { shouldAutoBackup } from './auto-backup';
 import { collectWorkspaceContent, packWorkspace, resolveInside, unpackArchive } from './backup/archive';
 import { checksumFile } from './backup/checksum';
@@ -491,7 +492,7 @@ export class CloudSyncService {
         return { ok: false, code: 'failed', message: '归档里没有这个文件，重新算一次恢复计划' };
       }
 
-      const localPath = resolveInside(workspace.workspace.rootPath, args.relativePath);
+      const localPath = await resolveWithinCwd(workspace.workspace.rootPath, args.relativePath);
       const local = await readFile(localPath).catch(() => null);
 
       // 本地那份已经不在了：这时“冲突”这个前提本身就不成立，让界面重新算计划，
@@ -585,6 +586,10 @@ export class CloudSyncService {
 
       const snapshotId = await this.createGuard(workspace.workspace.rootPath);
       const content = await readArchiveContent(archivePath);
+      // 覆盖前检查全部目标，不能让归档经作品内的目录链接写到作品之外。
+      for (const relativePath of [...content.files.map(file => file.relativePath), ...content.directories]) {
+        await resolveWithinCwd(workspace.workspace.rootPath, relativePath);
+      }
       const writtenPaths: string[] = [];
       const skipped: CloudRestoreSkip[] = [];
 
@@ -592,7 +597,10 @@ export class CloudSyncService {
         // **只写归档里有的文件**：本地独有的一个都不删——
         // 否则“恢复到旧版本”会顺手抹掉快照之外新写的章节。
         for (const file of content.files) {
-          await writeBytesAtomically(resolveInside(workspace.workspace.rootPath, file.relativePath), file.data);
+          await writeBytesAtomically(
+            await resolveWithinCwd(workspace.workspace.rootPath, file.relativePath),
+            file.data
+          );
           writtenPaths.push(file.relativePath);
         }
       } else {
@@ -604,7 +612,7 @@ export class CloudSyncService {
 
       // 空目录：文件路径建不出它们，得单独建。
       for (const directory of content.directories) {
-        await mkdir(resolveInside(workspace.workspace.rootPath, directory), { recursive: true });
+        await mkdir(await resolveWithinCwd(workspace.workspace.rootPath, directory), { recursive: true });
       }
 
       return {
@@ -671,7 +679,7 @@ export class CloudSyncService {
         // 两个都留：本地那份改名留档，原路径让给归档版本。
         if (choice === 'both') {
           await rename(
-            resolveInside(rootPath, entry.relativePath),
+            await resolveWithinCwd(rootPath, entry.relativePath),
             await this.conflictCopyPath(rootPath, entry.relativePath, at)
           );
         }
@@ -683,7 +691,7 @@ export class CloudSyncService {
         throw new Error(`归档内容与清单不一致：${entry.relativePath}`);
       }
 
-      await writeBytesAtomically(resolveInside(rootPath, entry.relativePath), bytes);
+      await writeBytesAtomically(await resolveWithinCwd(rootPath, entry.relativePath), bytes);
       writtenPaths.push(entry.relativePath);
     }
 

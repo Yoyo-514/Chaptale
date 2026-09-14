@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -128,6 +128,22 @@ describe('恢复计划', () => {
 });
 
 describe('原地覆盖', () => {
+  it('目录链接不能让覆盖恢复写到作品之外', async () => {
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
+    const outside = path.join(dir, 'outside');
+    await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '本地版本\n' });
+    await writeTree(outside, { '秘密.md': '外部原文\n' });
+    await symlink(outside, path.join(workspace, '链接'), process.platform === 'win32' ? 'junction' : 'dir');
+    await seedArchive(put, { '正文.md': '归档版本\n', '链接/秘密.md': '归档内容\n' });
+
+    const result = await instance.applyRestore({ archiveId: 'archive.zip', mode: 'overwrite' });
+
+    expect(result.ok).toBe(false);
+    expect(result.ok ? '' : result.message).toContain('符号链接目标越界');
+    expect(await readFile(path.join(workspace, '正文.md'), 'utf8')).toBe('本地版本\n');
+    expect(await readFile(path.join(outside, '秘密.md'), 'utf8')).toBe('外部原文\n');
+  });
+
   it('只写归档里有的文件，本地独有的保留', async () => {
     const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
 

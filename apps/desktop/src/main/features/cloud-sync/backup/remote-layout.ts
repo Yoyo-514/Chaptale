@@ -28,19 +28,31 @@ export function serializeMarker(marker: BackupMarker): string {
 }
 
 export function parseMarker(text: string): BackupMarker | null {
-  let parsed: Partial<BackupMarker>;
+  let parsed: unknown;
 
   try {
-    parsed = JSON.parse(text) as Partial<BackupMarker>;
+    parsed = JSON.parse(text);
   } catch {
     return null;
   }
 
-  if (parsed.version !== 1 || typeof parsed.workspaceId !== 'string' || !parsed.workspaceId) {
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !('version' in parsed) ||
+    parsed.version !== 1 ||
+    !('workspaceId' in parsed) ||
+    typeof parsed.workspaceId !== 'string' ||
+    !parsed.workspaceId
+  ) {
     return null;
   }
 
-  return { version: 1, workspaceId: parsed.workspaceId, title: typeof parsed.title === 'string' ? parsed.title : '' };
+  return {
+    version: 1,
+    workspaceId: parsed.workspaceId,
+    title: 'title' in parsed && typeof parsed.title === 'string' ? parsed.title : ''
+  };
 }
 
 /**

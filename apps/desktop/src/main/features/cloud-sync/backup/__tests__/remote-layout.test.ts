@@ -39,7 +39,17 @@ describe('远端布局', () => {
 
     expect(parseMarker(serializeMarker(marker))).toEqual(marker);
 
-    for (const broken of ['', '{}', 'not json', '{"version":2,"workspaceId":"w"}', '{"version":1,"workspaceId":""}']) {
+    for (const broken of [
+      '',
+      '{}',
+      'null',
+      '[]',
+      '1',
+      '"text"',
+      'not json',
+      '{"version":2,"workspaceId":"w"}',
+      '{"version":1,"workspaceId":""}'
+    ]) {
       expect(parseMarker(broken)).toBeNull();
     }
   });

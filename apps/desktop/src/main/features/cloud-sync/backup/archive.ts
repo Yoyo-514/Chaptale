@@ -1,9 +1,12 @@
-import { unzipSync, Zip, ZipDeflate, ZipPassThrough } from 'fflate';
+import { Zip, ZipDeflate, ZipPassThrough } from 'fflate';
 import { createWriteStream } from 'node:fs';
 import type { WriteStream } from 'node:fs';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { finished } from 'node:stream/promises';
+
+import { resolveWithinCwd } from '../../../infra/filesystem/path-guard';
+import { readArchiveEntries, validateArchivePath } from './archive-reader';
 
 /**
  * 归档打包与解包。
@@ -78,6 +81,9 @@ export async function packWorkspace(input: {
 }): Promise<{ files: number; bytes: number }> {
   const content = await collectWorkspaceContent(input.rootPath, input.signal);
   const output = createWriteStream(input.targetPath);
+  // 立即监听打开/写入错误，不能等 output.end 后才处理异步 error 事件。
+  const completion = finished(output);
+  void completion.catch(() => undefined);
   const chunks: Uint8Array[] = [];
   // 用持有对象而不是裸变量：回调里的赋值不受 TypeScript 控制流分析追踪，
   // 裸变量会在后续判断处被窄化成 null。
@@ -92,6 +98,7 @@ export async function packWorkspace(input: {
   });
 
   const flush = async () => {
+    if (output.errored) throw output.errored;
     while (chunks.length > 0) {
       const chunk = chunks.shift() as Uint8Array;
 
@@ -134,9 +141,10 @@ export async function packWorkspace(input: {
 
     await flush();
     output.end();
-    await finished(output);
+    await completion;
   } catch (error) {
     output.destroy();
+    await completion.catch(() => undefined);
 
     throw error;
   }
@@ -150,15 +158,19 @@ export async function unpackArchive(input: {
   onProgress?: ArchiveProgress;
   signal?: AbortSignal;
 }): Promise<{ files: number; bytes: number }> {
-  const entries = unzipSync(new Uint8Array(await readFile(input.archivePath)));
+  const entries = await readArchiveEntries(input.archivePath);
   const names = Object.keys(entries).toSorted();
   let files = 0;
   let bytes = 0;
 
+  await mkdir(input.targetPath, { recursive: true });
+  // 整包预检后再写；晚出现的越界条目不能让前面的正文先被覆盖。
+  for (const name of names) await resolveWithinCwd(input.targetPath, name);
+
   for (const [index, name] of names.entries()) {
     if (input.signal?.aborted) throw new Error('恢复已取消');
 
-    const target = resolveInside(input.targetPath, name);
+    const target = await resolveWithinCwd(input.targetPath, name);
 
     // 目录条目是空载荷；建出目录本身，不把它当成一个文件。
     if (name.endsWith('/')) {
@@ -184,9 +196,11 @@ export async function unpackArchive(input: {
  * 归档虽然由本应用生成，但远端文件是可被别人替换的——恢复侧不能假设来源可信。
  */
 export function resolveInside(rootPath: string, relativePath: string): string {
+  validateArchivePath(relativePath);
   const base = path.resolve(rootPath);
-  const target = path.resolve(base, relativePath.replace(/^[/\\]+/, ''));
-  const inside = target === base || target.startsWith(base + path.sep);
+  const target = path.resolve(base, relativePath);
+  const relative = path.relative(base, target);
+  const inside = relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 
   if (!inside) {
     throw new Error(`归档条目越出目标目录：${relativePath}`);

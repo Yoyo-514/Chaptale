@@ -1,9 +1,7 @@
-import { unzipSync } from 'fflate';
-import { readFile } from 'node:fs/promises';
-
 import { ChaptaleManifestValidator } from '@chaptale/shared';
 
 import type { FileIdentity } from '../file-identity';
+import { readArchiveEntries } from './archive-reader';
 import { checksum } from './checksum';
 
 /** 作品清单的文件名：归档里那份就是“这部作品是谁”的自证。 */
@@ -49,7 +47,7 @@ export function manifestOf(content: ArchiveContent): ArchiveManifest {
 
 /** 整包解出（写盘与比对用）：与 `unpackArchive` 是同一份预算，区别只在“写到哪里”由调用方决定。 */
 export async function readArchiveContent(archivePath: string): Promise<ArchiveContent> {
-  const entries = unzipSync(new Uint8Array(await readFile(archivePath)));
+  const entries = await readArchiveEntries(archivePath);
   const files: ArchiveContent['files'] = [];
   const directories: string[] = [];
 
@@ -64,9 +62,7 @@ export async function readArchiveContent(archivePath: string): Promise<ArchiveCo
 
 /** 只解一个条目：看某一项的正文时，不需要把整包展开。 */
 export async function readArchiveEntry(archivePath: string, relativePath: string): Promise<Uint8Array | null> {
-  const entries = unzipSync(new Uint8Array(await readFile(archivePath)), {
-    filter: info => info.name === relativePath
-  });
+  const entries = await readArchiveEntries(archivePath, relativePath);
 
   return entries[relativePath] ?? null;
 }
@@ -80,6 +76,15 @@ export async function readArchiveEntry(archivePath: string, relativePath: string
 export async function parseWorkspaceIdentity(archivePath: string): Promise<string | null> {
   const bytes = await readArchiveEntry(archivePath, WORKSPACE_MANIFEST_FILE);
 
+  return parseIdentity(bytes);
+}
+
+/** 已解压的恢复内容直接复用，避免为身份核验再解压同一份 ZIP。 */
+export function workspaceIdentityOf(content: ArchiveContent): string | null {
+  return parseIdentity(content.files.find(file => file.relativePath === WORKSPACE_MANIFEST_FILE)?.data ?? null);
+}
+
+function parseIdentity(bytes: Uint8Array | null): string | null {
   if (!bytes) {
     return null;
   }

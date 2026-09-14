@@ -1,4 +1,4 @@
-import { unzipSync } from 'fflate';
+import { unzipSync, zipSync } from 'fflate';
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -121,9 +121,44 @@ describe('作品归档', () => {
     const root = path.join(dir, 'target');
 
     expect(resolveInside(root, 'a/b.md')).toBe(path.join(root, 'a', 'b.md'));
-    // 前导斜杠被剥掉后落回目标目录内，而不是当成绝对路径写到盘根。
-    expect(resolveInside(root, '/abs.md')).toBe(path.join(root, 'abs.md'));
+    expect(() => resolveInside(root, '/abs.md')).toThrow('归档条目');
     expect(() => resolveInside(root, '../escape.md')).toThrow('越出目标目录');
     expect(() => resolveInside(root, 'a/../../escape.md')).toThrow('越出目标目录');
   });
+
+  it('归档包含非法条目时，在任何正文写入前拒绝整包', async () => {
+    const target = await seedWorkspace();
+    const archivePath = path.join(dir, 'malicious.zip');
+    await writeFile(
+      archivePath,
+      zipSync({
+        '正文.md': new TextEncoder().encode('不应覆盖'),
+        '../escape.md': new TextEncoder().encode('不应写入')
+      })
+    );
+
+    await expect(unpackArchive({ archivePath, targetPath: target })).rejects.toThrow('归档条目');
+    expect(await readFile(path.join(target, '正文.md'), 'utf8')).toBe('# 一\n\n正文内容。\n');
+    await expect(readFile(path.join(dir, 'escape.md'))).rejects.toThrow();
+  });
+
+  it('恢复目标含目录链接时，不沿链接覆盖作品外的文件', async () => {
+    const workspace = await seedWorkspace();
+    const outside = path.join(dir, 'outside');
+    const archivePath = path.join(dir, 'linked.zip');
+    await mkdir(outside);
+    await writeFile(path.join(outside, 'secret.md'), '外部原文');
+    await symlink(outside, path.join(workspace, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');
+    await writeFile(archivePath, zipSync({ 'linked/secret.md': new TextEncoder().encode('归档原文') }));
+
+    await expect(unpackArchive({ archivePath, targetPath: workspace })).rejects.toThrow('符号链接目标越界');
+    expect(await readFile(path.join(outside, 'secret.md'), 'utf8')).toBe('外部原文');
+  });
+
+  it.each(['C:/outside.md', 'file.md:stream', 'a\\..\\outside.md', './draft.md'])(
+    '拒绝不规范或 Windows 特殊路径 %s',
+    entry => {
+      expect(() => resolveInside(path.join(dir, 'target'), entry)).toThrow('归档条目');
+    }
+  );
 });
