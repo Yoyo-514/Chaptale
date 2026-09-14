@@ -3,6 +3,7 @@ import { toRaw } from 'vue';
 
 import type {
   CloudBackupArchive,
+  CloudBackupFailure,
   CloudBackupProgress,
   CloudBinding,
   CloudProvider,
@@ -59,6 +60,8 @@ export const useCloudSyncStore = defineStore('cloudSync', {
     bindingError: '',
     /** 本机上次成功备份时间（ISO）；从没在本机备过就是空串。 */
     lastBackupAt: '',
+    /** 自动备份最近一次失败；自动备份是静默的，不把它摆出来就等于没发生过。 */
+    lastBackupError: null as CloudBackupFailure | null,
     archives: [] as CloudBackupArchive[],
     quota: null as CloudQuota | null,
     isBackupLoading: false,
@@ -77,7 +80,7 @@ export const useCloudSyncStore = defineStore('cloudSync', {
     /** 状态还没读到就按空处理：界面不必到处写 `state?.`。 */
     availability: state => state.state?.availability ?? [],
     accounts: state => state.state?.accounts ?? [],
-    /** 进度文案只写一处：状态栏、设置面板与同步面板说的是同一句话。 */
+    /** 进度文案只写一处：状态栏与设置面板说的是同一句话。 */
     progressLabel: state => {
       const progress = state.progress;
 
@@ -209,12 +212,14 @@ export const useCloudSyncStore = defineStore('cloudSync', {
 
         this.binding = result.ok ? result.binding : null;
         this.lastBackupAt = result.ok ? (result.lastBackupAt ?? '') : '';
+        this.lastBackupError = result.ok ? result.lastBackupError : null;
         // “没绑定”是正常状态；其他失败（没打开作品、作品缺清单）要留原因给界面说清楚。
         this.bindingError =
           !result.ok && result.code !== 'no-binding' && result.code !== 'no-workspace' ? result.message : '';
       } catch {
         this.binding = null;
         this.lastBackupAt = '';
+        this.lastBackupError = null;
         this.bindingError = '';
       }
     },
@@ -241,6 +246,7 @@ export const useCloudSyncStore = defineStore('cloudSync', {
         this.binding = result.binding;
         this.archives = result.archives;
         this.quota = result.quota;
+        this.lastBackupError = result.lastBackupError;
       } catch (error) {
         this.backupError = toErrorMessage(error);
       } finally {
@@ -459,7 +465,7 @@ export const useCloudSyncStore = defineStore('cloudSync', {
 
       if (ids.length > 0) await editor.refreshDocuments(ids);
     },
-    /** 只由界面上显式确认的删除调用；同步链路不走这条路径。 */
+    /** 只由界面上显式确认的删除调用；没有任何自动路径会走到这里。 */
     async removeBackup(archiveId: string) {
       this.backupError = '';
       this.notice = '';
@@ -497,4 +503,19 @@ export function formatWhen(value: string): string {
   const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
   return at.toDateString() === new Date().toDateString() ? time : `${at.getMonth() + 1}月${at.getDate()}日 ${time}`;
+}
+
+/**
+ * 把自动备份的间隔翻成人话。
+ *
+ * 1440 分钟到底是多久不该让作者自己除：设置里填的是分钟（能精确到分钟），
+ * 而“每天一次”才是他脑子里想的那个东西。
+ */
+export function describeBackupInterval(minutes: number): string {
+  if (minutes < 60) return `每 ${minutes} 分钟一次`;
+  if (minutes % 1440 === 0) return minutes === 1440 ? '每天一次' : `每 ${minutes / 1440} 天一次`;
+  if (minutes % 60 === 0) return `每 ${minutes / 60} 小时一次`;
+
+  // 不是整小时也不是整天：老实说成分钟，不假装成“约一小时”。
+  return `每 ${minutes} 分钟一次`;
 }

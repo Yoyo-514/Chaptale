@@ -28,6 +28,19 @@ export function isChaptaleTheme(value: unknown): value is ChaptaleTheme {
   return typeof value === 'string' && Object.hasOwn(THEME_VALUES, value);
 }
 
+/**
+ * 云端备份的自动节奏。
+ *
+ * 间隔是唯一的节奏参数：判断只看“距上次成功备份够不够这个分钟数”，
+ * 所以自动备份每天最多一回是它自然的结果，不需要另设一道封顶。
+ */
+export type ChaptaleBackupSettings = {
+  /** 自动备份开关。 */
+  auto: boolean;
+  /** 两次自动备份之间的最短间隔（分钟）；默认 1440 = 每日一次。 */
+  intervalMinutes: number;
+};
+
 /** 当前打开的作品；没有打开作品时 path 缺省，此时既没有会话目录也不能聊天。 */
 export type ChaptaleWorkspaceSettings = {
   path?: string;
@@ -69,6 +82,13 @@ export type ChaptaleSettings = {
   /** 资源管理器偏好；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
   explorer: ChaptaleExplorerSettings;
   editor?: { autoSave: boolean };
+  /**
+   * 云端备份的自动节奏；缺省由主进程补齐，Renderer 拿到的一定是确定值。
+   *
+   * 默认**开启**且每日一次：真正能跑还要已登录 + 已绑定，所以“默认开”不会自己往外传东西，
+   * 而“忘了备”的代价是手稿丢失。
+   */
+  backup: ChaptaleBackupSettings;
   onboarding?: { completedVersion: number };
   /** 界面主题；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
   theme: ChaptaleTheme;

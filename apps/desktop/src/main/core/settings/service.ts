@@ -138,6 +138,10 @@ export class SettingsService {
           ...payload.explorer
         },
         editor: { autoSave: payload.editor?.autoSave ?? current.editor?.autoSave ?? false },
+        backup: {
+          ...current.backup,
+          ...payload.backup
+        },
         onboarding: {
           completedVersion: payload.onboarding?.completedVersion ?? current.onboarding?.completedVersion ?? 0
         },

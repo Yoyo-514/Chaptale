@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import { ChaptaleManifestValidator } from '@chaptale/shared';
 
+import type { FileIdentity } from '../file-identity';
 import { checksum } from './checksum';
 
 /** 作品清单的文件名：归档里那份就是“这部作品是谁”的自证。 */
@@ -17,12 +18,7 @@ export const WORKSPACE_MANIFEST_FILE = 'chaptale.json';
  *
  * 远端文件是别人可以替换的，所以这里对来源不做任何假设：读不出来的归档就是错误，不是空归档。
  */
-export type ArchiveManifestFile = {
-  /** 归档内路径，正斜杠、无前导斜杠。 */
-  relativePath: string;
-  bytes: number;
-  digest: string;
-};
+export type ArchiveManifestFile = FileIdentity;
 
 export type ArchiveManifest = {
   files: ArchiveManifestFile[];

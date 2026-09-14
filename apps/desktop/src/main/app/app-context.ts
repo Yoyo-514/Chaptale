@@ -10,6 +10,7 @@ import { createDefaultToolCatalog } from '../core/tool-protocol/catalog';
 import { createChatRuntimeBundle } from '../features/agent/chat-bundle';
 import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
+import { createAutoBackupScheduler } from '../features/cloud-sync/auto-backup';
 import { createCloudProviderAdapters } from '../features/cloud-sync/providers/registry';
 import { CloudSyncService } from '../features/cloud-sync/service';
 import { CloudSyncStore } from '../features/cloud-sync/store';
@@ -89,6 +90,8 @@ export type AppContext = {
   permissionBroker: PermissionBroker;
   permissionRuleStore: PermissionRuleStore;
   cloudSyncService: CloudSyncService;
+  /** 自动备份心跳；由 `bootstrap` 在应用就绪后启动，退出时停下。 */
+  autoBackupScheduler: { start: () => void; stop: () => void };
   /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
   getPermissionSettingsCwd: () => Promise<string | null>;
   /** Pending 面板只按 UI 当前 workspace 拉取，避免复用会话工具闭包 cwd。 */
@@ -138,7 +141,13 @@ export function createAppContext(): AppContext {
         title: layout.layout.manifest.title
       };
     },
-    cacheRoot: path.join(settingsService.rootDir, 'cache')
+    cacheRoot: path.join(settingsService.rootDir, 'cache'),
+    readBackupPreferences: async () => (await settingsService.readSettings()).backup
+  });
+
+  // 自动备份的心跳：只负责“按分钟敲一下”，“该不该备”由服务里的纯判断决定。
+  const autoBackupScheduler = createAutoBackupScheduler({
+    tick: now => cloudSyncService.autoBackupTick(now)
   });
 
   // 内置 skills 先于任何会话创建物化到磁盘；失败只影响内置 skills 可用性，不阻塞启动。
@@ -325,6 +334,7 @@ export function createAppContext(): AppContext {
     permissionBroker,
     permissionRuleStore,
     cloudSyncService,
+    autoBackupScheduler,
     getPermissionSettingsCwd: appStateCwd,
     getMemoryPendingCwd: appStateCwd
   };

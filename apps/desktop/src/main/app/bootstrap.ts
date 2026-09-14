@@ -30,10 +30,13 @@ export function bootstrapDesktopApp(): void {
 
     const context = createAppContext();
     app.on('will-quit', () => {
+      context.autoBackupScheduler.stop();
       void context.workspaceService.dispose();
       void context.indexService.dispose();
     });
     registerApplicationIpc(context);
+    // 心跳在窗口建好之前就可以跑：第一拍要等一分钟，而那时作品与登录状态都已经落定。
+    context.autoBackupScheduler.start();
     // 主题要在建窗口之前读到：backgroundColor 决定首帧之前那一瞬露出的底色，
     // 建完再改就已经闪过去了。
     const { theme } = await context.settingsService.readSettings();

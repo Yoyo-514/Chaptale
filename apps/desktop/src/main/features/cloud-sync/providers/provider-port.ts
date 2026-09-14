@@ -108,8 +108,8 @@ export type CloudProviderAdapter = {
   /**
    * 删除一个远端文件。
    *
-   * **只服务于作者显式确认的清理动作**（删掉某个云备份）。「远端只增不删」约束的是自动同步链路，
-   * 不是作者的手动清理——但 S3 的同步引擎不得调用这个方法。
+   * **只服务于作者显式确认的清理动作**（删掉某个云备份）。应用不做任何自动清理，
+   * 所以这个方法只有一个人口：作者在面板上勾选并二次确认过的那一次。
    */
   remove(input: { credential: CloudCredential; entryId: string; signal?: AbortSignal }): Promise<void>;
 };

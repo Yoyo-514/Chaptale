@@ -63,8 +63,10 @@ vi.mock('electron', () => ({
 
 vi.mock('../app-context', () => ({
   // 建窗口前要先读到主题（决定首帧之前那一瞬的窗口底色），替身得给得出这一步。
+  // 自动备份心跳也要给：它在建窗口之前启动，缺了这个成员后面就都不会跑。
   createAppContext: vi.fn(() => ({
-    settingsService: { readSettings: vi.fn(async () => ({ theme: 'dark' })) }
+    settingsService: { readSettings: vi.fn(async () => ({ theme: 'dark' })) },
+    autoBackupScheduler: { start: vi.fn(), stop: vi.fn() }
   }))
 }));
 

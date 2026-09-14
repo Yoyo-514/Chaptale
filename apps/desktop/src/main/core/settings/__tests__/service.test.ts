@@ -210,6 +210,7 @@ describe('SettingsService', () => {
       workspace: {},
       explorer: { showInternalFiles: false },
       editor: { autoSave: false },
+      backup: { auto: true, intervalMinutes: 1440 },
       onboarding: { completedVersion: 0 },
       theme: 'dark'
     });

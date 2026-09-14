@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { compareRestore, type PlanSide } from '../restore-plan';
+import type { FileIdentity } from '../../file-identity';
+import { compareRestore } from '../restore-plan';
 
-function side(relativePath: string, digest: string, bytes: number): PlanSide {
+function side(relativePath: string, digest: string, bytes: number): FileIdentity {
   return { relativePath, bytes, digest };
 }
 

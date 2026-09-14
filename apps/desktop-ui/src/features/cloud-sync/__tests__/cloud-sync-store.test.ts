@@ -5,7 +5,7 @@ import type { CloudAccount, CloudBackupArchive, CloudBinding, CloudSyncState } f
 
 import { useEditorStore } from '@/features/editor';
 
-import { formatSize, formatWhen, useCloudSyncStore } from '../store';
+import { describeBackupInterval, formatSize, formatWhen, useCloudSyncStore } from '../store';
 
 type CloudSyncApi = NonNullable<typeof window.chaptaleDesktop>['cloudSync'];
 
@@ -441,6 +441,58 @@ describe('云同步 store', () => {
 
     expect(store.binding).toBeNull();
     expect(store.bindingError).toContain('chaptale.json');
+  });
+  it('自动备份的失败记录跟着绑定一起下来，并在下一次刷新时被清掉', async () => {
+    const failure = { at: '2026-09-14T22:00:00.000Z', message: '网络断了' };
+
+    installApi({
+      getBinding: vi.fn().mockResolvedValue({
+        ok: true,
+        binding,
+        lastBackupAt: '2026-09-13T21:04:05.000Z',
+        lastBackupError: failure
+      }),
+      listBackups: vi
+        .fn()
+        .mockResolvedValue({ ok: true, binding, archives: [archive], quota: null, lastBackupError: failure })
+    });
+
+    const store = useCloudSyncStore();
+
+    await store.loadBinding();
+
+    expect(store.lastBackupError).toEqual(failure);
+    expect(store.lastBackupAt).toBe('2026-09-13T21:04:05.000Z');
+
+    // 下一次成功之后主进程会把这条记录清掉，界面得跟着回到“没有失败”。
+    installApi({
+      getBinding: vi.fn().mockResolvedValue({
+        ok: true,
+        binding,
+        lastBackupAt: '2026-09-15T08:00:00.000Z',
+        lastBackupError: null
+      }),
+      listBackups: vi.fn().mockResolvedValue({
+        ok: true,
+        binding,
+        archives: [archive],
+        quota: null,
+        lastBackupError: null
+      })
+    });
+
+    await store.loadBinding();
+
+    expect(store.lastBackupError).toBeNull();
+  });
+  it('间隔文案把分钟数翻成人话：1440 是“每天一次”，而不是一个待除的数', () => {
+    expect(describeBackupInterval(30)).toBe('每 30 分钟一次');
+    expect(describeBackupInterval(45)).toBe('每 45 分钟一次');
+    expect(describeBackupInterval(60)).toBe('每 1 小时一次');
+    expect(describeBackupInterval(360)).toBe('每 6 小时一次');
+    expect(describeBackupInterval(1440)).toBe('每天一次');
+    expect(describeBackupInterval(2880)).toBe('每 2 天一次');
+    expect(describeBackupInterval(43_200)).toBe('每 30 天一次');
   });
   it('尺寸与时间文案在几个量级上都可读', () => {
     expect(formatSize(512)).toBe('512 B');

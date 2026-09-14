@@ -65,10 +65,10 @@ export function timestamp(at: Date): string {
 /**
  * 冲突副本名：`<名字> (冲突副本 <时间戳>)<后缀>`。
  *
+ * 恢复要覆写或合并本地文件时，先把本地那份按这个名字留档，作者随时能找回原稿。
  * 词汇与 `features/search/index/source-scanner.ts::isConflictCopy` 一致（`冲突副本`），
- * 所以索引与后续的同步引擎会把留档的这份当副本认出来。
- * 造名字在这里、识别在那边：为了一个字符串去引一条 `cloud-sync -> search` 的跨 feature 边
- * 不值当（S3 只需要造，识别是 S4 的事）。
+ * 所以索引会把留档的这份当副本认出来。
+ * 造名字在这里、识别在那边：为了一个字符串去引一条 `cloud-sync -> search` 的跨 feature 边不值当。
  */
 export function conflictCopyName(relativePath: string, at: Date): string {
   const extension = path.extname(relativePath);
@@ -77,7 +77,7 @@ export function conflictCopyName(relativePath: string, at: Date): string {
   return `${base} (冲突副本 ${timestamp(at)})${extension}`;
 }
 
-/** 本机设备名。备份命名、将来的同步游标与软锁共用同一个身份。 */
+/** 本机设备名：进备份文件名，用来分辨“哪台机器备的”。 */
 export function deviceName(): string {
   return sanitizeName(os.hostname() || '未命名设备');
 }

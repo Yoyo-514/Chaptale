@@ -1,7 +1,7 @@
 import { klona } from 'klona';
 
 import type { ChaptaleSettings, UpdateWebToolsSettingsPayload, WebToolsSettings } from '@chaptale/ipc-contract';
-import { isChaptaleTheme } from '@chaptale/ipc-contract';
+import { AUTO_BACKUP_INTERVAL_MINUTES, isChaptaleTheme } from '@chaptale/ipc-contract';
 
 export const SETTINGS_VERSION = 1;
 
@@ -21,6 +21,9 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
     showInternalFiles: false
   },
   editor: { autoSave: false },
+  // 自动备份默认开：备份是防丢的，默认关等于把“忘了备”留给作者；
+  // 它又必须登录 + 绑定才跑得动，所以默认开不会往任何地方传东西。
+  backup: { auto: true, intervalMinutes: AUTO_BACKUP_INTERVAL_MINUTES.default },
   onboarding: { completedVersion: 0 },
   // 与 Renderer 的 index.html 上那个静态主题类必须一致：
   // 两者不一致时每次冷启动都会先画一帧再跳色。
@@ -55,6 +58,11 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
         : {})
     },
     editor: { autoSave: value?.editor?.autoSave === true },
+    backup: {
+      // 只有显式写成 false 才算关：手改过的配置里出现 "false"、0 这类值时，按默认（开）处理。
+      auto: value?.backup?.auto !== false,
+      intervalMinutes: sanitizeBackupInterval(value?.backup?.intervalMinutes)
+    },
     onboarding: {
       completedVersion:
         typeof value?.onboarding?.completedVersion === 'number' &&
@@ -72,6 +80,20 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
       : {}),
     ...(Object.keys(lastSessions).length > 0 ? { lastSessions } : {})
   };
+}
+
+/**
+ * 清洗自动备份间隔：只认边界内的整数分钟，其余（缺省、越界、小数、手改的字符串）回落默认。
+ *
+ * 不夹取而是回落：手改坏了就该看默认值，而不是被静默改成一个作者没写过的数。
+ */
+function sanitizeBackupInterval(value: unknown): number {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= AUTO_BACKUP_INTERVAL_MINUTES.min &&
+    value <= AUTO_BACKUP_INTERVAL_MINUTES.max
+    ? value
+    : AUTO_BACKUP_INTERVAL_MINUTES.default;
 }
 
 /** 清洗作品槽位：仅保留作品路径到非空会话 id 的映射。 */

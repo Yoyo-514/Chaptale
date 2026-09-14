@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
-import { CLOUD_PROVIDER_LABELS, type CloudProvider } from '@chaptale/ipc-contract';
+import { CLOUD_PROVIDER_LABELS, AUTO_BACKUP_INTERVAL_MINUTES, type CloudProvider } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
+import { AppCheckbox } from '@/components/AppCheckbox';
+import { AppNumberInput } from '@/components/AppNumberInput';
 import { SettingsSectionView as SettingsSection } from '@/features/settings';
+import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import RestoreWizard from './RestoreWizard.vue';
-import { formatSize, formatWhen, useCloudSyncStore } from './store';
+import { describeBackupInterval, formatSize, formatWhen, useCloudSyncStore } from './store';
 
 const cloud = useCloudSyncStore();
+const settings = useSettingsStore();
 const pendingRemoval = ref('');
 let unsubscribe: (() => void) | undefined;
 
@@ -41,6 +45,26 @@ const quotaLabel = computed(() =>
   cloud.quota
     ? `云端占用 ${formatSize(cloud.quota.usedBytes)} / ${formatSize(cloud.quota.totalBytes)}`
     : '云端配额：服务商未提供'
+);
+
+/**
+ * 自动备份的两个字段直接落设置，不做草稿：和编辑器那个「自动保存」开关同一形状，
+ * 拨一下就该算数——它不涉及需要一次性校验的一批字段。
+ */
+const autoBackupEnabled = computed({
+  get: () => settings.state?.settings.backup?.auto ?? true,
+  set: (value: boolean) => void settings.update({ backup: { auto: value } })
+});
+
+const autoBackupInterval = computed({
+  get: () => settings.state?.settings.backup?.intervalMinutes ?? AUTO_BACKUP_INTERVAL_MINUTES.default,
+  set: (value: number | undefined) =>
+    void settings.update({ backup: { intervalMinutes: value ?? AUTO_BACKUP_INTERVAL_MINUTES.default } })
+});
+
+const intervalLabel = computed(() => describeBackupInterval(autoBackupInterval.value));
+const lastBackupLabel = computed(() =>
+  cloud.lastBackupAt ? `本机上次备份 ${formatWhen(cloud.lastBackupAt)}` : '本机还没备份过'
 );
 
 onMounted(() => {
@@ -231,6 +255,32 @@ function formatTime(value: string): string {
           </p>
           <p class="cloud-muted">{{ quotaLabel }}</p>
 
+          <div class="cloud-auto">
+            <label class="cloud-auto-row">
+              <AppCheckbox v-model="autoBackupEnabled" aria-label="自动备份" />
+              <span>自动备份</span>
+            </label>
+            <div class="cloud-auto-row">
+              <span>每隔</span>
+              <AppNumberInput
+                v-model="autoBackupInterval"
+                class="cloud-auto-interval"
+                :min="AUTO_BACKUP_INTERVAL_MINUTES.min"
+                :max="AUTO_BACKUP_INTERVAL_MINUTES.max"
+                :disabled="!autoBackupEnabled"
+                aria-label="自动备份间隔（分钟）"
+              />
+              <span>分钟 · {{ intervalLabel }}</span>
+            </div>
+            <p class="cloud-muted">
+              自动备份只在应用开着、且打开的就是这部作品时执行；到点时正在备份或恢复就跳过这一回。
+              {{ lastBackupLabel }}。
+            </p>
+            <p v-if="cloud.lastBackupError" class="cloud-error" role="alert">
+              上次自动备份失败：{{ cloud.lastBackupError.message }}（{{ formatWhen(cloud.lastBackupError.at) }}）
+            </p>
+          </div>
+
           <p v-if="!cloud.archives.length" class="cloud-muted">云端还没有归档。点「立即备份」把当前作品打一份上去。</p>
           <ul v-else class="cloud-files">
             <li v-for="item in cloud.archives" :key="item.id" class="cloud-file">
@@ -404,6 +454,19 @@ h4 {
 
 .cloud-folder {
   @apply h-auto min-h-8 w-full min-w-0 justify-start gap-2 px-1 py-1 text-left;
+}
+
+.cloud-auto {
+  @apply grid gap-1 border-t pt-2;
+  border-color: var(--border-subtle);
+}
+
+.cloud-auto-row {
+  @apply flex items-center gap-2;
+}
+
+.cloud-auto-interval {
+  width: 6.5rem;
 }
 
 @media (max-width: 640px) {

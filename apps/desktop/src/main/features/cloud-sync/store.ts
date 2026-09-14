@@ -32,6 +32,8 @@ export type CloudSyncFile = {
  */
 export type StoredCloudBinding = CloudBinding & {
   lastBackupAt?: string;
+  /** 自动备份最近一次失败的记录；成功一次就清掉（见契约里的 `CloudBackupFailure`）。 */
+  lastBackupError?: { at: string; message: string };
 };
 
 const FILE_VERSION = 1;
@@ -99,16 +101,25 @@ export class CloudSyncStore {
     return this.enqueue(async () => (await this.readUnsafe()).bindings[workspacePath] ?? null);
   }
 
-  /** 重新绑到同一个目录时保留原有的备份时间；换目录则清掉——那个时间不属于新位置。 */
+  /** 重新绑到同一个目录时保留原有的备份时间与失败记录；换目录则清掉——那些不属于新位置。 */
   async saveBinding(workspacePath: string, binding: CloudBinding): Promise<void> {
     await this.enqueue(async () => {
       const file = await this.readUnsafe();
       const previous = file.bindings[workspacePath];
-      const kept = previous && previous.folderId === binding.folderId ? previous.lastBackupAt : undefined;
+      const sameFolder = Boolean(previous && previous.folderId === binding.folderId);
+      const keptAt = sameFolder ? previous?.lastBackupAt : undefined;
+      const keptError = sameFolder ? previous?.lastBackupError : undefined;
 
       await this.writeUnsafe({
         ...file,
-        bindings: { ...file.bindings, [workspacePath]: { ...binding, ...(kept ? { lastBackupAt: kept } : {}) } }
+        bindings: {
+          ...file.bindings,
+          [workspacePath]: {
+            ...binding,
+            ...(keptAt ? { lastBackupAt: keptAt } : {}),
+            ...(keptError ? { lastBackupError: keptError } : {})
+          }
+        }
       });
     });
   }
@@ -123,9 +134,29 @@ export class CloudSyncStore {
         return;
       }
 
+      // 成功一次就清掉上次失败的记录：留着它只会让“上次失败”一直挂在界面上。
+      const { lastBackupError: _cleared, ...rest } = current;
+
       await this.writeUnsafe({
         ...file,
-        bindings: { ...file.bindings, [workspacePath]: { ...current, lastBackupAt: at } }
+        bindings: { ...file.bindings, [workspacePath]: { ...rest, lastBackupAt: at } }
+      });
+    });
+  }
+
+  /** 记下自动备份最近一次失败；没有绑定记录时什么都不做。 */
+  async markBackupFailure(workspacePath: string, failure: { at: string; message: string }): Promise<void> {
+    await this.enqueue(async () => {
+      const file = await this.readUnsafe();
+      const current = file.bindings[workspacePath];
+
+      if (!current) {
+        return;
+      }
+
+      await this.writeUnsafe({
+        ...file,
+        bindings: { ...file.bindings, [workspacePath]: { ...current, lastBackupError: failure } }
       });
     });
   }
@@ -203,16 +234,30 @@ function sanitizeBindings(raw: unknown): Record<string, StoredCloudBinding> {
     if (typeof entry.folderName !== 'string' || !entry.folderName) continue;
     if (typeof entry.boundAt !== 'string' || !entry.boundAt) continue;
 
+    const failure = sanitizeFailure(entry.lastBackupError);
+
     bindings[workspacePath] = {
       provider: entry.provider,
       folderId: entry.folderId,
       folderName: entry.folderName,
       boundAt: entry.boundAt,
-      ...(typeof entry.lastBackupAt === 'string' && entry.lastBackupAt ? { lastBackupAt: entry.lastBackupAt } : {})
+      ...(typeof entry.lastBackupAt === 'string' && entry.lastBackupAt ? { lastBackupAt: entry.lastBackupAt } : {}),
+      ...(failure ? { lastBackupError: failure } : {})
     };
   }
 
   return bindings;
+}
+
+/** 清洗失败记录：时间与说明都得是非空字符串，否则整条丢弃。 */
+function sanitizeFailure(value: unknown): { at: string; message: string } | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const { at, message } = value as { at?: unknown; message?: unknown };
+
+  return typeof at === 'string' && at && typeof message === 'string' && message ? { at, message } : null;
 }
 
 function isSealedSecret(value: unknown): value is SealedSecret {

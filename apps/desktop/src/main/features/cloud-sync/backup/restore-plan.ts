@@ -1,5 +1,7 @@
 import type { CloudRestorePlanEntry } from '@chaptale/ipc-contract';
 
+import type { FileIdentity } from '../file-identity';
+
 /**
  * 恢复比对：本地当前 × 归档，逐文件产出四类动作。
  *
@@ -16,19 +18,12 @@ import type { CloudRestorePlanEntry } from '@chaptale/ipc-contract';
  * 判“一致”看内容指纹，不看字节数、也不看修改时间：网盘客户端会改 mtime，
  * 大小相同的一份正文完全可以是改过一个字的另一份。
  */
-export type PlanSide = {
-  /** 相对作品目录的路径，正斜杠。两侧都按这个键对齐。 */
-  relativePath: string;
-  bytes: number;
-  digest: string;
-};
-
 /** 应用数据路径：界面据它分组，**不改变**四种动作的判定（见契约里的同名字段）。 */
 export function isApplicationDataPath(relativePath: string): boolean {
   return relativePath === '.chaptale' || relativePath.startsWith('.chaptale/');
 }
 
-export function compareRestore(input: { archive: PlanSide[]; local: PlanSide[] }): {
+export function compareRestore(input: { archive: FileIdentity[]; local: FileIdentity[] }): {
   entries: CloudRestorePlanEntry[];
   localOnly: number;
 } {

@@ -177,7 +177,7 @@ export type ChaptaleDesktopApi = {
     applyRestore: (args: CloudRestoreArgs) => Promise<CloudRestoreResult>;
     /** 放弃这次恢复：删掉已下载的待用归档，不动作品目录。 */
     cancelRestore: () => Promise<CloudOperationResult>;
-    /** 从云端删除一个归档；**只由作者的显式确认触发**，同步链路不得调用。 */
+    /** 从云端删除一个归档；**只由作者的显式确认触发**，没有任何自动路径会调用。 */
     removeBackup: (args: CloudArchiveArgs) => Promise<CloudOperationResult>;
     onBackupProgress: (listener: (progress: CloudBackupProgress) => void) => () => void;
   };

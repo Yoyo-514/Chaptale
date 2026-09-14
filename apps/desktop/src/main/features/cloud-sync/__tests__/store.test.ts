@@ -111,6 +111,34 @@ describe('云同步本机状态', () => {
 
     expect(await store.readBinding('/work/novel')).toBeNull();
   });
+  it('自动备份的失败记录留下来，成功一次就清掉；换目录时跟着清', async () => {
+    await store.saveBinding('/work/novel', binding);
+    await store.markBackupFailure('/work/novel', { at: '2026-09-14T22:00:00.000Z', message: '网络断了' });
+
+    expect((await store.readBinding('/work/novel'))?.lastBackupError).toEqual({
+      at: '2026-09-14T22:00:00.000Z',
+      message: '网络断了'
+    });
+    // 自动备份是静默的：失败之后本机“上次成功备份”仍然停在老时间上。
+    expect((await store.readBinding('/work/novel'))?.lastBackupAt).toBeUndefined();
+
+    await store.markBackup('/work/novel', '2026-09-15T08:00:00.000Z');
+    expect((await store.readBinding('/work/novel'))?.lastBackupError).toBeUndefined();
+
+    // 重绑到同一目录：失败记录也得跟着上次成功时间一起留着。
+    await store.markBackupFailure('/work/novel', { at: '2026-09-16T22:00:00.000Z', message: '又断了' });
+    await store.saveBinding('/work/novel', { ...binding, boundAt: '2026-09-16T23:00:00.000Z' });
+    expect((await store.readBinding('/work/novel'))?.lastBackupError?.message).toBe('又断了');
+
+    // 换到另一个目录：记录不属于新位置。
+    await store.saveBinding('/work/novel', { ...binding, folderId: '/另一个', folderName: '另一个' });
+    expect((await store.readBinding('/work/novel'))?.lastBackupError).toBeUndefined();
+  });
+  it('没有绑定时记失败记录不会凭空造一条绑定出来', async () => {
+    await store.markBackupFailure('/work/novel', { at: '2026-09-14T22:00:00.000Z', message: '网络断了' });
+
+    expect(await store.readBinding('/work/novel')).toBeNull();
+  });
   it('手改过的条目被逐条丢弃，不牵连同文件里的正常账户与绑定', async () => {
     await store.saveAccount({ provider: 'dropbox', displayName: '正常', credential: { refreshToken: 'ok' } });
     await store.saveBinding('/work/novel', binding);

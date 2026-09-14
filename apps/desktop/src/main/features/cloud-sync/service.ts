@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
+  ChaptaleBackupSettings,
   CloudArchiveArgs,
   CloudAuthResult,
   CloudBackupListResult,
@@ -28,6 +29,7 @@ import { CLOUD_PROVIDER_LABELS, CLOUD_PROVIDERS } from '@chaptale/ipc-contract';
 
 import { toWorkspaceSessionDirName } from '../../core/settings/workspace-session-directory';
 import { writeBytesAtomically } from '../../infra/filesystem/atomic-bytes';
+import { shouldAutoBackup } from './auto-backup';
 import { collectWorkspaceContent, packWorkspace, resolveInside, unpackArchive } from './backup/archive';
 import { checksumFile } from './backup/checksum';
 import type { ArchiveContent } from './backup/manifest';
@@ -53,10 +55,11 @@ import {
   timestamp
 } from './backup/remote-layout';
 import { createRestoreGuard } from './backup/restore-guard';
-import { compareRestore, type PlanSide } from './backup/restore-plan';
+import { compareRestore } from './backup/restore-plan';
+import type { FileIdentity } from './file-identity';
 import { runAuthorizationCodeFlow } from './oauth-flow';
 import type { CloudCredential, CloudProviderAdapter } from './providers/provider-port';
-import type { CloudSyncStore } from './store';
+import type { CloudSyncStore, StoredCloudBinding } from './store';
 
 /** 当前作品。备份的身份标记要靠 `chaptale.json` 的 id，所以三种状态分别表达。 */
 export type CloudWorkspaceQuery =
@@ -72,6 +75,12 @@ export type CloudSyncServiceOptions = {
   openExternal: (url: string) => Promise<void>;
   /** 当前作品；由装配层注入，云同步域不反向依赖作品域。 */
   resolveWorkspace: () => Promise<CloudWorkspaceQuery>;
+  /**
+   * 自动备份的节奏偏好；由装配层从应用设置里读。
+   *
+   * 注入而不是直引设置模块：测试能给出确定值，心跳的边界才能逐个钉住。
+   */
+  readBackupPreferences: () => Promise<ChaptaleBackupSettings>;
   /** 可重建缓存的落脚点：打包临时文件写在这里，不进作品目录也不留到下次启动。 */
   cacheRoot: string;
 };
@@ -188,8 +197,28 @@ export class CloudSyncService {
     const binding = await this.options.store.readBinding(workspace.workspace.rootPath);
 
     return binding
-      ? { ok: true, binding, lastBackupAt: binding.lastBackupAt ?? null }
+      ? {
+          ok: true,
+          binding: this.toBinding(binding),
+          lastBackupAt: binding.lastBackupAt ?? null,
+          lastBackupError: binding.lastBackupError ?? null
+        }
       : { ok: false, code: 'no-binding', message: '这部作品还没有绑定云端备份位置' };
+  }
+
+  /**
+   * 只把绑定本身送出去。
+   *
+   * `lastBackupAt` / `lastBackupError` 在结果里有各自的位置，不再往 `binding` 里塞一份——
+   * 同一个事实在载荷里出现两次，界面早晚会有一处读了旧的那个。
+   */
+  private toBinding(binding: StoredCloudBinding): CloudBinding {
+    return {
+      provider: binding.provider,
+      folderId: binding.folderId,
+      folderName: binding.folderName,
+      boundAt: binding.boundAt
+    };
   }
 
   async listFolders(args: CloudListFoldersArgs): Promise<CloudListFoldersResult> {
@@ -269,7 +298,12 @@ export class CloudSyncService {
 
       const saved = await this.options.store.readBinding(workspace.workspace.rootPath);
 
-      return { ok: true, binding, lastBackupAt: saved?.lastBackupAt ?? null };
+      return {
+        ok: true,
+        binding: this.toBinding(binding),
+        lastBackupAt: saved?.lastBackupAt ?? null,
+        lastBackupError: saved?.lastBackupError ?? null
+      };
     } catch (error) {
       return { ok: false, code: 'network', message: describeError(error) };
     }
@@ -312,7 +346,13 @@ export class CloudSyncService {
         // 文件名以时间戳结尾，倒序就是最新在前。
         .toSorted((left, right) => (left.name < right.name ? 1 : -1));
 
-      return { ok: true, binding: target.binding, archives, quota: await this.readQuota(target) };
+      return {
+        ok: true,
+        binding: this.toBinding(target.binding),
+        archives,
+        quota: await this.readQuota(target),
+        lastBackupError: target.binding.lastBackupError ?? null
+      };
     } catch (error) {
       return { ok: false, code: 'network', message: describeError(error) };
     }
@@ -655,10 +695,15 @@ export class CloudSyncService {
     return this.uniquePath(resolveInside(rootPath, copy));
   }
 
-  /** 本地侧：整棵作品目录的路径、字节数与内容指纹。判“一致”靠指纹，不靠时间戳。 */
-  private async readLocalSide(rootPath: string): Promise<PlanSide[]> {
+  /**
+   * 本地侧：整棵作品目录的路径、字节数与内容指纹。判“一致”靠指纹，不靠时间戳。
+   *
+   * 与归档共用同一套遍历（`collectWorkspaceContent`）：排除规则只该有一份，
+   * 否则“归档里有什么”与“本地拿什么去比”会慢慢对不上。
+   */
+  private async readLocalSide(rootPath: string): Promise<FileIdentity[]> {
     const content = await collectWorkspaceContent(rootPath);
-    const files: PlanSide[] = [];
+    const files: FileIdentity[] = [];
 
     for (const file of content.files) {
       files.push({
@@ -719,10 +764,49 @@ export class CloudSyncService {
   }
 
   /**
+   * 自动备份的一次心跳。
+   *
+   * “该不该备”在这里答（走一个纯函数），而“备得成备不成”交给 `createBackup` 自己的门槛：
+   * 登录、绑定、作品打开、是否正忙这几件事只该有一处规则，心跳不另立一套。
+   */
+  async autoBackupTick(now: Date = new Date()): Promise<void> {
+    const preferences = await this.options.readBackupPreferences();
+
+    if (!preferences.auto) return;
+
+    const workspace = await this.requireWorkspace();
+
+    // 作品没打开就不动：自动备份不替作者去开作品，也不在没有落脚点时往外传东西。
+    if (!workspace.ok) return;
+
+    const rootPath = workspace.workspace.rootPath;
+    const binding = await this.options.store.readBinding(rootPath);
+
+    if (!binding) return;
+
+    if (
+      !shouldAutoBackup({
+        now,
+        lastBackupAt: binding.lastBackupAt ?? null,
+        intervalMinutes: preferences.intervalMinutes,
+        busy: this.busy
+      })
+    ) {
+      return;
+    }
+
+    const result = await this.createBackup();
+
+    // 只记真正的失败：没登录、没绑定这类“现在不适合”不是故障，下一拍还会照常判断。
+    if (!result.ok && (result.code === 'failed' || result.code === 'network')) {
+      await this.options.store.markBackupFailure(rootPath, { at: now.toISOString(), message: result.message });
+    }
+  }
+
+  /**
    * 删除云端归档。
    *
-   * **只由作者的显式确认触发**。"远端只增不删"约束的是自动同步，不是作者的手动清理；
-   * S3 的同步引擎不得调用这条路径。
+   * **只由作者的显式确认触发**：应用没有自动删除备份的路径，包括自动备份自己也不删旧档。
    */
   async removeBackup(args: CloudArchiveArgs): Promise<CloudOperationResult> {
     const target = await this.requireTarget();
@@ -790,7 +874,8 @@ export class CloudSyncService {
 
   /** 备份相关动作的共同前置：作品已打开、已绑定、适配器与凭据齐备。 */
   private async requireTarget(): Promise<
-    { ok: true; adapter: CloudProviderAdapter; credential: CloudCredential; binding: CloudBinding } | WorkspaceFailure
+    | { ok: true; adapter: CloudProviderAdapter; credential: CloudCredential; binding: StoredCloudBinding }
+    | WorkspaceFailure
   > {
     const workspace = await this.requireWorkspace();
 
@@ -866,7 +951,7 @@ export class CloudSyncService {
     }
   }
 
-  /** 恢复目标永远是新目录：原地覆盖是 S3 的事，而且要先有还原前快照兜底。 */
+  /** 「回到新目录」模式的落点：与当前作品并排的 `<作品名>-恢复-<时间戳>/`，不碰现有目录。 */
   private async uniqueRestorePath(workspaceRoot: string, title: string): Promise<string> {
     const parent = path.dirname(workspaceRoot);
 

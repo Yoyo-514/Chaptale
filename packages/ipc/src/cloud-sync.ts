@@ -85,6 +85,17 @@ export type CloudBindArgs = {
   folderName: string;
 };
 
+/**
+ * 自动备份最近一次失败（本机）。
+ *
+ * 自动备份是静默的，所以失败必须留下来看得见——否则作者只会以为“一直在正常备”，
+ * 直到真的需要那份归档。成功一次就清掉。
+ */
+export type CloudBackupFailure = {
+  at: string;
+  message: string;
+};
+
 /** 绑定结果。`lastBackupAt` 是**本机**上次成功备份的时间：状态栏与面板靠它回答“要不要再备一次”。 */
 export type CloudBindingResult =
   | {
@@ -92,6 +103,7 @@ export type CloudBindingResult =
       binding: CloudBinding;
       /** 从未在本机备份过就是 null。其他设备备份不会更新它，它也不假装知道。 */
       lastBackupAt: string | null;
+      lastBackupError: CloudBackupFailure | null;
     }
   | { ok: false; code: CloudErrorCode; message: string };
 
@@ -114,7 +126,13 @@ export type CloudQuota = {
  * `quota` 为 null 表示服务商没提供或读不到（如坚果云 WebDAV），界面显示“未提供”而不是编一个数。
  */
 export type CloudBackupListResult =
-  | { ok: true; binding: CloudBinding; archives: CloudBackupArchive[]; quota: CloudQuota | null }
+  | {
+      ok: true;
+      binding: CloudBinding;
+      archives: CloudBackupArchive[];
+      quota: CloudQuota | null;
+      lastBackupError: CloudBackupFailure | null;
+    }
   | { ok: false; code: CloudErrorCode; message: string };
 
 export type CloudBackupResult =

@@ -3,29 +3,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { CloudBinding } from '@chaptale/ipc-contract';
-
 import { toWorkspaceSessionDirName } from '../../../core/settings/workspace-session-directory';
-import { TokenVault, type SafeStorageLike } from '../../../infra/security/token-vault';
 import { packWorkspace, unpackArchive } from '../backup/archive';
-import type { CloudProviderAdapter } from '../providers/provider-port';
-import { CloudSyncService } from '../service';
-import { CloudSyncStore } from '../store';
+import { createSyncService, TEST_WORKSPACE_ID as WORKSPACE_ID } from './harness';
 
-const storage: SafeStorageLike = {
-  isEncryptionAvailable: () => true,
-  encryptString: value => Buffer.from(`enc:${value}`, 'utf8'),
-  decryptString: encrypted => encrypted.toString('utf8').replace(/^enc:/, '')
-};
-
-const WORKSPACE_ID = '11111111-2222-3333-4444-555555555555';
 const OTHER_WORKSPACE_ID = 'ffffffff-0000-0000-0000-000000000000';
-const binding: CloudBinding = {
-  provider: 'dropbox',
-  folderId: '/备份',
-  folderName: '备份',
-  boundAt: '2026-09-13T00:00:00.000Z'
-};
 
 let dir: string;
 let workspace: string;
@@ -38,80 +20,6 @@ let archivePath: string;
  * 这是**第二个实现**而不是 mock——`docs/m7-plan/00-cloud-sync.md` §9 要的就是它：
  * 被测对象是恢复逻辑，不是 Dropbox 的报文（那是适配器固定夹具的事）。
  */
-function memoryAdapter() {
-  const files = new Map<string, Uint8Array>();
-  const downloads: string[] = [];
-  const adapter: CloudProviderAdapter = {
-    id: 'dropbox',
-    topLevelIsAppScoped: true,
-    oauth: () => ({
-      clientId: 'test',
-      authorizeEndpoint: 'https://example.com/authorize',
-      scopes: [],
-      redirectPort: 52475
-    }),
-    exchangeCode: async () => ({ credential: {}, profile: { displayName: '测试账户' } }),
-    listEntries: async () => ({
-      current: { id: null, name: '备份', root: false },
-      parentId: null,
-      entries: [...files.entries()].map(([name, bytes]) => ({
-        id: name,
-        name,
-        kind: 'file' as const,
-        size: bytes.byteLength
-      }))
-    }),
-    createFolder: async input => ({ id: input.name, name: input.name, kind: 'folder' }),
-    upload: async input => {
-      files.set(input.name, input.bytes);
-
-      return { id: input.name, name: input.name, kind: 'file', size: input.bytes.byteLength };
-    },
-    download: async input => {
-      downloads.push(input.fileId);
-
-      const bytes = files.get(input.fileId);
-
-      if (!bytes) throw new Error(`远端没有 ${input.fileId}`);
-
-      return bytes;
-    },
-    quota: async () => ({ usedBytes: 1, totalBytes: 100 }),
-    remove: async input => {
-      files.delete(input.entryId);
-    }
-  };
-
-  return {
-    adapter,
-    downloads,
-    put: (name: string, bytes: Uint8Array) => files.set(name, bytes)
-  };
-}
-
-/** 组装一套服务；`bound` 为假时不写绑定与凭据，用来验“没绑定就别动远端”。 */
-async function service(bound = true, overrideCacheRoot = cacheRoot) {
-  const { adapter, downloads, put } = memoryAdapter();
-  const store = new CloudSyncStore(new TokenVault(storage), path.join(dir, 'cloud-sync.json'));
-
-  if (bound) {
-    await store.saveAccount({ provider: 'dropbox', displayName: '测试账户', credential: {} });
-    await store.saveBinding(workspace, binding);
-  }
-
-  return {
-    downloads,
-    put,
-    instance: new CloudSyncService({
-      adapters: [adapter],
-      store,
-      openExternal: async () => undefined,
-      resolveWorkspace: async () => ({ status: 'ready', rootPath: workspace, id: WORKSPACE_ID, title: '长夜' }),
-      cacheRoot: overrideCacheRoot
-    })
-  };
-}
-
 async function writeTree(root: string, files: Record<string, string>) {
   await mkdir(root, { recursive: true });
 
@@ -162,7 +70,7 @@ afterEach(async () => {
 
 describe('恢复计划', () => {
   it('逐文件给出新增与冲突，本地独有只报个数', async () => {
-    const { instance, put } = await service();
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
 
     await writeTree(workspace, {
       'chaptale.json': manifest(WORKSPACE_ID),
@@ -189,7 +97,7 @@ describe('恢复计划', () => {
     expect(result.plan.localOnly).toBe(1);
   });
   it('另一部作品的归档不能自证身份，覆盖与合并据此被挡住', async () => {
-    const { instance, put } = await service();
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
 
     await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '第一章\n' });
     await seedArchive(put, { '正文.md': '别人的第一章\n' }, OTHER_WORKSPACE_ID);
@@ -207,7 +115,7 @@ describe('恢复计划', () => {
     await expect(stat(path.join(cacheRoot, toWorkspaceSessionDirName(workspace)))).rejects.toThrow();
   });
   it('没绑定就不动远端，也不下载任何东西', async () => {
-    const { instance, downloads, put } = await service(false);
+    const { instance, downloads, put } = await createSyncService({ dir, workspace, cacheRoot, bound: false });
 
     await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '第一章\n' });
     await seedArchive(put, { '正文.md': '归档版\n' });
@@ -221,7 +129,7 @@ describe('恢复计划', () => {
 
 describe('原地覆盖', () => {
   it('只写归档里有的文件，本地独有的保留', async () => {
-    const { instance, put } = await service();
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
 
     await writeTree(workspace, {
       'chaptale.json': manifest(WORKSPACE_ID),
@@ -248,7 +156,7 @@ describe('原地覆盖', () => {
     expect(await readFile(path.join(workspace, '草稿/一稿.md'), 'utf8')).toBe('一稿\n');
   });
   it('覆盖前先留快照，快照里是覆盖前的内容', async () => {
-    const { instance, put } = await service();
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
 
     await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '覆盖前\n' });
     await seedArchive(put, { '正文.md': '归档版\n' });
@@ -268,7 +176,11 @@ describe('原地覆盖', () => {
   it('快照失败就不覆盖，作品目录保持原样', async () => {
     // 缓存位置指向一个普通文件：快照无处可写。
     await writeFile(path.join(dir, 'cache-file'), '');
-    const { instance, put } = await service(true, path.join(dir, 'cache-file'));
+    const { instance, put } = await createSyncService({
+      dir,
+      workspace,
+      cacheRoot: path.join(dir, 'cache-file')
+    });
 
     await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '覆盖前\n' });
     await seedArchive(put, { '正文.md': '归档版\n' });
@@ -282,7 +194,7 @@ describe('原地覆盖', () => {
 
 describe('合并', () => {
   it('没有决议的冲突项不写也不覆盖，只列进回执', async () => {
-    const { instance, put } = await service();
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
 
     await writeTree(workspace, {
       'chaptale.json': manifest(WORKSPACE_ID),
@@ -303,7 +215,7 @@ describe('合并', () => {
     expect(await readFile(path.join(workspace, '正文.md'), 'utf8')).toBe('本地版本\n');
   });
   it('三种决议各走各的路：用归档 / 用本地 / 两个都留', async () => {
-    const { instance, put } = await service();
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
 
     await writeTree(workspace, {
       'chaptale.json': manifest(WORKSPACE_ID),
@@ -340,7 +252,7 @@ describe('合并', () => {
 
 describe('恢复到新目录', () => {
   it('原作品一个字节都没动，新目录在作品旁边', async () => {
-    const { instance, put } = await service();
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
 
     await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '当前版本\n' });
     await seedArchive(put, { '正文.md': '归档版本\n', '灵感/片段.md': '片段\n' });
@@ -361,7 +273,7 @@ describe('恢复到新目录', () => {
 
 describe('恢复的临时归档', () => {
   it('计划与执行共用同一份下载，取消后不留副本', async () => {
-    const { instance, downloads, put } = await service();
+    const { instance, downloads, put } = await createSyncService({ dir, workspace, cacheRoot });
 
     await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '本地\n' });
     await seedArchive(put, { '正文.md': '归档\n' });
