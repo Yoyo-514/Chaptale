@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { CLOUD_PROVIDER_LABELS, AUTO_BACKUP_INTERVAL_MINUTES, type CloudProvider } from '@chaptale/ipc-contract';
 
@@ -11,7 +11,7 @@ import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import RestoreWizard from './RestoreWizard.vue';
-import { describeBackupInterval, formatSize, formatWhen, useCloudSyncStore } from './store';
+import { describeBackupInterval, formatSize, formatWhen, isValidBackupInterval, useCloudSyncStore } from './store';
 
 const cloud = useCloudSyncStore();
 const settings = useSettingsStore();
@@ -56,13 +56,39 @@ const autoBackupEnabled = computed({
   set: (value: boolean) => void settings.update({ backup: { auto: value } })
 });
 
-const autoBackupInterval = computed({
-  get: () => settings.state?.settings.backup?.intervalMinutes ?? AUTO_BACKUP_INTERVAL_MINUTES.default,
-  set: (value: number | undefined) =>
-    void settings.update({ backup: { intervalMinutes: value ?? AUTO_BACKUP_INTERVAL_MINUTES.default } })
+/**
+ * 间隔输入框的本地草稿。
+ *
+ * 数字输入框在打字过程中会发出暂态值（打 1440 的中途先出来 1、14），而 IPC 面只收
+ * 30–43200 的整数（合约里的 validator 守着入口）：所以**只把合法的值落盘**，
+ * 其余留在本地并就地说明。不这么做，作者每敲一个键都会收到一次“IPC 参数无效”。
+ */
+const intervalDraft = ref<number | undefined>(undefined);
+
+watch(
+  () => settings.state?.settings.backup?.intervalMinutes,
+  value => {
+    intervalDraft.value = isValidBackupInterval(value) ? value : AUTO_BACKUP_INTERVAL_MINUTES.default;
+  },
+  { immediate: true }
+);
+
+function changeInterval(value: number | undefined) {
+  intervalDraft.value = value;
+
+  if (isValidBackupInterval(value)) void settings.update({ backup: { intervalMinutes: value } });
+}
+
+/** 提示行同时承担两件事：合法时说人话（“每天一次”），不合法时说怎么填。 */
+const intervalHint = computed(() => {
+  if (isValidBackupInterval(intervalDraft.value)) return describeBackupInterval(intervalDraft.value);
+
+  return `请填 ${AUTO_BACKUP_INTERVAL_MINUTES.min} 到 ${AUTO_BACKUP_INTERVAL_MINUTES.max} 之间的整数分钟`;
 });
 
-const intervalLabel = computed(() => describeBackupInterval(autoBackupInterval.value));
+const intervalInvalid = computed(
+  () => typeof intervalDraft.value === 'number' && !isValidBackupInterval(intervalDraft.value)
+);
 const lastBackupLabel = computed(() =>
   cloud.lastBackupAt ? `本机上次备份 ${formatWhen(cloud.lastBackupAt)}` : '本机还没备份过'
 );
@@ -263,14 +289,16 @@ function formatTime(value: string): string {
             <div class="cloud-auto-row">
               <span>每隔</span>
               <AppNumberInput
-                v-model="autoBackupInterval"
+                :model-value="intervalDraft"
                 class="cloud-auto-interval"
                 :min="AUTO_BACKUP_INTERVAL_MINUTES.min"
                 :max="AUTO_BACKUP_INTERVAL_MINUTES.max"
                 :disabled="!autoBackupEnabled"
+                :invalid="intervalInvalid"
                 aria-label="自动备份间隔（分钟）"
+                @update:model-value="changeInterval"
               />
-              <span>分钟 · {{ intervalLabel }}</span>
+              <span :class="{ 'cloud-error': intervalInvalid }">分钟 · {{ intervalHint }}</span>
             </div>
             <p class="cloud-muted">
               自动备份只在应用开着、且打开的就是这部作品时执行；到点时正在备份或恢复就跳过这一回。

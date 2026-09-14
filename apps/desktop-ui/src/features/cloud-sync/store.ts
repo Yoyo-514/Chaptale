@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { toRaw } from 'vue';
 
+import { AUTO_BACKUP_INTERVAL_MINUTES } from '@chaptale/ipc-contract';
 import type {
   CloudBackupArchive,
   CloudBackupFailure,
@@ -518,4 +519,20 @@ export function describeBackupInterval(minutes: number): string {
 
   // 不是整小时也不是整天：老实说成分钟，不假装成“约一小时”。
   return `每 ${minutes} 分钟一次`;
+}
+
+/**
+ * 间隔是不是一个“能落盘”的值：整数、且在 30 分钟到 30 天之间。
+ *
+ * 与合约里那个 validator 同一个口径：它守的是 IPC 入口，这里守的是输入框——
+ * 数字输入框在打字过程中会吐出暂态值（打 1440 的中途先出来 1、14），
+ * 那些值不能发出去，否则每敲一个键就是一次“IPC 参数无效”。
+ */
+export function isValidBackupInterval(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= AUTO_BACKUP_INTERVAL_MINUTES.min &&
+    value <= AUTO_BACKUP_INTERVAL_MINUTES.max
+  );
 }
