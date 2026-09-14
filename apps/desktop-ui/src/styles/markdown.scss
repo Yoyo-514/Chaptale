@@ -101,7 +101,7 @@
 }
 
 .markdown-body blockquote {
-  @apply rounded-r-lg border-l-3 border-primary bg-secondary px-3 py-0.5 text-secondary-foreground;
+  @apply border-l border-border-strong pl-4 py-0.5 text-foreground;
 }
 
 .markdown-body code {

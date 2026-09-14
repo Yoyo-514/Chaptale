@@ -138,7 +138,7 @@ function save() {
 }
 
 .user-message-edit {
-  @apply flex w-full max-w-[88%] flex-col gap-2 rounded-2xl border border-primary bg-surface-acrylic p-2 shadow-$shadow-inset-highlight;
+  @apply flex w-full max-w-[88%] flex-col gap-2 rounded-lg border border-border-subtle bg-surface-muted p-2;
 }
 
 .user-message-editor {

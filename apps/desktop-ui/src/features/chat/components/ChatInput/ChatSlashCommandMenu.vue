@@ -22,7 +22,8 @@ const emit = defineEmits<{
       role="option"
       :aria-selected="index === props.selectedIndex"
       :data-selected="index === props.selectedIndex || undefined"
-      @mousedown.prevent="emit('select', command)"
+      @mousedown.prevent
+      @click="emit('select', command)"
     >
       <span class="chat-slash-command-name">/{{ command.name }}</span>
       <span class="chat-slash-command-description">{{ command.description }}</span>
@@ -48,7 +49,7 @@ const emit = defineEmits<{
 }
 
 .chat-slash-command-item:hover {
-  background: var(--accent-sakura);
+  background: var(--surface-hover);
 }
 
 .chat-slash-command-item-selected {

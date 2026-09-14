@@ -44,7 +44,7 @@ onBeforeUnmount(() => {
 
     <div v-if="content" class="assistant-answer markdown-body" v-html="answerHtml" />
 
-    <div v-if="partial" class="assistant-streaming-indicator" aria-label="正在生成">
+    <div v-if="partial" class="assistant-streaming-indicator" role="status" aria-label="正在生成">
       <span class="assistant-streaming-dot" />
       <span class="assistant-streaming-dot" />
       <span class="assistant-streaming-dot" />
@@ -57,15 +57,13 @@ onBeforeUnmount(() => {
   @apply flex max-w-full flex-col gap-2;
 }
 
-// 答案卡片：markdown-body 只出排版，卡片外观在这里给。
+// 连续回答以正文阅读为主，不再在段落、代码块外叠一层卡片。
 .assistant-answer {
-  @apply rounded-xl border border-border-subtle bg-surface-acrylic px-4 py-3 shadow-$shadow-inset-highlight;
-
-  backdrop-filter: var(--blur-acrylic-subtle);
+  @apply min-w-0 px-1 py-2;
 }
 
 .assistant-reasoning {
-  @apply max-w-full overflow-hidden rounded-xl border border-border-subtle bg-surface-acrylic text-muted-foreground shadow-$shadow-inset-highlight;
+  @apply max-w-full overflow-hidden rounded-lg border border-border-subtle text-muted-foreground;
 
   font-size: var(--chat-secondary-font-size, 0.875rem);
   line-height: 1.55;
@@ -120,6 +118,14 @@ onBeforeUnmount(() => {
   40% {
     opacity: 1;
     transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-streaming-dot {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 </style>
