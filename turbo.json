@@ -5,8 +5,26 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", "dist-types/**"]
     },
+    "@chaptale/desktop#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/desktop-ui/src/**",
+        "$TURBO_ROOT$/apps/desktop-ui/public/**",
+        "$TURBO_ROOT$/apps/desktop-ui/build/**",
+        "$TURBO_ROOT$/apps/desktop-ui/index.html",
+        "$TURBO_ROOT$/apps/desktop-ui/uno.config.ts",
+        "$TURBO_ROOT$/apps/desktop-ui/package.json"
+      ],
+      "outputs": ["dist/**"]
+    },
     "typecheck": {
       "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "@chaptale/desktop#typecheck": {
+      "dependsOn": ["^typecheck"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/desktop-ui/build/**"],
       "outputs": []
     },
     "@chaptale/shared#typecheck": {
