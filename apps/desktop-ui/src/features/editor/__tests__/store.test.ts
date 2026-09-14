@@ -85,9 +85,11 @@ describe('只读标签生命周期', () => {
     expect(editor.activeId).toBe('');
     editor.tabs = [tab('b')];
     editor.activeId = 'b';
+    editor.location = { path: 'b.md', from: 4, to: 8, sequence: 1 };
     workspace.revision += 1;
     expect(editor.tabs).toEqual([]);
     expect(editor.activeId).toBe('');
+    expect(editor.location).toBeNull();
   });
 
   it('选区和滚动位置属于各标签，关闭后迟到的视图状态不能复活标签', () => {
