@@ -106,6 +106,7 @@ export const IPC_CHANNELS = {
     editCommand: 'app:edit-command'
   },
   window: {
+    zoom: 'window:zoom',
     minimize: 'window:minimize',
     toggleMaximize: 'window:toggle-maximize',
     close: 'window:close',

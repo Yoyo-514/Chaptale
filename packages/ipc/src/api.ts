@@ -92,7 +92,7 @@ import type {
 } from './tasks';
 import type { TemplatesApi } from './templates';
 import type { TodosClearPayload, TodosUpdatedEvent } from './todos';
-import type { WindowStateResult } from './window';
+import type { WindowStateResult, WindowZoomCommand } from './window';
 import type {
   WorkspaceState,
   SelectDirectoryArgs,
@@ -186,6 +186,7 @@ export type ChaptaleDesktopApi = {
   getPlatform: () => Promise<AppPlatformResult>;
   editCommand: (command: EditCommand) => Promise<void>;
   windowControl: {
+    zoom: (command: WindowZoomCommand) => Promise<number>;
     minimize: () => Promise<WindowStateResult>;
     toggleMaximize: () => Promise<WindowStateResult>;
     close: () => Promise<void>;

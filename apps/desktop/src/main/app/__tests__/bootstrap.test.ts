@@ -118,18 +118,18 @@ describe('bootstrapDesktopApp', () => {
     expect(getBeforeInputListener(1)).toBeUndefined();
   });
 
-  it('每个窗口都禁用缩放，避开 Chromium 按 origin 持久化的旧值', async () => {
+  it('每个窗口使用独立缩放，避免按 origin 共享界面尺寸', async () => {
     const { bootstrapDesktopApp } = await import('../bootstrap');
 
     bootstrapDesktopApp();
     await vi.waitFor(() => expect(electronMock.windows).toHaveLength(1));
 
-    expect(electronMock.windows[0]?.webContents.setZoomMode).toHaveBeenCalledWith('disabled');
+    expect(electronMock.windows[0]?.webContents.setZoomMode).toHaveBeenCalledWith('isolated');
 
     // activate 重建的窗口不能漏：漏了就只有首窗干净。
     electronMock.BrowserWindow.getAllWindows.mockReturnValue([]);
     electronMock.appListeners.get('activate')?.();
 
-    expect(electronMock.windows[1]?.webContents.setZoomMode).toHaveBeenCalledWith('disabled');
+    expect(electronMock.windows[1]?.webContents.setZoomMode).toHaveBeenCalledWith('isolated');
   });
 });

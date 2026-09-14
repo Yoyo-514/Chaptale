@@ -73,6 +73,7 @@ import {
   WorkspaceRootArgsValidator,
   CreateChapterArgsValidator,
   WindowCompleteCloseArgsValidator,
+  WindowZoomArgsValidator,
   RecoveryPathArgsValidator,
   SaveRecoveryArgsValidator,
   LibraryLinkArgsValidator,
@@ -153,6 +154,7 @@ const validated = (channel: string, validator: IpcValidator): Registration => ({
 });
 
 const expectedRegistrations: Registration[] = [
+  validated(IPC_CHANNELS.window.zoom, WindowZoomArgsValidator),
   validated(IPC_CHANNELS.content.list, ContentContextValidator),
   validated(IPC_CHANNELS.content.read, ContentReadValidator),
   validated(IPC_CHANNELS.content.save, ContentSaveValidator),

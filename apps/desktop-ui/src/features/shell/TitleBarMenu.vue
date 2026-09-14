@@ -21,7 +21,10 @@ import { useWritingStore } from '@/features/writing';
 import { toErrorMessage } from '@/utils/desktop-api';
 import { captureEditingTarget } from '@/utils/editing-target';
 
+import { useInterfaceZoom } from './useInterfaceZoom';
+
 const workspaceStore = useWorkspaceStore();
+const { zoom } = useInterfaceZoom();
 const settingsStore = useSettingsStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
@@ -124,6 +127,9 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       { id: 'view.auxiliary-bar', label: '辅助栏', checked: navigation.auxiliaryOpen },
       { id: 'view.status-bar', label: '状态栏', checked: navigation.statusBarOpen },
       { id: 'view.focus-mode', label: '专注模式', checked: navigation.focusMode },
+      { id: 'view.zoom-in', label: '放大界面', shortcut: 'Ctrl++', separatorBefore: true },
+      { id: 'view.zoom-out', label: '缩小界面', shortcut: 'Ctrl+-' },
+      { id: 'view.zoom-reset', label: '重置缩放', shortcut: 'Ctrl+0' },
       { id: 'view.appearance', label: '外观', separatorBefore: true, items: themeItems.value }
     ]
   },
@@ -188,6 +194,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
 ]);
 
 function handleSelect(itemId: string) {
+  if (itemId === 'view.zoom-in' || itemId === 'view.zoom-out' || itemId === 'view.zoom-reset') {
+    void zoom(itemId === 'view.zoom-in' ? 'in' : itemId === 'view.zoom-out' ? 'out' : 'reset');
+    return;
+  }
   if (itemId === 'agent.manage-personas') {
     settingsStore.openPanel('content');
     return;

@@ -5,6 +5,7 @@ import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 
 export function createWindowControlApi(): ChaptaleDesktopApi['windowControl'] {
   return {
+    zoom: command => ipcRenderer.invoke(IPC_CHANNELS.window.zoom, command) as Promise<number>,
     minimize: () => ipcRenderer.invoke(IPC_CHANNELS.window.minimize) as Promise<WindowStateResult>,
     toggleMaximize: () => ipcRenderer.invoke(IPC_CHANNELS.window.toggleMaximize) as Promise<WindowStateResult>,
     close: () => ipcRenderer.invoke(IPC_CHANNELS.window.close) as Promise<void>,
