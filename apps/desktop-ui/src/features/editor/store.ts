@@ -70,7 +70,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   async function openDocument(relativePath: string, reveal = true) {
     if (!workspace.rootPath) return;
-    if (reveal) useWorkbenchStore().center = 'editor';
+    if (reveal) useWorkbenchStore().focusEditor();
     const existing = tabs.value.find(tab => tab.path === relativePath);
     if (existing) {
       activeId.value = existing.id;

@@ -108,11 +108,11 @@ const iconClass = computed(() =>
 }
 
 .app-checkbox-sm {
-  @apply size-4.5 text-xs;
+  @apply size-6 text-xs;
 }
 
 .app-checkbox-md {
-  @apply size-5 text-sm;
+  @apply size-6 text-sm;
 
   border-radius: var(--radius-checkbox-active);
 }

@@ -5,6 +5,21 @@ import { useWorkbenchStore } from '../store';
 
 beforeEach(() => setActivePinia(createPinia()));
 describe('面板导航', () => {
+  it('窄窗口按需展示一个面板，返回编辑器不清空其他面板状态', () => {
+    const navigation = useWorkbenchStore();
+    navigation.isCompact = true;
+    navigation.toggleSidebar('workspace');
+    expect(navigation.sidebarOpen).toBe(true);
+    expect(navigation.compactPane).toBe('sidebar');
+    navigation.toggleAuxiliary();
+    expect(navigation.compactPane).toBe('auxiliary');
+    navigation.focusEditor();
+    expect(navigation.compactPane).toBe('editor');
+    expect(navigation.auxiliaryOpen).toBe(true);
+    navigation.openView('library');
+    expect(navigation.compactPane).toBe('editor');
+    expect(navigation.center).toBe('library');
+  });
   it('工作视图去重，关闭回到正文，切换作品后清空', () => {
     const navigation = useWorkbenchStore();
     navigation.openView('library');

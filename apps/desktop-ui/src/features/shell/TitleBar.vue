@@ -116,5 +116,11 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
   .titlebar-document-title {
     @apply hidden;
   }
+  .titlebar-leading {
+    overflow-x: auto;
+  }
+  .titlebar-control {
+    width: 32px;
+  }
 }
 </style>

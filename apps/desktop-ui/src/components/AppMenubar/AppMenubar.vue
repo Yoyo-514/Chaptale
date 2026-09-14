@@ -106,6 +106,8 @@ const emit = defineEmits<{
   border-radius: var(--radius-control-sm);
   color: var(--titlebar-foreground);
   font-size: var(--ui-font-size);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .app-menubar-trigger:hover,
