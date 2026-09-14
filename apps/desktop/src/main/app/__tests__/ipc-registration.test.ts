@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   CloudArchiveArgsValidator,
+  CloudArchiveListArgsValidator,
   CloudBindArgsValidator,
   CloudListFoldersArgsValidator,
   CloudNoArgsValidator,
@@ -240,7 +241,7 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.cloudSync.readRestoreDiff, CloudRestoreDiffArgsValidator),
   validated(IPC_CHANNELS.cloudSync.applyRestore, CloudRestoreArgsValidator),
   validated(IPC_CHANNELS.cloudSync.cancelRestore, CloudNoArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.removeBackup, CloudArchiveArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.removeBackups, CloudArchiveListArgsValidator),
   validated(IPC_CHANNELS.library.listAssets, WorkspaceRootArgsValidator),
   validated(IPC_CHANNELS.library.search, WorkspaceSearchArgsValidator),
   validated(IPC_CHANNELS.library.sceneReferences, SceneReferencesValidator),

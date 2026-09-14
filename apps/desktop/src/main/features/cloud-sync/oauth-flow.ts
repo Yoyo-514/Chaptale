@@ -17,6 +17,11 @@ export type OAuthFlowOptions = {
   scopes: readonly string[];
   /** 0 表示由系统分配空闲端口；固定端口见 `CloudOAuthConfig.redirectPort` 的说明。 */
   redirectPort: number;
+  /**
+   * 回调地址由适配器决定：同一个 URI 要发给授权页、也要用于换令牌，
+   * 而各家对主机名与末尾斜杠的要求并不一样（见 `CloudOAuthConfig.redirectUri`）。
+   */
+  redirectUri: (port: number) => string;
   extraAuthorizeParams?: Record<string, string>;
   /** 打开系统浏览器；装配层注入 `shell.openExternal`，测试里用真实 HTTP 请求替代人工点击。 */
   openExternal: (url: string) => Promise<void>;
@@ -33,6 +38,12 @@ type CallbackOutcome =
   | { kind: 'denied'; message: string }
   | { kind: 'failed'; message: string };
 
+/**
+ * 回调服务器只绑回环。
+ *
+ * 注意这与“对外宣告的回调地址”是两件事：Entra 那边宣告的必须是 `localhost`（见适配器的 `redirectUri`），
+ * 而本机监听仍绑 `127.0.0.1`——浏览器把 `localhost` 解析到 IPv4 时就是这里。
+ */
 const HOST = '127.0.0.1';
 /** 在浏览器里犹豫、切账号、临时去注册都很常见，给足五分钟；到点按超时收尾，不无限挂着。 */
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
@@ -54,7 +65,7 @@ export async function runAuthorizationCodeFlow(options: OAuthFlowOptions): Promi
 
   const address = server.address();
   const port = address && typeof address === 'object' ? address.port : options.redirectPort;
-  const redirectUri = `http://${HOST}:${port}/`;
+  const redirectUri = options.redirectUri(port);
 
   let settled = false;
   let timer: NodeJS.Timeout | undefined;

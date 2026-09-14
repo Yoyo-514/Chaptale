@@ -4,6 +4,7 @@ import path from 'node:path';
 import type {
   ChaptaleBackupSettings,
   CloudArchiveArgs,
+  CloudArchiveListArgs,
   CloudAuthResult,
   CloudBackupListResult,
   CloudBackupProgress,
@@ -16,6 +17,7 @@ import type {
   CloudListFoldersResult,
   CloudOperationResult,
   CloudProvider,
+  CloudRemovalResult,
   CloudRestoreArgs,
   CloudRestoreChoice,
   CloudRestoreDiffArgs,
@@ -252,7 +254,7 @@ export class CloudSyncService {
    * 绑定备份位置。
    *
    * 选中最顶层且服务商的顶层不是应用专属区域时，先建一层容器目录——不然归档与身份标记
-   * 会直接撒在作者网盘根上。App Folder 接入不套这层，见 `docs/m7-plan/00-cloud-sync.md` §4.3。
+   * 会直接撒在作者网盘根上。App Folder 接入不套这层：服务商给的顶层本身就是应用专属区域。
    */
   async bind(args: CloudBindArgs): Promise<CloudBindingResult> {
     const workspace = await this.requireWorkspace();
@@ -424,7 +426,7 @@ export class CloudSyncService {
     }
   }
 
-  /** 本轮只有"恢复到新目录"一种模式；原地覆盖与逐文件合并是 S3。 */
+  /** 「回到新目录」模式的落点：与当前作品并排的新目录，不碰现有文件。 */
   /**
    * 恢复计划：三种模式共用同一份比对结论，**不写任何文件**。
    *
@@ -808,20 +810,27 @@ export class CloudSyncService {
    *
    * **只由作者的显式确认触发**：应用没有自动删除备份的路径，包括自动备份自己也不删旧档。
    */
-  async removeBackup(args: CloudArchiveArgs): Promise<CloudOperationResult> {
+  async removeBackups(args: CloudArchiveListArgs): Promise<CloudRemovalResult> {
     const target = await this.requireTarget();
 
     if (!target.ok) {
       return target;
     }
 
-    try {
-      await target.adapter.remove({ credential: target.credential, entryId: args.archiveId });
+    const removed: string[] = [];
+    const failed: { archiveId: string; message: string }[] = [];
 
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, code: 'network', message: describeError(error) };
+    for (const archiveId of args.archiveIds) {
+      try {
+        await target.adapter.remove({ credential: target.credential, entryId: archiveId });
+        removed.push(archiveId);
+      } catch (error) {
+        failed.push({ archiveId, message: describeError(error) });
+      }
     }
+
+    // 逐条回结论：一份没删掉不该让其余的回滚，也不该被混进一句“删除失败”——那样只能重试全部。
+    return { ok: true, removed, failed };
   }
 
   private emit(progress: CloudBackupProgress) {

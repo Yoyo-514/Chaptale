@@ -43,7 +43,7 @@ type RestoreWizard = {
   receipt: (CloudRestoreResult & { ok: true }) | null;
 };
 
-/** 云同步账户、云端目录浏览与作品备份。授权与备份都是"结束才返回"，所以 `busy` 同时承担等待中的界面语义。 */
+/** 云端备份：账户、云端目录浏览与归档清单。授权与备份都是"结束才返回"，所以 `busy` 同时承担等待中的界面语义。 */
 export const useCloudSyncStore = defineStore('cloudSync', {
   state: () => ({
     state: null as CloudSyncState | null,
@@ -466,21 +466,34 @@ export const useCloudSyncStore = defineStore('cloudSync', {
 
       if (ids.length > 0) await editor.refreshDocuments(ids);
     },
-    /** 只由界面上显式确认的删除调用；没有任何自动路径会走到这里。 */
-    async removeBackup(archiveId: string) {
+    /**
+     * 删除选中的归档。
+     *
+     * 结果逐条回来，所以这里分别说“删掉了几份”与“哪几份没删掉”——
+     * 同批里有一份成功，不等于其余的也成了；失败的那份要留给作者再决定。
+     */
+    async removeBackups(archiveIds: string[]) {
       this.backupError = '';
       this.notice = '';
 
       try {
-        const result = await getDesktopApi().cloudSync.removeBackup({ archiveId });
+        const result = await getDesktopApi().cloudSync.removeBackups({ archiveIds });
 
         if (!result.ok) {
           this.backupError = result.message;
           return;
         }
 
-        this.notice = '已从云端删除该归档';
+        // 先刷新再写文案：刷新本身会清掉上一次的提示。
         await this.loadBackups();
+
+        if (result.failed.length > 0) {
+          this.backupError = `${result.failed.length} 份没删掉：${result.failed[0]?.message ?? ''}`;
+        }
+
+        if (result.removed.length > 0) {
+          this.notice = `已从云端删除 ${result.removed.length} 份归档`;
+        }
       } catch (error) {
         this.backupError = toErrorMessage(error);
       }

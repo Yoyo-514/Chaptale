@@ -9,6 +9,8 @@ const baseOptions: OAuthFlowOptions = {
   authorizeEndpoint: 'https://provider.test/authorize',
   scopes: ['files.content.write', 'account_info.read'],
   redirectPort: 0,
+  // 主机与末尾斜杠由适配器决定；这里用回环 IPv4，与 Dropbox 那条一致。
+  redirectUri: port => `http://127.0.0.1:${port}/`,
   openExternal: async () => undefined
 };
 
@@ -46,6 +48,10 @@ describe('授权码 + PKCE 回环流程', () => {
     if (!result.ok) return;
     expect(result.code).toBe('auth-code');
     expect(result.redirectUri).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+
+    // 宣告出去的回调地址就是发去授权页的那个：两处不一致的话服务商会直接拒。
+    const authorizeForRedirect = new URL(browser.authorizeUrls[0] ?? '');
+    expect(authorizeForRedirect.searchParams.get('redirect_uri')).toBe(result.redirectUri);
     expect(browser.pages[0]).toContain('授权完成');
 
     const authorize = new URL(browser.authorizeUrls[0] ?? '');

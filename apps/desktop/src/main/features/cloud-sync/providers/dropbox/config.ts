@@ -6,7 +6,7 @@
  *
  * 开发状态的应用默认只能绑定创建者本人账号，App Console 可开启附加用户（上限 500）；
  * 到 50 个链接用户后需在两周内申请 production，而 Dropbox 只在应用已有 50 个用户时才受理审核。
- * 这是分发阶段的事，不影响本机与少量用户使用，详见 `docs/m7-plan/00-cloud-sync.md` 的已知边界。
+ * 这是分发阶段的事，不影响本机与少量用户使用。
  */
 export const DROPBOX_APP_KEY = '836g4zzleh4vxr6';
 
@@ -24,7 +24,7 @@ export const DROPBOX_SCOPES = ['account_info.read', 'files.content.read', 'files
 /**
  * 单次上传上限。
  *
- * 超过这个尺寸要走 upload_session 分片，而分片上传是明确不在本轮范围内的（决策 14：超限报错）。
+ * 超过这个尺寸要走 upload_session 分片，而分片上传不在本轮范围内：**超限就如实报错**。
  * 把上限写在适配器里：这是服务商的知识，不是备份流程的常量。
  */
 export const DROPBOX_SIMPLE_UPLOAD_LIMIT = 150 * 1024 * 1024;

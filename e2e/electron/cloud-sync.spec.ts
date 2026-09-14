@@ -30,8 +30,8 @@ async function launch() {
 
 async function openCloudSync() {
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
-  await page.getByRole('button', { name: '云同步 云服务商登录与云端目录', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '云同步', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '云端备份 云服务商登录与云端目录', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '云端备份', exact: true })).toBeVisible();
 
   return page.locator('section[aria-labelledby="cloud-accounts-title"]');
 }
@@ -107,7 +107,7 @@ test.afterEach(async () => {
   expect(errors).toEqual([]);
 });
 
-test('未登录与未接入分开呈现，未接入的服务商不出现登录入口', async () => {
+test('两个服务商都能登录，各自的可见范围写在行里', async () => {
   await launch();
   const accounts = await openCloudSync();
 
@@ -116,11 +116,11 @@ test('未登录与未接入分开呈现，未接入的服务商不出现登录�
   await expect(dropbox.getByRole('button', { name: '登录', exact: true })).toBeVisible();
   await expect(dropbox).toContainText('/Apps/Chaptale/');
 
-  for (const label of ['OneDrive', '坚果云']) {
-    const row = accounts.locator('li').filter({ hasText: label });
-    await expect(row).toContainText('暂未接入');
-    await expect(row.getByRole('button', { name: '登录', exact: true })).toHaveCount(0);
-  }
+  // 应用专属文件夹：作者在云端看到的是一个只属于本应用的文件夹，其余文件它看不到。
+  const oneDrive = accounts.locator('li').filter({ hasText: 'OneDrive' });
+  await expect(oneDrive).toContainText('未登录');
+  await expect(oneDrive.getByRole('button', { name: '登录', exact: true })).toBeVisible();
+  await expect(oneDrive).toContainText('应用专属文件夹');
 });
 
 test('左下角一个入口同时显示本机与云端状态，点开就是文件与同步面板', async () => {

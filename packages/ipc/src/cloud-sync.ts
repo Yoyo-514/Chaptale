@@ -10,7 +10,7 @@ export type CloudProvider = Static<typeof CloudProviderSchema>;
  * 与主题取值同一形状：写成 Record 把这里和 schema 双向钉死，schema 增了取值而这里缺分支、
  * 或这里多写一个 schema 没有的值，两种漂移都在编译期失败。
  */
-const CLOUD_PROVIDER_VALUES: Record<CloudProvider, true> = { dropbox: true, onedrive: true, nutstore: true };
+const CLOUD_PROVIDER_VALUES: Record<CloudProvider, true> = { dropbox: true, onedrive: true };
 
 /** 界面按固定顺序呈现服务商，不依赖对象键顺序。 */
 export const CLOUD_PROVIDERS = Object.keys(CLOUD_PROVIDER_VALUES) as CloudProvider[];
@@ -18,8 +18,7 @@ export const CLOUD_PROVIDERS = Object.keys(CLOUD_PROVIDER_VALUES) as CloudProvid
 /** 界面与主进程错误文案共用同一份名称，避免两侧各写一套后漂移。 */
 export const CLOUD_PROVIDER_LABELS: Record<CloudProvider, string> = {
   dropbox: 'Dropbox',
-  onedrive: 'OneDrive',
-  nutstore: '坚果云'
+  onedrive: 'OneDrive'
 };
 
 /** 落盘账户与手改过的配置都要在用之前挡掉，与 `isChaptaleTheme` 同理。 */
@@ -123,7 +122,7 @@ export type CloudQuota = {
 
 /**
  * 备份清单。绑定状态与配额一起返回：面板打开一次就要这三样，分成三个频道只是多两次往返。
- * `quota` 为 null 表示服务商没提供或读不到（如坚果云 WebDAV），界面显示“未提供”而不是编一个数。
+ * `quota` 为 null 表示服务商没提供或这次读不到，界面显示“未提供”而不是编一个数。
  */
 export type CloudBackupListResult =
   | {
@@ -235,6 +234,19 @@ export type CloudRestoreResult =
 
 export type CloudArchiveArgs = { archiveId: string };
 
+/** 批量删除：一次确认删掉选中的若干份归档。 */
+export type CloudArchiveListArgs = { archiveIds: string[] };
+
+/**
+ * 删除结果。
+ *
+ * 逐条给结论：一部分没删掉时，界面得说得出是哪些、为什么——
+ * 把它们混在一句“删除失败”里，作者只能重试全部。
+ */
+export type CloudRemovalResult =
+  | { ok: true; removed: string[]; failed: { archiveId: string; message: string }[] }
+  | { ok: false; code: CloudErrorCode; message: string };
+
 /** 读单个冲突项的正文：归档标识 + 归档内相对路径。 */
 export type CloudRestoreDiffArgs = { archiveId: string; relativePath: string };
 
@@ -264,7 +276,7 @@ export type CloudAuthErrorCode = 'not-configured' | 'canceled' | 'timeout' | 'de
  *
  * `root` 为真表示已经是**服务商返回的最顶层**（不能再往上），此时 `id` 必为 null。
  * 最顶层的含义随服务商而变：Dropbox / OneDrive 的 App Folder 接入下，最顶层就是本应用的专属区域；
- * 坚果云 WebDAV 没有专属区域的概念，最顶层就是作者自己的网盘根。
+ * 没有专属区域的服务商（如自建 WebDAV），最顶层就是作者自己的网盘根。
  */
 export type CloudRemoteFolder = {
   /** 服务商侧标识；最顶层为 null，与 `root` 一致。 */

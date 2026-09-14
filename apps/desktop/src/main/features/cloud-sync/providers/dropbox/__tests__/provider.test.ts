@@ -1,37 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { createStubFetch } from '../../__tests__/stub-fetch';
 import { DROPBOX_SIMPLE_UPLOAD_LIMIT } from '../config';
 import { createDropboxAdapter } from '../provider';
-
-type Call = { url: string; method: string; body: string; headers: Record<string, string> };
-
-/** 注入的 fetch：记录请求、回放固定报文。不替代被测函数，测的就是适配器自己怎么发请求、怎么解响应。 */
-function createStubFetch(replies: Array<Response | unknown>) {
-  const calls: Call[] = [];
-  let index = 0;
-
-  const send = (async (input: string | URL | Request, init?: RequestInit) => {
-    const headers = new Headers(init?.headers);
-
-    calls.push({
-      url: String(input),
-      method: init?.method ?? 'GET',
-      body:
-        typeof init?.body === 'string' ? init.body : init?.body instanceof URLSearchParams ? init.body.toString() : '',
-      headers: Object.fromEntries(headers.entries())
-    });
-
-    const reply = replies[index++];
-
-    if (reply === undefined) {
-      throw new Error(`未预期的第 ${index} 次请求：${String(input)}`);
-    }
-
-    return reply instanceof Response ? reply : new Response(JSON.stringify(reply), { status: 200 });
-  }) as typeof globalThis.fetch;
-
-  return { calls, send };
-}
 
 const tokenReply = { access_token: 'short-lived', refresh_token: 'refresh-1', expires_in: 14400 };
 
@@ -44,6 +15,8 @@ describe('Dropbox 适配器', () => {
     expect(oauth?.redirectPort).toBeGreaterThan(1024);
     expect(oauth?.extraAuthorizeParams).toEqual({ token_access_type: 'offline' });
     expect(oauth?.scopes).toContain('files.content.write');
+    // 主机 127.0.0.1 + 末尾斜杠：App Console 登记的就是这个串，必须逐字符相同。
+    expect(oauth?.redirectUri(52475)).toBe('http://127.0.0.1:52475/');
   });
   it('用授权码换到 refresh token 与账号显示名，短票不进凭据', async () => {
     const stub = createStubFetch([tokenReply, { name: { display_name: '张三' }, email: 'a@example.com' }]);

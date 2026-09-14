@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
-import { CLOUD_PROVIDER_LABELS, AUTO_BACKUP_INTERVAL_MINUTES, type CloudProvider } from '@chaptale/ipc-contract';
+import {
+  AUTO_BACKUP_INTERVAL_MINUTES,
+  CLOUD_PROVIDER_LABELS,
+  type CloudBackupArchive,
+  type CloudProvider
+} from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
@@ -15,14 +20,12 @@ import { describeBackupInterval, formatSize, formatWhen, isValidBackupInterval, 
 
 const cloud = useCloudSyncStore();
 const settings = useSettingsStore();
-const pendingRemoval = ref('');
 let unsubscribe: (() => void) | undefined;
 
 /** 写明应用能看到云端的哪一块，比一句"连接云盘"更让人敢按下去。 */
 const providerNotes: Record<CloudProvider, string> = {
   dropbox: '应用专属目录 /Apps/Chaptale/：只读写这一块，看不到你云盘里的其他文件。',
-  onedrive: '尚未接入 Microsoft Graph。',
-  nutstore: '尚未接入 WebDAV。'
+  onedrive: '应用专属文件夹：只读写这一块，看不到你云盘里的其他文件。'
 };
 
 const providers = computed(() =>
@@ -119,10 +122,44 @@ function bindHere() {
   void cloud.bind(cloud.browseProvider, listing.current.id, listing.current.name);
 }
 
-function confirmRemoval(archiveId: string) {
-  pendingRemoval.value = '';
-  void cloud.removeBackup(archiveId);
+function confirmRemoval() {
+  const archiveIds = [...removalSelection.value];
+
+  removalSelection.value = [];
+  void cloud.removeBackups(archiveIds);
 }
+
+/**
+ * 勾选与“待确认”都是这一屏的事，不进 store。
+ *
+ * 删除本身在 store 里；进 store 的只是“删哪几份”——把勾选一并放进去，
+ * 会让另一个面板打开时也看到上一次的勾选。
+ */
+const removalSelection = ref<string[]>([]);
+const isRemovalPending = ref(false);
+
+/**
+ * 按复选报上来的**值**决定选中与否，而不是“收到一次事件就翻转”。
+ *
+ * 复选会在初始化与失焦时重复报同一个值：把每次事件都当翻转，
+ * 作者点“删除所选”的那一刻（按钮夺走焦点）就会把自己的选择翻掉、确认页自己消失。
+ * 没有真变化就不算一次新意图，也就不会把确认页收回去。
+ */
+function setRemoval(item: CloudBackupArchive, selected: boolean) {
+  const next = selected
+    ? removalSelection.value.includes(item.id)
+      ? removalSelection.value
+      : [...removalSelection.value, item.id]
+    : removalSelection.value.filter(id => id !== item.id);
+
+  if (next === removalSelection.value) return;
+
+  // 换一次选择就当作换了一次意图：上一次的确认页不能继续挂着。
+  isRemovalPending.value = false;
+  removalSelection.value = next;
+}
+
+const selectionLabel = computed(() => `已选 ${removalSelection.value.length} 份 · 共 ${cloud.archives.length} 份`);
 
 function formatTime(value: string): string {
   return formatWhen(value);
@@ -131,7 +168,7 @@ function formatTime(value: string): string {
 
 <template>
   <SettingsSection
-    title="云同步"
+    title="云端备份"
     title-id="settings-cloud-sync-title"
     description="登录云服务商后，可把作品备份到云端并在需要时恢复。凭据经系统密钥环加密后只留在本机，账号密码不下发到界面。"
   >
@@ -154,7 +191,7 @@ function formatTime(value: string): string {
                   <span class="i-mingcute-check-line size-3.5" aria-hidden="true" />{{ item.account.displayName }}
                 </span>
                 <span v-else-if="item.configured" class="cloud-state">未登录</span>
-                <span v-else class="cloud-state">暂未接入</span>
+                <span v-else class="cloud-state">未配置</span>
               </div>
               <p class="cloud-note">{{ item.note }}</p>
             </div>
@@ -310,40 +347,60 @@ function formatTime(value: string): string {
           </div>
 
           <p v-if="!cloud.archives.length" class="cloud-muted">云端还没有归档。点「立即备份」把当前作品打一份上去。</p>
-          <ul v-else class="cloud-files">
-            <li v-for="item in cloud.archives" :key="item.id" class="cloud-file">
-              <div class="cloud-file-copy">
-                <span class="cloud-file-name">{{ item.name }}</span>
-                <span class="cloud-muted">
-                  {{ formatSize(item.sizeBytes) }}
-                  <template v-if="item.modifiedAt"> · {{ formatTime(item.modifiedAt) }}</template>
-                </span>
-              </div>
+          <template v-else>
+            <div class="cloud-files-head">
+              <span class="cloud-muted">{{ selectionLabel }}</span>
               <div class="cloud-provider-actions">
+                <template v-if="isRemovalPending">
+                  <AppButton size="sm" type="button" :disabled="cloud.isBackupRunning" @click="confirmRemoval()">
+                    确认删除 {{ removalSelection.length }} 份
+                  </AppButton>
+                  <AppButton variant="ghost" size="sm" type="button" @click="isRemovalPending = false">取消</AppButton>
+                </template>
                 <AppButton
+                  v-else
                   variant="ghost"
                   size="sm"
                   type="button"
-                  :disabled="cloud.isBackupRunning"
-                  @click="cloud.openRestore(item.id, item.name)"
+                  :disabled="removalSelection.length === 0 || cloud.isBackupRunning"
+                  @click="isRemovalPending = true"
                 >
-                  恢复…
-                </AppButton>
-                <template v-if="pendingRemoval === item.id">
-                  <AppButton size="sm" type="button" :disabled="cloud.isBackupRunning" @click="confirmRemoval(item.id)">
-                    确认删除
-                  </AppButton>
-                  <AppButton variant="ghost" size="sm" type="button" @click="pendingRemoval = ''">取消</AppButton>
-                </template>
-                <AppButton v-else variant="ghost" size="sm" type="button" @click="pendingRemoval = item.id">
-                  从云端删除
+                  删除所选
                 </AppButton>
               </div>
-              <p v-if="pendingRemoval === item.id" class="cloud-error">
-                从云端删除后无法恢复，请确认这份归档不再需要。
-              </p>
-            </li>
-          </ul>
+            </div>
+            <p v-if="isRemovalPending" class="cloud-error" role="alert">
+              从云端删除后无法恢复，请确认这 {{ removalSelection.length }} 份归档不再需要。
+            </p>
+
+            <ul class="cloud-files">
+              <li v-for="item in cloud.archives" :key="item.id" class="cloud-file">
+                <label class="cloud-file-copy">
+                  <AppCheckbox
+                    :model-value="removalSelection.includes(item.id)"
+                    :aria-label="`选择归档 ${item.name}`"
+                    @update:model-value="setRemoval(item, $event === true)"
+                  />
+                  <span class="cloud-file-name">{{ item.name }}</span>
+                  <span class="cloud-muted">
+                    {{ formatSize(item.sizeBytes) }}
+                    <template v-if="item.modifiedAt"> · {{ formatTime(item.modifiedAt) }}</template>
+                  </span>
+                </label>
+                <div class="cloud-provider-actions">
+                  <AppButton
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    :disabled="cloud.isBackupRunning"
+                    @click="cloud.openRestore(item.id, item.name)"
+                  >
+                    恢复…
+                  </AppButton>
+                </div>
+              </li>
+            </ul>
+          </template>
 
           <div class="cloud-provider-actions is-end">
             <AppButton
@@ -416,8 +473,12 @@ h4 {
   @apply grid gap-1;
 }
 
+.cloud-files-head {
+  @apply flex min-w-0 items-center justify-between gap-2;
+}
+
 .cloud-file-copy {
-  @apply grid min-w-0 gap-0.5;
+  @apply grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5;
 }
 
 .cloud-file-name {

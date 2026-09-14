@@ -1,5 +1,6 @@
 import {
   CloudArchiveArgsValidator,
+  CloudArchiveListArgsValidator,
   CloudBindArgsValidator,
   CloudListFoldersArgsValidator,
   CloudNoArgsValidator,
@@ -8,6 +9,7 @@ import {
   CloudRestoreDiffArgsValidator,
   IPC_CHANNELS,
   type CloudArchiveArgs,
+  type CloudArchiveListArgs,
   type CloudBindArgs,
   type CloudListFoldersArgs,
   type CloudProviderArgs,
@@ -54,7 +56,9 @@ export function registerCloudSyncIpc(service: CloudSyncService, ui?: UiShell) {
     service.applyRestore(args)
   );
   handleValidatedIpc(IPC_CHANNELS.cloudSync.cancelRestore, CloudNoArgsValidator, () => service.cancelRestore());
-  handleValidatedIpc(IPC_CHANNELS.cloudSync.removeBackup, CloudArchiveArgsValidator, (_event, args: CloudArchiveArgs) =>
-    service.removeBackup(args)
+  handleValidatedIpc(
+    IPC_CHANNELS.cloudSync.removeBackups,
+    CloudArchiveListArgsValidator,
+    (_event, args: CloudArchiveListArgs) => service.removeBackups(args)
   );
 }

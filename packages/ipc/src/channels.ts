@@ -94,7 +94,7 @@ export const IPC_CHANNELS = {
     unbind: 'cloud-sync:unbind',
     listBackups: 'cloud-sync:list-backups',
     createBackup: 'cloud-sync:create-backup',
-    removeBackup: 'cloud-sync:remove-backup',
+    removeBackups: 'cloud-sync:remove-backups',
     planRestore: 'cloud-sync:plan-restore',
     readRestoreDiff: 'cloud-sync:read-restore-diff',
     applyRestore: 'cloud-sync:apply-restore',

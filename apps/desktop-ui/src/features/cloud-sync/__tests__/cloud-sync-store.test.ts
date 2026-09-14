@@ -33,8 +33,7 @@ function cloudState(accounts: CloudAccount[] = []): CloudSyncState {
   return {
     availability: [
       { provider: 'dropbox', configured: true },
-      { provider: 'onedrive', configured: false },
-      { provider: 'nutstore', configured: false }
+      { provider: 'onedrive', configured: false }
     ],
     accounts,
     authorizing: null
@@ -59,7 +58,7 @@ function installApi(overrides: Partial<CloudSyncApi> = {}) {
     readRestoreDiff: vi.fn(),
     applyRestore: vi.fn(),
     cancelRestore: vi.fn().mockResolvedValue({ ok: true }),
-    removeBackup: vi.fn().mockResolvedValue({ ok: true }),
+    removeBackups: vi.fn().mockResolvedValue({ ok: true, removed: [], failed: [] }),
     onBackupProgress: vi.fn().mockReturnValue(() => undefined),
     ...overrides
   };
@@ -74,7 +73,7 @@ beforeEach(() => {
   delete window.chaptaleDesktop;
 });
 
-describe('云同步 store', () => {
+describe('云端备份 store', () => {
   it('读取状态失败时只留下错误文案，不抛出到界面', async () => {
     const getState = vi.fn().mockResolvedValue(cloudState());
     installApi({ getState });
@@ -82,7 +81,7 @@ describe('云同步 store', () => {
 
     await store.load();
 
-    expect(store.state?.availability).toHaveLength(3);
+    expect(store.state?.availability).toHaveLength(2);
     expect(store.isLoading).toBe(false);
 
     getState.mockRejectedValueOnce(new Error('主进程未响应'));

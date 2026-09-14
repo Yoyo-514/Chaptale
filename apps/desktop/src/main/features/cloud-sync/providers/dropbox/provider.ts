@@ -1,3 +1,4 @@
+import { binaryBody, formatMegabytes } from '../http';
 import type { CloudCredential, CloudProviderAdapter, CloudQuota, CloudRemoteEntry } from '../provider-port';
 import {
   DROPBOX_APP_KEY,
@@ -67,6 +68,8 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
       authorizeEndpoint: DROPBOX_ENDPOINTS.authorize,
       scopes: [...DROPBOX_SCOPES],
       redirectPort: DROPBOX_REDIRECT_PORT,
+      // 主机用 127.0.0.1、末尾带斜杠：App Console 登记的就是这个串，必须逐字符相同。
+      redirectUri: port => `http://127.0.0.1:${port}/`,
       // 不带这个参数只会拿到四小时短票、没有 refresh token —— 重启应用就得重新登录。
       extraAuthorizeParams: { token_access_type: 'offline' }
     }),
@@ -135,7 +138,7 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
     async upload({ credential, parentId, name, bytes, signal }) {
       if (bytes.byteLength > DROPBOX_SIMPLE_UPLOAD_LIMIT) {
         throw new Error(
-          `归档 ${formatMB(bytes.byteLength)} 超过 Dropbox 单次上传上限 ${formatMB(DROPBOX_SIMPLE_UPLOAD_LIMIT)}；` +
+          `归档 ${formatMegabytes(bytes.byteLength)} 超过 Dropbox 单次上传上限 ${formatMegabytes(DROPBOX_SIMPLE_UPLOAD_LIMIT)}；` +
             '可在云端手动上传该文件，或在作品里分离大附件后重试'
         );
       }
@@ -306,10 +309,6 @@ function requireString(value: unknown, message: string): string {
   return value;
 }
 
-function formatMB(bytes: number): string {
-  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
-}
-
 /**
  * 把 API 参数编成 **纯 ASCII** 的 JSON。
  *
@@ -323,16 +322,6 @@ function dropboxArg(value: unknown): string {
     /[^\x20-\x7e]/g,
     character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`
   );
-}
-
-/**
- * 把二进制原样交给 fetch。
- *
- * Node 的 fetch 本来就接受 Uint8Array，但类型定义里的 ArrayBufferView 带 ArrayBufferLike 泛型参数，
- * 直接传会被判为不匹配。这里只收一次窄，**不做数据拷贝**：150 MB 上限下多拷一份很吃亏。
- */
-function binaryBody(bytes: Uint8Array): NonNullable<RequestInit['body']> {
-  return bytes as unknown as NonNullable<RequestInit['body']>;
 }
 
 async function postForm(

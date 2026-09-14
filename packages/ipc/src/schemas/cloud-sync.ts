@@ -1,12 +1,8 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
-/** 服务商取值表；接入顺序 dropbox → onedrive → nutstore，与实现顺序一致。 */
-export const CloudProviderSchema = Type.Union([
-  Type.Literal('dropbox'),
-  Type.Literal('onedrive'),
-  Type.Literal('nutstore')
-]);
+/** 服务商取值表；接入一个才会出现在这里，未接入的不给假入口。 */
+export const CloudProviderSchema = Type.Union([Type.Literal('dropbox'), Type.Literal('onedrive')]);
 
 /**
  * 服务商侧的目录标识：Dropbox 用 id、WebDAV 用相对路径。
@@ -48,6 +44,18 @@ export const CloudBindArgsValidator = Compile(Type.Tuple([CloudBindArgsSchema]))
 /** 归档标识：备份目录里的一个远端文件。 */
 export const CloudArchiveArgsSchema = Type.Object({ archiveId: REMOTE_ID }, { additionalProperties: false });
 export const CloudArchiveArgsValidator = Compile(Type.Tuple([CloudArchiveArgsSchema]));
+
+/**
+ * 批量删除的参数。
+ *
+ * 上限 500 是给载荷一个真实的界：界面上的勾选来自一份清单，本来就不会有更多；
+ * 要求不重复，是为了让“哪几份没删掉”这句话不会因为同一个 id 出现两次而自相矛盾。
+ */
+export const CloudArchiveListArgsSchema = Type.Object(
+  { archiveIds: Type.Array(REMOTE_ID, { minItems: 1, maxItems: 500, uniqueItems: true }) },
+  { additionalProperties: false }
+);
+export const CloudArchiveListArgsValidator = Compile(Type.Tuple([CloudArchiveListArgsSchema]));
 
 /** 单个冲突项：归档标识 + 归档内相对路径（正斜杠）。 */
 export const CloudRestoreDiffArgsSchema = Type.Object(

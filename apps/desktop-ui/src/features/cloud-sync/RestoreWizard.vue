@@ -306,7 +306,7 @@ function confirmLabel(mode: CloudRestoreMode): string {
               </template>
               已经打开的干净文件由编辑器自己重新读盘；带未保存内容的缓冲不会被覆盖。
               <template v-if="wizard.receipt.mode === 'new'">
-                新目录还没有云端绑定，可在「设置 › 云同步」里绑到同一位置。
+                新目录还没有云端绑定，可在「设置 › 云端备份」里绑到同一位置。
               </template>
             </span>
           </p>

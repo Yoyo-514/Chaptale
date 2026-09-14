@@ -3,6 +3,7 @@ import { ipcRenderer } from 'electron';
 import type {
   ChaptaleDesktopApi,
   CloudArchiveArgs,
+  CloudArchiveListArgs,
   CloudBackupProgress,
   CloudBindArgs,
   CloudListFoldersArgs,
@@ -31,7 +32,7 @@ export function createCloudSyncApi(): ChaptaleDesktopApi['cloudSync'] {
     readRestoreDiff: (args: CloudRestoreDiffArgs) => ipcRenderer.invoke(IPC_CHANNELS.cloudSync.readRestoreDiff, args),
     applyRestore: (args: CloudRestoreArgs) => ipcRenderer.invoke(IPC_CHANNELS.cloudSync.applyRestore, args),
     cancelRestore: () => ipcRenderer.invoke(IPC_CHANNELS.cloudSync.cancelRestore),
-    removeBackup: (args: CloudArchiveArgs) => ipcRenderer.invoke(IPC_CHANNELS.cloudSync.removeBackup, args),
+    removeBackups: (args: CloudArchiveListArgs) => ipcRenderer.invoke(IPC_CHANNELS.cloudSync.removeBackups, args),
     onBackupProgress: (listener: (progress: CloudBackupProgress) => void) =>
       onValidatedEvent(IPC_CHANNELS.cloudSync.backupProgress, CloudBackupProgressValidator, listener)
   };

@@ -153,8 +153,8 @@ describe('云同步本机状态', () => {
         sealed: { encryption: 'encrypted', payload: '' }
       },
       { provider: 'onedrive', displayName: '', connectedAt: 'x', sealed: { encryption: 'encrypted', payload: '' } },
-      { provider: 'nutstore', displayName: '少了凭据', connectedAt: 'x' },
-      { provider: 'nutstore', displayName: '坏了凭据', connectedAt: 'x', sealed: { encryption: 'rot13', payload: '' } }
+      { provider: 'onedrive', displayName: '少了凭据', connectedAt: 'x' },
+      { provider: 'onedrive', displayName: '坏了凭据', connectedAt: 'x', sealed: { encryption: 'rot13', payload: '' } }
     );
     raw.bindings['/work/broken'] = { provider: 'aliyun', folderId: '/x', folderName: 'x', boundAt: 'x' };
     await writeFile(file, JSON.stringify(raw));

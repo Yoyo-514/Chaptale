@@ -44,7 +44,7 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
   },
   {
     id: 'cloudSync',
-    title: '云同步',
+    title: '云端备份',
     description: '云服务商登录与云端目录',
     icon: 'i-mingcute-cloud-line'
   },

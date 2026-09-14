@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CLOUD_PROVIDER_LABELS, CLOUD_PROVIDERS, isCloudProvider } from '../../cloud-sync';
 import {
+  CloudArchiveListArgsValidator,
   CloudListFoldersArgsValidator,
   CloudNoArgsValidator,
   CloudProviderArgsValidator,
@@ -32,8 +33,8 @@ describe('云同步契约', () => {
     expect(CloudListFoldersArgsValidator.Check([{ provider: 'dropbox' }])).toBe(true);
     expect(CloudListFoldersArgsValidator.Check([{ provider: 'dropbox', parentId: null }])).toBe(true);
     expect(CloudListFoldersArgsValidator.Check([{ provider: 'onedrive', parentId: '/文稿' }])).toBe(true);
-    expect(CloudListFoldersArgsValidator.Check([{ provider: 'nutstore', parentId: '' }])).toBe(false);
-    expect(CloudListFoldersArgsValidator.Check([{ provider: 'nutstore', parentId: 'x'.repeat(2049) }])).toBe(false);
+    expect(CloudListFoldersArgsValidator.Check([{ provider: 'one drive', parentId: '' }])).toBe(false);
+    expect(CloudListFoldersArgsValidator.Check([{ provider: 'onedrive', parentId: 'x'.repeat(2049) }])).toBe(false);
     expect(CloudListFoldersArgsValidator.Check([{ provider: 'dropbox', root: true }])).toBe(false);
   });
   it('恢复参数只认三种模式与三种决议，额外的键一律挡掉', () => {
@@ -76,8 +77,26 @@ describe('云同步契约', () => {
       expect(CloudRestoreDiffArgsValidator.Check(args)).toBe(false);
     }
   });
+  it('批量删除只收 1–500 份、且不重复的归档标识', () => {
+    expect(CloudArchiveListArgsValidator.Check([{ archiveIds: ['a.zip'] }])).toBe(true);
+    expect(
+      CloudArchiveListArgsValidator.Check([{ archiveIds: Array.from({ length: 500 }, (_, i) => `a${i}.zip`) }])
+    ).toBe(true);
+
+    for (const args of [
+      // 空数组不是“删零份”，而是一次没说清楚要删什么的调用。
+      [{ archiveIds: [] }],
+      [{ archiveIds: Array.from({ length: 501 }, (_, i) => `a${i}.zip`) }],
+      // 同一个 id 出现两次时，“哪几份没删掉”这句话会自相矛盾。
+      [{ archiveIds: ['a.zip', 'a.zip'] }],
+      [{ archiveIds: [''] }],
+      [{ archiveIds: ['a.zip'], confirm: true }]
+    ]) {
+      expect(CloudArchiveListArgsValidator.Check(args)).toBe(false);
+    }
+  });
   it('服务商守卫挡掉落盘与手改配置里的未知取值', () => {
-    expect(CLOUD_PROVIDERS).toEqual(['dropbox', 'onedrive', 'nutstore']);
+    expect(CLOUD_PROVIDERS).toEqual(['dropbox', 'onedrive']);
     expect(Object.keys(CLOUD_PROVIDER_LABELS)).toEqual(CLOUD_PROVIDERS);
     for (const provider of CLOUD_PROVIDERS) {
       expect(isCloudProvider(provider)).toBe(true);

@@ -160,7 +160,9 @@ function revealWorkspace() {
             <div class="sync-location-copy">
               <span class="sync-muted">还没有绑定云端备份位置，无法手动备份。</span>
             </div>
-            <AppButton variant="ghost" :disabled="disabled" @click="openCloudSettings()">去「设置 › 云同步」</AppButton>
+            <AppButton variant="ghost" :disabled="disabled" @click="openCloudSettings()"
+              >去「设置 › 云端备份」</AppButton
+            >
           </div>
           <p v-if="cloud.backupError" class="has-error" role="alert">{{ cloud.backupError }}</p>
         </section>
@@ -199,7 +201,7 @@ function revealWorkspace() {
         <p v-if="error" class="has-error" role="alert">{{ error }}</p>
       </AppScrollArea>
       <footer class="sync-footer">
-        <span class="sync-muted">这里只反映本机已打开文件的状态；云端备份在设置 › 云同步里。</span>
+        <span class="sync-muted">这里只反映本机已打开文件的状态；云端备份见设置里的「云端备份」。</span>
         <AppButton :disabled="disabled" @click="openWorkspace()">打开其他作品</AppButton>
       </footer>
     </div>

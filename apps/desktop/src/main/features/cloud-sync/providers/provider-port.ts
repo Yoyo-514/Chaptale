@@ -11,6 +11,17 @@ export type CloudOAuthConfig = {
   authorizeEndpoint: string;
   scopes: string[];
   redirectPort: number;
+  /**
+   * 回调地址。
+   *
+   * 同一个 URI 要在授权请求与换令牌两处**逐字符一致**，而各家对主机名与末尾斜杠的要求并不一样，
+   * 所以由适配器给一个构造器，而不是让流程拼一个“通用形状”：
+   *
+   * - Dropbox：App Console 登记的串要逐字符相同，主机用 `127.0.0.1`；
+   * - Entra：门户不接受 `http://127.0.0.1`（只能改应用清单），要写 `localhost`，
+   *   而回环地址的端口在匹配时被忽略（RFC 8252 §7.3），所以那边可以用随机端口。
+   */
+  redirectUri: (port: number) => string;
   extraAuthorizeParams?: Record<string, string>;
 };
 
@@ -54,7 +65,7 @@ export type CloudEntryListing = {
   entries: CloudRemoteEntry[];
 };
 
-/** 服务商配额。坚果云 WebDAV 没有可可靠查询的配额，那种情况返回 null 而不是编一个数。 */
+/** 服务商配额。查不到（服务商没有接口，或这次读失败）就返回 null，而不是编一个数。 */
 export type CloudQuota = {
   usedBytes: number;
   totalBytes: number;

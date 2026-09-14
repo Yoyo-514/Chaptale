@@ -32,8 +32,7 @@ export const testBinding: CloudBinding = {
 /**
  * 内存远端：实现同一个端口。
  *
- * 这是**第二个实现**而不是 mock——`docs/m7-plan/00-cloud-sync.md` §9 要的就是它：
- * 被测对象是备份与恢复的逻辑，不是 Dropbox 的报文（那是适配器固定夹具的事）。
+ * 这是**第二个实现**而不是 mock：被测对象是备份与恢复的逻辑，不是服务商的报文（那是适配器固定夹具的事）。
  */
 export function createMemoryRemote() {
   const files = new Map<string, Uint8Array>();
@@ -46,7 +45,8 @@ export function createMemoryRemote() {
       clientId: 'test',
       authorizeEndpoint: 'https://example.com/authorize',
       scopes: [],
-      redirectPort: 52475
+      redirectPort: 52475,
+      redirectUri: port => `http://127.0.0.1:${port}/`
     }),
     exchangeCode: async () => ({ credential: {}, profile: { displayName: '测试账户' } }),
     listEntries: async () => ({
@@ -90,6 +90,16 @@ export function createMemoryRemote() {
     failUpload: (message: string) => {
       adapter.upload = async () => {
         throw new Error(message);
+      };
+    },
+    /** 让某个归档删不掉，用来验“一份没删掉不拖累其余”。 */
+    failRemove: (entryId: string, message: string) => {
+      const original = adapter.remove;
+
+      adapter.remove = async input => {
+        if (input.entryId === entryId) throw new Error(message);
+
+        return original(input);
       };
     }
   };
