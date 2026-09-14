@@ -19,9 +19,9 @@ const isDev = process.env.NODE_ENV === 'development';
  * 对不上时启动会闪一道异色。
  */
 const THEME_BACKGROUND: Record<ChaptaleTheme, string> = {
-  light: '#f4f7f9',
+  light: '#f4f6f8',
   warm: '#f8f3e7',
-  dark: '#0f1e26'
+  dark: '#282c34'
 };
 
 /**

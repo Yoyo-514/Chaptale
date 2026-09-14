@@ -44,7 +44,7 @@ const headline = computed(() => {
 
 const headlineIcon = computed(() => {
   if (allDone.value) {
-    return 'i-mingcute-check-circle-fill text-primary';
+    return 'i-mingcute-check-circle-fill text-success';
   }
 
   return currentItem.value ? 'i-mingcute-loading-3-line animate-spin' : 'i-mingcute-list-check-line';

@@ -1,0 +1,57 @@
+// 与主题无关的尺寸、层级和媒体遮罩。语义颜色在 themes 中映射。
+:root {
+  --radius: 0.5rem;
+  --radius-checkbox: 3px;
+  --radius-checkbox-active: 4px;
+  --radius-badge: 4px;
+  --radius-control-sm: 4px;
+  --radius-control: 6px;
+  --radius-overlay: 8px;
+  --radius-pill: 999px;
+  --ui-font-size: 0.8125rem;
+  --ui-caption-size: 0.75rem;
+  --control-height-sm: 2rem;
+  --control-height-md: 2.25rem;
+  --motion-duration: 150ms;
+  --scrollbar-size: 10px;
+
+  --palette-tianyi-50: #f1f9fd;
+  --palette-tianyi-100: #e4f2f9;
+  --palette-tianyi-200: #c9e7f5;
+  --palette-tianyi-300: #a0d7ef;
+  --palette-tianyi-400: #7bc4e8;
+  --palette-tianyi-500: #66ccff;
+  --palette-tianyi-600: #349bc5;
+  --palette-tianyi-700: #207fa6;
+  --palette-tianyi-800: #12688e;
+  --palette-tianyi-900: #143547;
+
+  --z-content-raised: 100;
+  --z-sticky-surface: 200;
+  --z-local-overlay: 250;
+  --z-local-popover: 300;
+  --z-app-chrome: 500;
+  --z-floating-panel: 600;
+  --z-popover: 700;
+  --z-modal-backdrop: 900;
+  --z-modal: 910;
+  --z-modal-control: 920;
+  --z-tooltip: 950;
+  --z-notification-center: 1000;
+
+  // 原图灯箱有独立深色遮罩，不随编辑器主题反转。
+  --media-overlay-control-background: rgb(255 255 255 / 0.08);
+  --media-overlay-control-background-hover: rgb(255 255 255 / 0.18);
+  --media-overlay-control-foreground: #e2e5e9;
+  --media-overlay-control-foreground-strong: #ffffff;
+  --media-overlay-panel-background: rgb(255 255 255 / 0.06);
+  --media-overlay-focus-ring: #a0d7ef;
+  --media-overlay-focus-shadow: 0 0 0 2px var(--media-overlay-focus-ring);
+  --media-overlay-active-ring: #ffffff;
+  --media-overlay-badge-background: rgb(0 0 0 / 0.6);
+  --media-overlay-badge-foreground: #f1f3f5;
+  --media-overlay-danger-background: rgb(0 0 0 / 0.55);
+  --media-overlay-danger-background-hover: rgb(0 0 0 / 0.75);
+  --media-overlay-danger-foreground: #f1f3f5;
+  --media-overlay-image-shadow: 0 8px 40px rgb(0 0 0 / 0.5);
+}

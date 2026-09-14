@@ -48,6 +48,9 @@ export default defineConfig({
       background: 'var(--background)',
       foreground: 'var(--foreground)',
       ring: 'var(--ring)',
+      success: 'var(--success)',
+      warning: 'var(--warning)',
+      info: 'var(--info)',
       border: {
         DEFAULT: 'var(--border)',
         subtle: 'var(--border-subtle)',

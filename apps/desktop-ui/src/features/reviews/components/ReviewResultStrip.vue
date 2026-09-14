@@ -162,7 +162,7 @@ function statusIcon(status: ReviewLaneStatus) {
     case 'reading':
       return 'i-mingcute-loading-3-line animate-spin';
     case 'done':
-      return 'i-mingcute-check-circle-fill text-primary';
+      return 'i-mingcute-check-circle-fill text-success';
     case 'failed':
     case 'read-failed':
       return 'i-mingcute-warning-line';

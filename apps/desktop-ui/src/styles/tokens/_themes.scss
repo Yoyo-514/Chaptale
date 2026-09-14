@@ -1,0 +1,165 @@
+// 组件只消费语义 token。正文/提示文字 >= 4.5:1，控件边界与焦点 >= 3:1。
+// 背景保持不透明，避免叠层后对比度依赖窗口后方的内容。
+:root {
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface-elevated);
+  --popover-foreground: var(--foreground);
+  --input: var(--surface-elevated);
+  --input-background: var(--input);
+  --input-foreground: var(--foreground);
+  --input-border: var(--border-strong);
+  --input-focus-border: var(--ring);
+  --input-focus-shadow: 0 0 0 1px var(--surface-elevated), 0 0 0 3px var(--ring);
+  --info: var(--primary-solid);
+  --action-background: var(--primary);
+  --action-background-hover: var(--primary-hover);
+  --action-foreground: var(--primary-foreground);
+  --action-shadow: none;
+  --titlebar-border: var(--border-subtle);
+  --titlebar-foreground: var(--foreground);
+  --titlebar-control-hover: var(--surface-hover);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--secondary);
+  --sidebar-accent-foreground: var(--secondary-foreground);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--ring);
+  --mica-background: var(--background);
+  --mica-tint: var(--background);
+  // 兼容已有消费者，名称暂留；工作区不再做常驻背景模糊。
+  --surface-acrylic: var(--surface);
+  --surface-acrylic-strong: var(--surface-elevated);
+  --surface-acrylic-subtle: var(--sidebar);
+  --blur-acrylic: none;
+  --blur-acrylic-subtle: none;
+  --shadow-inset-highlight: none;
+  --scrollbar-thumb: var(--border-strong);
+  --scrollbar-thumb-hover: var(--muted-foreground);
+}
+
+// 暖色仅覆写纸色表面，与浅色共用可读文字、状态和动作颜色。
+:root,
+.theme-light,
+.theme-warm {
+  color-scheme: light;
+  --background: #f4f6f8;
+  --foreground: #343b45;
+  --surface: #f9fafb;
+  --surface-elevated: #ffffff;
+  --surface-muted: #eceff3;
+  --surface-hover: #e4e9ef;
+  --sidebar: #eef1f5;
+  --titlebar: #f9fafb;
+
+  --primary: var(--palette-tianyi-400);
+  --primary-hover: var(--palette-tianyi-300);
+  --primary-active: #66b6df;
+  --primary-foreground: var(--palette-tianyi-900);
+  --primary-solid: var(--palette-tianyi-800);
+  --primary-solid-hover: #0e5677;
+  --primary-solid-foreground: #ffffff;
+  --secondary: #e4f0f6;
+  --secondary-foreground: #24546d;
+  --muted: #e8ecf0;
+  --muted-foreground: #596270;
+  --accent: #e3ebf1;
+  --accent-foreground: #314f63;
+  --accent-sakura: #f3e9e6;
+  --accent-sakura-foreground: #874c43;
+  --accent-mint: #e4f0e8;
+  --accent-mint-foreground: #2a624c;
+
+  --destructive: #b82e43;
+  --destructive-foreground: #ffffff;
+  --destructive-background: #fbecef;
+  --destructive-background-foreground: #8e2637;
+  --warning: #825600;
+  --success: #266d48;
+  --border: #d5dae1;
+  --border-subtle: #dfe4ea;
+  --border-strong: #7c8795;
+  --ring: var(--palette-tianyi-800);
+  --input-placeholder: #606b79;
+  --selection-background: #c7e2f0;
+  --selection-foreground: var(--palette-tianyi-900);
+
+  --shadow-soft: 0 4px 16px rgb(25 32 42 / 0.08);
+  --shadow-float: 0 16px 48px rgb(25 32 42 / 0.18);
+  --overlay-scrim: rgb(25 32 42 / 0.32);
+  --chart-1: var(--palette-tianyi-800);
+  --chart-2: #537183;
+  --chart-3: #88651d;
+  --chart-4: #327454;
+  --chart-5: #9c5147;
+}
+
+.theme-warm {
+  --background: #f8f3e7;
+  --surface: #fdf9f0;
+  --surface-elevated: #fffcf5;
+  --surface-muted: #eee9dc;
+  --surface-hover: #e7e2d8;
+  --sidebar: #f0ece2;
+  --titlebar: #fdf9f0;
+  --muted: #eee9dc;
+  --border: #d8d4ca;
+  --border-subtle: #e2ded4;
+  --border-strong: #817d74;
+}
+
+// One Dark 的炭灰层级；天依蓝只强调操作和选择，不给所有表面染蓝。
+.dark {
+  color-scheme: dark;
+  --background: #282c34;
+  --foreground: #d7dae0;
+  --surface: #2c313a;
+  --surface-elevated: #323842;
+  --surface-muted: #21252b;
+  --surface-hover: #3b424e;
+  --sidebar: #242830;
+  --titlebar: #21252b;
+  --input: #21252b;
+
+  --primary: var(--palette-tianyi-400);
+  --primary-hover: var(--palette-tianyi-300);
+  --primary-active: #66b6df;
+  --primary-foreground: #172b38;
+  --primary-solid: var(--palette-tianyi-400);
+  --primary-solid-hover: var(--palette-tianyi-300);
+  --primary-solid-foreground: #172b38;
+  --secondary: #293e4b;
+  --secondary-foreground: #c2e5f5;
+  --muted: #343a45;
+  --muted-foreground: #abb2bf;
+  --accent: #303e4c;
+  --accent-foreground: #cfdeed;
+  --accent-sakura: #443532;
+  --accent-sakura-foreground: #e6b4a9;
+  --accent-mint: #273e38;
+  --accent-mint-foreground: #c6e4d4;
+
+  --destructive: #ef9ca3;
+  --destructive-foreground: #301a20;
+  --destructive-background: #442e36;
+  --destructive-background-foreground: #f1b5bc;
+  --warning: #e5c07b;
+  --success: #98c379;
+  --border: #454c59;
+  --border-subtle: #3a414d;
+  --border-strong: #788596;
+  --ring: var(--palette-tianyi-400);
+  --input-placeholder: #a0a9b8;
+  --selection-background: #365469;
+  --selection-foreground: #edf5fb;
+
+  --shadow-soft: 0 4px 16px rgb(0 0 0 / 0.18);
+  --shadow-float: 0 16px 48px rgb(0 0 0 / 0.36);
+  --overlay-scrim: rgb(15 17 21 / 0.64);
+  --chart-1: var(--palette-tianyi-400);
+  --chart-2: #afc1ce;
+  --chart-3: #e5c07b;
+  --chart-4: #98c379;
+  --chart-5: #dfaa9c;
+}

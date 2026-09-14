@@ -18,11 +18,11 @@ let workspace: string;
 let app: ElectronApplication | undefined;
 let page: Page;
 
-/** 相对亮度与对比度按 WCAG 2.1 定义计算，用于把「看不清」变成可断言的阈值。 */
+/** 按 WCAG 2.2 的 sRGB 定义计算相对亮度，断言实际渲染值而非固定旧色号。 */
 function relativeLuminance([r, g, b]: [number, number, number]) {
   const [lr, lg, lb] = [r, g, b].map(value => {
     const channel = value / 255;
-    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
   });
   return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
 }
@@ -111,8 +111,7 @@ test('深色主题聚焦选中时使用主题选区色，文字保持可读对�
 
   // 聚焦态才走 CodeMirror 内置高优先级规则；不聚焦就复现不到这个缺陷。
   expect(measured.editorFocused).toBe(true);
-  expect(measured.expectedBackground).toBe('#315c70');
-  expect(parseColor(measured.selectionBackground)).toEqual(parseColor('#315c70'));
+  expect(parseColor(measured.selectionBackground)).toEqual(parseColor(measured.expectedBackground));
 
   const ratio = contrastRatio(parseColor(measured.selectedTextColor), parseColor(measured.selectionBackground));
   expect(ratio).toBeGreaterThanOrEqual(4.5);

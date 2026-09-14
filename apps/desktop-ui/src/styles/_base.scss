@@ -1,0 +1,74 @@
+* {
+  box-sizing: border-box;
+  border-color: var(--border);
+  outline-color: var(--ring);
+  letter-spacing: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+// 只给交互控件过渡，正文、虚拟列表和流式文本不参与全局动画。
+:where(button, a, input, textarea, select, summary) {
+  transition-property: color, background-color, border-color;
+  transition-duration: var(--motion-duration);
+  transition-timing-function: ease-out;
+}
+
+html :is(button, a, summary, [role='tab'], [role='treeitem'], [role='separator']):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+::selection {
+  background: var(--selection-background);
+  color: var(--selection-foreground);
+}
+
+// CodeMirror 自绘背景，选中文字仍需覆盖语法着色。
+.cm-content ::selection,
+.cm-content::selection {
+  background: transparent;
+  color: var(--selection-foreground);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+input[type='search']::-webkit-search-decoration,
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-results-button,
+input[type='search']::-webkit-search-results-decoration {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0ms;
+  }
+
+  // 只停止循环装饰，加载状态仍由邻近文字和静态图标表达。
+  .animate-spin,
+  .animate-pulse {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --ring: Highlight;
+    --input-focus-shadow: none;
+  }
+
+  html :focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
