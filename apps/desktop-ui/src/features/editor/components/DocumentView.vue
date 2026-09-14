@@ -2,13 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type { EditCommand, WorkspaceDocument } from '@chaptale/ipc-contract';
-import { matchAssetTemplate, validateTemplateValues, type AssetFieldValue, type AssetLink } from '@chaptale/shared';
-import { parseDocumentFrontmatter, patchDocumentFields } from '@chaptale/shared/document-frontmatter';
+import type { AssetLink } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
-import { AppTooltip } from '@/components/AppTooltip';
 import { useLibraryStore } from '@/features/library';
 import { StartFromScratchCard, useStartGuide } from '@/features/onboarding';
 import { useReviewStore } from '@/features/reviews';
@@ -22,8 +20,10 @@ import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import type { DocumentBuffer } from '../codemirror/document-buffer';
 import type { DocumentHeading } from '../codemirror/markdown-navigation';
 import { createDocumentView } from '../codemirror/view';
+import { useDocumentForm } from '../composables/useDocumentForm';
 import { useEditorStore } from '../store';
 import type { DocumentViewState } from '../types';
+import DocumentToolbar from './DocumentToolbar.vue';
 
 const props = defineProps<{
   document: WorkspaceDocument;
@@ -129,41 +129,11 @@ async function selectContext(id: string) {
     linkError.value = toErrorMessage(cause);
   }
 }
-const showForm = ref(false);
-const formValues = ref<Record<string, unknown>>({});
-const formError = ref('');
-const assetTemplate = computed(() =>
-  props.document.head.status === 'ok'
-    ? matchAssetTemplate(templates.templates, props.document.head.frontmatter)
-    : undefined
+const { showForm, formValues, formError, assetTemplate, syncForm, changeField } = useDocumentForm(
+  props,
+  buffer => emit('change', buffer),
+  () => view?.foldHead()
 );
-function syncForm() {
-  const head = parseDocumentFrontmatter(props.buffer?.content ?? props.document.content);
-  formValues.value = head.status === 'ok' ? head.frontmatter : {};
-}
-function changeField(key: string, value: AssetFieldValue) {
-  if (!props.buffer || props.saving || props.readonly || props.conflict || !assetTemplate.value) return;
-  try {
-    const errors = validateTemplateValues(assetTemplate.value, { [key]: value }, false);
-    if (errors.length) throw new Error(errors.join('\n'));
-    const content = patchDocumentFields(props.buffer.content, { [key]: value });
-    props.buffer.replaceContent(content);
-    view?.foldHead();
-    emit('change', props.buffer);
-    syncForm();
-    formError.value = '';
-  } catch (error) {
-    formError.value = toErrorMessage(error);
-  }
-}
-watch(showForm, () => {
-  syncForm();
-  if (showForm.value) {
-    view?.foldHead();
-    if (!library.snapshot) void library.load();
-  }
-});
-watch(() => props.document.contentHash, syncForm);
 const showOutline = ref(false);
 const headings = ref<DocumentHeading[]>([]);
 const linkResult = ref<AssetLink | null>(null);
@@ -260,98 +230,28 @@ watch(
 
 <template>
   <section class="document-view">
-    <header class="document-toolbar">
-      <span class="document-path" :title="document.relativePath">{{ document.relativePath }}</span>
-      <div v-if="assetTemplate && !large" class="document-modes" role="tablist" aria-label="文档视图">
-        <AppButton
-          variant="ghost"
-          size="xs"
-          role="tab"
-          :selected="showForm"
-          :aria-selected="showForm"
-          @click="showForm = true"
-          >表单</AppButton
-        >
-        <AppButton
-          variant="ghost"
-          size="xs"
-          role="tab"
-          :selected="!showForm"
-          :aria-selected="!showForm"
-          @click="showForm = false"
-          >源文件</AppButton
-        >
-      </div>
-      <AppTooltip v-if="!large && document.head.status === 'ok'" text="折叠或展开元数据">
-        <AppButton icon size="xs" variant="ghost" aria-label="折叠或展开元数据" @click="view?.toggleHead()">
-          <span class="i-mingcute-braces-line size-3.5" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-      <AppTooltip v-if="!large" text="标题大纲">
-        <AppButton
-          icon
-          size="xs"
-          variant="ghost"
-          aria-label="标题大纲"
-          :aria-pressed="showOutline"
-          @click="
-            showOutline = !showOutline;
-            updateOutline();
-          "
-        >
-          <span class="i-mingcute-list-check-line size-3.5" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-      <AppTooltip v-if="!large" text="选段加入参考">
-        <AppButton icon size="xs" variant="ghost" aria-label="选段加入参考" @click="addSelection">
-          <span class="i-mingcute-bookmark-add-line size-3.5" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-      <AppTooltip v-if="!large" text="资产引用与提议">
-        <AppButton
-          icon
-          size="xs"
-          variant="ghost"
-          aria-label="资产引用与提议"
-          @click="navigation.showAuxiliary('assets')"
-        >
-          <span class="i-mingcute-link-line size-3.5" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-      <AppTooltip v-if="!large" text="查看文档版本">
-        <AppButton icon size="xs" variant="ghost" aria-label="查看文档版本" @click="versions.open()">
-          <span class="i-mingcute-history-line size-3.5" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-      <span v-if="large" class="document-readonly"
-        ><span class="i-mingcute-lock-line size-3" aria-hidden="true" />只读</span
-      >
-      <span v-else class="document-readonly" role="status">{{
-        saving ? '正在保存' : dirty ? '未保存' : '已保存'
-      }}</span>
-      <AppTooltip v-if="!large" text="保存文件" side="bottom">
-        <AppButton
-          icon
-          size="xs"
-          variant="ghost"
-          aria-label="保存文件"
-          :disabled="!dirty || saving"
-          @click="emit('save')"
-        >
-          <span class="i-mingcute-save-line size-3.5" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-      <AppTooltip text="在文档中查找" side="bottom">
-        <AppButton icon size="xs" variant="ghost" aria-label="在文档中查找" @click="find">
-          <span class="i-mingcute-search-line size-3.5" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-      <AppTooltip text="重新读取" side="bottom">
-        <AppButton icon size="xs" variant="ghost" aria-label="重新读取" @click="emit('reload')">
-          <span class="i-mingcute-refresh-3-line size-3.5" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-    </header>
+    <DocumentToolbar
+      :path="document.relativePath"
+      :large="large"
+      :has-metadata="document.head.status === 'ok'"
+      :has-template="Boolean(assetTemplate)"
+      :show-form="showForm"
+      :show-outline="showOutline"
+      :dirty="dirty"
+      :saving="saving"
+      @mode="showForm = $event"
+      @metadata="view?.toggleHead()"
+      @outline="
+        showOutline = !showOutline;
+        updateOutline();
+      "
+      @reference="addSelection"
+      @assets="navigation.showAuxiliary('assets')"
+      @versions="versions.open()"
+      @save="emit('save')"
+      @find="find"
+      @reload="emit('reload')"
+    />
     <div v-if="linkResult || linkError" class="document-diagnostic" role="status">
       <span>{{ linkError || (linkResult?.status === 'ambiguous' ? '引用存在多个同名来源' : '引用来源不存在') }}</span>
       <AppButton
@@ -386,7 +286,13 @@ watch(
       <summary>frontmatter 无法解析</summary>
       <p>{{ document.head.error }}</p>
     </details>
-    <AppScrollArea v-if="showForm && assetTemplate" class="document-form" aria-label="文档元数据表单">
+    <AppScrollArea
+      v-if="assetTemplate"
+      v-show="showForm"
+      id="document-form-panel"
+      class="document-form"
+      aria-label="文档元数据表单"
+    >
       <div class="document-form-content">
         <TemplateFields
           :fields="assetTemplate.fields"
@@ -410,7 +316,7 @@ watch(
     </AppScrollArea>
     <!-- 放在编辑器上方而非浮动层：空章节里还有标题行，浮上去会把标题盖住。 -->
     <StartFromScratchCard v-if="showStartGuide" :busy="isStartingGuide" @start="startGuide" />
-    <div class="document-surface">
+    <div id="document-source-panel" class="document-surface">
       <AppScrollArea v-if="showOutline" class="document-outline">
         <nav aria-label="标题大纲">
           <p v-if="!headings.length" class="p-3 text-xs">没有标题</p>
@@ -451,24 +357,6 @@ watch(
   @apply flex h-full min-h-0 min-w-0 flex-col overflow-hidden;
 }
 
-.document-toolbar {
-  @apply flex min-h-9 shrink-0 flex-wrap items-center gap-1 border-b px-2;
-  font-size: var(--ui-font-size);
-
-  border-color: var(--border-subtle);
-  color: var(--muted-foreground);
-}
-
-.document-path {
-  @apply min-w-0 flex-1 truncate pl-2;
-}
-
-.document-readonly {
-  @apply mr-1 inline-flex shrink-0 items-center gap-1 text-xs;
-}
-.document-modes {
-  @apply flex shrink-0 items-center gap-1;
-}
 .document-form {
   @apply min-h-0 shrink-0 border-b;
   max-height: 55%;
