@@ -17,7 +17,7 @@
       "@chaptale/shared": ["../../packages/shared/src/index.ts"]
     }
   },
-  "include": ["src", "vite.config.ts", "uno.config.ts"],
+  "include": ["src", "build", "vite.config.ts", "uno.config.ts"],
   "references": [
     {
       "path": "../../packages/shared/tsconfig.json"

@@ -164,6 +164,14 @@ test('production renderer runs with the Chromium sandbox enabled', async () => {
   expect(sandboxEnabled).toBe(true);
 });
 
+test('production CSP denies direct renderer networking and declares Chinese', async () => {
+  const policy = await mainWindow.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
+
+  expect(policy).toContain("connect-src 'self'");
+  expect(policy).not.toMatch(/localhost|127\.0\.0\.1|ws:/);
+  await expect(mainWindow.locator('html')).toHaveAttribute('lang', 'zh-CN');
+});
+
 test('external links open outside the app without replacing the trusted renderer', async () => {
   const externalUrl = 'https://example.com/chaptale-security-smoke';
   const rendererUrl = mainWindow.url();

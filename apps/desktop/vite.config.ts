@@ -4,6 +4,8 @@ import UnoCSS from 'unocss/vite';
 import { defineConfig } from 'vite';
 import electron from 'vite-plugin-electron/simple';
 
+import { rendererSecurity } from '../desktop-ui/build/renderer-security.ts';
+
 const desktopRoot = import.meta.dirname;
 const rendererRoot = path.resolve(desktopRoot, '../desktop-ui');
 const ipcPackageRoot = path.resolve(desktopRoot, '../../packages/ipc/src');
@@ -32,6 +34,7 @@ export default defineConfig(async () => ({
   plugins: [
     UnoCSS({ configFile: path.resolve(rendererRoot, 'uno.config.ts') }),
     vue(),
+    rendererSecurity(),
     ...(await electron({
       main: {
         entry: {
