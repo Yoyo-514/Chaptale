@@ -146,4 +146,26 @@
   .settings-model-row:focus-visible {
     box-shadow: var(--input-focus-shadow);
   }
+
+  @container settings-panel (max-width: 34rem) {
+    .settings-model-layout {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .settings-model-scroll {
+      height: auto;
+      flex: 1;
+      min-height: 10rem;
+    }
+    .settings-provider-list {
+      flex-direction: row;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .settings-provider-card {
+      min-width: 10rem;
+    }
+  }
 }

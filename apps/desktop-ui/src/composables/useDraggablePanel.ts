@@ -1,5 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive } from 'vue';
 
+import { fitPanelToViewport } from './panel-geometry';
+
 export type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 export type DraggablePanelOptions = {
@@ -44,18 +46,36 @@ export function useDraggablePanel(options: DraggablePanelOptions) {
   }));
 
   function maxPanelWidth(x = position.x) {
-    return Math.max(options.minWidth, window.innerWidth - options.viewportPadding - x);
+    return Math.max(minPanelWidth(), window.innerWidth - options.viewportPadding - x);
   }
 
   function maxPanelHeight(y = position.y) {
-    return Math.max(options.minHeight, window.innerHeight - options.viewportPadding - y);
+    return Math.max(minPanelHeight(), window.innerHeight - options.viewportPadding - y);
+  }
+
+  function minPanelWidth() {
+    return Math.min(options.minWidth, Math.max(1, window.innerWidth - options.minX - options.viewportPadding));
+  }
+
+  function minPanelHeight() {
+    return Math.min(options.minHeight, Math.max(1, window.innerHeight - options.minY - options.viewportPadding));
   }
 
   function clampPanelToViewport() {
-    size.width = clamp(size.width, options.minWidth, maxPanelWidth(position.x));
-    size.height = clamp(size.height, options.minHeight, maxPanelHeight(position.y));
-    position.x = clamp(position.x, options.minX, window.innerWidth - options.viewportPadding - size.width);
-    position.y = clamp(position.y, options.minY, window.innerHeight - options.viewportPadding - size.height);
+    const fitted = fitPanelToViewport({ ...position, ...size }, options, {
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+    Object.assign(position, { x: fitted.x, y: fitted.y });
+    Object.assign(size, { width: fitted.width, height: fitted.height });
+  }
+
+  function centerPanel() {
+    position.x = Math.max(options.minX, (window.innerWidth - options.initialWidth) / 2);
+    position.y = Math.max(options.minY, (window.innerHeight - options.initialHeight) / 2);
+    size.width = options.initialWidth;
+    size.height = options.initialHeight;
+    clampPanelToViewport();
   }
 
   function handlePointerDown(event: PointerEvent) {
@@ -120,22 +140,22 @@ export function useDraggablePanel(options: DraggablePanelOptions) {
     const originBottom = resize.originY + resize.originHeight;
 
     if (direction.includes('e')) {
-      size.width = clamp(resize.originWidth + deltaX, options.minWidth, maxPanelWidth(resize.originX));
+      size.width = clamp(resize.originWidth + deltaX, minPanelWidth(), maxPanelWidth(resize.originX));
     }
 
     if (direction.includes('s')) {
-      size.height = clamp(resize.originHeight + deltaY, options.minHeight, maxPanelHeight(resize.originY));
+      size.height = clamp(resize.originHeight + deltaY, minPanelHeight(), maxPanelHeight(resize.originY));
     }
 
     // 从西/北侧缩放时固定相对边，只移动起点并由原始边界反推尺寸。
     if (direction.includes('w')) {
-      const nextX = clamp(resize.originX + deltaX, options.minX, originRight - options.minWidth);
+      const nextX = clamp(resize.originX + deltaX, options.minX, originRight - minPanelWidth());
       position.x = nextX;
       size.width = originRight - nextX;
     }
 
     if (direction.includes('n')) {
-      const nextY = clamp(resize.originY + deltaY, options.minY, originBottom - options.minHeight);
+      const nextY = clamp(resize.originY + deltaY, options.minY, originBottom - minPanelHeight());
       position.y = nextY;
       size.height = originBottom - nextY;
     }
@@ -163,6 +183,7 @@ export function useDraggablePanel(options: DraggablePanelOptions) {
     position,
     size,
     panelStyle,
+    centerPanel,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,

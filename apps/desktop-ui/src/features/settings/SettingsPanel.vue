@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DialogContent, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
 import { defineAsyncComponent, onMounted } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
@@ -21,6 +22,7 @@ const resizeDirections: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se
 const settingsStore = useSettingsStore();
 const {
   panelStyle,
+  centerPanel,
   handlePointerDown,
   handlePointerMove,
   handlePointerUp,
@@ -51,61 +53,70 @@ onMounted(() => {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="settingsStore.isOpen" class="settings-panel-layer">
-      <section class="settings-panel" :style="panelStyle" aria-labelledby="settings-panel-title">
-        <header
-          class="settings-panel-header"
-          @pointerdown="handlePointerDown"
-          @pointermove="handlePointerMove"
-          @pointerup="handlePointerUp"
-          @pointercancel="handlePointerUp"
-        >
-          <div>
-            <h2 id="settings-panel-title" class="settings-panel-title">设置</h2>
-          </div>
-          <AppButton
-            icon
-            variant="ghost"
-            size="sm"
-            type="button"
-            aria-label="关闭设置"
-            @click="settingsStore.closePanel()"
-          >
-            <span class="i-mingcute-close-line size-4" aria-hidden="true" />
-          </AppButton>
-        </header>
+  <DialogRoot :open="settingsStore.isOpen" :modal="false" @update:open="!$event && settingsStore.closePanel()">
+    <DialogPortal>
+      <div v-if="settingsStore.isOpen" class="settings-panel-layer">
+        <DialogContent as-child :aria-describedby="undefined" @interact-outside="$event.preventDefault()">
+          <section class="settings-panel" :style="panelStyle" aria-labelledby="settings-panel-title">
+            <header
+              class="settings-panel-header"
+              @pointerdown="handlePointerDown"
+              @pointermove="handlePointerMove"
+              @pointerup="handlePointerUp"
+              @pointercancel="handlePointerUp"
+            >
+              <div>
+                <DialogTitle as-child><h2 id="settings-panel-title" class="settings-panel-title">设置</h2></DialogTitle>
+              </div>
+              <div class="settings-panel-window-actions">
+                <AppButton icon variant="ghost" size="sm" aria-label="居中设置面板" @click="centerPanel">
+                  <span class="i-mingcute-align-center-line size-4" aria-hidden="true" />
+                </AppButton>
+                <AppButton
+                  icon
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  aria-label="关闭设置"
+                  @click="settingsStore.closePanel()"
+                >
+                  <span class="i-mingcute-close-line size-4" aria-hidden="true" />
+                </AppButton>
+              </div>
+            </header>
 
-        <div class="settings-panel-shell">
-          <SettingsSidebar />
+            <div class="settings-panel-shell">
+              <SettingsSidebar />
 
-          <main class="settings-panel-content">
-            <WorkspaceSettings v-if="settingsStore.activeSection === 'workspace'" />
-            <LLMSettings v-else-if="settingsStore.activeSection === 'llm'" />
-            <PromptSettings v-else-if="settingsStore.activeSection === 'prompt'" />
-            <WebToolsSettings v-else-if="settingsStore.activeSection === 'webTools'" />
-            <PermissionsSettings v-else-if="settingsStore.activeSection === 'permissions'" />
-            <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
-            <ContentSettings v-else-if="settingsStore.activeSection === 'content'" />
-            <ConfigFilesSettings v-else />
-          </main>
-        </div>
+              <main class="settings-panel-content">
+                <WorkspaceSettings v-if="settingsStore.activeSection === 'workspace'" />
+                <LLMSettings v-else-if="settingsStore.activeSection === 'llm'" />
+                <PromptSettings v-else-if="settingsStore.activeSection === 'prompt'" />
+                <WebToolsSettings v-else-if="settingsStore.activeSection === 'webTools'" />
+                <PermissionsSettings v-else-if="settingsStore.activeSection === 'permissions'" />
+                <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
+                <ContentSettings v-else-if="settingsStore.activeSection === 'content'" />
+                <ConfigFilesSettings v-else />
+              </main>
+            </div>
 
-        <span
-          v-for="direction in resizeDirections"
-          :key="direction"
-          class="settings-panel-resize-handle"
-          :class="`is-${direction}`"
-          data-panel-resize-handle
-          aria-hidden="true"
-          @pointerdown="handleResizePointerDown(direction, $event)"
-          @pointermove="handleResizePointerMove"
-          @pointerup="handleResizePointerUp"
-          @pointercancel="handleResizePointerUp"
-        />
-      </section>
-    </div>
-  </Teleport>
+            <span
+              v-for="direction in resizeDirections"
+              :key="direction"
+              class="settings-panel-resize-handle"
+              :class="`is-${direction}`"
+              data-panel-resize-handle
+              aria-hidden="true"
+              @pointerdown="handleResizePointerDown(direction, $event)"
+              @pointermove="handleResizePointerMove"
+              @pointerup="handleResizePointerUp"
+              @pointercancel="handleResizePointerUp"
+            />
+          </section>
+        </DialogContent>
+      </div>
+    </DialogPortal>
+  </DialogRoot>
 </template>
 
 <style scoped lang="scss">
@@ -120,6 +131,8 @@ onMounted(() => {
   border-color: var(--border);
   border-radius: var(--radius-overlay);
   color: var(--popover-foreground);
+  container-type: inline-size;
+  container-name: settings-panel;
 }
 
 .settings-panel-header {
@@ -130,6 +143,9 @@ onMounted(() => {
 
 .settings-panel-title {
   @apply m-0 text-base font-semibold;
+}
+.settings-panel-window-actions {
+  @apply flex shrink-0 items-center gap-1;
 }
 
 .settings-panel-shell {
@@ -211,5 +227,12 @@ onMounted(() => {
   content: '';
   border-bottom: 1px solid var(--muted-foreground);
   border-right: 1px solid var(--muted-foreground);
+}
+
+@container settings-panel (max-width: 40rem) {
+  .settings-panel-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
 }
 </style>

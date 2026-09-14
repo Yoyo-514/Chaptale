@@ -66,6 +66,7 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
       variant="ghost"
       :class="{ 'is-active': settingsStore.activeSection === section.id }"
       type="button"
+      :aria-current="settingsStore.activeSection === section.id ? 'page' : undefined"
       @click="settingsStore.setSection(section.id)"
     >
       <span class="settings-nav-icon" :class="section.icon" aria-hidden="true" />
@@ -127,5 +128,22 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
   @apply text-xs leading-4;
 
   color: var(--muted-foreground);
+}
+
+@container settings-panel (max-width: 40rem) {
+  .settings-panel-nav {
+    flex-direction: row;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 6px;
+  }
+  .settings-nav-item {
+    flex-shrink: 0;
+    align-items: center;
+    padding: 8px;
+  }
+  .settings-nav-description {
+    display: none;
+  }
 }
 </style>

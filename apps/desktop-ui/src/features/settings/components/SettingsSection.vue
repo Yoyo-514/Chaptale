@@ -50,11 +50,11 @@ const hasHeadingExtra = computed(() => Boolean(slots.badge || slots.actions || s
 .settings-section {
   @apply flex h-full min-h-0 flex-col overflow-hidden p-2;
 
-  background: var(--surface-acrylic-subtle);
+  background: var(--surface-elevated);
 }
 
 .settings-section-heading {
-  @apply flex items-center justify-between gap-3;
+  @apply flex min-w-0 flex-wrap items-center justify-between gap-3;
 }
 
 .settings-section-heading-extra {
