@@ -288,6 +288,47 @@ describe('恢复到新目录', () => {
 });
 
 describe('恢复的临时归档', () => {
+  it('读取计划时取消不能删除正在使用的归档', async () => {
+    const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
+    await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '本地\n' });
+    await seedArchive(put, { '正文.md': '归档\n' });
+
+    const planning = instance.planRestore({ archiveId: 'archive.zip' });
+    expect((await instance.cancelRestore()).ok).toBe(false);
+    expect((await planning).ok).toBe(true);
+    expect((await instance.cancelRestore()).ok).toBe(true);
+  });
+
+  it('更换云端目录后不复用同名归档的旧缓存', async () => {
+    const { instance, store, put, downloads } = await createSyncService({ dir, workspace, cacheRoot });
+    await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '本地\n' });
+    await seedArchive(put, { '正文.md': '第一份归档\n' });
+    await instance.planRestore({ archiveId: 'archive.zip' });
+    await store.saveBinding(workspace, {
+      provider: 'dropbox',
+      folderId: '/另一目录',
+      folderName: '另一目录',
+      boundAt: new Date().toISOString()
+    });
+    await seedArchive(put, { '正文.md': '另一目录的归档\n' });
+
+    const result = await instance.readRestoreDiff({ archiveId: 'archive.zip', relativePath: '正文.md' });
+
+    expect(result.ok && result.text && result.archiveText).toBe('另一目录的归档\n');
+    expect(downloads).toHaveLength(2);
+  });
+
+  it('并发备份只有一个操作能占用打包目录', async () => {
+    const { instance, uploads } = await createSyncService({ dir, workspace, cacheRoot });
+    await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '本地\n' });
+
+    const results = await Promise.all([instance.createBackup(), instance.createBackup()]);
+
+    expect(results.filter(result => result.ok)).toHaveLength(1);
+    expect(results.find(result => !result.ok)).toMatchObject({ ok: false, message: '已有备份或恢复正在进行' });
+    expect(uploads).toHaveLength(1);
+  });
+
   it('计划与执行共用同一份下载，取消后不留副本', async () => {
     const { instance, downloads, put } = await createSyncService({ dir, workspace, cacheRoot });
 

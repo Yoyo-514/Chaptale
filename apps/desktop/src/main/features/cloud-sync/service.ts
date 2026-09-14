@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
@@ -19,47 +19,29 @@ import type {
   CloudProvider,
   CloudRemovalResult,
   CloudRestoreArgs,
-  CloudRestoreChoice,
   CloudRestoreDiffArgs,
   CloudRestoreDiffResult,
   CloudRestorePlanResult,
   CloudRestoreResult,
-  CloudRestoreSkip,
   CloudSyncState
 } from '@chaptale/ipc-contract';
 import { CLOUD_PROVIDER_LABELS, CLOUD_PROVIDERS } from '@chaptale/ipc-contract';
 
-import { toWorkspaceSessionDirName } from '../../core/settings/workspace-session-directory';
-import { writeBytesAtomically } from '../../infra/filesystem/atomic-bytes';
-import { resolveWithinCwd } from '../../infra/filesystem/path-guard';
 import { shouldAutoBackup } from './auto-backup';
-import { collectWorkspaceContent, packWorkspace, resolveInside, unpackArchive } from './backup/archive';
-import { checksumFile } from './backup/checksum';
-import type { ArchiveContent } from './backup/manifest';
-import {
-  manifestOf,
-  parseWorkspaceIdentity,
-  readArchiveContent,
-  readArchiveEntry,
-  readArchiveManifest
-} from './backup/manifest';
+import { packWorkspace } from './backup/archive';
+import { RestoreArchiveCache } from './backup/archive-cache';
 import {
   BACKUP_FOLDER_NAME,
   BACKUP_MARKER_FILE,
   type BackupMarker,
   archiveFileName,
-  conflictCopyName,
   createMarker,
   deviceName,
   isArchiveFileName,
   parseMarker,
-  sanitizeName,
-  serializeMarker,
-  timestamp
+  serializeMarker
 } from './backup/remote-layout';
-import { createRestoreGuard } from './backup/restore-guard';
-import { compareRestore } from './backup/restore-plan';
-import type { FileIdentity } from './file-identity';
+import { WorkspaceRestorer } from './backup/restore-workspace';
 import { runAuthorizationCodeFlow } from './oauth-flow';
 import type { CloudCredential, CloudProviderAdapter } from './providers/provider-port';
 import type { CloudSyncStore, StoredCloudBinding } from './store';
@@ -89,6 +71,13 @@ export type CloudSyncServiceOptions = {
 };
 
 type WorkspaceFailure = { ok: false; code: CloudErrorCode; message: string };
+type CloudTarget = {
+  ok: true;
+  adapter: CloudProviderAdapter;
+  credential: CloudCredential;
+  binding: StoredCloudBinding;
+  workspace: CloudWorkspaceQuery & { status: 'ready' };
+};
 
 /**
  * 云同步域的编排入口。
@@ -101,11 +90,14 @@ export class CloudSyncService {
   private controller: AbortController | null = null;
   /** 备份与恢复都是重活：同时来两个会把临时文件与远端清单搅在一起。 */
   private busy = false;
-  /** 已下载待用的归档标识；`null` 表示缓存里没有可用的归档。 */
-  private pendingArchiveId: string | null = null;
+  private readonly archiveCache: RestoreArchiveCache;
+  private readonly restorer: WorkspaceRestorer;
   private readonly listeners = new Set<(progress: CloudBackupProgress) => void>();
 
-  constructor(private readonly options: CloudSyncServiceOptions) {}
+  constructor(private readonly options: CloudSyncServiceOptions) {
+    this.archiveCache = new RestoreArchiveCache(options.cacheRoot);
+    this.restorer = new WorkspaceRestorer(options.cacheRoot);
+  }
 
   /** 备份进度订阅；IPC 面注册时接上广播，与 todo/subagent 的事件形状一致。 */
   onProgress(listener: (progress: CloudBackupProgress) => void): () => void {
@@ -184,7 +176,9 @@ export class CloudSyncService {
 
   /** 只清除本机凭据，不调用服务商撤销接口；远端授权记录由作者在服务商侧管理。 */
   async signOut(provider: CloudProvider): Promise<CloudSyncState> {
+    if (this.busy) throw new Error('请等待备份或恢复结束后再退出账户');
     await this.options.store.removeAccount(provider);
+    await this.archiveCache.clear();
 
     return this.getState();
   }
@@ -258,6 +252,7 @@ export class CloudSyncService {
    * 会直接撒在作者网盘根上。App Folder 接入不套这层：服务商给的顶层本身就是应用专属区域。
    */
   async bind(args: CloudBindArgs): Promise<CloudBindingResult> {
+    if (this.busy) return { ok: false, code: 'failed', message: '请等待备份或恢复结束后再更改绑定' };
     const workspace = await this.requireWorkspace();
 
     if (!workspace.ok) {
@@ -313,6 +308,7 @@ export class CloudSyncService {
   }
 
   async unbind(): Promise<CloudOperationResult> {
+    if (this.busy) return { ok: false, code: 'failed', message: '请等待备份或恢复结束后再解除绑定' };
     const workspace = await this.requireWorkspace();
 
     if (!workspace.ok) {
@@ -362,33 +358,21 @@ export class CloudSyncService {
   }
 
   async createBackup(): Promise<CloudBackupResult> {
-    const target = await this.requireTarget();
-
-    if (!target.ok) {
-      return target;
-    }
-
-    if (this.busy) {
-      return { ok: false, code: 'failed', message: '已有备份或恢复正在进行' };
-    }
-
-    const workspace = await this.requireWorkspace();
-
-    if (!workspace.ok) {
-      return workspace;
-    }
-
+    if (this.busy) return { ok: false, code: 'failed', message: '已有备份或恢复正在进行' };
+    // 必须在第一个 await 前占用；否则并发请求会共用 packing.zip。
     this.busy = true;
-
     const tempDir = path.join(this.options.cacheRoot, 'cloud-backup');
     const archivePath = path.join(tempDir, 'packing.zip');
 
     try {
+      const target = await this.requireTarget();
+      if (!target.ok) return target;
+      const { workspace } = target;
       await mkdir(tempDir, { recursive: true });
       this.emit({ phase: 'packing', done: 0, total: 0 });
 
       const packed = await packWorkspace({
-        rootPath: workspace.workspace.rootPath,
+        rootPath: workspace.rootPath,
         targetPath: archivePath,
         onProgress: (done, total) => this.emit({ phase: 'packing', done, total })
       });
@@ -396,7 +380,7 @@ export class CloudSyncService {
       this.emit({ phase: 'uploading' });
 
       const bytes = await readFile(archivePath);
-      const name = archiveFileName({ title: workspace.workspace.title, deviceName: deviceName(), at: new Date() });
+      const name = archiveFileName({ title: workspace.title, deviceName: deviceName(), at: new Date() });
       const entry = await target.adapter.upload({
         credential: target.credential,
         parentId: target.binding.folderId || null,
@@ -405,7 +389,7 @@ export class CloudSyncService {
       });
 
       // 记下本机这次成功备份的时间：状态栏与面板靠它回答“要不要再备一次”。
-      await this.options.store.markBackup(workspace.workspace.rootPath, new Date().toISOString());
+      await this.options.store.markBackup(workspace.rootPath, new Date().toISOString());
 
       return {
         ok: true,
@@ -421,356 +405,73 @@ export class CloudSyncService {
     } catch (error) {
       return { ok: false, code: 'failed', message: describeError(error) };
     } finally {
-      this.busy = false;
       // 临时归档不留在本机：它只是一次上传的中转，下次备份会重新打。
       await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+      this.busy = false;
     }
   }
 
-  /** 「回到新目录」模式的落点：与当前作品并排的新目录，不碰现有文件。 */
-  /**
-   * 恢复计划：三种模式共用同一份比对结论，**不写任何文件**。
-   *
-   * 计划是给作者看的，也是执行时复查的依据：文件在计划的下一刻还会变，
-   * 所以 `applyRestore` 重新算一遍，而不是相信界面拿回来的那份清单。
-   */
-  async planRestore(args: CloudArchiveArgs): Promise<CloudRestorePlanResult> {
-    const target = await this.requireTarget();
-
-    if (!target.ok) {
-      return target;
-    }
-
-    const workspace = await this.requireWorkspace();
-
-    if (!workspace.ok) {
-      return workspace;
-    }
-
-    try {
-      const archivePath = await this.ensureArchive(target, args.archiveId);
-      const manifest = await readArchiveManifest(archivePath);
-      const comparison = compareRestore({
-        archive: manifest.files,
-        local: await this.readLocalSide(workspace.workspace.rootPath)
-      });
-
-      return {
-        ok: true,
-        plan: {
-          archiveId: args.archiveId,
-          identityMatches: (await parseWorkspaceIdentity(archivePath)) === workspace.workspace.id,
-          entries: comparison.entries,
-          emptyDirectories: manifest.directories,
-          localOnly: comparison.localOnly
-        }
-      };
-    } catch (error) {
-      return { ok: false, code: 'failed', message: describeError(error) };
-    }
+  planRestore(args: CloudArchiveArgs): Promise<CloudRestorePlanResult> {
+    return this.withArchive(args.archiveId, (archive, target) =>
+      this.restorer.plan(archive, target.workspace, args.archiveId)
+    );
   }
 
-  /** 读一个冲突项的两侧正文；二进制或过大的文件不给内容，只给“没法在应用内对比”。 */
-  async readRestoreDiff(args: CloudRestoreDiffArgs): Promise<CloudRestoreDiffResult> {
-    const target = await this.requireTarget();
-
-    if (!target.ok) {
-      return target;
-    }
-
-    const workspace = await this.requireWorkspace();
-
-    if (!workspace.ok) {
-      return workspace;
-    }
-
-    try {
-      const archivePath = await this.ensureArchive(target, args.archiveId);
-      const archived = await readArchiveEntry(archivePath, args.relativePath);
-
-      if (!archived) {
-        return { ok: false, code: 'failed', message: '归档里没有这个文件，重新算一次恢复计划' };
-      }
-
-      const localPath = await resolveWithinCwd(workspace.workspace.rootPath, args.relativePath);
-      const local = await readFile(localPath).catch(() => null);
-
-      // 本地那份已经不在了：这时“冲突”这个前提本身就不成立，让界面重新算计划，
-      // 而不是拿一个空正文去当“本地版本”给作者看。
-      if (!local) {
-        return { ok: false, code: 'failed', message: '本地这个文件已经不在了，重新算一次恢复计划' };
-      }
-
-      const archiveText = decodeText(archived);
-      const localText = decodeText(local);
-
-      if (archiveText === null || localText === null) {
-        return {
-          ok: true,
-          text: false,
-          reason: 'binary',
-          archiveBytes: archived.byteLength,
-          localBytes: local.byteLength
-        };
-      }
-
-      if (archiveText.length > MAX_DIFF_CHARS || localText.length > MAX_DIFF_CHARS) {
-        return {
-          ok: true,
-          text: false,
-          reason: 'too-large',
-          archiveBytes: archived.byteLength,
-          localBytes: local.byteLength
-        };
-      }
-
-      return { ok: true, text: true, archiveText, localText };
-    } catch (error) {
-      return { ok: false, code: 'failed', message: describeError(error) };
-    }
+  readRestoreDiff(args: CloudRestoreDiffArgs): Promise<CloudRestoreDiffResult> {
+    return this.withArchive(args.archiveId, (archive, target) =>
+      this.restorer.diff(archive, target.workspace.rootPath, args.relativePath)
+    );
   }
 
-  /**
-   * 执行恢复。
-   *
-   * `overwrite` 与 `merge` 的硬门槛按顺序是：身份能自证 → 快照拿得到 → 才动文件。
-   * 任何一步不过就直接返回，作品目录保持原样。
-   */
-  async applyRestore(args: CloudRestoreArgs): Promise<CloudRestoreResult> {
-    const target = await this.requireTarget();
+  applyRestore(args: CloudRestoreArgs): Promise<CloudRestoreResult> {
+    return this.withArchive(
+      args.archiveId,
+      (archive, target) => this.restorer.apply(archive, target.workspace, args),
+      true
+    );
+  }
 
-    if (!target.ok) {
-      return target;
-    }
-
-    const workspace = await this.requireWorkspace();
-
-    if (!workspace.ok) {
-      return workspace;
-    }
-
-    if (this.busy) {
-      return { ok: false, code: 'failed', message: '已有备份或恢复正在进行' };
-    }
-
+  async cancelRestore(): Promise<CloudOperationResult> {
+    if (this.busy) return { ok: false, code: 'failed', message: '正在读取或恢复归档，请等待操作结束' };
     this.busy = true;
-
     try {
-      const archivePath = await this.ensureArchive(target, args.archiveId);
+      await this.archiveCache.clear();
+      return { ok: true };
+    } finally {
+      this.busy = false;
+    }
+  }
 
-      if (args.mode === 'new') {
-        const targetPath = await this.uniqueRestorePath(workspace.workspace.rootPath, workspace.workspace.title);
-        const unpacked = await unpackArchive({ archivePath, targetPath });
-
-        // 新目录不在当前作品里，没有要重载的 tab，所以不填写入清单。
-        return {
-          ok: true,
-          targetPath,
-          mode: 'new',
-          written: unpacked.files,
-          writtenPaths: [],
-          snapshotId: null,
-          skipped: []
-        };
+  /** 计划、差异和执行共用锁，下载期间取消或换归档不能破坏另一个操作的输入。 */
+  private async withArchive<T>(
+    archiveId: string,
+    action: (archive: string, target: CloudTarget) => Promise<T>,
+    clearAfter = false
+  ): Promise<T | WorkspaceFailure> {
+    if (this.busy) return { ok: false, code: 'failed', message: '已有备份或恢复正在进行' };
+    this.busy = true;
+    try {
+      const target = await this.requireTarget();
+      if (!target.ok) return target;
+      const archive = await this.archiveCache.ensure(
+        { ...target, rootPath: target.workspace.rootPath, folderId: target.binding.folderId },
+        archiveId
+      );
+      const current = await this.requireWorkspace();
+      if (
+        !current.ok ||
+        current.workspace.rootPath !== target.workspace.rootPath ||
+        current.workspace.id !== target.workspace.id
+      ) {
+        throw new Error('作品已切换，请重新打开恢复向导');
       }
-
-      const identity = await parseWorkspaceIdentity(archivePath);
-
-      if (identity !== workspace.workspace.id) {
-        return {
-          ok: false,
-          code: 'failed',
-          message: '这份归档不能自证是当前作品（归档里没有 chaptale.json 或身份对不上），原地恢复会毁掉作品目录'
-        };
-      }
-
-      const snapshotId = await this.createGuard(workspace.workspace.rootPath);
-      const content = await readArchiveContent(archivePath);
-      // 覆盖前检查全部目标，不能让归档经作品内的目录链接写到作品之外。
-      for (const relativePath of [...content.files.map(file => file.relativePath), ...content.directories]) {
-        await resolveWithinCwd(workspace.workspace.rootPath, relativePath);
-      }
-      const writtenPaths: string[] = [];
-      const skipped: CloudRestoreSkip[] = [];
-
-      if (args.mode === 'overwrite') {
-        // **只写归档里有的文件**：本地独有的一个都不删——
-        // 否则“恢复到旧版本”会顺手抹掉快照之外新写的章节。
-        for (const file of content.files) {
-          await writeBytesAtomically(
-            await resolveWithinCwd(workspace.workspace.rootPath, file.relativePath),
-            file.data
-          );
-          writtenPaths.push(file.relativePath);
-        }
-      } else {
-        const merged = await this.mergeIntoWorkspace(content, workspace.workspace.rootPath, args.choices ?? {});
-
-        writtenPaths.push(...merged.writtenPaths);
-        skipped.push(...merged.skipped);
-      }
-
-      // 空目录：文件路径建不出它们，得单独建。
-      for (const directory of content.directories) {
-        await mkdir(await resolveWithinCwd(workspace.workspace.rootPath, directory), { recursive: true });
-      }
-
-      return {
-        ok: true,
-        targetPath: workspace.workspace.rootPath,
-        mode: args.mode,
-        written: writtenPaths.length,
-        writtenPaths,
-        snapshotId,
-        skipped
-      };
+      return await action(archive, target);
     } catch (error) {
       return { ok: false, code: 'failed', message: describeError(error) };
     } finally {
+      if (clearAfter) await this.archiveCache.clear();
       this.busy = false;
-      await this.clearArchive();
     }
-  }
-
-  /** 放弃这次恢复：删掉已下载的待用归档，作品目录一个字节都没动。 */
-  async cancelRestore(): Promise<CloudOperationResult> {
-    await this.clearArchive();
-
-    return { ok: true };
-  }
-
-  /**
-   * 合并：逐文件挑选，**绝不自动决定**。
-   *
-   * 只有“归档里有、本地没有”才不问自取（那是新增）；两边都有但不同的，作者没给决议就不写、
-   * 也不覆盖，逐条列进回执。这条不变量在**执行侧**，不在界面侧——界面算错一次不该等于毁稿一次。
-   */
-  private async mergeIntoWorkspace(
-    content: ArchiveContent,
-    rootPath: string,
-    choices: Record<string, CloudRestoreChoice>
-  ): Promise<{ writtenPaths: string[]; skipped: CloudRestoreSkip[] }> {
-    const comparison = compareRestore({
-      archive: manifestOf(content).files,
-      local: await this.readLocalSide(rootPath)
-    });
-    const data = new Map(content.files.map(file => [file.relativePath, file.data]));
-    const at = new Date();
-    const writtenPaths: string[] = [];
-    const skipped: CloudRestoreSkip[] = [];
-
-    for (const entry of comparison.entries) {
-      if (entry.verdict === 'identical') {
-        continue;
-      }
-
-      if (entry.verdict === 'conflict') {
-        const choice = choices[entry.relativePath];
-
-        if (!choice) {
-          skipped.push({ relativePath: entry.relativePath, reason: '你没对这项做决定，本地保持不动' });
-          continue;
-        }
-
-        if (choice === 'local') {
-          continue;
-        }
-
-        // 两个都留：本地那份改名留档，原路径让给归档版本。
-        if (choice === 'both') {
-          await rename(
-            await resolveWithinCwd(rootPath, entry.relativePath),
-            await this.conflictCopyPath(rootPath, entry.relativePath, at)
-          );
-        }
-      }
-
-      const bytes = data.get(entry.relativePath);
-
-      if (!bytes) {
-        throw new Error(`归档内容与清单不一致：${entry.relativePath}`);
-      }
-
-      await writeBytesAtomically(await resolveWithinCwd(rootPath, entry.relativePath), bytes);
-      writtenPaths.push(entry.relativePath);
-    }
-
-    return { writtenPaths, skipped };
-  }
-
-  /** 冲突副本落在原位旁边，名字用与索引侧一致的词汇（`冲突副本`）；撞名就加序号，不覆盖任何东西。 */
-  private async conflictCopyPath(rootPath: string, relativePath: string, at: Date): Promise<string> {
-    const copy = conflictCopyName(relativePath, at);
-
-    return this.uniquePath(resolveInside(rootPath, copy));
-  }
-
-  /**
-   * 本地侧：整棵作品目录的路径、字节数与内容指纹。判“一致”靠指纹，不靠时间戳。
-   *
-   * 与归档共用同一套遍历（`collectWorkspaceContent`）：排除规则只该有一份，
-   * 否则“归档里有什么”与“本地拿什么去比”会慢慢对不上。
-   */
-  private async readLocalSide(rootPath: string): Promise<FileIdentity[]> {
-    const content = await collectWorkspaceContent(rootPath);
-    const files: FileIdentity[] = [];
-
-    for (const file of content.files) {
-      files.push({
-        relativePath: file.relativePath,
-        bytes: file.size,
-        digest: await checksumFile(file.absolutePath)
-      });
-    }
-
-    return files;
-  }
-
-  /** 还原前快照。拿不到就不动手：它是覆盖与合并唯一的兜底（见 `restore-guard.ts`）。 */
-  private async createGuard(rootPath: string): Promise<string> {
-    const guard = await createRestoreGuard({
-      workspaceRoot: rootPath,
-      // 按作品分开：恢复 A 作品不该挤掉 B 作品的快照。
-      guardRoot: path.join(this.options.cacheRoot, toWorkspaceSessionDirName(rootPath), 'restore-guard'),
-      at: new Date()
-    });
-
-    return guard.id;
-  }
-
-  /**
-   * 待用归档：同一次恢复向导里只下载一次。
-   *
-   * 计划要下载整包才能比对，执行还要用同一份；缓存落在 `cacheRoot/cloud-restore/`，
-   * **不进作品目录**。换一个归档就替换，结束或取消就删。
-   */
-  private async ensureArchive(
-    target: { adapter: CloudProviderAdapter; credential: CloudCredential },
-    archiveId: string
-  ): Promise<string> {
-    const dir = path.join(this.options.cacheRoot, 'cloud-restore');
-    const archivePath = path.join(dir, 'pending.zip');
-
-    if (this.pendingArchiveId === archiveId && (await pathExists(archivePath))) {
-      return archivePath;
-    }
-
-    const bytes = await target.adapter.download({ credential: target.credential, fileId: archiveId });
-
-    await mkdir(dir, { recursive: true });
-    await writeFile(archivePath, bytes);
-    this.pendingArchiveId = archiveId;
-
-    return archivePath;
-  }
-
-  /** 待用归档不留到下一次：它可能和整个作品一样大。 */
-  private async clearArchive(): Promise<void> {
-    this.pendingArchiveId = null;
-
-    await rm(path.join(this.options.cacheRoot, 'cloud-restore'), { recursive: true, force: true }).catch(
-      () => undefined
-    );
   }
 
   /**
@@ -890,10 +591,7 @@ export class CloudSyncService {
   }
 
   /** 备份相关动作的共同前置：作品已打开、已绑定、适配器与凭据齐备。 */
-  private async requireTarget(): Promise<
-    | { ok: true; adapter: CloudProviderAdapter; credential: CloudCredential; binding: StoredCloudBinding }
-    | WorkspaceFailure
-  > {
+  private async requireTarget(): Promise<CloudTarget | WorkspaceFailure> {
     const workspace = await this.requireWorkspace();
 
     if (!workspace.ok) {
@@ -912,7 +610,7 @@ export class CloudSyncService {
       return ready;
     }
 
-    return { ok: true, adapter: ready.adapter, credential: ready.credential, binding };
+    return { ok: true, adapter: ready.adapter, credential: ready.credential, binding, workspace: workspace.workspace };
   }
 
   private async ensureContainerFolder(adapter: CloudProviderAdapter, credential: CloudCredential) {
@@ -968,57 +666,11 @@ export class CloudSyncService {
     }
   }
 
-  /** 「回到新目录」模式的落点：与当前作品并排的 `<作品名>-恢复-<时间戳>/`，不碰现有目录。 */
-  private async uniqueRestorePath(workspaceRoot: string, title: string): Promise<string> {
-    const parent = path.dirname(workspaceRoot);
-
-    return this.uniquePath(path.join(parent, `${sanitizeName(title)}-恢复-${timestamp(new Date())}`));
-  }
-
-  /** 撞名就加序号：恢复的产物不能覆盖作者已有的同名文件。 */
-  private async uniquePath(candidate: string): Promise<string> {
-    const extension = path.extname(candidate);
-    const base = candidate.slice(0, candidate.length - extension.length);
-    let current = candidate;
-
-    for (let index = 2; await pathExists(current); index += 1) {
-      current = `${base}-${index}${extension}`;
-    }
-
-    return current;
-  }
-
   private oauthOf(provider: CloudProvider) {
     return this.options.adapters.find(item => item.id === provider)?.oauth() ?? null;
   }
 }
 
-async function pathExists(target: string): Promise<boolean> {
-  try {
-    await stat(target);
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** 应用内对比的正文上限：超过它就不把内容送过 IPC，只让作者选用哪一份。 */
-const MAX_DIFF_CHARS = 512 * 1024;
-
-/** 文本判定沿用仓库既有口径（`managed-text.ts`）：有 NUL 字节或过不了严格 UTF-8 就不是文本。 */
-function decodeText(bytes: Uint8Array): string | null {
-  if (bytes.includes(0)) {
-    return null;
-  }
-
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    return null;
-  }
 }
