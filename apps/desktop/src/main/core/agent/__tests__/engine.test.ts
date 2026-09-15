@@ -208,7 +208,8 @@ describe('runAgentLoop', () => {
       sessionId: 's1',
       toolName: 'write',
       riskLevel: 'mutating',
-      args: { path: 'b.txt', content: 'x' }
+      args: { path: 'b.txt', content: 'x' },
+      signal: expect.any(AbortSignal)
     });
   });
 

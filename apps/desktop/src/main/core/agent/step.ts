@@ -37,6 +37,8 @@ export async function runAgentStep(options: AgentStepOptions): Promise<AgentStep
   let finishReason = 'unknown';
   let aborted = false;
   let streamError: unknown;
+  const timeoutController = new AbortController();
+  const signal = abortSignal ? AbortSignal.any([abortSignal, timeoutController.signal]) : timeoutController.signal;
 
   const result = streamText({
     model: model.model,
@@ -50,7 +52,7 @@ export async function runAgentStep(options: AgentStepOptions): Promise<AgentStep
     }),
     tools: toAiSdkTools(options.tools, { sessionId, gate: options.gate, isOutputTruncated: () => outputTruncated }),
     stopWhen: stepCountIs(1),
-    abortSignal,
+    abortSignal: signal,
     // 必须在工具批次执行之前判定截断；聚合 finish part 到达时已经太晚。
     onLanguageModelCallEnd: event => {
       outputTruncated = event.finishReason === 'length';
@@ -69,6 +71,8 @@ export async function runAgentStep(options: AgentStepOptions): Promise<AgentStep
         streamError = new Error(
           `模型接了连接但 ${Math.round(idleTimeoutMs / 1000)} 秒内没有再返回内容（stream idle timeout）`
         );
+        // return() 不能打断尚未完成的 next()，必须同时取消底层请求和工具。
+        timeoutController.abort(streamError);
         break;
       }
 
