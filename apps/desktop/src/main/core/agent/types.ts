@@ -1,3 +1,5 @@
+import type { ModelMessage } from 'ai';
+
 import type { PermissionDecision, RiskLevel, TokenUsage } from '@chaptale/shared';
 
 /**
@@ -19,12 +21,6 @@ export type PermissionGatePort = {
      */
     signal?: AbortSignal;
   }): Promise<PermissionDecision>;
-};
-
-/** 每步落盘端口：引擎在 step 边界调用（默认实现 = SessionStore.appendMessage）。 */
-export type StepSink = {
-  appendAssistantStep(step: AssistantStepRecord): Promise<void>;
-  appendToolResult(record: ToolResultRecord): Promise<void>;
 };
 
 /** 单步 assistant 载荷（含 usage 与工具调用）。 */
@@ -51,4 +47,17 @@ export type AgentStreamEnvelope = {
   sessionId: string;
   seq: number;
   part: unknown;
+};
+
+/** 单步收集结果；模型续跑使用 SDK 原始消息，落盘另作投影。 */
+export type AgentStepOutcome = {
+  text: string;
+  reasoning: string;
+  toolCalls: AssistantStepRecord['toolCalls'];
+  toolResults: ToolResultRecord[];
+  usage: TokenUsage;
+  finishReason: string;
+  aborted: boolean;
+  error: unknown;
+  responseMessages: ModelMessage[];
 };

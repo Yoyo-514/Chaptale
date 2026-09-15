@@ -10,9 +10,7 @@ import type {
   CloudBackupProgress,
   CloudBackupResult,
   CloudBindArgs,
-  CloudBinding,
   CloudBindingResult,
-  CloudErrorCode,
   CloudListFoldersArgs,
   CloudListFoldersResult,
   CloudOperationResult,
@@ -25,32 +23,19 @@ import type {
   CloudRestoreResult,
   CloudSyncState
 } from '@chaptale/ipc-contract';
-import { CLOUD_PROVIDER_LABELS, CLOUD_PROVIDERS } from '@chaptale/ipc-contract';
 
+import { CloudAccounts } from './accounts';
 import { shouldAutoBackup } from './auto-backup';
 import { packWorkspace } from './backup/archive';
 import { RestoreArchiveCache } from './backup/archive-cache';
-import {
-  BACKUP_FOLDER_NAME,
-  BACKUP_MARKER_FILE,
-  type BackupMarker,
-  archiveFileName,
-  createMarker,
-  deviceName,
-  isArchiveFileName,
-  parseMarker,
-  serializeMarker
-} from './backup/remote-layout';
+import { archiveFileName, deviceName, isArchiveFileName } from './backup/remote-layout';
 import { WorkspaceRestorer } from './backup/restore-workspace';
-import { runAuthorizationCodeFlow } from './oauth-flow';
+import { CloudBindings, toCloudBinding } from './binding';
 import type { CloudCredential, CloudProviderAdapter } from './providers/provider-port';
-import type { CloudSyncStore, StoredCloudBinding } from './store';
+import type { CloudSyncStore } from './store';
+import type { CloudFailure, CloudTarget, CloudWorkspaceQuery, CloudWorkspaceResult } from './types';
 
-/** 当前作品。备份的身份标记要靠 `chaptale.json` 的 id，所以三种状态分别表达。 */
-export type CloudWorkspaceQuery =
-  | { status: 'ready'; rootPath: string; id: string; title: string }
-  | { status: 'none' }
-  | { status: 'unidentified'; rootPath: string };
+export type { CloudWorkspaceQuery } from './types';
 
 export type CloudSyncServiceOptions = {
   /** 已接入的服务商适配器；未接入的不出现在这里，界面只显示配置说明。 */
@@ -70,15 +55,6 @@ export type CloudSyncServiceOptions = {
   cacheRoot: string;
 };
 
-type WorkspaceFailure = { ok: false; code: CloudErrorCode; message: string };
-type CloudTarget = {
-  ok: true;
-  adapter: CloudProviderAdapter;
-  credential: CloudCredential;
-  binding: StoredCloudBinding;
-  workspace: CloudWorkspaceQuery & { status: 'ready' };
-};
-
 /**
  * 云同步域的编排入口。
  *
@@ -86,15 +62,21 @@ type CloudTarget = {
  * 网络、协议与错误映射都在适配器里；拿不到凭据的路径不进入任何网络调用。
  */
 export class CloudSyncService {
-  private authorizing: CloudProvider | null = null;
-  private controller: AbortController | null = null;
   /** 备份与恢复都是重活：同时来两个会把临时文件与远端清单搅在一起。 */
   private busy = false;
+  private readonly accounts: CloudAccounts;
+  private readonly bindings: CloudBindings;
   private readonly archiveCache: RestoreArchiveCache;
   private readonly restorer: WorkspaceRestorer;
   private readonly listeners = new Set<(progress: CloudBackupProgress) => void>();
 
   constructor(private readonly options: CloudSyncServiceOptions) {
+    this.accounts = new CloudAccounts(options);
+    this.bindings = new CloudBindings({
+      store: options.store,
+      requireWorkspace: () => this.requireWorkspace(),
+      requireCredential: provider => this.accounts.requireCredential(provider)
+    });
     this.archiveCache = new RestoreArchiveCache(options.cacheRoot);
     this.restorer = new WorkspaceRestorer(options.cacheRoot);
   }
@@ -106,72 +88,21 @@ export class CloudSyncService {
     return () => this.listeners.delete(listener);
   }
 
-  async getState(): Promise<CloudSyncState> {
-    return {
-      availability: CLOUD_PROVIDERS.map(provider => ({ provider, configured: this.oauthOf(provider) !== null })),
-      accounts: await this.options.store.listAccounts(),
-      authorizing: this.authorizing
-    };
+  getState(): Promise<CloudSyncState> {
+    return this.accounts.getState();
   }
 
   /**
    * 走完整授权：开浏览器 → 等回环回调 → 换凭据 → 落盘。
    * 授权结束（成功/取消/超时/拒绝）才 resolve，界面据此显示"等待中"。
    */
-  async beginAuth(provider: CloudProvider): Promise<CloudAuthResult> {
-    const adapter = this.options.adapters.find(item => item.id === provider);
-    const oauth = adapter?.oauth() ?? null;
-    const label = CLOUD_PROVIDER_LABELS[provider];
-
-    if (!adapter || !oauth) {
-      return { ok: false, code: 'not-configured', message: `本构建未内置 ${label} 的应用凭据，无法登录` };
-    }
-
-    if (this.authorizing) {
-      return {
-        ok: false,
-        code: 'failed',
-        message: `正在等待 ${CLOUD_PROVIDER_LABELS[this.authorizing]} 的授权，请先完成或取消`
-      };
-    }
-
-    this.authorizing = provider;
-    this.controller = new AbortController();
-
-    try {
-      const flow = await runAuthorizationCodeFlow({
-        ...oauth,
-        openExternal: this.options.openExternal,
-        signal: this.controller.signal
-      });
-
-      if (!flow.ok) {
-        return flow;
-      }
-
-      const { credential, profile } = await adapter.exchangeCode({
-        code: flow.code,
-        codeVerifier: flow.codeVerifier,
-        redirectUri: flow.redirectUri,
-        signal: this.controller.signal
-      });
-      const account = await this.options.store.saveAccount({ provider, displayName: profile.displayName, credential });
-
-      return { ok: true, account };
-    } catch (error) {
-      // 换取凭据途中被取消也要如实说"已取消"，不要笼统归到网络错误。
-      return this.controller.signal.aborted
-        ? { ok: false, code: 'canceled', message: '已取消登录' }
-        : { ok: false, code: 'network', message: `换取 ${label} 凭据失败：${describeError(error)}` };
-    } finally {
-      this.authorizing = null;
-      this.controller = null;
-    }
+  beginAuth(provider: CloudProvider): Promise<CloudAuthResult> {
+    return this.accounts.beginAuth(provider);
   }
 
   /** 幂等：没有挂起的授权时不做任何事。 */
   async cancelAuth(): Promise<void> {
-    this.controller?.abort();
+    this.accounts.cancelAuth();
   }
 
   /** 只清除本机凭据，不调用服务商撤销接口；远端授权记录由作者在服务商侧管理。 */
@@ -179,70 +110,16 @@ export class CloudSyncService {
     if (this.busy) throw new Error('请等待备份或恢复结束后再退出账户');
     await this.options.store.removeAccount(provider);
     await this.archiveCache.clear();
-
     return this.getState();
   }
 
   /** 只读本机绑定，不碰网络：状态栏每次换作品都要问一次。 */
-  async getBinding(): Promise<CloudBindingResult> {
-    const workspace = await this.requireWorkspace();
-
-    if (!workspace.ok) {
-      return workspace;
-    }
-
-    const binding = await this.options.store.readBinding(workspace.workspace.rootPath);
-
-    return binding
-      ? {
-          ok: true,
-          binding: this.toBinding(binding),
-          lastBackupAt: binding.lastBackupAt ?? null,
-          lastBackupError: binding.lastBackupError ?? null
-        }
-      : { ok: false, code: 'no-binding', message: '这部作品还没有绑定云端备份位置' };
+  getBinding(): Promise<CloudBindingResult> {
+    return this.bindings.getBinding();
   }
 
-  /**
-   * 只把绑定本身送出去。
-   *
-   * `lastBackupAt` / `lastBackupError` 在结果里有各自的位置，不再往 `binding` 里塞一份——
-   * 同一个事实在载荷里出现两次，界面早晚会有一处读了旧的那个。
-   */
-  private toBinding(binding: StoredCloudBinding): CloudBinding {
-    return {
-      provider: binding.provider,
-      folderId: binding.folderId,
-      folderName: binding.folderName,
-      boundAt: binding.boundAt
-    };
-  }
-
-  async listFolders(args: CloudListFoldersArgs): Promise<CloudListFoldersResult> {
-    const ready = await this.requireCredential(args.provider);
-
-    if (!ready.ok) {
-      return ready;
-    }
-
-    try {
-      const listing = await ready.adapter.listEntries({
-        credential: ready.credential,
-        parentId: args.parentId
-      });
-
-      return {
-        ok: true,
-        current: listing.current,
-        parentId: listing.parentId,
-        // 目录选择器只要目录；文件在备份清单里另有去处。
-        folders: listing.entries
-          .filter(entry => entry.kind === 'folder')
-          .map(entry => ({ id: entry.id, name: entry.name, root: false }))
-      };
-    } catch (error) {
-      return { ok: false, code: 'network', message: describeError(error) };
-    }
+  listFolders(args: CloudListFoldersArgs): Promise<CloudListFoldersResult> {
+    return this.bindings.listFolders(args);
   }
 
   /**
@@ -253,71 +130,12 @@ export class CloudSyncService {
    */
   async bind(args: CloudBindArgs): Promise<CloudBindingResult> {
     if (this.busy) return { ok: false, code: 'failed', message: '请等待备份或恢复结束后再更改绑定' };
-    const workspace = await this.requireWorkspace();
-
-    if (!workspace.ok) {
-      return workspace;
-    }
-
-    const ready = await this.requireCredential(args.provider);
-
-    if (!ready.ok) {
-      return ready;
-    }
-
-    try {
-      const target =
-        args.folderId === null && !ready.adapter.topLevelIsAppScoped
-          ? await this.ensureContainerFolder(ready.adapter, ready.credential)
-          : { id: args.folderId ?? '', name: args.folderName };
-
-      const existing = await this.readMarker(ready.adapter, ready.credential, target.id);
-
-      if (existing && existing.workspaceId !== workspace.workspace.id) {
-        return {
-          ok: false,
-          code: 'failed',
-          message: `这个云端目录属于另一部作品（${existing.title || '未命名'}），不能绑定`
-        };
-      }
-
-      if (!existing) {
-        await this.writeMarker(ready.adapter, ready.credential, target.id, workspace.workspace);
-      }
-
-      const binding: CloudBinding = {
-        provider: args.provider,
-        folderId: target.id,
-        folderName: target.name,
-        boundAt: new Date().toISOString()
-      };
-
-      await this.options.store.saveBinding(workspace.workspace.rootPath, binding);
-
-      const saved = await this.options.store.readBinding(workspace.workspace.rootPath);
-
-      return {
-        ok: true,
-        binding: this.toBinding(binding),
-        lastBackupAt: saved?.lastBackupAt ?? null,
-        lastBackupError: saved?.lastBackupError ?? null
-      };
-    } catch (error) {
-      return { ok: false, code: 'network', message: describeError(error) };
-    }
+    return this.bindings.bind(args);
   }
 
   async unbind(): Promise<CloudOperationResult> {
     if (this.busy) return { ok: false, code: 'failed', message: '请等待备份或恢复结束后再解除绑定' };
-    const workspace = await this.requireWorkspace();
-
-    if (!workspace.ok) {
-      return workspace;
-    }
-
-    await this.options.store.removeBinding(workspace.workspace.rootPath);
-
-    return { ok: true };
+    return this.bindings.unbind();
   }
 
   /** 清单、绑定状态与配额一次带回：面板打开一次就要这三样，拆三个频道只是多两次往返。 */
@@ -347,7 +165,7 @@ export class CloudSyncService {
 
       return {
         ok: true,
-        binding: this.toBinding(target.binding),
+        binding: toCloudBinding(target.binding),
         archives,
         quota: await this.readQuota(target),
         lastBackupError: target.binding.lastBackupError ?? null
@@ -447,7 +265,7 @@ export class CloudSyncService {
     archiveId: string,
     action: (archive: string, target: CloudTarget) => Promise<T>,
     clearAfter = false
-  ): Promise<T | WorkspaceFailure> {
+  ): Promise<T | CloudFailure> {
     if (this.busy) return { ok: false, code: 'failed', message: '已有备份或恢复正在进行' };
     this.busy = true;
     try {
@@ -521,14 +339,9 @@ export class CloudSyncService {
    */
   async removeBackups(args: CloudArchiveListArgs): Promise<CloudRemovalResult> {
     const target = await this.requireTarget();
-
-    if (!target.ok) {
-      return target;
-    }
-
+    if (!target.ok) return target;
     const removed: string[] = [];
     const failed: { archiveId: string; message: string }[] = [];
-
     for (const archiveId of args.archiveIds) {
       try {
         await target.adapter.remove({ credential: target.credential, entryId: archiveId });
@@ -537,8 +350,6 @@ export class CloudSyncService {
         failed.push({ archiveId, message: describeError(error) });
       }
     }
-
-    // 逐条回结论：一份没删掉不该让其余的回滚，也不该被混进一句“删除失败”——那样只能重试全部。
     return { ok: true, removed, failed };
   }
 
@@ -548,9 +359,7 @@ export class CloudSyncService {
     }
   }
 
-  private async requireWorkspace(): Promise<
-    { ok: true; workspace: CloudWorkspaceQuery & { status: 'ready' } } | WorkspaceFailure
-  > {
+  private async requireWorkspace(): Promise<CloudWorkspaceResult> {
     const query = await this.options.resolveWorkspace();
 
     if (query.status === 'none') {
@@ -568,30 +377,8 @@ export class CloudSyncService {
     return { ok: true, workspace: query };
   }
 
-  private async requireCredential(
-    provider: CloudProvider
-  ): Promise<
-    | { ok: true; adapter: CloudProviderAdapter; credential: CloudCredential }
-    | { ok: false; code: CloudErrorCode; message: string }
-  > {
-    const label = CLOUD_PROVIDER_LABELS[provider];
-    const adapter = this.options.adapters.find(item => item.id === provider);
-
-    if (!adapter?.oauth()) {
-      return { ok: false, code: 'not-configured', message: `本构建未内置 ${label} 的应用凭据` };
-    }
-
-    const credential = await this.options.store.readCredential(provider);
-
-    if (!credential) {
-      return { ok: false, code: 'not-signed-in', message: `请先登录 ${label}` };
-    }
-
-    return { ok: true, adapter, credential };
-  }
-
   /** 备份相关动作的共同前置：作品已打开、已绑定、适配器与凭据齐备。 */
-  private async requireTarget(): Promise<CloudTarget | WorkspaceFailure> {
+  private async requireTarget(): Promise<CloudTarget | CloudFailure> {
     const workspace = await this.requireWorkspace();
 
     if (!workspace.ok) {
@@ -604,57 +391,13 @@ export class CloudSyncService {
       return { ok: false, code: 'no-binding', message: '这部作品还没有绑定云端备份位置' };
     }
 
-    const ready = await this.requireCredential(binding.provider);
+    const ready = await this.accounts.requireCredential(binding.provider);
 
     if (!ready.ok) {
       return ready;
     }
 
     return { ok: true, adapter: ready.adapter, credential: ready.credential, binding, workspace: workspace.workspace };
-  }
-
-  private async ensureContainerFolder(adapter: CloudProviderAdapter, credential: CloudCredential) {
-    const listing = await adapter.listEntries({ credential, parentId: null });
-    const existing = listing.entries.find(entry => entry.kind === 'folder' && entry.name === BACKUP_FOLDER_NAME);
-
-    if (existing) {
-      return { id: existing.id ?? BACKUP_FOLDER_NAME, name: existing.name };
-    }
-
-    const created = await adapter.createFolder({ credential, parentId: null, name: BACKUP_FOLDER_NAME });
-
-    return { id: created.id ?? BACKUP_FOLDER_NAME, name: created.name };
-  }
-
-  private async readMarker(
-    adapter: CloudProviderAdapter,
-    credential: CloudCredential,
-    folderId: string
-  ): Promise<BackupMarker | null> {
-    const listing = await adapter.listEntries({ credential, parentId: folderId || null });
-    const file = listing.entries.find(entry => entry.kind === 'file' && entry.name === BACKUP_MARKER_FILE);
-
-    if (!file?.id) {
-      return null;
-    }
-
-    return parseMarker(new TextDecoder().decode(await adapter.download({ credential, fileId: file.id })));
-  }
-
-  private async writeMarker(
-    adapter: CloudProviderAdapter,
-    credential: CloudCredential,
-    folderId: string,
-    workspace: { id: string; title: string }
-  ) {
-    const marker = createMarker({ workspaceId: workspace.id, title: workspace.title });
-
-    await adapter.upload({
-      credential,
-      parentId: folderId || null,
-      name: BACKUP_MARKER_FILE,
-      bytes: new TextEncoder().encode(serializeMarker(marker))
-    });
   }
 
   /** 配额是装饰不是操作本身：读不到就显示"未提供"，不让整张清单跟着失败。 */
@@ -664,10 +407,6 @@ export class CloudSyncService {
     } catch {
       return null;
     }
-  }
-
-  private oauthOf(provider: CloudProvider) {
-    return this.options.adapters.find(item => item.id === provider)?.oauth() ?? null;
   }
 }
 

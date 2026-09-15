@@ -15,8 +15,9 @@ import { createProtocolLanguageModel } from '../../models/protocols';
 import type { ResolvedModel } from '../../models/runtime';
 import type { SessionMessage } from '../../sessions/entry';
 import type { ToolDefinition } from '../../tool-protocol/definition';
-import { runAgentLoop, withSyntheticResults } from '../engine';
+import { runAgentLoop } from '../engine';
 import { describeProviderFault } from '../error-classify';
+import { withSyntheticResults } from '../step-results';
 import type { PermissionGatePort } from '../types';
 
 /**

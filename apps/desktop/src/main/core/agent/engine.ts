@@ -1,18 +1,17 @@
-import { stepCountIs, streamText } from 'ai';
 import type { ModelMessage } from 'ai';
 
 import { errorToMessage, sumTokenUsage, type TokenUsage } from '@chaptale/shared';
 
-import { buildCachedPrompt, type PromptCacheMode } from '../models/prompt-cache';
+import type { PromptCacheMode } from '../models/prompt-cache';
 import type { ResolvedModel } from '../models/runtime';
-import { normalizeModelUsage } from '../models/token-usage';
 import type { SessionMessage } from '../sessions/entry';
-import { INTERRUPTED_TOOL_RESULT_TEXT } from '../sessions/tool-pairing';
-import { stepRecordsToSessionMessages, toModelMessages } from './messages';
-import { toAiSdkTools, TRUNCATED_OUTPUT_MESSAGE } from './tools';
-import type { AgentStreamEnvelope, PermissionGatePort, ToolResultRecord } from './types';
+import { toModelMessages } from './messages';
+import { runAgentStep } from './step';
+import { toPersistedStep, withPairedToolResults } from './step-results';
+import type { toAiSdkTools } from './tools';
+import type { AgentStreamEnvelope, PermissionGatePort } from './types';
 
-export type RunAgentLoopOptions = {
+type RunAgentLoopOptions = {
   sessionId: string;
   model: ResolvedModel;
   /** 系统提示词（composeSystemPrompt 产物，装配层注入）。 */
@@ -65,7 +64,7 @@ export type RunAgentLoopOptions = {
   prepareStep?: (context: PrepareStepContext) => Promise<PrepareStepResult | undefined>;
 };
 
-export type PrepareStepContext = {
+type PrepareStepContext = {
   /** 即将执行的步序号（0 起）。 */
   stepIndex: number;
   /** 若不干预，引擎将以此原因停止；undefined 表示本来就要继续。 */
@@ -74,7 +73,7 @@ export type PrepareStepContext = {
   totalUsage: TokenUsage;
 };
 
-export type PrepareStepResult = {
+type PrepareStepResult = {
   /**
    * 追加进本 run 会话的消息（作者中途插话走这里）。
    *
@@ -113,9 +112,6 @@ const DEFAULT_MAX_TRUNCATION_RETRIES = 1;
  */
 const DEFAULT_IDLE_TIMEOUT_MS = 180_000;
 
-/** 空闲超时哨兵：用独有 symbol 而不是 null/undefined，避免与流上的合法值撞上。 */
-const IDLE_TIMEOUT = Symbol('idle-timeout');
-
 /**
  * 循环停止原因。
  *
@@ -134,7 +130,7 @@ export type AgentStopReason =
   /** 用户取消。 */
   | 'aborted';
 
-export type AgentLoopResult = {
+type AgentLoopResult = {
   /** 最后一次模型调用的原始停止原因。 */
   finishReason: string;
   totalUsage: TokenUsage;
@@ -241,7 +237,20 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     pendingStop = undefined;
 
     steps += 1;
-    const step = await runStep();
+    const step = await runAgentStep({
+      sessionId,
+      model: stepModel,
+      system: stepSystem,
+      messages: conversation,
+      tools: stepTools,
+      gate,
+      onPart: part => onPart?.({ sessionId, seq: seq++, part }),
+      abortSignal,
+      idleTimeoutMs,
+      cacheMode: options.cacheMode,
+      cacheScope: options.cacheScope,
+      contextPrefix: options.contextPrefix
+    });
 
     finishReason = step.finishReason;
     usageSteps.push(step.usage);
@@ -249,7 +258,10 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     options.onStepUsage?.(step.usage);
 
     // 落盘先于一切判断：中断与 provider 故障都要留下已收集的内容。
-    await persistStep(step);
+    if (onStepPersist) {
+      const persisted = toPersistedStep(step);
+      if (persisted.length) await onStepPersist(persisted);
+    }
 
     if (step.aborted) {
       aborted = true;
@@ -279,345 +291,4 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
   }
 
   return { finishReason, totalUsage, aborted, stopReason: stopReason ?? pendingStop ?? 'step-limit', steps };
-
-  /** 单步：一次模型调用 + 本批工具执行，SDK 结束后把控制权交还引擎。 */
-  async function runStep(): Promise<StepOutcome> {
-    let text = '';
-    let reasoning = '';
-    const toolCalls: { id: string; name: string; arguments: Record<string, unknown> }[] = [];
-    const toolResults: ToolResultRecord[] = [];
-    let usage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-    let outputTruncated = false;
-    // 取模型调用自身的停止原因，而不是流上的聚合值：同一次截断在聚合值里是 'other'，
-    // 认不出来（这正是"整批作废"的判定依据，两者必须同源）。
-    let stepFinishReason = 'unknown';
-    let stepAborted = false;
-    let streamError: unknown;
-
-    const result = streamText({
-      model: stepModel.model,
-      ...buildCachedPrompt({
-        policy: stepModel.promptCachePolicy,
-        mode: options.cacheMode,
-        scope: options.cacheScope ?? sessionId,
-        system: stepSystem,
-        messages: conversation,
-        contextPrefix: options.contextPrefix
-      }),
-      tools: toAiSdkTools(stepTools, { sessionId, gate, isOutputTruncated: () => outputTruncated }),
-      // 单步：多步循环归引擎，SDK 不自行续跑。
-      stopWhen: stepCountIs(1),
-      abortSignal,
-      // 模型响应解析完毕、任何工具执行开始前触发。SDK 把整批工具推迟到 model-call-end
-      // 才一起执行，而该回调正好在其之前——这是唯一还来得及拦下截断批次的时点，
-      // 流上的 finish part 到达时工具早已跑完。
-      onLanguageModelCallEnd: event => {
-        outputTruncated = event.finishReason === 'length';
-        stepFinishReason = event.finishReason;
-        usage = normalizeModelUsage(event.usage);
-      },
-      // 模型级参数：未配置时不传，交由服务端默认（temperature/topP 仅 OpenAI 兼容系生效，其余协议忽略）。
-      ...(stepModel.maxTokens !== undefined ? { maxOutputTokens: stepModel.maxTokens } : {}),
-      ...(stepModel.temperature !== undefined ? { temperature: stepModel.temperature } : {}),
-      ...(stepModel.topP !== undefined ? { topP: stepModel.topP } : {}),
-      // reasoning 与上面三个不同，是 SDK 的可移植参数：它自己翻译成各 provider 的原生表达
-      // （reasoning_effort / thinking budget / thinkingConfig），四种协议都吃得下。
-      // 注意 providerOptions 里若也设了推理相关项，会**整体覆盖**这里而不是与之合并。
-      ...(stepModel.reasoningEffort !== undefined ? { reasoning: stepModel.reasoningEffort } : {})
-    });
-
-    try {
-      for await (const part of withIdleTimeout(result.stream, idleTimeoutMs)) {
-        if (part === IDLE_TIMEOUT) {
-          // 与 provider 故障走同一条路：先跳出去把已收到的内容落盘，再由调用方感知失败。
-          // 文案里的 "timeout" 是留给 classifyProviderFault 的正则认的，改措辞时别弄丢。
-          streamError = new Error(
-            `模型接了连接但 ${Math.round(idleTimeoutMs / 1000)} 秒内没有再返回内容（stream idle timeout）`
-          );
-          break;
-        }
-
-        onPart?.({ sessionId, seq: seq++, part });
-
-        if (part.type === 'text-delta') {
-          text += part.text;
-        } else if (part.type === 'reasoning-delta') {
-          // 流上的 TextStreamReasoningDeltaPart 属性是 text（UIMessage chunk 才是 delta）。
-          reasoning += part.text;
-        } else if (part.type === 'tool-call') {
-          toolCalls.push({
-            id: part.toolCallId,
-            name: part.toolName,
-            arguments: (part.input ?? {}) as Record<string, unknown>
-          });
-        } else if (part.type === 'tool-result') {
-          toolResults.push({
-            toolCallId: part.toolCallId,
-            toolName: part.toolName,
-            output: part.output,
-            // 保留 SDK 的失败标记（该字段在结果 part 上可缺省）。
-            isError: 'isError' in part ? part.isError === true : false
-          });
-        } else if (part.type === 'tool-error') {
-          // 与 tool-result 同等落盘：工具失败也是一条结果，缺了它 tool_call 就悬空。
-          // 触发面比"工具自己抛错"宽——模型调用不存在的工具、参数 JSON 被 token
-          // 上限截断导致 SDK 拒绝执行，走的都是这条。
-          toolResults.push({
-            toolCallId: part.toolCallId,
-            toolName: part.toolName,
-            output: `工具执行失败：${errorToMessage(part.error)}`,
-            isError: true
-          });
-        } else if (part.type === 'error') {
-          // provider 故障（401/429/500/断网）与 SDK 前置校验失败都走这里。
-          // 不能就地抛：先跳出循环把已收集内容落盘，再由调用方感知失败。
-          streamError = part.error;
-        } else if (part.type === 'finish-step') {
-          usage = normalizeModelUsage(part.usage);
-        } else if (part.type === 'abort') {
-          stepAborted = true;
-        }
-      }
-    } catch (error) {
-      if (abortSignal?.aborted) stepAborted = true;
-      else streamError = error;
-    }
-
-    let responseMessages: ModelMessage[] = [];
-    if (streamError === undefined && !stepAborted) {
-      try {
-        responseMessages = await result.responseMessages;
-      } catch (error) {
-        streamError = error;
-      }
-    }
-    return {
-      text,
-      reasoning,
-      toolCalls,
-      toolResults,
-      usage,
-      finishReason: stepFinishReason,
-      aborted: stepAborted,
-      error: streamError,
-      // 失败与中断的响应消息不进会话：半截 step 不该参与下一步的上下文，
-      // 而这两种情况下循环都会立即结束。
-      responseMessages
-    };
-  }
-
-  async function persistStep(step: StepOutcome): Promise<void> {
-    if (!onStepPersist) {
-      return;
-    }
-
-    if (
-      !step.text &&
-      !step.reasoning &&
-      step.toolCalls.length === 0 &&
-      step.toolResults.length === 0 &&
-      step.usage.totalTokens === 0 &&
-      !step.usage.cache
-    ) {
-      return;
-    }
-
-    await onStepPersist(
-      stepRecordsToSessionMessages(
-        {
-          text: step.text,
-          ...(step.reasoning ? { reasoning: step.reasoning } : {}),
-          toolCalls: step.toolCalls,
-          usage: step.usage
-        },
-        withSyntheticResults(step.toolCalls, step.toolResults, resolveSyntheticCause(step))
-      )
-    );
-  }
-}
-
-type StepOutcome = {
-  text: string;
-  reasoning: string;
-  toolCalls: { id: string; name: string; arguments: Record<string, unknown> }[];
-  toolResults: ToolResultRecord[];
-  usage: TokenUsage;
-  finishReason: string;
-  aborted: boolean;
-  error: unknown;
-  responseMessages: ModelMessage[];
-};
-
-/**
- * 补位结果的成因。
- *
- * 三种收场都会留下未结算的 tool_call，但作者要看到的不是同一件事：
- * 中断是他自己按的停止，截断作废与本轮出错都不是。
- */
-export type SyntheticResultCause = 'aborted' | 'output-truncated' | 'error';
-
-/** 本轮出错导致未执行的补位正文；与中断一样把判断交还模型，但不谎称是作者停的。 */
-const FAILED_TOOL_RESULT_TEXT = '工具未执行：本轮因错误中止。如果仍然需要这一步的结果，请重新发起调用。';
-
-const SYNTHETIC_RESULT_TEXTS = {
-  aborted: INTERRUPTED_TOOL_RESULT_TEXT,
-  'output-truncated': TRUNCATED_OUTPUT_MESSAGE,
-  error: FAILED_TOOL_RESULT_TEXT
-} satisfies Record<SyntheticResultCause, string>;
-
-/**
- * 为没有结果的 tool call 补合成结果。
- *
- * 正常 step 里 SDK 保证流结束前所有工具已结算，此函数是恒等的；
- * 真正生效的是三条异常路径：用户在工具执行途中点「停止」、provider 在工具执行前
- * 报错、以及模型输出撞上 token 上限——最后一种下 SDK 只要认出批次里有一个调用的
- * 参数 JSON 非法，就整批不执行，连参数完整的那些也不发 tool-error，
- * 于是流上只有 tool-call 没有结果，而引擎仍会尽力落盘。不补就写出悬空 tool_call。
- *
- * 写入侧与读取侧（`core/sessions/tool-pairing.ts`）两道都要有：读取侧能救活
- * 已经写坏的历史，写入侧保证文件本身自洽——历史面板与 HTML 导出直接读 entry，
- * 不经上下文投影。
- */
-export function withSyntheticResults(
-  toolCalls: { id: string; name: string }[],
-  results: ToolResultRecord[],
-  cause: SyntheticResultCause
-): ToolResultRecord[] {
-  if (toolCalls.length === 0) {
-    return results;
-  }
-
-  const settled = new Set(results.map(result => result.toolCallId));
-  const synthetic = toolCalls
-    .filter(call => !settled.has(call.id))
-    .map((call): ToolResultRecord =>
-      Object.assign(
-        { toolCallId: call.id, toolName: call.name, output: SYNTHETIC_RESULT_TEXTS[cause], isError: true },
-        // 只有真正的中断才打这个标记：作者要分辨的是「我按了停止」还是「它自己没跑成」，
-        // 把截断作废也算作中断，等于让界面替他记住一件他没做过的事。
-        cause === 'aborted' ? { interrupted: true } : {}
-      )
-    );
-
-  return synthetic.length > 0 ? [...results, ...synthetic] : results;
-}
-
-/**
- * 补位成因取自这一步的收场。
- *
- * 正常 step 里补位是恒等的，所以这里只需要认对三种异常收场；判定顺序即优先级：
- * 作者按下的停止盖过一切，其余按有没有 error part 分流。都不是却仍有未结算的调用，
- * 说明 SDK 的结算承诺没兑现——那时按 error 记比按中断记保守，至少不谎报成作者停的。
- */
-function resolveSyntheticCause(step: StepOutcome): SyntheticResultCause {
-  if (step.aborted) {
-    return 'aborted';
-  }
-
-  if (step.error === undefined && step.finishReason === 'length') {
-    return 'output-truncated';
-  }
-
-  return 'error';
-}
-
-/**
- * 把 SDK 的 responseMessages 补齐配对后再推进会话。
- *
- * 配对不变量在**内存会话**上也成立，而它不能靠 SDK 自动满足：整批作废时流上只有
- * tool-call，SDK 的 responseMessages 同样不含那些调用的结果。下一步发请求前 SDK 会
- * 校验配对并抛 `AI_MissingToolResultsError`，于是"给模型一次自纠机会"变成了整轮失败——
- * 而那正是截断作废后最需要走通的一步。
- *
- * 与落盘侧共用同一个补位函数，两条通道不会对同一次未执行讲出不同的故事；
- * 幂等同样是必须的：SDK 已经给出结果的调用不重复补。
- */
-function withPairedToolResults(step: StepOutcome): ModelMessage[] {
-  if (step.toolCalls.length === 0) {
-    return step.responseMessages;
-  }
-
-  const paired = new Set<string>();
-
-  for (const message of step.responseMessages) {
-    if (message.role !== 'tool') {
-      continue;
-    }
-
-    for (const part of message.content) {
-      if (part.type === 'tool-result') {
-        paired.add(part.toolCallId);
-      }
-    }
-  }
-
-  const missing = withSyntheticResults(step.toolCalls, step.toolResults, resolveSyntheticCause(step)).filter(
-    result => !paired.has(result.toolCallId)
-  );
-
-  if (missing.length === 0) {
-    return step.responseMessages;
-  }
-
-  return [
-    ...step.responseMessages,
-    ...toModelMessages(
-      missing.map(result => ({
-        role: 'tool' as const,
-        toolCallId: result.toolCallId,
-        toolName: result.toolName,
-        output: result.output,
-        isError: result.isError === true
-      }))
-    )
-  ];
-}
-
-/**
- * 给异步流套上空闲超时：相邻两次产出之间静默超过 `timeoutMs`，就交出哨兵再收尾。
- *
- * 做成包装 generator 而不是在消费端手写迭代，为的是让清理自动串联——
- * 消费端 `break` 会调用本 generator 的 `return`，`finally` 随即关掉源迭代器。
- * 少了这一步，超时之后底层连接仍挂在那里，而它正是超时想摆脱的东西。
- */
-async function* withIdleTimeout<T>(
-  source: AsyncIterable<T>,
-  timeoutMs: number
-): AsyncGenerator<T | typeof IDLE_TIMEOUT> {
-  const iterator = source[Symbol.asyncIterator]();
-
-  try {
-    let next = await raceIdleTimeout(iterator.next(), timeoutMs);
-
-    while (next !== IDLE_TIMEOUT && next.done !== true) {
-      yield next.value;
-      next = await raceIdleTimeout(iterator.next(), timeoutMs);
-    }
-
-    if (next === IDLE_TIMEOUT) {
-      yield IDLE_TIMEOUT;
-    }
-  } finally {
-    // 不等它完成是刻意的：收尾若自己也挂住，就把刚诊断出的静默又拖成一次挂起。
-    void iterator.return?.().catch(() => undefined);
-  }
-}
-
-/**
- * 等下一次产出，静默超过 `timeoutMs` 则以哨兵返回。
- *
- * 定时器随每次产出重建：空闲计时要的就是「自上一个 chunk 起」，
- * 一个长驻定时器量出来的是整轮时长，那会误杀长输出。
- */
-function raceIdleTimeout<T>(next: Promise<T>, timeoutMs: number): Promise<T | typeof IDLE_TIMEOUT> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  return Promise.race([
-    next,
-    new Promise<typeof IDLE_TIMEOUT>(resolve => {
-      timer = setTimeout(() => resolve(IDLE_TIMEOUT), timeoutMs);
-    })
-  ]).finally(() => {
-    clearTimeout(timer);
-  });
 }
