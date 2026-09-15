@@ -48,7 +48,8 @@ function mountWizard(options: { open?: boolean; plan?: CloudRestorePlan } = {}) 
       mode: 'new',
       choices: {},
       diff: null,
-      receipt: null
+      receipt: null,
+      workspace: { rootPath: null, revision: 0 }
     };
   }
 

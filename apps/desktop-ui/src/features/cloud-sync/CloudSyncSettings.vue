@@ -13,6 +13,7 @@ import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppNumberInput } from '@/components/AppNumberInput';
 import { SettingsSectionView as SettingsSection } from '@/features/settings';
 import { useSettingsStore } from '@/features/settings';
+import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import { describeBackupInterval, formatSize, formatWhen, isValidBackupInterval } from './presentation';
@@ -21,6 +22,13 @@ import { useCloudSyncStore } from './store';
 
 const cloud = useCloudSyncStore();
 const settings = useSettingsStore();
+const workspace = useWorkspaceStore();
+watch(
+  () => [workspace.rootPath, workspace.revision],
+  () => {
+    if (hasDesktopApi()) void cloud.refreshCloud();
+  }
+);
 let unsubscribe: (() => void) | undefined;
 
 /** 写明应用能看到云端的哪一块，比一句"连接云盘"更让人敢按下去。 */
@@ -127,6 +135,7 @@ function confirmRemoval() {
   const archiveIds = [...removalSelection.value];
 
   removalSelection.value = [];
+  isRemovalPending.value = false;
   void cloud.removeBackups(archiveIds);
 }
 
@@ -138,6 +147,22 @@ function confirmRemoval() {
  */
 const removalSelection = ref<string[]>([]);
 const isRemovalPending = ref(false);
+
+watch(
+  () => cloud.archives,
+  archives => {
+    const ids = new Set(archives.map(item => item.id));
+    removalSelection.value = removalSelection.value.filter(id => ids.has(id));
+    isRemovalPending.value = false;
+  }
+);
+watch(
+  () => [cloud.binding?.provider, cloud.binding?.folderId],
+  () => {
+    removalSelection.value = [];
+    isRemovalPending.value = false;
+  }
+);
 
 /**
  * 按复选报上来的**值**决定选中与否，而不是“收到一次事件就翻转”。

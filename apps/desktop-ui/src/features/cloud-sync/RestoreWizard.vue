@@ -91,10 +91,13 @@ function confirmLabel(mode: CloudRestoreMode): string {
 
 <template>
   <AppDialog
-    :open="Boolean(wizard)"
+    :open="Boolean(wizard) || cloud.isPlanLoading"
     title="恢复云端备份"
     content-size="lg"
     :description="wizard ? `归档：${wizard.archiveName}` : undefined"
+    :show-close="!cloud.isApplying"
+    @escape-key-down="cloud.isApplying && $event.preventDefault()"
+    @interact-outside="cloud.isApplying && $event.preventDefault()"
     @update:open="open => !open && cloud.closeRestore()"
   >
     <div class="restore">
@@ -138,7 +141,7 @@ function confirmLabel(mode: CloudRestoreMode): string {
                 type="button"
                 class="restore-mode"
                 :class="{ 'is-active': wizard.mode === mode.value }"
-                :disabled="mode.value !== 'new' && !plan.identityMatches"
+                :disabled="cloud.isApplying || (mode.value !== 'new' && !plan.identityMatches)"
                 :title="mode.value !== 'new' && !plan.identityMatches ? '这份归档不能自证是当前作品' : undefined"
                 role="radio"
                 :aria-checked="wizard.mode === mode.value"

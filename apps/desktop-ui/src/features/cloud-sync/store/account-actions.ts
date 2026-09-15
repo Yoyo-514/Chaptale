@@ -16,6 +16,7 @@ export const cloudAccountActions = {
       this.isLoading = false;
     }
   },
+
   async signIn(this: CloudSyncStoreContext, provider: CloudProvider) {
     if (this.busy) return;
     this.busy = provider;
@@ -23,7 +24,6 @@ export const cloudAccountActions = {
     try {
       const result = await getDesktopApi().cloudSync.beginAuth({ provider });
       if (!result.ok) {
-        // 作者自己按的取消不是错误；超时与拒绝才是需要看见的结局。
         if (result.code !== 'canceled') this.error = result.message;
         return;
       }
@@ -35,9 +35,11 @@ export const cloudAccountActions = {
       this.busy = null;
     }
   },
-  async cancelSignIn(this: CloudSyncStoreContext) {
+
+  async cancelSignIn() {
     await getDesktopApi().cloudSync.cancelAuth();
   },
+
   async signOut(this: CloudSyncStoreContext, provider: CloudProvider) {
     if (this.busy) return;
     this.busy = provider;
@@ -52,28 +54,33 @@ export const cloudAccountActions = {
       this.busy = null;
     }
   },
+
   async openFolder(this: CloudSyncStoreContext, provider: CloudProvider, parentId: string | null) {
+    const request = ++this.folderRequest;
     this.browseProvider = provider;
+    this.listing = null;
     this.isListingLoading = true;
     this.listingError = '';
     try {
       const result = await getDesktopApi().cloudSync.listFolders({ provider, parentId });
+      if (request !== this.folderRequest) return;
       if (!result.ok) {
-        this.listing = null;
         this.listingError = result.message;
         return;
       }
       this.listing = { current: result.current, parentId: result.parentId, folders: result.folders };
     } catch (error) {
-      this.listing = null;
-      this.listingError = toErrorMessage(error);
+      if (request === this.folderRequest) this.listingError = toErrorMessage(error);
     } finally {
-      this.isListingLoading = false;
+      if (request === this.folderRequest) this.isListingLoading = false;
     }
   },
+
   closeFolder(this: CloudSyncStoreContext) {
+    ++this.folderRequest;
     this.browseProvider = null;
     this.listing = null;
     this.listingError = '';
+    this.isListingLoading = false;
   }
 };

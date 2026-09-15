@@ -49,7 +49,7 @@ function refreshCloud() {
 }
 
 // 换作品就要重新问一次绑定；绑定是按作品存的。
-watch(() => workspace.rootPath, refreshCloud, { immediate: true });
+watch(() => [workspace.rootPath, workspace.revision], refreshCloud, { immediate: true });
 
 const hasError = computed(() => notificationStore.items.some(item => item.kind === 'error'));
 const notificationCountLabel = computed(() =>
