@@ -8,7 +8,8 @@ import { AppDialog } from '@/components/AppDialog';
 import { AppDiffView } from '@/components/AppDiffView';
 import { AppScrollArea } from '@/components/AppScrollArea';
 
-import { formatSize, useCloudSyncStore } from './store';
+import { formatSize } from './presentation';
+import { useCloudSyncStore } from './store';
 
 const cloud = useCloudSyncStore();
 

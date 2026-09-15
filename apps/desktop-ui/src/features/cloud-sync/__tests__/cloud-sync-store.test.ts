@@ -5,7 +5,8 @@ import type { CloudAccount, CloudBackupArchive, CloudBinding, CloudSyncState } f
 
 import { useEditorStore } from '@/features/editor';
 
-import { describeBackupInterval, formatSize, formatWhen, useCloudSyncStore } from '../store';
+import { describeBackupInterval, formatSize, formatWhen } from '../presentation';
+import { useCloudSyncStore } from '../store';
 
 type CloudSyncApi = NonNullable<typeof window.chaptaleDesktop>['cloudSync'];
 

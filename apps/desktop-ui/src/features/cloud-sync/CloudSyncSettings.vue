@@ -15,8 +15,9 @@ import { SettingsSectionView as SettingsSection } from '@/features/settings';
 import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
+import { describeBackupInterval, formatSize, formatWhen, isValidBackupInterval } from './presentation';
 import RestoreWizard from './RestoreWizard.vue';
-import { describeBackupInterval, formatSize, formatWhen, isValidBackupInterval, useCloudSyncStore } from './store';
+import { useCloudSyncStore } from './store';
 
 const cloud = useCloudSyncStore();
 const settings = useSettingsStore();
