@@ -211,21 +211,6 @@ function escapeXmlText(text: string): string {
   return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-/** 渲染任务提示词：简报 + 可选附件信封 + 待处理正文，各自装入独立段落。 */
-export function renderTaskPrompt(brief: string, text: string, contextPrompt?: string): string {
-  return joinTaskPrompt(renderTaskPromptParts(brief, text, contextPrompt));
-}
-
-/** 在 XML 转义后计算最终首轮 prompt，确保实体膨胀也不能突破模型预算。 */
-export function renderTaskPromptWithinBudget(
-  brief: string,
-  text: string,
-  contextPrompt: string | undefined,
-  maxTokens: number
-): string {
-  return joinTaskPrompt(renderTaskPromptParts(brief, text, contextPrompt, maxTokens));
-}
-
 /** 参考与当前任务保留独立结构，缓存断点不依赖文本解析或用户可伪造的标签。 */
 export function renderTaskPromptParts(
   brief: string,

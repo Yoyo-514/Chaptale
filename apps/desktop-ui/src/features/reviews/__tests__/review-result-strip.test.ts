@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 
 import ReviewResultStrip from '../components/ReviewResultStrip.vue';
-import type { ReviewLaneKey, ReviewLaneState } from '../index';
+import type { ReviewLaneKey, ReviewLaneState } from '../composables/useReviewLanes';
 
 function lane(overrides: Partial<ReviewLaneState> & Pick<ReviewLaneState, 'key'>): ReviewLaneState {
   const base = {

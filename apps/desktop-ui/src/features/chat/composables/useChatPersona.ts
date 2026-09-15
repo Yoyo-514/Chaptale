@@ -8,7 +8,7 @@ import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 
 /** 没有会话时的默认身份：与主进程内置专员一致。 */
-export const DEFAULT_PERSONA_ID = 'companion';
+const DEFAULT_PERSONA_ID = 'companion';
 /** 选择器底部「管理专员」的哨兵值，不会作为专员 id 落盘。 */
 export const MANAGE_PERSONA_OPTION = '__manage';
 
@@ -35,7 +35,7 @@ export function buildPersonaOptions(personas: readonly PersonaOption[], currentI
 }
 
 /** 专员是会话级设置：还没有会话时按默认专员展示选择器。 */
-export function useCurrentPersonaId() {
+function useCurrentPersonaId() {
   const sessionStore = useSessionStore();
 
   return computed(() => sessionStore.currentSession?.personaId ?? DEFAULT_PERSONA_ID);

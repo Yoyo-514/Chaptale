@@ -196,5 +196,3 @@ export const IPC_CHANNELS = {
     end: 'agent:end'
   }
 } as const;
-
-export type IpcChannelGroup = typeof IPC_CHANNELS;

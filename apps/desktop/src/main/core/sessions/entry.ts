@@ -170,9 +170,6 @@ export type SessionEntry =
   | SessionLabelEntry
   | SessionCustomEntry;
 
-/** 文件中的一行：首行 header，其后逐行 entry。 */
-export type SessionFileLine = SessionHeader | SessionEntry;
-
 /** 会话文件解析后的完整快照。 */
 export type ParsedSessionFile = {
   header: SessionHeader;

@@ -2,7 +2,6 @@ import type { Static } from 'typebox';
 
 import type {
   AddCustomModelPayloadSchema,
-  AddCustomProviderModelPayloadSchema,
   AddCustomProviderPayloadSchema,
   ChaptaleCustomProviderApiSchema,
   ChaptaleModelInputSchema,
@@ -76,8 +75,6 @@ export type FetchedCustomProviderModel = {
 export type FetchCustomProviderModelsResult = {
   models: FetchedCustomProviderModel[];
 };
-
-export type AddCustomProviderModelPayload = Static<typeof AddCustomProviderModelPayloadSchema>;
 
 export type AddCustomProviderPayload = Static<typeof AddCustomProviderPayloadSchema>;
 

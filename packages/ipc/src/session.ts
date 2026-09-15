@@ -13,15 +13,6 @@ import type {
   SetSessionLeafPayloadSchema
 } from './schemas/sessions';
 
-export type ChaptaleSessionEntry = {
-  type: 'session';
-  version: 3;
-  id: string;
-  timestamp: string;
-  cwd: string;
-  parentSession?: string;
-};
-
 export type ChaptaleSessionTreeEntryBase = {
   type: string;
   id: string;

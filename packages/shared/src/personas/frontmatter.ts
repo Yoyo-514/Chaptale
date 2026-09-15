@@ -1,14 +1,8 @@
 import { Type, type Static } from 'typebox';
 import { Compile } from 'typebox/compile';
 
-/** persona 类型：决定它在创作流程中的职责定位。 */
-export const personaTypes = ['chat', 'plan', 'draft', 'review', 'rewrite', 'research', 'custom'] as const;
-
-/** 执行形态：chat 为多轮对话；task 为一次性结构化执行。 */
-export const personaExecutions = ['chat', 'task'] as const;
-
 /** persona 来源层级；优先级 workspace > user > builtin，同 id 覆盖。 */
-export const personaSources = ['builtin', 'user', 'workspace'] as const;
+const personaSources = ['builtin', 'user', 'workspace'] as const;
 
 /**
  * persona 定义文件的 frontmatter 契约。

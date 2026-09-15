@@ -1,4 +1,4 @@
-import { Type, type Static } from 'typebox';
+import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
 
 import type { ReviewIssue } from './reviews';
@@ -16,7 +16,6 @@ export const RewriteEditsSchema = Type.Array(
   { minItems: 1, maxItems: 100 }
 );
 export const RewriteEditsValidator = Compile(RewriteEditsSchema);
-export type RewriteEdit = Static<typeof RewriteEditsSchema>[number];
 export type RewriteSpan = { from: number; to: number; text: string };
 
 /** 定位高亮可以宽容，修改授权必须基于精确原文。 */

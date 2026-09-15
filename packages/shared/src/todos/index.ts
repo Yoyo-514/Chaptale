@@ -1,10 +1,5 @@
 import { Type, type Static } from 'typebox';
 
-/** todo 项状态：pending 未开始 / in_progress 进行中 / completed 已完成。 */
-export const todoStatuses = ['pending', 'in_progress', 'completed'] as const;
-
-export type TodoStatus = (typeof todoStatuses)[number];
-
 /** 单条 todo 项；id 由模型给定且在更新间保持稳定，content 是一句可执行描述。 */
 export const TodoItemSchema = Type.Object(
   {

@@ -58,7 +58,7 @@ function parseLineFormat(content: string): LineFormat {
   return { bom: content.startsWith('\uFEFF'), preferred, separators };
 }
 
-export function serializeDocument(state: EditorState): string {
+function serializeDocument(state: EditorState): string {
   const format = state.field(lineFormat);
   const parts: string[] = [format.bom ? '\uFEFF' : ''];
   for (let line = 1; line <= state.doc.lines; line += 1) {

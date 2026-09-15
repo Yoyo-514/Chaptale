@@ -1,7 +1,7 @@
 import type { ModelMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
 
-import { renderTaskPromptParts, renderTaskPromptWithinBudget } from '../../../features/tasks/runner';
+import { renderTaskPromptParts } from '../../../features/tasks/runner';
 import { estimateTextTokens } from '../../context/token-counter';
 import { buildCachedPrompt, resolvePromptCachePolicy, type CachedPrompt } from '../prompt-cache';
 import { createProtocolLanguageModel, type ProtocolModelSource } from '../protocols';
@@ -172,8 +172,8 @@ describe('prompt cache policy', () => {
     expect(prompt.contextPrefix).toBe(context);
     expect(prompt.text).not.toContain(context);
     expect(prompt.text).toContain('&lt;/task_input&gt;');
-    const bounded = renderTaskPromptWithinBudget('brief', '<&>'.repeat(2000), context, 300);
-    expect(estimateTextTokens(bounded)).toBeLessThanOrEqual(300);
+    const bounded = renderTaskPromptParts('brief', '<&>'.repeat(2000), context, 300);
+    expect(estimateTextTokens(`${bounded.contextPrefix}\n\n${bounded.text}`)).toBeLessThanOrEqual(300);
     expect(() => renderTaskPromptParts('brief', '', context, 1)).toThrow('固定内容超出预算');
   });
 });

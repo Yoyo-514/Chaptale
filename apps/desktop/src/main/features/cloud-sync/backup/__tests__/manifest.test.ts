@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { packWorkspace } from '../archive';
 import { checksum } from '../checksum';
-import { readArchiveEntry, readArchiveManifest } from '../manifest';
+import { manifestOf, readArchiveContent, readArchiveEntry } from '../manifest';
 
 let dir: string;
 
@@ -32,7 +32,7 @@ async function packedWorkspace() {
 describe('归档读回', () => {
   it('清单给出文件与指纹，空目录单独列出', async () => {
     const { archivePath } = await packedWorkspace();
-    const manifest = await readArchiveManifest(archivePath);
+    const manifest = manifestOf(await readArchiveContent(archivePath));
 
     // 排序按码位：与归档打包侧（`collectWorkspaceContent`）用的是同一种比法，两处顺序一致。
     expect(manifest.files.map(file => file.relativePath)).toEqual(['正文.md', '灵感/片段.md']);
@@ -54,6 +54,6 @@ describe('归档读回', () => {
 
     await writeFile(broken, '这不是一个 zip');
 
-    await expect(readArchiveManifest(broken)).rejects.toThrow();
+    await expect(readArchiveContent(broken)).rejects.toThrow();
   });
 });

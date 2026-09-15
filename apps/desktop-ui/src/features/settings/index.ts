@@ -4,4 +4,4 @@ export const SettingsPanel = defineAsyncComponent(() => import('./SettingsPanel.
 export { default as SettingsSectionView } from './components/SettingsSection.vue';
 export { useSettingsStore } from './store';
 export type { SettingsSection } from './store/types';
-export { applyTheme, cacheTheme, readCachedTheme } from './theme';
+export { applyTheme, readCachedTheme } from './theme';

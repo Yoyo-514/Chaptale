@@ -39,9 +39,6 @@ const isArchivePath = (kind: ContentKind, relative: string) =>
   archivedFile.test(relative) || (kind === 'skill' && archivedSkill.test(relative));
 const includesSkillDirectory = (entry: Pick<ContentEntry, 'kind' | 'sourcePath'>) =>
   entry.kind === 'skill' && entry.sourcePath.endsWith('/SKILL.md');
-export const contentRefKey = (entry: Pick<ContentEntry, 'source' | 'kind' | 'sourcePath'>) =>
-  `${entry.source}:${entry.kind}:${entry.sourcePath}`;
-
 export class ContentService {
   constructor(
     private readonly options: {
