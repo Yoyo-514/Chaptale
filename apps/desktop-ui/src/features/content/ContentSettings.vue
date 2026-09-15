@@ -183,10 +183,11 @@ async function managed(entry: ContentEntry) {
 </template>
 <style scoped lang="scss">
 .content-toolbar {
-  @apply flex min-w-0 shrink-0 flex-wrap items-center gap-2 py-3;
+  @apply grid min-w-0 shrink-0 items-center gap-2 py-3;
+  grid-template-columns: minmax(10rem, 1fr) 7rem auto auto;
 }
 .content-toolbar :deep(.app-input) {
-  @apply min-w-0 flex-1;
+  @apply min-w-0;
 }
 .content-toolbar :deep(.content-state) {
   @apply w-28 shrink-0;
@@ -231,5 +232,16 @@ footer {
 }
 [role='alert'] {
   color: var(--destructive);
+}
+@container settings-panel (max-width: 40rem) {
+  .content-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .content-toolbar :deep(.app-input) {
+    grid-column: 1 / -1;
+  }
+  .content-toolbar :deep(.content-state) {
+    width: auto;
+  }
 }
 </style>

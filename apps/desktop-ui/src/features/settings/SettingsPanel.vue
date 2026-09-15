@@ -32,8 +32,8 @@ const {
 } = useDraggablePanel({
   initialX: 88,
   initialY: 72,
-  initialWidth: 832,
-  initialHeight: 544,
+  initialWidth: 920,
+  initialHeight: 620,
   minX: 16,
   minY: 16,
   minWidth: 680,
@@ -69,7 +69,14 @@ onMounted(() => {
                 <DialogTitle as-child><h2 id="settings-panel-title" class="settings-panel-title">设置</h2></DialogTitle>
               </div>
               <div class="settings-panel-window-actions">
-                <AppButton icon variant="ghost" size="sm" aria-label="居中设置面板" @click="centerPanel">
+                <AppButton
+                  icon
+                  variant="ghost"
+                  size="sm"
+                  aria-label="居中设置面板"
+                  title="居中设置面板"
+                  @click="centerPanel"
+                >
                   <span class="i-mingcute-align-center-line size-4" aria-hidden="true" />
                 </AppButton>
                 <AppButton
@@ -78,6 +85,7 @@ onMounted(() => {
                   size="sm"
                   type="button"
                   aria-label="关闭设置"
+                  title="关闭设置"
                   @click="settingsStore.closePanel()"
                 >
                   <span class="i-mingcute-close-line size-4" aria-hidden="true" />
@@ -136,7 +144,7 @@ onMounted(() => {
 }
 
 .settings-panel-header {
-  @apply flex cursor-move items-start justify-between gap-4 border-b px-4 py-3 select-none;
+  @apply flex min-h-12 shrink-0 cursor-move items-center justify-between gap-4 border-b px-4 py-2 select-none;
 
   border-color: var(--border-subtle);
 }
@@ -149,11 +157,11 @@ onMounted(() => {
 }
 
 .settings-panel-shell {
-  @apply grid min-h-0 flex-1 grid-cols-[13.5rem_minmax(0,1fr)];
+  @apply grid min-h-0 flex-1 grid-cols-[10.5rem_minmax(0,1fr)];
 }
 
 .settings-panel-content {
-  @apply min-h-0 overflow-hidden p-2;
+  @apply min-h-0 min-w-0 overflow-hidden;
 }
 
 .settings-panel-resize-handle {

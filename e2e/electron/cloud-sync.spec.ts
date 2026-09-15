@@ -30,7 +30,7 @@ async function launch() {
 
 async function openCloudSync() {
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
-  await page.getByRole('button', { name: '云端备份 云服务商登录与云端目录', exact: true }).click();
+  await page.getByRole('button', { name: '云端备份', exact: true }).click();
   await expect(page.getByRole('heading', { name: '云端备份', exact: true, level: 3 })).toBeVisible();
 
   return page.locator('section[aria-labelledby="cloud-accounts-title"]');
@@ -156,7 +156,7 @@ test('未绑定时备份区给出绑定引导，不编造归档或配额', async
   const backup = page.locator('section[aria-labelledby="cloud-backup-title"]');
 
   await expect(backup).toContainText('还没有绑定云端备份位置');
-  await expect(backup).toContainText('云端归档不会因此被删');
+  await expect(backup).toContainText('解除绑定不会删除云端归档');
   await expect(backup.getByRole('button', { name: '立即备份', exact: true })).toHaveCount(0);
   await expect(backup.locator('.cloud-file')).toHaveCount(0);
   const loginButtons = accounts.getByRole('button', { name: '登录', exact: true });

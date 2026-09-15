@@ -143,15 +143,15 @@ test('设置按实际访问加载，重开保留窗口位置和创作草稿', as
   expect(Math.abs(reopened.x - moved.x)).toBeLessThan(1);
   expect(Math.abs(reopened.y - moved.y)).toBeLessThan(1);
 
-  await page.getByRole('button', { name: '模型 供应商、API Key 与默认模型', exact: true }).click();
+  await page.getByRole('button', { name: '模型', exact: true }).click();
   await expect(page.getByRole('heading', { name: '模型服务', exact: true })).toBeVisible();
   expect(loaded(chunk('LLMSettings'))).toBe(true);
   expect(loaded(chunk('PromptSettings'))).toBe(false);
   expect(loaded(chunk('ContentSettings'))).toBe(false);
-  await page.getByRole('button', { name: /Prompt System 与追加提示/ }).click();
+  await page.getByRole('button', { name: 'Prompt', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'System Prompt', exact: true })).toBeVisible();
   expect(loaded(chunk('PromptSettings'))).toBe(true);
-  await page.getByRole('button', { name: '专员与内容 专员、技能、模板', exact: true }).click();
+  await page.getByRole('button', { name: '专员与内容', exact: true }).click();
   await expect(page.getByRole('heading', { name: '专员与创作内容', exact: true })).toBeVisible();
   expect(loaded(chunk('ContentSettings'))).toBe(true);
   await page.getByRole('button', { name: '关闭设置', exact: true }).click();
@@ -162,7 +162,7 @@ test('M6 Prompt 设置经真实文件保存、重载并恢复内置正文', asyn
   const defaults = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.promptSettings.getState());
   expect(path.resolve(defaults.systemPromptPath).startsWith(path.resolve(home) + path.sep)).toBe(true);
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
-  await page.getByRole('button', { name: /Prompt System 与追加提示/ }).click();
+  await page.getByRole('button', { name: 'Prompt', exact: true }).click();
   const system = page.getByRole('textbox', { name: 'System Prompt', exact: true });
   const append = page.getByRole('textbox', { name: 'Append System Prompt', exact: true });
   await expect(system).toHaveValue(defaults.defaultSystemPrompt);
@@ -173,7 +173,7 @@ test('M6 Prompt 设置经真实文件保存、重载并恢复内置正文', asyn
   expect(await readFile(defaults.appendSystemPromptPath, 'utf8')).toBe('本次偏好：保留叙述留白。');
   await page.reload();
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
-  await page.getByRole('button', { name: /Prompt System 与追加提示/ }).click();
+  await page.getByRole('button', { name: 'Prompt', exact: true }).click();
   await expect(system).toHaveValue('尊重作者确认的叙事目标。');
   await expect(append).toHaveValue('本次偏好：保留叙述留白。');
   await page.getByRole('button', { name: '恢复默认 System Prompt', exact: true }).click();
@@ -201,7 +201,7 @@ test('M6 联网开关落盘并在重载和设置中保持一致', async () => {
     'false'
   );
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
-  await page.getByRole('button', { name: '联网 搜索、提取与 API Key', exact: true }).click();
+  await page.getByRole('button', { name: '联网', exact: true }).click();
   await expect(page.getByRole('heading', { name: '联网与内容提取', exact: true })).toBeVisible();
 });
 

@@ -43,39 +43,46 @@ const hasHeadingExtra = computed(() => Boolean(slots.badge || slots.actions || s
       <slot />
     </AppScrollArea>
     <slot v-else />
+    <footer v-if="$slots.footer" class="settings-section-footer"><slot name="footer" /></footer>
   </section>
 </template>
 
 <style scoped lang="scss">
 .settings-section {
-  @apply flex h-full min-h-0 flex-col overflow-hidden p-2;
+  @apply flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-4;
 
   background: var(--surface-elevated);
 }
 
 .settings-section-heading {
-  @apply flex min-w-0 flex-wrap items-center justify-between gap-3;
+  @apply mb-3 flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2;
 }
 
 .settings-section-heading-extra {
-  @apply flex shrink-0 items-center justify-end gap-2;
+  @apply flex min-w-0 flex-wrap items-center justify-end gap-2;
 }
 
 .settings-section-title {
-  @apply m-0 text-sm font-semibold;
+  @apply m-0 text-base font-semibold;
+  overflow-wrap: anywhere;
 }
 
 .settings-section-description {
-  @apply mt-1 mb-3 text-xs leading-5;
+  @apply -mt-1 mb-4 shrink-0 text-xs leading-5;
 
   color: var(--muted-foreground);
+  overflow-wrap: anywhere;
 }
 
 .settings-section-scroll {
-  @apply min-h-0 flex-1 -m-2 p-2;
+  @apply min-h-0 min-w-0 flex-1 -mx-1 px-1;
 }
 
 .settings-section-scroll :deep(.settings-section-scroll-viewport) {
   @apply flex flex-col;
+}
+.settings-section-footer {
+  @apply mt-3 shrink-0 border-t pt-3;
+  border-color: var(--border-subtle);
 }
 </style>

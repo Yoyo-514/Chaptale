@@ -36,44 +36,38 @@ async function setShowInternalFiles(value: boolean) {
 </script>
 
 <template>
-  <div class="workspace-settings">
-    <SettingsSection
-      title="作品与会话存储"
-      title-id="settings-storage-title"
-      description="会话按作品目录隔离保存；没有打开作品时不能开始新的对话。"
-    >
-      <template #badge>
-        <span class="settings-pill">{{ workspacePath ? '已打开作品' : '未打开作品' }}</span>
-      </template>
+  <SettingsSection
+    class="workspace-settings"
+    title="作品与会话存储"
+    title-id="settings-storage-title"
+    description="会话按作品目录隔离保存；没有打开作品时不能开始新的对话。"
+  >
+    <template #badge>
+      <span class="settings-pill">{{ workspacePath ? '已打开作品' : '未打开作品' }}</span>
+    </template>
 
-      <SettingsPathCard
-        label="当前作品"
-        :value="workspacePath || '尚未打开作品'"
-        emphasis
-        class="settings-path-card-spacing"
-      />
+    <SettingsPathCard
+      label="当前作品"
+      :value="workspacePath || '尚未打开作品'"
+      emphasis
+      class="settings-path-card-spacing"
+    />
 
-      <SettingsPathCard
-        v-if="paths?.effectiveSessionDir"
-        label="当前会话目录"
-        :value="paths.effectiveSessionDir"
-        class="settings-path-card-spacing"
-      />
+    <SettingsPathCard
+      v-if="paths?.effectiveSessionDir"
+      label="当前会话目录"
+      :value="paths.effectiveSessionDir"
+      class="settings-path-card-spacing"
+    />
 
-      <div class="settings-actions">
-        <AppButton type="button" :disabled="settingsStore.isLoading" @click="openWorkspace">打开作品…</AppButton>
-        <AppButton v-if="workspacePath" type="button" :disabled="settingsStore.isLoading" @click="closeWorkspace">
-          关闭作品
-        </AppButton>
-      </div>
-    </SettingsSection>
-
-    <SettingsSection
-      title="资源管理器"
-      title-id="settings-explorer-title"
-      description="控制侧栏文件树展示哪些内容；偏好跟着你而不跟着具体作品。"
-      :scrollable="false"
-    >
+    <div class="settings-actions">
+      <AppButton type="button" :disabled="settingsStore.isLoading" @click="openWorkspace">打开作品…</AppButton>
+      <AppButton v-if="workspacePath" type="button" :disabled="settingsStore.isLoading" @click="closeWorkspace">
+        关闭作品
+      </AppButton>
+    </div>
+    <section class="workspace-explorer-settings" aria-labelledby="settings-explorer-title">
+      <h4 id="settings-explorer-title">资源管理器</h4>
       <SettingsToggleField
         :model-value="showInternalFiles"
         title="显示内部文件"
@@ -81,34 +75,28 @@ async function setShowInternalFiles(value: boolean) {
         :disabled="settingsStore.isLoading"
         @update:model-value="setShowInternalFiles"
       />
-    </SettingsSection>
-  </div>
+    </section>
+  </SettingsSection>
 </template>
 
 <style scoped lang="scss">
 @use '../styles/controls';
 
-.workspace-settings {
-  @apply flex h-full min-h-0 flex-col;
-}
-.workspace-settings > :first-child {
-  @apply h-auto min-h-0 flex-1;
-}
-.workspace-settings > :last-child {
-  @apply h-auto shrink-0 border-t pt-3;
+.workspace-explorer-settings {
+  @apply mt-6 border-t pt-4;
   border-color: var(--border-subtle);
+}
+.workspace-explorer-settings h4 {
+  @apply m-0 mb-3 text-sm font-semibold;
 }
 
 .settings-pill {
-  @apply shrink-0 border px-2 py-1 text-xs;
-
-  border-color: var(--border);
-  border-radius: var(--radius-control-sm);
+  @apply shrink-0 text-xs;
   color: var(--muted-foreground);
 }
 
 .settings-actions {
-  @apply flex flex-wrap gap-2 pt-1;
+  @apply flex flex-wrap gap-2 pt-3;
 }
 
 .settings-path-card-spacing {

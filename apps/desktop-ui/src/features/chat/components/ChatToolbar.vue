@@ -126,14 +126,15 @@ async function handleExportSession() {
 
 <style scoped lang="scss">
 .chat-toolbar {
-  @apply flex min-w-0 flex-wrap items-center justify-between gap-2 border-b px-2 pb-1;
+  @apply flex min-h-11 min-w-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-1.5;
 
   border-color: var(--border-subtle);
 }
 .chat-toolbar-title {
-  @apply flex min-w-0 flex-1 items-center gap-1.5 text-xs font-medium;
+  @apply flex min-w-0 flex-1 items-center gap-1.5 font-medium;
 
-  color: var(--muted-foreground);
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
 }
 
 .chat-toolbar-title-icon {

@@ -4,7 +4,8 @@ import { onMounted } from 'vue';
 import type { CandidateStatus } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
-import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppListItem } from '@/components/AppListItem';
+import { AppPanel } from '@/components/AppPanel';
 import { useEditorStore } from '@/features/editor';
 
 import { useWritingStore } from '../store';
@@ -27,15 +28,13 @@ onMounted(() => {
 });
 </script>
 <template>
-  <section class="candidate-panel" aria-label="候选稿">
-    <header>
-      <span>候选稿</span>
+  <AppPanel class="candidate-panel" title="候选稿" :count="writing.candidates.length">
+    <template #actions>
       <AppButton icon size="xs" variant="ghost" title="刷新候选" aria-label="刷新候选" @click="writing.refresh"
         ><span class="i-mingcute-refresh-3-line size-3.5"
       /></AppButton>
-      <AppButton size="xs" :disabled="!editor.activeTab" @click="writing.prepare()">生成候选稿</AppButton>
-    </header>
-    <AppScrollArea class="candidate-list">
+    </template>
+    <div class="candidate-list">
       <p v-if="writing.error" role="alert">{{ writing.error }}</p>
       <p v-for="message in writing.diagnostics" :key="message" role="alert">{{ message }}</p>
       <div v-for="id in writing.running" :key="id" class="candidate-row">
@@ -43,38 +42,27 @@ onMounted(() => {
         <AppButton size="xs" @click="writing.cancel(id)">取消</AppButton>
       </div>
       <p v-if="!writing.candidates.length && !writing.running.length">暂无候选稿</p>
-      <AppButton
-        variant="ghost"
+      <AppListItem
         v-for="candidate in writing.candidates"
         :key="candidate.id"
         class="candidate-item"
+        :title="candidate.targetPath"
+        :description="candidate.goal"
+        :meta="`${labels[candidate.status]} · ${candidate.personaId} · ${new Date(candidate.createdAt).toLocaleString()}`"
         @click="writing.read(candidate.id)"
-      >
-        <strong>{{ candidate.targetPath }}</strong>
-        <span>{{ labels[candidate.status] }} · {{ candidate.personaId }}</span>
-        <span>{{ candidate.goal }}</span>
-        <small>{{ new Date(candidate.createdAt).toLocaleString() }}</small>
+      />
+    </div>
+    <template #footer>
+      <AppButton :disabled="!editor.activeTab" @click="writing.prepare()">
+        <span class="i-mingcute-add-line size-4" aria-hidden="true" />生成候选稿
       </AppButton>
-    </AppScrollArea>
-  </section>
+    </template>
+  </AppPanel>
 </template>
 <style scoped lang="scss">
-.candidate-panel {
-  @apply flex min-h-0 flex-1 flex-col;
-  font-size: var(--ui-font-size);
-}
-header {
-  @apply flex h-9 shrink-0 items-center gap-2 border-b px-3;
-  border-color: var(--border-subtle);
-}
-header > span {
-  @apply mr-auto;
-}
-.candidate-list {
-  @apply min-h-0 flex-1;
-}
 .candidate-list p {
-  @apply p-3;
+  @apply m-0 p-4;
+  color: var(--muted-foreground);
   overflow-wrap: anywhere;
 }
 [role='alert'] {
@@ -82,24 +70,5 @@ header > span {
 }
 .candidate-row {
   @apply flex items-center justify-between gap-2 p-3;
-}
-.candidate-item {
-  @apply flex w-full flex-col items-start gap-1 rounded-none border-0 border-b bg-transparent p-3 text-left;
-  color: var(--foreground);
-  border-color: var(--border-subtle);
-  overflow-wrap: anywhere;
-}
-.candidate-item:hover {
-  background: var(--accent);
-}
-.candidate-item strong {
-  @apply font-medium;
-}
-.candidate-item span,
-.candidate-item small {
-  color: var(--muted-foreground);
-}
-.candidate-item small {
-  font-size: var(--ui-caption-size);
 }
 </style>

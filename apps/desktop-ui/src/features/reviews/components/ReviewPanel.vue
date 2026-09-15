@@ -5,14 +5,14 @@ import { REVIEW_ISSUE_LABELS } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
-import { AppDialog } from '@/components/AppDialog';
-import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppPanel } from '@/components/AppPanel';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useRunStore } from '@/features/runs';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWritingStore } from '@/features/writing';
 
 import { useReviewStore } from '../store';
+import ReviewConfirmation from './ReviewConfirmation.vue';
 import ReviewFeedback from './ReviewFeedback.vue';
 const reviews = useReviewStore();
 const writing = useWritingStore();
@@ -52,9 +52,9 @@ async function locate(index: number) {
 }
 </script>
 <template>
-  <section class="review-panel" aria-label="独立审查">
-    <header>
-      <span>独立审查</span><AppButton size="xs" @click="reviews.prepare()">运行审查</AppButton
+  <AppPanel class="review-panel" title="独立审查">
+    <template #actions>
+      <AppButton size="xs" @click="reviews.prepare()">运行审查</AppButton
       ><AppButton
         icon
         size="xs"
@@ -64,7 +64,7 @@ async function locate(index: number) {
         @click="navigation.showSidebar('review')"
         ><span class="i-mingcute-list-check-line size-3.5"
       /></AppButton>
-    </header>
+    </template>
     <div class="review-lanes">
       <div v-for="reviewer in reviews.reviewers" :key="reviewer.id" class="review-lane">
         <span>{{ reviewer.label }}</span>
@@ -117,68 +117,65 @@ async function locate(index: number) {
         <AppSelectItem value="ignored">已忽略</AppSelectItem>
       </AppSelect>
     </div>
-    <AppScrollArea class="review-results">
-      <div ref="list">
-        <ReviewFeedback />
-        <p v-if="job">{{ job.targetPath }} · {{ job.candidateId ? '候选稿' : '已保存正文' }}</p>
-        <p v-if="reviews.details?.result">{{ reviews.details.result.summary }}</p>
-        <p v-if="job?.excludedSources.length" class="review-warning">
-          未发送待确认观察：{{ job.excludedSources.join('、') }}
-        </p>
-        <p v-if="reviews.details?.result && !reviews.visibleIssues.length">没有符合筛选条件的问题</p>
-        <article
-          v-for="value in reviews.visibleIssues"
-          :key="value.index"
-          :data-review-index="value.index"
-          class="review-issue-row"
-          :class="{ selected: reviews.selectedIssue === value.index }"
-        >
-          <div class="issue-heading">
-            <AppCheckbox
-              :model-value="selectedIssues.includes(value.index)"
-              :aria-label="`选择问题 ${value.index + 1}`"
-              :disabled="value.status !== 'open' || value.anchor.stale"
-              @update:model-value="
-                selectedIssues =
-                  $event === true
-                    ? [...new Set([...selectedIssues, value.index])]
-                    : selectedIssues.filter(index => index !== value.index)
-              "
-            />
-            <strong
-              >{{ severityLabels[value.issue.severity] }} ·
-              {{ typeLabels[value.issue.type] ?? value.issue.type }}</strong
-            ><span v-if="value.anchor.stale">原文已变化</span>
-          </div>
-          <AppButton variant="link" class="issue-quote" :disabled="value.anchor.stale" @click="locate(value.index)">
-            {{ value.issue.quote }}
-          </AppButton>
-          <p>{{ value.issue.reason }}</p>
-          <p>{{ value.issue.suggestion }}</p>
-          <p v-if="value.issue.agentType === 'character'">{{ value.issue.expectedBehavior }}</p>
-          <div class="issue-actions">
-            <AppButton
-              v-if="value.status === 'open'"
-              size="xs"
-              :disabled="value.anchor.stale"
-              @click="writing.prepareRewrite(job!.id, [value.index])"
-              >提出修订</AppButton
-            >
-            <AppButton size="xs" :disabled="value.anchor.stale" @click="locate(value.index)">定位</AppButton>
-            <AppButton v-if="value.status !== 'resolved'" size="xs" @click="reviews.resolve([value.index], 'resolved')"
-              >已处理</AppButton
-            >
-            <AppButton v-if="value.status !== 'ignored'" size="xs" @click="reviews.resolve([value.index], 'ignored')"
-              >忽略</AppButton
-            >
-            <AppButton v-if="value.status !== 'open'" size="xs" @click="reviews.resolve([value.index], 'open')"
-              >重新打开</AppButton
-            >
-          </div>
-        </article>
-      </div>
-    </AppScrollArea>
-    <footer v-if="job">
+    <div ref="list" class="review-results">
+      <ReviewFeedback />
+      <p v-if="job">{{ job.targetPath }} · {{ job.candidateId ? '候选稿' : '已保存正文' }}</p>
+      <p v-if="reviews.details?.result">{{ reviews.details.result.summary }}</p>
+      <p v-if="job?.excludedSources.length" class="review-warning">
+        未发送待确认观察：{{ job.excludedSources.join('、') }}
+      </p>
+      <p v-if="reviews.details?.result && !reviews.visibleIssues.length">没有符合筛选条件的问题</p>
+      <article
+        v-for="value in reviews.visibleIssues"
+        :key="value.index"
+        :data-review-index="value.index"
+        class="review-issue-row"
+        :class="{ selected: reviews.selectedIssue === value.index }"
+      >
+        <div class="issue-heading">
+          <AppCheckbox
+            :model-value="selectedIssues.includes(value.index)"
+            :aria-label="`选择问题 ${value.index + 1}`"
+            :disabled="value.status !== 'open' || value.anchor.stale"
+            @update:model-value="
+              selectedIssues =
+                $event === true
+                  ? [...new Set([...selectedIssues, value.index])]
+                  : selectedIssues.filter(index => index !== value.index)
+            "
+          />
+          <strong
+            >{{ severityLabels[value.issue.severity] }} · {{ typeLabels[value.issue.type] ?? value.issue.type }}</strong
+          ><span v-if="value.anchor.stale">原文已变化</span>
+        </div>
+        <AppButton variant="link" class="issue-quote" :disabled="value.anchor.stale" @click="locate(value.index)">
+          {{ value.issue.quote }}
+        </AppButton>
+        <p>{{ value.issue.reason }}</p>
+        <p>{{ value.issue.suggestion }}</p>
+        <p v-if="value.issue.agentType === 'character'">{{ value.issue.expectedBehavior }}</p>
+        <div class="issue-actions">
+          <AppButton
+            v-if="value.status === 'open'"
+            size="xs"
+            :disabled="value.anchor.stale"
+            @click="writing.prepareRewrite(job!.id, [value.index])"
+            >提出修订</AppButton
+          >
+          <AppButton size="xs" :disabled="value.anchor.stale" @click="locate(value.index)">定位</AppButton>
+          <AppButton v-if="value.status !== 'resolved'" size="xs" @click="reviews.resolve([value.index], 'resolved')"
+            >已处理</AppButton
+          >
+          <AppButton v-if="value.status !== 'ignored'" size="xs" @click="reviews.resolve([value.index], 'ignored')"
+            >忽略</AppButton
+          >
+          <AppButton v-if="value.status !== 'open'" size="xs" @click="reviews.resolve([value.index], 'open')"
+            >重新打开</AppButton
+          >
+        </div>
+      </article>
+    </div>
+    <template v-if="job" #footer>
       <AppButton v-if="job.runId" size="xs" @click="runs.open(job.runId)">查看运行</AppButton>
       <AppButton
         size="xs"
@@ -198,77 +195,13 @@ async function locate(index: number) {
         "
         >忽略此类问题</AppButton
       >
-    </footer>
-  </section>
-  <AppDialog
-    :open="Boolean(reviews.confirmation)"
-    title="启动独立审查"
-    @update:open="open => !open && (reviews.confirmation = null)"
-  >
-    <div v-if="reviews.confirmation" class="review-confirm">
-      <p>{{ reviews.confirmation.targetPath }} · {{ reviews.confirmation.candidateId ? '候选稿' : '已保存正文' }}</p>
-      <p>本次写作参考：{{ reviews.confirmation.packId?.slice(0, 8) ?? '未选择' }}</p>
-      <label v-for="reviewer in reviews.reviewers" :key="reviewer.id"
-        ><AppCheckbox
-          :model-value="reviews.enabled.includes(reviewer.id)"
-          @update:model-value="
-            reviews.enabled =
-              $event === true
-                ? [...new Set([...reviews.enabled, reviewer.id])]
-                : reviews.enabled.filter(id => id !== reviewer.id)
-          "
-        />{{ reviewer.label }}审查</label
-      >
-      <label
-        >模型<AppSelect
-          :model-value="
-            String(
-              reviews.models.findIndex(
-                model =>
-                  model.provider === reviews.confirmation?.model.provider &&
-                  model.id === reviews.confirmation.model.modelId
-              )
-            )
-          "
-          @update:model-value="
-            value => {
-              const model = reviews.models[Number(value)];
-              if (model && reviews.confirmation)
-                reviews.confirmation.model = { provider: model.provider, modelId: model.id };
-            }
-          "
-        >
-          <AppSelectItem v-for="(model, index) in reviews.models" :key="index" :value="String(index)">
-            {{ model.providerName }} / {{ model.name }}
-          </AppSelectItem>
-        </AppSelect></label
-      >
-      <label
-        ><AppCheckbox
-          :model-value="reviews.confirmation.allowStalePack"
-          @update:model-value="reviews.confirmation.allowStalePack = $event === true"
-        />允许使用来源已更新的旧参考快照</label
-      >
-      <footer>
-        <AppButton size="sm" :disabled="!reviews.enabled.length" @click="reviews.start">启动审查</AppButton>
-      </footer>
-    </div>
-  </AppDialog>
+    </template>
+  </AppPanel>
+  <ReviewConfirmation />
 </template>
 <style scoped lang="scss">
-.review-panel {
-  @apply flex min-h-0 flex-1 flex-col;
-  font-size: var(--ui-font-size);
-}
-header {
-  @apply flex h-9 shrink-0 items-center gap-2 border-b px-3;
-  border-color: var(--border-subtle);
-}
-header > span {
-  @apply mr-auto;
-}
 .review-lanes {
-  @apply flex shrink-0 flex-col gap-1 border-b p-2;
+  @apply flex flex-col gap-1 border-b p-3;
   border-color: var(--border-subtle);
 }
 .review-lane,
@@ -279,18 +212,14 @@ header > span {
   @apply mr-auto;
 }
 .review-selection {
-  @apply shrink-0 p-2;
+  @apply p-3;
 }
 .issue-filters {
-  @apply grid shrink-0 gap-2 px-2 pb-2;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  @apply grid gap-2 px-3 pb-3;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
 }
-.review-results {
-  @apply min-h-0 flex-1;
-}
-.review-results p,
-.review-panel > p {
-  @apply px-3 py-2;
+p {
+  @apply m-0 px-3 py-2;
   overflow-wrap: anywhere;
 }
 .review-issue-row {
@@ -317,31 +246,13 @@ header > span {
 .issue-quote:disabled {
   color: var(--muted-foreground);
 }
-.issue-actions,
-footer {
+.issue-actions {
   @apply flex shrink-0 flex-wrap gap-2 py-2;
-}
-.review-panel > footer {
-  @apply border-t px-2;
-  border-color: var(--border-subtle);
 }
 .review-warning {
   color: var(--warning);
 }
 [role='alert'] {
   color: var(--destructive);
-}
-.review-confirm {
-  @apply flex min-h-0 flex-col gap-4 overflow-auto pt-3;
-  font-size: var(--ui-font-size);
-}
-.review-confirm label {
-  @apply flex flex-wrap items-center gap-2;
-}
-.review-confirm p {
-  overflow-wrap: anywhere;
-}
-.review-confirm footer {
-  @apply justify-end;
 }
 </style>

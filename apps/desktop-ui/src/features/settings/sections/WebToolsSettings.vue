@@ -61,6 +61,7 @@ const sections = reactive({ keys: false, advanced: false });
 
       <AppCollapsible
         v-model="sections.keys"
+        variant="plain"
         title="API Keys"
         description="按所选 Provider 填写；DuckDuckGo 无需 Key。"
       >
@@ -93,7 +94,12 @@ const sections = reactive({ keys: false, advanced: false });
         </div>
       </AppCollapsible>
 
-      <AppCollapsible v-model="sections.advanced" title="高级选项" description="抓取限制与内网放行规则。">
+      <AppCollapsible
+        v-model="sections.advanced"
+        variant="plain"
+        title="高级选项"
+        description="抓取限制与内网放行规则。"
+      >
         <div class="web-tools-card">
           <AppFormGrid>
             <AppFormField label="抓取超时（秒）">
@@ -152,9 +158,7 @@ const sections = reactive({ keys: false, advanced: false });
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--app-border-muted);
-  border-radius: 12px;
+  min-width: 0;
 }
 
 .web-tools-select {
@@ -163,7 +167,7 @@ const sections = reactive({ keys: false, advanced: false });
 
 .web-tools-select-note,
 .web-tools-option-note {
-  color: var(--app-text-tertiary);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 </style>

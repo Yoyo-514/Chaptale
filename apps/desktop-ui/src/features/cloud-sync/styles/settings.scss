@@ -1,0 +1,102 @@
+.cloud-sync {
+  @apply grid min-w-0 gap-6;
+  font-size: var(--ui-font-size);
+
+  .cloud-section {
+    @apply grid min-w-0 gap-3;
+  }
+  .cloud-section + .cloud-section {
+    @apply border-t pt-5;
+    border-color: var(--border-subtle);
+  }
+  .cloud-heading {
+    @apply flex min-w-0 flex-wrap items-center justify-between gap-2;
+  }
+  h4 {
+    @apply m-0 text-sm font-semibold;
+  }
+  p {
+    @apply m-0;
+    overflow-wrap: anywhere;
+  }
+  .cloud-providers,
+  .cloud-files {
+    @apply m-0 grid list-none p-0;
+  }
+  .cloud-provider,
+  .cloud-file {
+    @apply flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b py-3;
+    border-color: var(--border-subtle);
+  }
+  .cloud-provider:first-child {
+    padding-top: 0;
+  }
+  .cloud-provider:last-child,
+  .cloud-file:last-child {
+    border-bottom: 0;
+  }
+  .cloud-provider-copy {
+    @apply grid min-w-0 flex-1 gap-1.5;
+    flex-basis: 15rem;
+  }
+  .cloud-provider-title,
+  .cloud-state {
+    @apply flex min-w-0 flex-wrap items-center gap-2;
+    overflow-wrap: anywhere;
+  }
+  .cloud-state {
+    font-size: var(--ui-caption-size);
+    color: var(--muted-foreground);
+  }
+  .cloud-state.is-online {
+    color: var(--success);
+  }
+  .cloud-actions {
+    @apply flex min-w-0 flex-wrap items-center gap-1;
+  }
+  .cloud-actions.is-end {
+    @apply justify-end;
+  }
+  .cloud-muted {
+    color: var(--muted-foreground);
+    font-size: var(--ui-caption-size);
+    line-height: 1.6;
+  }
+  .cloud-pending {
+    @apply flex flex-wrap items-center justify-between gap-2;
+    color: var(--primary-solid);
+  }
+  .cloud-error {
+    color: var(--destructive);
+  }
+  .cloud-notice {
+    color: var(--success);
+  }
+  .cloud-folder {
+    @apply w-full justify-start text-left;
+  }
+  .cloud-auto {
+    @apply grid gap-3 border-y py-4;
+    border-color: var(--border-subtle);
+  }
+  .cloud-auto-row {
+    @apply flex min-w-0 flex-wrap items-center gap-2;
+  }
+  .cloud-auto-interval {
+    width: 7.5rem;
+  }
+  .cloud-files-head {
+    @apply flex min-w-0 flex-wrap items-center justify-between gap-2;
+  }
+  .cloud-file-copy {
+    @apply grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-1;
+    flex-basis: 14rem;
+  }
+  .cloud-file-name {
+    overflow-wrap: anywhere;
+  }
+  .cloud-file-meta {
+    grid-column: 2;
+    font-variant-numeric: tabular-nums;
+  }
+}

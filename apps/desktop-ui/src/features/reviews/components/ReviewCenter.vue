@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppListItem } from '@/components/AppListItem';
+import { AppPanel } from '@/components/AppPanel';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 
 import { useReviewStore } from '../store';
@@ -24,82 +25,63 @@ onMounted(() => {
 });
 </script>
 <template>
-  <section class="review-center" aria-label="审查中心">
-    <header>
-      <span>审查中心</span
-      ><AppButton icon size="xs" variant="ghost" title="刷新审查" aria-label="刷新审查" @click="reviews.refresh"
+  <AppPanel class="review-center" title="审查中心" :count="jobs.length">
+    <template #actions>
+      <AppButton icon size="xs" variant="ghost" title="刷新审查" aria-label="刷新审查" @click="reviews.refresh"
         ><span class="i-mingcute-refresh-3-line size-3.5"
       /></AppButton>
-    </header>
-    <div class="review-filters">
-      <AppSelect v-model="chapter" aria-label="审查章节">
-        <AppSelectItem value="__all">全部章节</AppSelectItem>
-        <AppSelectItem v-for="path in [...new Set(reviews.jobs.map(job => job.targetPath))]" :key="path" :value="path">
-          {{ path }}
-        </AppSelectItem>
-      </AppSelect>
-      <AppSelect v-model="reviewer" aria-label="审查角色">
-        <AppSelectItem value="__all">全部审查</AppSelectItem>
-        <AppSelectItem v-for="item in reviews.reviewerOptions" :key="item.id" :value="item.id">{{
-          item.label
-        }}</AppSelectItem>
-      </AppSelect>
-      <AppSelect v-model="status" aria-label="审查运行状态">
-        <AppSelectItem value="__all">全部运行状态</AppSelectItem>
-        <AppSelectItem v-for="(label, key) in labels" :key="key" :value="key">{{ label }}</AppSelectItem>
-      </AppSelect>
-    </div>
-    <AppScrollArea class="review-history">
+    </template>
+    <template #toolbar>
+      <div class="review-filters">
+        <AppSelect v-model="chapter" aria-label="审查章节">
+          <AppSelectItem value="__all">全部章节</AppSelectItem>
+          <AppSelectItem
+            v-for="path in [...new Set(reviews.jobs.map(job => job.targetPath))]"
+            :key="path"
+            :value="path"
+          >
+            {{ path }}
+          </AppSelectItem>
+        </AppSelect>
+        <AppSelect v-model="reviewer" aria-label="审查角色">
+          <AppSelectItem value="__all">全部审查</AppSelectItem>
+          <AppSelectItem v-for="item in reviews.reviewerOptions" :key="item.id" :value="item.id">{{
+            item.label
+          }}</AppSelectItem>
+        </AppSelect>
+        <AppSelect v-model="status" aria-label="审查运行状态">
+          <AppSelectItem value="__all">全部运行状态</AppSelectItem>
+          <AppSelectItem v-for="(label, key) in labels" :key="key" :value="key">{{ label }}</AppSelectItem>
+        </AppSelect>
+      </div>
+    </template>
+    <div class="review-history">
       <p v-for="message in reviews.diagnostics" :key="message" role="alert">{{ message }}</p>
       <p v-if="!jobs.length">暂无审查记录</p>
-      <AppButton v-for="job in jobs" :key="job.id" variant="ghost" class="review-job" @click="reviews.read(job.id)">
-        <strong>{{ job.targetPath }}</strong
-        ><span
-          >{{ reviews.reviewerLabel(job.personaId, job.personaName) }} · {{ labels[job.status] }} ·
-          {{ job.candidateId ? '候选稿' : '已保存正文' }}</span
-        >
-        <small>{{ new Date(job.createdAt).toLocaleString() }} · {{ job.id.slice(0, 8) }}</small>
-      </AppButton>
-    </AppScrollArea>
-  </section>
+      <AppListItem
+        v-for="job in jobs"
+        :key="job.id"
+        class="review-job"
+        :title="job.targetPath"
+        :description="`${reviews.reviewerLabel(job.personaId, job.personaName)} · ${labels[job.status]} · ${job.candidateId ? '候选稿' : '已保存正文'}`"
+        :meta="`${new Date(job.createdAt).toLocaleString()} · ${job.id.slice(0, 8)}`"
+        :selected="reviews.details?.job.id === job.id"
+        @click="reviews.read(job.id)"
+      />
+    </div>
+  </AppPanel>
 </template>
 <style scoped lang="scss">
-.review-center {
-  @apply flex min-h-0 flex-1 flex-col;
-  font-size: var(--ui-font-size);
-}
-header {
-  @apply flex h-9 shrink-0 items-center justify-between px-3;
-}
 .review-filters {
-  @apply flex shrink-0 flex-col gap-2 border-b p-3;
-  border-color: var(--border-subtle);
-}
-.review-history {
-  @apply min-h-0 flex-1;
+  @apply grid gap-2 p-3;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
 }
 .review-history p {
-  @apply p-3;
+  @apply m-0 p-4;
   overflow-wrap: anywhere;
-}
-.review-job {
-  @apply flex w-full flex-col items-start gap-1 rounded-none border-0 border-b bg-transparent p-3 text-left;
-  border-color: var(--border-subtle);
-  color: var(--foreground);
-  overflow-wrap: anywhere;
-}
-.review-job:hover {
-  background: var(--accent);
-}
-.review-job strong {
-  @apply font-medium;
-}
-.review-job span,
-small {
   color: var(--muted-foreground);
-  font-size: var(--ui-caption-size);
 }
-[role='alert'] {
+.review-history [role='alert'] {
   color: var(--destructive);
 }
 </style>

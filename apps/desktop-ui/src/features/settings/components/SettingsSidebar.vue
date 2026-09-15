@@ -1,57 +1,50 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 
 import { useSettingsStore, type SettingsSection } from '../store';
 
 const settingsStore = useSettingsStore();
 
-const sections: { id: SettingsSection; title: string; description: string; icon: string }[] = [
+const sections: { id: SettingsSection; title: string; icon: string }[] = [
   {
     id: 'content',
     title: '专员与内容',
-    description: '专员、技能、模板',
     icon: 'i-mingcute-user-setting-line'
   },
   {
     id: 'workspace',
     title: '作品',
-    description: '会话目录与开关',
     icon: 'i-mingcute-folder-2-line'
   },
   {
     id: 'llm',
     title: '模型',
-    description: '供应商、API Key 与默认模型',
     icon: 'i-mingcute-ai-line'
   },
   {
     id: 'prompt',
     title: 'Prompt',
-    description: 'System 与追加提示词',
     icon: 'i-mingcute-edit-3-line'
   },
   {
     id: 'webTools',
     title: '联网',
-    description: '搜索、提取与 API Key',
     icon: 'i-mingcute-earth-line'
   },
   {
     id: 'permissions',
     title: '权限',
-    description: '工具授权与持久规则',
     icon: 'i-mingcute-shield-shape-line'
   },
   {
     id: 'cloudSync',
     title: '云端备份',
-    description: '云服务商登录与云端目录',
     icon: 'i-mingcute-cloud-line'
   },
   {
     id: 'files',
     title: '配置文件',
-    description: '应用与模型配置路径',
     icon: 'i-mingcute-file-info-line'
   }
 ];
@@ -70,24 +63,32 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
       @click="settingsStore.setSection(section.id)"
     >
       <span class="settings-nav-icon" :class="section.icon" aria-hidden="true" />
-      <span class="settings-nav-copy">
-        <span class="settings-nav-title">{{ section.title }}</span>
-        <span class="settings-nav-description">{{ section.description }}</span>
-      </span>
+      <span class="settings-nav-title">{{ section.title }}</span>
     </AppButton>
   </nav>
+  <div class="settings-compact-nav">
+    <AppSelect
+      :model-value="settingsStore.activeSection"
+      aria-label="设置分类"
+      @update:model-value="settingsStore.setSection($event as SettingsSection)"
+    >
+      <AppSelectItem v-for="section in sections" :key="section.id" :value="section.id">
+        <span :class="section.icon" class="size-4 shrink-0" aria-hidden="true" />{{ section.title }}
+      </AppSelectItem>
+    </AppSelect>
+  </div>
 </template>
 
 <style scoped lang="scss">
 .settings-panel-nav {
-  @apply flex flex-col gap-1 overflow-auto border-r p-3;
+  @apply flex flex-col gap-1 overflow-auto border-r p-2;
 
   background: var(--surface-acrylic-subtle);
   border-color: var(--border-subtle);
 }
 
 .settings-nav-item {
-  @apply flex min-w-0 shrink-0 items-start justify-start gap-2 border px-2.5 py-2 text-left outline-none transition-colors duration-150;
+  @apply flex min-h-9 min-w-0 shrink-0 items-center justify-start gap-2.5 border-0 px-2.5 py-2 text-left outline-none transition-colors duration-150;
   height: auto;
   white-space: normal;
 
@@ -97,13 +98,12 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
   color: var(--foreground);
 }
 
-.settings-nav-item:hover,
-.settings-nav-item.is-active {
+.settings-nav-item:hover {
   background: var(--surface-hover);
-  border-color: var(--border-subtle);
 }
 
 .settings-nav-item.is-active {
+  background: var(--secondary);
   color: var(--primary-solid);
 }
 
@@ -112,38 +112,26 @@ const sections: { id: SettingsSection; title: string; description: string; icon:
 }
 
 .settings-nav-icon {
-  @apply mt-0.5 shrink-0 text-base;
-}
-
-.settings-nav-copy {
-  @apply flex min-w-0 flex-col gap-1;
+  @apply size-4 shrink-0;
 }
 
 .settings-nav-title {
-  @apply font-semibold;
+  @apply font-medium;
   font-size: var(--ui-font-size);
+  overflow-wrap: anywhere;
 }
 
-.settings-nav-description {
-  @apply text-xs leading-4;
-
-  color: var(--muted-foreground);
+.settings-compact-nav {
+  display: none;
 }
 
 @container settings-panel (max-width: 40rem) {
   .settings-panel-nav {
-    flex-direction: row;
-    border-right: 0;
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 6px;
-  }
-  .settings-nav-item {
-    flex-shrink: 0;
-    align-items: center;
-    padding: 8px;
-  }
-  .settings-nav-description {
     display: none;
+  }
+  .settings-compact-nav {
+    @apply block border-b px-4 py-2;
+    border-color: var(--border-subtle);
   }
 }
 </style>

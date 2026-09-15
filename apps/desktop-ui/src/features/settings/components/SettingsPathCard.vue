@@ -27,15 +27,11 @@ const displayValue = computed(() => props.value || props.placeholder);
 
 <style scoped lang="scss">
 .settings-path-card {
-  @apply flex min-w-0 flex-col gap-1 border px-3 py-2;
-
-  background: var(--surface-acrylic-strong);
-  border-color: var(--border-subtle);
-  border-radius: var(--radius-control);
+  @apply flex min-w-0 flex-col gap-1.5 py-2;
 }
 
 .settings-path-card.is-emphasis {
-  border-color: var(--primary);
+  color: var(--foreground);
 }
 
 .settings-path-label {
@@ -45,7 +41,8 @@ const displayValue = computed(() => props.value || props.placeholder);
 }
 
 .settings-path-value {
-  @apply break-all text-xs;
+  @apply min-w-0 text-xs leading-5;
+  overflow-wrap: anywhere;
 
   color: var(--foreground);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;

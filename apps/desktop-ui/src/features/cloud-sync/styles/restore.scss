@@ -1,0 +1,180 @@
+.restore {
+  @apply flex min-h-0 min-w-0 flex-1 flex-col;
+  font-size: var(--ui-font-size);
+  container-type: inline-size;
+  container-name: restore-dialog;
+
+  .restore-scroll {
+    @apply min-h-0 flex-1;
+  }
+  .restore-content {
+    @apply grid min-w-0 gap-5 py-4;
+  }
+  .restore-block {
+    @apply grid min-w-0 gap-3;
+  }
+  .restore-heading {
+    @apply m-0 flex min-w-0 items-center gap-2 text-sm font-semibold;
+  }
+  .restore-count {
+    color: var(--muted-foreground);
+    font-size: var(--ui-caption-size);
+  }
+  .restore-note {
+    @apply m-0 flex min-w-0 items-start gap-2;
+    color: var(--muted-foreground);
+    font-size: var(--ui-caption-size);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+  .restore-note.is-pending {
+    color: var(--warning);
+  }
+  .restore-note.is-blocked {
+    color: var(--destructive);
+  }
+  .restore-stats {
+    @apply m-0 grid grid-cols-4 list-none gap-3 border-y py-3;
+    border-color: var(--border-subtle);
+  }
+  .restore-stat {
+    @apply flex flex-wrap items-baseline gap-2;
+  }
+  .restore-stat strong {
+    @apply text-base font-semibold;
+    font-variant-numeric: tabular-nums;
+  }
+  .restore-stat span {
+    color: var(--muted-foreground);
+    font-size: var(--ui-caption-size);
+  }
+  .restore-stat.is-risk,
+  .restore-stat.is-risk span {
+    color: var(--destructive);
+  }
+  .restore-modes {
+    @apply grid grid-cols-3 gap-2;
+  }
+  .restore-mode {
+    @apply grid min-w-0 gap-2 border p-3 text-left;
+    border-color: var(--input-border);
+    border-radius: var(--radius-control);
+    background: transparent;
+  }
+  .restore-mode:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+  .restore-mode.is-active {
+    border-color: var(--primary-solid);
+    background: var(--secondary);
+  }
+  .restore-mode:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .restore-mode-head {
+    @apply flex min-w-0 items-center gap-2;
+  }
+  .restore-mode-head strong {
+    @apply mr-auto font-medium;
+  }
+  .restore-mode.is-active .restore-mode-head {
+    color: var(--primary-solid);
+  }
+  .restore-mode-detail {
+    color: var(--muted-foreground);
+    font-size: var(--ui-caption-size);
+    line-height: 1.6;
+  }
+  .restore-group {
+    @apply flex min-w-0 flex-wrap items-center gap-2 border-b pb-2;
+    border-color: var(--border-subtle);
+  }
+  .restore-group-note {
+    @apply mr-auto;
+    color: var(--muted-foreground);
+    font-size: var(--ui-caption-size);
+  }
+  .restore-group-actions {
+    @apply flex flex-wrap gap-1;
+  }
+  .restore-conflicts {
+    @apply m-0 grid list-none p-0;
+  }
+  .restore-conflict {
+    @apply grid min-w-0 gap-3 border-b py-3;
+    border-color: var(--border-subtle);
+  }
+  .restore-conflict-head,
+  .restore-conflict-foot {
+    @apply flex min-w-0 flex-wrap items-center gap-2;
+  }
+  .restore-conflict-foot {
+    @apply justify-between;
+  }
+  .restore-path {
+    @apply min-w-0 flex-1 font-medium;
+    overflow-wrap: anywhere;
+  }
+  .restore-delta {
+    @apply flex flex-wrap items-center gap-1;
+    font-size: var(--ui-caption-size);
+    font-variant-numeric: tabular-nums;
+  }
+  .restore-delta-label {
+    color: var(--muted-foreground);
+  }
+  .restore-segment {
+    @apply inline-flex max-w-full overflow-hidden border;
+    border-color: var(--input-border);
+    border-radius: var(--radius-control);
+  }
+  .restore-segment-item {
+    @apply min-h-8 min-w-0 px-2 py-1;
+    background: transparent;
+    font-size: var(--ui-caption-size);
+  }
+  .restore-segment-item + .restore-segment-item {
+    border-inline-start: 1px solid var(--input-border);
+  }
+  .restore-segment-item:hover:not(.is-active) {
+    background: var(--surface-hover);
+  }
+  .restore-segment-item.is-active {
+    background: var(--primary-solid);
+    color: var(--primary-solid-foreground);
+  }
+  .restore-diff {
+    height: 18rem;
+  }
+  .restore-facts {
+    @apply m-0 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-3;
+  }
+  .restore-facts > div {
+    @apply contents;
+  }
+  .restore-facts dt {
+    color: var(--muted-foreground);
+  }
+  .restore-facts dd {
+    @apply m-0 min-w-0;
+    overflow-wrap: anywhere;
+  }
+  .restore-footer {
+    @apply flex shrink-0 flex-wrap justify-end gap-2 border-t pt-3;
+    border-color: var(--border-subtle);
+  }
+
+  @container restore-dialog (max-width: 34rem) {
+    .restore-modes {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .restore-mode {
+      gap: 4px;
+    }
+    .restore-delta {
+      flex-basis: 100%;
+      padding-left: 24px;
+    }
+  }
+}

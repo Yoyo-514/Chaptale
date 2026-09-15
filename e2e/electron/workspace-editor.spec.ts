@@ -136,7 +136,7 @@ async function createStoryAssets() {
 
 async function openContentSettings() {
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
-  await page.getByRole('button', { name: '专员与内容 专员、技能、模板', exact: true }).click();
+  await page.getByRole('button', { name: '专员与内容', exact: true }).click();
   await expect(page.getByRole('heading', { name: '专员与创作内容' })).toBeVisible();
 }
 

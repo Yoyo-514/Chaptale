@@ -34,9 +34,7 @@ import { ChatToolbar } from '@/features/chat';
 }
 
 .chat-layout-toolbar {
-  @apply shrink-0 pt-1;
-
-  background: var(--mica-background);
+  @apply shrink-0;
 }
 
 .chat-layout-content {

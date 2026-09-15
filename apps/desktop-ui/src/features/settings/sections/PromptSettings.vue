@@ -40,7 +40,12 @@ async function savePromptSettings() {
     title-id="settings-prompt-title"
     description="编辑用户级 SYSTEM.md 与 APPEND_SYSTEM.md。内容会随请求发送给模型提供商，请勿填写密钥。"
   >
-    <AppForm class="prompt-settings-form" :disabled="settingsStore.isPromptLoading" @submit="savePromptSettings">
+    <AppForm
+      id="prompt-settings-form"
+      class="prompt-settings-form"
+      :disabled="settingsStore.isPromptLoading"
+      @submit="savePromptSettings"
+    >
       <div v-if="!settingsStore.promptSettings" class="settings-empty-card">正在读取 Prompt 文件…</div>
 
       <template v-else>
@@ -55,7 +60,7 @@ async function savePromptSettings() {
               v-model="draft.systemPrompt"
               class="prompt-settings-editor"
               variant="muted"
-              :rows="18"
+              :rows="10"
               resize="vertical"
               spellcheck="false"
             />
@@ -96,20 +101,26 @@ async function savePromptSettings() {
           </AppButton>
           <code>{{ settingsStore.promptSettings.appendSystemPromptPath }}</code>
         </div>
-
-        <AppFormActions>
-          <template #leading>
-            <span class="prompt-settings-status">{{ hasChanges ? '有未保存修改' : '已保存' }}</span>
-          </template>
-          <AppButton type="button" :disabled="settingsStore.isPromptLoading || !hasChanges" @click="discardChanges">
-            放弃修改
-          </AppButton>
-          <AppButton variant="primary" type="submit" :disabled="settingsStore.isPromptLoading || !canSave">
-            保存 Prompt 设置
-          </AppButton>
-        </AppFormActions>
       </template>
     </AppForm>
+    <template v-if="settingsStore.promptSettings" #footer>
+      <AppFormActions class="prompt-settings-actions">
+        <template #leading>
+          <span class="prompt-settings-status">{{ hasChanges ? '有未保存修改' : '已保存' }}</span>
+        </template>
+        <AppButton type="button" :disabled="settingsStore.isPromptLoading || !hasChanges" @click="discardChanges">
+          放弃修改
+        </AppButton>
+        <AppButton
+          variant="primary"
+          type="submit"
+          form="prompt-settings-form"
+          :disabled="settingsStore.isPromptLoading || !canSave"
+        >
+          保存 Prompt 设置
+        </AppButton>
+      </AppFormActions>
+    </template>
   </SettingsSection>
 </template>
 
@@ -119,7 +130,7 @@ async function savePromptSettings() {
 }
 
 .prompt-settings-editor {
-  min-height: 18rem;
+  min-height: 12rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 }
 
@@ -142,5 +153,8 @@ async function savePromptSettings() {
   @apply text-xs;
 
   color: var(--muted-foreground);
+}
+.prompt-settings-actions {
+  padding-top: 0;
 }
 </style>

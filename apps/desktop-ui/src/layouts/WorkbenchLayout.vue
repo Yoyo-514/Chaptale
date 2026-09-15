@@ -263,15 +263,15 @@ onBeforeUnmount(() => {
 }
 
 .workbench-auxiliary-tabs {
-  @apply flex h-9 w-max min-w-full shrink-0 items-center border-b px-3 text-xs;
+  @apply flex h-10 w-max min-w-full shrink-0 items-center gap-1 border-b px-2 text-xs;
 
   border-color: var(--border-subtle);
 }
 .workbench-tab-scroll {
-  @apply h-9 min-w-0 flex-1;
+  @apply h-10 min-w-0 flex-1;
 }
 .workbench-auxiliary-header {
-  @apply flex h-9 shrink-0 items-center;
+  @apply flex h-10 shrink-0 items-center;
 }
 
 .workbench-auxiliary-root,
@@ -279,12 +279,8 @@ onBeforeUnmount(() => {
   @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none;
 }
 
-.workbench-auxiliary-tabs {
-  @apply gap-1 px-2;
-}
-
 .workbench-auxiliary-tab {
-  @apply relative flex h-full items-center border-0 bg-transparent px-2 outline-none disabled:opacity-45;
+  @apply relative flex h-full shrink-0 items-center border-0 bg-transparent px-2.5 outline-none disabled:opacity-45;
   font-size: var(--ui-font-size);
 
   color: var(--muted-foreground);
@@ -292,6 +288,10 @@ onBeforeUnmount(() => {
 
 .workbench-auxiliary-tab[data-state='active'] {
   color: var(--foreground);
+  font-weight: 600;
+}
+.workbench-auxiliary-tab:hover {
+  background: var(--surface-hover);
 }
 
 .workbench-auxiliary-tab[data-state='active']::after {

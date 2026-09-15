@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppListItem } from '@/components/AppListItem';
+import { AppPanel } from '@/components/AppPanel';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useWorkspaceStore } from '@/features/workspace';
 
@@ -19,19 +20,20 @@ onMounted(settlement.refresh);
 watch(() => workspace.rootPath, settlement.refresh);
 </script>
 <template>
-  <section class="settlement-panel" aria-label="章节结算">
-    <header>
-      <strong>章节结算</strong>
+  <AppPanel class="settlement-panel" title="章节结算" :count="visible.length">
+    <template #actions>
       <AppButton icon variant="ghost" size="xs" aria-label="刷新结算" @click="settlement.refresh"
         ><span class="i-mingcute-refresh-2-line"
       /></AppButton>
-    </header>
-    <div class="settlement-filter">
-      <AppSelect v-model="filter" aria-label="结算状态筛选">
-        <AppSelectItem value="pending">待处理</AppSelectItem><AppSelectItem value="all">全部结算</AppSelectItem>
-      </AppSelect>
-    </div>
-    <AppScrollArea class="settlement-list">
+    </template>
+    <template #toolbar>
+      <div class="settlement-filter">
+        <AppSelect v-model="filter" aria-label="结算状态筛选">
+          <AppSelectItem value="pending">待处理</AppSelectItem><AppSelectItem value="all">全部结算</AppSelectItem>
+        </AppSelect>
+      </div>
+    </template>
+    <div class="settlement-list">
       <p v-if="settlement.error" role="alert">{{ settlement.error }}</p>
       <div v-for="run in settlement.running" :key="run.id" class="settlement-running" role="status">
         <span>{{ run.chapterPath }} · 结算中</span>
@@ -39,64 +41,39 @@ watch(() => workspace.rootPath, settlement.refresh);
           ><span class="i-mingcute-stop-line"
         /></AppButton>
       </div>
-      <AppButton
+      <AppListItem
         v-for="batch in visible"
         :key="batch.id"
-        variant="ghost"
         class="settlement-entry"
+        :title="batch.chapterTitle"
+        :description="batch.chapterPath"
+        :meta="`${labels[batch.status]} · ${batch.pending} 项待确认`"
         @click="settlement.read(batch.id)"
-      >
-        <span>{{ batch.chapterTitle }}</span
-        ><small>{{ batch.chapterPath }} · {{ labels[batch.status] }} · {{ batch.pending }} 项待确认</small>
-      </AppButton>
+      />
       <p v-if="!visible.length && !settlement.running.length">没有待处理结算</p>
       <p v-for="diagnostic in settlement.diagnostics" :key="diagnostic" role="alert">{{ diagnostic }}</p>
-    </AppScrollArea>
-    <footer>
+    </div>
+    <template #footer>
       <AppButton :disabled="settlement.busy || !workspace.rootPath" @click="settlement.prepare()"
         >结算当前章节</AppButton
       >
-    </footer>
-  </section>
+    </template>
+  </AppPanel>
 </template>
 <style scoped lang="scss">
-.settlement-panel {
-  @apply flex min-h-0 flex-1 flex-col;
-  font-size: var(--ui-font-size);
-}
-header {
-  @apply flex min-h-9 items-center justify-between border-b px-3;
-  border-color: var(--border-subtle);
-}
-strong {
-  @apply font-medium;
-}
 .settlement-filter {
   @apply p-3;
 }
-.settlement-list {
-  @apply min-h-0 flex-1 px-3;
-}
-.settlement-entry {
-  @apply mb-1 w-full flex-col items-start gap-1 text-left;
-}
-small {
-  @apply block w-full break-words font-normal;
-  color: var(--muted-foreground);
-  font-size: var(--ui-caption-size);
-}
 .settlement-running {
-  @apply flex items-center gap-2;
+  @apply flex items-center gap-2 px-3 py-2;
 }
 .settlement-running span {
   @apply min-w-0 flex-1 break-words;
 }
-footer {
-  @apply flex shrink-0 justify-end border-t p-3;
-  border-color: var(--border-subtle);
-}
 p {
-  @apply break-words;
+  @apply m-0 p-4;
+  overflow-wrap: anywhere;
+  color: var(--muted-foreground);
 }
 [role='alert'] {
   color: var(--destructive);

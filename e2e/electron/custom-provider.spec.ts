@@ -42,7 +42,7 @@ test.afterEach(async () => {
 /** 打开设置面板并切到模型服务，返回“添加自定义供应商”弹窗。 */
 async function openCustomProviderDialog(target: Page) {
   await target.getByRole('button', { name: '打开设置', exact: true }).click();
-  await target.getByRole('button', { name: '模型 供应商、API Key 与默认模型', exact: true }).click();
+  await target.getByRole('button', { name: '模型', exact: true }).click();
   await expect(target.getByRole('heading', { name: '模型服务', exact: true })).toBeVisible();
   await target.getByRole('button', { name: '添加供应商', exact: true }).click();
   const dialog = target.getByRole('dialog', { name: '添加自定义供应商', exact: true });

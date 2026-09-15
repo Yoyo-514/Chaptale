@@ -109,8 +109,16 @@ onMounted(() => void loadRules());
     description="查看和撤销工具调用的持久规则。临时的单次允许与会话规则不会显示在这里。"
   >
     <template #actions>
-      <AppButton type="button" size="xs" :disabled="isLoading || Boolean(removingKey)" @click="loadRules">
-        {{ isLoading ? '加载中...' : '刷新' }}
+      <AppButton
+        icon
+        variant="ghost"
+        type="button"
+        size="sm"
+        aria-label="刷新权限规则"
+        :disabled="isLoading || Boolean(removingKey)"
+        @click="loadRules"
+      >
+        <span class="i-mingcute-refresh-3-line size-4" :class="{ 'animate-spin': isLoading }" aria-hidden="true" />
       </AppButton>
     </template>
 
@@ -119,7 +127,6 @@ onMounted(() => void loadRules());
         v-for="group in ruleGroups"
         :key="group.scope"
         class="permission-settings-group"
-        :class="{ 'is-global': group.scope === 'global' }"
         :aria-labelledby="`${group.scope}-permission-rules-title`"
       >
         <div class="permission-settings-group-heading">
@@ -167,29 +174,21 @@ onMounted(() => void loadRules());
 
 <style scoped lang="scss">
 .permission-settings-groups {
-  @apply flex flex-col gap-3;
+  @apply flex flex-col gap-6;
 }
 
 .permission-settings-group {
-  @apply overflow-hidden border;
-
-  background: var(--surface-acrylic-strong);
-  border-color: var(--border-subtle);
-  border-radius: var(--radius-control);
-}
-
-.permission-settings-group.is-global {
-  border-color: var(--warning, #b45309);
+  @apply min-w-0;
 }
 
 .permission-settings-group-heading {
-  @apply flex items-start justify-between gap-3 border-b px-3 py-2.5;
+  @apply flex items-start justify-between gap-3 border-b pb-3;
 
   border-color: var(--border-subtle);
 }
 
 .permission-settings-group-title {
-  @apply m-0 text-xs font-semibold;
+  @apply m-0 text-sm font-semibold;
 }
 
 .permission-settings-group-description {
@@ -199,9 +198,8 @@ onMounted(() => void loadRules());
 }
 
 .permission-settings-count {
-  @apply min-w-6 rounded px-1.5 py-0.5 text-center text-xs;
-
-  background: var(--surface-muted);
+  @apply text-xs;
+  font-variant-numeric: tabular-nums;
   color: var(--muted-foreground);
 }
 
@@ -210,13 +208,14 @@ onMounted(() => void loadRules());
 }
 
 .permission-settings-item {
-  @apply flex min-w-0 items-center gap-2 border-b px-3 py-2 last:border-b-0;
+  @apply flex min-w-0 items-center gap-2 border-b py-2 last:border-b-0;
 
   border-color: var(--border-subtle);
 }
 
 .permission-settings-pattern {
-  @apply min-w-0 flex-1 truncate text-xs;
+  @apply min-w-0 flex-1 text-xs;
+  overflow-wrap: anywhere;
 }
 
 .permission-settings-action {
@@ -226,19 +225,19 @@ onMounted(() => void loadRules());
 }
 
 .permission-settings-action.is-allow {
-  color: var(--primary);
+  color: var(--primary-solid);
 }
 
 .permission-settings-action.is-ask {
-  color: var(--warning, #b45309);
+  color: var(--warning);
 }
 
 .permission-settings-action.is-deny {
-  color: var(--destructive, #b91c1c);
+  color: var(--destructive);
 }
 
 .permission-settings-empty {
-  @apply m-0 px-3 py-4 text-center text-xs;
+  @apply m-0 py-4 text-xs;
 
   color: var(--muted-foreground);
 }
