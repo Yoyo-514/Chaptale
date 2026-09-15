@@ -108,9 +108,14 @@ export class CloudSyncService {
   /** 只清除本机凭据，不调用服务商撤销接口；远端授权记录由作者在服务商侧管理。 */
   async signOut(provider: CloudProvider): Promise<CloudSyncState> {
     if (this.busy) throw new Error('请等待备份或恢复结束后再退出账户');
-    await this.options.store.removeAccount(provider);
-    await this.archiveCache.clear();
-    return this.getState();
+    this.busy = true;
+    try {
+      await this.options.store.removeAccount(provider);
+      await this.archiveCache.clear();
+      return await this.getState();
+    } finally {
+      this.busy = false;
+    }
   }
 
   /** 只读本机绑定，不碰网络：状态栏每次换作品都要问一次。 */
@@ -128,14 +133,12 @@ export class CloudSyncService {
    * 选中最顶层且服务商的顶层不是应用专属区域时，先建一层容器目录——不然归档与身份标记
    * 会直接撒在作者网盘根上。App Folder 接入不套这层：服务商给的顶层本身就是应用专属区域。
    */
-  async bind(args: CloudBindArgs): Promise<CloudBindingResult> {
-    if (this.busy) return { ok: false, code: 'failed', message: '请等待备份或恢复结束后再更改绑定' };
-    return this.bindings.bind(args);
+  bind(args: CloudBindArgs): Promise<CloudBindingResult> {
+    return this.withOperation(() => this.bindings.bind(args), '请等待备份或恢复结束后再更改绑定');
   }
 
-  async unbind(): Promise<CloudOperationResult> {
-    if (this.busy) return { ok: false, code: 'failed', message: '请等待备份或恢复结束后再解除绑定' };
-    return this.bindings.unbind();
+  unbind(): Promise<CloudOperationResult> {
+    return this.withOperation(() => this.bindings.unbind(), '请等待备份或恢复结束后再解除绑定');
   }
 
   /** 清单、绑定状态与配额一次带回：面板打开一次就要这三样，拆三个频道只是多两次往返。 */
@@ -337,20 +340,38 @@ export class CloudSyncService {
    *
    * **只由作者的显式确认触发**：应用没有自动删除备份的路径，包括自动备份自己也不删旧档。
    */
-  async removeBackups(args: CloudArchiveListArgs): Promise<CloudRemovalResult> {
-    const target = await this.requireTarget();
-    if (!target.ok) return target;
-    const removed: string[] = [];
-    const failed: { archiveId: string; message: string }[] = [];
-    for (const archiveId of args.archiveIds) {
-      try {
-        await target.adapter.remove({ credential: target.credential, entryId: archiveId });
-        removed.push(archiveId);
-      } catch (error) {
-        failed.push({ archiveId, message: describeError(error) });
+  removeBackups(args: CloudArchiveListArgs): Promise<CloudRemovalResult> {
+    return this.withOperation(async (): Promise<CloudRemovalResult> => {
+      const target = await this.requireTarget();
+      if (!target.ok) return target;
+      const removed: string[] = [];
+      const failed: { archiveId: string; message: string }[] = [];
+      for (const archiveId of args.archiveIds) {
+        try {
+          await target.adapter.remove({ credential: target.credential, entryId: archiveId });
+          removed.push(archiveId);
+        } catch (error) {
+          failed.push({ archiveId, message: describeError(error) });
+        }
       }
+      return { ok: true, removed, failed };
+    });
+  }
+
+  /** 绑定、登出、删除也必须在首个 await 前互斥，不能只检查备份是否已开始。 */
+  private async withOperation<T>(
+    action: () => Promise<T>,
+    message = '已有备份或恢复正在进行'
+  ): Promise<T | CloudFailure> {
+    if (this.busy) return { ok: false, code: 'failed', message };
+    this.busy = true;
+    try {
+      return await action();
+    } catch (error) {
+      return { ok: false, code: 'failed', message: describeError(error) };
+    } finally {
+      this.busy = false;
     }
-    return { ok: true, removed, failed };
   }
 
   private emit(progress: CloudBackupProgress) {

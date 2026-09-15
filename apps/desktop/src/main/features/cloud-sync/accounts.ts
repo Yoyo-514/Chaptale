@@ -62,6 +62,7 @@ export class CloudAccounts {
         redirectUri: flow.redirectUri,
         signal: controller.signal
       });
+      controller.signal.throwIfAborted();
       const account = await this.options.store.saveAccount({ provider, displayName: profile.displayName, credential });
       return { ok: true, account };
     } catch (error) {

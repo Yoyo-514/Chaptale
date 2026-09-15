@@ -288,6 +288,23 @@ describe('恢复到新目录', () => {
 });
 
 describe('恢复的临时归档', () => {
+  it.each(['bind', 'unbind', 'signOut', 'removeBackups'] as const)('%s 先开始时同样阻止并发备份', async action => {
+    const { instance } = await createSyncService({ dir, workspace, cacheRoot });
+    await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '本地\n' });
+    const operation =
+      action === 'bind'
+        ? instance.bind({ provider: 'dropbox', folderId: '/备份', folderName: '备份' })
+        : action === 'signOut'
+          ? instance.signOut('dropbox')
+          : action === 'removeBackups'
+            ? instance.removeBackups({ archiveIds: [] })
+            : instance.unbind();
+    const backup = await instance.createBackup();
+    expect(backup).toMatchObject({ ok: false, code: 'failed', message: '已有备份或恢复正在进行' });
+    await operation;
+    expect(await instance.cancelRestore()).toEqual({ ok: true });
+  });
+
   it('读取计划时取消不能删除正在使用的归档', async () => {
     const { instance, put } = await createSyncService({ dir, workspace, cacheRoot });
     await writeTree(workspace, { 'chaptale.json': manifest(WORKSPACE_ID), '正文.md': '本地\n' });
