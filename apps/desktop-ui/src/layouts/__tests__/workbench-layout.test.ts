@@ -35,7 +35,19 @@ describe('WorkbenchLayout', () => {
     const tabs = wrapper.findAll('.workbench-auxiliary-bar [role="tab"]');
 
     expect(tabs.map(tab => tab.text())).toEqual(['Agent', '参考', '候选', '审查', '结算', '资产', '运行']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual([
+      'Agent',
+      '参考',
+      '候选',
+      '审查',
+      '结算',
+      '资产',
+      '运行'
+    ]);
+    expect(tabs.every(tab => tab.find('.workbench-auxiliary-tab-icon').exists())).toBe(true);
+    expect(wrapper.findAll('.workbench-auxiliary-divider')).toHaveLength(2);
     expect(tabs[0]?.attributes('aria-selected')).toBe('true');
+    expect(wrapper.find('[aria-label="写作流程"]').exists()).toBe(false);
     expect(tabs[1]?.attributes('disabled')).toBeUndefined();
     expect(tabs[2]?.attributes('disabled')).toBeUndefined();
     expect(tabs[3]?.attributes('disabled')).toBeUndefined();
@@ -43,8 +55,13 @@ describe('WorkbenchLayout', () => {
     await tabs[1]!.trigger('mousedown', { button: 0 });
     await tabs[1]!.trigger('click');
     expect(wrapper.find('[aria-label="本次写作参考"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="写作流程"]').exists()).toBe(true);
     await tabs[4]!.trigger('mousedown', { button: 0 });
     await tabs[4]!.trigger('click');
     expect(wrapper.find('[aria-label="章节结算"]').exists()).toBe(true);
+    await tabs[6]!.trigger('mousedown', { button: 0 });
+    await tabs[6]!.trigger('click');
+    expect(wrapper.find('[aria-label="运行记录"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="写作流程"]').exists()).toBe(false);
   });
 });

@@ -33,6 +33,24 @@ import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import AgentPanel from './AgentPanel.vue';
 import CreativeCenter from './CreativeCenter.vue';
+import WritingFlowStrip from './WritingFlowStrip.vue';
+
+type AuxiliaryView = ReturnType<typeof useWorkbenchStore>['auxiliary'];
+/** 右栏标签按职责分三组：对话、当前章节的写作流程、回看。组间以细线分隔，窄栏时非当前标签只留图标。 */
+const auxiliaryGroups: ReadonlyArray<ReadonlyArray<{ id: AuxiliaryView; label: string; icon: string }>> = [
+  [{ id: 'agent', label: 'Agent', icon: 'i-mingcute-chat-3-line' }],
+  [
+    { id: 'references', label: '参考', icon: 'i-mingcute-bookmark-line' },
+    { id: 'candidates', label: '候选', icon: 'i-mingcute-quill-pen-line' },
+    { id: 'review', label: '审查', icon: 'i-mingcute-check-circle-line' },
+    { id: 'settlement', label: '结算', icon: 'i-mingcute-inbox-2-line' }
+  ],
+  [
+    { id: 'assets', label: '资产', icon: 'i-mingcute-box-3-line' },
+    { id: 'runs', label: '运行', icon: 'i-mingcute-history-line' }
+  ]
+];
+const flowViews = new Set<AuxiliaryView>(['references', 'candidates', 'review', 'settlement']);
 
 const editor = useEditorStore();
 const workspace = useWorkspaceStore();
@@ -186,16 +204,24 @@ onBeforeUnmount(() => {
           <div class="workbench-auxiliary-header">
             <AppScrollArea orientation="horizontal" class="workbench-tab-scroll">
               <TabsList ref="auxiliaryTabs" class="workbench-auxiliary-tabs" aria-label="辅助栏视图">
-                <TabsTrigger class="workbench-auxiliary-tab" value="agent">Agent</TabsTrigger>
-                <TabsTrigger class="workbench-auxiliary-tab" value="references">参考</TabsTrigger>
-                <TabsTrigger class="workbench-auxiliary-tab" value="candidates">候选</TabsTrigger>
-                <TabsTrigger class="workbench-auxiliary-tab" value="review">审查</TabsTrigger>
-                <TabsTrigger class="workbench-auxiliary-tab" value="settlement">结算</TabsTrigger>
-                <TabsTrigger class="workbench-auxiliary-tab" value="assets">资产</TabsTrigger>
-                <TabsTrigger class="workbench-auxiliary-tab" value="runs">运行</TabsTrigger>
+                <template v-for="(group, index) in auxiliaryGroups" :key="index">
+                  <span v-if="index > 0" class="workbench-auxiliary-divider" aria-hidden="true" />
+                  <TabsTrigger
+                    v-for="item in group"
+                    :key="item.id"
+                    class="workbench-auxiliary-tab"
+                    :value="item.id"
+                    :aria-label="item.label"
+                    :title="item.label"
+                  >
+                    <span :class="item.icon" class="workbench-auxiliary-tab-icon" aria-hidden="true" />
+                    <span class="workbench-auxiliary-tab-label">{{ item.label }}</span>
+                  </TabsTrigger>
+                </template>
               </TabsList>
             </AppScrollArea>
           </div>
+          <WritingFlowStrip v-if="flowViews.has(navigation.auxiliary)" />
           <TabsContent
             value="agent"
             force-mount
@@ -257,21 +283,29 @@ onBeforeUnmount(() => {
   @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden;
 }
 
-.workbench-primary-sidebar,
+.workbench-primary-sidebar {
+  background: var(--sidebar);
+}
+// 右栏是工作流面板而非索引：用比侧栏浅一级的表面，与编辑器区分层次。
 .workbench-auxiliary-bar {
-  background: var(--surface-acrylic-subtle);
+  background: var(--surface);
+  container-type: inline-size;
+  container-name: auxiliary-bar;
 }
 
-.workbench-auxiliary-tabs {
-  @apply flex h-10 w-max min-w-full shrink-0 items-center gap-1 border-b px-2 text-xs;
-
+.workbench-auxiliary-header {
+  @apply flex h-9 shrink-0 items-center border-b;
   border-color: var(--border-subtle);
 }
 .workbench-tab-scroll {
-  @apply h-10 min-w-0 flex-1;
+  @apply h-9 min-w-0 flex-1;
 }
-.workbench-auxiliary-header {
-  @apply flex h-10 shrink-0 items-center;
+.workbench-auxiliary-tabs {
+  @apply flex h-9 w-max min-w-full shrink-0 items-stretch gap-0.5 px-1.5;
+}
+.workbench-auxiliary-divider {
+  @apply mx-1 my-auto h-4 w-px shrink-0;
+  background: var(--border);
 }
 
 .workbench-auxiliary-root,
@@ -280,29 +314,46 @@ onBeforeUnmount(() => {
 }
 
 .workbench-auxiliary-tab {
-  @apply relative flex h-full shrink-0 items-center border-0 bg-transparent px-2.5 outline-none disabled:opacity-45;
+  @apply relative flex h-full shrink-0 items-center gap-1.5 border-0 bg-transparent px-2 outline-none disabled:opacity-45;
   font-size: var(--ui-font-size);
-
   color: var(--muted-foreground);
+  transition:
+    color var(--motion-duration) ease-out,
+    background-color var(--motion-duration) ease-out;
 }
-
+.workbench-auxiliary-tab-icon {
+  @apply size-4 shrink-0;
+}
+.workbench-auxiliary-tab-label {
+  @apply whitespace-nowrap;
+}
+.workbench-auxiliary-tab:hover {
+  color: var(--foreground);
+  background: var(--surface-hover);
+}
 .workbench-auxiliary-tab[data-state='active'] {
   color: var(--foreground);
   font-weight: 600;
 }
-.workbench-auxiliary-tab:hover {
-  background: var(--surface-hover);
+.workbench-auxiliary-tab[data-state='active'] .workbench-auxiliary-tab-icon {
+  color: var(--primary-solid);
 }
-
 .workbench-auxiliary-tab[data-state='active']::after {
-  @apply absolute inset-x-2 bottom-0 h-0.5;
-
+  @apply absolute inset-x-1.5 bottom-0 h-0.5;
   content: '';
   background: var(--primary-solid);
 }
-
 .workbench-auxiliary-tab:focus-visible {
   box-shadow: var(--input-focus-shadow);
+}
+// 栏宽不够放下七个带字标签时，非当前标签只留图标；标签文案仍在 DOM 里供读屏与测试定位。
+@container auxiliary-bar (max-width: 420px) {
+  .workbench-auxiliary-tab:not([data-state='active']) .workbench-auxiliary-tab-label {
+    @apply sr-only;
+  }
+  .workbench-auxiliary-tab:not([data-state='active']) {
+    @apply px-2.5;
+  }
 }
 
 .workbench-resize-handle {
