@@ -72,7 +72,6 @@ async function resize(width: number, height: number) {
   await app.evaluate(
     ({ BrowserWindow }, size) => {
       const window = BrowserWindow.getAllWindows()[0]!;
-      window.setMinimumSize(320, 320);
       window.setContentSize(size.width, size.height);
     },
     { width, height }
@@ -115,14 +114,9 @@ const settingsSections = [
   ['files', '配置文件', '配置文件']
 ] as const;
 
-async function captureSettings(settings: Locator, theme: string, viewport: 'compact' | 'desktop') {
+async function captureSettings(settings: Locator, theme: string, viewport: 'minimum' | 'desktop') {
   for (const [key, label, heading] of settingsSections) {
-    if (viewport === 'compact') {
-      await settings.getByRole('combobox', { name: '设置分类', exact: true }).click();
-      await page.getByRole('option', { name: label, exact: true }).click();
-    } else {
-      await settings.getByRole('button', { name: label, exact: true }).click();
-    }
+    await settings.getByRole('button', { name: label, exact: true }).click();
     await expect(settings.getByRole('heading', { name: heading, exact: true, level: 3 })).toBeVisible();
     if (key === 'content') {
       await expect(settings.getByRole('button', { name: '刷新内容', exact: true })).toBeEnabled();
@@ -165,7 +159,7 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
     await expect(trigger).toBeFocused();
   });
 
-  test(`${theme} 主题在桌面与窄窗口保留可读表单和键盘焦点`, async () => {
+  test(`${theme} 主题在桌面与最小窗口保留可读表单和键盘焦点`, async () => {
     test.setTimeout(120_000);
     await resize(1440, 900);
     await page.evaluate(value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }), theme);
@@ -200,7 +194,7 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
     await captureSettings(settings, theme, 'desktop');
     await settings.getByRole('button', { name: 'Prompt', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'System Prompt', exact: true })).toBeVisible();
-    await resize(390, 844);
+    await resize(960, 640);
     await expect
       .poll(() => settings.evaluate(element => element.getBoundingClientRect().right <= innerWidth))
       .toBe(true);
@@ -217,10 +211,8 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
       expect(field.left).toBeGreaterThanOrEqual(0);
       expect(field.right).toBeLessThanOrEqual(field.viewport);
     }
-    await page.screenshot({ path: path.join(visualDir, `settings-${theme}-compact.png`) });
-    const category = settings.getByRole('combobox', { name: '设置分类', exact: true });
-    await expect(category).toBeVisible();
-    await expect(settings.getByRole('navigation', { name: '设置分类', exact: true })).toBeHidden();
+    await page.screenshot({ path: path.join(visualDir, `settings-${theme}-minimum.png`) });
+    await expect(settings.getByRole('navigation', { name: '设置分类', exact: true })).toBeVisible();
     const save = settings.getByRole('button', { name: '保存 Prompt 设置', exact: true });
     expect(
       await save.evaluate(element => {
@@ -231,18 +223,14 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
     ).toBe(true);
     expect(await save.evaluate(element => (element as HTMLButtonElement).form?.id)).toBe('prompt-settings-form');
 
-    await captureSettings(settings, theme, 'compact');
+    await captureSettings(settings, theme, 'minimum');
     await page.getByRole('button', { name: '关闭设置', exact: true }).focus();
     await page.keyboard.press('Escape');
     await expect(settings).toBeHidden();
-    await page.getByRole('button', { name: '返回编辑器', exact: true }).click();
-    await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toBeVisible();
-    await expect(page.getByRole('complementary', { name: '辅助栏', exact: true })).toBeHidden();
-    await page.screenshot({ path: path.join(visualDir, `workbench-${theme}-compact.png`) });
-    await page.getByRole('button', { name: '切换 Agent 面板', exact: true }).click();
-    await expect(page.getByPlaceholder('描述你的创作需求...')).toBeVisible();
-    await page.getByRole('button', { name: '返回编辑器', exact: true }).click();
     await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toContainText('林晚');
+    await expect(page.getByRole('complementary', { name: '作品侧栏', exact: true })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: '辅助栏', exact: true })).toBeVisible();
+    await page.screenshot({ path: path.join(visualDir, `workbench-${theme}-minimum.png`) });
   });
 
   test(`${theme} 非目录树侧栏在两种窗口下保留列表与操作区`, async () => {
@@ -253,8 +241,8 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
     const primary = page.getByRole('complementary', { name: '作品侧栏', exact: true });
     const auxiliary = page.getByRole('complementary', { name: '辅助栏', exact: true });
 
-    for (const viewport of ['desktop', 'compact'] as const) {
-      await resize(viewport === 'compact' ? 390 : 1440, viewport === 'compact' ? 844 : 900);
+    for (const viewport of ['desktop', 'minimum'] as const) {
+      await resize(viewport === 'minimum' ? 960 : 1440, viewport === 'minimum' ? 640 : 900);
       for (const [key, label, region] of [
         ['search', '搜索', '作品全文搜索'],
         ['structure', '资料库', '资料库导航'],
@@ -275,7 +263,6 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
         await assertFieldsFit(panel);
         await page.screenshot({ path: path.join(visualDir, `sidebar-${key}-${theme}-${viewport}.png`) });
       }
-      if (viewport === 'compact') await page.getByRole('button', { name: '切换 Agent 面板', exact: true }).click();
       for (const [key, label, region] of [
         ['references', '参考', '本次写作参考'],
         ['candidates', '候选', '候选稿'],

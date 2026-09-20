@@ -216,12 +216,4 @@ label {
   color: var(--warning);
   overflow-wrap: anywhere;
 }
-@media (max-width: 900px) {
-  .template-fields {
-    @apply grid-cols-1;
-  }
-  .relation-row {
-    @apply grid-cols-[minmax(0,1fr)_auto];
-  }
-}
 </style>

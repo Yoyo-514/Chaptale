@@ -111,16 +111,4 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
 .titlebar-control-close {
   @apply hover:bg-destructive-background hover:text-destructive-background-foreground;
 }
-
-@media (max-width: 900px) {
-  .titlebar-document-title {
-    @apply hidden;
-  }
-  .titlebar-leading {
-    overflow-x: auto;
-  }
-  .titlebar-control {
-    width: 32px;
-  }
-}
 </style>

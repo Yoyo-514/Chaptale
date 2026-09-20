@@ -19,18 +19,6 @@ const activities = [
 <template>
   <aside class="activity-bar" aria-label="应用活动栏">
     <nav class="activity-bar-primary" aria-label="创作视图">
-      <AppTooltip v-if="navigation.isCompact" text="返回编辑器" side="right">
-        <AppButton
-          icon
-          size="lg"
-          variant="ghost"
-          aria-label="返回编辑器"
-          :selected="navigation.compactPane === 'editor'"
-          @click="navigation.focusEditor()"
-        >
-          <span class="i-mingcute-edit-2-line activity-icon" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
       <AppTooltip
         v-for="activity in activities"
         :key="activity.id"

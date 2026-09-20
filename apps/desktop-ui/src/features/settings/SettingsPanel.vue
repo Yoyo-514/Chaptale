@@ -236,11 +236,4 @@ onMounted(() => {
   border-bottom: 1px solid var(--muted-foreground);
   border-right: 1px solid var(--muted-foreground);
 }
-
-@container settings-panel (max-width: 40rem) {
-  .settings-panel-shell {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-}
 </style>

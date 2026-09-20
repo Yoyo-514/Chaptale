@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
-import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 
 import { useSettingsStore, type SettingsSection } from '../store';
 
@@ -66,17 +65,6 @@ const sections: { id: SettingsSection; title: string; icon: string }[] = [
       <span class="settings-nav-title">{{ section.title }}</span>
     </AppButton>
   </nav>
-  <div class="settings-compact-nav">
-    <AppSelect
-      :model-value="settingsStore.activeSection"
-      aria-label="设置分类"
-      @update:model-value="settingsStore.setSection($event as SettingsSection)"
-    >
-      <AppSelectItem v-for="section in sections" :key="section.id" :value="section.id">
-        <span :class="section.icon" class="size-4 shrink-0" aria-hidden="true" />{{ section.title }}
-      </AppSelectItem>
-    </AppSelect>
-  </div>
 </template>
 
 <style scoped lang="scss">
@@ -119,19 +107,5 @@ const sections: { id: SettingsSection; title: string; icon: string }[] = [
   @apply font-medium;
   font-size: var(--ui-font-size);
   overflow-wrap: anywhere;
-}
-
-.settings-compact-nav {
-  display: none;
-}
-
-@container settings-panel (max-width: 40rem) {
-  .settings-panel-nav {
-    display: none;
-  }
-  .settings-compact-nav {
-    @apply block border-b px-4 py-2;
-    border-color: var(--border-subtle);
-  }
 }
 </style>

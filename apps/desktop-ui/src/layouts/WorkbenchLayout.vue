@@ -60,10 +60,6 @@ const navigation = useWorkbenchStore();
 const auxiliaryTabs = ref<{ $el: HTMLElement }>();
 const sidebarPanel = ref<InstanceType<typeof SplitterPanel>>();
 const auxiliaryPanel = ref<InstanceType<typeof SplitterPanel>>();
-const compactQuery = window.matchMedia('(max-width: 760px)');
-function syncViewport() {
-  navigation.isCompact = compactQuery.matches;
-}
 function syncPanels() {
   if (navigation.sidebarOpen && !navigation.focusMode) sidebarPanel.value?.expand();
   else sidebarPanel.value?.collapse();
@@ -89,8 +85,6 @@ watch(
 );
 let unsubscribe: (() => void) | undefined;
 onMounted(() => {
-  syncViewport();
-  compactQuery.addEventListener('change', syncViewport);
   void nextTick(syncPanels);
   window.addEventListener('keydown', onWindowKeydown);
   if (!hasDesktopApi()) return;
@@ -102,7 +96,6 @@ onMounted(() => {
   });
 });
 onBeforeUnmount(() => {
-  compactQuery.removeEventListener('change', syncViewport);
   unsubscribe?.();
   window.removeEventListener('keydown', onWindowKeydown);
 });
@@ -114,7 +107,6 @@ onBeforeUnmount(() => {
     direction="horizontal"
     auto-save-id="chaptale-creative-workbench"
     class="workbench-layout"
-    :class="{ 'is-compact': navigation.isCompact }"
   >
     <SplitterPanel
       ref="sidebarPanel"
@@ -126,12 +118,7 @@ onBeforeUnmount(() => {
       :collapsed-size="0"
       collapsible
       class="workbench-panel"
-      :data-compact-hidden="navigation.focusMode || navigation.compactPane !== 'sidebar'"
-      :inert="
-        !navigation.sidebarOpen ||
-        navigation.focusMode ||
-        (navigation.isCompact && navigation.compactPane !== 'sidebar')
-      "
+      :inert="!navigation.sidebarOpen || navigation.focusMode"
       @collapse="!navigation.focusMode && (navigation.sidebarOpen = false)"
       @expand="!navigation.focusMode && (navigation.sidebarOpen = true)"
     >
@@ -151,27 +138,19 @@ onBeforeUnmount(() => {
     </SplitterPanel>
 
     <SplitterResizeHandle
-      v-show="navigation.sidebarOpen && !navigation.focusMode && !navigation.isCompact"
+      v-show="navigation.sidebarOpen && !navigation.focusMode"
       class="workbench-resize-handle"
       aria-label="调整作品侧栏宽度"
     />
 
-    <SplitterPanel
-      id="workbench-editor"
-      :order="2"
-      :default-size="50"
-      :min-size="35"
-      class="workbench-panel"
-      :data-compact-hidden="!navigation.focusMode && navigation.compactPane !== 'editor'"
-      :inert="navigation.isCompact && !navigation.focusMode && navigation.compactPane !== 'editor'"
-    >
+    <SplitterPanel id="workbench-editor" :order="2" :default-size="50" :min-size="35" class="workbench-panel">
       <main class="workbench-editor" aria-label="编辑器区域">
         <CreativeCenter />
       </main>
     </SplitterPanel>
 
     <SplitterResizeHandle
-      v-show="navigation.auxiliaryOpen && !navigation.focusMode && !navigation.isCompact"
+      v-show="navigation.auxiliaryOpen && !navigation.focusMode"
       class="workbench-resize-handle"
       aria-label="调整辅助栏宽度"
     />
@@ -186,12 +165,7 @@ onBeforeUnmount(() => {
       :collapsed-size="0"
       collapsible
       class="workbench-panel"
-      :data-compact-hidden="navigation.focusMode || navigation.compactPane !== 'auxiliary'"
-      :inert="
-        !navigation.auxiliaryOpen ||
-        navigation.focusMode ||
-        (navigation.isCompact && navigation.compactPane !== 'auxiliary')
-      "
+      :inert="!navigation.auxiliaryOpen || navigation.focusMode"
       @collapse="!navigation.focusMode && (navigation.auxiliaryOpen = false)"
       @expand="!navigation.focusMode && (navigation.auxiliaryOpen = true)"
     >
@@ -260,18 +234,6 @@ onBeforeUnmount(() => {
 
 .workbench-panel {
   @apply min-w-0 overflow-hidden;
-}
-
-.workbench-layout.is-compact {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr);
-}
-.is-compact > .workbench-panel {
-  grid-area: 1 / 1;
-  width: 100%;
-}
-.is-compact > .workbench-panel[data-compact-hidden='true'] {
-  display: none;
 }
 
 .workbench-primary-sidebar,

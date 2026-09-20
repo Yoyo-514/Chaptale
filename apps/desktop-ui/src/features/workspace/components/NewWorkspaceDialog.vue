@@ -218,12 +218,4 @@ async function create() {
   color: var(--destructive);
   overflow-wrap: anywhere;
 }
-@media (max-width: 520px) {
-  .new-workspace-roles {
-    @apply grid-cols-2;
-  }
-  .new-workspace-grid {
-    @apply grid-cols-1;
-  }
-}
 </style>

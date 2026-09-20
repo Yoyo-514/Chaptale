@@ -5,19 +5,16 @@ import { useWorkbenchStore } from '../store';
 
 beforeEach(() => setActivePinia(createPinia()));
 describe('面板导航', () => {
-  it('窄窗口按需展示一个面板，返回编辑器不清空其他面板状态', () => {
+  it('切换正文和资料视图不改变两侧栏的可见性', () => {
     const navigation = useWorkbenchStore();
-    navigation.isCompact = true;
-    navigation.toggleSidebar('workspace');
+    navigation.showSidebar('workspace');
     expect(navigation.sidebarOpen).toBe(true);
-    expect(navigation.compactPane).toBe('sidebar');
-    navigation.toggleAuxiliary();
-    expect(navigation.compactPane).toBe('auxiliary');
+    navigation.showAuxiliary('references');
     navigation.focusEditor();
-    expect(navigation.compactPane).toBe('editor');
     expect(navigation.auxiliaryOpen).toBe(true);
     navigation.openView('library');
-    expect(navigation.compactPane).toBe('editor');
+    expect(navigation.sidebarOpen).toBe(true);
+    expect(navigation.auxiliaryOpen).toBe(true);
     expect(navigation.center).toBe('library');
   });
   it('工作视图去重，关闭回到正文，切换作品后清空', () => {

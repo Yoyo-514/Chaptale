@@ -10,8 +10,6 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
   const auxiliaryOpen = ref(true);
   const statusBarOpen = ref(true);
   const focusMode = ref(false);
-  const isCompact = ref(false);
-  const compactPane = ref<'editor' | 'sidebar' | 'auxiliary'>('editor');
   const center = ref<'editor' | WorkspaceView>('editor');
   const viewTabs = ref<WorkspaceView[]>([]);
   const agentBusy = ref(false);
@@ -22,7 +20,6 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
   function openView(view: WorkspaceView) {
     if (!viewTabs.value.includes(view)) viewTabs.value.push(view);
     center.value = view;
-    compactPane.value = 'editor';
   }
   function closeView(view: WorkspaceView) {
     viewTabs.value = viewTabs.value.filter(item => item !== view);
@@ -31,37 +28,28 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
   function resetViews() {
     viewTabs.value = [];
     center.value = 'editor';
-    compactPane.value = 'editor';
   }
   function focusEditor() {
     center.value = 'editor';
-    compactPane.value = 'editor';
   }
   function toggleSidebar(view = sidebar.value) {
-    sidebarOpen.value =
-      sidebar.value === view && !focusMode.value && (!isCompact.value || compactPane.value === 'sidebar')
-        ? !sidebarOpen.value
-        : true;
+    sidebarOpen.value = sidebar.value === view && !focusMode.value ? !sidebarOpen.value : true;
     sidebar.value = view;
     focusMode.value = false;
-    compactPane.value = sidebarOpen.value ? 'sidebar' : 'editor';
   }
   function showSidebar(view: typeof sidebar.value) {
     sidebar.value = view;
     sidebarOpen.value = true;
     focusMode.value = false;
-    compactPane.value = 'sidebar';
   }
   function showAuxiliary(view: typeof auxiliary.value) {
     auxiliary.value = view;
     auxiliaryOpen.value = true;
     focusMode.value = false;
-    compactPane.value = 'auxiliary';
   }
   function toggleAuxiliary() {
-    if (auxiliaryOpen.value && !focusMode.value && (!isCompact.value || compactPane.value === 'auxiliary')) {
+    if (auxiliaryOpen.value && !focusMode.value) {
       auxiliaryOpen.value = false;
-      compactPane.value = 'editor';
     } else showAuxiliary(auxiliary.value);
   }
   function askAgent(rootPath: string, prompt: string, files: string[] = []) {
@@ -75,8 +63,6 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     auxiliaryOpen,
     statusBarOpen,
     focusMode,
-    isCompact,
-    compactPane,
     focusEditor,
     center,
     viewTabs,

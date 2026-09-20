@@ -306,9 +306,4 @@ p {
 [role='alert'] {
   color: var(--destructive);
 }
-@media (max-width: 640px) {
-  .definition-pair {
-    @apply grid-cols-1;
-  }
-}
 </style>

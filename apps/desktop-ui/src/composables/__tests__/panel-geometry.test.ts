@@ -10,10 +10,10 @@ describe('面板视口约束', () => {
     expect(fitPanelToViewport(rect, bounds, { width: 1440, height: 900 })).toEqual(rect);
   });
   it.each([
-    { width: 390, height: 844 },
-    { width: 480, height: 320 },
-    { width: 320, height: 568 }
-  ])('在 $width x $height 中允许小于偏好最小尺寸', viewport => {
+    { width: 960, height: 640 },
+    { width: 640, height: 426 },
+    { width: 480, height: 320 }
+  ])('桌面窗口缩放至 $width x $height 时保持面板可达', viewport => {
     const fitted = fitPanelToViewport(rect, bounds, viewport);
     expect(fitted.x).toBeGreaterThanOrEqual(16);
     expect(fitted.y).toBeGreaterThanOrEqual(16);

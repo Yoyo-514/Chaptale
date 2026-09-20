@@ -293,12 +293,4 @@ p {
   @apply shrink-0 border-t pt-3;
   border-color: var(--border-subtle);
 }
-@media (max-width: 640px) {
-  .sync-file-main {
-    @apply flex-wrap;
-  }
-  .sync-file-name {
-    flex-basis: 100%;
-  }
-}
 </style>
