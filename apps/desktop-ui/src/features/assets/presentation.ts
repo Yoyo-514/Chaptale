@@ -42,6 +42,8 @@ const kindLabels: Record<string, string> = {
   note: '笔记'
 };
 export const assetKindLabel = (kind?: string) => (kind ? (kindLabels[kind] ?? kind) : '未分类');
+/** 状态只在有可读译名时显示；未知状态留空，避免把原始 frontmatter 值直接摆到列表里。 */
+export const assetStatusLabel = (status?: string) => (status ? (names[status] ?? '') : '');
 export function groupAssets(
   assets: readonly AssetRecord[],
   view: AssetViewId,

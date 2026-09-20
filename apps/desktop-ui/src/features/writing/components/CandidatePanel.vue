@@ -77,9 +77,7 @@ onMounted(() => {
       icon="i-mingcute-quill-pen-line"
       title="还没有候选稿"
       description="先在「参考」里写下写作目标并组装来源，再生成候选；候选不会直接改动正文。"
-    >
-      <AppButton size="xs" :disabled="!editor.activeTab" @click="writing.prepare()">生成候选稿</AppButton>
-    </AppEmptyState>
+    />
     <AppListItem
       v-for="candidate in writing.candidates"
       :key="candidate.id"

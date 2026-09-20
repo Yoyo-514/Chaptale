@@ -8,7 +8,6 @@ import { AppInput } from '@/components/AppInput';
 import { AppListItem } from '@/components/AppListItem';
 import { AppNotice } from '@/components/AppNotice';
 import { AppPanel, AppPanelSection } from '@/components/AppPanel';
-import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
@@ -16,7 +15,7 @@ import { useTemplateStore } from '@/features/templates';
 import { useWorkbenchStore, workspaceViews } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 
-import { assetKindLabel, assetViews, groupAssets, isUnclassified } from '../presentation';
+import { assetKindLabel, assetStatusLabel, assetViews, groupAssets, isUnclassified } from '../presentation';
 import { useAssetStore } from '../store';
 
 const assets = useAssetStore();
@@ -28,7 +27,6 @@ const workspace = useWorkspaceStore();
 const groups = computed(() =>
   groupAssets(library.assets, assets.view, assets.mode, assets.query, assets.includeArchived)
 );
-const total = computed(() => groups.value.reduce((sum, group) => sum + group.assets.length, 0));
 const conflicts = computed(
   () => library.snapshot?.diagnostics.filter(item => item.code === 'conflict-copy-skipped') ?? []
 );
@@ -36,16 +34,18 @@ const diagnostics = computed(
   () => library.snapshot?.diagnostics.filter(item => item.code !== 'conflict-copy-skipped') ?? []
 );
 const currentView = computed(() => assetViews.find(item => item.id === assets.view));
+/** 标签页已经写明类型，行尾只补标签没说的信息：分组模式给文件名，目录模式给状态或跨类型提示。 */
 function rowMeta(asset: (typeof groups.value)[number]['assets'][number]) {
   if (assets.mode === 'grouped') return asset.sourcePath.split('/').pop() ?? asset.sourcePath;
   if (isUnclassified(asset)) return '未分类';
-  if (asset.status === 'final') return '已定稿';
-  return assetKindLabel(asset.kind);
+  if (asset.kind !== currentView.value?.kind) return assetKindLabel(asset.kind);
+  return assetStatusLabel(asset.status);
 }
+const viewLabels: Record<string, string> = { library: '资料', timeline: '时间线', relationships: '关系' };
 onMounted(() => void assets.refresh());
 </script>
 <template>
-  <AppPanel class="structure-panel" title="资料库" :count="total" aria-label="资料库导航">
+  <AppPanel class="structure-panel" title="资料库" aria-label="资料库导航">
     <template #actions>
       <AppTooltip text="新建资产" side="bottom" :side-offset="3">
         <AppButton
@@ -72,88 +72,82 @@ onMounted(() => void assets.refresh());
       </AppTooltip>
     </template>
     <template #toolbar>
-      <!-- 三个整页视图是资料库的「大门」，放在类型标签之前；它们打开的是中央工作区而不是侧栏内容。 -->
+      <!-- 三个整页视图是资料库的「大门」，一行三等分放在类型标签之前；它们打开的是中央工作区而不是侧栏内容。 -->
       <nav class="app-panel-toolbar-full library-views" aria-label="资料库视图">
         <AppButton
           v-for="view in workspaceViews"
           :key="view.id"
           size="xs"
-          variant="ghost"
+          variant="outline"
           class="library-view"
           :aria-label="`打开${view.label}`"
+          :title="view.label"
           :selected="navigation.center === view.id"
           :disabled="!workspace.rootPath"
           @click="navigation.openView(view.id)"
         >
           <span :class="view.icon" class="size-4 shrink-0" aria-hidden="true" />
-          {{ view.id === 'library' ? '全部资料' : view.label }}
+          <span class="library-view-label">{{ viewLabels[view.id] ?? view.label }}</span>
         </AppButton>
       </nav>
       <TabsRoot v-model="assets.view" class="app-panel-toolbar-full structure-tabs">
-        <AppScrollArea orientation="horizontal" class="structure-tab-scroll">
-          <TabsList aria-label="资产类型" class="structure-tab-list">
-            <TabsTrigger v-for="item in assetViews" :key="item.id" :value="item.id" class="structure-tab">{{
-              item.label
-            }}</TabsTrigger>
-          </TabsList>
-        </AppScrollArea>
+        <TabsList aria-label="资产类型" class="structure-tab-list">
+          <TabsTrigger v-for="item in assetViews" :key="item.id" :value="item.id" class="structure-tab">{{
+            item.label
+          }}</TabsTrigger>
+        </TabsList>
       </TabsRoot>
-      <AppInput v-model="assets.query" class="app-panel-toolbar-full" aria-label="筛选资产" placeholder="筛选资产">
-        <template #prefix><span class="i-mingcute-search-line" /></template>
-        <template #suffix>
-          <AppButton
-            v-if="assets.query"
-            icon
-            size="xs"
-            variant="ghost"
-            aria-label="清除资产筛选"
-            @click="assets.query = ''"
-          >
-            <span class="i-mingcute-close-line" />
-          </AppButton>
-          <span class="structure-options" role="group" aria-label="资产排列">
-            <AppTooltip text="目录视图" side="bottom" :side-offset="3">
-              <AppButton
-                icon
-                size="xs"
-                variant="ghost"
-                aria-label="目录视图"
-                :selected="assets.mode === 'directory'"
-                :aria-pressed="assets.mode === 'directory'"
-                @click="assets.mode = 'directory'"
-              >
-                <span class="i-mingcute-folder-2-line" />
-              </AppButton>
-            </AppTooltip>
-            <AppTooltip text="分组视图" side="bottom" :side-offset="3">
-              <AppButton
-                icon
-                size="xs"
-                variant="ghost"
-                aria-label="分组视图"
-                :selected="assets.mode === 'grouped'"
-                :aria-pressed="assets.mode === 'grouped'"
-                @click="assets.mode = 'grouped'"
-              >
-                <span class="i-mingcute-grid-line" />
-              </AppButton>
-            </AppTooltip>
-            <AppTooltip :text="assets.includeArchived ? '隐藏已归档' : '包含归档'" side="bottom" :side-offset="3">
-              <AppButton
-                icon
-                size="xs"
-                variant="ghost"
-                aria-label="包含归档"
-                :selected="assets.includeArchived"
-                :aria-pressed="assets.includeArchived"
-                @click="assets.includeArchived = !assets.includeArchived"
-              >
-                <span class="i-mingcute-archive-line" />
-              </AppButton>
-            </AppTooltip>
-          </span>
-        </template>
-      </AppInput>
+      <div class="app-panel-toolbar-full structure-filter">
+        <AppInput v-model="assets.query" class="structure-filter-input" aria-label="筛选资产" placeholder="筛选资产">
+          <template #prefix><span class="i-mingcute-search-line" /></template>
+          <template v-if="assets.query" #suffix>
+            <AppButton icon size="xs" variant="ghost" aria-label="清除资产筛选" @click="assets.query = ''">
+              <span class="i-mingcute-close-line" />
+            </AppButton>
+          </template>
+        </AppInput>
+        <span class="structure-options" role="group" aria-label="资产排列">
+          <AppTooltip text="目录视图" side="bottom" :side-offset="3">
+            <AppButton
+              icon
+              size="xs"
+              variant="ghost"
+              aria-label="目录视图"
+              :selected="assets.mode === 'directory'"
+              :aria-pressed="assets.mode === 'directory'"
+              @click="assets.mode = 'directory'"
+            >
+              <span class="i-mingcute-folder-2-line" />
+            </AppButton>
+          </AppTooltip>
+          <AppTooltip text="分组视图" side="bottom" :side-offset="3">
+            <AppButton
+              icon
+              size="xs"
+              variant="ghost"
+              aria-label="分组视图"
+              :selected="assets.mode === 'grouped'"
+              :aria-pressed="assets.mode === 'grouped'"
+              @click="assets.mode = 'grouped'"
+            >
+              <span class="i-mingcute-grid-line" />
+            </AppButton>
+          </AppTooltip>
+          <AppTooltip :text="assets.includeArchived ? '隐藏已归档' : '包含归档'" side="bottom" :side-offset="3">
+            <AppButton
+              icon
+              size="xs"
+              variant="ghost"
+              aria-label="包含归档"
+              :selected="assets.includeArchived"
+              :aria-pressed="assets.includeArchived"
+              @click="assets.includeArchived = !assets.includeArchived"
+            >
+              <span class="i-mingcute-archive-line" />
+            </AppButton>
+          </AppTooltip>
+        </span>
+      </div>
     </template>
 
     <AppNotice v-if="library.error || assets.error" tone="error">{{ library.error || assets.error }}</AppNotice>
@@ -241,42 +235,49 @@ onMounted(() => void assets.refresh());
 </template>
 <style scoped lang="scss">
 .library-views {
-  @apply grid gap-0.5;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+  @apply grid gap-1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .library-view {
-  @apply justify-start px-2;
+  @apply min-w-0 justify-center gap-1.5 px-1.5;
 }
-.structure-tab-scroll {
-  @apply h-8;
+.library-view-label {
+  @apply min-w-0 truncate;
 }
+// 七个类型一次全部可见：换行而不是横向截断。
 .structure-tab-list {
-  @apply flex h-8 w-max min-w-full items-stretch gap-0.5 border-b;
-  border-color: var(--border-subtle);
+  @apply flex flex-wrap gap-1;
 }
 .structure-tab {
-  @apply relative shrink-0 border-0 bg-transparent px-2 outline-none;
+  @apply h-6 shrink-0 border-0 px-2 outline-none;
+  border-radius: var(--radius-pill);
+  background: transparent;
   color: var(--muted-foreground);
-  font-size: var(--ui-font-size);
-  transition: color var(--motion-duration) ease-out;
+  font-size: var(--ui-caption-size);
+  transition:
+    color var(--motion-duration) ease-out,
+    background-color var(--motion-duration) ease-out;
 }
 .structure-tab:hover {
+  background: var(--surface-hover);
   color: var(--foreground);
 }
 .structure-tab[data-state='active'] {
-  color: var(--foreground);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
   font-weight: 600;
-}
-.structure-tab[data-state='active']::after {
-  @apply absolute inset-x-1 bottom-0 h-0.5;
-  content: '';
-  background: var(--primary-solid);
 }
 .structure-tab:focus-visible {
   box-shadow: var(--input-focus-shadow);
 }
+.structure-filter {
+  @apply flex min-w-0 items-center gap-1;
+}
+.structure-filter-input {
+  @apply min-w-0 flex-1;
+}
 .structure-options {
-  @apply flex items-center;
+  @apply flex shrink-0 items-center;
 }
 .structure-list {
   @apply m-0 list-none p-0;
