@@ -11,6 +11,7 @@ import type {
   UpdateCustomModelInputPayload
 } from '@chaptale/ipc-contract';
 
+import { version } from '../../../../package.json';
 import {
   normalizeCustomProviderApi,
   normalizeModelInput,
@@ -84,8 +85,7 @@ export class CustomModelConfigService {
         api: payload.api,
         apiKey: apiKey || previousProvider?.apiKey,
         baseUrl,
-        // 部分中转网关按 UA 拦截 openai SDK 默认标识，统一用应用 UA
-        headers: previousProvider?.headers ?? { 'User-Agent': 'Chaptale/1.5.0' },
+        headers: applicationHeaders(previousProvider?.headers),
         models: upsertCustomModels(previousProvider?.models ?? [], payload.models)
       };
     });
@@ -171,6 +171,16 @@ type CustomModelPayload = Pick<
   'modelId' | 'modelName' | 'input' | 'contextWindow' | 'maxTokens' | 'temperature' | 'topP' | 'reasoningEffort'
 >;
 type ProviderWithModels = ModelProviderConfig & { models: ModelDefinition[] };
+
+/** 默认请求标识与打包版本一致；升级旧应用标识，保留用户自定义标识和其他请求头。 */
+function applicationHeaders(previous: Record<string, string> = {}) {
+  const headers = { ...previous };
+  const key = Object.keys(headers).find(name => name.toLowerCase() === 'user-agent') ?? 'User-Agent';
+  if (!headers[key] || /^Chaptale\/[\d.]+(?: \(\+https:\/\/github\.com\/Yoyo-514\/Chaptale\))?$/.test(headers[key])) {
+    headers[key] = `Chaptale/${version} (+https://github.com/Yoyo-514/Chaptale)`;
+  }
+  return headers;
+}
 
 function upsertCustomModels(models: ModelDefinition[], payloads: CustomModelPayload[]) {
   return payloads.reduce(

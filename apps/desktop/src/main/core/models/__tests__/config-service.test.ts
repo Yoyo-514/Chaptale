@@ -214,7 +214,7 @@ describe('CustomModelConfigService', () => {
       baseUrl: 'https://new.example.com',
       api: 'openai-responses',
       apiKey: 'sk-old',
-      headers: { 'X-Old': '1' },
+      headers: { 'X-Old': '1', 'User-Agent': 'Chaptale/0.1.0 (+https://github.com/Yoyo-514/Chaptale)' },
       models: [
         { id: 'old-model', name: 'Old Model' },
         { id: 'new-model', name: 'new-model', input: ['text', 'image'], contextWindow: 4096 }

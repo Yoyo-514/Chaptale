@@ -1,6 +1,6 @@
 {
   "name": "chaptale",
-  "version": "1.5.0",
+  "version": "0.1.0",
   "private": true,
   "description": "A cross-platform creative writing IDE for novels and scripts",
   "keywords": [
@@ -10,7 +10,7 @@
     "novel",
     "script"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "yoyo514",
   "workspaces": [
     "apps/*",

@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
+    "resolveJsonModule": true,
     "rootDir": ".",
     "outDir": "dist-types",
     "types": ["node"],
@@ -14,7 +15,7 @@
     "noEmit": true,
     "erasableSyntaxOnly": false
   },
-  "include": ["vite.config.ts", "src/**/*.ts", "../desktop-ui/build/**/*.ts"],
+  "include": ["package.json", "vite.config.ts", "src/**/*.ts", "../desktop-ui/build/**/*.ts"],
   "references": [
     {
       "path": "../../packages/shared/tsconfig.json"
