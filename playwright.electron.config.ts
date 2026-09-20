@@ -7,9 +7,11 @@ export default defineConfig({
     timeout: 8_000
   },
   fullyParallel: false,
+  forbidOnly: Boolean(process.env.CI),
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: [['list']],
+  reporter: [['list'], ['junit', { outputFile: 'test-results/electron.xml' }]],
   use: {
-    trace: 'on-first-retry'
+    trace: 'retain-on-failure'
   }
 });

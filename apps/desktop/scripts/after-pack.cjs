@@ -24,7 +24,7 @@ module.exports = async function afterPack(context) {
   } else if (electronPlatformName === 'win32') {
     executable = path.join(appOutDir, `${productName}.exe`);
   } else {
-    executable = path.join(appOutDir, productName);
+    executable = path.join(appOutDir, packager.executableName);
   }
 
   await flipFuses(executable, {

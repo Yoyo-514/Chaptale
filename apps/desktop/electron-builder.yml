@@ -1,10 +1,16 @@
 appId: com.chaptale.desktop
 productName: Chaptale
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 copyright: Copyright © 2026 yoyo514
 
 asar: true
 afterPack: ./scripts/after-pack.cjs
-electronDist: node_modules/electron/dist
+
+extraResources:
+  - from: ../../LICENCE
+    to: LICENCE
+  - from: ../../NOTICE
+    to: NOTICE
 
 files:
   - dist/**
@@ -37,10 +43,15 @@ mac:
       arch:
         - x64
         - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
 
 linux:
   icon: resources/icons
-  category: Development
+  category: Office
+  maintainer: yoyo514
   target:
     - target: AppImage
       arch:

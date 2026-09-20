@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  quality:
+    name: Checks and Electron tests
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+      - run: pnpm test:release
+      - run: pnpm build
+      - run: pnpm exec playwright test --config playwright.electron.config.ts
+      - name: Save failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: electron-test-results
+          path: |
+            test-results/
+            temp/visual-qa/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  packages:
+    # 标签发布通过相同质量检查后，直接由 Release 构建安装包。
+    if: github.ref_type != 'tag'
+    needs: quality
+    uses: ./.github/workflows/package.yml

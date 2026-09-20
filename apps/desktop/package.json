@@ -3,8 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Chaptale desktop application shell",
+  "homepage": "https://github.com/Yoyo-514/Chaptale",
   "license": "Apache-2.0",
   "author": "yoyo514",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Yoyo-514/Chaptale.git"
+  },
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {

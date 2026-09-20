@@ -42,6 +42,11 @@ design-docs
 .spec-workflow
 .pi
 
+# impeccable
+.impeccable
+DESIGN.md
+PRODUCT.md
+
 # Local experiments
 /experiments/
 /docs
