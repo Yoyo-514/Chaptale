@@ -1,4 +1,11 @@
-*.md text eol=lf
-*.snap text eol=lf
-*.ts text eol=lf
-*.vue text eol=lf
+# 换行符统一策略：仓库内一律使用 LF
+* text=auto eol=lf
+
+# 二进制资源：binary 宏（等价 -text -diff -merge），避免内容被改写或差异被当作文本处理
+*.ico binary
+*.icns binary
+*.png binary
+*.docx binary
+*.pdf binary
+*.pptx binary
+*.xlsx binary
