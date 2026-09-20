@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 
 import type { WorkspaceSearchArgs, WorkspaceSearchResult, WorkspaceTextMatch } from '@chaptale/ipc-contract';
 
 import { AppButton } from '@/components/AppButton';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { AppInput } from '@/components/AppInput';
 import { AppListItem } from '@/components/AppListItem';
-import { AppPanel } from '@/components/AppPanel';
+import { AppNotice } from '@/components/AppNotice';
+import { AppPanel, AppPanelSection } from '@/components/AppPanel';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
@@ -23,6 +25,16 @@ const busy = ref(false);
 const error = ref('');
 let sequence = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
+/** 结果按文件分组：同一文件的多处命中排在一起，作者扫一眼就知道命中散在几个文件里。 */
+const groups = computed(() => {
+  const map = new Map<string, { title: string; matches: WorkspaceTextMatch[] }>();
+  for (const match of result.value?.matches ?? []) {
+    const group = map.get(match.sourcePath) ?? { title: match.title, matches: [] };
+    group.matches.push(match);
+    map.set(match.sourcePath, group);
+  }
+  return [...map].map(([sourcePath, group]) => Object.assign({ sourcePath }, group));
+});
 async function search() {
   const token = ++sequence;
   const rootPath = workspace.rootPath;
@@ -76,17 +88,19 @@ onBeforeUnmount(() => {
 <template>
   <AppPanel class="workspace-search" title="搜索" aria-label="作品全文搜索">
     <template #actions>
-      <AppTooltip text="重新搜索"
-        ><AppButton icon size="xs" variant="ghost" aria-label="重新搜索" :disabled="busy || !query" @click="search"
-          ><span class="i-mingcute-refresh-3-line" /></AppButton
-      ></AppTooltip>
+      <AppTooltip text="重新搜索" side="bottom" :side-offset="3">
+        <AppButton icon size="xs" variant="ghost" aria-label="重新搜索" :disabled="busy || !query" @click="search">
+          <span class="i-mingcute-refresh-3-line" />
+        </AppButton>
+      </AppTooltip>
     </template>
     <template #toolbar>
-      <form class="search-filters" @submit.prevent="search">
+      <form class="app-panel-toolbar-full search-form" @submit.prevent="search">
         <AppInput v-model="query" aria-label="搜索作品文本" placeholder="搜索作品文本" :maxlength="200" autofocus>
-          <template #suffix
-            ><AppTooltip text="区分大小写"
-              ><AppButton
+          <template #prefix><span class="i-mingcute-search-line" /></template>
+          <template #suffix>
+            <AppTooltip text="区分大小写" side="bottom" :side-offset="3">
+              <AppButton
                 icon
                 size="xs"
                 variant="ghost"
@@ -94,58 +108,96 @@ onBeforeUnmount(() => {
                 :aria-pressed="matchCase"
                 :selected="matchCase"
                 @click="matchCase = !matchCase"
-                ><span class="i-mingcute-font-size-line" /></AppButton></AppTooltip
-          ></template>
+              >
+                <span class="i-mingcute-font-size-line" />
+              </AppButton>
+            </AppTooltip>
+          </template>
         </AppInput>
-        <AppSelect v-model="scope" aria-label="搜索范围">
-          <AppSelectItem value="work">作品文件</AppSelectItem><AppSelectItem value="manuscript">正文</AppSelectItem>
-          <AppSelectItem value="assets">创作资产</AppSelectItem><AppSelectItem value="memory">观察与摘要</AppSelectItem>
-        </AppSelect>
       </form>
+      <AppSelect v-model="scope" aria-label="搜索范围" class="app-panel-toolbar-full">
+        <AppSelectItem value="work">作品文件</AppSelectItem>
+        <AppSelectItem value="manuscript">正文</AppSelectItem>
+        <AppSelectItem value="assets">创作资产</AppSelectItem>
+        <AppSelectItem value="memory">观察与摘要</AppSelectItem>
+      </AppSelect>
     </template>
-    <p v-if="error" role="alert">{{ error }}</p>
-    <p v-if="busy" role="status">正在搜索</p>
-    <p v-else-if="result" role="status">{{ result.matches.length }} 处匹配 · {{ result.scannedFiles }} 个文件</p>
-    <p v-else-if="!workspace.rootPath" role="status">未打开作品</p>
-    <div class="search-results">
-      <AppListItem
-        v-for="match in result?.matches"
-        :key="`${match.sourcePath}:${match.from}`"
-        class="search-match"
-        :title="match.title"
-        :meta="`${match.sourcePath} · 第 ${match.line} 行`"
-        @click="locate(match)"
+
+    <AppNotice v-if="error" tone="error">{{ error }}</AppNotice>
+    <AppNotice v-if="busy">正在搜索</AppNotice>
+    <template v-else-if="result">
+      <AppNotice>{{ result.matches.length }} 处匹配 · {{ result.scannedFiles }} 个文件</AppNotice>
+      <AppPanelSection
+        v-for="group in groups"
+        :key="group.sourcePath"
+        class="search-group"
+        :title="group.title"
+        :count="group.matches.length"
       >
-        <template #description>
-          <span
-            >{{ match.before }}<mark>{{ match.text }}</mark
-            >{{ match.after }}</span
-          ></template
+        <AppListItem
+          v-for="match in group.matches"
+          :key="`${match.sourcePath}:${match.from}`"
+          class="search-match"
+          :title="match.title"
+          :meta="`${match.sourcePath} · 第 ${match.line} 行`"
+          @click="locate(match)"
         >
-      </AppListItem>
-      <p v-if="result?.limited" role="status">结果达到本次搜索上限，请缩小范围或补全关键词。</p>
-      <details v-if="result?.diagnostics.length">
-        <summary>未搜索的文件与诊断</summary>
-        <p v-for="item in result.diagnostics" :key="item">{{ item }}</p>
-      </details>
-    </div>
+          <template #description>
+            <span
+              >{{ match.before }}<mark>{{ match.text }}</mark
+              >{{ match.after }}</span
+            >
+          </template>
+        </AppListItem>
+      </AppPanelSection>
+      <AppEmptyState
+        v-if="!result.matches.length"
+        title="没有匹配的文本"
+        description="换个关键词，或把范围切到别的文件类型。"
+      />
+      <AppNotice v-if="result.limited" tone="warning">结果达到本次搜索上限，请缩小范围或补全关键词。</AppNotice>
+      <AppPanelSection
+        v-if="result.diagnostics.length"
+        title="未搜索的文件与诊断"
+        :count="result.diagnostics.length"
+        :open="false"
+      >
+        <p v-for="item in result.diagnostics" :key="item" class="search-diagnostic">{{ item }}</p>
+      </AppPanelSection>
+    </template>
+    <AppEmptyState
+      v-else-if="!workspace.rootPath"
+      title="未打开作品"
+      description="打开或新建一部作品后即可搜索全文。"
+    />
+    <AppEmptyState
+      v-else
+      icon="i-mingcute-search-line"
+      title="搜索作品全文"
+      description="输入即搜索；结果按文件分组，点击直接定位到正文。"
+    />
   </AppPanel>
 </template>
 <style scoped lang="scss">
-.search-filters {
-  @apply flex flex-col gap-2 p-3;
+.search-form {
+  @apply min-w-0;
+}
+.search-match :deep(.app-list-item-title) {
+  @apply sr-only;
+}
+.search-match :deep(.app-list-item-description) {
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
 }
 mark {
   color: var(--selection-foreground);
   background: var(--selection-background);
+  border-radius: 2px;
 }
-p,
-summary {
-  @apply m-0 p-3;
-  overflow-wrap: anywhere;
+.search-diagnostic {
+  @apply m-0 px-5 py-1;
   color: var(--muted-foreground);
-}
-[role='alert'] {
-  color: var(--destructive);
+  font-size: var(--ui-caption-size);
+  overflow-wrap: anywhere;
 }
 </style>

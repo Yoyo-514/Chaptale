@@ -3,10 +3,11 @@ import { TabsRoot, TabsList, TabsTrigger } from 'reka-ui';
 import { computed, onMounted } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { AppCheckbox } from '@/components/AppCheckbox';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { AppInput } from '@/components/AppInput';
 import { AppListItem } from '@/components/AppListItem';
-import { AppPanel } from '@/components/AppPanel';
+import { AppNotice } from '@/components/AppNotice';
+import { AppPanel, AppPanelSection } from '@/components/AppPanel';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
@@ -27,44 +28,58 @@ const workspace = useWorkspaceStore();
 const groups = computed(() =>
   groupAssets(library.assets, assets.view, assets.mode, assets.query, assets.includeArchived)
 );
+const total = computed(() => groups.value.reduce((sum, group) => sum + group.assets.length, 0));
 const conflicts = computed(
   () => library.snapshot?.diagnostics.filter(item => item.code === 'conflict-copy-skipped') ?? []
 );
 const diagnostics = computed(
   () => library.snapshot?.diagnostics.filter(item => item.code !== 'conflict-copy-skipped') ?? []
 );
+const currentView = computed(() => assetViews.find(item => item.id === assets.view));
+function rowMeta(asset: (typeof groups.value)[number]['assets'][number]) {
+  if (assets.mode === 'grouped') return asset.sourcePath.split('/').pop() ?? asset.sourcePath;
+  if (isUnclassified(asset)) return '未分类';
+  if (asset.status === 'final') return '已定稿';
+  return assetKindLabel(asset.kind);
+}
 onMounted(() => void assets.refresh());
 </script>
 <template>
-  <AppPanel class="structure-panel" title="资料库" aria-label="资料库导航">
+  <AppPanel class="structure-panel" title="资料库" :count="total" aria-label="资料库导航">
     <template #actions>
-      <AppTooltip text="新建资产"
-        ><AppButton
+      <AppTooltip text="新建资产" side="bottom" :side-offset="3">
+        <AppButton
           icon
           size="xs"
           variant="ghost"
           aria-label="新建资产"
-          @click="templates.openCreate(assetViews.find(item => item.id === assets.view)?.template)"
+          @click="templates.openCreate(currentView?.template)"
         >
-          <span class="i-mingcute-add-line" /> </AppButton
-      ></AppTooltip>
-      <AppTooltip text="刷新资产"
-        ><AppButton
+          <span class="i-mingcute-add-line" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip text="刷新资产" side="bottom" :side-offset="3">
+        <AppButton
           icon
           size="xs"
           variant="ghost"
           aria-label="刷新资产"
           :disabled="library.loading"
           @click="assets.refresh"
-          ><span class="i-mingcute-refresh-3-line" /></AppButton
-      ></AppTooltip>
+        >
+          <span class="i-mingcute-refresh-3-line" />
+        </AppButton>
+      </AppTooltip>
     </template>
     <template #toolbar>
-      <nav class="library-view-navigation" aria-label="资料库视图">
+      <!-- 三个整页视图是资料库的「大门」，放在类型标签之前；它们打开的是中央工作区而不是侧栏内容。 -->
+      <nav class="app-panel-toolbar-full library-views" aria-label="资料库视图">
         <AppButton
           v-for="view in workspaceViews"
           :key="view.id"
+          size="xs"
           variant="ghost"
+          class="library-view"
           :aria-label="`打开${view.label}`"
           :selected="navigation.center === view.id"
           :disabled="!workspace.rootPath"
@@ -74,7 +89,7 @@ onMounted(() => void assets.refresh());
           {{ view.id === 'library' ? '全部资料' : view.label }}
         </AppButton>
       </nav>
-      <TabsRoot v-model="assets.view" class="structure-tabs">
+      <TabsRoot v-model="assets.view" class="app-panel-toolbar-full structure-tabs">
         <AppScrollArea orientation="horizontal" class="structure-tab-scroll">
           <TabsList aria-label="资产类型" class="structure-tab-list">
             <TabsTrigger v-for="item in assetViews" :key="item.id" :value="item.id" class="structure-tab">{{
@@ -83,18 +98,22 @@ onMounted(() => void assets.refresh());
           </TabsList>
         </AppScrollArea>
       </TabsRoot>
-      <div class="structure-filters">
-        <AppInput v-model="assets.query" aria-label="筛选资产" placeholder="筛选资产">
-          <template #prefix><span class="i-mingcute-search-line" /></template>
-          <template v-if="assets.query" #suffix
-            ><AppButton icon size="xs" variant="ghost" aria-label="清除资产筛选" @click="assets.query = ''"
-              ><span class="i-mingcute-close-line" /></AppButton
-          ></template>
-        </AppInput>
-        <div class="structure-options">
-          <div role="group" aria-label="资产排列" class="structure-modes">
-            <AppTooltip text="目录视图"
-              ><AppButton
+      <AppInput v-model="assets.query" class="app-panel-toolbar-full" aria-label="筛选资产" placeholder="筛选资产">
+        <template #prefix><span class="i-mingcute-search-line" /></template>
+        <template #suffix>
+          <AppButton
+            v-if="assets.query"
+            icon
+            size="xs"
+            variant="ghost"
+            aria-label="清除资产筛选"
+            @click="assets.query = ''"
+          >
+            <span class="i-mingcute-close-line" />
+          </AppButton>
+          <span class="structure-options" role="group" aria-label="资产排列">
+            <AppTooltip text="目录视图" side="bottom" :side-offset="3">
+              <AppButton
                 icon
                 size="xs"
                 variant="ghost"
@@ -102,10 +121,12 @@ onMounted(() => void assets.refresh());
                 :selected="assets.mode === 'directory'"
                 :aria-pressed="assets.mode === 'directory'"
                 @click="assets.mode = 'directory'"
-                ><span class="i-mingcute-folder-2-line" /></AppButton
-            ></AppTooltip>
-            <AppTooltip text="分组视图"
-              ><AppButton
+              >
+                <span class="i-mingcute-folder-2-line" />
+              </AppButton>
+            </AppTooltip>
+            <AppTooltip text="分组视图" side="bottom" :side-offset="3">
+              <AppButton
                 icon
                 size="xs"
                 variant="ghost"
@@ -113,162 +134,157 @@ onMounted(() => void assets.refresh());
                 :selected="assets.mode === 'grouped'"
                 :aria-pressed="assets.mode === 'grouped'"
                 @click="assets.mode = 'grouped'"
-                ><span class="i-mingcute-grid-line" /></AppButton
-            ></AppTooltip>
-          </div>
-          <label
-            ><AppCheckbox
-              :model-value="assets.includeArchived"
-              @update:model-value="assets.includeArchived = $event === true"
-            />包含归档</label
-          >
-        </div>
-      </div>
+              >
+                <span class="i-mingcute-grid-line" />
+              </AppButton>
+            </AppTooltip>
+            <AppTooltip :text="assets.includeArchived ? '隐藏已归档' : '包含归档'" side="bottom" :side-offset="3">
+              <AppButton
+                icon
+                size="xs"
+                variant="ghost"
+                aria-label="包含归档"
+                :selected="assets.includeArchived"
+                :aria-pressed="assets.includeArchived"
+                @click="assets.includeArchived = !assets.includeArchived"
+              >
+                <span class="i-mingcute-archive-line" />
+              </AppButton>
+            </AppTooltip>
+          </span>
+        </template>
+      </AppInput>
     </template>
-    <div class="structure-body">
-      <p v-if="library.error || assets.error" class="structure-error" role="alert">
-        {{ library.error || assets.error }}
-      </p>
-      <p v-if="!groups.length" class="structure-empty" role="status">
-        {{ library.loading ? '正在读取' : '没有匹配资产' }}
-      </p>
-      <details v-for="group in groups" :key="group.label" open class="structure-group">
-        <summary>
-          <span class="i-mingcute-right-line structure-chevron" aria-hidden="true" />
-          <span>{{ group.label }}</span
-          ><span>{{ group.assets.length }}</span>
-        </summary>
-        <ul>
-          <li v-for="asset in group.assets" :key="asset.sourcePath">
-            <AppListItem
-              class="structure-row"
-              :title="asset.title"
-              :meta="
-                assets.mode === 'grouped'
-                  ? asset.sourcePath
-                  : isUnclassified(asset)
-                    ? '未分类'
-                    : asset.status === 'final'
-                      ? '已定稿'
-                      : assetKindLabel(asset.kind)
-              "
-              :selected="editor.activeTab?.path === asset.sourcePath"
-              :aria-label="`打开资产 ${asset.title} ${asset.sourcePath}`"
-              @click="assets.open(asset.sourcePath)"
+
+    <AppNotice v-if="library.error || assets.error" tone="error">{{ library.error || assets.error }}</AppNotice>
+    <AppEmptyState
+      v-if="!groups.length"
+      :icon="library.loading ? 'i-mingcute-loading-3-line' : 'i-mingcute-grid-line'"
+      :title="
+        library.loading ? '正在读取资料' : assets.query ? '没有匹配资产' : `还没有${currentView?.label ?? ''}资产`
+      "
+      :description="
+        library.loading
+          ? undefined
+          : assets.query
+            ? '换个关键词，或清除筛选。'
+            : '从模板新建，或在目录树里把文件识别为资产。'
+      "
+    >
+      <AppButton
+        v-if="!library.loading && !assets.query"
+        size="xs"
+        @click="templates.openCreate(currentView?.template)"
+      >
+        新建{{ currentView?.label ?? '资产' }}
+      </AppButton>
+    </AppEmptyState>
+    <AppPanelSection
+      v-for="group in groups"
+      :key="group.label"
+      class="structure-group"
+      :title="group.label"
+      :count="group.assets.length"
+    >
+      <ul class="structure-list">
+        <li v-for="asset in group.assets" :key="asset.sourcePath">
+          <AppListItem
+            dense
+            class="structure-row"
+            :title="asset.title"
+            :meta="rowMeta(asset)"
+            :selected="editor.activeTab?.path === asset.sourcePath"
+            :aria-label="`打开资产 ${asset.title} ${asset.sourcePath}`"
+            @click="assets.open(asset.sourcePath)"
+          >
+            <template #leading><span class="i-mingcute-document-line size-4" aria-hidden="true" /></template>
+            <template
+              v-if="asset.links.some(link => link.status === 'missing' || link.status === 'ambiguous')"
+              #trailing
             >
-              <template #leading><span class="i-mingcute-document-line size-4" aria-hidden="true" /></template>
-              <template #trailing>
-                <span
-                  v-if="asset.links.some(link => link.status === 'missing' || link.status === 'ambiguous')"
-                  class="i-mingcute-warning-line structure-warning size-4 shrink-0"
-                  aria-label="含未解决引用"
-                />
-              </template>
-            </AppListItem>
-          </li>
-        </ul>
-      </details>
-      <details v-if="conflicts.length" open class="structure-group structure-conflicts">
-        <summary>
-          <span class="i-mingcute-right-line structure-chevron" aria-hidden="true" />
-          冲突待处理 <span>{{ conflicts.length }}</span>
-        </summary>
-        <AppButton
-          v-for="item in conflicts"
-          :key="item.sourcePath"
-          variant="ghost"
-          class="structure-conflict"
-          @click="item.sourcePath && editor.openDocument(item.sourcePath)"
-          >{{ item.sourcePath }}</AppButton
-        >
-      </details>
-      <details v-if="diagnostics.length" class="structure-group">
-        <summary>
-          <span class="i-mingcute-right-line structure-chevron" aria-hidden="true" />
-          索引诊断 <span>{{ diagnostics.length }}</span>
-        </summary>
-        <p v-for="(item, index) in diagnostics" :key="index" class="structure-error">
-          {{ item.sourcePath }} {{ item.message }}
-        </p>
-      </details>
-    </div>
+              <span class="i-mingcute-warning-line structure-warning size-3.5" aria-label="含未解决引用" />
+            </template>
+          </AppListItem>
+        </li>
+      </ul>
+    </AppPanelSection>
+    <AppPanelSection
+      v-if="conflicts.length"
+      class="structure-group structure-conflicts"
+      title="冲突待处理"
+      :count="conflicts.length"
+    >
+      <AppListItem
+        v-for="item in conflicts"
+        :key="item.sourcePath"
+        dense
+        :title="item.sourcePath ?? item.message"
+        @click="item.sourcePath && editor.openDocument(item.sourcePath)"
+      >
+        <template #leading
+          ><span class="i-mingcute-warning-line size-4 structure-warning" aria-hidden="true"
+        /></template>
+      </AppListItem>
+    </AppPanelSection>
+    <AppPanelSection
+      v-if="diagnostics.length"
+      class="structure-group"
+      title="索引诊断"
+      :count="diagnostics.length"
+      :open="false"
+    >
+      <AppNotice v-for="(item, index) in diagnostics" :key="index" tone="error">
+        {{ item.sourcePath }} {{ item.message }}
+      </AppNotice>
+    </AppPanelSection>
   </AppPanel>
 </template>
 <style scoped lang="scss">
-.library-view-navigation {
-  @apply grid grid-cols-2 gap-1 border-b p-2;
-  border-color: var(--border-subtle);
+.library-views {
+  @apply grid gap-0.5;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
 }
-.library-view-navigation button {
-  @apply w-full justify-start px-2;
-  font-size: var(--ui-caption-size);
+.library-view {
+  @apply justify-start px-2;
 }
 .structure-tab-scroll {
-  @apply h-9;
+  @apply h-8;
 }
 .structure-tab-list {
-  @apply flex h-9 w-max min-w-full items-stretch gap-1 border-b px-2;
+  @apply flex h-8 w-max min-w-full items-stretch gap-0.5 border-b;
   border-color: var(--border-subtle);
 }
 .structure-tab {
-  @apply shrink-0 border-0 border-b-2 border-transparent bg-transparent px-2 outline-none;
+  @apply relative shrink-0 border-0 bg-transparent px-2 outline-none;
   color: var(--muted-foreground);
   font-size: var(--ui-font-size);
+  transition: color var(--motion-duration) ease-out;
+}
+.structure-tab:hover {
+  color: var(--foreground);
 }
 .structure-tab[data-state='active'] {
   color: var(--foreground);
-  border-bottom-color: var(--primary-solid);
+  font-weight: 600;
+}
+.structure-tab[data-state='active']::after {
+  @apply absolute inset-x-1 bottom-0 h-0.5;
+  content: '';
+  background: var(--primary-solid);
 }
 .structure-tab:focus-visible {
   box-shadow: var(--input-focus-shadow);
 }
-.structure-filters {
-  @apply flex flex-col gap-2 p-3;
-}
 .structure-options {
-  @apply flex flex-wrap items-center justify-between gap-2;
+  @apply flex items-center;
 }
-.structure-options label {
-  @apply flex items-center gap-2;
-  color: var(--muted-foreground);
-}
-.structure-modes {
-  @apply flex gap-1;
-}
-.structure-group summary {
-  @apply flex min-h-9 cursor-pointer items-center gap-2 border-b px-3 py-2;
-  border-color: var(--border-subtle);
-  color: var(--muted-foreground);
-  font-size: var(--ui-caption-size);
-  overflow-wrap: anywhere;
-}
-.structure-chevron {
-  @apply size-3.5 shrink-0;
-}
-.structure-group[open] > summary .structure-chevron {
-  transform: rotate(90deg);
-}
-.structure-group summary span:nth-child(2) {
-  @apply min-w-0 flex-1 font-semibold;
-  color: var(--foreground);
-}
-ul {
+.structure-list {
   @apply m-0 list-none p-0;
 }
-.structure-warning,
-.structure-conflicts {
+.structure-row {
+  @apply pl-5;
+}
+.structure-warning {
   color: var(--warning);
-}
-.structure-empty,
-.structure-error {
-  @apply m-0 p-3;
-  overflow-wrap: anywhere;
-  color: var(--muted-foreground);
-}
-.structure-error {
-  color: var(--destructive);
-}
-.structure-conflict {
-  @apply w-full justify-start rounded-none border-0 text-left;
 }
 </style>
