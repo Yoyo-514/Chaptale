@@ -66,9 +66,14 @@ async function handleExportSession() {
 </script>
 
 <template>
+  <!-- 与其他辅助面板共用 36px 表头节奏：会话名居左，会话操作居右，标签页已经写明这是 Agent。 -->
   <div class="chat-toolbar" aria-label="聊天工具栏">
     <div class="chat-toolbar-title" :title="sessionTitle">
-      <span class="i-mingcute-chat-3-line chat-toolbar-title-icon" aria-hidden="true" />
+      <span
+        :class="navigation.agentBusy ? 'i-mingcute-loading-3-line animate-spin' : 'i-mingcute-chat-3-line'"
+        class="chat-toolbar-title-icon"
+        aria-hidden="true"
+      />
       <span class="chat-toolbar-title-text">{{ sessionTitle }}</span>
       <SessionRenameDialog
         v-if="currentSession"
@@ -79,31 +84,17 @@ async function handleExportSession() {
     </div>
 
     <div class="chat-toolbar-actions">
-      <AppTooltip text="导出会话为 HTML" side="bottom" :side-offset="3">
-        <AppButton
-          icon
-          variant="ghost"
-          size="sm"
-          type="button"
-          aria-label="导出会话为 HTML"
-          :disabled="!currentSession"
-          @click="handleExportSession"
-        >
-          <span class="i-mingcute-download-2-line size-4" aria-hidden="true" />
-        </AppButton>
-      </AppTooltip>
-
       <AppTooltip text="新建会话" side="bottom" :side-offset="3">
         <AppButton
           icon
           variant="ghost"
-          size="sm"
+          size="xs"
           type="button"
           aria-label="新建会话"
           :disabled="navigation.agentBusy"
           @click="handleCreateSession"
         >
-          <span class="i-mingcute-add-line size-4" aria-hidden="true" />
+          <span class="i-mingcute-add-line" aria-hidden="true" />
         </AppButton>
       </AppTooltip>
 
@@ -111,13 +102,27 @@ async function handleExportSession() {
         <AppButton
           icon
           variant="ghost"
-          size="sm"
+          size="xs"
           type="button"
           aria-label="历史记录"
           :disabled="navigation.agentBusy"
           @click="handleOpenHistory"
         >
-          <span class="i-mingcute-history-line size-4" aria-hidden="true" />
+          <span class="i-mingcute-history-line" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+
+      <AppTooltip text="导出会话为 HTML" side="bottom" :side-offset="3">
+        <AppButton
+          icon
+          variant="ghost"
+          size="xs"
+          type="button"
+          aria-label="导出会话为 HTML"
+          :disabled="!currentSession"
+          @click="handleExportSession"
+        >
+          <span class="i-mingcute-download-2-line" aria-hidden="true" />
         </AppButton>
       </AppTooltip>
     </div>
@@ -126,19 +131,19 @@ async function handleExportSession() {
 
 <style scoped lang="scss">
 .chat-toolbar {
-  @apply flex min-h-11 min-w-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-1.5;
+  @apply flex h-9 min-w-0 items-center justify-between gap-2 border-b pl-3 pr-1.5;
 
   border-color: var(--border-subtle);
 }
 .chat-toolbar-title {
-  @apply flex min-w-0 flex-1 items-center gap-1.5 font-medium;
+  @apply flex h-full min-w-0 flex-1 items-center gap-1.5 font-semibold;
 
   color: var(--foreground);
   font-size: var(--ui-font-size);
 }
 
 .chat-toolbar-title-icon {
-  @apply shrink-0 text-sm;
+  @apply size-4 shrink-0;
 
   color: var(--primary-solid);
 }
@@ -148,7 +153,8 @@ async function handleExportSession() {
 }
 
 .chat-toolbar-title :deep(.chat-toolbar-rename) {
-  @apply shrink-0 opacity-0 transition-opacity duration-150;
+  @apply shrink-0 opacity-0;
+  transition: opacity var(--motion-duration) ease-out;
 }
 
 .chat-toolbar-title:hover :deep(.chat-toolbar-rename),
@@ -157,6 +163,6 @@ async function handleExportSession() {
 }
 
 .chat-toolbar-actions {
-  @apply flex shrink-0 items-center gap-1;
+  @apply flex shrink-0 items-center gap-0.5;
 }
 </style>

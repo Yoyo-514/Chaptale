@@ -4,9 +4,11 @@ import { computed, ref, watch } from 'vue';
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppCollapsible } from '@/components/AppCollapsible';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { AppInput } from '@/components/AppInput';
+import { AppNotice } from '@/components/AppNotice';
 import { AppNumberInput } from '@/components/AppNumberInput';
-import { AppPanel } from '@/components/AppPanel';
+import { AppPanel, AppPanelSection } from '@/components/AppPanel';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextarea } from '@/components/AppTextarea';
 import { AppTextView } from '@/components/AppTextView';
@@ -42,6 +44,23 @@ const selectedSections = computed(() =>
   })
 );
 const sections = (pinned: boolean) => selectedSections.value.filter(section => section.pinned === pinned);
+const unreadable = computed(() =>
+  library.selections.filter(value => !library.pack?.sections.some(section => section.sourcePath === value.sourcePath))
+);
+const subtitle = computed(() =>
+  library.chapterPath ? `目标章节 ${library.chapterPath}` : library.scenePath ? '场景卡未关联章节' : '临时写作目标'
+);
+function selectionOf(sourcePath: string) {
+  return library.selections.find(item => item.sourcePath === sourcePath)!;
+}
+function timeLabel(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
 watch(
   () => [workspace.rootPath, workspace.revision],
   () => {
@@ -52,10 +71,10 @@ watch(
 </script>
 
 <template>
-  <AppPanel class="reference-panel" title="本次写作参考">
+  <AppPanel class="reference-panel" title="本次写作参考" title-hidden :subtitle="subtitle">
     <template #actions>
-      <AppTooltip text="重组参考"
-        ><AppButton
+      <AppTooltip text="重组参考" side="bottom" :side-offset="3">
+        <AppButton
           icon
           size="xs"
           variant="ghost"
@@ -63,72 +82,102 @@ watch(
           :disabled="library.loading"
           @click="library.refresh"
         >
-          <span class="i-mingcute-refresh-3-line size-3.5" aria-hidden="true" /> </AppButton
-      ></AppTooltip>
+          <span class="i-mingcute-refresh-3-line" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
     </template>
-    <div class="reference-content">
-      <p v-if="!workspace.rootPath">尚未打开作品</p>
-      <label class="reference-field"
-        >场景<AppSelect
-          aria-label="写作场景"
-          :model-value="library.scenePath ?? '__temporary'"
-          @update:model-value="library.useScene($event === '__temporary' ? undefined : $event)"
-        >
-          <AppSelectItem value="__temporary">临时写作目标</AppSelectItem>
-          <AppSelectItem
-            v-for="asset in library.available.filter(value => value.kind === 'scene-card')"
-            :key="asset.sourcePath"
-            :value="asset.sourcePath"
+
+    <AppEmptyState
+      v-if="!workspace.rootPath"
+      icon="i-mingcute-bookmark-line"
+      title="尚未打开作品"
+      description="打开作品并选中一章正文后，这里组装本次写作要带上的参考。"
+    />
+    <template v-else>
+      <div class="reference-goal">
+        <label class="reference-field">
+          <span class="reference-field-label">场景</span>
+          <AppSelect
+            aria-label="写作场景"
+            :model-value="library.scenePath ?? '__temporary'"
+            @update:model-value="library.useScene($event === '__temporary' ? undefined : $event)"
           >
-            {{ asset.title }}
-          </AppSelectItem>
-        </AppSelect></label
-      >
-      <p v-if="library.chapterPath" class="reference-meta">目标章节：{{ library.chapterPath }}</p>
-      <details v-if="library.sceneDiagnostics.length">
-        <summary>未采用来源 · {{ library.sceneDiagnostics.length }}</summary>
-        <p v-for="message in library.sceneDiagnostics" :key="message">{{ message }}</p>
-      </details>
-      <label class="reference-field"
-        >写作目标<AppTextarea v-model="library.goal" :rows="3" aria-label="写作目标" />
-      </label>
-      <div class="reference-budget" :class="{ 'is-over': overBudget }">
-        <span>{{ library.pack?.chars ?? 0 }} 字 · 约 {{ library.pack?.tokens ?? 0 }} tokens</span>
-        <label
-          >预算<AppNumberInput
-            :model-value="library.budgetChars"
-            :min="100"
-            :max="1000000"
-            aria-label="参考字数预算"
-            class="reference-budget-input"
-            @update:model-value="library.budgetChars = $event ?? 9000"
-        /></label>
+            <AppSelectItem value="__temporary">临时写作目标</AppSelectItem>
+            <AppSelectItem
+              v-for="asset in library.available.filter(value => value.kind === 'scene-card')"
+              :key="asset.sourcePath"
+              :value="asset.sourcePath"
+            >
+              {{ asset.title }}
+            </AppSelectItem>
+          </AppSelect>
+        </label>
+        <label class="reference-field">
+          <span class="reference-field-label">写作目标</span>
+          <AppTextarea
+            v-model="library.goal"
+            :rows="3"
+            aria-label="写作目标"
+            placeholder="这一段要写到哪里、要达成什么"
+          />
+        </label>
+        <div class="reference-budget" :class="{ 'is-over': overBudget }">
+          <span class="reference-budget-usage">
+            <span
+              :class="overBudget ? 'i-mingcute-warning-line' : 'i-mingcute-align-left-line'"
+              class="size-3.5"
+              aria-hidden="true"
+            />
+            {{ library.pack?.chars ?? 0 }} 字 · 约 {{ library.pack?.tokens ?? 0 }} tokens
+          </span>
+          <label class="reference-budget-field">
+            预算
+            <AppNumberInput
+              :model-value="library.budgetChars"
+              :min="100"
+              :max="1000000"
+              aria-label="参考字数预算"
+              class="reference-budget-input"
+              @update:model-value="library.budgetChars = $event ?? 9000"
+            />
+          </label>
+        </div>
       </div>
-      <p v-if="library.error" role="alert">{{ library.error }}</p>
-      <div v-if="library.error" class="reference-unreadable">
-        <div
-          v-for="selection in library.selections.filter(
-            value => !library.pack?.sections.some(section => section.sourcePath === value.sourcePath)
-          )"
-          :key="selection.sourcePath"
-        >
-          <span>{{ selection.sourcePath }}</span
-          ><AppButton
+      <AppPanelSection
+        v-if="library.sceneDiagnostics.length"
+        title="未采用来源"
+        :count="library.sceneDiagnostics.length"
+        :open="false"
+      >
+        <AppNotice v-for="message in library.sceneDiagnostics" :key="message">{{ message }}</AppNotice>
+      </AppPanelSection>
+      <AppNotice v-if="library.error" tone="error">{{ library.error }}</AppNotice>
+      <div v-if="library.error && unreadable.length" class="reference-unreadable">
+        <div v-for="item in unreadable" :key="item.sourcePath" class="reference-unreadable-row">
+          <span>{{ item.sourcePath }}</span>
+          <AppButton
             icon
             size="xs"
             variant="ghost"
-            :aria-label="`移除 ${selection.sourcePath}`"
+            :aria-label="`移除 ${item.sourcePath}`"
             title="移除参考"
-            @click="library.remove(selection.sourcePath)"
-            ><span class="i-mingcute-close-line size-3.5"
-          /></AppButton>
+            @click="library.remove(item.sourcePath)"
+          >
+            <span class="i-mingcute-close-line" />
+          </AppButton>
         </div>
       </div>
-      <p v-if="library.freshness?.stale" class="reference-stale" role="status">来源已更新</p>
-      <div v-for="pinned in [true, false]" :key="String(pinned)" class="reference-section">
-        <h3>
-          {{ pinned ? '已固定' : '自动选择' }} <span>{{ sections(pinned).length }}</span>
-        </h3>
+      <AppNotice v-if="library.freshness?.stale" tone="warning">来源已更新，冻结的参考已经落后于文件。</AppNotice>
+
+      <AppPanelSection
+        v-for="pinned in [true, false]"
+        :key="String(pinned)"
+        :title="pinned ? '已固定' : '自动选择'"
+        :count="sections(pinned).length"
+      >
+        <p v-if="!sections(pinned).length" class="reference-empty">
+          {{ pinned ? '在目录树右键「加入写作参考」，或从下方建议里加入。' : '选择场景卡后按写作目标自动选择来源。' }}
+        </p>
         <article
           v-for="section in sections(pinned)"
           :key="section.sourcePath"
@@ -144,62 +193,70 @@ watch(
             >
               {{ section.title }}
             </AppButton>
-            <AppTooltip :text="section.pinned ? '取消固定' : '固定参考'"
-              ><AppButton
+            <AppTooltip :text="section.pinned ? '取消固定' : '固定参考'" side="bottom" :side-offset="3">
+              <AppButton
                 icon
                 size="xs"
                 variant="ghost"
+                :selected="section.pinned"
                 :aria-label="`${section.pinned ? '取消固定' : '固定'} ${section.title}`"
                 :aria-pressed="section.pinned"
-                @click="
-                  library.selections.find(item => item.sourcePath === section.sourcePath)!.pinned = !section.pinned
-                "
+                @click="selectionOf(section.sourcePath).pinned = !section.pinned"
               >
-                <span class="i-mingcute-pin-line size-3.5" aria-hidden="true" /> </AppButton
-            ></AppTooltip>
-            <AppTooltip text="移除参考"
-              ><AppButton
+                <span class="i-mingcute-pin-line" aria-hidden="true" />
+              </AppButton>
+            </AppTooltip>
+            <AppTooltip text="移除参考" side="bottom" :side-offset="3">
+              <AppButton
                 icon
                 size="xs"
                 variant="ghost"
                 :aria-label="`移除 ${section.title}`"
                 @click="library.remove(section.sourcePath)"
               >
-                <span class="i-mingcute-close-line size-3.5" aria-hidden="true" /> </AppButton
-            ></AppTooltip>
+                <span class="i-mingcute-close-line" aria-hidden="true" />
+              </AppButton>
+            </AppTooltip>
           </div>
           <div class="reference-meta">
-            {{ section.chars }} 字 · {{ new Date(section.updatedAt).toLocaleString() }}
-            <span v-if="section.reason"> · {{ section.reason }}</span>
+            <span>{{ section.chars }} 字</span>
+            <span>{{ timeLabel(section.updatedAt) }}</span>
+            <span v-if="section.reason">{{ section.reason }}</span>
+            <span v-if="overBudget && library.largest === section.sourcePath" class="reference-largest">最大来源</span>
           </div>
-          <label class="reference-mode"
-            ><AppCheckbox
-              :model-value="section.mode === 'summary'"
-              @update:model-value="
-                library.selections.find(item => item.sourcePath === section.sourcePath)!.mode =
-                  $event === true ? 'summary' : 'full'
-              "
-            />要点模式</label
-          >
-          <AppCollapsible
-            title="原文"
-            variant="plain"
-            :model-value="expandedSources.get(section.sourcePath)"
-            @update:model-value="expandedSources.set(section.sourcePath, $event)"
-          >
-            <AppTextView :text="section.content" :label="`参考原文 ${section.title}`" />
-          </AppCollapsible>
+          <div class="reference-item-controls">
+            <label class="reference-mode">
+              <AppCheckbox
+                :model-value="section.mode === 'summary'"
+                @update:model-value="selectionOf(section.sourcePath).mode = $event === true ? 'summary' : 'full'"
+              />
+              要点模式
+            </label>
+            <AppCollapsible
+              title="原文"
+              variant="plain"
+              class="reference-source-toggle"
+              :model-value="expandedSources.get(section.sourcePath)"
+              @update:model-value="expandedSources.set(section.sourcePath, $event)"
+            >
+              <AppTextView :text="section.content" :label="`参考原文 ${section.title}`" />
+            </AppCollapsible>
+          </div>
         </article>
-      </div>
-      <section class="reference-section">
-        <AppButton v-if="library.excluded.length" size="xs" variant="ghost" @click="library.restoreExcluded"
-          >恢复已移除建议（{{ library.excluded.length }}）</AppButton
-        >
-        <h3>
-          未采用建议 <span>{{ candidates.length }}</span>
-        </h3>
-        <AppInput v-model="query" placeholder="筛选来源" aria-label="筛选参考来源" />
-        <p v-if="library.loading" role="status">正在读取资产…</p>
+      </AppPanelSection>
+
+      <AppPanelSection title="未采用建议" :count="candidates.length">
+        <template #actions>
+          <AppButton v-if="library.excluded.length" size="xs" variant="ghost" @click="library.restoreExcluded">
+            恢复已移除（{{ library.excluded.length }}）
+          </AppButton>
+        </template>
+        <div class="reference-filter">
+          <AppInput v-model="query" placeholder="筛选来源" aria-label="筛选参考来源">
+            <template #prefix><span class="i-mingcute-search-line" /></template>
+          </AppInput>
+        </div>
+        <AppNotice v-if="library.loading">正在读取资产…</AppNotice>
         <div v-for="asset in candidates.slice(0, visibleLimit)" :key="asset.sourcePath" class="reference-candidate">
           <AppButton
             variant="link"
@@ -207,110 +264,174 @@ watch(
             class="reference-candidate-link"
             @click="editor.openDocument(asset.sourcePath)"
           >
-            {{ asset.title }}<small>{{ asset.sourcePath }}</small>
+            <span class="reference-candidate-title">{{ asset.title }}</span>
+            <small>{{ asset.sourcePath }}</small>
           </AppButton>
-          <AppTooltip text="加入参考"
-            ><AppButton
+          <AppTooltip text="加入参考" side="bottom" :side-offset="3">
+            <AppButton
               icon
               size="xs"
               variant="ghost"
               :aria-label="`加入参考 ${asset.title}`"
               @click="library.add(asset.sourcePath)"
             >
-              <span class="i-mingcute-add-line size-3.5" aria-hidden="true" /> </AppButton
-          ></AppTooltip>
+              <span class="i-mingcute-add-line" aria-hidden="true" />
+            </AppButton>
+          </AppTooltip>
         </div>
-        <AppButton v-if="candidates.length > visibleLimit" size="xs" variant="ghost" @click="visibleLimit += 80"
-          >显示更多（{{ candidates.length - visibleLimit }}）</AppButton
+        <p v-if="!library.loading && !candidates.length" class="reference-empty">
+          {{ query ? '没有匹配的来源' : '所有可用资产都已加入参考' }}
+        </p>
+        <AppButton
+          v-if="candidates.length > visibleLimit"
+          size="xs"
+          variant="ghost"
+          class="reference-more"
+          @click="visibleLimit += 80"
         >
-      </section>
-    </div>
+          显示更多（{{ candidates.length - visibleLimit }}）
+        </AppButton>
+      </AppPanelSection>
+    </template>
+
     <template #footer>
-      <AppButton size="sm" :disabled="!editor.activeTab || library.busy" @click="writing.prepare()"
-        >生成候选稿</AppButton
+      <span v-if="library.frozen" class="app-panel-footer-status" role="status"
+        >已冻结 {{ library.frozen.id.slice(0, 8) }}</span
       >
-      <span v-if="library.frozen" role="status">已冻结 {{ library.frozen.id.slice(0, 8) }}</span>
       <AppButton
         size="sm"
         :disabled="library.busy || !workspace.rootPath || (!library.goal.trim() && !library.selections.length)"
         @click="library.freeze"
-        >冻结参考</AppButton
       >
+        冻结参考
+      </AppButton>
+      <AppButton size="sm" variant="primary" :disabled="!editor.activeTab || library.busy" @click="writing.prepare()">
+        生成候选稿
+      </AppButton>
     </template>
   </AppPanel>
 </template>
 
 <style scoped lang="scss">
-.reference-content {
-  @apply flex min-w-0 flex-col gap-4 p-3;
+.reference-goal {
+  @apply flex min-w-0 flex-col gap-3 px-3 pb-3 pt-1;
 }
 .reference-field {
-  @apply flex flex-col gap-2;
+  @apply flex flex-col gap-1.5;
 }
-.reference-unreadable > div {
-  @apply flex min-w-0 items-center gap-1;
-}
-.reference-unreadable span {
-  @apply min-w-0 flex-1;
-  overflow-wrap: anywhere;
+.reference-field-label {
+  @apply font-medium;
 }
 .reference-budget {
   @apply flex flex-wrap items-center justify-between gap-2;
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
 }
-.reference-budget label {
+.reference-budget-usage {
+  @apply flex items-center gap-1.5;
+  font-variant-numeric: tabular-nums;
+}
+.reference-budget.is-over .reference-budget-usage {
+  color: var(--destructive);
+}
+.reference-budget-field {
   @apply flex items-center gap-2;
 }
 .reference-budget-input {
   @apply w-26;
 }
-.reference-section h3 {
-  @apply m-0 mb-2 flex items-center justify-between border-b pb-2 font-semibold;
-  border-color: var(--border-subtle);
-  font-size: var(--ui-font-size);
+.reference-unreadable {
+  @apply px-3 pb-2;
+  font-size: var(--ui-caption-size);
 }
-.reference-section h3 > span {
-  color: var(--muted-foreground);
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-}
-.reference-item {
-  @apply border-b py-2;
-  border-color: var(--border-subtle);
-  overflow-wrap: anywhere;
-}
-.reference-item-heading {
+.reference-unreadable-row {
   @apply flex min-w-0 items-center gap-1;
 }
+.reference-unreadable-row span {
+  @apply min-w-0 flex-1;
+  overflow-wrap: anywhere;
+}
+.reference-empty {
+  @apply m-0 px-5 py-2;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.reference-item {
+  @apply flex flex-col gap-1 py-2 pl-5 pr-2;
+  overflow-wrap: anywhere;
+}
+.reference-item + .reference-item {
+  border-top: 1px solid var(--border-subtle);
+}
+.reference-item.is-largest {
+  box-shadow: inset 2px 0 0 var(--destructive);
+}
+.reference-item-heading {
+  @apply flex min-w-0 items-center gap-0.5;
+}
 .reference-source {
-  @apply min-w-0 flex-1 justify-start border-0 bg-transparent text-left;
+  @apply min-w-0 flex-1 justify-start border-0 bg-transparent text-left font-medium;
   color: var(--foreground);
 }
 .reference-meta {
-  @apply my-1 text-xs;
+  @apply flex flex-wrap gap-x-2 gap-y-0.5;
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-variant-numeric: tabular-nums;
 }
-.reference-mode {
-  @apply mb-1 flex items-center gap-1;
-}
-.reference-candidate {
-  @apply flex min-w-0 items-center gap-1 border-b py-2;
-  border-color: var(--border-subtle);
-}
-.reference-candidate-link {
-  @apply block min-w-0 flex-1 border-0 bg-transparent text-left;
-  color: var(--foreground);
-}
-.reference-candidate small {
-  @apply mt-1 block text-xs;
-  color: var(--muted-foreground);
-}
-.is-over,
-.is-largest,
-[role='alert'] {
+.reference-largest {
   color: var(--destructive);
 }
-.reference-stale {
-  color: var(--warning);
+.reference-item-controls {
+  @apply flex flex-wrap items-center gap-x-4 gap-y-1;
+}
+.reference-mode {
+  @apply flex items-center gap-1.5;
+  font-size: var(--ui-caption-size);
+  color: var(--muted-foreground);
+}
+.reference-source-toggle {
+  @apply min-w-0 flex-1;
+}
+.reference-source-toggle :deep(.app-collapsible-trigger) {
+  @apply w-auto py-0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.reference-source-toggle :deep(.app-collapsible-title) {
+  @apply font-normal;
+  font-size: var(--ui-caption-size);
+}
+.reference-source-toggle :deep(.app-collapsible-content) {
+  @apply pb-1;
+}
+.reference-filter {
+  @apply px-3 pb-1 pt-1;
+}
+.reference-candidate {
+  @apply flex min-w-0 items-center gap-1 py-1 pl-5 pr-2;
+}
+.reference-candidate:hover {
+  background: var(--surface-hover);
+}
+.reference-candidate-link {
+  @apply flex min-w-0 flex-1 flex-col items-start gap-0 border-0 bg-transparent text-left;
+  color: var(--foreground);
+}
+.reference-candidate-link:hover {
+  text-decoration: none;
+}
+.reference-candidate-title {
+  @apply w-full truncate;
+}
+.reference-candidate small {
+  @apply block w-full truncate;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.reference-more {
+  @apply mx-3 my-2;
 }
 </style>

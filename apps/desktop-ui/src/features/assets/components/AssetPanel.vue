@@ -2,8 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { AppPanel } from '@/components/AppPanel';
+import { AppEmptyState } from '@/components/AppEmptyState';
+import { AppNotice } from '@/components/AppNotice';
+import { AppPanel, AppPanelSection } from '@/components/AppPanel';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
 import { useSettlementStore } from '@/features/settlement';
@@ -30,6 +33,10 @@ const incoming = computed(() =>
   )
 );
 const backrefs = computed(() => library.assets.filter(asset => assets.current?.backlinks.includes(asset.sourcePath)));
+const pendingCount = computed(() => assets.currentProposals.length + assets.currentBatches.length);
+const subtitle = computed(() =>
+  assets.current ? `${assetKindLabel(assets.current.kind)} · ${assets.current.sourcePath}` : undefined
+);
 let unsubscribe: (() => void) | undefined;
 onMounted(() => {
   void assets.refresh();
@@ -39,117 +46,131 @@ onMounted(() => {
 onBeforeUnmount(() => unsubscribe?.());
 </script>
 <template>
-  <AppPanel class="asset-panel" :title="assets.current?.title ?? '资产详情'" aria-label="资产详情">
+  <AppPanel class="asset-panel" :title="assets.current?.title ?? '资产详情'" :subtitle="subtitle" aria-label="资产详情">
     <template #actions>
-      <AppButton
-        icon
-        size="xs"
-        variant="ghost"
-        aria-label="查看文档版本"
-        :disabled="!editor.activeTab?.document"
-        @click="versions.open()"
-        ><span class="i-mingcute-history-line"
-      /></AppButton>
-      <AppButton
-        icon
-        size="xs"
-        variant="ghost"
-        aria-label="刷新资产详情"
-        :disabled="library.loading"
-        @click="assets.refresh"
-        ><span class="i-mingcute-refresh-3-line"
-      /></AppButton>
-    </template>
-    <p v-if="assets.error || versions.error" class="asset-error" role="alert">{{ assets.error || versions.error }}</p>
-    <div v-if="assets.current" class="asset-content">
-      <p class="asset-path">{{ assets.current.sourcePath }}</p>
-      <section v-if="isUnclassified(assets.current)" class="asset-section">
-        <h3>未分类</h3>
-        <p v-if="assets.current.diagnostic" class="asset-error">{{ assets.current.diagnostic }}</p>
-        <AppSelect v-model="templateId" aria-label="识别模板">
-          <AppSelectItem v-for="item in templates.templates" :key="item.template" :value="item.template">{{
-            item.name
-          }}</AppSelectItem>
-        </AppSelect>
+      <AppTooltip text="查看文档版本" side="bottom" :side-offset="3">
         <AppButton
-          :disabled="assets.busy || Boolean(assets.current.diagnostic) || editor.activeTab?.dirty"
-          @click="assets.identify(templateId)"
-          >识别文档</AppButton
+          icon
+          size="xs"
+          variant="ghost"
+          aria-label="查看文档版本"
+          :disabled="!editor.activeTab?.document"
+          @click="versions.open()"
         >
-      </section>
-      <section class="asset-section">
-        <h3>
-          待确认事实 <span>{{ assets.currentProposals.length + assets.currentBatches.length }}</span>
-        </h3>
-        <p v-if="!assets.currentProposals.length && !assets.currentBatches.length" class="asset-empty">
-          没有待确认提议
-        </p>
+          <span class="i-mingcute-history-line" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip text="刷新资产详情" side="bottom" :side-offset="3">
+        <AppButton
+          icon
+          size="xs"
+          variant="ghost"
+          aria-label="刷新资产详情"
+          :disabled="library.loading"
+          @click="assets.refresh"
+        >
+          <span class="i-mingcute-refresh-3-line" />
+        </AppButton>
+      </AppTooltip>
+    </template>
+
+    <AppNotice v-if="assets.error || versions.error" tone="error">{{ assets.error || versions.error }}</AppNotice>
+    <template v-if="assets.current">
+      <AppPanelSection v-if="isUnclassified(assets.current)" title="未分类" heading>
+        <div class="asset-identify">
+          <p class="asset-hint">这个文件还没有资产类型。选一个模板识别后，它就会进入资料库并参与双链与结算。</p>
+          <AppNotice v-if="assets.current.diagnostic" tone="error">{{ assets.current.diagnostic }}</AppNotice>
+          <AppSelect v-model="templateId" aria-label="识别模板">
+            <AppSelectItem v-for="item in templates.templates" :key="item.template" :value="item.template">{{
+              item.name
+            }}</AppSelectItem>
+          </AppSelect>
+          <AppButton
+            size="sm"
+            variant="primary"
+            :disabled="assets.busy || Boolean(assets.current.diagnostic) || editor.activeTab?.dirty"
+            @click="assets.identify(templateId)"
+          >
+            识别文档
+          </AppButton>
+        </div>
+      </AppPanelSection>
+
+      <AppPanelSection title="待确认事实" :count="pendingCount" heading>
+        <p v-if="!pendingCount" class="asset-hint">没有待确认提议</p>
         <AppButton
           v-for="batch in assets.currentBatches"
           :key="batch.id"
           variant="ghost"
           class="asset-link"
           @click="settlement.read(batch.id, assets.current?.sourcePath)"
-          ><span class="i-mingcute-document-line" />{{ batch.chapterTitle }} · {{ batch.pending }} 项待确认</AppButton
         >
+          <span class="i-mingcute-inbox-2-line size-4 asset-link-icon asset-attention" aria-hidden="true" />
+          <span class="asset-link-text">{{ batch.chapterTitle }} · {{ batch.pending }} 项待确认</span>
+        </AppButton>
         <AppButton
           v-for="proposal in assets.currentProposals"
           :key="proposal.id"
           variant="ghost"
           class="asset-link"
           @click="assets.inspect(proposal.id)"
-          ><span class="i-mingcute-document-line" />{{ proposal.title }}</AppButton
         >
-      </section>
-      <section v-if="outgoing.length || incoming.length" class="asset-section">
-        <h3>人物关系</h3>
+          <span class="i-mingcute-document-line size-4 asset-link-icon asset-attention" aria-hidden="true" />
+          <span class="asset-link-text">{{ proposal.title }}</span>
+        </AppButton>
+      </AppPanelSection>
+
+      <AppPanelSection
+        v-if="outgoing.length || incoming.length"
+        title="人物关系"
+        :count="outgoing.length + incoming.length"
+        heading
+      >
         <div v-for="(relation, index) in outgoing" :key="`out-${index}`" class="asset-relation">
           <AppButton v-if="relation.link?.targetPath" variant="link" @click="assets.open(relation.link.targetPath)">{{
             relation.to
           }}</AppButton>
           <span v-else class="asset-warning">{{ relation.to }}</span>
-          <span>{{ relation.type }}</span>
-          <p v-if="relation.note">{{ relation.note }}</p>
+          <span class="asset-relation-type">{{ relation.type }}</span>
+          <p v-if="relation.note" class="asset-relation-note">{{ relation.note }}</p>
         </div>
         <div v-for="(relation, index) in incoming" :key="`in-${index}`" class="asset-relation">
           <AppButton variant="link" @click="assets.open(relation.source.sourcePath)">{{
             relation.source.title
           }}</AppButton>
-          <span>将本角色视为{{ relation.type }}</span>
-          <p v-if="relation.note">{{ relation.note }}</p>
+          <span class="asset-relation-type">将本角色视为{{ relation.type }}</span>
+          <p v-if="relation.note" class="asset-relation-note">{{ relation.note }}</p>
         </div>
-      </section>
-      <section class="asset-section">
-        <h3>
-          双链 <span>{{ assets.current.links.length }}</span>
-        </h3>
-        <p v-if="!assets.current.links.length" class="asset-empty">没有出向引用</p>
+      </AppPanelSection>
+
+      <AppPanelSection title="双链" :count="assets.current.links.length" heading>
+        <p v-if="!assets.current.links.length" class="asset-hint">没有出向引用</p>
         <div v-for="link in assets.current.links" :key="link.link" class="asset-reference">
-          <AppButton v-if="link.targetPath" variant="link" class="asset-link" @click="assets.open(link.targetPath)"
-            >{{ link.link
-            }}<span v-if="link.status === 'moved'" class="i-mingcute-transfer-line" aria-label="来源已移动"
-          /></AppButton>
+          <AppButton v-if="link.targetPath" variant="link" class="asset-link" @click="assets.open(link.targetPath)">
+            <span class="i-mingcute-link-line size-4 asset-link-icon" aria-hidden="true" />
+            <span class="asset-link-text">{{ link.link }}</span>
+            <span v-if="link.status === 'moved'" class="i-mingcute-transfer-line size-3.5" aria-label="来源已移动" />
+          </AppButton>
           <template v-else>
-            <span class="asset-warning"
-              ><span class="i-mingcute-warning-line" /> {{ link.link }} ·
-              {{ link.status === 'ambiguous' ? '重名' : '断链' }}</span
-            >
+            <span class="asset-warning asset-broken">
+              <span class="i-mingcute-warning-line size-4" aria-hidden="true" /> {{ link.link }} ·
+              {{ link.status === 'ambiguous' ? '重名' : '断链' }}
+            </span>
             <AppButton
               v-for="candidate in link.candidates"
               :key="candidate"
               variant="link"
-              class="asset-link"
+              class="asset-link asset-candidate"
               @click="assets.open(candidate)"
-              >{{ candidate }}</AppButton
             >
+              <span class="asset-link-text">{{ candidate }}</span>
+            </AppButton>
           </template>
         </div>
-      </section>
-      <section class="asset-section">
-        <h3>
-          反向引用 <span>{{ backrefs.length }}</span>
-        </h3>
-        <p v-if="!backrefs.length" class="asset-empty">没有反向引用</p>
+      </AppPanelSection>
+
+      <AppPanelSection title="反向引用" :count="backrefs.length" heading>
+        <p v-if="!backrefs.length" class="asset-hint">没有反向引用</p>
         <AppButton
           v-for="source in backrefs"
           :key="source.sourcePath"
@@ -157,65 +178,80 @@ onBeforeUnmount(() => unsubscribe?.());
           class="asset-link"
           :title="source.sourcePath"
           @click="assets.open(source.sourcePath)"
-          >{{ source.title }}<span class="asset-kind">{{ assetKindLabel(source.kind) }}</span></AppButton
         >
-      </section>
-    </div>
-    <p v-else class="asset-empty asset-no-document">尚未选择已索引文档</p>
+          <span class="i-mingcute-document-line size-4 asset-link-icon" aria-hidden="true" />
+          <span class="asset-link-text">{{ source.title }}</span>
+          <span class="asset-kind">{{ assetKindLabel(source.kind) }}</span>
+        </AppButton>
+      </AppPanelSection>
+    </template>
+    <AppEmptyState
+      v-else
+      icon="i-mingcute-box-3-line"
+      title="尚未选择已索引文档"
+      description="在编辑器里打开一份角色、设定或章节，这里显示它的双链、关系与待确认事实。"
+    />
   </AppPanel>
 </template>
 <style scoped lang="scss">
-.asset-content {
-  @apply flex flex-col px-3;
+.asset-identify {
+  @apply flex flex-col gap-2 px-5 py-2;
 }
-.asset-path {
-  @apply m-0 py-3;
-  font-size: var(--ui-caption-size);
+.asset-hint {
+  @apply m-0 px-5 py-2;
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
-.asset-section {
-  @apply flex flex-col gap-2 border-t py-3;
-  border-color: var(--border-subtle);
-}
-h3 {
-  @apply m-0 mb-1 flex items-center justify-between gap-2 font-semibold;
-  font-size: var(--ui-font-size);
-}
-h3 span,
-.asset-kind {
-  color: var(--muted-foreground);
-  font-size: var(--ui-caption-size);
-  font-weight: 400;
+.asset-identify .asset-hint {
+  @apply px-0 py-0;
 }
 .asset-link {
-  @apply min-w-0 justify-start p-1 text-left;
+  @apply h-7 w-full min-w-0 justify-start gap-2 rounded-none px-5 text-left font-normal;
+  color: var(--foreground);
+}
+.asset-link:hover:not(:disabled) {
+  background: var(--surface-hover);
+  text-decoration: none;
+}
+.asset-link-icon {
+  color: var(--muted-foreground);
+}
+.asset-attention {
+  color: var(--warning);
+}
+.asset-link-text {
+  @apply min-w-0 flex-1 truncate;
+}
+.asset-candidate {
+  @apply pl-10;
 }
 .asset-relation {
-  @apply flex flex-wrap items-center gap-x-2 gap-y-1;
+  @apply flex flex-wrap items-center gap-x-2 gap-y-0.5 px-5 py-1;
 }
-.asset-relation p {
+.asset-relation-type {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.asset-relation-note {
   @apply m-0 w-full;
   color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
   overflow-wrap: anywhere;
 }
 .asset-reference {
-  @apply flex flex-col items-start gap-1;
+  @apply flex flex-col items-stretch;
   overflow-wrap: anywhere;
 }
 .asset-warning {
   color: var(--warning);
 }
-.asset-error {
-  @apply m-0 p-3;
-  color: var(--destructive);
-  overflow-wrap: anywhere;
+.asset-broken {
+  @apply flex h-7 items-center gap-1 px-5;
 }
-.asset-empty {
-  @apply m-0;
+.asset-kind {
   color: var(--muted-foreground);
-}
-.asset-no-document {
-  @apply p-3;
+  font-size: var(--ui-caption-size);
 }
 </style>
