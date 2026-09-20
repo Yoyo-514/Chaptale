@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui';
 import { computed, onMounted, ref } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
@@ -39,6 +40,7 @@ const groups = computed(() =>
     .filter(group => group.jobs.length)
 );
 const filtered = computed(() => chapter.value !== '__all' || reviewer.value !== '__all' || status.value !== '__all');
+const filterCount = computed(() => Number(reviewer.value !== '__all') + Number(status.value !== '__all'));
 function timeLabel(value: string) {
   return new Date(value).toLocaleString(undefined, {
     month: 'numeric',
@@ -59,20 +61,35 @@ onMounted(() => {
 <template>
   <AppPanel class="review-center" title="审查中心" :count="jobs.length">
     <template #toolbar>
-      <AppSelect v-model="chapter" aria-label="审查章节" class="app-panel-toolbar-full">
+      <AppSelect v-model="chapter" aria-label="审查章节">
         <AppSelectItem value="__all">全部章节</AppSelectItem>
         <AppSelectItem v-for="path in chapters" :key="path" :value="path">{{ path }}</AppSelectItem>
       </AppSelect>
-      <AppSelect v-model="reviewer" aria-label="审查角色" class="review-center-narrow">
-        <AppSelectItem value="__all">全部审查</AppSelectItem>
-        <AppSelectItem v-for="item in reviews.reviewerOptions" :key="item.id" :value="item.id">{{
-          item.label
-        }}</AppSelectItem>
-      </AppSelect>
-      <AppSelect v-model="status" aria-label="审查运行状态" class="review-center-narrow">
-        <AppSelectItem value="__all">全部运行状态</AppSelectItem>
-        <AppSelectItem v-for="(label, key) in labels" :key="key" :value="key">{{ label }}</AppSelectItem>
-      </AppSelect>
+      <PopoverRoot>
+        <PopoverTrigger as-child>
+          <AppButton variant="ghost" :selected="filterCount > 0" aria-label="审查筛选">
+            <span class="i-mingcute-filter-line size-4" aria-hidden="true" />
+            筛选<span v-if="filterCount" class="tabular-nums">{{ filterCount }}</span>
+          </AppButton>
+        </PopoverTrigger>
+        <PopoverPortal>
+          <PopoverContent class="review-center-filters" align="start" :side-offset="6" aria-label="审查筛选条件">
+            <label for="review-center-reviewer">审查角色</label>
+            <AppSelect id="review-center-reviewer" v-model="reviewer" aria-label="审查角色">
+              <AppSelectItem value="__all">全部审查</AppSelectItem>
+              <AppSelectItem v-for="item in reviews.reviewerOptions" :key="item.id" :value="item.id">{{
+                item.label
+              }}</AppSelectItem>
+            </AppSelect>
+            <label for="review-center-status">运行状态</label>
+            <AppSelect id="review-center-status" v-model="status" aria-label="审查运行状态">
+              <AppSelectItem value="__all">全部运行状态</AppSelectItem>
+              <AppSelectItem v-for="(label, key) in labels" :key="key" :value="key">{{ label }}</AppSelectItem>
+            </AppSelect>
+            <AppButton variant="ghost" size="xs" :disabled="!filtered" @click="clearFilters">清除全部筛选</AppButton>
+          </PopoverContent>
+        </PopoverPortal>
+      </PopoverRoot>
     </template>
 
     <AppNotice v-for="message in reviews.diagnostics" :key="message" tone="error">{{ message }}</AppNotice>
@@ -107,9 +124,20 @@ onMounted(() => {
   </AppPanel>
 </template>
 <style scoped lang="scss">
-// 角色与状态两个下拉并排占一行；侧栏窄到放不下两个 7.5rem 的触发器时各自独占一行，不截断选项文字。
 .review-center :deep(.app-panel-toolbar) {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+:global(.review-center-filters) {
+  @apply z-$z-popover grid gap-2 border p-3 shadow-$shadow-float;
+  width: 18rem;
+  max-width: var(--reka-popover-content-available-width);
+  max-height: var(--reka-popover-content-available-height);
+  overflow-y: auto;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-overlay);
+  font-size: var(--ui-font-size);
 }
 // 分节头已写明章节，行内标题只留给读屏与测试定位，视觉上以审查角色开头。
 .review-job :deep(.app-list-item-title) {

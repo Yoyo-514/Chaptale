@@ -135,6 +135,36 @@ async function captureSettings(settings: Locator, theme: string, viewport: 'comp
 }
 
 for (const theme of ['light', 'warm', 'dark'] as const) {
+  test(`${theme} 审查筛选同排显示并可用键盘清除`, async () => {
+    await resize(1440, 900);
+    await page.evaluate(value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }), theme);
+    await page.reload();
+    await page
+      .getByRole('navigation', { name: '创作视图', exact: true })
+      .getByRole('button', { name: '审查', exact: true })
+      .click();
+    const panel = page.getByRole('region', { name: '审查中心', exact: true });
+    const trigger = panel.getByRole('button', { name: '审查筛选', exact: true });
+    const chapter = await panel.getByRole('combobox', { name: '审查章节' }).boundingBox();
+    const filter = await trigger.boundingBox();
+    expect(Math.abs(chapter!.y - filter!.y)).toBeLessThanOrEqual(1);
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    const popover = page.getByRole('dialog', { name: '审查筛选', exact: true });
+    await expect(popover).toBeVisible();
+    await popover.getByRole('combobox', { name: '审查运行状态' }).click();
+    await page.getByRole('option', { name: '失败', exact: true }).click();
+    await expect(trigger).toContainText('1');
+    await expect(panel).toContainText('没有符合筛选的审查');
+    await page.screenshot({ path: path.join(visualDir, `review-filters-${theme}.png`) });
+    await popover.getByRole('button', { name: '清除全部筛选' }).click();
+    await expect(trigger).not.toContainText('1');
+    await expect(panel).toContainText('还没有审查记录');
+    await page.keyboard.press('Escape');
+    await expect(popover).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
   test(`${theme} 主题在桌面与窄窗口保留可读表单和键盘焦点`, async () => {
     test.setTimeout(120_000);
     await resize(1440, 900);
