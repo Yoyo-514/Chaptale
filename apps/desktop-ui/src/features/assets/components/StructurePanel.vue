@@ -41,12 +41,28 @@ function rowMeta(asset: (typeof groups.value)[number]['assets'][number]) {
   if (asset.kind !== currentView.value?.kind) return assetKindLabel(asset.kind);
   return assetStatusLabel(asset.status);
 }
-const viewLabels: Record<string, string> = { library: '资料', timeline: '时间线', relationships: '关系' };
 onMounted(() => void assets.refresh());
 </script>
 <template>
   <AppPanel class="structure-panel" title="资料库" aria-label="资料库导航">
     <template #actions>
+      <!-- 三个整页视图是资料库的「大门」，放在表头操作位；它们打开的是中央工作区而不是侧栏内容。 -->
+      <nav class="library-views" aria-label="资料库视图">
+        <AppTooltip v-for="view in workspaceViews" :key="view.id" :text="view.label" side="bottom" :side-offset="3">
+          <AppButton
+            icon
+            size="xs"
+            variant="ghost"
+            :aria-label="`打开${view.label}`"
+            :selected="navigation.center === view.id"
+            :disabled="!workspace.rootPath"
+            @click="navigation.openView(view.id)"
+          >
+            <span :class="view.icon" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
+      </nav>
+      <span class="library-actions-divider" aria-hidden="true" />
       <AppTooltip text="新建资产" side="bottom" :side-offset="3">
         <AppButton
           icon
@@ -60,24 +76,6 @@ onMounted(() => void assets.refresh());
       </AppTooltip>
     </template>
     <template #toolbar>
-      <!-- 三个整页视图是资料库的「大门」，一行三等分放在类型标签之前；它们打开的是中央工作区而不是侧栏内容。 -->
-      <nav class="app-panel-toolbar-full library-views" aria-label="资料库视图">
-        <AppButton
-          v-for="view in workspaceViews"
-          :key="view.id"
-          size="xs"
-          variant="outline"
-          class="library-view"
-          :aria-label="`打开${view.label}`"
-          :title="view.label"
-          :selected="navigation.center === view.id"
-          :disabled="!workspace.rootPath"
-          @click="navigation.openView(view.id)"
-        >
-          <span :class="view.icon" class="size-4 shrink-0" aria-hidden="true" />
-          <span class="library-view-label">{{ viewLabels[view.id] ?? view.label }}</span>
-        </AppButton>
-      </nav>
       <TabsRoot v-model="assets.view" class="app-panel-toolbar-full structure-tabs">
         <TabsList aria-label="资产类型" class="structure-tab-list">
           <TabsTrigger v-for="item in assetViews" :key="item.id" :value="item.id" class="structure-tab">{{
@@ -223,21 +221,19 @@ onMounted(() => void assets.refresh());
 </template>
 <style scoped lang="scss">
 .library-views {
-  @apply grid gap-1;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  @apply flex items-center gap-0.5;
 }
-.library-view {
-  @apply min-w-0 justify-center gap-1.5 px-1.5;
+.library-actions-divider {
+  @apply mx-1 h-4 w-px shrink-0;
+  background: var(--border);
 }
-.library-view-label {
-  @apply min-w-0 truncate;
-}
-// 七个类型一次全部可见：换行而不是横向截断。
+// 七个类型排成整齐的 4 + 3 网格：每格等宽、居中，不会出现参差的换行。
 .structure-tab-list {
-  @apply flex flex-wrap gap-x-1 gap-y-0.5;
+  @apply grid gap-x-1 gap-y-0.5;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .structure-tab {
-  @apply h-6 shrink-0 border-0 px-2 outline-none;
+  @apply h-6 min-w-0 truncate border-0 px-1 outline-none;
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--muted-foreground);

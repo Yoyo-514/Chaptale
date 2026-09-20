@@ -107,9 +107,9 @@ onMounted(() => {
   </AppPanel>
 </template>
 <style scoped lang="scss">
-// 角色与状态两个下拉并排占一行：侧栏最窄 15% 时也够放两个 6rem 的触发器。
+// 角色与状态两个下拉并排占一行；侧栏窄到放不下两个 7.5rem 的触发器时各自独占一行，不截断选项文字。
 .review-center :deep(.app-panel-toolbar) {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
 }
 // 分节头已写明章节，行内标题只留给读屏与测试定位，视觉上以审查角色开头。
 .review-job :deep(.app-list-item-title) {

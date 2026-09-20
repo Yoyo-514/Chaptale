@@ -302,10 +302,10 @@ onBeforeUnmount(() => {
   @apply h-9 min-w-0 flex-1;
 }
 .workbench-auxiliary-tabs {
-  @apply flex h-9 w-max min-w-full shrink-0 items-stretch gap-0.5 px-1.5;
+  @apply flex h-9 w-max min-w-full shrink-0 items-stretch px-1;
 }
 .workbench-auxiliary-divider {
-  @apply mx-1 my-auto h-4 w-px shrink-0;
+  @apply mx-0.5 my-auto h-4 w-px shrink-0;
   background: var(--border);
 }
 
@@ -315,7 +315,7 @@ onBeforeUnmount(() => {
 }
 
 .workbench-auxiliary-tab {
-  @apply relative flex h-full shrink-0 items-center gap-1.5 border-0 bg-transparent px-2 outline-none disabled:opacity-45;
+  @apply relative flex h-full shrink-0 items-center gap-1 border-0 bg-transparent px-1.5 outline-none disabled:opacity-45;
   font-size: var(--ui-font-size);
   color: var(--muted-foreground);
   transition:
@@ -340,7 +340,7 @@ onBeforeUnmount(() => {
   color: var(--primary-solid);
 }
 .workbench-auxiliary-tab[data-state='active']::after {
-  @apply absolute inset-x-1.5 bottom-0 h-0.5;
+  @apply absolute inset-x-1 bottom-0 h-0.5;
   content: '';
   background: var(--primary-solid);
 }

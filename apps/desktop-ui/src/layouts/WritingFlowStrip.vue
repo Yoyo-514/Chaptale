@@ -125,11 +125,11 @@ const steps = computed<FlowStep[]>(() => {
 }
 // 段间的箭头是流程本身：读作「参考 → 候选 → 审查 → 结算」，而不是四个并列标签。
 .writing-flow-arrow {
-  @apply size-3.5 shrink-0;
+  @apply size-3 shrink-0;
   color: var(--border-strong);
 }
 .writing-flow-step {
-  @apply flex h-10 w-full min-w-0 items-center gap-1.5 border-0 bg-transparent px-1.5 text-left outline-none;
+  @apply flex h-10 w-full min-w-0 items-center gap-1 border-0 bg-transparent px-1 text-left outline-none;
   border-radius: var(--radius-control-sm);
   color: var(--muted-foreground);
   font-size: var(--ui-caption-size);
