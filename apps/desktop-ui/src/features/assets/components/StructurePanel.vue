@@ -58,18 +58,6 @@ onMounted(() => void assets.refresh());
           <span class="i-mingcute-add-line" />
         </AppButton>
       </AppTooltip>
-      <AppTooltip text="刷新资产" side="bottom" :side-offset="3">
-        <AppButton
-          icon
-          size="xs"
-          variant="ghost"
-          aria-label="刷新资产"
-          :disabled="library.loading"
-          @click="assets.refresh"
-        >
-          <span class="i-mingcute-refresh-3-line" />
-        </AppButton>
-      </AppTooltip>
     </template>
     <template #toolbar>
       <!-- 三个整页视图是资料库的「大门」，一行三等分放在类型标签之前；它们打开的是中央工作区而不是侧栏内容。 -->
@@ -246,7 +234,7 @@ onMounted(() => void assets.refresh());
 }
 // 七个类型一次全部可见：换行而不是横向截断。
 .structure-tab-list {
-  @apply flex flex-wrap gap-1;
+  @apply flex flex-wrap gap-x-1 gap-y-0.5;
 }
 .structure-tab {
   @apply h-6 shrink-0 border-0 px-2 outline-none;

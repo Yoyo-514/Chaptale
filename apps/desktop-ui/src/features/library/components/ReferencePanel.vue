@@ -167,7 +167,7 @@ watch(
           </AppButton>
         </div>
       </div>
-      <AppNotice v-if="library.freshness?.stale" tone="warning">来源已更新，冻结的参考已经落后于文件。</AppNotice>
+      <AppNotice v-if="library.freshness?.stale" tone="warning">来源已更新</AppNotice>
 
       <AppPanelSection
         v-for="pinned in [true, false]"
@@ -219,7 +219,7 @@ watch(
             </AppTooltip>
           </div>
           <div class="reference-meta">
-            <span>{{ section.chars }} 字</span>
+            <span class="reference-chars">{{ section.chars }} 字</span>
             <span>{{ timeLabel(section.updatedAt) }}</span>
             <span v-if="section.reason">{{ section.reason }}</span>
             <span v-if="overBudget && library.largest === section.sourcePath" class="reference-largest">最大来源</span>
@@ -365,8 +365,9 @@ watch(
 .reference-item + .reference-item {
   border-top: 1px solid var(--border-subtle);
 }
-.reference-item.is-largest {
-  box-shadow: inset 2px 0 0 var(--destructive);
+.reference-item.is-largest .reference-chars {
+  color: var(--destructive);
+  font-weight: 600;
 }
 .reference-item-heading {
   @apply flex min-w-0 items-center gap-0.5;

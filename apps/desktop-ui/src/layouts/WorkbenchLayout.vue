@@ -159,7 +159,7 @@ onBeforeUnmount(() => {
     <SplitterPanel
       id="workbench-editor"
       :order="2"
-      :default-size="52"
+      :default-size="50"
       :min-size="35"
       class="workbench-panel"
       :data-compact-hidden="!navigation.focusMode && navigation.compactPane !== 'editor'"
@@ -180,7 +180,7 @@ onBeforeUnmount(() => {
       ref="auxiliaryPanel"
       id="workbench-auxiliary-bar"
       :order="3"
-      :default-size="28"
+      :default-size="30"
       :min-size="22"
       :max-size="45"
       :collapsed-size="0"
@@ -213,6 +213,7 @@ onBeforeUnmount(() => {
                     :value="item.id"
                     :aria-label="item.label"
                     :title="item.label"
+                    :data-group="index === 0 ? 'agent' : index === 1 ? 'workflow' : 'lookback'"
                   >
                     <span :class="item.icon" class="workbench-auxiliary-tab-icon" aria-hidden="true" />
                     <span class="workbench-auxiliary-tab-label">{{ item.label }}</span>
@@ -346,13 +347,17 @@ onBeforeUnmount(() => {
 .workbench-auxiliary-tab:focus-visible {
   box-shadow: var(--input-focus-shadow);
 }
-// 栏宽不够放下七个带字标签时，非当前标签只留图标；标签文案仍在 DOM 里供读屏与测试定位。
-@container auxiliary-bar (max-width: 420px) {
-  .workbench-auxiliary-tab:not([data-state='active']) .workbench-auxiliary-tab-label {
+// 栏宽不够放下七个带字标签时分两级收缩：先收对话与回看组（图标本身可辨），再收全部非当前标签；
+// 标签文案仍在 DOM 里供读屏与测试定位。
+@container auxiliary-bar (max-width: 470px) {
+  .workbench-auxiliary-tab:not([data-state='active']):is([data-group='agent'], [data-group='lookback'])
+    .workbench-auxiliary-tab-label {
     @apply sr-only;
   }
-  .workbench-auxiliary-tab:not([data-state='active']) {
-    @apply px-2.5;
+}
+@container auxiliary-bar (max-width: 380px) {
+  .workbench-auxiliary-tab:not([data-state='active']) .workbench-auxiliary-tab-label {
+    @apply sr-only;
   }
 }
 

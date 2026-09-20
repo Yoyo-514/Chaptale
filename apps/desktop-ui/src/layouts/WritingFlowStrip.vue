@@ -43,9 +43,9 @@ const steps = computed<FlowStep[]>(() => {
     {
       view: 'references',
       label: '参考',
-      icon: 'i-mingcute-bookmark-line',
+      icon: library.frozen || library.selections.length ? 'i-mingcute-bookmark-fill' : 'i-mingcute-bookmark-line',
       ...(library.frozen
-        ? { status: `已冻结 · ${library.selections.length} 项`, tone: 'active' as Tone }
+        ? { status: `${library.selections.length} 项 · 已冻结`, tone: 'active' as Tone }
         : library.selections.length
           ? { status: `${library.selections.length} 项`, tone: 'active' as Tone }
           : { status: '未组装', tone: 'idle' as Tone })
@@ -53,7 +53,7 @@ const steps = computed<FlowStep[]>(() => {
     {
       view: 'candidates',
       label: '候选',
-      icon: 'i-mingcute-quill-pen-line',
+      icon: pendingCandidates ? 'i-mingcute-quill-pen-fill' : 'i-mingcute-quill-pen-line',
       ...(writing.running.length
         ? { status: '生成中', tone: 'busy' as Tone }
         : pendingCandidates
@@ -63,7 +63,7 @@ const steps = computed<FlowStep[]>(() => {
     {
       view: 'review',
       label: '审查',
-      icon: 'i-mingcute-check-circle-line',
+      icon: reviewJobs && !openIssues ? 'i-mingcute-check-circle-fill' : 'i-mingcute-check-circle-line',
       ...(reviews.running.length
         ? { status: '审查中', tone: 'busy' as Tone }
         : openIssues
@@ -75,7 +75,7 @@ const steps = computed<FlowStep[]>(() => {
     {
       view: 'settlement',
       label: '结算',
-      icon: 'i-mingcute-inbox-2-line',
+      icon: settled && !pendingFacts ? 'i-mingcute-inbox-2-fill' : 'i-mingcute-inbox-2-line',
       ...(settlement.running.length
         ? { status: '结算中', tone: 'busy' as Tone }
         : pendingFacts
@@ -91,7 +91,8 @@ const steps = computed<FlowStep[]>(() => {
 <template>
   <nav class="writing-flow" aria-label="写作流程">
     <ol class="writing-flow-steps">
-      <li v-for="step in steps" :key="step.view" class="writing-flow-item">
+      <li v-for="(step, index) in steps" :key="step.view" class="writing-flow-item">
+        <span v-if="index > 0" class="i-mingcute-right-line writing-flow-arrow" aria-hidden="true" />
         <button
           type="button"
           class="writing-flow-step"
@@ -117,17 +118,15 @@ const steps = computed<FlowStep[]>(() => {
   border-color: var(--border-subtle);
 }
 .writing-flow-steps {
-  @apply m-0 grid list-none gap-0.5 p-0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  @apply m-0 flex list-none items-stretch p-0;
 }
 .writing-flow-item {
-  @apply relative min-w-0;
+  @apply flex min-w-0 flex-1 items-center;
 }
-// 段与段之间的细线只画在中间三处，读作一条流程而不是四个卡片。
-.writing-flow-item + .writing-flow-item::before {
-  @apply absolute inset-y-2 left-0 w-px;
-  content: '';
-  background: var(--border-subtle);
+// 段间的箭头是流程本身：读作「参考 → 候选 → 审查 → 结算」，而不是四个并列标签。
+.writing-flow-arrow {
+  @apply size-3.5 shrink-0;
+  color: var(--border-strong);
 }
 .writing-flow-step {
   @apply flex h-10 w-full min-w-0 items-center gap-1.5 border-0 bg-transparent px-1.5 text-left outline-none;

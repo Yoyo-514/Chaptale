@@ -7,7 +7,6 @@ import { AppInput } from '@/components/AppInput';
 import { AppListItem } from '@/components/AppListItem';
 import { AppNotice } from '@/components/AppNotice';
 import { AppPanel, AppPanelSection } from '@/components/AppPanel';
-import { AppTooltip } from '@/components/AppTooltip';
 import { AssetContextMenu, useAssetStore } from '@/features/assets';
 import { useEditorStore } from '@/features/editor';
 import { useLibraryStore } from '@/features/library';
@@ -49,20 +48,6 @@ onBeforeUnmount(() => unsubscribe?.());
 </script>
 <template>
   <AppPanel class="memory-panel" title="记忆" :count="total" aria-label="作品记忆">
-    <template #actions>
-      <AppTooltip text="刷新记忆" side="bottom" :side-offset="3">
-        <AppButton
-          icon
-          size="xs"
-          variant="ghost"
-          aria-label="刷新记忆"
-          :disabled="library.loading"
-          @click="assets.refresh"
-        >
-          <span class="i-mingcute-refresh-3-line" />
-        </AppButton>
-      </AppTooltip>
-    </template>
     <template #toolbar>
       <AppInput v-model="query" class="app-panel-toolbar-full" aria-label="筛选记忆" placeholder="筛选记忆">
         <template #prefix><span class="i-mingcute-search-line" /></template>

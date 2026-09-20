@@ -68,7 +68,6 @@ async function locate(index: number) {
 <template>
   <AppPanel class="review-panel" title="独立审查" title-hidden :subtitle="subtitle">
     <template #actions>
-      <AppButton size="xs" variant="primary" @click="reviews.prepare()">运行审查</AppButton>
       <AppTooltip text="打开审查中心" side="bottom" :side-offset="3">
         <AppButton icon size="xs" variant="ghost" aria-label="打开审查中心" @click="navigation.showSidebar('review')">
           <span class="i-mingcute-list-check-line" />
@@ -94,7 +93,16 @@ async function locate(index: number) {
             取消
           </AppButton>
         </template>
-        <AppButton v-else size="xs" variant="ghost" @click="reviews.prepare(reviewer.id)">运行</AppButton>
+        <AppButton
+          v-else
+          size="xs"
+          variant="ghost"
+          class="review-lane-run"
+          :aria-label="`只运行${reviewer.label}`"
+          @click="reviews.prepare(reviewer.id)"
+        >
+          运行
+        </AppButton>
       </div>
       <p v-if="!reviews.reviewers.length" class="review-empty">没有已启用的审查专员，可在设置「专员与内容」里启用。</p>
     </AppPanelSection>
@@ -231,30 +239,33 @@ async function locate(index: number) {
       </AppPanelSection>
     </template>
 
-    <template v-if="job" #footer>
-      <AppButton v-if="job.runId" size="xs" variant="ghost" @click="runs.open(job.runId)">查看运行</AppButton>
-      <AppButton
-        v-if="reviews.issueType !== 'all' && reviews.visibleIssues.length"
-        size="xs"
-        variant="ghost"
-        @click="
-          reviews.resolve(
-            reviews.visibleIssues.map(value => value.index),
-            'ignored'
-          )
-        "
-      >
-        忽略此类问题
-      </AppButton>
-      <AppButton size="xs" @click="reviews.prepare(job.personaId)">重新审查正文</AppButton>
-      <AppButton
-        size="xs"
-        variant="primary"
-        :disabled="!selectedIssues.length"
-        @click="writing.prepareRewrite(job.id, [...selectedIssues])"
-      >
-        修订所选 ({{ selectedIssues.length }})
-      </AppButton>
+    <template #footer>
+      <template v-if="job">
+        <AppButton v-if="job.runId" size="xs" variant="ghost" @click="runs.open(job.runId)">查看运行</AppButton>
+        <AppButton
+          v-if="reviews.issueType !== 'all' && reviews.visibleIssues.length"
+          size="xs"
+          variant="ghost"
+          @click="
+            reviews.resolve(
+              reviews.visibleIssues.map(value => value.index),
+              'ignored'
+            )
+          "
+        >
+          忽略此类问题
+        </AppButton>
+        <AppButton size="xs" @click="reviews.prepare(job.personaId)">重新审查正文</AppButton>
+        <AppButton
+          size="xs"
+          variant="primary"
+          :disabled="!selectedIssues.length"
+          @click="writing.prepareRewrite(job.id, [...selectedIssues])"
+        >
+          修订所选 ({{ selectedIssues.length }})
+        </AppButton>
+      </template>
+      <AppButton v-else size="sm" variant="primary" @click="reviews.prepare()">运行审查</AppButton>
     </template>
   </AppPanel>
   <ReviewConfirmation />
@@ -262,6 +273,15 @@ async function locate(index: number) {
 <style scoped lang="scss">
 .review-lane {
   @apply flex h-8 items-center gap-2 pl-5 pr-2;
+}
+// 单个专员的「运行」是次级入口：指针进到该行或键盘聚焦时才出现，主入口在底栏。
+.review-lane-run {
+  @apply opacity-0;
+  transition: opacity var(--motion-duration) ease-out;
+}
+.review-lane:hover .review-lane-run,
+.review-lane-run:focus-visible {
+  @apply opacity-100;
 }
 .review-lane-icon {
   color: var(--muted-foreground);

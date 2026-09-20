@@ -87,13 +87,6 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <AppPanel class="workspace-search" title="搜索" aria-label="作品全文搜索">
-    <template #actions>
-      <AppTooltip text="重新搜索" side="bottom" :side-offset="3">
-        <AppButton icon size="xs" variant="ghost" aria-label="重新搜索" :disabled="busy || !query" @click="search">
-          <span class="i-mingcute-refresh-3-line" />
-        </AppButton>
-      </AppTooltip>
-    </template>
     <template #toolbar>
       <form class="app-panel-toolbar-full search-form" @submit.prevent="search">
         <AppInput v-model="query" aria-label="搜索作品文本" placeholder="搜索作品文本" :maxlength="200" autofocus>

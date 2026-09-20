@@ -7,7 +7,6 @@ import { AppListItem } from '@/components/AppListItem';
 import { AppNotice } from '@/components/AppNotice';
 import { AppPanel, AppPanelSection } from '@/components/AppPanel';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
-import { AppTooltip } from '@/components/AppTooltip';
 
 import { useReviewStore } from '../store';
 const reviews = useReviewStore();
@@ -59,25 +58,18 @@ onMounted(() => {
 </script>
 <template>
   <AppPanel class="review-center" title="审查中心" :count="jobs.length">
-    <template #actions>
-      <AppTooltip text="刷新审查" side="bottom" :side-offset="3">
-        <AppButton icon size="xs" variant="ghost" aria-label="刷新审查" @click="reviews.refresh">
-          <span class="i-mingcute-refresh-3-line" />
-        </AppButton>
-      </AppTooltip>
-    </template>
     <template #toolbar>
       <AppSelect v-model="chapter" aria-label="审查章节" class="app-panel-toolbar-full">
         <AppSelectItem value="__all">全部章节</AppSelectItem>
         <AppSelectItem v-for="path in chapters" :key="path" :value="path">{{ path }}</AppSelectItem>
       </AppSelect>
-      <AppSelect v-model="reviewer" aria-label="审查角色">
+      <AppSelect v-model="reviewer" aria-label="审查角色" class="review-center-narrow">
         <AppSelectItem value="__all">全部审查</AppSelectItem>
         <AppSelectItem v-for="item in reviews.reviewerOptions" :key="item.id" :value="item.id">{{
           item.label
         }}</AppSelectItem>
       </AppSelect>
-      <AppSelect v-model="status" aria-label="审查运行状态">
+      <AppSelect v-model="status" aria-label="审查运行状态" class="review-center-narrow">
         <AppSelectItem value="__all">全部运行状态</AppSelectItem>
         <AppSelectItem v-for="(label, key) in labels" :key="key" :value="key">{{ label }}</AppSelectItem>
       </AppSelect>
@@ -115,6 +107,10 @@ onMounted(() => {
   </AppPanel>
 </template>
 <style scoped lang="scss">
+// 角色与状态两个下拉并排占一行：侧栏最窄 15% 时也够放两个 6rem 的触发器。
+.review-center :deep(.app-panel-toolbar) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
+}
 // 分节头已写明章节，行内标题只留给读屏与测试定位，视觉上以审查角色开头。
 .review-job :deep(.app-list-item-title) {
   @apply sr-only;

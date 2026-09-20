@@ -8,7 +8,6 @@ import { AppEmptyState } from '@/components/AppEmptyState';
 import { AppListItem } from '@/components/AppListItem';
 import { AppNotice } from '@/components/AppNotice';
 import { AppPanel } from '@/components/AppPanel';
-import { AppTooltip } from '@/components/AppTooltip';
 import { useEditorStore } from '@/features/editor';
 
 import { useWritingStore } from '../store';
@@ -41,7 +40,9 @@ const pending = computed(
   () => writing.candidates.filter(item => ['ready', 'partially-accepted'].includes(item.status)).length
 );
 const subtitle = computed(() =>
-  writing.candidates.length ? `${writing.candidates.length} 份 · ${pending.value} 待处理` : '当前作品还没有候选稿'
+  writing.candidates.length
+    ? `${writing.candidates.length} 份 · ${pending.value} 待处理`
+    : (editor.activeTab?.path ?? '未打开正文')
 );
 function timeLabel(value: string) {
   return new Date(value).toLocaleString(undefined, {
@@ -57,14 +58,6 @@ onMounted(() => {
 </script>
 <template>
   <AppPanel class="candidate-panel" title="候选稿" title-hidden :subtitle="subtitle">
-    <template #actions>
-      <AppTooltip text="刷新候选" side="bottom" :side-offset="3">
-        <AppButton icon size="xs" variant="ghost" aria-label="刷新候选" @click="writing.refresh">
-          <span class="i-mingcute-refresh-3-line" />
-        </AppButton>
-      </AppTooltip>
-    </template>
-
     <AppNotice v-if="writing.error" tone="error">{{ writing.error }}</AppNotice>
     <AppNotice v-for="message in writing.diagnostics" :key="message" tone="error">{{ message }}</AppNotice>
     <div v-for="id in writing.running" :key="id" class="candidate-running" role="status">

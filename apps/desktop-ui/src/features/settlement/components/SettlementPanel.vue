@@ -8,12 +8,14 @@ import { AppNotice } from '@/components/AppNotice';
 import { AppPanel } from '@/components/AppPanel';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useEditorStore } from '@/features/editor';
 import { useWorkspaceStore } from '@/features/workspace';
 
 import { useSettlementStore } from '../store';
 
 const settlement = useSettlementStore();
 const workspace = useWorkspaceStore();
+const editor = useEditorStore();
 const filter = ref('pending');
 const labels = { generating: '结算中', ready: '待确认事实', completed: '已结算', failed: '失败', cancelled: '已取消' };
 const icons = {
@@ -30,22 +32,13 @@ const pendingFacts = computed(() => visible.value.reduce((sum, batch) => sum + b
 const subtitle = computed(() =>
   visible.value.length
     ? `${visible.value.length} 批 · ${pendingFacts.value} 项待确认`
-    : filter.value === 'pending'
-      ? '没有待处理结算'
-      : '没有结算记录'
+    : (editor.activeTab?.path ?? '未打开正文')
 );
 onMounted(settlement.refresh);
 watch(() => workspace.rootPath, settlement.refresh);
 </script>
 <template>
   <AppPanel class="settlement-panel" title="章节结算" title-hidden :subtitle="subtitle">
-    <template #actions>
-      <AppTooltip text="刷新结算" side="bottom" :side-offset="3">
-        <AppButton icon variant="ghost" size="xs" aria-label="刷新结算" @click="settlement.refresh">
-          <span class="i-mingcute-refresh-2-line" />
-        </AppButton>
-      </AppTooltip>
-    </template>
     <template #toolbar>
       <AppSelect v-model="filter" aria-label="结算状态筛选" class="app-panel-toolbar-full">
         <AppSelectItem value="pending">待处理</AppSelectItem>
