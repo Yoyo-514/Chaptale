@@ -131,11 +131,15 @@ test('设置按实际访问加载，重开保留窗口位置和创作草稿', as
 
   const panel = page.locator('.settings-panel');
   const initial = (await panel.boundingBox())!;
+  // 视口窄时（CI runner 的桌面只有 1024x768）面板初始就贴住右边界 1024-16-920=88，
+  // 向右拖会被视口夹取完全挡住，因此按右侧剩余空间选拖动方向，只断言确实移动了。
+  const viewportWidth = await page.evaluate(() => window.innerWidth);
+  const stepX = viewportWidth - (initial.x + initial.width) >= 32 ? 24 : -24;
   await page.mouse.move(initial.x + 200, initial.y + 20);
   await page.mouse.down();
-  await page.mouse.move(initial.x + 224, initial.y + 36, { steps: 5 });
+  await page.mouse.move(initial.x + 200 + stepX, initial.y + 36, { steps: 5 });
   await page.mouse.up();
-  await expect.poll(async () => (await panel.boundingBox())!.x).toBeGreaterThan(initial.x + 10);
+  await expect.poll(async () => Math.abs((await panel.boundingBox())!.x - initial.x)).toBeGreaterThan(10);
   const moved = (await panel.boundingBox())!;
   await page.getByRole('button', { name: '关闭设置', exact: true }).click();
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
