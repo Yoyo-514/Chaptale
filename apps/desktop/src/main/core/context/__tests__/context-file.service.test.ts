@@ -176,7 +176,7 @@ describe('ContextFileService', () => {
     const result = await new ContextFileService(createFakePlatform(), parser).resolve([filePath]);
 
     expect(result.promptPrefix).toContain('reason="document-no-text"');
-    expect(result.promptPrefix).toContain('永久禁用 OCR');
+    expect(result.promptPrefix).toContain('应用不使用 OCR');
   });
 
   it('区分文本层损坏的文档与扫描件', async () => {
