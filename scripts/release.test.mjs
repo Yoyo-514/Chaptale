@@ -7,6 +7,8 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { releaseArtifactNames } from './release-targets.mjs';
+
 const root = fileURLToPath(new URL('../', import.meta.url));
 const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const run = (script, args = [], env = {}) =>
@@ -27,16 +29,7 @@ test('拒绝缺失平台的安装包，齐全时生成可复算的校验和', as
   const directory = await mkdtemp(path.join(os.tmpdir(), 'chaptale-release-'));
   try {
     assert.notEqual(run('release-checksums.mjs', [directory]).status, 0);
-    const targets = [
-      'win-x64.exe',
-      'linux-x64.AppImage',
-      'linux-x64.deb',
-      'mac-x64.dmg',
-      'mac-x64.zip',
-      'mac-arm64.dmg',
-      'mac-arm64.zip'
-    ];
-    const files = targets.map(target => `Chaptale-${version}-${target}`);
+    const files = releaseArtifactNames(version);
     for (const [index, file] of files.entries()) {
       await writeFile(path.join(directory, file), `installer fixture ${index}\n`);
       if (index < files.length - 1) assert.notEqual(run('release-checksums.mjs', [directory]).status, 0);
