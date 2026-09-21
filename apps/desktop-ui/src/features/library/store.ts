@@ -98,12 +98,14 @@ export const useLibraryStore = defineStore('library', () => {
     if (scenePath.value && !excluded.value.includes(sourcePath)) excluded.value.push(sourcePath);
     selections.value = selections.value.filter(selection => selection.sourcePath !== sourcePath);
   }
+  function selectionKey() {
+    return JSON.stringify([selections.value, excluded.value]);
+  }
   async function rebuildScene() {
     const rootPath = workspace.rootPath;
     const scene = scenePath.value;
     if (!rootPath || !scene) return;
     const token = ++sceneSequence;
-    const selectionKey = () => JSON.stringify([selections.value, excluded.value]);
     const requestedSelection = selectionKey();
     try {
       const result = await getDesktopApi().library.sceneReferences({
