@@ -16,14 +16,14 @@ describe('deriveSessionSummary', () => {
       cwd: '/workspace/story',
       createdAt: '2026-01-01T00:00:00.000Z',
       name: '雨夜开场',
-      // 自然 leaf = 最后一条非 branch entry（s1，与 store 内存语义一致）。
+      // 自然 leaf = 最后一条非 branch entry
       leafId: 's1',
       messageCount: 5,
       lastMessagePreview: '继续',
       totalTokens: 400,
       path: '/store/linear.jsonl'
     });
-    // updatedAt 取最后 entry 时间（s1）。
+    // updatedAt 取最后 entry 时间
     expect(summary.updatedAt).toBe('2026-01-01T00:00:08.000Z');
   });
 
@@ -31,7 +31,7 @@ describe('deriveSessionSummary', () => {
     const file = await readSessionFile(path.join(goldenDir, 'branch.jsonl'));
     const summary = deriveSessionSummary(file, '/store/branch.jsonl');
 
-    // 自然分支路径 m1→m5→m6 上的 message 数。
+    // 自然分支路径上的 message 数。
     expect(summary.messageCount).toBe(3);
     expect(summary.lastMessagePreview).toBe('就这个');
   });

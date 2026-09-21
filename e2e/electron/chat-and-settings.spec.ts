@@ -1,5 +1,5 @@
-import { _electron as electron, expect, test } from '@playwright/test';
 import type { ElectronApplication, Page } from '@playwright/test';
+import { _electron as electron, expect, test } from '@playwright/test';
 import { appendFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -55,7 +55,7 @@ test.afterEach(async () => {
   expect(errors).toEqual([]);
 });
 
-test('M6 默认专员在异步加载和重启后始终显示名称', async () => {
+test('默认专员在异步加载和重启后始终显示名称', async () => {
   const selector = () => page.getByRole('button', { name: '对话专员', exact: true });
   await expect(selector()).toContainText('创作伙伴');
   await selector().click();
@@ -67,7 +67,7 @@ test('M6 默认专员在异步加载和重启后始终显示名称', async () =>
   await expect(selector()).toContainText('创作伙伴');
 });
 
-test('M6 slash 设置命令打开真实面板，不发送 Agent 消息', async () => {
+test('slash 设置命令打开真实面板，不发送 Agent 消息', async () => {
   const input = page.getByPlaceholder('描述你的创作需求...');
   await input.fill('/set');
   await expect(page.getByRole('option', { name: /\/settings/ })).toBeVisible();
@@ -158,7 +158,7 @@ test('设置按实际访问加载，重开保留窗口位置和创作草稿', as
   await expect(draft).toHaveValue('关闭设置后继续推敲的段落。');
 });
 
-test('M6 Prompt 设置经真实文件保存、重载并恢复内置正文', async () => {
+test('Prompt 设置经真实文件保存、重载并恢复内置正文', async () => {
   const defaults = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.promptSettings.getState());
   expect(path.resolve(defaults.systemPromptPath).startsWith(path.resolve(home) + path.sep)).toBe(true);
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
@@ -182,7 +182,7 @@ test('M6 Prompt 设置经真实文件保存、重载并恢复内置正文', asyn
   await expect.poll(() => readFile(defaults.systemPromptPath, 'utf8')).toBe(defaults.defaultSystemPrompt);
 });
 
-test('M6 联网开关落盘并在重载和设置中保持一致', async () => {
+test('联网开关落盘并在重载和设置中保持一致', async () => {
   const toggle = page.getByRole('button', { name: '关闭联网搜索', exact: true });
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   await toggle.click();
@@ -205,7 +205,7 @@ test('M6 联网开关落盘并在重载和设置中保持一致', async () => {
   await expect(page.getByRole('heading', { name: '联网与内容提取', exact: true })).toBeVisible();
 });
 
-test('M6 无模型回复明确失败，已交付输入仍可回放和编辑', async () => {
+test('无模型回复明确失败，已交付输入仍可回放和编辑', async () => {
   const input = page.getByPlaceholder('描述你的创作需求...');
   await input.fill('请保留这份未发送草稿。');
   await page.locator('.chat-send-button').click();
@@ -222,7 +222,7 @@ test('M6 无模型回复明确失败，已交付输入仍可回放和编辑', as
   await page.getByRole('button', { name: '取消', exact: true }).click();
 });
 
-test('M6 已有消息的会话切换专员前先确认，取消不换会话，确认才新建', async () => {
+test('已有消息的会话切换专员前先确认，取消不换会话，确认才新建', async () => {
   const selector = () => page.getByRole('button', { name: '对话专员', exact: true });
   const sessionCount = () =>
     page.evaluate(async () => (await (window as DesktopWindow).chaptaleDesktop.session.list()).length);
@@ -250,7 +250,7 @@ test('M6 已有消息的会话切换专员前先确认，取消不换会话，�
   await expect(selector()).toContainText('故事策划');
 });
 
-test('M6 会话目录写入失败会退还未交付草稿，且不残留虚假消息', async () => {
+test('会话目录写入失败会退还未交付草稿，且不残留虚假消息', async () => {
   const state = await page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.settings.getState());
   const directory = path.resolve(state.paths.effectiveSessionDir);
   expect(directory.startsWith(path.resolve(home) + path.sep)).toBe(true);
@@ -279,7 +279,7 @@ test('M6 会话目录写入失败会退还未交付草稿，且不残留虚假�
   await expect(page.locator('.assistant-streaming-indicator')).toHaveCount(0);
 });
 
-test('M6 通知中心已读后只自动展示新错误，不调用模型', async () => {
+test('通知中心已读后只自动展示新错误，不调用模型', async () => {
   const input = page.getByPlaceholder('描述你的创作需求...');
   await input.fill('/unknown-command-one');
   await page.locator('.chat-send-button').click();
@@ -297,7 +297,7 @@ test('M6 通知中心已读后只自动展示新错误，不调用模型', async
   await expect(page.locator('.notification-count')).toHaveText('1');
 });
 
-test('M6 落盘技能与图片经真实消息投影回放，原图可预览', async () => {
+test('落盘技能与图片经真实消息投影回放，原图可预览', async () => {
   const png = await app.evaluate(({ nativeImage }) =>
     nativeImage
       .createFromBitmap(Buffer.from([230, 50, 90, 255, 50, 190, 170, 255, 250, 190, 60, 255, 100, 90, 180, 255]), {

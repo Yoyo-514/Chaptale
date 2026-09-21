@@ -1,5 +1,5 @@
-import { _electron as electron, expect, test } from '@playwright/test';
 import type { ElectronApplication, Page } from '@playwright/test';
+import { _electron as electron, expect, test } from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
@@ -151,7 +151,7 @@ async function openWorkspaceView(label: '资料库' | '故事时间线' | '角�
   await expect(tab).toHaveAttribute('aria-selected', 'true');
 }
 
-test('M6 专员表单落盘、切换创建新会话，停用后不回退身份', async () => {
+test('专员表单落盘、切换创建新会话，停用后不回退身份', async () => {
   await openContentSettings();
   await page.getByRole('button', { name: '新建专员', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '新建专员', exact: true });
@@ -195,7 +195,7 @@ test('M6 专员表单落盘、切换创建新会话，停用后不回退身份',
   expect(failure).toContain('对话专员不可用');
 });
 
-test('M6 内容包预览降权，逐项导入后停用专员，真实文件冲突保留', async () => {
+test('内容包预览降权，逐项导入后停用专员，真实文件冲突保留', async () => {
   const rootPath = workspace;
   const exported = await page.evaluate(async root => {
     const api = (window as DesktopWindow).chaptaleDesktop;
@@ -249,7 +249,7 @@ test('M6 内容包预览降权，逐项导入后停用专员，真实文件冲�
     .click();
 });
 
-test('M6 自定义审查留档可定位、处理，并在三主题内容管理中可读', async () => {
+test('自定义审查留档可定位、处理，并在三主题内容管理中可读', async () => {
   const result = {
     summary: '一处视角问题',
     issues: [
@@ -313,7 +313,7 @@ test('M6 自定义审查留档可定位、处理，并在三主题内容管理�
   }
 });
 
-test('M6 全文搜索区分范围并定位正文，记忆原文可独立浏览', async () => {
+test('全文搜索区分范围并定位正文，记忆原文可独立浏览', async () => {
   await mkdir(path.join(workspace, '.chaptale/memory/notes'), { recursive: true });
   await writeFile(
     path.join(workspace, '.chaptale/memory/notes/观察.md'),
@@ -337,7 +337,7 @@ test('M6 全文搜索区分范围并定位正文，记忆原文可独立浏览',
   await expect(memory).toBeHidden();
 });
 
-test('M6 菜单作用于当前输入焦点，新会话和运行入口可用', async () => {
+test('菜单作用于当前输入焦点，新会话和运行入口可用', async () => {
   await openChapter();
   const prompt = page.locator('.chat-main textarea').first();
   await prompt.click();
@@ -362,7 +362,7 @@ test('M6 菜单作用于当前输入焦点，新会话和运行入口可用', as
   await expect(page.getByRole('heading', { name: '配置文件', exact: true })).toBeVisible();
 });
 
-test('M6 故事时间线按情节排序，编辑事件与新建资产保留文件事实', async () => {
+test('故事时间线按情节排序，编辑事件与新建资产保留文件事实', async () => {
   await createStoryAssets();
   await openChapter();
   await page.getByRole('textbox', { name: '文档正文', exact: true }).click();
@@ -418,7 +418,7 @@ test('M6 故事时间线按情节排序，编辑事件与新建资产保留文�
     .toContain('切换资产视图仍保留的草稿。');
 });
 
-test('M6 角色关系可编辑新增移除，拖动布局重开恢复', async () => {
+test('角色关系可编辑新增移除，拖动布局重开恢复', async () => {
   await createStoryAssets();
   await openWorkspaceView('角色关系');
   const graph = page.getByRole('region', { name: '作品角色关系', exact: true });
@@ -467,7 +467,7 @@ test('M6 角色关系可编辑新增移除，拖动布局重开恢复', async ()
   expect(await readFile(path.join(workspace, '角色/林晚.md'), 'utf8')).toBe(original);
 });
 
-test('M6 故事资产外部修改保护和三主题画布可读', async () => {
+test('故事资产外部修改保护和三主题画布可读', async () => {
   await createStoryAssets();
   await mkdir(visualDir, { recursive: true });
   for (const theme of ['light', 'warm', 'dark'] as const) {
@@ -511,7 +511,7 @@ test('M6 故事资产外部修改保护和三主题画布可读', async () => {
   await dialog.getByRole('button', { name: '取消', exact: true }).click();
 });
 
-test('M6 新建作品可直接编辑，同名目录不覆盖', async () => {
+test('新建作品可直接编辑，同名目录不覆盖', async () => {
   await page.getByRole('menuitem', { name: '文件', exact: true }).click();
   await page.getByRole('menuitem', { name: '新建作品…', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '新建作品', exact: true });
@@ -537,7 +537,7 @@ test('M6 新建作品可直接编辑，同名目录不覆盖', async () => {
   await dialog.getByRole('button', { name: '取消', exact: true }).click();
 });
 
-test('M6 面板隐藏保留 Agent 草稿，重开后拖动方向一致', async () => {
+test('面板隐藏保留 Agent 草稿，重开后拖动方向一致', async () => {
   const input = page.getByPlaceholder('描述你的创作需求...');
   await input.fill('尚未发送的创作草稿');
   await page.getByRole('button', { name: '切换 Agent 面板', exact: true }).click();
@@ -568,7 +568,7 @@ test('M6 面板隐藏保留 Agent 草稿，重开后拖动方向一致', async (
   await expect(input).toHaveValue('尚未发送的创作草稿');
 });
 
-test('M6 新作品创建后取消切换保留原稿，再次打开仅确认一次', async () => {
+test('新作品创建后取消切换保留原稿，再次打开仅确认一次', async () => {
   await openChapter();
   await page.getByRole('textbox', { name: '文档正文', exact: true }).click();
   await page.keyboard.press('Control+End');
@@ -592,7 +592,7 @@ test('M6 新作品创建后取消切换保留原稿，再次打开仅确认一�
   expect(JSON.parse(await readFile(path.join(root, 'chaptale.json'), 'utf8')).id).toBe(first.id);
 });
 
-test('M6 右键菜单联动文件、标签、选区与 Agent，不自动发送', async () => {
+test('右键菜单联动文件、标签、选区与 Agent，不自动发送', async () => {
   await openChapter();
   const content = page.getByRole('textbox', { name: '文档正文', exact: true });
   await content.click();
@@ -626,7 +626,7 @@ test('M6 右键菜单联动文件、标签、选区与 Agent，不自动发送',
   await expect(page.locator('.status-bar')).toContainText('本地已保存');
 });
 
-test('M6 三主题文本选择和 skill 对比度、菜单文字列对齐', async () => {
+test('三主题文本选择和 skill 对比度、菜单文字列对齐', async () => {
   const session = await page.evaluate(() =>
     (window as DesktopWindow).chaptaleDesktop.session.create({ name: '选区视觉检查' })
   );
