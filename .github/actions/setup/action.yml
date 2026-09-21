@@ -3,6 +3,16 @@ description: Install the workspace with the pinned pnpm version and Node.js LTS.
 runs:
   using: composite
   steps:
+    # Windows runner 的默认 TEMP 是 8.3 短名（C:\Users\RUNNER~1\...）。libuv 会把传给
+    # fs.watch 的路径原样保存，而系统回报的是长名，前缀比对失败即触发 src\win\fs-event.c:72
+    # 断言并 abort 整个进程（libuv#5010，修复尚未进入 libuv 1.52.1 / node#63638），
+    # vitest 的 worker 会因此以 0xC0000409 退出。指向长路径即可避开，不影响测试语义。
+    - name: Use a long-form temp directory on Windows
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        echo "TEMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
+        echo "TMP=$RUNNER_TEMP" >> "$GITHUB_ENV"
     # 先安装 Node：pnpm 11 不提供 Intel macOS 的独立可执行文件。
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
