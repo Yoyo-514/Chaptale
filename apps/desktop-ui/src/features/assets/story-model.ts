@@ -74,9 +74,10 @@ export function characterGraph(assets: readonly AssetRecord[], query = '', inclu
   };
 }
 export type CharacterConnection = ReturnType<typeof characterGraph>['connections'][number];
+export type CanvasPosition = { x: number; y: number };
 export type CanvasLayout = {
   version: 1;
-  positions: Record<string, { x: number; y: number }>;
+  positions: Record<string, CanvasPosition>;
   viewport?: { x: number; y: number; zoom: number };
 };
 const coordinate = (value: unknown): value is number =>
@@ -118,4 +119,33 @@ export function readCanvasLayout(raw: string | null): CanvasLayout {
 }
 export function characterLayoutKey(asset: AssetRecord, assets: readonly AssetRecord[]) {
   return asset.id && assets.filter(other => other.id === asset.id).length === 1 ? asset.id : asset.sourcePath;
+}
+/** 网格默认槽位：只给从未摆放过的新角色用。 */
+export function characterGridPosition(index: number, total: number): CanvasPosition {
+  const columns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(total))));
+  return { x: (index % columns) * 270 + 40, y: Math.floor(index / columns) * 170 + 40 };
+}
+/**
+ * 画布落点：画布现状 → 本机布局 → 网格默认。
+ * 保存文档后应用会重读资产快照（story-store.persist → library.load），届时的节点重建必须沿用现处位置，
+ * 否则正在进行的拖拽会被打回按索引推算的默认槽位（表现为整列 270px 跳动）。
+ */
+export function characterPosition(
+  asset: AssetRecord,
+  index: number,
+  placement: {
+    /** 当前可见角色数量，决定网格列数。 */
+    total: number;
+    /** 参与布局键判定的角色全集：筛选不该改变已保存位置的归属。 */
+    characters: readonly AssetRecord[];
+    /** 画布上现处的位置，键为角色路径。 */
+    placed: ReadonlyMap<string, CanvasPosition>;
+    layout: CanvasLayout;
+  }
+): CanvasPosition {
+  return (
+    placement.placed.get(asset.sourcePath) ??
+    placement.layout.positions[characterLayoutKey(asset, placement.characters)] ??
+    characterGridPosition(index, placement.total)
+  );
 }

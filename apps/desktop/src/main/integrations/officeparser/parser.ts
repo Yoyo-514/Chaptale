@@ -1,7 +1,13 @@
 import path from 'node:path';
-import { parseOffice, type OfficeParserAST, type OfficeParserConfig } from 'officeparser';
+import {
+  OfficeWarningType,
+  parseOffice,
+  type OfficeIssue,
+  type OfficeParserAST,
+  type OfficeParserConfig
+} from 'officeparser';
 
-import type { DocumentParserPort, ParsedDocument } from '../../core/context/document-parser-port';
+import type { DocumentNoTextReason, DocumentParserPort, ParsedDocument } from '../../core/context/document-parser-port';
 
 const SUPPORTED_EXTS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.rtf', '.odt', '.odp', '.ods']);
 const PARSE_TIMEOUT_MS = 30_000;
@@ -11,6 +17,8 @@ const PARSE_CONFIG = {
   includeRawContent: false,
   ocr: false,
   ignoreSlideMasters: true,
+  // 只取文本，颜色永不参与渲染；逐页提取颜色会带来约 1.6x 的额外解析耗时。
+  pdfParserConfig: { extractTextColor: false },
   decompressionLimits: {
     maxUncompressedBytes: 128 * 1024 * 1024,
     maxZipEntries: 5_000,
@@ -51,7 +59,8 @@ export class OfficeDocumentParser implements DocumentParserPort {
 
     return {
       text,
-      warnings: ast.warnings.map(warning => ({ code: String(warning.code), message: warning.message }))
+      warnings: ast.warnings.map(warning => ({ code: String(warning.code), message: warning.message })),
+      noTextReason: resolveNoTextReason(text, ast.warnings)
     };
   }
 }
@@ -64,4 +73,17 @@ async function renderText(ast: OfficeParserAST): Promise<string> {
   }
 
   return result.value;
+}
+
+/** 无文本归因的判定优先级：文本层损坏比「没有文本层」更具体，优先报告。 */
+const NO_TEXT_REASONS: ReadonlyArray<readonly [OfficeWarningType, DocumentNoTextReason]> = [
+  [OfficeWarningType.PDF_TEXT_ENCODING_SUSPECT, 'unreadable'],
+  [OfficeWarningType.PDF_NO_TEXT_EXTRACTED, 'scanned']
+];
+
+function resolveNoTextReason(text: string, warnings: OfficeIssue[]): DocumentNoTextReason | undefined {
+  if (/\S/.test(text)) return undefined;
+
+  const codes = new Set(warnings.map(warning => warning.code));
+  return NO_TEXT_REASONS.find(([code]) => codes.has(code))?.[1];
 }

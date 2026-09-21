@@ -4,7 +4,7 @@ import type { AssetRecord, AssetTemplate } from '@chaptale/shared';
 import { parseDocumentFrontmatter } from '@chaptale/shared/document-frontmatter';
 
 import { patchRelationship, patchStoryEvent } from '../story-files';
-import { characterGraph, characterLayoutKey, readCanvasLayout, storyEvents } from '../story-model';
+import { characterGraph, characterLayoutKey, characterPosition, readCanvasLayout, storyEvents } from '../story-model';
 
 const asset = (name: string, fields: Partial<AssetRecord> = {}): AssetRecord => ({
   sourcePath: `${name}.md`,
@@ -117,6 +117,19 @@ describe('故事资产投影', () => {
       readCanvasLayout(JSON.stringify({ version: 1, positions: {}, viewport: { x: 1, y: 2, zoom: 0.8 } })).viewport
     ).toEqual({ x: 1, y: 2, zoom: 0.8 });
     expect(readCanvasLayout(' '.repeat(2_000_001))).toEqual({ version: 1, positions: {} });
+  });
+  it('重建画布节点时沿用现处位置，其次本机布局，新角色才用网格默认槽位', () => {
+    const lin = asset('林晚', { id: 'linwan' });
+    const gu = asset('顾沉', { id: 'guchen' });
+    const fresh = asset('新角色', { id: 'newbie' });
+    const layout = readCanvasLayout(JSON.stringify({ version: 1, positions: { guchen: { x: 40, y: 40 } } }));
+    const placed = new Map([['林晚.md', { x: 353.78, y: 72.43 }]]);
+    const placement = { characters: [lin, gu, fresh], placed, layout };
+    // 拖拽尚未落盘时，后台刷新也必须按画布现状保留。
+    expect(characterPosition(lin, 0, { ...placement, total: 3 })).toEqual({ x: 353.78, y: 72.43 });
+    expect(characterPosition(gu, 1, { ...placement, total: 3 })).toEqual({ x: 40, y: 40 });
+    // 三个角色两列：索引 2 落在第二列第二行。
+    expect(characterPosition(fresh, 2, { ...placement, total: 3 })).toEqual({ x: 40, y: 210 });
   });
 });
 describe('故事文件写入', () => {

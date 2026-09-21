@@ -18,7 +18,7 @@ import {
   MAX_SEARCH_BYTES,
   MAX_SEARCH_TOKENS
 } from './constants';
-import type { DocumentParserPort } from './document-parser-port';
+import type { DocumentNoTextReason, DocumentParserPort } from './document-parser-port';
 import {
   buildDocInput,
   buildDocNoText,
@@ -213,15 +213,18 @@ export class ContextFileService {
     }
 
     let text: string;
+    let noTextReason: DocumentNoTextReason | undefined;
     try {
-      text = (await this.parser.parse(filePath, signal)).text.trim();
+      const parsed = await this.parser.parse(filePath, signal);
+      text = parsed.text.trim();
+      noTextReason = parsed.noTextReason;
     } catch {
       signal?.throwIfAborted();
       return noUsage(buildDocParseError(filePath, stats, mimeType));
     }
 
     signal?.throwIfAborted();
-    if (!text) return noUsage(buildDocNoText(filePath, stats, mimeType));
+    if (!text) return noUsage(buildDocNoText(filePath, stats, mimeType, noTextReason));
 
     const bytes = Buffer.byteLength(text, 'utf8');
     if (fitsDirectInput(text, bytes, directLeft)) {

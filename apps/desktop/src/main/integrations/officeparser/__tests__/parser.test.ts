@@ -4,9 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { OfficeDocumentParser } from '../parser';
 
-function createAst(text = '解析后的正文'): OfficeParserAST {
+type AstWarning = { code: string; message: string };
+
+const DEFAULT_WARNINGS: AstWarning[] = [{ code: 'PAGE_LOAD_FAILED', message: '第二页读取失败' }];
+
+function createAst(text = '解析后的正文', warnings: AstWarning[] = DEFAULT_WARNINGS): OfficeParserAST {
   return {
-    warnings: [{ type: 'warning', code: 'PAGE_LOAD_FAILED', message: '第二页读取失败' }],
+    warnings: warnings.map(warning => ({ type: 'warning', ...warning })),
     to: vi.fn(async () => ({ value: text }))
   } as unknown as OfficeParserAST;
 }
@@ -44,7 +48,7 @@ describe('OfficeDocumentParser', () => {
     await expect(parser.parse(path.join(import.meta.dirname, 'fixtures', 'corrupt.docx'))).rejects.toThrow();
   });
 
-  it('永久关闭 OCR、附件与原始内容并施加资源限制', async () => {
+  it('永久关闭 OCR、附件、原始内容与 PDF 颜色提取，并施加资源限制', async () => {
     const parseStub = vi.fn(async (_file: string | Buffer | ArrayBuffer | Uint8Array, _config?: OfficeParserConfig) =>
       createAst()
     );
@@ -61,6 +65,7 @@ describe('OfficeDocumentParser', () => {
       includeRawContent: false,
       ocr: false,
       ignoreSlideMasters: true,
+      pdfParserConfig: { extractTextColor: false },
       decompressionLimits: {
         maxUncompressedBytes: 128 * 1024 * 1024,
         maxZipEntries: 5_000,
@@ -69,6 +74,23 @@ describe('OfficeDocumentParser', () => {
     });
     expect(config.ocrConfig).toBeUndefined();
     expect(config.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it.each([
+    ['PDF_NO_TEXT_EXTRACTED', 'scanned'],
+    ['PDF_TEXT_ENCODING_SUSPECT', 'unreadable']
+  ])('把 %s 警告归类为无文本归因 %s', async (code, expected) => {
+    const parseStub = vi.fn(async () => createAst('   ', [{ code, message: '解析器警告' }]));
+    const parser = new OfficeDocumentParser({ parseOffice: parseStub as unknown as ParseOffice });
+
+    await expect(parser.parse('scan.pdf')).resolves.toMatchObject({ noTextReason: expected });
+  });
+
+  it('提取到可用文本时不给出无文本归因', async () => {
+    const parseStub = vi.fn(async () => createAst('正文', [{ code: 'PDF_TEXT_ENCODING_SUSPECT', message: '警告' }]));
+    const parser = new OfficeDocumentParser({ parseOffice: parseStub as unknown as ParseOffice });
+
+    expect((await parser.parse('draft.pdf')).noTextReason).toBeUndefined();
   });
 
   it('调用前已取消时不启动解析', async () => {

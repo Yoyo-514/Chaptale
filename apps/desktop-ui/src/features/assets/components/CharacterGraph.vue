@@ -30,9 +30,12 @@ import { useWorkspaceActions, useWorkspaceStore } from '@/features/workspace';
 
 import {
   characterGraph,
+  characterGridPosition,
   characterLayoutKey,
+  characterPosition,
   readCanvasLayout,
   type CanvasLayout,
+  type CanvasPosition,
   type CharacterConnection
 } from '../story-model';
 import { useStoryStore } from '../story-store';
@@ -59,6 +62,8 @@ try {
 const initialViewport = layout.viewport;
 const graph = computed(() => characterGraph(library.assets, query.value, archived.value));
 const nodes = shallowRef<Node<{ asset: AssetRecord; count: number }>[]>([]);
+/** 画布上现处的位置，键为角色路径：后台刷新重建节点时据此保住布局与进行中的拖拽。 */
+const placed = new Map<string, CanvasPosition>();
 function connectionHandles(source: string, target: string) {
   const from = nodes.value.find(node => node.id === source)?.position;
   const to = nodes.value.find(node => node.id === target)?.position;
@@ -102,17 +107,18 @@ const selectionConnections = computed(() =>
       connection.target?.sourcePath === selected.value
   )
 );
-function position(index: number) {
-  const columns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(graph.value.characters.length))));
-  return { x: (index % columns) * 270 + 40, y: Math.floor(index / columns) * 170 + 40 };
-}
 watch(
   () => graph.value.characters,
   characters => {
     nodes.value = characters.map((asset, index) => ({
       id: asset.sourcePath,
       type: 'character',
-      position: layout.positions[characterLayoutKey(asset, story.characters)] ?? position(index),
+      position: characterPosition(asset, index, {
+        total: characters.length,
+        characters: story.characters,
+        placed,
+        layout
+      }),
       data: {
         asset,
         count: graph.value.connections.filter(
@@ -136,7 +142,12 @@ function persistViewport() {
     layoutError.value = '本机画布布局保存失败，角色文件未受影响';
   }
 }
+/** 拖动过程中同步画布现状，好让中途到来的后台刷新沿用当前落点。 */
+function trackDraggedPositions(event: NodeDragEvent) {
+  for (const node of event.nodes.length ? event.nodes : [event.node]) placed.set(node.id, node.position);
+}
 function rememberPositions(event: NodeDragEvent) {
+  trackDraggedPositions(event);
   for (const node of event.nodes.length ? event.nodes : [event.node]) {
     const asset = graph.value.characters.find(value => value.sourcePath === node.id);
     if (asset)
@@ -146,7 +157,7 @@ function rememberPositions(event: NodeDragEvent) {
 }
 async function arrange() {
   nodes.value = nodes.value.map((node, index) => {
-    const next = position(index);
+    const next = characterGridPosition(index, graph.value.characters.length);
     layout.positions[characterLayoutKey(node.data!.asset, story.characters)] = next;
     return Object.assign({}, node, { position: next });
   });
@@ -214,6 +225,7 @@ function editEdge(id: string) {
         :nodes-focusable="true"
         :edges-focusable="true"
         @connect="connect"
+        @node-drag="trackDraggedPositions"
         @node-drag-stop="rememberPositions"
         @move-end="persistViewport"
         @node-click="selected = $event.node.id"

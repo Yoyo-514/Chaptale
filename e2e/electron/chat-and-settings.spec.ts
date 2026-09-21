@@ -272,7 +272,22 @@ test('会话目录写入失败会退还未交付草稿，且不残留虚假消�
       { timeout: 10_000 }
     )
     .toBe(true);
-  await writeFile(directory, 'session storage unavailable');
+  // 应用侧任何一次会话写盘都会把目录 mkdir 回来（core/sessions/store.ts 写文件前就建目录），
+  // 所以「先清目录再占位成文件」必须整体重试：文件一旦落地，mkdir 就再也变不回目录。
+  await expect
+    .poll(
+      async () => {
+        try {
+          await rm(directory, { recursive: true, force: true });
+          await writeFile(directory, 'session storage unavailable');
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 10_000 }
+    )
+    .toBe(true);
 
   const input = page.getByPlaceholder('描述你的创作需求...');
   await input.fill('这份未交付原稿必须保留。');

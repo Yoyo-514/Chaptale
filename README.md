@@ -91,7 +91,7 @@ Chaptale 仍处于早期阶段。上述本地编辑、资料管理、创作流�
 
 ## 本地开发
 
-需要 Node.js 22 或更新版本，以及根 `package.json` 指定的 pnpm 版本。
+需要 Node.js 24 或更新版本，以及根 `package.json` 指定的 pnpm 版本。
 
 ```sh
 pnpm install --frozen-lockfile

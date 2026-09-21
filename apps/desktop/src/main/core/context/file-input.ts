@@ -2,6 +2,8 @@ import path from 'node:path';
 
 import { escapeXmlAttribute, escapeXmlText, formatFileSize } from '@chaptale/shared';
 
+import type { DocumentNoTextReason } from './document-parser-port';
+
 export function buildTextInput(filePath: string, stats: { size: number }, text: string) {
   return `<file path="${escapeXmlAttribute(filePath)}" handling="file-input-text" size="${escapeXmlAttribute(formatFileSize(stats.size))}">
 <metadata>
@@ -49,14 +51,20 @@ export function buildDocParseError(filePath: string, stats: { size: number }, mi
   );
 }
 
-export function buildDocNoText(filePath: string, stats: { size: number }, mimeType: string) {
-  return buildSkippedDoc(
-    filePath,
-    stats,
-    mimeType,
-    'document-no-text',
-    '文档中没有可提取的原生文本；它可能是扫描件或文字位于图片中。应用永久禁用 OCR，未向模型提供文档正文。'
-  );
+/** 无文本时的提示文案；归因缺失（仅文本为空、无相关警告）时按最常见的扫描件说明。 */
+const NO_TEXT_MESSAGES: Record<DocumentNoTextReason, string> = {
+  scanned: '文档中没有可提取的原生文本；它可能是扫描件或文字位于图片中。应用不使用 OCR，未向模型提供文档正文。',
+  unreadable:
+    '文档的文字层无法可靠解码，解析器判定提取结果不可信，未向模型提供文档正文。这通常由 PDF 缺少字形映射导致，请重新导出该文档后重试。'
+};
+
+export function buildDocNoText(
+  filePath: string,
+  stats: { size: number },
+  mimeType: string,
+  noTextReason?: DocumentNoTextReason
+) {
+  return buildSkippedDoc(filePath, stats, mimeType, 'document-no-text', NO_TEXT_MESSAGES[noTextReason ?? 'scanned']);
 }
 
 export function buildDocTooLarge(filePath: string, stats: { size: number }, mimeType: string, maxBytes: number) {

@@ -179,6 +179,20 @@ describe('ContextFileService', () => {
     expect(result.promptPrefix).toContain('永久禁用 OCR');
   });
 
+  it('区分文本层损坏的文档与扫描件', async () => {
+    const filePath = path.join(tempDir, 'broken-layer.pdf');
+    await writeFile(filePath, Buffer.from('pdf'));
+    const parser = createFakeDocumentParser({
+      parse: vi.fn(async () => ({ text: '  ', warnings: [], noTextReason: 'unreadable' as const }))
+    });
+
+    const result = await new ContextFileService(createFakePlatform(), parser).resolve([filePath]);
+
+    expect(result.promptPrefix).toContain('reason="document-no-text"');
+    expect(result.promptPrefix).toContain('文字层无法可靠解码');
+    expect(result.promptPrefix).not.toContain('扫描件');
+  });
+
   it('keeps a document parse failure explicit without aborting other attachments', async () => {
     const brokenPath = path.join(tempDir, 'broken.docx');
     const validPath = path.join(tempDir, 'valid.txt');

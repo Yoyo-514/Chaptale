@@ -437,12 +437,23 @@ test('角色关系可编辑新增移除，拖动布局重开恢复', async () =>
   expect(original).toContain('林晚的原文。');
   await expect(graph.locator('.vue-flow__edge-text')).toHaveText('旧友');
   const node = graph.locator('[data-character-path="角色/林晚.md"]');
-  const before = (await node.boundingBox())!;
-  await page.mouse.move(before.x + before.width / 2, before.y + 20);
-  await page.mouse.down();
-  await page.mouse.move(before.x + before.width / 2 + 60, before.y + 65, { steps: 10 });
-  await page.mouse.up();
-  await expect.poll(async () => (await node.boundingBox())!.x).toBeGreaterThan(before.x + 35);
+  // 保存关系会触发应用侧重读资产快照（story-store.persist → library.load），节点可能正好在手势中途被重建，
+  // 位置随之被打回按索引推算的默认槽位。这次刷新必然会来、只是时机不定，所以把「拖拽 + 判定」整体重试。
+  await expect
+    .poll(
+      async () => {
+        const from = (await node.boundingBox())!;
+        // hover 顺带校验落点没被遮挡：将来真出现遮罩层会直接报 intercepts pointer events。
+        await node.hover({ position: { x: from.width / 2, y: 20 } });
+        await page.mouse.move(from.x + from.width / 2, from.y + 20);
+        await page.mouse.down();
+        await page.mouse.move(from.x + from.width / 2 + 60, from.y + 65, { steps: 10 });
+        await page.mouse.up();
+        return (await node.boundingBox())!.x > from.x + 35;
+      },
+      { timeout: 15_000, intervals: [500] }
+    )
+    .toBe(true);
   const moved = (await node.boundingBox())!;
   await page.reload();
   await openWorkspaceView('角色关系');
