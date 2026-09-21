@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { useEditorStore } from '@/features/editor';
 import { useWorkbenchStore, workspaceViews } from '@/features/workbench';
@@ -25,13 +25,40 @@ const documentTitle = computed(
       .join(' - ') || 'Chaptale'
 );
 
+/**
+ * 文档标题两侧的对称安全区取自左侧菜单区的实测宽度。
+ *
+ * 菜单区宽度不随窗口变化，但样式与字体就位后会变（挂载那一刻量到的不作数），
+ * 所以用 ResizeObserver 持续跟随；量不到时保持样式里的兜底值，
+ * 避免安全区失效后长标题压住菜单。
+ */
+const dragRegion = ref<HTMLElement | null>(null);
+const leading = ref<HTMLElement | null>(null);
+let leadingObserver: ResizeObserver | undefined;
+
+onMounted(() => {
+  const element = leading.value;
+  const region = dragRegion.value;
+  if (!element || !region) return;
+
+  // 取左菜单区的右边缘（相对标题栏左边缘，含它前面的内边距）向上取整：
+  // 它是标题真正越不过去的边界，向上取整保证高 DPI 下的亚像素误差也不会贴上去。
+  leadingObserver = new ResizeObserver(() => {
+    const right = Math.ceil(element.getBoundingClientRect().right - region.getBoundingClientRect().left);
+    if (right > 0) region.style.setProperty('--titlebar-side-clearance', `${right}px`);
+  });
+  leadingObserver.observe(element);
+});
+
+onBeforeUnmount(() => leadingObserver?.disconnect());
+
 const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowControls();
 </script>
 
 <template>
   <header class="titlebar">
-    <div class="titlebar-drag-region" @dblclick="toggleMaximize">
-      <div class="titlebar-leading" role="group" aria-label="Chaptale 应用菜单" @dblclick.stop>
+    <div ref="dragRegion" class="titlebar-drag-region" @dblclick="toggleMaximize">
+      <div ref="leading" class="titlebar-leading" role="group" aria-label="Chaptale 应用菜单" @dblclick.stop>
         <img class="titlebar-icon" :src="appIconUrl" alt="" aria-hidden="true" />
         <TitleBarMenu />
       </div>
@@ -71,6 +98,9 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
 }
 
 .titlebar-drag-region {
+  /* 标题两侧安全区的兜底宽度：约等于左侧「图标 + 菜单 + 内边距」；挂载后由实测值覆盖。 */
+  --titlebar-side-clearance: 22rem;
+
   @apply box-border flex h-full items-center pl-2;
 
   -webkit-app-region: drag;
@@ -92,8 +122,10 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
 }
 
 .titlebar-document-title {
-  @apply pointer-events-none min-w-0 flex-1 truncate px-3 text-center text-xs;
+  @apply pointer-events-none absolute top-1/2 left-1/2 w-max -translate-x-1/2 -translate-y-1/2 truncate px-3 text-center text-xs;
 
+  /* 以整条标题栏为基准居中；两侧各留一份与左侧菜单区等宽的安全区，长标题只截断、不压菜单。 */
+  max-width: calc(100% - 2 * var(--titlebar-side-clearance));
   color: var(--muted-foreground);
 }
 

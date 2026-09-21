@@ -150,3 +150,33 @@ test('第一步提示在三主题窄窗口可读', async () => {
     await page.screenshot({ path: path.join(visualDir, `${theme}-start-guide.png`) });
   }
 });
+
+test('超长作品名不把文档标题挤出标题栏正中', async () => {
+  const longTitle =
+    '关于我在雨夜的车站等了多年才见到隔壁天使大人并被告知其实我才是被转生过来的那一方这件小事展开的漫长告白';
+  await createWorkspace(longTitle);
+
+  const title = page.locator('.titlebar-document-title');
+  await expect(title).toContainText(longTitle);
+
+  for (const width of [1280, 960]) {
+    await app.evaluate(
+      ({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0]!.setBounds({ width: size, height: 860 }),
+      width
+    );
+    await expect.poll(() => page.evaluate(() => innerWidth)).toBeLessThanOrEqual(width);
+
+    const bar = (await page.locator('.titlebar').boundingBox())!;
+    const box = (await title.boundingBox())!;
+    const menu = (await page.getByRole('menuitem', { name: '帮助', exact: true }).boundingBox())!;
+
+    // 标题以整条标题栏为基准居中，而不是以「菜单区右边缘到窗口控制区左边缘」为基准居中。
+    expect(Math.abs(box.x + box.width / 2 - (bar.x + bar.width / 2))).toBeLessThanOrEqual(1);
+    // 菜单区比窗口控制区宽得多：超出可用宽度的标题只在菜单右侧截断，不会压住菜单。
+    expect(box.x).toBeGreaterThanOrEqual(menu.x + menu.width);
+    expect(await title.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  }
+
+  await mkdir(visualDir, { recursive: true });
+  await page.screenshot({ path: path.join(visualDir, 'titlebar-long-title.png') });
+});
