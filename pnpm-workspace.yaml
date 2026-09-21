@@ -44,6 +44,7 @@ catalog:
   '@unocss/reset': ^66.10.5
   '@vitejs/plugin-vue': ^6.0.9
   '@tanstack/vue-virtual': ^3.13.39
+  bumpp: ^12.3.0
   clsx: ^2.1.1
   cross-env: ^10.1.0
   electron: ^44.4.3

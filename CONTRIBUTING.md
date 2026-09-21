@@ -37,11 +37,12 @@ pnpm dist:desktop:linux
 
 ## 发布版本
 
-1. 更新根目录和 `apps/desktop/package.json` 的版本，保持一致。默认模型 User-Agent 会随桌面包版本更新。
-2. 完成检查并提交，然后由维护者推送对应版本标签，例如 `v0.1.0`。
-3. Release workflow 校验标签、运行 CI，构建四个平台/架构的安装包。
-4. 流程汇总安装包与 `SHA256SUMS.txt`，创建 GitHub Release **草稿**。
-5. 维护者下载安装包，检查签名、首次启动和已有作品打开，再完善说明并发布草稿。
+1. 完成检查并提交到 `main`，并确保工作树干净（`pnpm release` 会校验这一点）。
+2. 由维护者运行 `pnpm release` 选择版本号。`bumpp` 按 `bump.config.ts` 同步根目录与 `apps/desktop/package.json` 的版本，提交、创建附注标签 `v<version>` 并推送。默认模型 User-Agent 会随桌面包版本更新。
+3. 标签名必须严格等于 `v<version>`，且两处 `package.json` 版本一致；`bump.config.ts` 与 CI 的 `check-release.mjs` 共同保证。若需手工发布，等价操作是附注标签（`git tag -a`）后单独推送该标签——`git push --follow-tags` 只推送附注标签，轻量标签会被静默跳过。
+4. Release workflow 校验标签、运行 CI，构建四个平台/架构的安装包。
+5. 流程汇总安装包与 `SHA256SUMS.txt`，创建 GitHub Release **草稿**。
+6. 维护者下载安装包，检查签名、首次启动和已有作品打开，再完善说明并发布草稿。
 
 重跑流程只更新未发布草稿；已公开的 Release 不会被覆盖。工作流不会创建或推送 Git 标签，也不提供应用内自动更新。
 
