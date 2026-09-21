@@ -49,6 +49,7 @@ mac:
         - arm64
 
 linux:
+  executableName: chaptale
   icon: resources/icons
   category: Office
   maintainer: yoyo514
