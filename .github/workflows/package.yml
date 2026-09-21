@@ -52,6 +52,28 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm build:desktop
+      # electron-builder 的 macOS 分支会把空的 CSC_LINK 当成相对路径去读文件（builder-util 的 loadCscLink），
+      # 报 "<项目目录> not a file"；Windows 分支有 `cscLink === ""` 保护，macOS 分支只判 null。
+      # 因此凭据只在真的存在时才导出，未配置时让 electron-builder 走「跳过签名/公证」的正路。
+      - name: Export signing credentials
+        shell: bash
+        env:
+          SIGN_CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_LINK || matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
+          SIGN_CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || matrix.platform == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          SIGN_APPLE_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
+          SIGN_APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          SIGN_APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
+        run: |
+          # CSC_LINK 需为单行 base64（如 openssl base64 -A 的输出）或 data: URI。
+          if [ -n "$SIGN_CSC_LINK" ]; then
+            printf 'CSC_LINK=%s\n' "$SIGN_CSC_LINK" >> "$GITHUB_ENV"
+            printf 'CSC_KEY_PASSWORD=%s\n' "$SIGN_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$SIGN_APPLE_ID" ] && [ -n "$SIGN_APPLE_APP_SPECIFIC_PASSWORD" ]; then
+            printf 'APPLE_ID=%s\n' "$SIGN_APPLE_ID" >> "$GITHUB_ENV"
+            printf 'APPLE_APP_SPECIFIC_PASSWORD=%s\n' "$SIGN_APPLE_APP_SPECIFIC_PASSWORD" >> "$GITHUB_ENV"
+            printf 'APPLE_TEAM_ID=%s\n' "$SIGN_APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          fi
       - name: Package application
         working-directory: apps/desktop
         shell: bash
@@ -59,11 +81,6 @@ jobs:
           TARGET_PLATFORM: ${{ matrix.platform }}
           TARGET_ARCH: ${{ matrix.arch }}
           BUILD_INSTALLERS: ${{ inputs.installers }}
-          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_LINK || matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || matrix.platform == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
-          APPLE_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
         run: |
           args=(--config electron-builder.yml --publish never "--$TARGET_PLATFORM" "--$TARGET_ARCH")
           if [ "$BUILD_INSTALLERS" != 'true' ]; then args+=(--dir); fi
