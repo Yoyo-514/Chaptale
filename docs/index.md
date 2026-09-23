@@ -28,18 +28,18 @@ hero:
 
 ![Chaptale 工作台：作品目录、章节编辑器与 Agent 对话](/screenshots/workbench.png)
 
-*工作台实机截图。正文编辑、资料管理和 AI 面板围绕当前作品展开。*
+_工作台实机截图。正文编辑、资料管理和 AI 面板围绕当前作品展开。_
 
 ## 先读哪一部分
 
-| 你的目标 | 阅读入口 |
-| --- | --- |
-| 安装应用，创建第一部作品 | [开始使用](/guide/getting-started) → [认识工作台](/guide/interface) |
-| 继续写已有稿件，整理章节和资料 | [管理作品](/guide/workspace) → [编辑章节](/guide/editor) → [资料库](/guide/library) |
-| 梳理事件与人物 | [故事时间线](/guide/timeline) · [角色关系](/guide/relationships) · [场景卡](/guide/templates) |
-| 让 AI 帮忙构思、改稿或检查问题 | [协作流程](/ai/workflow) → [配置模型](/ai/models) |
-| 回看旧稿，备份或迁移作品 | [文档版本](/data/versions) · [备份与恢复](/data/backup) |
-| 查设置、快捷键或错误提示 | [设置速查](/reference/settings) · [快捷键](/reference/shortcuts) · [常见问题](/reference/faq) |
+| 你的目标                       | 阅读入口                                                                                      |
+| ------------------------------ | --------------------------------------------------------------------------------------------- |
+| 安装应用，创建第一部作品       | [开始使用](/guide/getting-started) → [认识工作台](/guide/interface)                           |
+| 继续写已有稿件，整理章节和资料 | [管理作品](/guide/workspace) → [编辑章节](/guide/editor) → [资料库](/guide/library)           |
+| 梳理事件与人物                 | [故事时间线](/guide/timeline) · [角色关系](/guide/relationships) · [场景卡](/guide/templates) |
+| 让 AI 帮忙构思、改稿或检查问题 | [协作流程](/ai/workflow) → [配置模型](/ai/models)                                             |
+| 回看旧稿，备份或迁移作品       | [文档版本](/data/versions) · [备份与恢复](/data/backup)                                       |
+| 查设置、快捷键或错误提示       | [设置速查](/reference/settings) · [快捷键](/reference/shortcuts) · [常见问题](/reference/faq) |
 
 ## 写作中的几个概念
 

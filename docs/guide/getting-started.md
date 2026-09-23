@@ -6,11 +6,11 @@
 
 在 [GitHub Releases](https://github.com/Yoyo-514/Chaptale/releases) 选择版本，再下载对应系统与处理器架构的安装包。
 
-| 系统 | 文件格式 | 选择时注意 |
-| --- | --- | --- |
-| Windows x64 | `.exe` | 下载 Windows x64 安装包 |
-| macOS | `.dmg`、`.zip` | Apple Silicon 选 arm64，Intel 选 x64 |
-| Linux x64 | `.deb`、`.AppImage` | 按发行版及安装习惯选择 |
+| 系统        | 文件格式            | 选择时注意                           |
+| ----------- | ------------------- | ------------------------------------ |
+| Windows x64 | `.exe`              | 下载 Windows x64 安装包              |
+| macOS       | `.dmg`、`.zip`      | Apple Silicon 选 arm64，Intel 选 x64 |
+| Linux x64   | `.deb`、`.AppImage` | 按发行版及安装习惯选择               |
 
 发布页提供 `SHA256SUMS.txt`，用于核对下载文件。当前没有应用内自动更新，后续版本仍从 Releases 获取。
 
