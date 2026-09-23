@@ -1,0 +1,73 @@
+:root {
+  --vp-font-family-base: 'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --vp-c-brand-1: #176d8a;
+  --vp-c-brand-2: #207f9f;
+  --vp-c-brand-3: #176d8a;
+  --vp-c-brand-soft: rgba(23, 109, 138, 0.1);
+  --vp-home-hero-name-color: var(--vp-c-text-1);
+}
+
+.dark {
+  --vp-c-brand-1: #83cbe2;
+  --vp-c-brand-2: #a2dbee;
+  --vp-c-brand-3: #176d8a;
+  --vp-c-brand-soft: rgba(131, 203, 226, 0.12);
+}
+
+.vp-doc p,
+.vp-doc li {
+  line-height: 1.85;
+}
+
+.vp-doc li + li {
+  margin-top: 8px;
+}
+
+.vp-doc h2 {
+  margin-top: 44px;
+}
+
+.vp-doc h3 {
+  margin-top: 28px;
+}
+
+.vp-doc :is(h1, h2, h3) {
+  text-wrap: balance;
+}
+
+.vp-doc :is(th, td) {
+  line-height: 1.75;
+}
+
+.vp-doc a {
+  text-underline-offset: 3px;
+}
+
+.vp-doc img {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+
+.vp-doc p > em:only-child {
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+  font-style: normal;
+}
+
+.manual-home {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+.manual-home > h2:first-child {
+  margin-top: 12px;
+  border-top: 0;
+}
+
+@media (min-width: 768px) {
+  .manual-home {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+}

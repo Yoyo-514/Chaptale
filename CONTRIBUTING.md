@@ -7,6 +7,16 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
+用户手册使用 VitePress，源码在 `docs/`：
+
+```sh
+pnpm docs:dev
+pnpm docs:build
+pnpm docs:preview
+```
+
+更新功能说明时，先核对当前界面和实际实现。`design-docs/` 保存设计与里程碑记录，不作为用户手册的事实来源。
+
 ## 提交前检查
 
 ```sh
@@ -15,6 +25,7 @@ pnpm lint
 pnpm typecheck
 pnpm test:unit
 pnpm test:release
+pnpm docs:build
 pnpm build
 pnpm exec playwright test --config playwright.electron.config.ts
 ```

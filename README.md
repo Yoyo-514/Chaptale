@@ -1,144 +1,133 @@
-# Chaptale
+<p align="center">
+  <img src="docs/public/logo.png" alt="Chaptale" width="128" height="128" />
+</p>
 
-Chaptale 是面向小说、剧本与长篇内容的本地优先创作工作台。
+<h1 align="center">Chaptale</h1>
 
-当前应用版本：0.1.0。项目采用 [Apache License 2.0](./LICENCE)。
+<p align="center">长篇创作工作台 · 章节、故事资料与 AI 协作</p>
 
-围绕一部作品，把正文、角色、设定、时间线和修改记录放在一起。作者可以独立写作，也可以让 AI 参与构思、审查和修订；文件与最终决定始终由作者掌握。
+<p align="center">
+  <a href="https://github.com/Yoyo-514/Chaptale/actions/workflows/ci.yml"><img src="https://github.com/Yoyo-514/Chaptale/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/Yoyo-514/Chaptale/releases"><img src="https://img.shields.io/github/v/release/Yoyo-514/Chaptale" alt="GitHub Release" /></a>
+  <a href="./LICENCE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache License 2.0" /></a>
+  <a href="https://github.com/Yoyo-514/Chaptale/releases"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-526d82" alt="Windows、macOS、Linux" /></a>
+</p>
 
-## Chaptale 想解决什么问题
+<p align="center">
+  <a href="https://github.com/Yoyo-514/Chaptale/releases">下载安装</a> ·
+  <a href="./docs/guide/getting-started.md">使用手册</a> ·
+  <a href="./CONTRIBUTING.md">开发与贡献</a> ·
+  <a href="https://github.com/Yoyo-514/Chaptale/issues">问题反馈</a>
+</p>
 
-长篇创作往往不只是“写一段文字”。创作者通常还需要同时处理：
+Chaptale 是面向小说、剧本等长篇作品的桌面写作工具。正文、角色、设定和故事事件保存在你选定的本机目录中，写作时可以随手查阅资料、梳理时间线和角色关系。
 
-- 故事大纲
-- 章节和场景
-- 角色关系
-- 世界观设定
-- 术语、地点、组织、道具
-- 时间线和伏笔
-- 多版本修改
-- AI 辅助构思、续写、润色和校对
+AI 功能按写作任务组织：先选参考资料，再生成候选稿、比较修改，也可以单独检查情节连贯性、角色行为与文风。不配置模型时，仍可编辑章节和管理资料。
 
-这些内容经常分散在文档、表格、笔记软件、聊天记录和文件夹里。Chaptale 把它们组织在同一个作品目录中，减少在工具之间搬运资料的负担。
+![Chaptale 工作台：左侧作品目录、中间章节编辑器、右侧 Agent 对话](docs/public/screenshots/workbench.png)
 
-## 产品愿景
+## 主要功能
 
-Chaptale 不是单纯的聊天机器人，也不是普通文档编辑器。
+| 功能 | 当前可以做什么 |
+| --- | --- |
+| 章节编辑 | Markdown、多标签、查找替换、字数统计、自动保存、外部修改冲突处理 |
+| 故事资料 | 用模板记录角色、地点、势力、物品、大纲、伏笔和场景卡；通过表单或源文件编辑 |
+| 时间线与关系 | 按故事顺序查看事件，按故事线筛选，在画布中查看和编辑角色关系 |
+| AI 写作 | 选择和冻结参考资料，生成候选稿，按差异块接受修改 |
+| 审查与结算 | 对正文或候选稿运行独立审查；将章节摘要、角色状态、伏笔和事件整理为可处理的提议 |
+| 版本与备份 | 查看关键操作的文档快照；通过已配置的 Dropbox / OneDrive 保存和恢复作品归档 |
+| 内容定制 | 管理专员、技能和资产模板，支持作品级与用户级内容、导入导出 |
 
-它借鉴 IDE 对文件、引用和工作过程的组织方式，但服务的是创作：
+<details>
+<summary>查看故事时间线与角色关系截图</summary>
 
-- 对程序员来说，IDE 用来组织代码、文件、引用、搜索和调试。
-- 对创作者来说，章节、剧情、角色和设定需要彼此关联，AI 协作也需要知道当前作品的语境。
+### 故事时间线
 
-也就是说，Chaptale 关注的是完整创作过程，而不只是单次文本生成。
+![按故事顺序整理事件，并查看关联章节与角色](docs/public/screenshots/timeline.png)
 
-## 当前核心体验
+### 角色关系
 
-### 作品目录
+![角色关系画布：人物节点、关系称谓与关联资料](docs/public/screenshots/relationships.png)
 
-新建作品会建立章节、角色、设定、大纲和草稿目录，生成作品清单、创作守则与首章。也可以打开已有作品目录。没有配置模型时，文件编辑、资料管理和版本功能仍然可用。
+</details>
 
-### 长篇文本创作
+## 安装与开始使用
 
-CodeMirror 编辑器提供 Markdown 高亮、单击打开的标签页、查找替换、字数、双链和手动或自动保存。外部修改会触发重载或冲突对比，未保存稿有恢复入口。切换资料视图会保留正文草稿、阅读位置和撤销记录。
+在 [Releases](https://github.com/Yoyo-514/Chaptale/releases) 下载对应安装包：
 
-### 结构化创作资料
+| 系统 | 安装包 |
+| --- | --- |
+| Windows x64 | `.exe` |
+| macOS Apple Silicon / Intel | 对应架构的 `.dmg` 或 `.zip` |
+| Linux x64 | `.deb` 或 `.AppImage` |
 
-资料库侧栏集中提供资产、故事时间线和角色关系入口，需要时在工作标签中展开。资料以作品内的 Markdown 与 frontmatter 保存，涵盖角色、地点、组织、术语和伏笔。时间线支持自定义纪年与剧情顺序；关系画布支持查看、连线、编辑和布局保存。表单与画布修改同一份源文件，不另存一套人物事实。
+1. 启动后新建作品，选择名称、类型和存放目录。
+2. 打开第一章开始写作，使用 `Ctrl+S` 保存。
+3. 需要 AI 时，在「设置 → 模型」添加自己的模型服务，并设置默认模型。
 
-### AI 辅助创作
+模型接入支持 **OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Google Generative AI** 接口类型；具体可用性取决于服务地址、凭据和接口兼容程度。详见[模型配置](./docs/ai/models.md)。
 
-选区、章节和资产可直接加入 Agent 请求或冻结为本次参考。已有流程包括：
+项目仍处于早期阶段。使用已有重要稿件前，请保留完整作品目录的备份；当前没有应用内自动更新，版本更新以 Releases 为准。
 
-- 剧情规划与场景卡
-- 初稿候选、逐块对比和作者确认
-- 独立审查、原文定位和最小修订
-- 章节结算、摘要与资产提议
-- 版本回看、运行来源与实际用量追溯
+## AI 如何参与写作
 
-正文和设定不会因一次对话被静默覆盖。上下文按作品与专员划分，保持稳定前缀与追加历史，技能按需读取；Prompt Caching 按提供方能力适配，不发送后台预热请求，也不把未知缓存用量显示成零。
+| 环节 | 你需要决定的内容 | 产物 |
+| --- | --- | --- |
+| 参考 | 写作目标、涉及的章节和设定、参考预算 | 固定本次输入的参考快照 |
+| 候选 | 修改范围、模型、接受哪些差异 | 可与正文对比的候选稿 |
+| 审查 | 检查方向、哪些意见成立、是否提出修订 | 带原文定位的问题与修订候选 |
+| 结算 | 接受、编辑或拒绝章节中提取的事实 | 摘要及角色、伏笔、事件资料的更新 |
 
-### 可扩展能力
+这些环节可以分别使用。候选稿生成后不会立即替换正文；结算可以选择“本次自动接受摘要”，其他事实通过提议处理。Agent 对话还可调用文件工具，写入是否需要再次询问取决于已有的授权规则。操作说明见 [AI 协作流程](./docs/ai/workflow.md)。
 
-设置中的“专员与内容”可创建写作专员，并管理本机或作品内的技能与资产模板。内容可作为版本化 JSON 包预览、选择导入或导出；导入专员默认停用并移除本机模型与权限配置，再由作者确认授权。
+## 数据与运行方式
 
-自定义内容支持归档、恢复和永久删除，内置内容保持只读。未归档和已归档的内容都可删除；永久删除需确认，不进入回收站。专员、技能和模板的关联选项随当前内容与作品资料更新；失效引用保留可见，不因编辑而丢失。
+- **作品文件**：正文和资料使用 Markdown 与文件头字段保存。表单、资料库和编辑器操作的是同一份源文件。
+- **AI 服务**：使用自己配置的模型供应商。对话、附加文件和选定参考会随相应请求发送给该服务。
+- **云端备份**：登录并绑定位置后生成作品归档；可用服务取决于应用构建时的配置。保存到本机不代表归档已上传。
+- **内容扩展**：专员、技能和模板是可检查的内容文件。当前不提供任意代码插件或插件市场。
 
-当前开放的是可检查的内容扩展，不提供任意代码插件、MCP 服务接入或插件市场。
+## 从源码运行
 
-### 文件与同步
-
-状态栏左侧或“文件”菜单可查看作品位置、保存状态与外部冲突，并直接定位、保存或处理文件。检测到 OneDrive 官方客户端的本机目录后，可以在其中打开或新建作品；不会自动移动已有作品。
-
-Chaptale 不自建同步服务，也不把本地保存等同于上传完成。OneDrive 的客户端状态、上传进度与远端冲突仍由官方客户端确认。
-
-## 适合谁
-
-Chaptale 面向：
-
-- 小说作者
-- 剧本创作者
-- 世界观设定爱好者
-- 长篇内容创作者
-- 使用 AI 辅助写作的人
-- 希望更系统管理创作资料的人
-
-## 项目状态
-
-Chaptale 仍处于早期阶段。上述本地编辑、资料管理、创作流程与内容扩展已有实现和自动化验收，仍需要在实际长篇作品中持续检验。
-
-首次启动提供可跳过的开始引导，也可以从“帮助”菜单重新进入。真实模型的创作质量与缓存计费、Windows 原生输入法、具体网盘客户端的兼容性仍需外部验收。
-
-## 本地开发
-
-需要 Node.js 24 或更新版本，以及根 `package.json` 指定的 pnpm 版本。
+需要 **Node.js ≥ 24** 和 **pnpm 12.5.1**。
 
 ```sh
+git clone https://github.com/Yoyo-514/Chaptale.git
+cd Chaptale
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-外部依赖版本统一维护于 `pnpm-workspace.yaml` 的 catalog；包清单使用 `catalog:`，内部包使用 `workspace:`。
+### 项目结构
+
+| 目录 | 职责 |
+| --- | --- |
+| `apps/desktop` | Electron 主进程与 preload，负责文件、模型、工具和备份 |
+| `apps/desktop-ui` | Vue 3 + Pinia 界面，CodeMirror 编辑器 |
+| `packages/ipc` | 进程间通信契约与校验 |
+| `packages/shared` | 共享类型与逻辑 |
+| `docs` | VitePress 使用手册 |
+
+项目使用 TypeScript、pnpm workspace 和 Turborepo；单元测试使用 Vitest，桌面端到端测试通过 Playwright 启动真实 Electron。开发检查、安装包构建与发布步骤见[开发与发布](./CONTRIBUTING.md)。
+
+### 本地阅读文档
 
 ```sh
-pnpm typecheck
-pnpm test:unit
-pnpm lint
-pnpm format:check
-pnpm test:e2e
+pnpm docs:dev
+# 构建静态站点
+pnpm docs:build
 ```
 
-端到端验收启动真实 Electron，使用独立 HOME、USERPROFILE 和 user-data，不替换桌面桥，也不需要配置模型。图形测试应串行运行，避免争夺系统焦点。
+## 文档与反馈
 
-需要跳过 Turbo 缓存验证生产构建时，直接运行 `pnpm --filter @chaptale/desktop build`。类型检查会重建共享契约，不应与依赖同一产物的构建或测试并行运行。
+- [快速开始](./docs/guide/getting-started.md)：创建作品并保存第一章。
+- [编辑与资料管理](./docs/guide/editor.md)：日常写作、文件冲突和相关资料。
+- [AI 协作](./docs/ai/workflow.md)：从参考到候选、审查与结算。
+- [备份与恢复](./docs/data/backup.md)：完整作品归档与恢复方式。
+- [常见问题](./docs/reference/faq.md)：配置、文件、模型与状态提示。
 
-## 设计原则
+提交 [Issue](https://github.com/Yoyo-514/Chaptale/issues) 时请附上应用版本、操作系统、复现步骤和错误提示；先移除截图及日志中的密钥和私人作品内容。
 
-### 创作优先
+## 许可证
 
-工具应该服务于创作，而不是让创作者被复杂功能打断。
-
-### 本地优先
-
-创作内容对作者很重要，Chaptale 会优先考虑数据的可控性、可迁移性和长期保存。
-
-### 结构清晰
-
-长篇创作需要清晰的组织方式，尤其是角色、章节、设定和时间线之间的关系。
-
-### AI 是助手，不是替代者
-
-Chaptale 希望 AI 帮助创作者提高效率、整理思路、发现问题，但最终创作判断仍由作者掌控。
-
-### 可长期扩展
-
-小说、剧本、游戏文本、世界观设定等创作形式差异很大，Chaptale 会尽量保持核心简洁，把差异化能力留给扩展机制。
-
-## 名称含义
-
-Chaptale 可以理解为 Chapter 与 Tale 的组合：
-
-- Chapter：章节、结构、长篇创作的组织方式
-- Tale：故事、叙事、创作者真正想表达的内容
-
-Chaptale 的目标，就是帮助创作者更好地组织章节，完成故事。
+[Apache License 2.0](./LICENCE)。第三方依赖保留各自的许可证。

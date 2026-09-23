@@ -13,6 +13,7 @@ dist
 release
 dist-types
 dist-ssr
+docs/.vitepress/cache
 coverage
 playwright-report
 test-results
@@ -49,4 +50,3 @@ PRODUCT.md
 
 # Local experiments
 /experiments/
-/docs

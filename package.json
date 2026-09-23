@@ -24,6 +24,9 @@
     "check": "run-s lint typecheck test",
     "dev": "pnpm --filter @chaptale/desktop dev",
     "dev:desktop": "pnpm --filter @chaptale/desktop dev",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "dist:desktop": "pnpm --filter @chaptale/desktop run dist",
     "dist:desktop:linux": "pnpm --filter @chaptale/desktop run dist:linux",
     "dist:desktop:mac": "pnpm --filter @chaptale/desktop run dist:mac",
@@ -61,6 +64,7 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "turbo": "catalog:",
+    "vitepress": "catalog:",
     "vitest": "catalog:"
   },
   "lint-staged": {
