@@ -224,4 +224,12 @@ describe('get_search_content 工具', () => {
     expect(result.text).toContain('目标词');
     expect(result.details).toMatchObject({ matches: [expect.objectContaining({ url: 'https://example.com/x' })] });
   });
+
+  it('query 与 url 都缺或同时给出：拒绝执行并提示二选一', async () => {
+    const deps = await createDeps(async () => new Response('{}'));
+    const { getSearchContent } = toolsOf(deps);
+
+    await expect(getSearchContent.execute({})).rejects.toThrow(/二选一/);
+    await expect(getSearchContent.execute({ query: '目标词', url: 'https://example.com/x' })).rejects.toThrow(/二选一/);
+  });
 });

@@ -1,4 +1,4 @@
-import type { Static, TSchema } from 'typebox';
+import type { Static, TObject } from 'typebox';
 
 import type { RiskLevel } from '@chaptale/shared';
 
@@ -14,14 +14,20 @@ export type ToolResult = {
  * 有意不依赖模型 SDK 类型：工具的业务实现只关心 typebox 参数与文本结果，
  * 与具体 agent 运行时的对接放在 integrations 层的适配器完成。
  */
-export type ToolDefinition<TParams extends TSchema = TSchema> = {
+export type ToolDefinition<TParams extends TObject = TObject> = {
   /** 模型调用时使用的工具名。 */
   name: string;
   /** UI 展示用的短标签。 */
   label: string;
   /** 面向模型的功能描述。 */
   description: string;
-  /** typebox 参数 schema。 */
+  /**
+   * typebox 参数 schema，根必须是 `Type.Object`。
+   *
+   * provider（OpenAI 兼容协议、Anthropic）要求 function 参数的 JSON Schema 根为 `type: "object"`；
+   * 顶层 `Type.Union` 会编译成没有 type 的 `anyOf`，带上它的每一轮请求都会被整体拒收。
+   * 「多选一」这类约束改用可选字段表达，在 execute 里校验。
+   */
   parameters: TParams;
   /** 权限风险分级；缺省按 mutating（需用户确认）保守处理。 */
   riskLevel?: RiskLevel;

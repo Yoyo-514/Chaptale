@@ -136,18 +136,13 @@ function createFetchContentTool(
   };
 }
 
-const getSearchContentParameters = Type.Union(
-  [
-    Type.Object({ query: Type.String({ description: '检索已缓存页面的关键词' }) }, { additionalProperties: false }),
-    Type.Object(
-      {
-        url: Type.String({ description: '定位到具体缓存页面' }),
-        findText: Type.Optional(Type.String({ description: '在该页面中查找的词句' }))
-      },
-      { additionalProperties: false }
-    )
-  ],
-  { description: '两种用法二选一：关键词全库检索，或指定页面内查找' }
+const getSearchContentParameters = Type.Object(
+  {
+    query: Type.Optional(Type.String({ description: '检索已缓存页面的关键词；与 url 二选一' })),
+    url: Type.Optional(Type.String({ description: '定位到具体缓存页面；与 query 二选一' })),
+    findText: Type.Optional(Type.String({ description: '配合 url 使用：在该页面中查找的词句' }))
+  },
+  { additionalProperties: false }
 );
 
 function createGetSearchContentTool(deps: WebToolsDeps): ToolDefinition<typeof getSearchContentParameters> {
@@ -159,7 +154,14 @@ function createGetSearchContentTool(deps: WebToolsDeps): ToolDefinition<typeof g
       '检索本会话已抓取（fetch_content）的内容：按关键词在全库找匹配段落，或指定 url 在页面内查找。避免重复抓取。',
     parameters: getSearchContentParameters,
     async execute(params) {
-      if ('query' in params) {
+      // 二选一只能在此强制：写成顶层 Union 会编译成无 type 的 anyOf，provider 会拒收整轮请求。
+      if (Boolean(params.query) === Boolean(params.url)) {
+        throw new Error(
+          'query 与 url 须二选一：query 按关键词检索全部缓存页面，url 定位到具体缓存页面（可配 findText）。'
+        );
+      }
+
+      if (params.query) {
         const matches = deps.contentStore.search(params.query);
 
         if (matches.length === 0) {
@@ -174,7 +176,7 @@ function createGetSearchContentTool(deps: WebToolsDeps): ToolDefinition<typeof g
         return { text: lines.join('\n\n'), details: { matches } };
       }
 
-      const url = normalizeUrlKey(params.url);
+      const url = normalizeUrlKey(params.url!);
       const entry = deps.contentStore.get(url);
 
       if (!entry) {

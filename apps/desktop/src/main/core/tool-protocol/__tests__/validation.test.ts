@@ -64,14 +64,4 @@ describe('validateToolArguments', () => {
     expect(result.ok === false && result.message).toContain('已截断');
     expect(result.ok === false && result.message.length).toBeLessThan(2500);
   });
-
-  it('顶层联合 schema 同样可校验（getSearchContent 是这种形状）', () => {
-    const unionParams = Type.Union([
-      Type.Object({ query: Type.String() }, { additionalProperties: false }),
-      Type.Object({ url: Type.String() }, { additionalProperties: false })
-    ]);
-
-    expect(validateToolArguments('get', unionParams, { url: 'https://x' }).ok).toBe(true);
-    expect(validateToolArguments('get', unionParams, { nope: 1 }).ok).toBe(false);
-  });
 });
