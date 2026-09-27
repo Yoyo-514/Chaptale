@@ -24,9 +24,82 @@ export async function resolveWithinCwd(cwd: string, target: string): Promise<str
 }
 
 /** relative 同时处理根目录尾斜杠与 Windows 盘符大小写，不用字符串前缀猜目录归属。 */
-function isWithinDirectory(root: string, target: string): boolean {
+export function isWithinDirectory(root: string, target: string): boolean {
   const relative = path.relative(root, target);
   return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+/**
+ * 文件工具的路径解析结果。
+ *
+ * absolute 是词法绝对路径（作品内沿用既有执行方式）；real 是真实路径（内外判定、授权比对与作品外执行都用它）。
+ */
+export type ResolvedToolPath = {
+  absolute: string;
+  real: string;
+  external: boolean;
+};
+
+/**
+ * 作品内外判定：与 resolveWithinCwd 同一套词法 + realpath 规则，但越界不抛错而是标记 external，
+ * 交给授权层决定。作品内 ≡ 词法与真实路径都在作品内（resolveWithinCwd 放行的范围）。
+ *
+ * 作品外的网络/设备路径在任何 fs 调用之前拒绝：Windows 上解析 `\\host\share` 本身就会发起
+ * SMB 认证，凭据等不到授权卡片就已经外发。词法在作品外、真实路径却指回作品内的链接同样拒绝，
+ * 否则换个作品外的写法就能绕过作品内的草稿边界。
+ */
+export async function resolveToolPath(cwd: string, target: string): Promise<ResolvedToolPath> {
+  const normalizedCwd = path.resolve(cwd);
+  const absolute = path.resolve(normalizedCwd, target);
+  const lexicallyInside = isWithinDirectory(normalizedCwd, absolute);
+
+  if (!lexicallyInside) {
+    assertLocalPath(absolute, target);
+  }
+
+  const [realCwd, real] = await Promise.all([fs.realpath(normalizedCwd), resolveWithRealAncestor(absolute)]);
+  const reallyInside = isWithinDirectory(realCwd, real);
+
+  if (reallyInside && !lexicallyInside) {
+    throw new Error(`该路径经链接指回作品内，请改用作品内的相对路径：${target}`);
+  }
+
+  if (!reallyInside) {
+    assertLocalPath(real, target);
+  }
+
+  return { absolute, real, external: !reallyInside };
+}
+
+/** UNC 与设备路径（`\\host\share`、`\\?\`、`\\.\`、`//host`）一律不支持。 */
+export function assertLocalPath(candidate: string, target = candidate): void {
+  if (/^[\\/]{2}/.test(candidate)) {
+    throw new Error(`不支持访问网络或设备路径：${target}`);
+  }
+}
+
+/**
+ * 真实路径 → 授权规则比对用的摘要：Windows 上统一正斜杠与大写盘符；目录补尾斜杠，
+ * 让 `能力(目录/*)` 规则也覆盖目录本身（ls/grep/find 的起点）。
+ */
+export function toRuleSubjectPath(realPath: string, options: { directory: boolean }): string {
+  const normalized =
+    path.sep === '\\' ? realPath.replaceAll('\\', '/').replace(/^[a-z]:/, drive => drive.toUpperCase()) : realPath;
+
+  return options.directory && !normalized.endsWith('/') ? `${normalized}/` : normalized;
+}
+
+/** 真实路径是否落在任一根目录内；根目录尚不存在时按词法路径比对。 */
+export async function isWithinAnyRoot(roots: readonly string[], realTarget: string): Promise<boolean> {
+  for (const root of roots) {
+    const realRoot = await fs.realpath(root).catch(() => path.resolve(root));
+
+    if (isWithinDirectory(realRoot, realTarget)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /** realpath 兜底：目标不存在时逐级向上取最近存在的祖先的真实路径，再拼回剩余段。 */

@@ -23,11 +23,17 @@ export class PermissionRuleStore {
 
   constructor(private readonly options: PermissionRuleStoreOptions) {}
 
-  /** 合并三层规则；安全边界必须来自发起工具调用的不可变会话 ctx，不能读取 UI 当前作品。 */
-  async collect(ctx: SessionCtx): Promise<PermissionRule[]> {
+  /**
+   * 合并三层规则；安全边界必须来自发起工具调用的不可变会话 ctx，不能读取 UI 当前作品。
+   *
+   * workspaceAllows=false 时作品层只取非 allow 规则：作品外访问的放行不能来自随作品流转的文件。
+   */
+  async collect(ctx: SessionCtx, options: { workspaceAllows?: boolean } = {}): Promise<PermissionRule[]> {
+    const workspaceRules = readRuleFile(workspaceFilePath(ctx.cwd));
+
     return [
       ...(this.sessionRules.get(ctx.sessionId) || []),
-      ...readRuleFile(workspaceFilePath(ctx.cwd)),
+      ...(options.workspaceAllows === false ? workspaceRules.filter(rule => rule.action !== 'allow') : workspaceRules),
       ...readRuleFile(path.join(this.options.globalDir, PERMISSIONS_FILE))
     ];
   }
@@ -43,7 +49,16 @@ export class PermissionRuleStore {
       return;
     }
 
-    await this.mutatePersistentRules(scope, scope === 'workspace' ? ctx.cwd : null, rules => [...rules, rule]);
+    await this.addPersistentRule(rule, scope, scope === 'workspace' ? ctx.cwd : null);
+  }
+
+  /** 向指定持久层追加规则；设置页授权作品外目录时没有会话 ctx，直接落持久层。 */
+  async addPersistentRule(
+    rule: PermissionRule,
+    scope: Exclude<PermissionScope, 'session'>,
+    cwd: string | null
+  ): Promise<void> {
+    await this.mutatePersistentRules(scope, cwd, rules => [...rules, rule]);
   }
 
   /** 分层读取持久规则；设置页显式传入 UI 当前作品，避免 RuleStore 内部保存可漂移 cwd。 */

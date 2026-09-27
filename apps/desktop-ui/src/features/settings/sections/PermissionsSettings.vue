@@ -2,6 +2,11 @@
 import { computed, onMounted, ref } from 'vue';
 
 import type { PermissionRuleEntry } from '@chaptale/ipc-contract';
+import {
+  EXTERNAL_ACCESS_CAPABILITIES,
+  parseExternalDirectoryRule,
+  type ExternalAccessCapability
+} from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog } from '@/components/AppDialog';
@@ -16,15 +21,30 @@ const actionMeta = {
   deny: { label: '拒绝', className: 'is-deny' }
 } as const;
 
+const accessLabel: Record<ExternalAccessCapability, string> = {
+  [EXTERNAL_ACCESS_CAPABILITIES.read]: '读取',
+  [EXTERNAL_ACCESS_CAPABILITIES.write]: '写入'
+};
+
 const notificationStore = useNotificationStore();
 const rules = ref<PermissionRuleEntry[]>([]);
 const isLoading = ref(false);
 const removingKey = ref('');
+const grantingAccess = ref<'read' | 'write' | ''>('');
 const pendingRule = ref<PermissionRuleEntry>();
 const isRemoveDialogOpen = ref(false);
 
 const workspaceRules = computed(() => rules.value.filter(rule => rule.scope === 'workspace'));
-const globalRules = computed(() => rules.value.filter(rule => rule.scope === 'global'));
+// 作品外目录授权只落全局层；单独成组展示，不和其他全局规则混在一起。
+const globalRules = computed(() =>
+  rules.value.filter(rule => rule.scope === 'global' && !parseExternalDirectoryRule(rule.pattern))
+);
+const externalRules = computed(() =>
+  rules.value.flatMap(rule => {
+    const parsed = rule.scope === 'global' ? parseExternalDirectoryRule(rule.pattern) : null;
+    return parsed ? [{ ...rule, directory: parsed.directory, access: accessLabel[parsed.capability] }] : [];
+  })
+);
 const ruleGroups = computed(() => [
   {
     scope: 'workspace' as const,
@@ -52,6 +72,12 @@ function ruleKey(rule: PermissionRuleEntry): string {
 }
 
 function describeRemoval(rule: PermissionRuleEntry): string {
+  const external = parseExternalDirectoryRule(rule.pattern);
+
+  if (external) {
+    return `删除后，AI ${accessLabel[external.capability]}“${external.directory}”时会重新询问。`;
+  }
+
   const scopeDescription = rule.scope === 'global' ? '所有作品' : '本作品';
   return `删除后，“${rule.pattern}” 将不再从${scopeDescription}的这条规则获得权限。`;
 }
@@ -99,6 +125,24 @@ function confirmRemove() {
   }
 }
 
+/** 目录由主进程弹系统选择器取得；取消选择时返回原列表，不提示。 */
+async function grantExternalDirectory(access: 'read' | 'write') {
+  grantingAccess.value = access;
+
+  try {
+    const before = rules.value.length;
+    rules.value = await getDesktopApi().permissions.grantExternalDirectory({ access });
+
+    if (rules.value.length > before) {
+      notificationStore.success('已授权作品外目录', access === 'write' ? 'AI 可以读写该目录' : 'AI 可以读取该目录');
+    }
+  } catch (error) {
+    notificationStore.error('授权作品外目录失败', toErrorMessage(error));
+  } finally {
+    grantingAccess.value = '';
+  }
+}
+
 onMounted(() => void loadRules());
 </script>
 
@@ -106,7 +150,7 @@ onMounted(() => void loadRules());
   <SettingsSection
     title="权限"
     title-id="settings-permissions-title"
-    description="查看和撤销工具调用的持久规则。临时的单次允许与会话规则不会显示在这里。"
+    description="查看和撤销工具调用的持久规则，授权 AI 可访问的作品外目录。临时的单次允许与会话规则不会显示在这里。"
   >
     <template #actions>
       <AppButton
@@ -160,6 +204,59 @@ onMounted(() => void loadRules());
           </li>
         </ul>
       </section>
+
+      <section class="permission-settings-group" aria-labelledby="external-permission-rules-title">
+        <div class="permission-settings-group-heading">
+          <div>
+            <h4 id="external-permission-rules-title" class="permission-settings-group-title">作品外目录</h4>
+            <p class="permission-settings-group-description">
+              AI 访问这些目录时不再逐次询问，对本机所有作品生效；其余作品外路径每次询问。
+            </p>
+          </div>
+          <div class="permission-settings-group-actions">
+            <AppButton
+              variant="secondary"
+              size="xs"
+              type="button"
+              :disabled="Boolean(grantingAccess) || Boolean(removingKey)"
+              @click="grantExternalDirectory('read')"
+            >
+              添加可读目录
+            </AppButton>
+            <AppButton
+              variant="secondary"
+              size="xs"
+              type="button"
+              :disabled="Boolean(grantingAccess) || Boolean(removingKey)"
+              @click="grantExternalDirectory('write')"
+            >
+              添加可读写目录
+            </AppButton>
+          </div>
+        </div>
+
+        <p v-if="!isLoading && externalRules.length === 0" class="permission-settings-empty">暂无作品外目录</p>
+        <ul v-else class="permission-settings-list">
+          <li v-for="rule in externalRules" :key="ruleKey(rule)" class="permission-settings-item">
+            <code class="permission-settings-pattern" :title="rule.pattern">{{ rule.directory }}</code>
+            <span class="permission-settings-access">{{ rule.access }}</span>
+            <span :class="['permission-settings-action', actionMeta[rule.action].className]">
+              {{ actionMeta[rule.action].label }}
+            </span>
+            <AppButton
+              icon
+              variant="ghost"
+              size="xs"
+              type="button"
+              :disabled="Boolean(removingKey)"
+              :aria-label="`删除作品外目录规则 ${rule.pattern}`"
+              @click="requestRemove(rule)"
+            >
+              <span class="i-mingcute-delete-2-line size-4" aria-hidden="true" />
+            </AppButton>
+          </li>
+        </ul>
+      </section>
     </div>
 
     <AppAlertDialog
@@ -200,6 +297,16 @@ onMounted(() => void loadRules());
 .permission-settings-count {
   @apply text-xs;
   font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.permission-settings-group-actions {
+  @apply flex shrink-0 flex-wrap justify-end gap-2;
+}
+
+.permission-settings-access {
+  @apply shrink-0 text-xs;
+
   color: var(--muted-foreground);
 }
 

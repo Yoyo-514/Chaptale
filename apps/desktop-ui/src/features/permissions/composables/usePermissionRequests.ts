@@ -1,6 +1,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue';
 
 import type { PermissionAskEvent, PermissionDecideArgs } from '@chaptale/ipc-contract';
+import { EXTERNAL_ACCESS_CAPABILITIES, parseExternalDirectoryRule, type PermissionDecision } from '@chaptale/shared';
 
 import { useNotificationStore } from '@/features/notifications';
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
@@ -66,7 +67,8 @@ export function usePermissionRequests(getSessionId: () => string) {
       }
 
       if (args.decision.outcome === 'allow-always') {
-        notificationStore.success('已添加作品授权规则', `${args.decision.pattern} · 保存于 .chaptale/permissions.json`);
+        const saved = describeSavedRule(args.decision);
+        notificationStore.success(saved.title, saved.description);
       }
 
       requests.value = requests.value.filter(item => item.requestId !== args.requestId);
@@ -78,4 +80,25 @@ export function usePermissionRequests(getSessionId: () => string) {
   }
 
   return { requests, isSubmitting, decide };
+}
+
+/**
+ * 「始终允许」的保存位置随层级而定：作品外访问只落本会话或本机全局，不能一律提示成作品规则。
+ * 作品外目录规则按「读取/写入 目录」展示，不把内部规则格式直接给作者看。
+ */
+function describeSavedRule(decision: Extract<PermissionDecision, { outcome: 'allow-always' }>) {
+  const external = parseExternalDirectoryRule(decision.pattern);
+  const target = external
+    ? `${external.capability === EXTERNAL_ACCESS_CAPABILITIES.write ? '写入' : '读取'} ${external.directory}`
+    : decision.pattern;
+
+  if (decision.scope === 'session') {
+    return { title: '已在本次对话中允许', description: `${target} · 仅对当前对话有效` };
+  }
+
+  if (decision.scope === 'global') {
+    return { title: '已添加本机授权规则', description: `${target} · 对本机所有作品生效` };
+  }
+
+  return { title: '已添加作品授权规则', description: `${target} · 保存于 .chaptale/permissions.json` };
 }

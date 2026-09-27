@@ -1,11 +1,12 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { globToRegExp, isBinaryContent, resolveWithinCwd } from '../path-guard';
+import { globToRegExp, isBinaryContent, resolveToolPath, resolveWithinCwd, toRuleSubjectPath } from '../path-guard';
 
 let dir: string;
+const linkType = process.platform === 'win32' ? 'junction' : 'dir';
 
 beforeEach(async () => {
   dir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-path-guard-'));
@@ -122,5 +123,79 @@ describe('resolveWithinCwd', () => {
     await writeFile(path.join(dir, 'file'), '不是目录');
 
     await expect(resolveWithinCwd(dir, 'file/child.md')).rejects.toThrow();
+  });
+});
+
+describe('resolveToolPath', () => {
+  let workspace: string;
+  let outside: string;
+
+  beforeEach(async () => {
+    workspace = path.join(dir, 'ws');
+    outside = path.join(dir, 'outside');
+    await mkdir(workspace);
+    await mkdir(outside);
+    await writeFile(path.join(workspace, 'a.txt'), '作品内');
+    await writeFile(path.join(outside, 'ref.md'), '作品外');
+  });
+
+  it('作品内沿用词法路径，不标记越界', async () => {
+    await expect(resolveToolPath(workspace, 'a.txt')).resolves.toMatchObject({
+      absolute: path.join(workspace, 'a.txt'),
+      external: false
+    });
+  });
+
+  it('../ 逃逸与绝对路径标记为作品外（交给授权层），并给出真实路径', async () => {
+    const real = await realpath(path.join(outside, 'ref.md'));
+
+    await expect(resolveToolPath(workspace, '../outside/ref.md')).resolves.toEqual({
+      absolute: path.join(outside, 'ref.md'),
+      real,
+      external: true
+    });
+    await expect(resolveToolPath(workspace, path.join(outside, 'ref.md'))).resolves.toMatchObject({
+      real,
+      external: true
+    });
+  });
+
+  it('作品内的符号链接指向外部：按真实路径算作品外', async () => {
+    await symlink(outside, path.join(workspace, 'escape'), linkType);
+
+    await expect(resolveToolPath(workspace, 'escape/ref.md')).resolves.toMatchObject({
+      real: await realpath(path.join(outside, 'ref.md')),
+      external: true
+    });
+  });
+
+  it('作品外路径经链接指回作品内：拒绝，避免绕开作品内的边界', async () => {
+    await symlink(workspace, path.join(dir, 'alias'), linkType);
+
+    await expect(resolveToolPath(workspace, path.join(dir, 'alias', 'a.txt'))).rejects.toThrow(/指回作品内/);
+  });
+
+  it.skipIf(process.platform !== 'win32')('网络与设备路径直接拒绝', async () => {
+    for (const target of [
+      '\\\\attacker.invalid\\share\\x.md',
+      '//attacker.invalid/share/x.md',
+      '\\\\?\\C:\\x.md',
+      '\\\\.\\pipe\\x'
+    ]) {
+      await expect(resolveToolPath(workspace, target), target).rejects.toThrow(/网络或设备路径/);
+    }
+  });
+});
+
+describe('toRuleSubjectPath', () => {
+  it('目录补尾斜杠，文件保持原样', () => {
+    expect(toRuleSubjectPath('/data/资料', { directory: true })).toBe('/data/资料/');
+    expect(toRuleSubjectPath('/data/资料/a.md', { directory: false })).toBe('/data/资料/a.md');
+    expect(toRuleSubjectPath('/', { directory: true })).toBe('/');
+  });
+
+  it.skipIf(process.platform !== 'win32')('Windows 上统一正斜杠与大写盘符', () => {
+    expect(toRuleSubjectPath('c:\\资料\\设定', { directory: true })).toBe('C:/资料/设定/');
+    expect(toRuleSubjectPath('D:\\导出\\摘要.md', { directory: false })).toBe('D:/导出/摘要.md');
   });
 });

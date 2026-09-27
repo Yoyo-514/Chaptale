@@ -13,6 +13,8 @@ export type PermissionGatePort = {
     toolName: string;
     riskLevel: RiskLevel;
     args: Record<string, unknown>;
+    /** 参数摘要；工具按参数细化授权时由它给出（如规范化后的真实路径），缺省从 args 推导。 */
+    subject?: string;
     /**
      * 本次工具调用的取消信号。
      *

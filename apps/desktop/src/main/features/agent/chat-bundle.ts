@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
-import type { RiskLevel } from '@chaptale/shared';
+import {
+  EXTERNAL_ACCESS_CAPABILITIES,
+  isExternalAccessCapability,
+  parseExternalDirectoryRule,
+  type PermissionRule
+} from '@chaptale/shared';
 
 import type { PermissionGatePort } from '../../core/agent/types';
 import type { ResolvedModel } from '../../core/models/runtime';
@@ -56,6 +61,8 @@ export function createChatRuntimeBundle(deps: {
   /** 授权仲裁；缺省时不产出闸门，由装配层兜底。 */
   permissionBroker?: Pick<PermissionBroker, 'ask'>;
   permissionRuleStore?: Pick<PermissionRuleStore, 'collect'>;
+  /** 永不开放给 AI 的目录（Chaptale 配置目录）：文件工具访问作品外路径时硬性拒绝。 */
+  protectedRoots: readonly string[];
 }): ChatRuntimeBundle {
   async function resolvePersona(cwd: string, id = 'companion') {
     const persona = await deps.personaRegistry.get(cwd, id);
@@ -114,12 +121,19 @@ export function createChatRuntimeBundle(deps: {
       );
 
       // 文件六工具：catalog 中 runtime=builtin 的六件套在此绑定为自有实现。
-      tools.push(...createFileTools(input.cwd).filter(tool => allowedToolNames.has(tool.name)));
+      tools.push(
+        ...createFileTools(input.cwd, { protectedRoots: deps.protectedRoots }).filter(tool =>
+          allowedToolNames.has(tool.name)
+        )
+      );
 
+      const ctx = { sessionId: input.sessionId, cwd: input.cwd };
       const system = composeChatSystemPrompt({
         personaBody,
         skills,
-        mode: skillInjection
+        mode: skillInjection,
+        // 与闸门同口径取规则：作品层的放行对作品外访问不生效，告知模型时也不列出。
+        rules: deps.permissionRuleStore ? await deps.permissionRuleStore.collect(ctx, { workspaceAllows: false }) : []
       });
 
       const model = await resolveModel(input);
@@ -134,7 +148,7 @@ export function createChatRuntimeBundle(deps: {
               gate: createBrokerPermissionGate({
                 broker: deps.permissionBroker,
                 ruleStore: deps.permissionRuleStore,
-                ctx: { sessionId: input.sessionId, cwd: input.cwd }
+                ctx
               })
             }
           : {})
@@ -185,15 +199,21 @@ export function createBrokerPermissionGate(deps: {
   broker: Pick<PermissionBroker, 'ask'>;
   ruleStore: Pick<PermissionRuleStore, 'collect'>;
   ctx: SessionCtx;
+  /** 委派子任务的授权转到宿主会话时的来源名；缺省即宿主会话自身的请求。 */
+  requester?: string;
 }): PermissionGatePort {
   return {
     check: async input => {
       const request = {
         toolName: input.toolName,
-        riskLevel: input.riskLevel as RiskLevel,
-        subject: toPermissionSubject(input.args)
+        riskLevel: input.riskLevel,
+        subject: input.subject ?? toPermissionSubject(input.args)
       };
-      const action = evaluatePermission(request, await deps.ruleStore.collect(deps.ctx));
+      // 作品外能力的放行只认会话与本机全局层：作品层随作品流转，只收它的拒绝与询问。
+      const rules = isExternalAccessCapability(input.toolName)
+        ? await deps.ruleStore.collect(deps.ctx, { workspaceAllows: false })
+        : await deps.ruleStore.collect(deps.ctx);
+      const action = evaluatePermission(request, rules);
 
       if (action === 'allow') {
         return { outcome: 'allow-once' };
@@ -206,6 +226,7 @@ export function createBrokerPermissionGate(deps: {
       const decision = await deps.broker.ask({
         ctx: deps.ctx,
         ...request,
+        ...(deps.requester ? { requester: deps.requester } : {}),
         // 取消运行时授权随之作废；否则被闸门挂起的工具会一直等到 broker 超时。
         ...(input.signal ? { signal: input.signal } : {})
       });
@@ -223,6 +244,42 @@ export function createBrokerPermissionGate(deps: {
 export type ChatLoadedSkill = SkillDescriptor & { body?: string };
 
 /**
+ * 已授权的作品外目录：目录前缀形式的 external_* 放行规则，按目录合并读写。
+ * 没有授权时不出这一段——逐次授权的路径由作者在对话里给出。
+ */
+function renderExternalDirectories(rules: readonly PermissionRule[]): string {
+  const directories = new Map<string, { read: boolean; write: boolean }>();
+
+  for (const rule of rules) {
+    const parsed = rule.action === 'allow' ? parseExternalDirectoryRule(rule.pattern) : null;
+
+    if (parsed) {
+      const access = directories.get(parsed.directory) ?? { read: false, write: false };
+      access[parsed.capability === EXTERNAL_ACCESS_CAPABILITIES.read ? 'read' : 'write'] = true;
+      directories.set(parsed.directory, access);
+    }
+  }
+
+  if (directories.size === 0) {
+    return '';
+  }
+
+  const lines = [...directories].map(
+    ([directory, access]) =>
+      `- ${directory}（${[access.read ? '读取' : '', access.write ? '写入' : ''].filter(Boolean).join('、')}）`
+  );
+
+  return [
+    '# 作品外目录',
+    '',
+    '作者已授权访问以下作品外目录，访问时使用绝对路径：',
+    ...lines,
+    '',
+    '其余作品外路径需要作者逐次授权，可能被拒绝。'
+  ].join('\n');
+}
+
+/**
  * chat 系统提示词：标准四层 + 适用 skills。
  *
  * skills 三层目录（builtin < user < workspace）同名覆盖后按 companion 过滤。
@@ -233,13 +290,20 @@ function composeChatSystemPrompt(options: {
   personaBody: string;
   skills: ChatLoadedSkill[];
   mode: 'inline' | 'on-demand';
+  /** 会话可见的授权规则；从中取作品外目录告知模型，否则它不知道能去哪里找资料。 */
+  rules: readonly PermissionRule[];
 }): string {
-  const base = composeSystemPrompt({
-    personaBody: options.personaBody,
-    productDuty: PRODUCT_DUTY,
-    memoryProtocol: MEMORY_PROTOCOL,
-    todoProtocol: TODO_PROTOCOL
-  });
+  const base = [
+    composeSystemPrompt({
+      personaBody: options.personaBody,
+      productDuty: PRODUCT_DUTY,
+      memoryProtocol: MEMORY_PROTOCOL,
+      todoProtocol: TODO_PROTOCOL
+    }),
+    renderExternalDirectories(options.rules)
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   if (options.skills.length === 0) {
     return base;

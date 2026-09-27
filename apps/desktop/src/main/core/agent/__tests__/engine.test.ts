@@ -61,6 +61,25 @@ const openaiToolStep = () => [
   'data: [DONE]\n\n'
 ];
 
+/** 单个工具调用的一步：参数整包 JSON 化，便于构造任意工具与入参。 */
+const toolCallStep = (name: string, args: Record<string, unknown>) => [
+  sse({
+    id: '1',
+    choices: [
+      {
+        index: 0,
+        delta: {
+          tool_calls: [
+            { index: 0, id: 'call_1', type: 'function', function: { name, arguments: JSON.stringify(args) } }
+          ]
+        }
+      }
+    ]
+  }),
+  sse({ id: '1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }),
+  'data: [DONE]\n\n'
+];
+
 function createModel(modelId = 'test-model') {
   return {
     model: createProtocolLanguageModel(
@@ -350,6 +369,54 @@ describe('runAgentLoop', () => {
     });
 
     expect(gate.check).not.toHaveBeenCalled();
+  });
+
+  it('按参数细化的授权：readonly 工具访问作品外也过闸门，批准的请求作为凭据交给 execute', async () => {
+    stubSseFetch(toolCallStep('read', { path: 'E:/资料/a.md' }), openaiTextStep('完成'));
+    const request = { capability: 'external_read', riskLevel: 'sensitive' as const, subject: 'E:/资料/a.md' };
+    const execute = vi.fn(async () => ({ text: '外部资料' }));
+    const gate: PermissionGatePort = { check: vi.fn().mockResolvedValue({ outcome: 'allow-once' }) };
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读外部资料' }],
+      tools: [{ ...readTool, resolvePermission: async () => request, execute }],
+      gate
+    });
+
+    expect(gate.check).toHaveBeenCalledWith(
+      expect.objectContaining({ toolName: 'external_read', riskLevel: 'sensitive', subject: 'E:/资料/a.md' })
+    );
+    expect(execute).toHaveBeenCalledWith({ path: 'E:/资料/a.md' }, expect.any(AbortSignal), { authorized: request });
+  });
+
+  it('细化出授权请求但会话没有闸门：按拒绝处理，工具不执行', async () => {
+    const fetchMock = stubSseFetch(toolCallStep('read', { path: 'E:/资料/a.md' }), openaiTextStep('知道了'));
+    const execute = vi.fn(async () => ({ text: '不应执行' }));
+
+    await runAgentLoop({
+      sessionId: 's1',
+      model: createModel(),
+      system: '你是助手',
+      messages: [{ role: 'user', content: '读外部资料' }],
+      tools: [
+        {
+          ...readTool,
+          resolvePermission: async () => ({
+            capability: 'external_read',
+            riskLevel: 'sensitive',
+            subject: 'E:/资料/a.md'
+          }),
+          execute
+        }
+      ]
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    // 拒绝理由回到模型：它据此向作者说明，而不是以为读到了内容。
+    expect(requestBody(fetchMock, 1)).toContain('需要作者授权');
   });
 
   it('超大工具输出：单轮内模型通道截断且 details 不进上下文，落盘保留原始完整值', async () => {

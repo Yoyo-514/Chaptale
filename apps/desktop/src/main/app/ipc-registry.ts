@@ -75,7 +75,8 @@ export function registerApplicationIpc(context: AppContext): void {
   registerSubagentIpc(context.subagentPool, ui);
   registerMemoryIpc(context.memoryPendingStore, ui, { resolveCwd: context.getMemoryPendingCwd });
   registerPermissionsIpc(context.permissionBroker, context.permissionRuleStore, ui, {
-    resolveCwd: context.getPermissionSettingsCwd
+    resolveCwd: context.getPermissionSettingsCwd,
+    protectedRoots: [context.settingsService.rootDir]
   });
   registerWindowIpc();
 }

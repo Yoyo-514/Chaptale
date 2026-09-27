@@ -11,7 +11,7 @@ import type { TaskPersonaSpec } from '../personas/task-spec';
 import { composeSystemPrompt } from '../prompts/compose-system-prompt';
 import type { SkillProvider } from '../skills/provider-port';
 import { createSkillReadTool } from '../skills/skill-read-tool';
-import type { TaskSessionFactoryPort } from './runner-port';
+import type { TaskDelegation, TaskSessionFactoryPort } from './runner-port';
 import { createTaskSession, type TaskSession } from './session';
 
 /** task 自定义工具仍受 spec.tools 白名单约束，builder 不能越权扩大 persona 能力。 */
@@ -30,6 +30,11 @@ export type TaskSessionFactoryOptions = {
   reviewPreferences?: {
     forPersona(personaId: string): Promise<{ prompt: string; memoryRefs: readonly string[] }>;
   };
+  /**
+   * 委派子任务的授权闸门：请求转到宿主会话的授权卡片。由装配层桥接 broker 与规则库，
+   * 任务模块不直接依赖对话链路；缺省时委派子任务同样按无人值守处理。
+   */
+  createDelegatedGate?: (input: TaskDelegation & { cwd: string }) => PermissionGatePort;
 };
 
 /**
@@ -39,7 +44,8 @@ export type TaskSessionFactoryOptions = {
  * - 不落盘（task 会话不进历史扫描），多轮修复在内存消息上继续；
  * - 系统提示词仅含 persona 正文 + spec 绑定的 skills 摘要，不受用户 SYSTEM.md 影响；
  * - 工具为 spec 白名单子集（[] = 纯分析），自定义工具也不能越过该白名单；
- * - 无人值守：gate 只放行 readonly，其余一律拒绝（不弹授权）；
+ * - 授权：委派子任务把请求转到宿主会话由作者逐次确认；其余任务无人值守，
+ *   gate 只放行 readonly，其余一律拒绝（不弹授权）；
  * - 模型按 spec 偏好解析，缺省跟随全局默认。
  */
 export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
@@ -48,7 +54,8 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
   async createTaskSession(
     spec: TaskPersonaSpec,
     cwdOverride?: string,
-    onMemoryRead?: (refs: readonly string[]) => void
+    onMemoryRead?: (refs: readonly string[]) => void,
+    delegation?: TaskDelegation
   ): Promise<TaskSession> {
     const { settingsService, modelService, buildTaskTools } = this.options;
     const cwd = cwdOverride ?? (await settingsService.getCurrentCwd());
@@ -74,7 +81,10 @@ export class TaskSessionFactory implements TaskSessionFactoryPort<TaskSession> {
       spec.authorMemoryRead === false ? undefined : await this.options.reviewPreferences?.forPersona(spec.personaId);
     if (preferences?.memoryRefs.length) onMemoryRead?.(preferences.memoryRefs);
     const system = [baseSystem, preferences?.prompt].filter(Boolean).join('\n\n');
-    const gate = createUnattendedGate();
+    const gate =
+      delegation && this.options.createDelegatedGate
+        ? this.options.createDelegatedGate({ ...delegation, cwd })
+        : createUnattendedGate();
 
     return createTaskSession({
       // 并发子任务默认 3，同毫秒创建会撞 id，因此不能用时间戳。

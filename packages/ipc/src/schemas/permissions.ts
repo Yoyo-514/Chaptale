@@ -53,9 +53,25 @@ export const PermissionsRemoveRuleArgsSchema = Type.Tuple([
 ]);
 export const PermissionsRemoveRuleArgsValidator = Compile(PermissionsRemoveRuleArgsSchema);
 
+/** 设置页授权作品外目录：目录由主进程弹系统选择器取得，renderer 只能指定读写级别。 */
+export const PermissionsGrantExternalDirectoryArgsSchema = Type.Tuple([
+  Type.Object(
+    {
+      access: Type.Union([Type.Literal('read'), Type.Literal('write')])
+    },
+    { additionalProperties: false }
+  )
+]);
+export const PermissionsGrantExternalDirectoryArgsValidator = Compile(PermissionsGrantExternalDirectoryArgsSchema);
+
 import { SessionIdSchema } from './sessions';
 
-const RiskLevelSchema = Type.Union([Type.Literal('readonly'), Type.Literal('mutating'), Type.Literal('destructive')]);
+const RiskLevelSchema = Type.Union([
+  Type.Literal('readonly'),
+  Type.Literal('sensitive'),
+  Type.Literal('mutating'),
+  Type.Literal('destructive')
+]);
 
 /** 待授权请求推送事件的运行时边界；结构与 PermissionAskEvent 对齐。 */
 export const PermissionAskEventSchema = Type.Object(
@@ -64,7 +80,8 @@ export const PermissionAskEventSchema = Type.Object(
     sessionId: SessionIdSchema,
     toolName: Type.String(),
     riskLevel: RiskLevelSchema,
-    subject: Type.Optional(Type.String())
+    subject: Type.Optional(Type.String()),
+    requester: Type.Optional(Type.String())
   },
   { additionalProperties: false }
 );

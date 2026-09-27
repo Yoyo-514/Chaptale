@@ -1,8 +1,9 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import type { ToolDefinition } from '../../../core/tool-protocol/definition';
 import { validateToolArguments } from '../../../core/tool-protocol/validation';
 import {
   createEditTool,
@@ -16,6 +17,9 @@ import {
 
 let cwd: string;
 
+/** 与生产装配同口径：本机配置目录受保护（它也叫 .chaptale，不能被当成作品根）。 */
+const PROTECTED = { protectedRoots: [path.join(os.homedir(), '.chaptale')] };
+
 beforeEach(async () => {
   cwd = await mkdtemp(path.join(os.tmpdir(), 'chaptale-file-tools-'));
 });
@@ -25,8 +29,8 @@ afterEach(async () => {
 });
 
 /** 装配后的生产工具面。 */
-function assembledTool(name: string) {
-  const found = createFileTools(cwd).find(item => item.name === name);
+function assembledTool(name: string, options = PROTECTED): ToolDefinition {
+  const found = createFileTools(cwd, options).find(item => item.name === name);
 
   if (!found) {
     throw new Error(`工具未注册：${name}`);
@@ -35,8 +39,20 @@ function assembledTool(name: string) {
   return found;
 }
 
+/** 规则摘要口径：真实路径（mkdtemp 在 Windows 上可能给 8.3 短名）、正斜杠、大写盘符。 */
+async function subjectOf(target: string, directory = false) {
+  const real = (await realpath(target)).replaceAll(path.sep, '/').replace(/^[a-z]:/, drive => drive.toUpperCase());
+  return directory ? `${real}/` : real;
+}
+
+/** 走完授权流程再执行：与装配层一致，把闸门批准的请求原样交给 execute。 */
+async function executeAuthorized(name: string, args: Record<string, unknown>, options = PROTECTED) {
+  const tool = assembledTool(name, options);
+  return tool.execute(args, undefined, { authorized: (await tool.resolvePermission!(args))! });
+}
+
 describe('安全边界（六工具共用）', () => {
-  it('越界路径一律拒绝（../ 逃逸与绝对路径）', async () => {
+  it('越界路径未经授权一律拒绝（../ 逃逸与绝对路径）', async () => {
     // 装配层不吞异常：抛出后由 AI SDK 转 tool-error，引擎落盘为 isError: true 的
     // 配对结果并把原因交给模型。就地转成"成功但正文是错误文本"虽然模型也能看懂，
     // 但失败标记会被抹平，UI 与历史里这六个最常用的工具将永远显示为成功。
@@ -79,7 +95,7 @@ describe('安全边界（六工具共用）', () => {
       edit: { path: 'a.md', oldText: '旧', newText: '新' }
     };
 
-    for (const definition of createFileTools(cwd)) {
+    for (const definition of createFileTools(cwd, PROTECTED)) {
       const result = validateToolArguments(definition.name, definition.parameters, payloads[definition.name]);
 
       expect(result.ok, `${definition.name}: ${result.ok === false ? result.message : ''}`).toBe(true);
@@ -226,5 +242,136 @@ describe('write / edit', () => {
 
     expect((await edit.execute({ path: 'doc.md', oldText: '不存在的句子', newText: 'x' })).text).toMatch(/0 次/);
     expect((await edit.execute({ path: 'ghost.md', oldText: 'a', newText: 'b' })).text).toMatch(/不存在/);
+  });
+});
+
+describe('作品外访问', () => {
+  let outside: string;
+
+  beforeEach(async () => {
+    outside = await mkdtemp(path.join(os.tmpdir(), 'chaptale-outside-'));
+  });
+
+  afterEach(async () => {
+    await rm(outside, { recursive: true, force: true });
+  });
+
+  it('作品内不细化授权；作品外读取升级为 external_read（敏感），目录起点补尾斜杠', async () => {
+    await writeFile(path.join(cwd, 'in.md'), '作品内', 'utf8');
+    await writeFile(path.join(outside, 'ref.md'), '外部资料', 'utf8');
+
+    await expect(assembledTool('read').resolvePermission!({ path: 'in.md' })).resolves.toBeNull();
+    await expect(assembledTool('read').resolvePermission!({ path: path.join(outside, 'ref.md') })).resolves.toEqual({
+      capability: 'external_read',
+      riskLevel: 'sensitive',
+      subject: await subjectOf(path.join(outside, 'ref.md'))
+    });
+
+    // 尾斜杠让一条 external_read(目录/*) 规则同时覆盖 ls/grep/find 的起点本身。
+    for (const name of ['ls', 'grep', 'find']) {
+      await expect(assembledTool(name).resolvePermission!({ pattern: '*', path: outside }), name).resolves.toEqual({
+        capability: 'external_read',
+        riskLevel: 'sensitive',
+        subject: await subjectOf(outside, true)
+      });
+    }
+  });
+
+  it('作品外写入升级为 external_write；非文本、隐藏目录、其他作品在弹卡之前就拒绝', async () => {
+    const write = assembledTool('write');
+
+    await expect(
+      write.resolvePermission!({ path: path.join(outside, '导出', 'notes.md'), content: 'x' })
+    ).resolves.toMatchObject({ capability: 'external_write', riskLevel: 'mutating' });
+    await expect(write.resolvePermission!({ path: path.join(outside, 'run.bat'), content: 'x' })).rejects.toThrow(
+      /\.md/
+    );
+    await expect(
+      write.resolvePermission!({ path: path.join(outside, '.obsidian', 'a.md'), content: 'x' })
+    ).rejects.toThrow(/隐藏/);
+
+    await mkdir(path.join(outside, '另一部作品'));
+    await writeFile(path.join(outside, '另一部作品', 'chaptale.json'), '{}', 'utf8');
+    await expect(
+      assembledTool('edit').resolvePermission!({
+        path: path.join(outside, '另一部作品', '正文', '第一章.md'),
+        oldText: '旧',
+        newText: '新'
+      })
+    ).rejects.toThrow(/另一部 Chaptale 作品/);
+  });
+
+  it('Chaptale 配置目录读写都不开放，也不弹授权卡片', async () => {
+    const configRoot = path.join(outside, 'config');
+    await mkdir(configRoot);
+    await writeFile(path.join(configRoot, 'models.json'), '{"apiKey":"sk-test"}', 'utf8');
+    const options = { protectedRoots: [configRoot] };
+
+    await expect(
+      assembledTool('read', options).resolvePermission!({ path: path.join(configRoot, 'models.json') })
+    ).rejects.toThrow(/配置目录/);
+    await expect(
+      assembledTool('write', options).resolvePermission!({ path: path.join(configRoot, 'notes.md'), content: 'x' })
+    ).rejects.toThrow(/配置目录/);
+  });
+
+  it('授权上层目录后，grep/find 遍历时仍跳过其中的 Chaptale 配置目录', async () => {
+    const configRoot = path.join(outside, 'config');
+    await mkdir(configRoot);
+    await mkdir(path.join(outside, 'notes'));
+    await writeFile(path.join(configRoot, 'models.json'), '{"apiKey":"sk-test"}', 'utf8');
+    await writeFile(path.join(outside, 'notes', 'a.json'), '{"apiKey":"示例"}', 'utf8');
+    const options = { protectedRoots: [configRoot] };
+
+    const grep = await executeAuthorized('grep', { pattern: 'apiKey', path: outside }, options);
+    const find = await executeAuthorized('find', { pattern: '*.json', path: outside }, options);
+
+    expect(grep.text).toContain('notes/a.json:1:');
+    expect(grep.text).not.toContain('sk-test');
+    expect(find.text).toContain('notes/a.json');
+    expect(find.text).not.toContain('models.json');
+  });
+
+  it('作品外路径经链接指回作品内时拒绝：作品内只能用相对路径，草稿边界不能被绕开', async () => {
+    await writeFile(path.join(cwd, 'in.md'), '作品内', 'utf8');
+    await symlink(cwd, path.join(outside, 'link-to-work'), process.platform === 'win32' ? 'junction' : 'dir');
+
+    await expect(
+      assembledTool('read').resolvePermission!({ path: path.join(outside, 'link-to-work', 'in.md') })
+    ).rejects.toThrow(/指回作品内/);
+  });
+
+  it('执行只认闸门批准的同一目标：没有凭据或目标不一致都拒绝', async () => {
+    const target = path.join(outside, 'ref.md');
+    await writeFile(target, '外部资料', 'utf8');
+    await writeFile(path.join(outside, 'other.md'), '另一份', 'utf8');
+    const read = assembledTool('read');
+    const authorized = (await read.resolvePermission!({ path: target }))!;
+
+    await expect(read.execute({ path: target })).rejects.toThrow(/作品之外.*需要作者授权/);
+    await expect(read.execute({ path: path.join(outside, 'other.md') }, undefined, { authorized })).rejects.toThrow(
+      /不一致/
+    );
+    expect((await read.execute({ path: target }, undefined, { authorized })).text).toContain('外部资料');
+  });
+
+  it('授权后 grep/find 输出绝对路径，write/edit 落到作品外的真实位置', async () => {
+    await mkdir(path.join(outside, '设定'));
+    await writeFile(path.join(outside, '设定', '世界观.md'), '雨城常年下雨', 'utf8');
+    const root = await subjectOf(outside);
+
+    expect((await executeAuthorized('grep', { pattern: '雨城', path: outside })).text).toContain(
+      `${root}/设定/世界观.md:1:`
+    );
+    expect((await executeAuthorized('find', { pattern: '设定/*.md', path: outside })).text).toBe(
+      `${root}/设定/世界观.md`
+    );
+
+    const exported = path.join(outside, '导出', '摘要.md');
+    await executeAuthorized('write', { path: exported, content: '第一版' });
+    expect(await readFile(exported, 'utf8')).toBe('第一版');
+
+    await executeAuthorized('edit', { path: exported, oldText: '第一版', newText: '第二版' });
+    expect(await readFile(exported, 'utf8')).toBe('第二版');
   });
 });

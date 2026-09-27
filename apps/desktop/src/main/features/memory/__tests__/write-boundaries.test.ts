@@ -79,7 +79,7 @@ describe('创作写入边界', () => {
     expect(await readdir(path.join(cwd, '作者目录'))).toEqual([]);
   });
   it('通用 Agent 文件工具只写草稿且拒绝章节身份和重叠目录', async () => {
-    const tools = createFileTools(cwd);
+    const tools = createFileTools(cwd, { protectedRoots: [path.join(os.homedir(), '.chaptale')] });
     const write = tools.find(tool => tool.name === 'write')!;
     const edit = tools.find(tool => tool.name === 'edit')!;
     for (const target of ['正文/一.md', '角色/甲.md', '.chaptale/reviews/one.json', '散落.md']) {

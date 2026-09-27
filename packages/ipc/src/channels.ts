@@ -166,6 +166,7 @@ export const IPC_CHANNELS = {
     decide: 'permissions:decide',
     listRules: 'permissions:list-rules',
     removeRule: 'permissions:remove-rule',
+    grantExternalDirectory: 'permissions:grant-external-directory',
     ask: 'permissions:ask'
   },
   slashCommands: {

@@ -40,6 +40,7 @@ import {
   FetchCustomProviderModelsArgsValidator,
   IPC_CHANNELS,
   PermissionsDecideArgsValidator,
+  PermissionsGrantExternalDirectoryArgsValidator,
   PermissionsListRulesArgsValidator,
   PermissionsPendingArgsValidator,
   PermissionsRemoveRuleArgsValidator,
@@ -297,6 +298,7 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.permissions.decide, PermissionsDecideArgsValidator),
   validated(IPC_CHANNELS.permissions.listRules, PermissionsListRulesArgsValidator),
   validated(IPC_CHANNELS.permissions.removeRule, PermissionsRemoveRuleArgsValidator),
+  validated(IPC_CHANNELS.permissions.grantExternalDirectory, PermissionsGrantExternalDirectoryArgsValidator),
 
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),

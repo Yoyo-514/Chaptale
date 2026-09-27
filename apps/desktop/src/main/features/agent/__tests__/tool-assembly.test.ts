@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PersonaDefinition } from '@chaptale/shared';
 
+import { WebToolsSettingsStore } from '../../web-tools/settings';
 import { buildChatSessionTools, buildTaskSessionTools } from '../tool-assembly';
 
 const companion: PersonaDefinition = {
@@ -145,6 +146,8 @@ describe('tool-registry', () => {
         memoryReadDomains: ['canon', 'summaries']
       },
       cwd: '/workspace',
+      webToolsSettingsStore: new WebToolsSettingsStore({ configPath: '/nonexistent/web-tools.json' }),
+      protectedRoots: [],
       memorySearchService: {
         search: vi.fn(async () => ({
           level: 'l2' as const,
@@ -171,5 +174,23 @@ describe('tool-registry', () => {
     expect(tools.map(tool => tool.name)).toEqual(['memory_search']);
     await tools[0]!.execute({ query: '林晚' }, new AbortController().signal);
     expect(onMemoryRead).toHaveBeenCalledWith(['角色/林晚.md']);
+  });
+
+  it('mounts declared file and web tools for task sessions instead of silently dropping them', async () => {
+    const tools = await buildTaskSessionTools({
+      spec: {
+        personaId: 'researcher',
+        systemPrompt: '查资料',
+        tools: ['read', 'grep', 'web_search'],
+        skills: [],
+        memoryReadDomains: []
+      },
+      cwd: '/workspace',
+      webToolsSettingsStore: new WebToolsSettingsStore({ configPath: '/nonexistent/web-tools.json' }),
+      protectedRoots: [],
+      memorySearchService: { search: vi.fn() }
+    });
+
+    expect(tools.map(tool => tool.name)).toEqual(['web_search', 'read', 'grep']);
   });
 });

@@ -7,7 +7,7 @@ import { parseFrontmatter } from '../core/frontmatter/parse';
 import { ModelService } from '../core/models/service';
 import { SettingsService } from '../core/settings/service';
 import { createDefaultToolCatalog } from '../core/tool-protocol/catalog';
-import { createChatRuntimeBundle } from '../features/agent/chat-bundle';
+import { createBrokerPermissionGate, createChatRuntimeBundle } from '../features/agent/chat-bundle';
 import { AgentService } from '../features/agent/service';
 import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { createAutoBackupScheduler } from '../features/cloud-sync/auto-backup';
@@ -235,7 +235,23 @@ export function createAppContext(): AppContext {
     modelService,
     skillsProvider,
     reviewPreferences: reviewFeedbackStore,
-    buildTaskTools: (spec, cwd, onMemoryRead) => buildTaskSessionTools({ spec, cwd, memorySearchService, onMemoryRead })
+    buildTaskTools: (spec, cwd, onMemoryRead) =>
+      buildTaskSessionTools({
+        spec,
+        cwd,
+        memorySearchService,
+        onMemoryRead,
+        webToolsSettingsStore,
+        protectedRoots: [settingsService.rootDir]
+      }),
+    // 委派子任务的授权挂到宿主会话：卡片出现在发起委派的对话里，会话级规则也记在宿主会话上。
+    createDelegatedGate: ({ parentSessionId, requester, cwd }) =>
+      createBrokerPermissionGate({
+        broker: permissionBroker,
+        ruleStore: permissionRuleStore,
+        ctx: { sessionId: parentSessionId, cwd },
+        requester
+      })
   });
   const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
   const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
@@ -294,7 +310,9 @@ export function createAppContext(): AppContext {
     modelService,
     // 闸门由 bundle 按轮产出：只有它同时握有会话 cwd 与三层规则，能让 workspace 级授权真正命中。
     permissionBroker,
-    permissionRuleStore
+    permissionRuleStore,
+    // 配置目录里有模型凭据与全局授权规则：任何规则都不能把它开放给文件工具。
+    protectedRoots: [settingsService.rootDir]
   });
   const agentRuntime = new AgentService({
     sessionRepository,

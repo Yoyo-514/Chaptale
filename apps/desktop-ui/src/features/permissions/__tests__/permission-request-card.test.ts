@@ -1,18 +1,21 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
+import type { PermissionAskEvent } from '@chaptale/ipc-contract';
+
 import PermissionRequestCard from '../components/PermissionRequestCard.vue';
 
-function mountCard(overrides: Partial<{ toolName: string; subject: string }> = {}) {
+function mountCard(overrides: Partial<PermissionAskEvent> = {}) {
   return mount(PermissionRequestCard, {
     props: {
       requests: [
         {
           requestId: 'permission-1',
           sessionId: 'session-1',
-          toolName: overrides.toolName ?? 'write',
+          toolName: 'write',
           riskLevel: 'mutating',
-          subject: overrides.subject ?? '小说/第一章.md'
+          subject: '小说/第一章.md',
+          ...overrides
         }
       ],
       isSubmitting: false
@@ -74,5 +77,44 @@ describe('PermissionRequestCard', () => {
 
     expect(wrapper.findAll('button').filter(item => item.text().startsWith('始终允许'))).toHaveLength(0);
     expect(wrapper.findAll('button').filter(item => item.text() === '本作品始终允许')).toHaveLength(1);
+  });
+
+  it('作品外读取只能授到本会话或本机全局，不提供作品级入口', async () => {
+    const wrapper = mountCard({ toolName: 'external_read', riskLevel: 'sensitive', subject: 'E:/资料/设定.md' });
+
+    expect(wrapper.text()).toContain('请求读取作品外路径');
+    expect(wrapper.text()).toContain('敏感');
+    // 作品级规则随作品流转，主进程也不会让它放行作品外路径。
+    expect(wrapper.findAll('button').filter(item => item.text() === '本作品始终允许')).toHaveLength(0);
+
+    await clickButton(wrapper, '本会话允许');
+    await clickButton(wrapper, '始终允许');
+
+    expect(wrapper.emitted('decide')).toEqual([
+      [
+        {
+          requestId: 'permission-1',
+          decision: { outcome: 'allow-always', scope: 'session', pattern: 'external_read(E:/资料/*)' }
+        }
+      ],
+      [
+        {
+          requestId: 'permission-1',
+          decision: { outcome: 'allow-always', scope: 'global', pattern: 'external_read(E:/资料/*)' }
+        }
+      ]
+    ]);
+  });
+
+  it('委派子任务的请求注明来自哪个子任务', () => {
+    const wrapper = mountCard({
+      toolName: 'external_write',
+      riskLevel: 'mutating',
+      subject: 'E:/导出/摘要.md',
+      requester: '资料专员'
+    });
+
+    expect(wrapper.text()).toContain('请求写入作品外路径');
+    expect(wrapper.text()).toContain('来自子任务「资料专员」');
   });
 });

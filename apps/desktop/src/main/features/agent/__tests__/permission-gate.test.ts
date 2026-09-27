@@ -77,6 +77,52 @@ describe('createBrokerPermissionGate 规则前置', () => {
   });
 });
 
+describe('createBrokerPermissionGate 作品外访问', () => {
+  it('按工具给出的真实路径摘要匹配，规则只取会话与全局层（作品层放行不生效）', async () => {
+    const { gate, ask, collect } = createGate([{ pattern: 'external_read(E:/资料/*)', action: 'allow' }]);
+
+    await expect(
+      check(gate, {
+        toolName: 'external_read',
+        riskLevel: 'sensitive',
+        subject: 'E:/资料/设定.md',
+        // 模型写的是相对写法；匹配必须用工具解析后的真实路径，否则同一目录换个写法就对不上。
+        args: { path: '../../资料/设定.md' }
+      })
+    ).resolves.toEqual({ outcome: 'allow-once' });
+    expect(collect).toHaveBeenCalledWith(CTX, { workspaceAllows: false });
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it('sensitive 无规则时询问宿主会话，并注明代为请求的子任务', async () => {
+    const ask = vi.fn(async () => ({ outcome: 'allow-once' as const }));
+    const gate = createBrokerPermissionGate({
+      broker: { ask },
+      ruleStore: { collect: vi.fn(async () => []) },
+      ctx: CTX,
+      requester: '资料专员'
+    });
+
+    await gate.check({
+      sessionId: 'task-1',
+      toolName: 'external_read',
+      riskLevel: 'sensitive',
+      subject: 'E:/资料/a.md',
+      args: { path: 'E:/资料/a.md' }
+    });
+
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ctx: CTX,
+        toolName: 'external_read',
+        riskLevel: 'sensitive',
+        subject: 'E:/资料/a.md',
+        requester: '资料专员'
+      })
+    );
+  });
+});
+
 describe('toPermissionSubject', () => {
   it('取工具主参数而非整包 JSON（整包 JSON 让参数级规则永远匹配不上）', () => {
     expect(toPermissionSubject({ path: 'a.md', content: '很长的正文' })).toBe('a.md');

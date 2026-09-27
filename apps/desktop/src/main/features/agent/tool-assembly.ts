@@ -1,6 +1,7 @@
 import type { PersonaDefinition } from '@chaptale/shared';
 
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
+import { createFileTools } from '../file-tools/tools';
 import type { MemoryPendingStore } from '../memory/pending/store';
 import { createMemoryProposeTool, createMemorySaveTool } from '../memory/tools';
 import { resolveReadableIndexDomains } from '../personas/memory-access';
@@ -40,6 +41,10 @@ export type TaskToolContext = {
   cwd: string;
   memorySearchService: Pick<MemorySearchService, 'search'>;
   onMemoryRead?: (refs: readonly string[]) => void;
+  /** 与 chat 共用同一份 web-tools.json；内容缓存按任务会话隔离。 */
+  webToolsSettingsStore: WebToolsSettingsStore;
+  /** 永不开放给 AI 的目录：文件工具访问作品外路径时硬性拒绝。 */
+  protectedRoots: readonly string[];
 };
 
 /** 主对话内置工具的唯一注册点；会话工厂只负责 persona 白名单与工具适配。 */
@@ -89,16 +94,27 @@ export async function buildChatSessionTools(context: ChatToolContext): Promise<T
   ];
 }
 
-/** task 内置工具与 chat 共用注册模块，但仍由 spec.tools 和已收窄 memory 域决定是否挂载。 */
+/**
+ * task 内置工具与 chat 共用注册模块，但仍由 spec.tools 和已收窄 memory 域决定是否挂载。
+ *
+ * 文件与联网工具同样按声明挂载（catalog 已按 task 作用域和 persona 类型收窄过 spec.tools）：
+ * 委派子任务的授权转到宿主会话，其余任务无人值守只放行只读。
+ */
 export async function buildTaskSessionTools(context: TaskToolContext): Promise<ToolDefinition[]> {
-  return context.spec.tools.includes('memory_search') && context.spec.memoryReadDomains.length > 0
-    ? [
-        createMemorySearchTool({
-          service: context.memorySearchService,
-          resolveCwd: () => context.cwd,
-          allowedDomains: context.spec.memoryReadDomains,
-          onRead: context.onMemoryRead
-        })
-      ]
-    : [];
+  const declared = new Set(context.spec.tools);
+
+  return [
+    ...(declared.has('memory_search') && context.spec.memoryReadDomains.length > 0
+      ? [
+          createMemorySearchTool({
+            service: context.memorySearchService,
+            resolveCwd: () => context.cwd,
+            allowedDomains: context.spec.memoryReadDomains,
+            onRead: context.onMemoryRead
+          })
+        ]
+      : []),
+    ...createWebTools({ settingsStore: context.webToolsSettingsStore, contentStore: new ContentStore() }),
+    ...createFileTools(context.cwd, { protectedRoots: context.protectedRoots })
+  ].filter(tool => declared.has(tool.name));
 }

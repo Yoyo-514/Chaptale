@@ -51,9 +51,17 @@ export class TaskRunner implements TaskRunnerPort {
     spec.frozenContext = request.frozenContext;
     if (request.frozenContext) spec.tools = [];
     const memoryRefs = new Set(request.memoryRefs ?? []);
-    const session = await this.sessionFactory.createTaskSession(spec, request.cwd, refs => {
-      for (const ref of refs) memoryRefs.add(ref);
-    });
+    const session = await this.sessionFactory.createTaskSession(
+      spec,
+      request.cwd,
+      refs => {
+        for (const ref of refs) memoryRefs.add(ref);
+      },
+      // 只有委派子任务把授权转到宿主会话：ui-action 等后台任务不是作者此刻发起的，弹卡只会打扰。
+      request.trigger === 'delegate' && request.parentSessionId
+        ? { parentSessionId: request.parentSessionId, requester: request.persona.name }
+        : undefined
+    );
     const onAbort = () => void Promise.resolve(session.abort()).catch(() => undefined);
     request.signal?.addEventListener('abort', onAbort, { once: true });
 

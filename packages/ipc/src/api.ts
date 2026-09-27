@@ -60,6 +60,7 @@ import type {
   PermissionAskEvent,
   PermissionDecideArgs,
   PermissionDecideResult,
+  PermissionGrantExternalDirectoryArgs,
   PermissionRemoveRuleArgs,
   PermissionRuleEntry
 } from './permissions';
@@ -306,6 +307,8 @@ export type ChaptaleDesktopApi = {
     listRules: () => Promise<PermissionRuleEntry[]>;
     /** 删除指定持久层内所有完全相同的规则并返回最新列表。 */
     removeRule: (args: PermissionRemoveRuleArgs) => Promise<PermissionRuleEntry[]>;
+    /** 弹出系统目录选择器授权作品外目录（本机全局层）；用户取消时原样返回列表。 */
+    grantExternalDirectory: (args: PermissionGrantExternalDirectoryArgs) => Promise<PermissionRuleEntry[]>;
     /** 订阅新授权请求；返回取消订阅函数。 */
     onAsk: (listener: (event: PermissionAskEvent) => void) => () => void;
   };

@@ -19,6 +19,8 @@ import {
   ExportSessionArgsValidator,
   FetchCustomProviderModelsArgsValidator,
   PermissionsDecideArgsValidator,
+  PermissionsGrantExternalDirectoryArgsValidator,
+  PermissionAskEventValidator,
   PermissionsListRulesArgsValidator,
   PermissionsPendingArgsValidator,
   PermissionsRemoveRuleArgsValidator,
@@ -405,6 +407,21 @@ describe('IPC 参数 Schema', () => {
     expect(PermissionsRemoveRuleArgsValidator.Check([{ scope: 'workspace', pattern: '', action: 'allow' }])).toBe(
       false
     );
+  });
+
+  it('授权作品外目录只接受读写级别，目录不能由 renderer 递交', () => {
+    expect(PermissionsGrantExternalDirectoryArgsValidator.Check([{ access: 'read' }])).toBe(true);
+    expect(PermissionsGrantExternalDirectoryArgsValidator.Check([{ access: 'write' }])).toBe(true);
+    expect(PermissionsGrantExternalDirectoryArgsValidator.Check([{ access: 'all' }])).toBe(false);
+    expect(PermissionsGrantExternalDirectoryArgsValidator.Check([{ access: 'read', directory: 'C:/' }])).toBe(false);
+    expect(PermissionsGrantExternalDirectoryArgsValidator.Check([])).toBe(false);
+  });
+
+  it('授权请求事件接受敏感分级与子任务来源', () => {
+    const event = { requestId: 'r1', sessionId: 'session-1', toolName: 'external_read', riskLevel: 'sensitive' };
+
+    expect(PermissionAskEventValidator.Check({ ...event, subject: 'E:/资料/a.md', requester: '资料专员' })).toBe(true);
+    expect(PermissionAskEventValidator.Check({ ...event, riskLevel: 'secret' })).toBe(false);
   });
 
   it('agent 会话压缩参数校验', () => {

@@ -48,6 +48,8 @@ export class PermissionBroker {
     toolName: string;
     riskLevel: RiskLevel;
     subject?: string;
+    /** 代为发起的子任务名；委派子任务的授权转到宿主会话时卡片据此注明来源。 */
+    requester?: string;
     /** 发起本次工具调用的运行信号；取消运行即作废挂起的授权，不让工具执行等到超时。 */
     signal?: AbortSignal;
   }): Promise<PermissionDecision> {
@@ -61,7 +63,8 @@ export class PermissionBroker {
       sessionId: input.ctx.sessionId,
       toolName: input.toolName,
       riskLevel: input.riskLevel,
-      subject: input.subject
+      subject: input.subject,
+      ...(input.requester ? { requester: input.requester } : {})
     };
 
     return new Promise<PermissionDecision>(resolve => {

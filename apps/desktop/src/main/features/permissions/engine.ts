@@ -1,8 +1,9 @@
 import type { PermissionAction, PermissionRequest, PermissionRule, RiskLevel } from './protocol';
 
-/** 无规则命中时的分级默认：读类放行、写类询问、破坏类拒绝。 */
+/** 无规则命中时的分级默认：读类放行、敏感读与写类询问、破坏类拒绝。 */
 const DEFAULT_ACTION_BY_RISK: Record<RiskLevel, PermissionAction> = {
   readonly: 'allow',
+  sensitive: 'ask',
   mutating: 'ask',
   destructive: 'deny'
 };

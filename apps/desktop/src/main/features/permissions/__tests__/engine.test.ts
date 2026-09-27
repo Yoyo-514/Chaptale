@@ -30,8 +30,23 @@ describe('ruleMatches', () => {
 describe('evaluatePermission', () => {
   it('falls back to risk-level defaults when no rule matches', () => {
     expect(evaluatePermission(request({ riskLevel: 'readonly' }), [])).toBe('allow');
+    expect(evaluatePermission(request({ riskLevel: 'sensitive' }), [])).toBe('ask');
     expect(evaluatePermission(request({ riskLevel: 'mutating' }), [])).toBe('ask');
     expect(evaluatePermission(request({ riskLevel: 'destructive' }), [])).toBe('deny');
+  });
+
+  it('scopes external directory grants by real-path prefix without leaking to sibling directories', () => {
+    const rules: PermissionRule[] = [{ pattern: 'external_read(E:/资料/*)', action: 'allow' }];
+    const external = (subject: string) =>
+      evaluatePermission(request({ toolName: 'external_read', riskLevel: 'sensitive', subject }), rules);
+
+    expect(external('E:/资料/')).toBe('allow');
+    expect(external('E:/资料/设定/世界观.md')).toBe('allow');
+    expect(external('E:/资料备份/世界观.md')).toBe('ask');
+    // 同一目录的读取放行不等于写入放行。
+    expect(
+      evaluatePermission(request({ toolName: 'external_write', riskLevel: 'mutating', subject: 'E:/资料/a.md' }), rules)
+    ).toBe('ask');
   });
 
   it('takes the most conservative action across matching rules', () => {

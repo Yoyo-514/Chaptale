@@ -47,8 +47,10 @@ export type ToolAssemblyOptions = {
  * 入参不由 SDK 校验，因此在此层显式校验（见 tool-protocol/validation）；
  * 闸门：gate 存在且 riskLevel 非 readonly 时包装 execute——deny 返回模型可见的
  * 拒绝载荷（可改道）；显式 readonly 直行（风险分级事实源在 catalog）。
+ * 工具可按参数细化授权（resolvePermission，如作品外路径）：细化后的请求即便出自
+ * readonly 工具也必过闸门，批准的请求作为凭据交给 execute 核对目标。
  *
- * 顺序固定为 **截断 → 校验 → 闸门 → 执行（带超时）**：
+ * 顺序固定为 **截断 → 校验 → 授权细化 → 闸门 → 执行（带超时）**：
  * 已判定作废的批次不必再校验参数、更不该拿授权卡片打扰用户；闸门看到的必须是
  * 真正会被执行的收编后参数，否则参数级权限规则匹配的是一份与执行不一致的快照。
  * 超时只罩住最后一步——闸门等的是人，把授权等待算进工具超时，
@@ -89,13 +91,20 @@ function createGatedTool(definition: ToolDefinition, options: ToolAssemblyOption
       }
 
       const args = checked.value as Record<string, unknown>;
+      const request = (await definition.resolvePermission?.(checked.value)) ?? null;
 
-      if (needsGate) {
+      if (request && !gate) {
+        // 细化出的授权没有人能批准：按拒绝处理，不能因为缺了闸门就悄悄放行。
+        throw new Error(`工具 ${definition.name} 的本次调用需要作者授权，但当前会话没有授权通道。`);
+      }
+
+      if (request || needsGate) {
         const decision = await gate!.check({
           sessionId,
-          toolName: definition.name,
-          riskLevel: definition.riskLevel ?? 'mutating',
+          toolName: request?.capability ?? definition.name,
+          riskLevel: request?.riskLevel ?? definition.riskLevel ?? 'mutating',
           args,
+          ...(request ? { subject: request.subject } : {}),
           // 取消运行时挂起的授权要随之作废，否则本次执行会一直等到授权超时。
           ...(executionOptions?.abortSignal ? { signal: executionOptions.abortSignal } : {})
         });
@@ -106,7 +115,7 @@ function createGatedTool(definition: ToolDefinition, options: ToolAssemblyOption
       }
 
       return runWithTimeout(definition, executionOptions?.abortSignal, signal =>
-        definition.execute(checked.value, signal)
+        definition.execute(checked.value, signal, request ? { authorized: request } : undefined)
       );
     },
     // 模型通道入口：SDK 在构建下一轮请求消息时经此把 execute 原始返回值

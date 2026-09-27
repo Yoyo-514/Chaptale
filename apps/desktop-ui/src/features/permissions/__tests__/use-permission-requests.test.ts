@@ -68,6 +68,32 @@ describe('usePermissionRequests', () => {
     wrapper.unmount();
   });
 
+  it('describes external grants by access and directory, and says where they apply', async () => {
+    installDesktopMock(vi.fn().mockResolvedValue({ accepted: true }));
+    const { permissionRequests, wrapper } = await mountPermissionRequests();
+
+    await permissionRequests.decide({
+      requestId: request.requestId,
+      decision: { outcome: 'allow-always', scope: 'session', pattern: 'external_read(E:/资料/*)' }
+    });
+    expect(useNotificationStore().items.at(-1)).toMatchObject({
+      kind: 'success',
+      title: '已在本次对话中允许',
+      description: '读取 E:/资料/ · 仅对当前对话有效'
+    });
+
+    await permissionRequests.decide({
+      requestId: request.requestId,
+      decision: { outcome: 'allow-always', scope: 'global', pattern: 'external_write(E:/导出/*)' }
+    });
+    expect(useNotificationStore().items.at(-1)).toMatchObject({
+      kind: 'success',
+      title: '已添加本机授权规则',
+      description: '写入 E:/导出/ · 对本机所有作品生效'
+    });
+    wrapper.unmount();
+  });
+
   it('removes an expired request and reports that it was not accepted', async () => {
     installDesktopMock(vi.fn().mockResolvedValue({ accepted: false }));
     const { permissionRequests, wrapper } = await mountPermissionRequests();

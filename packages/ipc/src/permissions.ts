@@ -8,6 +8,11 @@ export type PermissionRuleEntry = PermissionRule & {
 /** 删除指定持久层内所有完全相同的规则。 */
 export type PermissionRemoveRuleArgs = PermissionRuleEntry;
 
+/** 授权作品外目录：read 只放行读取，write 同时放行读取与写入；规则一律落本机全局层。 */
+export type PermissionGrantExternalDirectoryArgs = {
+  access: 'read' | 'write';
+};
+
 /** 待授权请求：推送给 renderer 渲染授权卡片，也是 pending 查询的返回单元。 */
 export type PermissionAskEvent = {
   requestId: string;
@@ -16,6 +21,8 @@ export type PermissionAskEvent = {
   riskLevel: RiskLevel;
   /** 参数摘要（如 bash 的命令、write 的路径），用于展示与生成 allow-always 规则。 */
   subject?: string;
+  /** 代为发起的子任务名；主会话自身的请求不带。 */
+  requester?: string;
 };
 
 /** 决策提交参数。 */

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PersonaDefinition } from '@chaptale/shared';
 
 import { createDefaultToolCatalog } from '../../../core/tool-protocol/catalog';
+import { PermissionRuleStore } from '../../permissions/rule-store';
 import type { SkillDescriptor } from '../../skills/provider-port';
 import { createChatRuntimeBundle } from '../chat-bundle';
 
@@ -38,6 +39,7 @@ function createBundle(
     persona?: PersonaDefinition | null;
     skills?: SkillDescriptor[];
     skillInjection?: 'inline' | 'on-demand';
+    permissionRuleStore?: PermissionRuleStore;
   } = {}
 ) {
   const persona = options.persona === undefined ? companion : options.persona;
@@ -61,8 +63,10 @@ function createBundle(
       listModels: vi.fn(async () => ({ defaultModel: { provider: 'prov', modelId: 'model-1' } })),
       runtime: { resolveModel: vi.fn(async () => ({ model: {} })) }
     },
+    protectedRoots: [],
     ...(skillsProvider ? { skillsProvider } : {}),
-    ...(options.skillInjection ? { skillInjection: options.skillInjection } : {})
+    ...(options.skillInjection ? { skillInjection: options.skillInjection } : {}),
+    ...(options.permissionRuleStore ? { permissionRuleStore: options.permissionRuleStore } : {})
   } as never);
 }
 
@@ -111,5 +115,32 @@ describe('chat-bundle 工具装配', () => {
     const { tools } = await bundle.resolve({ sessionId: 'session-1', cwd: '/workspace' });
 
     expect(tools.map(tool => tool.name)).not.toContain('skill_read');
+  });
+
+  it('已授权的作品外目录写进 system，读写合并为一行；作品层夹带的作品外放行不列出', async () => {
+    const globalDir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-bundle-global-'));
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'chaptale-bundle-work-'));
+    tempDirs.push(globalDir, cwd);
+    const ruleStore = new PermissionRuleStore({ globalDir });
+    await ruleStore.addPersistentRule({ pattern: 'external_read(E:/资料/*)', action: 'allow' }, 'global', null);
+    await ruleStore.addPersistentRule({ pattern: 'external_write(E:/资料/*)', action: 'allow' }, 'global', null);
+    await ruleStore.addPersistentRule({ pattern: 'external_read(D:/夹带/*)', action: 'allow' }, 'workspace', cwd);
+
+    const { system } = await createBundle({ permissionRuleStore: ruleStore }).resolve({ sessionId: 'session-1', cwd });
+
+    expect(system).toContain('- E:/资料/（读取、写入）');
+    expect(system).not.toContain('D:/夹带/');
+  });
+
+  it('没有作品外授权时不出现作品外目录段落', async () => {
+    const globalDir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-bundle-global-'));
+    tempDirs.push(globalDir);
+
+    const { system } = await createBundle({ permissionRuleStore: new PermissionRuleStore({ globalDir }) }).resolve({
+      sessionId: 'session-1',
+      cwd: '/workspace'
+    });
+
+    expect(system).not.toContain('# 作品外目录');
   });
 });

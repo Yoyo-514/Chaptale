@@ -14,12 +14,13 @@ const initialRules: PermissionRuleEntry[] = [
   { scope: 'global', pattern: 'bash(rm *)', action: 'deny' }
 ];
 
-function installDesktopMock(options?: { removeRejects?: boolean }) {
+function installDesktopMock(options?: { removeRejects?: boolean; rules?: PermissionRuleEntry[] }) {
   const permissions = {
-    listRules: vi.fn().mockResolvedValue(initialRules),
+    listRules: vi.fn().mockResolvedValue(options?.rules ?? initialRules),
     removeRule: options?.removeRejects
       ? vi.fn().mockRejectedValue(new Error('disk unavailable'))
-      : vi.fn().mockResolvedValue([initialRules[0]])
+      : vi.fn().mockResolvedValue([initialRules[0]]),
+    grantExternalDirectory: vi.fn().mockResolvedValue(options?.rules ?? initialRules)
   };
 
   window.chaptaleDesktop = { permissions } as unknown as NonNullable<typeof window.chaptaleDesktop>;
@@ -74,5 +75,30 @@ describe('PermissionsSettings', () => {
       title: '删除权限规则失败',
       description: 'disk unavailable'
     });
+  });
+
+  it('lists external directory grants in their own group and adds a read-write directory via the main-process picker', async () => {
+    const granted: PermissionRuleEntry = { scope: 'global', pattern: 'external_read(E:/资料/*)', action: 'allow' };
+    const permissions = installDesktopMock({ rules: [...initialRules, granted] });
+    permissions.grantExternalDirectory.mockResolvedValue([
+      ...initialRules,
+      granted,
+      { scope: 'global', pattern: 'external_read(E:/导出/*)', action: 'allow' },
+      { scope: 'global', pattern: 'external_write(E:/导出/*)', action: 'allow' }
+    ]);
+    const wrapper = mount(PermissionsSettings);
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('E:/资料/'));
+    // 单独成组展示可读的目录，全局规则组里不再重复出现原始规则。
+    expect(wrapper.text()).not.toContain('external_read(E:/资料/*)');
+
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === '添加可读写目录')!
+      .trigger('click');
+
+    await vi.waitFor(() => expect(permissions.grantExternalDirectory).toHaveBeenCalledWith({ access: 'write' }));
+    await vi.waitFor(() => expect(wrapper.text()).toContain('E:/导出/'));
+    expect(useNotificationStore().items.at(-1)).toMatchObject({ kind: 'success', title: '已授权作品外目录' });
   });
 });

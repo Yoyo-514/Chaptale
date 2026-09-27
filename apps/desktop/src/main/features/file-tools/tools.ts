@@ -4,38 +4,48 @@ import { Type } from 'typebox';
 
 import type { ToolDefinition } from '../../core/tool-protocol/definition';
 import { writeTextAtomically } from '../../infra/filesystem/atomic-text';
-import {
-  DEFAULT_IGNORED_DIRS,
-  globToRegExp,
-  isBinaryContent,
-  resolveWithinCwd
-} from '../../infra/filesystem/path-guard';
+import { DEFAULT_IGNORED_DIRS, globToRegExp, isBinaryContent } from '../../infra/filesystem/path-guard';
 import { withFileWriteLock } from '../../infra/filesystem/write-lock';
+import {
+  createProtectedDirectoryFilter,
+  describeFileAccess,
+  displayPath,
+  resolveAuthorizedPath,
+  type ExternalAccessOptions
+} from './external-access';
 import { assertAgentDraftWrite } from './write-boundary';
 
 /**
  * 文件六工具装配：全部绑定同一会话 cwd，共享越界守卫。
+ *
+ * 作品外路径不再一律拒绝：resolvePermission 把它升级为 external_read / external_write
+ * 交给闸门，execute 只认闸门批准的同一目标（见 external-access）。
  *
  * 执行异常不在此层吞掉：抛出后由 AI SDK 转 `tool-error`，引擎统一落盘为
  * `isError: true` 的配对结果（`core/agent/engine.ts`）。就地把异常转成
  * "成功但正文是错误文本"的结果虽然模型也能看懂，但失败标记会被抹平，
  * UI 与历史里这六个最常用的工具将永远显示为成功。
  */
-export function createFileTools(cwd: string): ToolDefinition[] {
+export function createFileTools(cwd: string, options: ExternalAccessOptions): ToolDefinition[] {
   const beforeWrite = (relativePath: string, content: string) => assertAgentDraftWrite(cwd, relativePath, content);
   return [
-    createReadTool(cwd),
-    createGrepTool(cwd),
-    createFindTool(cwd),
-    createLsTool(cwd),
-    createWriteTool(cwd, beforeWrite),
-    createEditTool(cwd, beforeWrite)
+    createReadTool(cwd, options),
+    createGrepTool(cwd, options),
+    createFindTool(cwd, options),
+    createLsTool(cwd, options),
+    createWriteTool(cwd, beforeWrite, options),
+    createEditTool(cwd, beforeWrite, options)
   ];
 }
 
+/** 单工具工厂的缺省：没有受保护根目录，仅供测试——生产装配走 createFileTools 并显式给出。 */
+const UNPROTECTED: ExternalAccessOptions = { protectedRoots: [] };
+
+const PATH_DESCRIPTION = '文件路径：作品内用相对路径；作品外用绝对路径（需作者授权）';
+
 const readParameters = Type.Object(
   {
-    path: Type.String({ description: '相对会话目录的文件路径' }),
+    path: Type.String({ description: PATH_DESCRIPTION }),
     offset: Type.Optional(Type.Integer({ minimum: 1, description: '起始行号（1 起），默认 1' })),
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 2000, description: '读取行数，默认 500' }))
   },
@@ -54,15 +64,19 @@ function formatBytes(bytes: number): string {
 }
 
 /** read：分页读文本文件；二进制拒读；超长行截断；带行号输出。 */
-export function createReadTool(cwd: string): ToolDefinition<typeof readParameters> {
+export function createReadTool(
+  cwd: string,
+  options: ExternalAccessOptions = UNPROTECTED
+): ToolDefinition<typeof readParameters> {
   return {
     name: 'read',
     label: '读取文件',
     riskLevel: 'readonly',
     description: '读取文本文件内容，带行号分页输出。二进制文件（PDF/图片等）不支持直接读取。',
     parameters: readParameters,
-    async execute(params) {
-      const filePath = await resolveWithinCwd(cwd, params.path);
+    resolvePermission: params => describeFileAccess(cwd, params.path, 'read', options),
+    async execute(params, _signal, context) {
+      const { path: filePath } = await resolveAuthorizedPath(cwd, params.path, 'read', options, context);
 
       let stat;
 
@@ -116,7 +130,9 @@ const grepParameters = Type.Object(
   {
     pattern: Type.String({ description: '搜索内容；regex 为 true 时按正则解释' }),
     regex: Type.Optional(Type.Boolean({ description: '按正则搜索，默认按字面量' })),
-    path: Type.Optional(Type.String({ description: '搜索起点（文件或目录），默认会话目录' })),
+    path: Type.Optional(
+      Type.String({ description: '搜索起点（文件或目录），默认作品目录；作品外用绝对路径（需作者授权）' })
+    ),
     include: Type.Optional(Type.String({ description: '文件名 glob 过滤，如 *.md' })),
     maxResults: Type.Optional(Type.Integer({ minimum: 1, maximum: 500, description: '命中上限，默认 100' }))
   },
@@ -126,15 +142,19 @@ const grepParameters = Type.Object(
 const GREP_DEFAULT_MAX = 100;
 
 /** grep：内容搜索；输出 file:line: text；跳过二进制与噪声目录；支持取消。 */
-export function createGrepTool(cwd: string): ToolDefinition<typeof grepParameters> {
+export function createGrepTool(
+  cwd: string,
+  options: ExternalAccessOptions = UNPROTECTED
+): ToolDefinition<typeof grepParameters> {
   return {
     name: 'grep',
     label: '内容搜索',
     riskLevel: 'readonly',
     description: '在文件内容中搜索文本或正则，返回文件名、行号与命中行。',
     parameters: grepParameters,
-    async execute(params, signal) {
-      const root = await resolveWithinCwd(cwd, params.path ?? '.');
+    resolvePermission: params => describeFileAccess(cwd, params.path ?? '.', 'read', options),
+    async execute(params, signal, context) {
+      const { path: root, external } = await resolveAuthorizedPath(cwd, params.path ?? '.', 'read', options, context);
       const matcher = createMatcher(params.pattern, params.regex ?? false);
       const include = params.include ? new RegExp(`^${globToRegExp(params.include).source.slice(1, -1)}$`) : undefined;
       const maxResults = params.maxResults ?? GREP_DEFAULT_MAX;
@@ -177,13 +197,12 @@ export function createGrepTool(cwd: string): ToolDefinition<typeof grepParameter
                 return;
               }
 
-              hits.push(
-                `${path.relative(cwd, filePath).replace(/\\/g, '/')}:${index + 1}: ${line.trim().slice(0, 300)}`
-              );
+              hits.push(`${displayPath(cwd, filePath, external)}:${index + 1}: ${line.trim().slice(0, 300)}`);
             }
           }
         },
-        () => hits.length >= maxResults
+        () => hits.length >= maxResults,
+        external ? await createProtectedDirectoryFilter(options) : undefined
       );
 
       if (hits.length === 0) {
@@ -221,7 +240,7 @@ function createMatcher(pattern: string, isRegex: boolean): (line: string) => boo
 const findParameters = Type.Object(
   {
     pattern: Type.String({ description: '文件名 glob，如 *.md 或 **/*.json' }),
-    path: Type.Optional(Type.String({ description: '搜索起点目录，默认会话目录' })),
+    path: Type.Optional(Type.String({ description: '搜索起点目录，默认作品目录；作品外用绝对路径（需作者授权）' })),
     maxResults: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000, description: '结果上限，默认 200' }))
   },
   { additionalProperties: false }
@@ -229,16 +248,23 @@ const findParameters = Type.Object(
 
 const FIND_DEFAULT_MAX = 200;
 
-/** find：文件名 glob 递归查找；相对路径与 basename 双匹配（*.md 也命中子目录）。 */
-export function createFindTool(cwd: string): ToolDefinition<typeof findParameters> {
+/**
+ * find：文件名 glob 递归查找；相对路径与 basename 双匹配（*.md 也命中子目录）。
+ * 作品外的起点按相对起点的路径匹配 glob，结果给绝对路径。
+ */
+export function createFindTool(
+  cwd: string,
+  options: ExternalAccessOptions = UNPROTECTED
+): ToolDefinition<typeof findParameters> {
   return {
     name: 'find',
     label: '查找文件',
     riskLevel: 'readonly',
-    description: '按文件名 glob 递归查找文件，返回相对路径列表。',
+    description: '按文件名 glob 递归查找文件；作品内返回相对路径，作品外返回绝对路径。',
     parameters: findParameters,
-    async execute(params, signal) {
-      const root = await resolveWithinCwd(cwd, params.path ?? '.');
+    resolvePermission: params => describeFileAccess(cwd, params.path ?? '.', 'read', options),
+    async execute(params, signal, context) {
+      const { path: root, external } = await resolveAuthorizedPath(cwd, params.path ?? '.', 'read', options, context);
       const matcher = globToRegExp(params.pattern.replace(/\\/g, '/'));
       const maxResults = params.maxResults ?? FIND_DEFAULT_MAX;
 
@@ -249,7 +275,7 @@ export function createFindTool(cwd: string): ToolDefinition<typeof findParameter
         root,
         signal,
         async filePath => {
-          const relative = path.relative(cwd, filePath).replace(/\\/g, '/');
+          const relative = path.relative(external ? root : cwd, filePath).replace(/\\/g, '/');
 
           if (matcher.test(relative) || matcher.test(path.basename(filePath))) {
             if (results.length >= maxResults) {
@@ -257,10 +283,11 @@ export function createFindTool(cwd: string): ToolDefinition<typeof findParameter
               return;
             }
 
-            results.push(relative);
+            results.push(displayPath(cwd, filePath, external));
           }
         },
-        () => results.length >= maxResults
+        () => results.length >= maxResults,
+        external ? await createProtectedDirectoryFilter(options) : undefined
       );
 
       if (results.length === 0) {
@@ -276,21 +303,25 @@ export function createFindTool(cwd: string): ToolDefinition<typeof findParameter
 
 const lsParameters = Type.Object(
   {
-    path: Type.Optional(Type.String({ description: '目录路径，默认会话目录' }))
+    path: Type.Optional(Type.String({ description: '目录路径，默认作品目录；作品外用绝对路径（需作者授权）' }))
   },
   { additionalProperties: false }
 );
 
 /** ls：目录清单，目录在前 + 名称排序，目录以 / 结尾。 */
-export function createLsTool(cwd: string): ToolDefinition<typeof lsParameters> {
+export function createLsTool(
+  cwd: string,
+  options: ExternalAccessOptions = UNPROTECTED
+): ToolDefinition<typeof lsParameters> {
   return {
     name: 'ls',
     label: '列出目录',
     riskLevel: 'readonly',
     description: '列出目录内容；目录以 / 结尾标记。',
     parameters: lsParameters,
-    async execute(params) {
-      const dir = await resolveWithinCwd(cwd, params.path ?? '.');
+    resolvePermission: params => describeFileAccess(cwd, params.path ?? '.', 'read', options),
+    async execute(params, _signal, context) {
+      const { path: dir } = await resolveAuthorizedPath(cwd, params.path ?? '.', 'read', options, context);
       let entries;
 
       try {
@@ -313,36 +344,42 @@ export function createLsTool(cwd: string): ToolDefinition<typeof lsParameters> {
 
 const writeParameters = Type.Object(
   {
-    path: Type.String({ description: '相对会话目录的文件路径' }),
+    path: Type.String({ description: PATH_DESCRIPTION }),
     content: Type.String({ description: '写入的完整内容（整体覆盖）' })
   },
   { additionalProperties: false }
 );
 
+const EXTERNAL_WRITE_NOTE = '作品外的 .md/.markdown/.txt 文件用绝对路径访问，需作者授权。';
+
 /** write：整体覆盖式原子写（temp + rename），父目录自动创建。 */
 export function createWriteTool(
   cwd: string,
-  beforeWrite?: (relativePath: string, content: string) => Promise<void>
+  beforeWrite?: (relativePath: string, content: string) => Promise<void>,
+  options: ExternalAccessOptions = UNPROTECTED
 ): ToolDefinition<typeof writeParameters> {
   return {
     name: 'write',
     label: '写入文件',
     riskLevel: 'mutating',
-    description: beforeWrite
-      ? '只在作品草稿目录写入文本。正式正文必须创建候选稿，资产必须提出待确认提议。'
-      : '把内容整体写入文件（覆盖已有内容），父目录不存在时自动创建。',
+    description:
+      (beforeWrite
+        ? '作品内只在草稿目录写入文本。正式正文必须创建候选稿，资产必须提出待确认提议。'
+        : '把内容整体写入文件（覆盖已有内容），父目录不存在时自动创建。') + EXTERNAL_WRITE_NOTE,
     parameters: writeParameters,
-    async execute(params) {
-      const filePath = await resolveWithinCwd(cwd, params.path);
+    resolvePermission: params => describeFileAccess(cwd, params.path, 'write', options),
+    async execute(params, _signal, context) {
+      const target = await resolveAuthorizedPath(cwd, params.path, 'write', options, context);
       const bytes = Buffer.byteLength(params.content, 'utf8');
       if (bytes > MAX_TOOL_FILE_BYTES || !params.content.isWellFormed() || params.content.includes('\0')) {
         throw new Error('内容不是有效 UTF-8 文本或超过写入上限');
       }
-      await withFileWriteLock(filePath, async () => {
-        await resolveWithinCwd(cwd, params.path);
-        await beforeWrite?.(params.path, params.content);
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await writeTextAtomically(filePath, params.content);
+      await withFileWriteLock(target.path, async () => {
+        await resolveAuthorizedPath(cwd, params.path, 'write', options, context);
+        // 草稿边界只管作品内；作品外的约束在授权阶段与上一行都已复核。
+        if (!target.external) await beforeWrite?.(params.path, params.content);
+        await fs.mkdir(path.dirname(target.path), { recursive: true });
+        await writeTextAtomically(target.path, params.content);
       });
 
       return {
@@ -355,7 +392,7 @@ export function createWriteTool(
 
 const editParameters = Type.Object(
   {
-    path: Type.String({ description: '相对会话目录的文件路径' }),
+    path: Type.String({ description: PATH_DESCRIPTION }),
     oldText: Type.String({ description: '被替换的原文；必须在文件中恰好出现一次' }),
     newText: Type.String({ description: '替换后的新文本' })
   },
@@ -365,26 +402,29 @@ const editParameters = Type.Object(
 /** edit：oldText 恰好出现一次才替换；零匹配/多匹配给出次数提示（原子写）。 */
 export function createEditTool(
   cwd: string,
-  beforeWrite?: (relativePath: string, content: string) => Promise<void>
+  beforeWrite?: (relativePath: string, content: string) => Promise<void>,
+  options: ExternalAccessOptions = UNPROTECTED
 ): ToolDefinition<typeof editParameters> {
   return {
     name: 'edit',
     label: '编辑文件',
     riskLevel: 'mutating',
-    description: beforeWrite
-      ? '只在作品草稿目录精确替换文本，oldText 必须恰好出现一次。正式正文和资产不能直接改写。'
-      : '精确文本替换：oldText 必须在文件中恰好出现一次，否则报错并给出出现次数。',
+    description:
+      (beforeWrite
+        ? '作品内只在草稿目录精确替换文本，oldText 必须恰好出现一次。正式正文和资产不能直接改写。'
+        : '精确文本替换：oldText 必须在文件中恰好出现一次，否则报错并给出出现次数。') + EXTERNAL_WRITE_NOTE,
     parameters: editParameters,
-    async execute(params) {
-      const filePath = await resolveWithinCwd(cwd, params.path);
-      return withFileWriteLock(filePath, async () => {
-        await resolveWithinCwd(cwd, params.path);
+    resolvePermission: params => describeFileAccess(cwd, params.path, 'write', options),
+    async execute(params, _signal, context) {
+      const target = await resolveAuthorizedPath(cwd, params.path, 'write', options, context);
+      return withFileWriteLock(target.path, async () => {
+        await resolveAuthorizedPath(cwd, params.path, 'write', options, context);
         let content: string;
 
         try {
-          const info = await fs.stat(filePath);
+          const info = await fs.stat(target.path);
           if (info.size > MAX_TOOL_FILE_BYTES) return { text: '文件超过编辑上限' };
-          const buffer = await fs.readFile(filePath);
+          const buffer = await fs.readFile(target.path);
 
           if (isBinaryContent(buffer)) {
             return { text: `二进制文件不支持编辑：${params.path}` };
@@ -409,9 +449,9 @@ export function createEditTool(
         if (!updated.isWellFormed() || updated.includes('\0') || Buffer.byteLength(updated) > MAX_TOOL_FILE_BYTES) {
           throw new Error('修改后的内容不是有效 UTF-8 文本或超过编辑上限');
         }
-        await resolveWithinCwd(cwd, params.path);
-        await beforeWrite?.(params.path, updated);
-        await writeTextAtomically(filePath, updated);
+        await resolveAuthorizedPath(cwd, params.path, 'write', options, context);
+        if (!target.external) await beforeWrite?.(params.path, updated);
+        await writeTextAtomically(target.path, updated);
 
         return {
           text: `已替换 ${params.path} 中 1 处文本`,
@@ -439,14 +479,15 @@ function countOccurrences(content: string, needle: string): number {
 }
 
 /**
- * 深度优先遍历：跳过噪声目录；signal 中止时终止；
+ * 深度优先遍历：跳过噪声目录与调用方排除的目录；signal 中止时终止；
  * 命中上限由调用方在 visit 内自行截断（简单优先，不做双重控制流）。
  */
 async function walk(
   root: string,
   signal: AbortSignal | undefined,
   visit: (filePath: string) => Promise<void>,
-  shouldStop?: () => boolean
+  shouldStop?: () => boolean,
+  isExcluded?: (directory: string) => boolean
 ): Promise<void> {
   let entries;
 
@@ -471,11 +512,11 @@ async function walk(
     const full = path.join(root, entry.name);
 
     if (entry.isDirectory()) {
-      if (DEFAULT_IGNORED_DIRS.has(entry.name)) {
+      if (DEFAULT_IGNORED_DIRS.has(entry.name) || isExcluded?.(full)) {
         continue;
       }
 
-      await walk(full, signal, visit, shouldStop);
+      await walk(full, signal, visit, shouldStop, isExcluded);
     } else if (entry.isFile()) {
       await visit(full);
 

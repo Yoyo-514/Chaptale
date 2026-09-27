@@ -147,8 +147,8 @@ function laneDetails(lane: LaneResult) {
  * description 里的 persona 枚举是会话创建时的快照；执行期重新加载校验，
  * 任一目标失效时整体拒绝并返回当前可用列表让模型自纠，避免部分执行的歧义。
  *
- * 分级为 readonly：子任务在无人值守闸门（ask 即拒）下运行且默认零工具，
- * 委派本身不产生需要用户确认的副作用。
+ * 分级为 readonly：委派本身不产生副作用；子任务只拿到 persona 声明的工具，
+ * 其中需要授权的操作会转到本会话，由作者逐次确认。
  */
 export async function createDelegateTool(context: DelegateToolContext): Promise<ToolDefinition<typeof DelegateParams>> {
   const cwd = await context.resolveCwd();

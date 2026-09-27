@@ -12,6 +12,7 @@ export function createPermissionsApi(): ChaptaleDesktopApi['permissions'] {
     decide: args => ipcRenderer.invoke(IPC_CHANNELS.permissions.decide, args),
     listRules: () => ipcRenderer.invoke(IPC_CHANNELS.permissions.listRules),
     removeRule: args => ipcRenderer.invoke(IPC_CHANNELS.permissions.removeRule, args),
+    grantExternalDirectory: args => ipcRenderer.invoke(IPC_CHANNELS.permissions.grantExternalDirectory, args),
     onAsk: listener => onValidatedEvent(IPC_CHANNELS.permissions.ask, PermissionAskEventValidator, listener)
   };
 }

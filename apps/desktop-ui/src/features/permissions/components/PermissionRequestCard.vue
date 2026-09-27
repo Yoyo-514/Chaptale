@@ -2,7 +2,12 @@
 import { computed, ref, watch } from 'vue';
 
 import type { PermissionAskEvent, PermissionDecideArgs } from '@chaptale/ipc-contract';
-import type { RiskLevel } from '@chaptale/shared';
+import {
+  EXTERNAL_ACCESS_CAPABILITIES,
+  isExternalAccessCapability,
+  type PermissionScope,
+  type RiskLevel
+} from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTextarea } from '@/components/AppTextarea';
@@ -25,6 +30,8 @@ const queuedCount = computed(() => Math.max(0, props.requests.length - 1));
 const scopedRule = computed(() =>
   current.value ? deriveScopedRule(current.value.toolName, current.value.subject) : undefined
 );
+// 作品外访问只能授到会话或本机全局：作品级规则随作品流转，主进程不会让它放行作品外路径。
+const isExternal = computed(() => (current.value ? isExternalAccessCapability(current.value.toolName) : false));
 
 // 拒绝理由输入：默认收起，点击"拒绝"后展开供选填；换请求时重置。
 const showDenyInput = ref(false);
@@ -40,6 +47,7 @@ watch(
 
 const riskMeta: Record<RiskLevel, { label: string; className: string }> = {
   readonly: { label: '只读', className: 'permission-risk-readonly' },
+  sensitive: { label: '敏感', className: 'permission-risk-sensitive' },
   mutating: { label: '写入', className: 'permission-risk-mutating' },
   destructive: { label: '危险', className: 'permission-risk-destructive' }
 };
@@ -50,11 +58,11 @@ function allowOnce() {
   }
 }
 
-function allowAlways(pattern: string) {
+function allowAlways(pattern: string, scope: PermissionScope = 'workspace') {
   if (current.value) {
     emit('decide', {
       requestId: current.value.requestId,
-      decision: { outcome: 'allow-always', scope: 'workspace', pattern }
+      decision: { outcome: 'allow-always', scope, pattern }
     });
   }
 }
@@ -80,7 +88,12 @@ function deny() {
     <div class="permission-card-header">
       <span class="i-mingcute-shield-shape-line size-4 shrink-0" aria-hidden="true" />
       <span class="permission-card-title">
-        请求执行 <code class="permission-card-tool">{{ current.toolName }}</code>
+        <template v-if="isExternal">
+          {{ current.toolName === EXTERNAL_ACCESS_CAPABILITIES.write ? '请求写入作品外路径' : '请求读取作品外路径' }}
+        </template>
+        <template v-else>
+          请求执行 <code class="permission-card-tool">{{ current.toolName }}</code>
+        </template>
       </span>
       <span :class="['permission-risk', riskMeta[current.riskLevel].className]">
         {{ riskMeta[current.riskLevel].label }}
@@ -88,6 +101,7 @@ function deny() {
       <span v-if="queuedCount > 0" class="permission-card-queued">还有 {{ queuedCount }} 项待处理</span>
     </div>
 
+    <p v-if="current.requester" class="permission-card-requester">来自子任务「{{ current.requester }}」</p>
     <p v-if="current.subject" class="permission-card-subject" :title="current.subject">{{ current.subject }}</p>
 
     <div v-if="showDenyInput" class="permission-card-reason">
@@ -108,27 +122,53 @@ function deny() {
       <AppButton variant="primary" size="xs" type="button" :disabled="isSubmitting" @click="allowOnce">
         仅此次允许
       </AppButton>
-      <AppButton
-        v-if="scopedRule"
-        variant="secondary"
-        size="xs"
-        type="button"
-        :disabled="isSubmitting"
-        :title="`规则：${scopedRule.pattern}`"
-        @click="allowAlways(scopedRule.pattern)"
-      >
-        始终允许 <span class="permission-card-scope">{{ scopedRule.scopeLabel }}</span>
-      </AppButton>
-      <AppButton
-        variant="secondary"
-        size="xs"
-        type="button"
-        :disabled="isSubmitting"
-        :title="`规则：${current.toolName}（该工具的全部调用）`"
-        @click="allowAlways(current.toolName)"
-      >
-        本作品始终允许
-      </AppButton>
+      <template v-if="isExternal">
+        <AppButton
+          v-if="scopedRule"
+          variant="secondary"
+          size="xs"
+          type="button"
+          :disabled="isSubmitting"
+          :title="`规则：${scopedRule.pattern}（本次会话内有效）`"
+          @click="allowAlways(scopedRule.pattern, 'session')"
+        >
+          本会话允许 <span class="permission-card-scope">{{ scopedRule.scopeLabel }}</span>
+        </AppButton>
+        <AppButton
+          v-if="scopedRule"
+          variant="secondary"
+          size="xs"
+          type="button"
+          :disabled="isSubmitting"
+          :title="`规则：${scopedRule.pattern}（对本机所有作品生效）`"
+          @click="allowAlways(scopedRule.pattern, 'global')"
+        >
+          始终允许 <span class="permission-card-scope">{{ scopedRule.scopeLabel }}</span>
+        </AppButton>
+      </template>
+      <template v-else>
+        <AppButton
+          v-if="scopedRule"
+          variant="secondary"
+          size="xs"
+          type="button"
+          :disabled="isSubmitting"
+          :title="`规则：${scopedRule.pattern}`"
+          @click="allowAlways(scopedRule.pattern)"
+        >
+          始终允许 <span class="permission-card-scope">{{ scopedRule.scopeLabel }}</span>
+        </AppButton>
+        <AppButton
+          variant="secondary"
+          size="xs"
+          type="button"
+          :disabled="isSubmitting"
+          :title="`规则：${current.toolName}（该工具的全部调用）`"
+          @click="allowAlways(current.toolName)"
+        >
+          本作品始终允许
+        </AppButton>
+      </template>
       <AppButton variant="danger" size="xs" type="button" :disabled="isSubmitting" @click="deny">
         {{ showDenyInput ? '确认拒绝' : '拒绝' }}
       </AppButton>
@@ -173,6 +213,11 @@ function deny() {
   background: var(--surface-muted);
 }
 
+.permission-risk-sensitive {
+  color: var(--warning, #b45309);
+  background: var(--surface-muted);
+}
+
 .permission-risk-destructive {
   color: var(--destructive, #b91c1c);
   background: var(--surface-muted);
@@ -180,6 +225,12 @@ function deny() {
 
 .permission-card-queued {
   @apply ml-auto shrink-0 text-xs;
+
+  color: var(--muted-foreground);
+}
+
+.permission-card-requester {
+  @apply m-0 text-xs;
 
   color: var(--muted-foreground);
 }

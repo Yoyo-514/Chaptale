@@ -44,11 +44,19 @@ export type TaskRunnerPort = {
   run(request: TaskRunRequest): Promise<TaskRunResult>;
 };
 
+/** 委派子任务的授权转发：卡片出现在宿主会话，并注明是哪个子任务在请求。 */
+export type TaskDelegation = {
+  parentSessionId: string;
+  /** 发起请求的子任务名（persona 名称）。 */
+  requester: string;
+};
+
 /** 一次性 task 会话的创建端口；会话类型由实现方决定，应用层不感知运行时。 */
 export type TaskSessionFactoryPort<TSession> = {
   createTaskSession(
     spec: TaskPersonaSpec,
     cwdOverride?: string,
-    onMemoryRead?: (refs: readonly string[]) => void
+    onMemoryRead?: (refs: readonly string[]) => void,
+    delegation?: TaskDelegation
   ): Promise<TSession>;
 };

@@ -139,4 +139,36 @@ describe('PermissionRuleStore', () => {
     store.clearSession('s1');
     expect(await store.collect(sessionCtx)).toEqual([]);
   });
+
+  it('drops workspace allow rules on request while keeping workspace denials and the other layers', async () => {
+    const globalDir = createTempDir();
+    const cwd = createTempDir();
+    const store = new PermissionRuleStore({ globalDir });
+    const sessionCtx = ctx('s1', cwd);
+
+    // 作品文件随分享流转：它夹带的作品外放行不能生效，但它的拒绝仍然要算数。
+    await store.addRule({ pattern: 'external_read(C:/*)', action: 'allow' }, 'workspace', sessionCtx);
+    await store.addRule({ pattern: 'external_read(C:/私密/*)', action: 'deny' }, 'workspace', sessionCtx);
+    await store.addRule({ pattern: 'external_read(D:/资料/*)', action: 'allow' }, 'session', sessionCtx);
+    await store.addPersistentRule({ pattern: 'external_read(E:/资料/*)', action: 'allow' }, 'global', null);
+
+    expect((await store.collect(sessionCtx, { workspaceAllows: false })).map(rule => rule.pattern)).toEqual([
+      'external_read(D:/资料/*)',
+      'external_read(C:/私密/*)',
+      'external_read(E:/资料/*)'
+    ]);
+    expect(await store.collect(sessionCtx)).toHaveLength(4);
+  });
+
+  it('adds persistent rules without a session context and rejects workspace writes without a cwd', async () => {
+    const globalDir = createTempDir();
+    const store = new PermissionRuleStore({ globalDir });
+
+    await store.addPersistentRule({ pattern: 'external_write(E:/导出/*)', action: 'allow' }, 'global', null);
+
+    expect((await store.listPersistentRules(null)).global).toEqual([
+      { pattern: 'external_write(E:/导出/*)', action: 'allow' }
+    ]);
+    await expect(store.addPersistentRule({ pattern: 'write', action: 'allow' }, 'workspace', null)).rejects.toThrow();
+  });
 });
