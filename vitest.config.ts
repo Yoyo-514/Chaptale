@@ -4,6 +4,14 @@ import { defineConfig, defineProject } from 'vitest/config';
 
 export const vitestProjects = [
   defineProject({
+    test: {
+      name: 'agent-host',
+      root: './packages/agent-host',
+      environment: 'node',
+      include: ['src/**/*.test.ts']
+    }
+  }),
+  defineProject({
     plugins: [vue()],
     resolve: {
       alias: {
@@ -54,7 +62,8 @@ export default defineConfig({
       include: [
         'apps/desktop/src/main/**/*.ts',
         'apps/desktop-ui/src/{features,components,composables,utils}/**/*.ts',
-        'packages/shared/src/**/*.ts'
+        'packages/shared/src/**/*.ts',
+        'packages/agent-host/src/**/*.ts'
       ],
       exclude: [
         '**/__tests__/**',

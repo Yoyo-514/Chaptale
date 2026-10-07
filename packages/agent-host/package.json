@@ -1,0 +1,27 @@
+{
+  "name": "@chaptale/agent-host",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json",
+    "test": "cd ../.. && vitest run --config vitest.config.ts --project agent-host"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

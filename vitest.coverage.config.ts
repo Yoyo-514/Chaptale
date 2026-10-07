@@ -13,7 +13,8 @@ export default defineConfig({
         'apps/desktop/src/preload/**/*.ts',
         'apps/desktop-ui/src/**/*.{ts,vue}',
         'packages/shared/src/**/*.ts',
-        'packages/ipc/src/**/*.ts'
+        'packages/ipc/src/**/*.ts',
+        'packages/agent-host/src/**/*.ts'
       ],
       exclude: ['**/__tests__/**', '**/*.d.ts', '**/*.types.ts', '**/types.ts', '**/*.config.*', '**/index.ts'],
       thresholds: {

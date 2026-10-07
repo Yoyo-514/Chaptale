@@ -17,6 +17,7 @@ docs/.vitepress/cache
 coverage
 playwright-report
 test-results
+/.vitest/
 *.local
 
 # Editor directories and files

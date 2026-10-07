@@ -2,6 +2,9 @@
   "files": [],
   "references": [
     {
+      "path": "./packages/agent-host/tsconfig.json"
+    },
+    {
       "path": "./packages/shared/tsconfig.json"
     },
     {

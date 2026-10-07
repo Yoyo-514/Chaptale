@@ -27,6 +27,10 @@
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/desktop-ui/build/**"],
       "outputs": []
     },
+    "@chaptale/agent-host#typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": ["dist/**"]
+    },
     "@chaptale/shared#typecheck": {
       "dependsOn": ["^typecheck"],
       "outputs": ["dist/**"]
