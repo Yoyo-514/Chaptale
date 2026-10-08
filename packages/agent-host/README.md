@@ -60,3 +60,15 @@ pnpm --filter @chaptale/agent-host test
 测试使用真实 SDK、临时目录与自然退出的 Node 子进程，覆盖提示词与资源隔离、独立会话、默认保温关闭和无效输入。不替换 SDK 函数、不使用模拟模型服务器，不发起模型请求。
 
 当前有 14 项会话边界测试、8 项原生持久化测试和 16 项模型运行时装配及选择测试。后两组通过独立进程运行真实 SDK：断言分别在 `src/__tests__/persistence.test.ts` 与 `src/__tests__/model-runtime.test.ts`，进程入口在 `src/__tests__/fixtures/`，不进入公开导出。模型运行时测试使用临时配置与假凭据，不读取开发机真实凭据、不发起模型请求。验证仅覆盖正常退出与文件边界，不代表强杀恢复、断电不丢失、单写者协调或 SQLite/JSONL 对账已完成。工具授权、Code Mode、MCP、真实模型以及 Electron/Android 新版本集成仍需后续逐步验证。旧 `runtime-validation` 中 pi 1.0.2 的宿主证据不是本包在 1.1.0 下的完整兼容证明。
+
+### 手动真实模型验证
+
+```sh
+pnpm --filter @chaptale/agent-host test:live "<仓库绝对路径>/temp/<测试配置>.json"
+```
+
+配置接受 pi 原生 `providers` 对象或单独的 provider 映射，凭据只从指定文件读取。单模型配置直接使用该模型；多模型配置须在路径后显式给出 `provider modelId`。输入及所有派生配置、会话和诊断必须位于仓库 `temp/` 且通过 Git 忽略检查；不写入其他目录、不在终端回显原始 SDK 错误或密钥。子进程使用独立 HOME、配置和临时目录，不继承开发机模型凭据、代理及 NODE_OPTIONS。
+
+入口进行三次会话输入：真实流式回复、新进程重开后续聊、首个文本或推理增量上的取消；断言原生 `agent_settled.aborted`、最终 `stopReason`、消息数量、会话身份和 `durationMs`。每次输出上限设为 512 tokens（包含推理），宿主期限为 45 秒；供应商仍可能按 SDK 策略重试，不能把这些限制当成账单硬上限。成功与失败记录均保留在 `temp/pi-live-*`，脚本不自动删除。
+
+这是显式付费/联网入口，不属于普通测试或 CI。当前指定的 Responses 兼容模型已经通过三项验证；不代表其他协议、工具、媒体或平台已经验收。缓存用量为零不证明缓存机制失效，中止流未返回完整用量也不等于没有费用。
