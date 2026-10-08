@@ -41,12 +41,15 @@ function childEnvironment(home) {
 async function verifyChild(runDir, phase) {
   // 动态导入发生在隔离环境的子进程中；不使用终端 CLI 或真实全局 pi 目录。
   const { SessionManager } = await import('@earendil-works/pi-coding-agent');
-  const { createHostModelRuntime, createHostSession } = await import('../src/index.ts');
+  const { createHostModelRuntime, createHostSession, openHostSessionManager } = await import('../src/index.ts');
   const model = JSON.parse(await readFile(join(runDir, 'selection.json'), 'utf8'));
   const cwd = join(runDir, 'work');
   const manager =
     phase === 'resume'
-      ? SessionManager.open(await ignoredPath(JSON.parse(await readFile(join(runDir, 'session.json'), 'utf8')).file))
+      ? await openHostSessionManager({
+          file: await ignoredPath(JSON.parse(await readFile(join(runDir, 'session.json'), 'utf8')).file),
+          cwd
+        })
       : SessionManager.create(cwd, join(runDir, 'sessions'));
   const runtime = await createHostModelRuntime({ configDir: join(runDir, 'config') });
   const { session } = await createHostSession({

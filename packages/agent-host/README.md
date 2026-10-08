@@ -28,7 +28,11 @@ Chaptale 的 pi SDK 接入边界，运行于 Node 宿主，不供 Renderer 导�
 
 ## 原生会话存储
 
-调用方使用 `SessionManager.create(cwd, sessionDir)` 创建持久会话，或用 `SessionManager.open(file)` 重开，再将结果传入 `createHostSession()`。必须显式选择应用管理的绝对路径，不能省略创建时的 `sessionDir` 而落入开发机默认目录。本包不额外提供一套保存/加载接口。
+调用方使用 `SessionManager.create(cwd, sessionDir)` 创建持久会话，用 `openHostSessionManager({ file, cwd })` 严格打开已有历史，再将结果传入 `createHostSession()`。必须显式选择应用管理的绝对路径，不能省略创建时的 `sessionDir` 而落入开发机默认目录。本包只增加打开前的预检，不复制原生序列化、保存与消息树实现。
+
+严格入口要求已有普通文件、当前 SDK 会话版本、完整 UTF-8/JSON 行、匹配的工作目录，以及无重复 ID/缺失父节点的基本历史链。空文件、损坏尾行、缺少末尾换行或需要版本迁移时，返回带 `code` 的 `HostSessionOpenError`，不调用 SDK 自动修复原件；合法文件头构成的空会话及 CRLF 历史可以打开。错误不回显历史原文。
+
+预检不验证每一种消息或扩展载荷的完整业务语义，不实施修复、跨作品重绑定或旧版迁移；这些操作须有独立恢复流程。调用方必须先取得单写者所有权，并在使用期间保持它；本入口不提供跨进程锁，不能抵御外部程序在预检与 SDK 重开之间替换文件。
 
 pi 1.0.4 基线及 1.1.0 复验确认的行为：
 
@@ -59,7 +63,7 @@ pnpm --filter @chaptale/agent-host test
 
 测试使用真实 SDK、临时目录与自然退出的 Node 子进程，覆盖提示词与资源隔离、独立会话、默认保温关闭和无效输入。不替换 SDK 函数、不使用模拟模型服务器，不发起模型请求。
 
-当前有 14 项会话边界测试、8 项原生持久化测试和 16 项模型运行时装配及选择测试。后两组通过独立进程运行真实 SDK：断言分别在 `src/__tests__/persistence.test.ts` 与 `src/__tests__/model-runtime.test.ts`，进程入口在 `src/__tests__/fixtures/`，不进入公开导出。模型运行时测试使用临时配置与假凭据，不读取开发机真实凭据、不发起模型请求。验证仅覆盖正常退出与文件边界，不代表强杀恢复、断电不丢失、单写者协调或 SQLite/JSONL 对账已完成。工具授权、Code Mode、MCP、真实模型以及 Electron/Android 新版本集成仍需后续逐步验证。旧 `runtime-validation` 中 pi 1.0.2 的宿主证据不是本包在 1.1.0 下的完整兼容证明。
+当前有 14 项会话边界测试、8 项原生持久化测试、16 项模型运行时装配及选择测试和 18 项严格打开测试。后两组通过独立进程运行真实 SDK：断言分别在 `src/__tests__/persistence.test.ts` 与 `src/__tests__/model-runtime.test.ts`，进程入口在 `src/__tests__/fixtures/`，不进入公开导出。模型运行时测试使用临时配置与假凭据，不读取开发机真实凭据、不发起模型请求。验证仅覆盖正常退出与文件边界，不代表强杀恢复、断电不丢失、单写者协调或 SQLite/JSONL 对账已完成。工具授权、Code Mode、MCP、真实模型以及 Electron/Android 新版本集成仍需后续逐步验证。旧 `runtime-validation` 中 pi 1.0.2 的宿主证据不是本包在 1.1.0 下的完整兼容证明。
 
 ### 手动真实模型验证
 
