@@ -86,6 +86,32 @@ describe('应用模型运行时装配', () => {
     expect(await readdir(input.agentDir)).toEqual([]);
   });
 
+  it('显式选择模型，不静默使用目录中的第一个模型', async () => {
+    const config = structuredClone(modelsConfig);
+    config.providers['chaptale-test'].models.push({ id: 'second-model', name: '第二模型' });
+    await writeModelsConfig(config);
+    await writeAuthConfig();
+
+    const result = await run({ model: { provider: 'chaptale-test', id: 'second-model' } });
+
+    expect(result.ok).toBe(true);
+    expect(result.selected).toEqual({ provider: 'chaptale-test', id: 'second-model' });
+  });
+
+  it.each([
+    { provider: 'unknown-provider', id: 'test-model' },
+    { provider: 'chaptale-test', id: 'unknown-model' },
+    { provider: '', id: '' }
+  ])('拒绝未知的显式模型 %j，不回退到其他模型', async model => {
+    await writeModelsConfig();
+    await writeAuthConfig();
+
+    const result = await run({ model });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('所选模型未在应用模型运行时中注册');
+  });
+
   it('配置目录为空时返回待配置运行时，不包含可用模型', async () => {
     const result = await run();
 

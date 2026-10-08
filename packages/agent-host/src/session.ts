@@ -18,6 +18,8 @@ export interface CreateHostSessionOptions {
   systemPrompt: string;
   /** 调用方装配模型与凭据；此处不发现或加载 auth.json / models.json。 */
   modelRuntime: ModelRuntime;
+  /** 显式选择运行时已注册的聊天模型；不接受 URL、headers 或凭据覆写。 */
+  model?: { provider: string; id: string };
   /** 调用方拥有存储位置与单写者生命周期，直接使用 pi 原生会话。 */
   sessionManager: SessionManager;
 }
@@ -44,6 +46,11 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     throw new Error('必须显式提供非空系统提示词');
   }
 
+  const model = options.model ? modelRuntime.getModel(options.model.provider, options.model.id) : undefined;
+  if (options.model !== undefined && !model) {
+    throw new Error('所选模型未在应用模型运行时中注册');
+  }
+
   const settingsManager = SettingsManager.inMemory({ cacheWarming: 'off' });
   const resourceLoader = new DefaultResourceLoader({
     cwd,
@@ -65,6 +72,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     cwd,
     agentDir,
     modelRuntime,
+    model,
     sessionManager,
     settingsManager,
     resourceLoader,

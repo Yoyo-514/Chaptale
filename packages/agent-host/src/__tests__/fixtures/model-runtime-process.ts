@@ -6,6 +6,7 @@ export interface ModelRuntimeProcessInput {
   configDir: string;
   cwd: string;
   agentDir: string;
+  model?: { provider: string; id: string };
 }
 
 export interface ModelRuntimeProcessResult {
@@ -28,6 +29,7 @@ try {
     agentDir: input.agentDir,
     systemPrompt: '你是创作助手，只讨论作者提供的资料。',
     modelRuntime,
+    model: input.model,
     sessionManager: SessionManager.inMemory(input.cwd)
   });
   try {
