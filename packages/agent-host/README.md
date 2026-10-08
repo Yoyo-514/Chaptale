@@ -29,7 +29,7 @@ Chaptale 的 pi SDK 接入边界，运行于 Node 宿主，不供 Renderer 导�
 
 调用方使用 `SessionManager.create(cwd, sessionDir)` 创建持久会话，或用 `SessionManager.open(file)` 重开，再将结果传入 `createHostSession()`。必须显式选择应用管理的绝对路径，不能省略创建时的 `sessionDir` 而落入开发机默认目录。本包不额外提供一套保存/加载接口。
 
-pi 1.0.4 的已验证行为：
+pi 1.0.4 基线及 1.1.0 复验确认的行为：
 
 - 新会话仅包含设置时不落盘；首条 user 或 assistant 消息触发文件创建。本轮测试验证的是 user 消息路径，不依赖模型返回。
 - 新进程重开后保留会话 ID、工作目录、消息及消息父子关系；续写不覆盖已有记录，同目录下不同会话独立。
@@ -54,8 +54,8 @@ pnpm --filter @chaptale/agent-host typecheck
 pnpm --filter @chaptale/agent-host test
 ```
 
-当前 lockfile 解析到 pi-coding-agent / pi-ai **1.0.4**。catalog 使用兼容范围，升级时正常更新 lockfile 并回归，不永久冻结版本。
+当前 lockfile 解析到 pi-coding-agent / pi-ai **1.1.0**。catalog 使用兼容范围，升级时正常更新 lockfile 并回归，不永久冻结版本。
 
 测试使用真实 SDK、临时目录与自然退出的 Node 子进程，覆盖提示词与资源隔离、独立会话、默认保温关闭和无效输入。不替换 SDK 函数、不使用模拟模型服务器，不发起模型请求。
 
-当前有 14 项会话边界测试、8 项原生持久化测试和 12 项模型运行时装配测试。后两组通过独立进程运行真实 SDK：断言分别在 `src/__tests__/persistence.test.ts` 与 `src/__tests__/model-runtime.test.ts`，进程入口在 `src/__tests__/fixtures/`，不进入公开导出。模型运行时测试使用临时配置与假凭据，不读取开发机真实凭据、不发起模型请求。验证仅覆盖正常退出与文件边界，不代表强杀恢复、断电不丢失、单写者协调或 SQLite/JSONL 对账已完成。工具授权、Code Mode、MCP、真实模型以及 Electron/Android 新版本集成仍需后续逐步验证。旧 `runtime-validation` 中 pi 1.0.2 的宿主证据不是本包在 1.0.4 下的完整兼容证明。
+当前有 14 项会话边界测试、8 项原生持久化测试和 12 项模型运行时装配测试。后两组通过独立进程运行真实 SDK：断言分别在 `src/__tests__/persistence.test.ts` 与 `src/__tests__/model-runtime.test.ts`，进程入口在 `src/__tests__/fixtures/`，不进入公开导出。模型运行时测试使用临时配置与假凭据，不读取开发机真实凭据、不发起模型请求。验证仅覆盖正常退出与文件边界，不代表强杀恢复、断电不丢失、单写者协调或 SQLite/JSONL 对账已完成。工具授权、Code Mode、MCP、真实模型以及 Electron/Android 新版本集成仍需后续逐步验证。旧 `runtime-validation` 中 pi 1.0.2 的宿主证据不是本包在 1.1.0 下的完整兼容证明。
