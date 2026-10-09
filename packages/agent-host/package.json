@@ -20,8 +20,10 @@
     "@earendil-works/pi-coding-agent": "catalog:"
   },
   "devDependencies": {
+    "@earendil-works/pi-agent-core": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
     "@types/node": "catalog:",
+    "typebox": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

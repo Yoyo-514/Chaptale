@@ -33,6 +33,7 @@
     "dist:desktop:win": "pnpm --filter @chaptale/desktop run dist:win",
     "format": "oxfmt .",
     "format:check": "oxfmt . --check",
+    "install:electron": "pnpm --filter @chaptale/desktop exec install-electron",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "pack:desktop": "pnpm --filter @chaptale/desktop run pack:dir",

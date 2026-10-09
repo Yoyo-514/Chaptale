@@ -4,8 +4,11 @@
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm install:electron
 pnpm dev
 ```
+
+`pnpm install:electron` 调用当前锁定版本的官方 `install-electron` 入口，下载并校验本机平台的 Electron 二进制；已安装同版本时直接返回。首次安装或升级 Electron 后执行。单独运行 `pnpm install` 不会下载 Electron，文档与纯 Node.js 检查也无需下载。
 
 用户手册使用 VitePress，源码在 `docs/`：
 

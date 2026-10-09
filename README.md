@@ -89,12 +89,13 @@ AI 功能按写作任务组织：先选参考资料，再生成候选稿、比�
 
 ## 从源码运行
 
-需要 **Node.js ≥ 24** 和 **pnpm 12.5.1**。
+需要 **Node.js ≥ 24** 和根目录 `package.json` 固定的 pnpm 版本。
 
 ```sh
 git clone https://github.com/Yoyo-514/Chaptale.git
 cd Chaptale
 pnpm install --frozen-lockfile
+pnpm install:electron
 pnpm dev
 ```
 
