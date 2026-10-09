@@ -180,3 +180,27 @@ test('超长作品名不把文档标题挤出标题栏正中', async () => {
   await mkdir(visualDir, { recursive: true });
   await page.screenshot({ path: path.join(visualDir, 'titlebar-long-title.png') });
 });
+
+test('关闭按钮在三主题下悬停显色并在移开后恢复', async () => {
+  await expect(createDialog()).toBeVisible();
+  await createDialog().getByRole('button', { name: '取消', exact: true }).click();
+  await mkdir(visualDir, { recursive: true });
+  const close = page.getByRole('button', { name: '关闭窗口', exact: true });
+  for (const theme of ['light', 'warm', 'dark'] as const) {
+    await page.evaluate(value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }), theme);
+    await page.reload();
+    await page.getByRole('menuitem', { name: '文件', exact: true }).hover();
+    await expect(close).toBeEnabled();
+    const normal = await close.evaluate(element => {
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, color: style.color };
+    });
+    await close.hover();
+    await expect(close).not.toHaveCSS('background-color', normal.background);
+    await expect(close).not.toHaveCSS('color', normal.color);
+    await page.locator('.titlebar').screenshot({ path: path.join(visualDir, 'titlebar-hover-' + theme + '.png') });
+    await page.getByRole('menuitem', { name: '文件', exact: true }).hover();
+    await expect(close).toHaveCSS('background-color', normal.background);
+    await expect(close).toHaveCSS('color', normal.color);
+  }
+});

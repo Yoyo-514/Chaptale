@@ -140,7 +140,7 @@ const { isDesktop, isMaximized, minimize, toggleMaximize, close } = useWindowCon
   @apply flex-center h-8 w-10 border-0 bg-transparent p-0 text-titlebar-foreground outline-none hover:bg-titlebar-control-hover disabled:pointer-events-none disabled:opacity-40;
 }
 
-.titlebar-control-close {
-  @apply hover:bg-destructive-background hover:text-destructive-background-foreground;
+.titlebar-control-close:hover {
+  @apply bg-destructive-background text-destructive-background-foreground;
 }
 </style>

@@ -54,6 +54,9 @@ const apiOptions: Array<{ value: ChaptaleCustomProviderApi; label: string }> = [
   { value: 'google-generative-ai', label: 'Google Generative AI' }
 ];
 
+// vue-tsc 3.3.12 会把模板静态 URL 中的 // 误写成虚拟 TS 注释，改为绑定常量。
+const baseUrlPlaceholder = 'https://api.example.com/v1';
+
 function getApiLabel(api: ChaptaleCustomProviderApi) {
   return apiOptions.find(option => option.value === api)?.label ?? api;
 }
@@ -139,7 +142,7 @@ function getApiLabel(api: ChaptaleCustomProviderApi) {
                     v-bind="controlAttrs"
                     v-model="props.provider.baseUrl"
                     name="baseUrl"
-                    placeholder="https://api.example.com/v1"
+                    :placeholder="baseUrlPlaceholder"
                     autocomplete="off"
                   />
                 </template>

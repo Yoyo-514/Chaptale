@@ -1,78 +1,53 @@
 # @chaptale/agent-host
 
-Chaptale 的 pi SDK 接入边界，运行于 Node 宿主，不供 Renderer 导入。当前已接入最小会话，验证原生 JSONL 保存与重开，并提供应用管理的模型运行时装配；旧桌面 Agent 尚未切换到此包。
+供 Node 宿主使用的 pi SDK 接入包，管理应用模型配置、原生会话和工具授权。Renderer 不应导入；桌面生产 Agent 和正式移动端 UI 尚未切换到此包。
 
-## 当前接口
+## 使用
 
-`createHostSession()` 接受显式工作目录、应用资源目录、系统提示词，以及调用方装配的 `ModelRuntime` 和原生 `SessionManager`，返回 pi 的 `CreateAgentSessionResult`。不复制会话、模型协议或 Agent 循环。
+先用 `createHostModelRuntime({ configDir })` 装配模型运行时，再用 `HostSessionPool.create({ agentDir, sessionDir, modelRuntime })` 创建会话池。目录均须是已存在的绝对路径；配置和历史应放在应用管理的目录，不使用开发机全局 pi 目录。
 
-- 两个目录必须是已存在的绝对目录，会话的工作目录必须与宿主一致；目录不是权限沙箱。
-- 可选 `model: { provider, id }` 显式选择运行时已注册的聊天模型；未知引用拒绝创建，不回退到其他模型，也不接受 URL、headers 或凭据覆写。省略时保留 SDK 原生的历史恢复/默认选择行为。
-- 系统提示词始终按文本使用，不把恰好存在的文件路径解释为文件输入。
-- 不自动读取目录中的设置、凭据、模型配置、扩展、Skills、提示词模板和上下文文件，也不加载 `SYSTEM.md` / `APPEND_SYSTEM.md`。凭据与模型配置由传入的 `ModelRuntime` 决定。调用方可以通过 pi 原生接口或本包的 `createHostModelRuntime()` 装配应用管理的凭据存储与模型配置；本函数不重复加载，也不禁止这些能力。
-- 每个会话使用独立的内存设置，默认关闭额外缓存保温请求；正常模型请求的缓存行为仍由 pi 负责。
-- 当前工具允许列表为空。权限与工具装配尚未接入，这不是最终产品删除 read、bash、MCP 或 Skills 的决定，也不是操作系统隔离。
-- 调用方持有会话，负责停止活跃运行后释放它；本包不绑定窗口生命周期，也不提供单写者锁或跨进程协调。
+模型运行时读取 `configDir` 下的 `auth.json`、`models.json` 和 `models-store.json`，不联网刷新模型目录。配置损坏时拒绝装配；没有可用模型时返回待配置的运行时。凭据仍遵循 pi 的原生机制，包括环境变量。
 
-包仅导出本步接口，不重导出整个 pi SDK。需要使用原生 SDK 的宿主应声明自己的直接依赖。`pi-ai` 目前只被测试用于装配无凭据的离线模型运行时，因此列为开发依赖。
+| 会话池方法                        | 用途                                                                       |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `createSession(input)`            | 新建会话；input 提供 `cwd`、`systemPrompt`，可选 `model` 和 `toolAccess`。 |
+| `openSession({ ...input, file })` | 严格打开池目录内的已有历史。                                               |
+| `get(id)`                         | 取得已有的原生会话；关闭中的会话不可取得。                                 |
+| `list()`                          | 列出当前持有的会话及 `idle / running / closing` 状态，不扫描历史。         |
+| `close(id)`                       | 取消并释放一个会话。                                                       |
+| `dispose()`                       | 停止接收新会话，等待已接收的装配，再取消并释放全部会话。                   |
 
-## 应用模型运行时
+创建和打开返回 pi 的 `CreateAgentSessionResult`，直接使用 `session.prompt()`、`steer()` 和原生事件。关闭与释放不删除 JSONL。同进程内的池不能同时持有同一文件；池内也拒绝相同会话 ID 的历史副本。
 
-`createHostModelRuntime()` 从显式指定的应用配置目录装配 pi 原生 `ModelRuntime`，供 `createHostSession()` 使用；它不选择模型、不迁移旧模型设置、不接附件，也不发起模型请求。
+如需自行管理生命周期，可将原生 `SessionManager` 与 `ModelRuntime` 传入 `createHostSession()`；恢复历史时先调用 `openHostSessionManager({ file, cwd })`。使用原生 SDK 的调用方应声明自己的直接依赖，本包不重导出整个 SDK。
 
-- 配置目录必须是已存在的绝对目录，不得指向作品目录或开发机全局 pi 目录。凭据、模型配置与模型目录缓存固定为该目录内的 `auth.json`、`models.json`、`models-store.json`；缺失文件由 SDK 在配置目录内初始化自有存储，不落在其他目录。
-- 装配前对 `auth.json` 做最小校验（JSON 可解析、凭据字段类型正确），弥补原生可写凭据存储对读取失败的静默容错；凭据文件缺失视为待配置状态。
-- 检查原生 `models.json` 解析/组合错误与离线刷新错误：模型配置不可用、模型目录缓存损坏或凭据可用性检查失败时拒绝装配，不静默降级。
-- 装配关闭模型目录联网刷新，过程不产生模型请求；这不等于永久网络沙箱，也不取消 SDK 原有的环境变量凭据能力。
-- 没有可用模型时返回运行时，供后续设置流程使用，不代表已经可以调用模型；错误信息不回显凭据或原始配置。
+## 默认行为与边界
 
-## 原生会话存储
+- `systemPrompt` 必须非空，始终按文本使用。会话工作目录须与 `cwd` 一致。宿主不自动发现目录中的配置、扩展、Skills、提示词或上下文文件；每个会话使用独立内存设置，默认关闭额外缓存保温请求。
+- `model: { provider, id }` 只选择已注册模型，未知引用报错；省略时由 SDK 恢复历史模型或选择默认模型。模型地址和凭据由 `ModelRuntime` 管理。
+- 默认没有工具。`toolAccess` 提供原生 `ToolDefinition[]` 和 `authorize(request, signal)`，每次直接或嵌套执行都重新授权。授权方只接收会话信息和参数快照；授权被拒绝、失败或在等待期间取消时，都不会启动工具；迟到的批准也无效。未登记工具被阻断。
+- `openHostSessionManager()` 在恢复前检查普通文件、当前 SDK 版本、UTF-8/JSON 行、工作目录和基本历史链。文件缺失、损坏、缺少末尾换行或需要迁移时抛出带 `code` 的 `HostSessionOpenError`，不让 SDK 自动修复原件。空会话在首条 user/assistant 消息前不落盘。
 
-调用方使用 `SessionManager.create(cwd, sessionDir)` 创建持久会话，用 `openHostSessionManager({ file, cwd })` 严格打开已有历史，再将结果传入 `createHostSession()`。必须显式选择应用管理的绝对路径，不能省略创建时的 `sessionDir` 而落入开发机默认目录。本包只增加打开前的预检，不复制原生序列化、保存与消息树实现。
-
-严格入口要求已有普通文件、当前 SDK 会话版本、完整 UTF-8/JSON 行、匹配的工作目录，以及无重复 ID/缺失父节点的基本历史链。空文件、损坏尾行、缺少末尾换行或需要版本迁移时，返回带 `code` 的 `HostSessionOpenError`，不调用 SDK 自动修复原件；合法文件头构成的空会话及 CRLF 历史可以打开。错误不回显历史原文。
-
-预检不验证每一种消息或扩展载荷的完整业务语义，不实施修复、跨作品重绑定或旧版迁移；这些操作须有独立恢复流程。调用方必须先取得单写者所有权，并在使用期间保持它；本入口不提供跨进程锁，不能抵御外部程序在预检与 SDK 重开之间替换文件。
-
-pi 1.0.4 基线及 1.1.0 复验确认的行为：
-
-- 新会话仅包含设置时不落盘；首条 user 或 assistant 消息触发文件创建。本轮测试验证的是 user 消息路径，不依赖模型返回。
-- 新进程重开后保留会话 ID、工作目录、消息及消息父子关系；续写不覆盖已有记录，同目录下不同会话独立。
-- `open()` 遇到不存在的路径会准备新会话，并不报告“原历史丢失”。产品恢复入口不能直接把它当作严格打开接口，后续须区分新建和恢复。
-- 完全损坏的非空文件被拒绝且不覆盖；有效会话中的非法 JSON 尾行会被跳过，缺少末尾换行时 SDK 会补写换行。打开不是严格只读操作，也不是完整性检查。
-- `createHostSession()` 拒绝与宿主工作目录不一致的会话；检查发生在调用方打开 SessionManager 之后，不能阻止 SDK 打开文件时的修复行为。
-
-正常执行通过 `session.prompt()` 等原生会话入口推进，不直接修改 `session.state.messages`。存储测试通过 `SessionManager.appendMessage()` 写入固定用户消息，再在另一进程验证会话恢复；它不证明模型对话或工具调用已经可用。
-
-### 附件边界
-
-JSONL 的职责是保存 pi 原生历史，不是应用附件仓库。图片、普通文件及可能的视频、音频原件由独立的附件存储职责管理；SQLite 记录稳定引用、来源、内容哈希和元数据，备份需覆盖原件与保留历史的引用。SDK 消息中的内嵌内容或临时文件路径不能替代这条持久保存链路。
-
-文件选择与读取授权属于平台入口，预览、缩略图及可能的转码属于媒体处理/展示职责，不能塞进本包。模型输入适配还需判断模型实际支持的媒体类型，不能将“可保存附件”等同于“模型可读取附件”。本步未实现附件服务，也未验证媒体消息恢复或附件备份。
+工具实现是受信任的宿主代码，工作目录和授权回调不构成 OS 沙箱。单写者保护仅限本进程通过池操作的文件，不覆盖外部写入；直接管理会话的调用方须自行持有写入权。附件存储、平台 IPC、持久任务及 MCP、Code Mode 等扩展接入不属于当前实现。
 
 ## 验证
 
-在仓库根目录执行：
+在仓库根目录运行离线检查，测试不调用模型：
 
 ```sh
 pnpm --filter @chaptale/agent-host typecheck
 pnpm --filter @chaptale/agent-host test
 ```
 
-当前 lockfile 解析到 pi-coding-agent / pi-ai **1.1.0**。catalog 使用兼容范围，升级时正常更新 lockfile 并回归，不永久冻结版本。
-
-测试使用真实 SDK、临时目录与自然退出的 Node 子进程，覆盖提示词与资源隔离、独立会话、默认保温关闭和无效输入。不替换 SDK 函数、不使用模拟模型服务器，不发起模型请求。
-
-当前有 14 项会话边界测试、8 项原生持久化测试、16 项模型运行时装配及选择测试和 18 项严格打开测试。后两组通过独立进程运行真实 SDK：断言分别在 `src/__tests__/persistence.test.ts` 与 `src/__tests__/model-runtime.test.ts`，进程入口在 `src/__tests__/fixtures/`，不进入公开导出。模型运行时测试使用临时配置与假凭据，不读取开发机真实凭据、不发起模型请求。验证仅覆盖正常退出与文件边界，不代表强杀恢复、断电不丢失、单写者协调或 SQLite/JSONL 对账已完成。工具授权、Code Mode、MCP、真实模型以及 Electron/Android 新版本集成仍需后续逐步验证。旧 `runtime-validation` 中 pi 1.0.2 的宿主证据不是本包在 1.1.0 下的完整兼容证明。
-
-### 手动真实模型验证
+以下是会联网、可能产生费用的手动入口，不属于普通测试或 CI：
 
 ```sh
 pnpm --filter @chaptale/agent-host test:live "<仓库绝对路径>/temp/<测试配置>.json"
+pnpm --filter @chaptale/agent-host test:live:host "<仓库绝对路径>/temp/<测试配置>.json"
+pnpm install:electron
+pnpm --filter @chaptale/agent-host test:live:electron "<仓库绝对路径>/temp/<测试配置>.json"
 ```
 
-配置接受 pi 原生 `providers` 对象或单独的 provider 映射，凭据只从指定文件读取。单模型配置直接使用该模型；多模型配置须在路径后显式给出 `provider modelId`。输入及所有派生配置、会话和诊断必须位于仓库 `temp/` 且通过 Git 忽略检查；不写入其他目录、不在终端回显原始 SDK 错误或密钥。子进程使用独立 HOME、配置和临时目录，不继承开发机模型凭据、代理及 NODE_OPTIONS。
+配置接受 pi 原生 `providers` 对象或 provider 映射；多模型配置需在路径后指定 `provider modelId`。配置文件及派生数据必须位于被 Git 忽略的 `temp/`。脚本隔离开发机凭据，不回显原始配置，成功和失败记录均写入 `temp/pi-live-*`，不自动删除。输出限制、超时和取消都不是费用硬上限。
 
-入口进行三次会话输入：真实流式回复、新进程重开后续聊、首个文本或推理增量上的取消；断言原生 `agent_settled.aborted`、最终 `stopReason`、消息数量、会话身份和 `durationMs`。每次输出上限设为 512 tokens（包含推理），宿主期限为 45 秒；供应商仍可能按 SDK 策略重试，不能把这些限制当成账单硬上限。成功与失败记录均保留在 `temp/pi-live-*`，脚本不自动删除。
-
-这是显式付费/联网入口，不属于普通测试或 CI。当前指定的 Responses 兼容模型已经通过三项验证；不代表其他协议、工具、媒体或平台已经验收。缓存用量为零不证明缓存机制失效，中止流未返回完整用量也不等于没有费用。
+`test:live` 验证回复、续聊和取消；另两个入口验证并发会话、直接与嵌套工具、撤权、取消隔离和新进程续聊。Electron 在真实 `utilityProcess` 中运行，会话池释放后由父进程回收；这不验证自然退出或生产崩溃恢复。
