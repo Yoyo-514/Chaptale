@@ -14,7 +14,9 @@
     "build": "tsc -b tsconfig.json",
     "typecheck": "tsc -b tsconfig.json",
     "test": "cd ../.. && vitest run --config vitest.config.ts --project agent-host",
-    "test:live": "node scripts/verify-live-session.mjs"
+    "test:live": "node scripts/verify-live-session.mjs",
+    "test:live:host": "node scripts/verify-live-session.mjs --host",
+    "test:live:electron": "node scripts/verify-live-session.mjs --electron-host"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "catalog:"

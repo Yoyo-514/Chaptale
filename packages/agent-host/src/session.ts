@@ -9,6 +9,8 @@ import {
 import { stat } from 'node:fs/promises';
 import { isAbsolute, relative } from 'node:path';
 
+import { bindHostTools, type HostToolAccess } from './tool-access.ts';
+
 export interface CreateHostSessionOptions {
   /** 已存在的工作目录；不是文件或命令沙箱。 */
   cwd: string;
@@ -22,11 +24,13 @@ export interface CreateHostSessionOptions {
   model?: { provider: string; id: string };
   /** 调用方拥有存储位置与单写者生命周期，直接使用 pi 原生会话。 */
   sessionManager: SessionManager;
+  /** 显式工具集合与逐次授权；省略时没有可执行工具。 */
+  toolAccess?: HostToolAccess;
 }
 
 /**
  * 创建应用持有的 SDK 会话，不启动 CLI 或 UI。
- * 本步尚未接入权限及工具装配，因此不启用工具或自动发现资源。
+ * 工具仅来自显式注册并经过应用授权，不自动发现目录中的资源。
  * 返回原生 SDK 结果；调用方负责停止活跃运行并释放 session。
  */
 export async function createHostSession(options: CreateHostSessionOptions): Promise<CreateAgentSessionResult> {
@@ -51,6 +55,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     throw new Error('所选模型未在应用模型运行时中注册');
   }
 
+  const bindings = options.toolAccess ? bindHostTools(options.toolAccess) : undefined;
   const settingsManager = SettingsManager.inMemory({ cacheWarming: 'off' });
   const resourceLoader = new DefaultResourceLoader({
     cwd,
@@ -61,12 +66,16 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     systemPromptOverride: () => systemPrompt,
     appendSystemPrompt: [],
     noExtensions: true,
+    extensionFactories: bindings ? [bindings.guard] : [],
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,
     noContextFiles: true
   });
   await resourceLoader.reload();
+  if (resourceLoader.getExtensions().errors.length > 0) {
+    throw new Error('宿主工具授权扩展加载失败');
+  }
 
   return createAgentSession({
     cwd,
@@ -76,6 +85,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     sessionManager,
     settingsManager,
     resourceLoader,
-    tools: []
+    tools: bindings?.names ?? [],
+    customTools: bindings?.tools
   });
 }

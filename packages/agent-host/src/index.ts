@@ -6,3 +6,10 @@ export {
   type HostSessionOpenErrorCode,
   type OpenHostSessionManagerOptions
 } from './session-storage.ts';
+export {
+  HostSessionPool,
+  type CreateHostSessionPoolOptions,
+  type HostSessionInput,
+  type HostSessionSummary
+} from './session-pool.ts';
+export type { HostToolAccess, HostToolAuthorizer, HostToolDecision, HostToolRequest } from './tool-access.ts';

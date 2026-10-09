@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -39,6 +40,16 @@ function childEnvironment(home) {
 }
 
 async function verifyChild(runDir, phase) {
+  if (phase.startsWith('host-')) {
+    const { verifyHostPhase } = await import('./verify-live-host.mjs');
+    const result = await verifyHostPhase(runDir, phase);
+    if (process.type === 'utility') {
+      // Electron ParentPort 是进程 IPC，不是需要 targetOrigin 的 Window.postMessage。
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin
+      process.parentPort.postMessage({ type: 'host-verified', result });
+    } else console.log(JSON.stringify(result));
+    return;
+  }
   // 动态导入发生在隔离环境的子进程中；不使用终端 CLI 或真实全局 pi 目录。
   const { SessionManager } = await import('@earendil-works/pi-coding-agent');
   const { createHostModelRuntime, createHostSession, openHostSessionManager } = await import('../src/index.ts');
@@ -145,7 +156,9 @@ async function verifyChild(runDir, phase) {
 }
 
 async function verifyLive() {
-  const [configArgument, providerArgument, modelArgument] = process.argv.slice(2);
+  const electron = process.argv[2] === '--electron-host';
+  const host = electron || process.argv[2] === '--host';
+  const [configArgument, providerArgument, modelArgument] = process.argv.slice(host ? 3 : 2);
   assert(configArgument, '用法：test:live <temp 内的配置文件> [provider modelId]');
   const source = await ignoredPath(resolve(configArgument));
   const config = JSON.parse(await readFile(source, 'utf8'));
@@ -177,26 +190,47 @@ async function verifyLive() {
     join(runDir, 'config', 'models.json'),
     JSON.stringify({
       providers: {
-        [provider]: { ...providerConfig, models: [{ ...model, maxTokens: Math.min(model.maxTokens ?? 512, 512) }] }
+        [provider]: {
+          ...providerConfig,
+          models: [{ ...model, maxTokens: Math.min(model.maxTokens ?? (host ? 1024 : 512), host ? 1024 : 512) }]
+        }
       }
     })
   );
   await writeFile(join(runDir, 'selection.json'), JSON.stringify({ provider, id: model.id }));
+  const desktopRequire = electron ? createRequire(join(workspace, 'apps/desktop/package.json')) : undefined;
+  const executable = desktopRequire ? desktopRequire('electron') : process.execPath;
+  const electronVersion = desktopRequire?.('electron/package.json').version;
+  const entry = electron ? fileURLToPath(new URL('./verify-electron-host.mjs', import.meta.url)) : script;
   const results = [];
-  for (const phase of ['create', 'resume', 'cancel']) {
+  for (const phase of host ? ['host-tools', 'host-resume'] : ['create', 'resume', 'cancel']) {
+    let result;
     try {
-      const result = await execute(process.execPath, [script, '--child', runDir, phase], {
+      const args = electron ? [entry, runDir, phase] : [entry, '--child', runDir, phase];
+      result = await execute(executable, args, {
         cwd: workspace,
         env: childEnvironment(join(runDir, 'home')),
         windowsHide: true,
-        timeout: 65_000,
+        timeout: host ? 180_000 : 65_000,
         maxBuffer: 2 * 1024 * 1024
       });
       await writeFile(join(runDir, phase + '.log'), result.stdout + result.stderr);
-      results.push(JSON.parse(result.stdout.trim().split('\n').at(-1)));
+      const observed = JSON.parse(result.stdout.trim().split('\n').at(-1));
+      if (electron) {
+        assert.equal(observed.electron, electronVersion);
+        assert.equal(observed.processType, 'utility');
+        assert.equal(observed.shutdown, 'parent-after-dispose');
+      }
+      results.push(observed);
     } catch (error) {
       // 原始 SDK 诊断可能含请求细节，只存入已确认忽略的目录，不回显到终端。
-      await writeFile(join(runDir, phase + '.log'), String(error.stdout ?? '') + String(error.stderr ?? ''));
+      await writeFile(
+        join(runDir, phase + '.log'),
+        String(error.stdout ?? result?.stdout ?? '') +
+          String(error.stderr ?? result?.stderr ?? '') +
+          '\n' +
+          String(error)
+      );
       // 原始错误仅保留在上述忽略目录，不能通过 cause 传播到终端。
       // oxlint-disable-next-line eslint/preserve-caught-error
       throw new Error('真实验证失败：' + phase + '；诊断保留于 ' + runDir);
@@ -204,8 +238,8 @@ async function verifyLive() {
   }
   assert.equal(results[0].sessionId, results[1].sessionId);
   assert.notEqual(results[0].pid, results[1].pid);
-  assert.equal(results[1].userMessages, 2);
-  assert.equal(results[1].assistantMessages, 2);
+  assert.equal(results[1].userMessages, results[0].userMessages + 1);
+  assert.equal(results[1].assistantMessages, results[0].assistantMessages + 1);
   await writeFile(join(runDir, 'result.json'), JSON.stringify({ api: definition.api, results }, null, 2));
   console.log(JSON.stringify({ ok: true, outputDirectory: runDir, results }, null, 2));
 }
@@ -220,4 +254,9 @@ try {
       JSON.stringify({ ok: false, outputDirectory, error: '真实模型验证未通过；请检查配置或 temp 内的诊断记录。' })
     );
   process.exitCode = 1;
+  if (process.type === 'utility') {
+    // Electron ParentPort 没有 targetOrigin 参数。
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin
+    process.parentPort.postMessage({ type: 'host-verification-failed' });
+  }
 }

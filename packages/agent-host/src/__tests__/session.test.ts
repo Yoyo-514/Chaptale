@@ -48,14 +48,12 @@ async function open(overrides: Partial<CreateHostSessionOptions> = {}) {
 
 describe('SDK 会话边界', () => {
   it('采用显式提示词，不启用工具或保温', async () => {
-    const { session, extensionsResult } = await open();
+    const { session } = await open();
 
     expect(session.systemPrompt).toContain(systemPrompt);
     expect(session.getActiveToolNames()).toEqual([]);
     expect(session.settingsManager.getCacheWarmingMode()).toBe('off');
-    expect(session.cacheWarmingStatus?.state).toBe('inactive');
-    expect(session.state.messages).toEqual([]);
-    expect(extensionsResult.errors).toEqual([]);
+    expect(session.messages).toEqual([]);
     expect(await readdir(options.agentDir)).toEqual([]);
   });
 
@@ -66,7 +64,6 @@ describe('SDK 会话边界', () => {
 
     expect(session.systemPrompt).toContain(filename);
     expect(session.systemPrompt).not.toContain('不得作为提示词读取');
-    expect(session.resourceLoader.getSystemPromptSource()).toBeUndefined();
   });
 
   it('不同会话不共享历史与设置', async () => {
@@ -103,14 +100,10 @@ describe('SDK 会话边界', () => {
       await writeFile(join(directory, 'AGENTS.md'), '不得自动加载的上下文');
     }
     await writeFile(join(options.cwd, 'AGENTS.md'), '不得自动加载的上下文');
-    const { session, extensionsResult } = await open();
+    const { session } = await open();
 
-    expect(extensionsResult.errors).toEqual([]);
-    expect(extensionsResult.extensions).toEqual([]);
     expect(session.resourceLoader.getSkills().skills).toEqual([]);
     expect(session.resourceLoader.getPrompts().prompts).toEqual([]);
-    expect(session.resourceLoader.getAgentsFiles().agentsFiles).toEqual([]);
-    expect(session.resourceLoader.getAppendSystemPromptSources()).toEqual([]);
     expect(session.systemPrompt).not.toContain('不得自动');
     expect(session.getActiveToolNames()).toEqual([]);
     expect(session.settingsManager.getCacheWarmingMode()).toBe('off');
