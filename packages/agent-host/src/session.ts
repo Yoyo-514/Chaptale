@@ -17,7 +17,7 @@ export interface CreateHostSessionOptions {
   /** 应用管理的 pi 资源目录，不使用开发机全局目录。 */
   agentDir: string;
   /** 由创作模块提供提示词，宿主不内置章节工作流。 */
-  systemPrompt: string;
+  systemPrompt: string | (() => string);
   /** 调用方装配模型与凭据；此处不发现或加载 auth.json / models.json。 */
   modelRuntime: ModelRuntime;
   /** 显式选择运行时已注册的聊天模型；不接受 URL、headers 或凭据覆写。 */
@@ -46,7 +46,8 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
   if (!isAbsolute(sessionManager.getCwd()) || relative(cwd, sessionManager.getCwd()) !== '') {
     throw new Error('会话工作目录与宿主工作目录不一致');
   }
-  if (!systemPrompt.trim()) {
+  const resolveSystemPrompt = () => (typeof systemPrompt === 'string' ? systemPrompt : systemPrompt());
+  if (!resolveSystemPrompt().trim()) {
     throw new Error('必须显式提供非空系统提示词');
   }
 
@@ -63,7 +64,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     settingsManager,
     // pi 的 systemPrompt 支持文件路径；应用输入始终按文本使用，且不发现追加提示词。
     systemPrompt: '',
-    systemPromptOverride: () => systemPrompt,
+    systemPromptOverride: resolveSystemPrompt,
     appendSystemPrompt: [],
     noExtensions: true,
     extensionFactories: bindings ? [bindings.guard] : [],

@@ -21,9 +21,22 @@
 
 如需自行管理生命周期，可将原生 `SessionManager` 与 `ModelRuntime` 传入 `createHostSession()`；恢复历史时先调用 `openHostSessionManager({ file, cwd })`。使用原生 SDK 的调用方应声明自己的直接依赖，本包不重导出整个 SDK。
 
+## 应用会话入口（尚未接入平台 UI）
+
+`@chaptale/agent-host/application` 导出 `HostApplication`，由 Node 宿主装配模型运行时、目录、工具以及应用设置的保存回调。`@chaptale/agent-host/protocol` 只提供传输类型，不包含 Node 运行时代码。
+
+已实现的提示词链路：
+
+- 装配时显式提供应用默认提示词；`defaultSystemPrompt` 命令先调用设置保存回调，成功后只影响新建会话。没有内置创作提示词或根目录参数文件。
+- `systemPrompt` 命令修改单个会话；原生 JSONL 的自定义记录保存其值。下一次发送前通过 SDK 的 `reload()` 应用，不中途替换运行中的提示词。
+- 历史重开读取该会话自己的提示词，不套用后来修改的应用默认值。缺少该记录的历史明确拒绝打开，不自动迁移或覆盖；底层原生会话池接口不受影响。
+- `snapshot()` 和 `subscribe()` 提供界面投影与进程内游标；读取快照、断开订阅不新建或取消会话。游标不是持久投递回执。
+
+应用默认值的实际存储、系统凭据存储、Electron/Android IPC 和配置界面由平台接入负责，目前均未完成。其他命令已有初步实现，但流式事件、桥接授权与取消仍须真实模型和双端验收，不能据此宣称正式宿主闭环已完成。空会话仍遵循 SDK 首条消息前不落盘的行为。
+
 ## 默认行为与边界
 
-- `systemPrompt` 必须非空，始终按文本使用。会话工作目录须与 `cwd` 一致。宿主不自动发现目录中的配置、扩展、Skills、提示词或上下文文件；每个会话使用独立内存设置，默认关闭额外缓存保温请求。
+- `systemPrompt` 必须非空，接受文本或返回文本的函数；函数在装配和显式资源重载时求值，不自动热更新。文本始终按内容而非文件路径使用。会话工作目录须与 `cwd` 一致。宿主不自动发现目录中的配置、扩展、Skills、提示词或上下文文件；每个会话使用独立内存设置，默认关闭额外缓存保温请求。
 - `model: { provider, id }` 只选择已注册模型，未知引用报错；省略时由 SDK 恢复历史模型或选择默认模型。模型地址和凭据由 `ModelRuntime` 管理。
 - 默认没有工具。`toolAccess` 提供原生 `ToolDefinition[]` 和 `authorize(request, signal)`，每次直接或嵌套执行都重新授权。授权方只接收会话信息和参数快照；授权被拒绝、失败或在等待期间取消时，都不会启动工具；迟到的批准也无效。未登记工具被阻断。
 - `openHostSessionManager()` 在恢复前检查普通文件、当前 SDK 版本、UTF-8/JSON 行、工作目录和基本历史链。文件缺失、损坏、缺少末尾换行或需要迁移时抛出带 `code` 的 `HostSessionOpenError`，不让 SDK 自动修复原件。空会话在首条 user/assistant 消息前不落盘。

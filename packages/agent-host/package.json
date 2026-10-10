@@ -5,6 +5,14 @@
   "type": "module",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "default": "./src/protocol.ts"
+    },
+    "./application": {
+      "types": "./dist/application.d.ts",
+      "default": "./src/application.ts"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./src/index.ts"

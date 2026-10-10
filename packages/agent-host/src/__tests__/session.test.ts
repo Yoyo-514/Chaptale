@@ -57,6 +57,16 @@ describe('SDK 会话边界', () => {
     expect(await readdir(options.agentDir)).toEqual([]);
   });
 
+  it('显式重载后才应用新的提示词，不改变已有消息', async () => {
+    let prompt = '第一份提示词';
+    const { session } = await open({ systemPrompt: () => prompt });
+    prompt = '下一轮提示词';
+    expect(session.systemPrompt).toContain('第一份提示词');
+    await session.reload();
+    expect(session.systemPrompt).toContain('下一轮提示词');
+    expect(session.messages).toEqual([]);
+  });
+
   it('提示词即使与文件路径相同也按文本使用', async () => {
     const filename = join(root, 'prompt.md');
     await writeFile(filename, '不得作为提示词读取的文件内容');
