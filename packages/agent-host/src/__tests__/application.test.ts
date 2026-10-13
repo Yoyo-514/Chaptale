@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
 import { HostApplication, type HostApplicationOptions } from '../application.ts';
-import type { HostEvent } from '../protocol.ts';
+import { type HostEvent, promptEntryType } from '../protocol.ts';
 
 let root: string;
 let app: HostApplication;
@@ -67,7 +67,7 @@ async function create() {
 
 function history(text = '历史输入', prompt = '会话自己的提示词') {
   const manager = SessionManager.create(options.cwd, options.sessionDir);
-  manager.appendCustomEntry('chaptale-system-prompt', { text: prompt });
+  manager.appendCustomEntry(promptEntryType, { text: prompt });
   manager.appendMessage({ role: 'user', content: text, timestamp: Date.now() });
   return { file: manager.getSessionFile()!, cwd: options.cwd };
 }
