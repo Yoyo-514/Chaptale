@@ -91,6 +91,24 @@ describe('会话所有权', () => {
     ]);
   });
 
+  it('按已读历史决定不装配或拒绝时不创建会话，并释放文件', async () => {
+    const file = saveUser(SessionManager.create(input.cwd, options.sessionDir), '只读的依据');
+    const seen: string[] = [];
+    const skipped = await pool.openWith({ file, cwd: input.cwd }, manager => {
+      seen.push(...manager.buildSessionContext().messages.map(message => message.role));
+      return undefined;
+    });
+    expect(skipped).toBeUndefined();
+    expect(seen).toEqual(['user']);
+    expect(pool.list()).toHaveLength(0);
+    await expect(
+      pool.openWith({ file, cwd: input.cwd }, () => {
+        throw new Error('记录无效');
+      })
+    ).rejects.toThrow('记录无效');
+    await expect(pool.openSession({ ...input, file })).resolves.toHaveProperty('session');
+  });
+
   it('并发打开同一文件只准一个写者', async () => {
     const file = saveUser(SessionManager.create(input.cwd, options.sessionDir));
     const results = await Promise.allSettled([

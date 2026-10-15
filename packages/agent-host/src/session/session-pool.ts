@@ -47,7 +47,7 @@ export class HostSessionPool {
   private readonly options: CreateHostSessionPoolOptions;
   private readonly sessions = new Map<string, OwnedSession>();
   private readonly ids = new Set<string>();
-  private readonly pending = new Set<Promise<CreateAgentSessionResult>>();
+  private readonly pending = new Set<Promise<unknown>>();
   private readonly closing = new Map<string, Promise<void>>();
   private stopping = false;
   private disposal?: Promise<void>;
@@ -75,23 +75,41 @@ export class HostSessionPool {
   }
 
   openSession(input: HostSessionInput & { file: string }): Promise<CreateAgentSessionResult> {
+    // prepare 始终返回装配参数，结果不会是 undefined。
+    return this.openWith(input, () => input) as Promise<CreateAgentSessionResult>;
+  }
+
+  /**
+   * 先占有文件再读取历史，由 prepare 根据已读内容给出装配参数；JSONL 只读一次。
+   * prepare 返回 undefined 时不创建会话并释放文件。
+   */
+  openWith(
+    { file, cwd }: { file: string; cwd: string },
+    prepare: (manager: SessionManager) => HostSessionInput | undefined
+  ): Promise<CreateAgentSessionResult | undefined> {
     return this.start(async () => {
-      if (!isAbsolute(input.file)) throw new Error('会话文件必须是绝对路径');
-      const file = await realpath(input.file);
-      const inside = relative(this.options.sessionDir, file);
+      if (!isAbsolute(file)) throw new Error('会话文件必须是绝对路径');
+      const real = await realpath(file);
+      const inside = relative(this.options.sessionDir, real);
       if (!inside || inside === '..' || inside.startsWith('..' + sep) || isAbsolute(inside)) {
         throw new Error('会话文件必须位于会话池目录内');
       }
       // 先占有文件再预检，阻止本进程第二次打开尚在装配或写入的历史。
-      this.claimFile(file);
+      this.claimFile(real);
       let manager: SessionManager;
+      let input: HostSessionInput | undefined;
       try {
-        manager = await openHostSessionManager({ file, cwd: input.cwd });
+        manager = await openHostSessionManager({ file: real, cwd });
+        input = prepare(manager);
       } catch (error) {
-        this.releaseFile(file);
+        this.releaseFile(real);
         throw error;
       }
-      return this.attach(manager, file, input);
+      if (!input) {
+        this.releaseFile(real);
+        return undefined;
+      }
+      return this.attach(manager, real, input);
     });
   }
 
@@ -157,7 +175,7 @@ export class HostSessionPool {
     return this.disposal;
   }
 
-  private start(create: () => Promise<CreateAgentSessionResult>): Promise<CreateAgentSessionResult> {
+  private start<T>(create: () => Promise<T>): Promise<T> {
     if (this.stopping) return Promise.reject(new Error('会话池正在关闭或已经关闭'));
     const operation = create();
     this.pending.add(operation);

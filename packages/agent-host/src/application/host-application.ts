@@ -16,9 +16,10 @@ import {
   type SessionView
 } from '../protocol.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
+import { HostSessionOpenError } from '../session/session-storage.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
 import { ToolApprovals } from './approvals.ts';
-import { readSessionHistory, type SessionHistory } from './history.ts';
+import { damagedHistory, sessionHistory, type SessionHistory } from './history.ts';
 import { type AppliedInstructions, instructionCallbacks, LiveSession } from './live-session.ts';
 
 export interface HostApplicationOptions {
@@ -203,7 +204,24 @@ export class HostApplication {
 
   /** 完整历史继续对话；损坏或缺少记录的历史只读打开，不修复、不套用当前默认值。 */
   private async openFile(file: string, cwd: string): Promise<string> {
-    const history: SessionHistory = await readSessionHistory(file, cwd);
+    const applied: AppliedInstructions = { entries: [] };
+    const opened: { history?: SessionHistory } = {};
+    let result: Awaited<ReturnType<HostSessionPool['openWith']>>;
+    try {
+      result = await this.pool.openWith({ file, cwd }, manager => {
+        const history = sessionHistory(manager);
+        opened.history = history;
+        if (history.kind === 'readonly') return undefined;
+        applied.entries = history.instructions;
+        return this.sessionInput(applied, cwd);
+      });
+    } catch (error) {
+      // 需迁移、路径错误或不属于当前作品的历史仍然报错。
+      if (!(error instanceof HostSessionOpenError) || error.code !== 'recovery-required') throw error;
+      opened.history = await damagedHistory(file);
+    }
+    // SAFETY: openWith 成功时 prepare 必已执行，损坏分支也已赋值；可继续的历史必然创建了会话。
+    const history = opened.history!;
     if (history.kind === 'readonly') {
       // 只读视图使用新的随机 id，避免与同一会话 id 的可写副本冲突。
       const { readonly, messages } = history;
@@ -211,9 +229,7 @@ export class HostApplication {
         view: { id: randomUUID(), file, cwd, running: false, instructions: [], messages, readonly }
       });
     }
-    const applied = { entries: history.instructions };
-    const { session } = await this.pool.openSession({ ...this.sessionInput(applied, cwd), file });
-    const live = new LiveSession(session, applied, history.mode, change => this.emit(change));
+    const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change));
     return this.attach({ view: live.view, live });
   }
 

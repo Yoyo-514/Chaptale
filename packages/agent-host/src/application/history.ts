@@ -9,12 +9,7 @@ import {
   modeEntryType,
   type ReadonlyHistory
 } from '../protocol.ts';
-import {
-  type DamagedHistory,
-  HostSessionOpenError,
-  openHostSessionManager,
-  readDamagedHistory
-} from '../session/session-storage.ts';
+import { type DamagedHistory, readDamagedHistory } from '../session/session-storage.ts';
 import { messageView, type SdkMessage } from './message-view.ts';
 
 /** 打开历史的结论：完整历史可继续对话；损坏或缺少记录的只能查看。 */
@@ -70,19 +65,8 @@ function readonlyFrom(manager: SessionManager, reason: ReadonlyHistory['reason']
   return { kind: 'readonly', readonly: { reason, message, lines: [] }, messages };
 }
 
-/**
- * 读取历史并判定能否继续；不创建 AgentSession，不修复、不写入原文件。
- * 需迁移、路径错误或不属于当前作品的历史仍按 HostSessionOpenError 报错。
- */
-export async function readSessionHistory(file: string, cwd: string): Promise<SessionHistory> {
-  let manager: SessionManager;
-  try {
-    manager = await openHostSessionManager({ file, cwd });
-  } catch (error) {
-    if (!(error instanceof HostSessionOpenError) || error.code !== 'recovery-required') throw error;
-    const { messages, lines } = damagedMessages(await readDamagedHistory(file));
-    return { kind: 'readonly', readonly: { reason: 'damaged', message: readonlyMessages.damaged, lines }, messages };
-  }
+/** 根据会话池已读取的历史判定能否继续；不创建 AgentSession，不修复、不写入原文件。 */
+export function sessionHistory(manager: SessionManager): SessionHistory {
   let records: ReturnType<typeof sessionRecords>;
   try {
     records = sessionRecords(manager.getBranch());
@@ -92,4 +76,10 @@ export async function readSessionHistory(file: string, cwd: string): Promise<Ses
   const { instructions, mode } = records;
   if (!instructions || !mode) return readonlyFrom(manager, 'incomplete', readonlyMessages.incomplete);
   return { kind: 'live', instructions, mode };
+}
+
+/** JSONL 损坏时逐行读取能识别的消息，只读打开。 */
+export async function damagedHistory(file: string): Promise<SessionHistory> {
+  const { messages, lines } = damagedMessages(await readDamagedHistory(file));
+  return { kind: 'readonly', readonly: { reason: 'damaged', message: readonlyMessages.damaged, lines }, messages };
 }
