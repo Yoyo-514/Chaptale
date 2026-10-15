@@ -13,7 +13,7 @@ import {
   type HostToolAuthorizer,
   type HostToolDecision,
   type HostToolRequest
-} from '../../index.ts';
+} from '../../../index.ts';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

@@ -1,7 +1,10 @@
 import {
+  type ContextEvent,
   createAgentSession,
   type CreateAgentSessionResult,
   DefaultResourceLoader,
+  type ExtensionContext,
+  type ExtensionFactory,
   type ModelRuntime,
   type SessionManager,
   SettingsManager
@@ -9,7 +12,7 @@ import {
 import { stat } from 'node:fs/promises';
 import { isAbsolute, relative } from 'node:path';
 
-import { bindHostTools, type HostToolAccess } from './tool-access.ts';
+import { bindHostTools, type HostToolAccess } from '../tools/tool-access.ts';
 
 export interface CreateHostSessionOptions {
   /** 已存在的工作目录；不是文件或命令沙箱。 */
@@ -18,6 +21,11 @@ export interface CreateHostSessionOptions {
   agentDir: string;
   /** 由创作模块提供提示词，宿主不内置章节工作流。 */
   systemPrompt: string | (() => string);
+  /**
+   * 每次请求前放在对话最前面的消息，只影响本次请求，不写入 JSONL。
+   * 返回值应保持稳定，否则无法命中提示缓存。
+   */
+  prefixMessages?: (model: NonNullable<ExtensionContext['model']>) => ContextEvent['messages'];
   /** 调用方装配模型与凭据；此处不发现或加载 auth.json / models.json。 */
   modelRuntime: ModelRuntime;
   /** 显式选择运行时已注册的聊天模型；不接受 URL、headers 或凭据覆写。 */
@@ -57,6 +65,14 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
   }
 
   const bindings = options.toolAccess ? bindHostTools(options.toolAccess) : undefined;
+  const extensionFactories: ExtensionFactory[] = bindings ? [bindings.guard] : [];
+  const { prefixMessages } = options;
+  if (prefixMessages) {
+    extensionFactories.push(pi => {
+      // 有请求就有已选模型；pi 会在请求后还原会话消息。
+      pi.on('context', (event, ctx) => ({ messages: [...prefixMessages(ctx.model!), ...event.messages] }));
+    });
+  }
   const settingsManager = SettingsManager.inMemory({ cacheWarming: 'off' });
   const resourceLoader = new DefaultResourceLoader({
     cwd,
@@ -67,7 +83,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     systemPromptOverride: resolveSystemPrompt,
     appendSystemPrompt: [],
     noExtensions: true,
-    extensionFactories: bindings ? [bindings.guard] : [],
+    extensionFactories,
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,
@@ -75,7 +91,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
   });
   await resourceLoader.reload();
   if (resourceLoader.getExtensions().errors.length > 0) {
-    throw new Error('宿主工具授权扩展加载失败');
+    throw new Error('宿主扩展加载失败');
   }
 
   return createAgentSession({

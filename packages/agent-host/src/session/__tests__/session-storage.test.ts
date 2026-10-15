@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { openHostSessionManager } from '../index.ts';
+import { openHostSessionManager } from '../../index.ts';
 
 let root: string;
 let cwd: string;

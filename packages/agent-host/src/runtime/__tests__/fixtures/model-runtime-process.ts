@@ -1,6 +1,6 @@
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 
-import { createHostModelRuntime, createHostSession } from '../../index.ts';
+import { createHostModelRuntime, createHostSession } from '../../../index.ts';
 
 export interface ModelRuntimeProcessInput {
   configDir: string;

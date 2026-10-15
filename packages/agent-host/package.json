@@ -10,8 +10,8 @@
       "default": "./src/protocol.ts"
     },
     "./application": {
-      "types": "./dist/application.d.ts",
-      "default": "./src/application.ts"
+      "types": "./dist/application/index.d.ts",
+      "default": "./src/application/index.ts"
     },
     ".": {
       "types": "./dist/index.d.ts",

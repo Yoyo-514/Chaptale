@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createHostSession, type CreateHostSessionOptions } from '../index.ts';
+import { createHostSession, type CreateHostSessionOptions } from '../../index.ts';
 
 const systemPrompt = '你是创作助手，只根据作者提供的资料讨论作品。';
 let root: string;
@@ -145,7 +145,7 @@ describe('SDK 会话边界', () => {
   });
 
   it('释放空会话后子进程自然退出', async () => {
-    const entry = new URL('../index.ts', import.meta.url).href;
+    const entry = new URL('../../index.ts', import.meta.url).href;
     const code = `
       import { InMemoryCredentialStore } from '@earendil-works/pi-ai';
       import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
@@ -164,7 +164,7 @@ describe('SDK 会话边界', () => {
       console.log('session disposed');
     `;
     const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '--eval', code], {
-      cwd: join(import.meta.dirname, '../..'),
+      cwd: join(import.meta.dirname, '../../..'),
       timeout: 15_000,
       windowsHide: true
     });

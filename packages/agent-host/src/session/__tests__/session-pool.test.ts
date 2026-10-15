@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { HostSessionPool, type CreateHostSessionPoolOptions, type HostSessionInput } from '../index.ts';
+import { HostSessionPool, type CreateHostSessionPoolOptions, type HostSessionInput } from '../../index.ts';
 
 let root: string;
 let options: CreateHostSessionPoolOptions;

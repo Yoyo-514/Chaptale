@@ -90,10 +90,49 @@ export async function openHostSessionManager({ file, cwd }: OpenHostSessionManag
   if (!isAbsolute(file) || !isAbsolute(cwd) || !(await stat(cwd).catch(() => undefined))?.isDirectory()) {
     throw new HostSessionOpenError('invalid-path');
   }
-  let bytes: Uint8Array;
+  inspectHistory(await readHistory(file), cwd);
+  return SessionManager.open(file);
+}
+
+export interface DamagedHistory {
+  /** 可解析的 JSON 对象行，按文件顺序。 */
+  entries: { line: number; value: Record<string, unknown> }[];
+  /** 无法解码、不是 JSON 对象或未写完的行号，从 1 开始。 */
+  damagedLines: number[];
+}
+
+/**
+ * 只读解析预检判定需要恢复的历史，供作者查看。
+ * pi 打开时会静默跳过坏行，所以这里自行逐行解码并报告位置；不修复、不写入。
+ */
+export async function readDamagedHistory(file: string): Promise<DamagedHistory> {
+  const bytes = await readHistory(file);
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+  const result: DamagedHistory = { entries: [], damagedLines: [] };
+  let start = 0;
+  for (let line = 1; start < bytes.length; line++) {
+    const end = bytes.indexOf(0x0a, start);
+    const terminated = end !== -1;
+    const segment = bytes.subarray(start, terminated ? end : bytes.length);
+    start = terminated ? end + 1 : bytes.length;
+    try {
+      const text = decoder.decode(segment);
+      if (!text.trim()) continue;
+      if (!terminated) throw new Error('unterminated');
+      const value: unknown = JSON.parse(text);
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid entry');
+      result.entries.push({ line, value: value as Record<string, unknown> });
+    } catch {
+      result.damagedLines.push(line);
+    }
+  }
+  return result;
+}
+
+async function readHistory(file: string): Promise<Uint8Array> {
   try {
     if (!(await stat(file)).isFile()) throw new HostSessionOpenError('invalid-path');
-    bytes = await readFile(file);
+    return await readFile(file);
   } catch (error) {
     if (error instanceof HostSessionOpenError) throw error;
     const missing = error instanceof Error && 'code' in error && error.code === 'ENOENT';
@@ -101,6 +140,4 @@ export async function openHostSessionManager({ file, cwd }: OpenHostSessionManag
     // oxlint-disable-next-line eslint/preserve-caught-error
     throw new HostSessionOpenError(missing ? 'not-found' : 'unreadable');
   }
-  inspectHistory(bytes, cwd);
-  return SessionManager.open(file);
 }

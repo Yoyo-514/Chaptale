@@ -1,7 +1,7 @@
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai';
 import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
 
-import { createHostSession, openHostSessionManager } from '../../index.ts';
+import { createHostSession, openHostSessionManager } from '../../../index.ts';
 
 export interface SessionProcessInput {
   cwd: string;
