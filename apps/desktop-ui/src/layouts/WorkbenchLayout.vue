@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { AppPanelHeader } from '@/components/AppPanel';
 import { SessionPanel } from '@/features/agent';
@@ -21,6 +21,9 @@ const tree = useFileTreeStore();
 const navigation = useWorkbenchStore();
 const sidebarPanel = ref<InstanceType<typeof SplitterPanel>>();
 const auxiliaryPanel = ref<InstanceType<typeof SplitterPanel>>();
+// 初始尺寸必须合计 100%，否则分栏会按比例放大，关闭协作栏时侧栏被撑到三成宽。
+const sidebarDefault = computed(() => (navigation.sidebarOpen ? 22 : 0));
+const auxiliaryDefault = computed(() => (navigation.auxiliaryOpen && !navigation.agentInMain ? 30 : 0));
 function syncPanels() {
   if (navigation.sidebarOpen && !navigation.focusMode) sidebarPanel.value?.expand();
   else sidebarPanel.value?.collapse();
@@ -64,7 +67,7 @@ onBeforeUnmount(() => {
     <SplitterPanel
       ref="sidebarPanel"
       :order="1"
-      :default-size="navigation.sidebarOpen ? 22 : 0"
+      :default-size="sidebarDefault"
       :min-size="16"
       :max-size="35"
       :collapsed-size="0"
@@ -93,7 +96,12 @@ onBeforeUnmount(() => {
       class="workbench-resize-handle"
       aria-label="调整作品导航宽度"
     />
-    <SplitterPanel :order="2" :default-size="48" :min-size="35" class="workbench-panel">
+    <SplitterPanel
+      :order="2"
+      :default-size="100 - sidebarDefault - auxiliaryDefault"
+      :min-size="35"
+      class="workbench-panel"
+    >
       <main class="workbench-editor" aria-label="主要工作区">
         <EditorGroup v-show="!navigation.agentInMain" />
         <div id="main-agent-host" v-show="navigation.agentInMain" class="workbench-agent-host" />
@@ -107,7 +115,7 @@ onBeforeUnmount(() => {
     <SplitterPanel
       ref="auxiliaryPanel"
       :order="3"
-      :default-size="navigation.auxiliaryOpen && !navigation.agentInMain ? 30 : 0"
+      :default-size="auxiliaryDefault"
       :min-size="25"
       :max-size="50"
       :collapsed-size="0"
