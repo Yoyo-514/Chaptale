@@ -29,13 +29,11 @@ async function start() {
       )
     );
     const runtime = await createHostModelRuntime({ configDir: options.configDir });
-    const configuration = new HostModelConfiguration(options.configDir, runtime);
     const application = await HostApplication.create({
       ...options,
       builtinInstructions: builtinWritingInstructions,
       modelRuntime: runtime,
-      configuredModels: () => configuration.list(),
-      configureModel: input => configuration.save(input),
+      modelConfiguration: new HostModelConfiguration(options.configDir, runtime),
       // 作品写入随创作工具接入。只读工具仍逐次经过 HostApplication 的授权边界。
       tools: cwd => [
         defineTool(createReadToolDefinition(cwd)),

@@ -12,10 +12,9 @@ import {
   type ModelChoice,
   type ModelRef,
   modeEntryType,
-  type ProviderInput,
-  type ProviderSummary,
   type SessionView
 } from '../protocol.ts';
+import type { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
 import { HostSessionOpenError } from '../session/session-storage.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
@@ -32,8 +31,7 @@ export interface HostApplicationOptions {
   /** 作者尚未设置全局默认时，新会话复制的应用内置指令。 */
   builtinInstructions: AgentInstructions;
   modelRuntime: ModelRuntime;
-  configuredModels: () => Promise<ProviderSummary[]>;
-  configureModel: (input: ProviderInput) => Promise<void>;
+  modelConfiguration: HostModelConfiguration;
   tools: (cwd: string) => ToolDefinition[];
 }
 
@@ -145,13 +143,28 @@ export class HostApplication {
       case 'defaultMode':
         await this.settings.setDefaultMode(command.input.mode);
         return this.emitSettings();
-      case 'configuredModels':
-        return this.options.configuredModels();
-      case 'configure':
-        await this.options.configureModel(command.input);
-        this.emit({ kind: 'models', models: this.models() });
-        return;
+      case 'providers':
+        return this.options.modelConfiguration.list();
+      case 'saveProvider': {
+        const kept = new Set(command.input.config.models?.map(item => item.id));
+        this.assertIdle(command.input.id, model => !kept.has(model));
+        await this.options.modelConfiguration.save(command.input);
+        return this.emit({ kind: 'models', models: this.models() });
+      }
+      case 'deleteProvider':
+        this.assertIdle(command.input.id, () => true);
+        await this.options.modelConfiguration.remove(command.input.id);
+        return this.emit({ kind: 'models', models: this.models() });
+      case 'discoverModels':
+        return this.options.modelConfiguration.discover(command.input);
     }
+  }
+
+  /** 正在生成内容的模型不能被移除；removed 判断该供应商下的模型是否会被移除。 */
+  private assertIdle(provider: string, removed: (model: string) => boolean): void {
+    for (const { view } of this.sessions.values())
+      if (view.running && view.model?.provider === provider && removed(view.model.id))
+        throw new Error('模型正在生成内容，结束后再删除');
   }
 
   /** 按会话 id 取原生会话，供平台宿主在命令之外直接使用 SDK 能力；不新建也不取消执行者。 */

@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import type { AgentInstructions, EditMode } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
+import { AppAlertDialog } from '@/components/AppDialog';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { InstructionsEditor } from '@/features/agent';
@@ -17,7 +18,6 @@ const target = ref<string>();
 const name = ref('');
 const saving = ref(false);
 const saved = ref(false);
-const removing = ref(false);
 const error = ref('');
 const entries = computed(() => {
   if (!agent.state) return [];
@@ -45,13 +45,11 @@ async function operation(action: () => Promise<unknown>) {
 function openLibrary() {
   library.value = true;
   creating.value = false;
-  removing.value = false;
   target.value = agent.state!.settings.namedInstructions[0]?.name;
 }
 function create() {
   creating.value = true;
   name.value = '';
-  removing.value = false;
   saved.value = false;
 }
 async function save(entries: AgentInstructions) {
@@ -119,10 +117,7 @@ async function remove() {
             v-model="target"
             aria-label="已保存的指令"
             placeholder="选择一套指令"
-            @update:model-value="
-              removing = false;
-              saved = false;
-            "
+            @update:model-value="saved = false"
             ><AppSelectItem
               v-for="item in agent.state.settings.namedInstructions"
               :key="item.name"
@@ -130,14 +125,16 @@ async function remove() {
               >{{ item.name }}</AppSelectItem
             ></AppSelect
           ><AppButton type="button" variant="ghost" @click="create">新建一套</AppButton
-          ><AppButton v-if="target && !removing" type="button" variant="ghost" @click="removing = true"
-            >删除这套</AppButton
+          ><AppAlertDialog
+            v-if="target"
+            :title="`删除“${target}”？`"
+            description="已经选用它的会话不受影响。"
+            confirm-label="删除"
+            @confirm="remove"
+            ><template #trigger
+              ><AppButton type="button" variant="ghost" :disabled="saving">删除这套</AppButton></template
+            ></AppAlertDialog
           ></template
-        >
-        <template v-if="removing"
-          ><span>删除“{{ target }}”？</span
-          ><AppButton type="button" variant="ghost" :disabled="saving" @click="remove">确认删除</AppButton
-          ><AppButton type="button" variant="ghost" @click="removing = false">取消</AppButton></template
         >
       </div>
       <p class="instruction-scope">{{ library ? '在新会话的设置里选用。' : '保存后用于之后新建的会话。' }}</p>

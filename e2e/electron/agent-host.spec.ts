@@ -37,15 +37,13 @@ test('真实宿主保存模型、创建独立会话，刷新界面后读取同�
   const result = await page.evaluate(async () => {
     const client = window.chaptaleDesktop.agentHost;
     const initial = await client.request('state', undefined);
-    await client.request('configure', {
-      provider: 'electron-offline',
-      baseUrl: 'http://127.0.0.1:9/v1',
-      api: 'openai-completions',
-      modelId: 'offline',
-      modelName: '离线测试模型',
-      contextWindow: 8192,
-      maxTokens: 512,
-      reasoning: false,
+    await client.request('saveProvider', {
+      id: 'electron-offline',
+      config: {
+        baseUrl: 'http://127.0.0.1:9/v1',
+        api: 'openai-completions',
+        models: [{ id: 'offline', name: '离线测试模型', contextWindow: 8192, maxTokens: 512 }]
+      },
       apiKey: 'electron-offline-key'
     });
     const first = await client.request('create', { model: { provider: 'electron-offline', id: 'offline' } });
@@ -141,23 +139,22 @@ test('界面管理多个模型、直接聊天与切换会话，移动视图保�
   const settings = page.getByRole('dialog');
   await settings.getByLabel('供应商标识', { exact: true }).fill('ui-offline');
   await settings.getByLabel('服务地址', { exact: true }).fill('http://127.0.0.1:9/v1');
-  await settings.getByLabel('模型 ID', { exact: true }).fill('ui-model');
-  await settings.getByLabel('显示名称', { exact: true }).fill('界面离线模型');
-  await settings.getByLabel('上下文长度', { exact: true }).fill('8192');
-  await settings.getByLabel('最大输出长度', { exact: true }).fill('512');
   await settings.getByLabel('API 密钥', { exact: true }).fill('ui-offline-key');
-  await settings.getByRole('button', { name: '保存模型', exact: true }).click();
-  await expect(settings.getByRole('status')).toContainText('已保存');
-  await settings.getByRole('button', { name: '为 ui-offline 添加模型', exact: true }).click();
-  await settings.getByLabel('模型 ID', { exact: true }).fill('ui-model-two');
-  await settings.getByLabel('显示名称', { exact: true }).fill('第二个离线模型');
-  await settings.getByLabel('上下文长度', { exact: true }).fill('16384');
-  await settings.getByLabel('最大输出长度', { exact: true }).fill('1024');
-  await settings.getByRole('button', { name: '保存模型', exact: true }).click();
-  await expect(settings.getByRole('status')).toContainText('已保存');
-  const models = await page.evaluate(() => window.chaptaleDesktop.agentHost.request('configuredModels', undefined));
-  expect(models.map(item => item.modelId)).toEqual(['ui-model', 'ui-model-two']);
-  expect(JSON.stringify(models)).not.toContain('ui-offline-key');
+  for (const [id, name] of [
+    ['ui-model', '界面离线模型'],
+    ['ui-model-two', '第二个离线模型']
+  ]) {
+    await settings.getByRole('button', { name: '手动添加', exact: true }).click();
+    await settings.getByLabel('模型 ID', { exact: true }).fill(id);
+    await settings.getByLabel('显示名称', { exact: true }).fill(name);
+    await settings.getByLabel('上下文长度', { exact: true }).fill('8192');
+    await settings.getByLabel('最大输出长度', { exact: true }).fill('512');
+    await settings.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(settings.getByRole('status')).toContainText('已保存');
+  }
+  const providers = await page.evaluate(() => window.chaptaleDesktop.agentHost.request('providers', undefined));
+  expect(providers.flatMap(item => item.config.models?.map(model => model.id))).toEqual(['ui-model', 'ui-model-two']);
+  expect(JSON.stringify(providers)).not.toContain('ui-offline-key');
   await settings.getByRole('button', { name: '关闭设置', exact: true }).click();
   // 用真实宿主建立空会话，避免在离线测试里向模型发请求。
   const ids = await page.evaluate(async () => {

@@ -494,25 +494,6 @@
   padding: 8px;
   border-right: 1px solid var(--border-subtle);
 }
-.model-provider-group {
-  margin-top: 16px;
-}
-.model-provider-group > header {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  padding-left: 8px;
-}
-.model-provider-group h3 {
-  overflow: hidden;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--ui-caption-size);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .model-list-item {
   display: flex;
   width: 100%;
@@ -565,6 +546,47 @@
   color: var(--muted-foreground);
   font-size: var(--ui-caption-size);
   font-weight: 600;
+}
+.model-provider-list nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.model-editor-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.model-editor-header h3,
+.model-editor-header h4 {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.model-row,
+.model-json {
+  border-top: 1px solid var(--border-subtle);
+}
+.model-row-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+.model-row-footer > :last-child {
+  margin-left: auto;
+}
+.model-json-text {
+  @apply font-mono;
+  font-size: var(--ui-caption-size);
 }
 .instruction-scope {
   flex-shrink: 0;

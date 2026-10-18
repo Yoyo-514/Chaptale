@@ -13,6 +13,7 @@ import {
   instructionsEntryType,
   modeEntryType
 } from '../../protocol.ts';
+import { HostModelConfiguration } from '../../runtime/model-configuration.ts';
 import { HostApplication, type HostApplicationOptions } from '../index.ts';
 
 let root: string;
@@ -89,10 +90,7 @@ beforeEach(async () => {
     settingsFile: join(root, 'data', 'settings.json'),
     builtinInstructions: builtin,
     modelRuntime: runtime,
-    configuredModels: async () => [],
-    configureModel: async () => {
-      throw new Error('本测试不配置模型');
-    },
+    modelConfiguration: new HostModelConfiguration(join(root, 'config'), runtime),
     tools: () => []
   };
   app = await HostApplication.create(options);
@@ -464,4 +462,60 @@ it('已经结束的授权请求不能被批准', async () => {
   await expect(app.execute({ method: 'approve', input: { id: 'finished', allow: true } })).rejects.toThrow(
     '授权请求已结束'
   );
+});
+
+it('正在生成内容的模型及其供应商不能删除，结束后可以删除', async () => {
+  let release!: () => void;
+  const busy = { provider: 'application-busy', id: 'busy-model' };
+  options.modelRuntime.registerProvider(busy.provider, {
+    baseUrl: 'http://127.0.0.1:9',
+    apiKey: 'offline-busy',
+    api: 'application-busy',
+    models: [{ id: busy.id, ...offlineModel }],
+    streamSimple: target => {
+      const stream = createAssistantMessageEventStream();
+      release = () =>
+        stream.push({
+          type: 'error',
+          reason: 'error',
+          error: {
+            role: 'assistant',
+            content: [],
+            api: target.api,
+            provider: target.provider,
+            model: target.id,
+            usage: zeroUsage,
+            stopReason: 'error',
+            errorMessage: '离线测试不请求模型',
+            timestamp: Date.now()
+          }
+        });
+      return stream;
+    }
+  });
+  await mkdir(join(root, 'config'));
+  const id = await create(undefined, busy);
+  const running = new Promise<void>(resolve => {
+    const off = app.subscribe(event => {
+      if (event.kind === 'running' && event.running) {
+        off();
+        resolve();
+      }
+    });
+  });
+  const done = settled();
+  await app.execute({ method: 'prompt', input: { id, text: '保持运行' } });
+  await running;
+
+  const rejected = '正在生成内容';
+  await expect(app.execute({ method: 'deleteProvider', input: { id: busy.provider } })).rejects.toThrow(rejected);
+  await expect(
+    app.execute({ method: 'saveProvider', input: { id: busy.provider, config: { models: [{ id: 'other' }] } } })
+  ).rejects.toThrow(rejected);
+  await app.execute({ method: 'deleteProvider', input: { id: model.provider } });
+
+  release();
+  await done;
+  await app.execute({ method: 'deleteProvider', input: { id: busy.provider } });
+  expect(view(id).running).toBe(false);
 });

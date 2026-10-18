@@ -64,7 +64,7 @@ onBeforeUnmount(() => {
     <SplitterPanel
       ref="sidebarPanel"
       :order="1"
-      :default-size="22"
+      :default-size="navigation.sidebarOpen ? 22 : 0"
       :min-size="16"
       :max-size="35"
       :collapsed-size="0"
@@ -107,7 +107,7 @@ onBeforeUnmount(() => {
     <SplitterPanel
       ref="auxiliaryPanel"
       :order="3"
-      :default-size="30"
+      :default-size="navigation.auxiliaryOpen && !navigation.agentInMain ? 30 : 0"
       :min-size="25"
       :max-size="50"
       :collapsed-size="0"
