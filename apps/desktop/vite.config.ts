@@ -10,7 +10,12 @@ const desktopRoot = import.meta.dirname;
 const rendererRoot = path.resolve(desktopRoot, '../desktop-ui');
 const ipcPackageRoot = path.resolve(desktopRoot, '../../packages/ipc/src');
 
+const agentHostRoot = path.resolve(desktopRoot, '../../packages/agent-host/src');
 const workspaceAliases = [
+  { find: '@chaptale/agent-host/protocol', replacement: path.join(agentHostRoot, 'protocol.ts') },
+  { find: '@chaptale/agent-host/transport', replacement: path.join(agentHostRoot, 'application/connection.ts') },
+  { find: '@chaptale/agent-host/application', replacement: path.join(agentHostRoot, 'application/index.ts') },
+  { find: '@chaptale/agent-host', replacement: path.join(agentHostRoot, 'index.ts') },
   {
     find: '@chaptale/shared/document-frontmatter',
     replacement: path.resolve(desktopRoot, '../../packages/shared/src/document-frontmatter.ts')
@@ -39,6 +44,7 @@ export default defineConfig(async () => ({
       main: {
         entry: {
           index: path.resolve(desktopRoot, 'src/main/index.ts'),
+          'agent-host': path.resolve(desktopRoot, 'src/main/agent-host/worker.ts'),
           'index-worker': path.resolve(desktopRoot, 'src/main/features/search/index/worker-entry.ts')
         },
         onstart: async ({ startup }) => {
@@ -53,7 +59,7 @@ export default defineConfig(async () => ({
             outDir: path.resolve(desktopRoot, 'dist/main'),
             emptyOutDir: true,
             rolldownOptions: {
-              external: ['@node-rs/jieba', '@node-rs/jieba/dict']
+              external: ['@earendil-works/pi-coding-agent', '@node-rs/jieba', '@node-rs/jieba/dict']
             }
           }
         }

@@ -2,6 +2,8 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { registerAgentHostIpc } from '../agent-host/ipc';
+import { DesktopAgentProcess } from '../agent-host/process';
 import { configureTrustedRendererUrl } from '../infra/security/trusted-ipc';
 import { createAppContext } from './app-context';
 import { registerApplicationIpc } from './ipc-registry';
@@ -29,10 +31,36 @@ export function bootstrapDesktopApp(): void {
     configureTrustedRendererUrl(rendererEntryUrl);
 
     const context = createAppContext();
-    app.on('will-quit', () => {
+    const hostRoot = path.join(context.settingsService.rootDir, 'pi');
+    const agentHost = new DesktopAgentProcess({
+      script: path.join(currentDir, 'agent-host.js'),
+      cwd: path.join(hostRoot, 'work'),
+      configDir: path.join(hostRoot, 'config'),
+      agentDir: path.join(hostRoot, 'agent'),
+      sessionDir: path.join(hostRoot, 'sessions'),
+      settingsFile: path.join(hostRoot, 'settings.json')
+    });
+    registerAgentHostIpc(agentHost);
+    let stopping = false;
+    let stopped = false;
+    // 窗口关闭已获确认后再停止宿主；取消退出时，后台会话继续运行。
+    app.on('will-quit', event => {
+      if (stopped) return;
+      event.preventDefault();
+      if (stopping) return;
+      stopping = true;
       context.autoBackupScheduler.stop();
-      void context.workspaceService.dispose();
-      void context.indexService.dispose();
+      const finish = () => {
+        stopped = true;
+        app.quit();
+      };
+      void Promise.all([agentHost.dispose(), context.workspaceService.dispose(), context.indexService.dispose()]).then(
+        finish,
+        () => {
+          console.error('退出时资源释放失败');
+          finish();
+        }
+      );
     });
     registerApplicationIpc(context);
     // 心跳在窗口建好之前就可以跑：第一拍要等一分钟，而那时作品与登录状态都已经落定。

@@ -1,4 +1,5 @@
 export * from './agent';
+export * from './agent-host';
 export * from './api';
 export * from './app';
 export * from './channels';

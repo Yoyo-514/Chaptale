@@ -427,6 +427,9 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: 'catalog:'
         version: 3.0.70(zod@4.6.7)
+      '@chaptale/agent-host':
+        specifier: workspace:*
+        version: link:../../packages/agent-host
       '@chaptale/ipc-contract':
         specifier: workspace:*
         version: link:../../packages/ipc
@@ -436,6 +439,9 @@ importers:
       '@codemirror/merge':
         specifier: 'catalog:'
         version: 6.12.2
+      '@earendil-works/pi-coding-agent':
+        specifier: 'catalog:'
+        version: 1.3.0(@aws-sdk/credential-provider-node@3.972.86)(@smithy/signature-v4@5.7.4)(supports-color@7.2.0)(ws@8.22.0)(zod@4.6.7)
       '@mozilla/readability':
         specifier: 'catalog:'
         version: 0.6.0
@@ -667,6 +673,9 @@ importers:
 
   packages/ipc:
     dependencies:
+      '@chaptale/agent-host':
+        specifier: workspace:*
+        version: link:../agent-host
       '@chaptale/shared':
         specifier: workspace:*
         version: link:../shared

@@ -19,6 +19,7 @@ import type {
   StreamAgentHandlers,
   StreamAgentOptions
 } from './agent';
+import type { DesktopAgentClient } from './agent-host';
 import type { AppPlatformResult, EditCommand } from './app';
 import type {
   CloudArchiveArgs,
@@ -126,6 +127,7 @@ import type { WritingApi } from './writing';
  * 该类型只描述可跨进程调用的稳定数据，不允许 Electron、Node 或具体 SDK 类型越过边界。
  */
 export type ChaptaleDesktopApi = {
+  agentHost: DesktopAgentClient;
   content: ContentApi;
   settlement: SettlementApi;
   writing: WritingApi;

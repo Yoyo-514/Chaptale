@@ -13,6 +13,9 @@
   "include": ["src"],
   "references": [
     {
+      "path": "../agent-host/tsconfig.json"
+    },
+    {
       "path": "../shared/tsconfig.json"
     }
   ]

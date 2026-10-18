@@ -3,6 +3,7 @@ import { contextBridge } from 'electron';
 import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
 
 import { createAgentApi } from './api/agent';
+import { createAgentHostApi } from './api/agent-host';
 import { createEditCommandApi, createGetPlatformApi } from './api/app';
 import { createCloudSyncApi } from './api/cloud-sync';
 import { createSlashCommandsApi } from './api/commands';
@@ -25,6 +26,7 @@ import { createWorkspaceApi } from './api/workspace';
 import { createWritingApi } from './api/writing';
 
 const desktopApi: ChaptaleDesktopApi = {
+  agentHost: createAgentHostApi(),
   content: createContentApi(),
   settlement: createSettlementApi(),
   writing: createWritingApi(),

@@ -9,6 +9,10 @@
       "types": "./dist/protocol.d.ts",
       "default": "./src/protocol.ts"
     },
+    "./transport": {
+      "types": "./dist/application/connection.d.ts",
+      "default": "./src/application/connection.ts"
+    },
     "./application": {
       "types": "./dist/application/index.d.ts",
       "default": "./src/application/index.ts"
