@@ -1,9 +1,11 @@
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 
-import type { ProviderInput } from '../../protocol.ts';
+import type { NativeProvider } from '../../protocol.ts';
 import { HostModelConfiguration } from '../model-configuration.ts';
 import { createHostModelRuntime } from '../model-runtime.ts';
 
@@ -12,86 +14,115 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map(directory => rm(directory, { recursive: true, force: true })));
 });
 
-const input: ProviderInput = {
-  provider: 'configured-provider',
+const provider: NativeProvider = {
   baseUrl: 'http://127.0.0.1:9/v1',
   api: 'openai-completions',
-  modelId: 'first-model',
-  modelName: '第一个模型',
-  contextWindow: 8192,
-  maxTokens: 512,
-  reasoning: false,
-  apiKey: 'offline-test-key'
+  headers: { 'X-Team': 'chaptale' },
+  compat: { supportsDeveloperRole: false },
+  models: [
+    { id: 'first-model', name: '第一个模型', contextWindow: 8192, maxTokens: 512, input: ['text', 'image'] },
+    { id: 'second-model', reasoning: true }
+  ]
 };
 
-it('配置使用 pi 原生格式保存，重开后两个模型和凭据仍可用，省略凭据时保留已有值', async () => {
+async function setup() {
   const directory = await mkdtemp(join(tmpdir(), 'chaptale-model-config-'));
   directories.push(directory);
   const runtime = await createHostModelRuntime({ configDir: directory });
-  const configuration = new HostModelConfiguration(directory, runtime);
-  await configuration.save(input);
-  await configuration.save({ ...input, modelId: 'second-model', modelName: '第二个模型', apiKey: undefined });
+  return { directory, runtime, configuration: new HostModelConfiguration(directory, runtime) };
+}
+
+const nativeFile = (directory: string) => readFile(join(directory, 'models.json'), 'utf8');
+
+it('供应商按 pi 原生格式整体保存，重开后可用，列表保留高级字段且不回传密钥', async () => {
+  const { directory, configuration } = await setup();
+  await configuration.save({ id: 'configured', config: provider, apiKey: 'offline-test-key' });
+  await configuration.save({ id: 'configured', config: { ...provider, headers: undefined } });
+
   const reopened = await createHostModelRuntime({ configDir: directory });
   expect(
     reopened
       .getAvailableSnapshot()
-      .filter(model => model.provider === input.provider)
+      .filter(model => model.provider === 'configured')
       .map(model => model.id)
   ).toEqual(['first-model', 'second-model']);
-  expect(await reopened.getAuth(input.provider)).toBeDefined();
-  const native = JSON.parse(await readFile(join(directory, 'models.json'), 'utf8'));
-  expect(native.providers[input.provider].apiKey).toBe('offline-test-key');
-  expect(native.providers[input.provider].models).toHaveLength(2);
+  expect(JSON.parse(await nativeFile(directory)).providers.configured.apiKey).toBe('offline-test-key');
+  const listed = await new HostModelConfiguration(directory, reopened).list();
+  const { headers: _, ...withoutHeaders } = provider;
+  expect(listed).toEqual([{ id: 'configured', hasApiKey: true, config: withoutHeaders }]);
+  expect(JSON.stringify(listed)).not.toContain('offline-test-key');
 });
 
-it('原生空供应商配置可从界面添加模型', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'chaptale-model-config-'));
-  directories.push(directory);
+it('删除供应商后运行时立即移除其模型，其他供应商保持不变', async () => {
+  const { directory, runtime, configuration } = await setup();
+  await configuration.save({ id: 'kept', config: provider, apiKey: 'key' });
+  await configuration.save({ id: 'removed', config: provider, apiKey: 'key' });
+  await configuration.remove('removed');
+  expect(new Set(runtime.getAvailableSnapshot().map(model => model.provider))).toEqual(new Set(['kept']));
+  expect(Object.keys(JSON.parse(await nativeFile(directory)).providers)).toEqual(['kept']);
+});
+
+it('原生空供应商配置可从界面添加', async () => {
+  const { directory, runtime } = await setup();
   await writeFile(join(directory, 'models.json'), '{"providers":{}}\n');
-  const runtime = await createHostModelRuntime({ configDir: directory });
-  await new HostModelConfiguration(directory, runtime).save(input);
-  expect(
-    runtime
-      .getAvailableSnapshot()
-      .filter(model => model.provider === input.provider)
-      .map(model => model.id)
-  ).toEqual(['first-model']);
+  await new HostModelConfiguration(directory, runtime).save({ id: 'added', config: provider, apiKey: 'key' });
+  expect(runtime.getAvailableSnapshot().map(model => model.id)).toEqual(['first-model', 'second-model']);
 });
 
-it('拒绝无效地址和 token 参数，配置失败保留原配置', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'chaptale-model-config-'));
-  directories.push(directory);
-  const runtime = await createHostModelRuntime({ configDir: directory });
-  const configuration = new HostModelConfiguration(directory, runtime);
-  await configuration.save(input);
-  const before = await readFile(join(directory, 'models.json'), 'utf8');
-  await expect(configuration.save({ ...input, baseUrl: 'file:///private' })).rejects.toThrow('地址');
-  await expect(configuration.save({ ...input, maxTokens: 0 })).rejects.toThrow('token');
-  expect(await readFile(join(directory, 'models.json'), 'utf8')).toBe(before);
+it('拒绝无效地址、密钥与原生校验失败的配置，失败后保留原文件与可用模型', async () => {
+  const { directory, runtime, configuration } = await setup();
+  await configuration.save({ id: 'configured', config: provider, apiKey: 'key' });
+  const before = await nativeFile(directory);
+
+  await expect(
+    configuration.save({ id: 'configured', config: { ...provider, baseUrl: 'file:///private' } })
+  ).rejects.toThrow('地址');
+  await expect(configuration.save({ id: 'configured', config: provider, apiKey: '!echo key' })).rejects.toThrow('密钥');
+  await expect(configuration.save({ id: 'configured', config: { ...provider, apiKey: 'inline' } })).rejects.toThrow(
+    '密钥'
+  );
+  await expect(
+    configuration.save({ id: 'configured', config: { ...provider, models: [{ id: 'bad', maxTokens: 0 }] } })
+  ).rejects.toThrow('已恢复原配置');
+
+  expect(await nativeFile(directory)).toBe(before);
+  expect(runtime.getAvailableSnapshot().map(model => model.id)).toEqual(['first-model', 'second-model']);
 });
 
-it('配置列表跨重开读取多个供应商和模型，仅返回界面可编辑参数', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'chaptale-model-config-'));
-  directories.push(directory);
-  const runtime = await createHostModelRuntime({ configDir: directory });
-  const configuration = new HostModelConfiguration(directory, runtime);
-  await configuration.save(input);
-  await configuration.save({ ...input, modelId: 'second-model', modelName: '第二个模型' });
-  await configuration.save({ ...input, provider: 'another-provider' });
-  const reopened = await createHostModelRuntime({ configDir: directory });
-  const entries = await new HostModelConfiguration(directory, reopened).list();
-  expect(entries).toHaveLength(3);
-  expect(entries[0]).toEqual({
-    provider: input.provider,
-    baseUrl: input.baseUrl,
-    api: input.api,
-    modelId: input.modelId,
-    modelName: input.modelName,
-    contextWindow: input.contextWindow,
-    maxTokens: input.maxTokens,
-    reasoning: false
+it('按表单连接拉取模型列表，未填密钥时使用已保存的凭据', async () => {
+  const requests: { url?: string; authorization?: string; team?: string }[] = [];
+  const server = createServer((request, response) => {
+    requests.push({
+      url: request.url,
+      authorization: request.headers.authorization,
+      team: request.headers['x-team'] as string
+    });
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify({ data: [{ id: 'remote-a' }, { id: 'models/remote-b', displayName: '远端 B' }, {}] }));
   });
-  expect(entries[1].modelId).toBe('second-model');
-  expect(entries[2].provider).toBe('another-provider');
-  expect(JSON.stringify(entries)).not.toContain('offline-test-key');
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const { configuration } = await setup();
+    const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/`;
+    await configuration.save({ id: 'local', config: { ...provider, baseUrl }, apiKey: 'stored-key' });
+
+    const models = await configuration.discover({
+      id: 'local',
+      baseUrl,
+      api: 'openai-completions',
+      headers: provider.headers
+    });
+    expect(models).toEqual([
+      { id: 'remote-a', name: 'remote-a' },
+      { id: 'remote-b', name: '远端 B' }
+    ]);
+    await configuration.discover({ baseUrl, api: 'openai-completions', apiKey: 'typed-key' });
+    expect(requests).toEqual([
+      { url: '/v1/models', authorization: 'Bearer stored-key', team: 'chaptale' },
+      { url: '/v1/models', authorization: 'Bearer typed-key', team: undefined }
+    ]);
+    await expect(configuration.discover({ baseUrl, api: 'anthropic-messages' })).rejects.toThrow('模型列表');
+  } finally {
+    server.close();
+  }
 });

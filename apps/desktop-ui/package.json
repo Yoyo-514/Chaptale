@@ -33,7 +33,6 @@
   },
   "devDependencies": {
     "@iconify-json/mingcute": "catalog:",
-    "@unocss/preset-icons": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "@vue/test-utils": "catalog:",
     "@vue/typescript-plugin": "catalog:",

@@ -82,7 +82,7 @@ describe('resolveWithinCwd', () => {
     await mkdir(path.join(dir, 'real-ws'), { recursive: true });
     await writeFile(path.join(dir, 'real-ws', 'a.txt'), 'x');
     const link = path.join(dir, 'ws-link');
-    await symlink(path.join(dir, 'real-ws'), link, 'dir');
+    await symlink(path.join(dir, 'real-ws'), link, 'junction');
 
     await expect(resolveWithinCwd(link, 'a.txt')).resolves.toBe(path.join(link, 'a.txt'));
   });
@@ -91,7 +91,7 @@ describe('resolveWithinCwd', () => {
     await mkdir(path.join(dir, 'ws'), { recursive: true });
     await mkdir(path.join(dir, 'outside'), { recursive: true });
     await writeFile(path.join(dir, 'outside', 'secret.txt'), '机密');
-    await symlink(path.join(dir, 'outside'), path.join(dir, 'ws', 'escape'), 'dir');
+    await symlink(path.join(dir, 'outside'), path.join(dir, 'ws', 'escape'), 'junction');
 
     await expect(resolveWithinCwd(path.join(dir, 'ws'), 'escape/secret.txt')).rejects.toThrow(/符号链接目标越界/);
   });

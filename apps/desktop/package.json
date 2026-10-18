@@ -31,7 +31,6 @@
     "@earendil-works/pi-coding-agent": "catalog:",
     "@mozilla/readability": "catalog:",
     "@node-rs/jieba": "catalog:",
-    "ai": "catalog:",
     "atomically": "catalog:",
     "chokidar": "catalog:",
     "fflate": "catalog:",
@@ -45,10 +44,8 @@
   },
   "devDependencies": {
     "@electron/fuses": "catalog:",
-    "@iconify-json/mingcute": "catalog:",
     "@types/node": "catalog:",
     "@types/turndown": "catalog:",
-    "@unocss/preset-icons": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "cross-env": "catalog:",
     "electron": "catalog:",
@@ -58,7 +55,6 @@
     "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-electron": "catalog:",
-    "vitest": "catalog:",
-    "vue-tsc": "catalog:"
+    "vitest": "catalog:"
   }
 }
