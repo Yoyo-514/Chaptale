@@ -1,76 +1,42 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { useAgentStore } from '@/features/agent';
+
 import { useWorkbenchStore } from '../store';
 
 beforeEach(() => setActivePinia(createPinia()));
 describe('面板导航', () => {
-  it('切换正文和资料视图不改变两侧栏的可见性', () => {
+  it('侧栏开关；专注模式下点击退出专注并保持打开', () => {
     const navigation = useWorkbenchStore();
-    navigation.showSidebar('workspace');
-    expect(navigation.sidebarOpen).toBe(true);
-    navigation.showAuxiliary('references');
-    navigation.focusEditor();
-    expect(navigation.auxiliaryOpen).toBe(true);
-    navigation.openView('library');
-    expect(navigation.sidebarOpen).toBe(true);
-    expect(navigation.auxiliaryOpen).toBe(true);
-    expect(navigation.center).toBe('library');
-  });
-  it('工作视图去重，关闭回到正文，切换作品后清空', () => {
-    const navigation = useWorkbenchStore();
-    navigation.openView('library');
-    navigation.openView('timeline');
-    navigation.openView('library');
-    expect(navigation.viewTabs).toEqual(['library', 'timeline']);
-    expect(navigation.center).toBe('library');
-    navigation.closeView('timeline');
-    expect(navigation.center).toBe('library');
-    navigation.closeView('library');
-    expect(navigation.center).toBe('editor');
-    navigation.openView('relationships');
-    navigation.resetViews();
-    expect(navigation.viewTabs).toEqual([]);
-    expect(navigation.center).toBe('editor');
-  });
-  it('重复点击关闭主侧栏，换视图重新打开', () => {
-    const navigation = useWorkbenchStore();
-    navigation.toggleSidebar('workspace');
+    navigation.toggleSidebar();
     expect(navigation.sidebarOpen).toBe(false);
-    navigation.toggleSidebar('structure');
-    expect(navigation.sidebarOpen).toBe(true);
-    expect(navigation.sidebar).toBe('structure');
-    navigation.toggleSidebar('structure');
-    expect(navigation.sidebarOpen).toBe(false);
-    navigation.showSidebar('structure');
+    navigation.toggleSidebar();
     expect(navigation.sidebarOpen).toBe(true);
     navigation.focusMode = true;
-    navigation.toggleSidebar('structure');
+    navigation.toggleSidebar();
     expect(navigation.sidebarOpen).toBe(true);
     expect(navigation.focusMode).toBe(false);
   });
-  it('辅助栏图标收起当前视图，重开保留视图', () => {
+  it('协作栏开关回到会话页，专注模式下点击退出专注', () => {
     const navigation = useWorkbenchStore();
     navigation.toggleAuxiliary();
+    expect(navigation.auxiliaryOpen).toBe(true);
+    navigation.agentView = 'history';
+    navigation.toggleAuxiliary();
     expect(navigation.auxiliaryOpen).toBe(false);
     navigation.toggleAuxiliary();
-    expect(navigation.auxiliaryOpen).toBe(true);
-    navigation.showAuxiliary('assets');
-    navigation.toggleAuxiliary();
-    expect(navigation.auxiliary).toBe('assets');
-    expect(navigation.auxiliaryOpen).toBe(false);
-    navigation.toggleAuxiliary();
-    expect(navigation.auxiliary).toBe('assets');
-    expect(navigation.auxiliaryOpen).toBe(true);
+    expect(navigation.agentView).toBe('chat');
     navigation.focusMode = true;
     navigation.toggleAuxiliary();
+    expect(navigation.auxiliaryOpen).toBe(true);
     expect(navigation.focusMode).toBe(false);
   });
-  it('讨论请求只进入待确认队列，并打开面板', () => {
+  it('讨论请求写进新会话草稿并打开协作栏，不自动发送', () => {
     const navigation = useWorkbenchStore();
-    navigation.auxiliaryOpen = false;
-    navigation.askAgent('C:/work', '讨论选段', []);
-    expect(navigation.agentRequests).toMatchObject([{ rootPath: 'C:/work', prompt: '讨论选段', files: [] }]);
+    navigation.askAgent('C:/work', '讨论选段', ['正文/第一章.md']);
+    expect(useAgentStore().draft).toBe('讨论选段\n文件：正文/第一章.md');
+    expect(useAgentStore().composeCwd).toBe('C:/work');
     expect(navigation.auxiliaryOpen).toBe(true);
   });
 });

@@ -1,21 +1,17 @@
 <script setup lang="ts">
 import { DialogContent, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
-import { defineAsyncComponent, onMounted } from 'vue';
+import { defineAsyncComponent, onMounted, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useDraggablePanel, type ResizeDirection } from '@/composables';
 import { CloudSyncSettings } from '@/features/cloud-sync';
-import { ContentSettings } from '@/features/content';
 
 import SettingsSidebar from './components/SettingsSidebar.vue';
+import InstructionSettings from './sections/InstructionSettings.vue';
+import ModelSettings from './sections/ModelSettings.vue';
 import { useSettingsStore } from './store';
 
 const WorkspaceSettings = defineAsyncComponent(() => import('./sections/WorkspaceSettings.vue'));
-const LLMSettings = defineAsyncComponent(() => import('./sections/LLMSettings.vue'));
-const PromptSettings = defineAsyncComponent(() => import('./sections/PromptSettings.vue'));
-const WebToolsSettings = defineAsyncComponent(() => import('./sections/WebToolsSettings.vue'));
-const PermissionsSettings = defineAsyncComponent(() => import('./sections/PermissionsSettings.vue'));
-const ConfigFilesSettings = defineAsyncComponent(() => import('./sections/ConfigFilesSettings.vue'));
 
 const resizeDirections: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 
@@ -32,8 +28,8 @@ const {
 } = useDraggablePanel({
   initialX: 88,
   initialY: 72,
-  initialWidth: 920,
-  initialHeight: 620,
+  initialWidth: 1040,
+  initialHeight: 720,
   minX: 16,
   minY: 16,
   minWidth: 680,
@@ -41,13 +37,21 @@ const {
   viewportPadding: 16
 });
 
+// 首次打开时居中；之后保留作者拖动和缩放后的位置。
+let placed = false;
+watch(
+  () => settingsStore.isOpen,
+  open => {
+    if (!open || placed) return;
+    placed = true;
+    centerPanel();
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
   if (settingsStore.isOpen && !settingsStore.state) {
     void settingsStore.load();
-  }
-
-  if (settingsStore.isOpen && !settingsStore.models) {
-    void settingsStore.loadModels();
   }
 });
 </script>
@@ -98,13 +102,14 @@ onMounted(() => {
 
               <main class="settings-panel-content">
                 <WorkspaceSettings v-if="settingsStore.activeSection === 'workspace'" />
-                <LLMSettings v-else-if="settingsStore.activeSection === 'llm'" />
-                <PromptSettings v-else-if="settingsStore.activeSection === 'prompt'" />
-                <WebToolsSettings v-else-if="settingsStore.activeSection === 'webTools'" />
-                <PermissionsSettings v-else-if="settingsStore.activeSection === 'permissions'" />
+                <ModelSettings v-else-if="settingsStore.activeSection === 'llm'" />
+                <InstructionSettings v-else-if="settingsStore.activeSection === 'prompt'" />
                 <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
-                <ContentSettings v-else-if="settingsStore.activeSection === 'content'" />
-                <ConfigFilesSettings v-else />
+                <section v-else class="agent-settings">
+                  <h2>应用数据</h2>
+                  <p>打开应用配置与会话历史所在的目录。</p>
+                  <AppButton @click="settingsStore.openConfigDir">打开应用配置目录</AppButton>
+                </section>
               </main>
             </div>
 

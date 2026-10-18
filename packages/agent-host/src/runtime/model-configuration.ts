@@ -2,7 +2,7 @@ import type { ModelRuntime } from '@earendil-works/pi-coding-agent';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { ProviderInput } from '../protocol.ts';
+import type { ProviderInput, ProviderSummary } from '../protocol.ts';
 
 type ProviderConfig = Parameters<ModelRuntime['registerProvider']>[1];
 type NativeModels = { providers: Record<string, ProviderConfig> };
@@ -23,6 +23,35 @@ export class HostModelConfiguration {
     const operation = this.queue.then(() => this.write(input));
     this.queue = operation.catch(() => undefined);
     return operation;
+  }
+
+  async list(): Promise<ProviderSummary[]> {
+    await this.queue;
+    const config = await this.read();
+    return Object.entries(config.providers).flatMap(([provider, value]) =>
+      (value.models ?? []).map(({ id }) => {
+        const model = this.runtime.getModel(provider, id)!;
+        return {
+          provider,
+          baseUrl: model.baseUrl,
+          api: model.api,
+          modelId: model.id,
+          modelName: model.name,
+          contextWindow: model.contextWindow,
+          maxTokens: model.maxTokens,
+          reasoning: model.reasoning
+        };
+      })
+    );
+  }
+
+  private async read(): Promise<NativeModels> {
+    try {
+      return JSON.parse(await readFile(join(this.directory, 'models.json'), 'utf8'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      return { providers: {} };
+    }
   }
 
   private async write(input: ProviderInput): Promise<void> {
@@ -47,13 +76,7 @@ export class HostModelConfiguration {
       throw new Error('API key 必须为非空凭据文本');
 
     const file = join(this.directory, 'models.json');
-    let config: NativeModels;
-    try {
-      config = JSON.parse(await readFile(file, 'utf8'));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      config = { providers: {} };
-    }
+    const config = await this.read();
     const previous = config.providers[input.provider];
     const model = {
       id: input.modelId,

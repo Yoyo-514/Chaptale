@@ -7,7 +7,7 @@ import {
   type OfficeParserConfig
 } from 'officeparser';
 
-import type { DocumentNoTextReason, DocumentParserPort, ParsedDocument } from '../../core/context/document-parser-port';
+import type { DocumentNoTextReason, DocumentParserPort, ParsedDocument } from './types';
 
 const SUPPORTED_EXTS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.rtf', '.odt', '.odp', '.ods']);
 const PARSE_TIMEOUT_MS = 30_000;

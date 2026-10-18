@@ -102,6 +102,10 @@ function handleInput(event: Event) {
   border-color: var(--input-border);
 }
 
+.app-input-default:hover:not(.is-disabled) {
+  border-color: var(--input-hover-border);
+}
+
 .app-input-muted {
   background: var(--surface-muted);
   border-color: var(--border-subtle);

@@ -108,11 +108,11 @@ const iconClass = computed(() =>
 }
 
 .app-checkbox-sm {
-  @apply size-6 text-xs;
+  @apply size-4 text-xs;
 }
 
 .app-checkbox-md {
-  @apply size-6 text-sm;
+  @apply size-[1.125rem] text-sm;
 
   border-radius: var(--radius-checkbox-active);
 }
@@ -122,6 +122,10 @@ const iconClass = computed(() =>
   background: var(--primary-solid);
   border-color: var(--primary-solid);
   color: var(--primary-solid-foreground);
+}
+
+.app-checkbox:hover:not([data-disabled]):not([data-state='checked']) {
+  border-color: var(--border-strong);
 }
 
 .app-checkbox:focus-visible {

@@ -2,7 +2,6 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
-import { createMemoryHistory, createRouter } from 'vue-router';
 
 import { useSettingsStore } from '@/features/settings';
 import { useWorkspaceStore } from '@/features/workspace';
@@ -14,11 +13,7 @@ beforeEach(() => {
 });
 
 function mountTitleBar() {
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: '/', component: TitleBar }]
-  });
-  return mount(TitleBar, { attachTo: document.body, global: { plugins: [router] } });
+  return mount(TitleBar, { attachTo: document.body });
 }
 
 afterEach(() => {
@@ -32,15 +27,7 @@ describe('TitleBar', () => {
     expect(wrapper.get('[role="menubar"]').attributes('aria-label')).toBe('应用菜单');
     // 菜单项经 reka-ui 渲染为 menuitem；不断言具体 class 名。
     const menuTriggers = wrapper.findAll('[role="menubar"] [role="menuitem"]');
-    expect(menuTriggers.map(trigger => trigger.text()).filter(Boolean)).toEqual([
-      '文件',
-      '编辑',
-      '视图',
-      '写作',
-      'Agent',
-      '审查',
-      '帮助'
-    ]);
+    expect(menuTriggers.map(trigger => trigger.text()).filter(Boolean)).toEqual(['文件', '编辑', '视图', '会话']);
     expect(wrapper.get('.titlebar-document-title').text()).toBe('Chaptale');
     expect(wrapper.get('.titlebar-leading').attributes('aria-label')).toBe('Chaptale 应用菜单');
   });

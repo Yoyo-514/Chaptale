@@ -88,7 +88,7 @@ test.beforeEach(async () => {
   );
   await writeFile(
     path.join(home, '.chaptale/settings.json'),
-    JSON.stringify({ version: 1, workspace: { path: workspace }, onboarding: { completedVersion: 1 } })
+    JSON.stringify({ version: 1, workspace: { path: workspace } })
   );
   errors = [];
 });

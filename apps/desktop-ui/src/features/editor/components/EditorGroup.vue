@@ -6,7 +6,6 @@ import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTooltip } from '@/components/AppTooltip';
-import { useWorkbenchStore, workspaceViews, type WorkspaceView } from '@/features/workbench';
 import { useWorkspaceStore, useWorkspaceActions } from '@/features/workspace';
 import { APP_ICON_URL } from '@/utils/app-icon';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
@@ -21,21 +20,11 @@ const ExternalChangeDialog = defineAsyncComponent(() => import('./ExternalChange
 const editor = useEditorStore();
 const workspace = useWorkspaceStore();
 const actions = useWorkspaceActions();
-const navigation = useWorkbenchStore();
 const contextTabId = ref('');
-const viewId = (view: WorkspaceView) => `view:${view}`;
-const openViews = computed(() => navigation.viewTabs.flatMap(id => workspaceViews.filter(view => view.id === id)));
-const orderedIds = computed(() => [...editor.tabs.map(tab => tab.id), ...navigation.viewTabs.map(viewId)]);
-const selectedId = computed(() =>
-  navigation.center === 'editor' ? editor.activeId || 'welcome' : viewId(navigation.center)
-);
+const orderedIds = computed(() => editor.tabs.map(tab => tab.id));
+const selectedId = computed(() => editor.activeId || 'welcome');
 function selectTab(id: string | number) {
-  const view = workspaceViews.find(item => viewId(item.id) === id);
-  if (view) navigation.openView(view.id);
-  else {
-    navigation.center = 'editor';
-    editor.selectTab(String(id));
-  }
+  editor.selectTab(String(id));
 }
 const tabMenu = computed<AppContextMenuItem[]>(() => {
   const tab = editor.tabs.find(item => item.id === contextTabId.value);
@@ -47,7 +36,7 @@ const tabMenu = computed<AppContextMenuItem[]>(() => {
     {
       id: 'close-saved',
       label: '关闭已保存标签',
-      disabled: !navigation.viewTabs.length && !editor.tabs.some(item => !item.dirty && !item.saving)
+      disabled: !editor.tabs.some(item => !item.dirty && !item.saving)
     },
     { id: 'close-all', label: '关闭全部标签' },
     ...(tab
@@ -75,9 +64,7 @@ async function selectTabMenu(id: string) {
         (id === 'close-saved' &&
           !editor.tabs.some(document => document.id === item && (document.dirty || document.saving)))
     );
-    const documents = candidates.filter(item => editor.tabs.some(document => document.id === item));
-    if (!(await editor.closeTabs(documents))) return;
-    for (const view of navigation.viewTabs) if (candidates.includes(viewId(view))) navigation.closeView(view);
+    await editor.closeTabs(candidates);
   } else if (!tab) return;
   else if (id === 'save') await editor.saveDocument(tab.id);
   else if (id === 'save-all') await editor.saveAll();
@@ -96,9 +83,7 @@ const duplicateTitles = computed(() => {
 
 async function closeTab(id: string) {
   const focusedInside = tabList.value?.contains(document.activeElement);
-  const view = workspaceViews.find(item => viewId(item.id) === id);
-  if (view) navigation.closeView(view.id);
-  else await editor.closeTab(id);
+  await editor.closeTab(id);
   if (focusedInside) {
     await nextTick();
     tabList.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
@@ -117,7 +102,6 @@ function scrollTabs(event: WheelEvent) {
 function handleKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
-    if (navigation.center !== 'editor' && !event.shiftKey) return;
     if (event.shiftKey) void editor.saveAll();
     else void editor.saveDocument();
     return;
@@ -218,41 +202,6 @@ watch(selectedId, async () => {
               </AppTooltip>
             </div>
           </AppContextMenu>
-          <AppContextMenu
-            v-for="view in openViews"
-            :key="view.id"
-            :items="tabMenu"
-            @prepare="contextTabId = viewId(view.id)"
-            @select="selectTabMenu"
-          >
-            <div
-              class="editor-tab-shell"
-              :class="{ 'is-active': navigation.center === view.id }"
-              @auxclick.middle.prevent="closeTab(viewId(view.id))"
-            >
-              <TabsTrigger
-                :value="viewId(view.id)"
-                class="editor-tab"
-                @keydown.delete.prevent="closeTab(viewId(view.id))"
-              >
-                <span :class="view.icon" class="size-3.5 shrink-0" aria-hidden="true" />
-                <span class="editor-tab-title">{{ view.label }}</span>
-              </TabsTrigger>
-              <AppTooltip :text="`关闭 ${view.label}`" side="bottom">
-                <AppButton
-                  icon
-                  size="xs"
-                  variant="ghost"
-                  class="editor-tab-close"
-                  :aria-label="`关闭 ${view.label}`"
-                  :tabindex="navigation.center === view.id ? 0 : -1"
-                  @click.stop="closeTab(viewId(view.id))"
-                >
-                  <span class="i-mingcute-close-line size-3" aria-hidden="true" />
-                </AppButton>
-              </AppTooltip>
-            </div>
-          </AppContextMenu>
         </TabsList>
       </AppScrollArea>
     </div>
@@ -270,9 +219,6 @@ watch(selectedId, async () => {
         >
         <AppButton v-if="workspace.rootPath" @click="editor.newChapterOpen = true">新建章节</AppButton>
       </div>
-    </TabsContent>
-    <TabsContent v-for="view in openViews" :key="view.id" :value="viewId(view.id)" class="editor-workspace-content">
-      <slot :name="view.id" />
     </TabsContent>
     <TabsContent v-for="tab in editor.tabs" :key="tab.id" :value="tab.id" class="editor-tab-content">
       <div v-if="tab.status === 'loading'" class="editor-state" role="status">
@@ -421,12 +367,6 @@ watch(selectedId, async () => {
 }
 
 .editor-tab-content[data-state='inactive'] {
-  display: none;
-}
-.editor-workspace-content {
-  @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none;
-}
-.editor-workspace-content[data-state='inactive'] {
   display: none;
 }
 

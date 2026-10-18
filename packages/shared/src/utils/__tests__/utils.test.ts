@@ -1,17 +1,4 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
-
-import type {
-  ChatContextFile,
-  ChatImageAttachment,
-  ChatImageSource,
-  ChatMessage,
-  ChatMessageUsage,
-  ChatRetryState,
-  ChatSkillInvocation,
-  ChatStopReason,
-  ChatTextPart,
-  ChatToolCall
-} from '@chaptale/shared';
+import { describe, expect, it } from 'vitest';
 
 import {
   blankToUndefined,
@@ -20,10 +7,8 @@ import {
   escapeXmlAttribute,
   escapeXmlText,
   formatFileSize,
-  formatSkillInvocation,
   getHostname,
   isRecord,
-  parseSkillInvocation,
   parseXmlAttributes,
   readBoolean,
   readFiniteNumber,
@@ -33,67 +18,6 @@ import {
   stripUndefined,
   unescapeXmlAttribute
 } from '..';
-
-describe('shared public exports', () => {
-  it('keeps chat domain types and constants available from the package root', () => {
-    const text: ChatTextPart = { type: 'text', text: 'hello' };
-    const imageSource: ChatImageSource = {
-      type: 'session-entry',
-      sessionId: 'session-id',
-      entryId: 'entry-id',
-      blockIndex: 0
-    };
-    const attachment: ChatImageAttachment = {
-      type: 'imageAttachment',
-      id: 'attachment-id',
-      mimeType: 'image/png',
-      originalBytes: 1024,
-      width: 320,
-      height: 180,
-      thumbnailDataUrl: 'data:image/png;base64,base64',
-      source: imageSource
-    };
-    const toolCall: ChatToolCall = {
-      id: 'tool-call-id',
-      name: 'read',
-      arguments: { path: '/tmp/example.txt' }
-    };
-    const contextFile: ChatContextFile = {
-      path: '/tmp/example.txt',
-      name: 'example.txt',
-      size: 128,
-      kind: 'text'
-    };
-    const skillInvocation: ChatSkillInvocation = { name: 'review', arguments: 'chapter one' };
-    const usage: ChatMessageUsage = {
-      inputTokens: 10,
-      outputTokens: 20,
-      totalTokens: 30
-    };
-    const stopReason: ChatStopReason = 'toolUse';
-    const retry: ChatRetryState = { status: 'retrying', attempt: 1, maxAttempts: 3 };
-    const messages: ChatMessage[] = [
-      {
-        role: 'user',
-        content: [text, attachment],
-        contextFiles: [contextFile],
-        skillInvocation
-      },
-      { role: 'assistant', content: [text], toolCalls: [toolCall], stopReason, retry, usage },
-      {
-        role: 'tool',
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        output: { ok: true },
-        details: { ok: true }
-      }
-    ];
-
-    expectTypeOf(messages).toMatchTypeOf<ChatMessage[]>();
-    expectTypeOf(attachment).toMatchTypeOf<ChatImageAttachment>();
-    expectTypeOf(contextFile).toMatchTypeOf<ChatContextFile>();
-  });
-});
 
 describe('shared utils', () => {
   it('narrows plain records without accepting arrays or null', () => {
@@ -145,15 +69,6 @@ describe('shared utils', () => {
     expect(formatFileSize(1536)).toBe('2 KB');
     expect(formatFileSize(1024 * 1024)).toBe('1.0 MB');
     expect(formatFileSize(1536 * 1024)).toBe('1.5 MB');
-  });
-
-  it('parses and formats reusable skill invocations', () => {
-    expect(parseSkillInvocation('/skill:review 检查第一章')).toEqual({
-      name: 'review',
-      arguments: '检查第一章'
-    });
-    expect(parseSkillInvocation('/SKILL:review')).toBeUndefined();
-    expect(formatSkillInvocation({ name: 'review', arguments: '' })).toBe('/skill:review');
   });
 
   it('escapes XML text and attributes for prompt envelopes', () => {

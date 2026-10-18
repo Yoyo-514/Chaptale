@@ -10,87 +10,9 @@ const featuresRoot = path.join(mainRoot, 'features');
  *
  * 约束：
  * - 新增跨 feature 导入必须在此显式登记并通过评审；陈旧条目同样报错；
- * - 所有边必须保持无运行时环。反向运行时边现已归零：memory 目录布局（纯 path.join、
- *   零 feature 依赖、被 memory 与 search 共用）已上提到 core/memory-layout，
- *   原先唯一的 search -> memory/paths 因此消失。memory -> personas/memory-access
- *   复用纯权限求交函数，personas 与 memory 到 search 的边均为 type-only。
- * - 路径守卫归 infra/filesystem，skills 与文件工具共同复用，不保留跨 feature 例外。
+ * - 所有边必须保持无运行时环。共用代码归 core 或 infra。
  */
-const crossFeatureAllowlist = [
-  // agent 运行时装配（chat-bundle / tool-assembly / service）按职责引用各 feature 的端口与工具。
-  'agent -> file-tools/tools',
-  'agent -> memory/compaction/pressure',
-  'agent -> memory/pending/store',
-  'agent -> memory/protocol',
-  'agent -> memory/tools',
-  'agent -> permissions/broker',
-  // 闸门在 chat-bundle 内做「三层规则求值 → broker 兜底」，因此同时依赖规则库与求值器。
-  'agent -> permissions/engine',
-  'agent -> permissions/rule-store',
-  'agent -> personas/memory-access',
-  'agent -> personas/registry',
-  'agent -> personas/task-spec',
-  'agent -> prompts/compose-system-prompt',
-  'agent -> prompts/product-duty',
-  'agent -> search/memory/service',
-  'agent -> search/memory/tool',
-  'agent -> skills/provider-port',
-  // skill_read 工具：skill 正文在 ~/.chaptale 下，read 工具的 cwd 越界守卫读不到，需专用通道。
-  'agent -> skills/skill-read-tool',
-  'agent -> subagent/delegate-tool',
-  'agent -> subagent/pool',
-  'agent -> tasks/runner-port',
-  'agent -> todo/protocol',
-  'agent -> todo/store',
-  'agent -> todo/tool',
-  'agent -> web-tools/content-store',
-  'agent -> web-tools/settings',
-  'agent -> web-tools/tools',
-  'commands -> skills/provider-port',
-  'library -> search/index/worker-client',
-  'library -> workspace/service',
-  // 注入、检索和压缩按同一专员策略收窄，不在 memory 内复制权限判断。
-  'memory -> personas/memory-access',
-  'memory -> personas/registry',
-  'memory -> search/types',
-  'personas -> search/types',
-  'prompts -> personas/builtin',
-  'reviews -> library/service',
-  'reviews -> personas/registry',
-  'reviews -> tasks/runner-port',
-  'reviews -> workspace/read-document',
-  'reviews -> workspace/service',
-  'reviews -> writing/candidates',
-  // 运行留档绑定输出字节指纹，复用相同的受限快照读取，不另建文件读取入口。
-  'runs -> workspace/read-document',
-  // 索引 worker 复用编辑器的安全快照读取和宽容 YAML，不另建不受限读取链路。
-  'search -> workspace/read-document',
-  'search -> workspace/frontmatter',
-  'settlement -> library/service',
-  'settlement -> personas/registry',
-  'settlement -> tasks/runner-port',
-  'settlement -> workspace/read-document',
-  'settlement -> workspace/service',
-  'settlement -> writing/versions',
-  'subagent -> personas/registry',
-  'subagent -> tasks/runner-port',
-  'tasks -> personas/registry',
-  'tasks -> personas/task-spec',
-  'tasks -> prompts/compose-system-prompt',
-  'tasks -> runs/record',
-  'tasks -> runs/store',
-  // task 侧与 chat 共用同一个 SkillsProvider，自拼两层会漏 builtin；type-only。
-  'tasks -> skills/provider-port',
-  // task 会话按 spec.skills 挂 skill_read：声明了技能的 persona 才能读正文（运行时边，有理由见注释）。
-  'tasks -> skills/skill-read-tool',
-  'templates -> workspace/read-document',
-  'templates -> workspace/service',
-  'writing -> library/service',
-  'writing -> personas/registry',
-  'writing -> tasks/runner-port',
-  'writing -> workspace/read-document',
-  'writing -> workspace/service'
-] as const;
+const crossFeatureAllowlist: readonly string[] = [];
 
 describe('Main 跨 feature 依赖白名单', () => {
   it('features 生产代码的跨 feature 导入与白名单精确一致', async () => {

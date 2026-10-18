@@ -2,25 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type { EditCommand, WorkspaceDocument } from '@chaptale/ipc-contract';
-import type { AssetLink } from '@chaptale/shared';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
-import { useLibraryStore } from '@/features/library';
-import { StartFromScratchCard, useStartGuide } from '@/features/onboarding';
-import { useReviewStore } from '@/features/reviews';
-import { TemplateFields, useTemplateStore } from '@/features/templates';
-import { useVersionStore } from '@/features/versions';
 import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceActions } from '@/features/workspace';
-import { useWritingStore } from '@/features/writing';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import type { DocumentBuffer } from '../codemirror/document-buffer';
 import type { DocumentHeading } from '../codemirror/markdown-navigation';
 import { createDocumentView } from '../codemirror/view';
-import { useDocumentForm } from '../composables/useDocumentForm';
 import { useEditorStore } from '../store';
 import type { DocumentViewState } from '../types';
 import DocumentToolbar from './DocumentToolbar.vue';
@@ -47,20 +39,9 @@ const emit = defineEmits<{
   compare: [];
 }>();
 const host = ref<HTMLElement | null>(null);
-const library = useLibraryStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
-const reviews = useReviewStore();
-const templates = useTemplateStore();
-const versions = useVersionStore();
 const fileActions = useWorkspaceActions();
-const writing = useWritingStore();
-// 长篇的第一步：作品刚建好、首章还是空的时候，把作者送去和「故事策划」把故事想清楚。
-const {
-  shouldShow: showStartGuide,
-  isStarting: isStartingGuide,
-  start: startGuide
-} = useStartGuide(() => props.document);
 const contextItems = ref<AppContextMenuItem[]>([]);
 let contextSelection = { from: 0, to: 0, text: '' };
 function prepareContext() {
@@ -71,13 +52,6 @@ function prepareContext() {
       label: contextSelection.text ? '与 Agent 讨论选段' : '与 Agent 讨论此文件',
       icon: 'i-mingcute-chat-3-line'
     },
-    {
-      id: 'reference',
-      label: contextSelection.text ? '选段加入写作参考' : '文件加入写作参考',
-      disabled: props.dirty || props.saving,
-      icon: 'i-mingcute-bookmark-add-line'
-    },
-    { id: 'candidate', label: '生成候选稿…', disabled: props.readonly || props.dirty || props.saving },
     { id: 'undo', label: '撤销', shortcut: 'Ctrl+Z', disabled: props.readonly, separatorBefore: true },
     { id: 'redo', label: '重做', shortcut: 'Ctrl+Y', disabled: props.readonly },
     {
@@ -98,7 +72,6 @@ function prepareContext() {
       disabled: !props.dirty || props.saving,
       icon: 'i-mingcute-save-line'
     },
-    { id: 'versions', label: '查看版本历史' },
     { id: 'reveal', label: '在系统文件管理器中显示' }
   ];
 }
@@ -112,12 +85,7 @@ async function selectContext(id: string) {
           props.document.rootPath,
           `请围绕《${props.document.relativePath}》的这段文字协助创作${props.dirty ? '（来自未保存的编辑缓冲）' : ''}：\n\n${contextSelection.text}`
         );
-    } else if (id === 'reference') {
-      library.add(props.document.relativePath, contextSelection.text || undefined);
-      navigation.showAuxiliary('references');
-    } else if (id === 'candidate') await writing.prepare();
-    else if (id === 'save') emit('save');
-    else if (id === 'versions') await versions.open();
+    } else if (id === 'save') emit('save');
     else if (id === 'reveal') await fileActions.reveal(props.document.relativePath);
     else if (id === 'find') find();
     else if (id === 'undo' || id === 'redo') view?.[id]();
@@ -126,18 +94,12 @@ async function selectContext(id: string) {
       await getDesktopApi().editCommand(id as EditCommand);
     }
   } catch (cause) {
-    linkError.value = toErrorMessage(cause);
+    actionError.value = toErrorMessage(cause);
   }
 }
-const { showForm, formValues, formError, assetTemplate, syncForm, changeField } = useDocumentForm(
-  props,
-  buffer => emit('change', buffer),
-  () => view?.foldHead()
-);
 const showOutline = ref(false);
 const headings = ref<DocumentHeading[]>([]);
-const linkResult = ref<AssetLink | null>(null);
-const linkError = ref('');
+const actionError = ref('');
 let outlineTimer: ReturnType<typeof setTimeout> | undefined;
 const large = computed(() => props.readonly);
 const size = computed(() => {
@@ -153,28 +115,7 @@ function find() {
 function updateOutline() {
   headings.value = view?.headings() ?? [];
 }
-async function openLink(link: string) {
-  try {
-    const result = await getDesktopApi().library.resolveLink({ rootPath: props.document.rootPath, link });
-    if (result.targetPath) await editor.openDocument(result.targetPath);
-    else linkResult.value = result;
-  } catch (error) {
-    linkError.value = toErrorMessage(error);
-  }
-}
-function addSelection() {
-  const selection = view?.selection();
-  if (!selection?.text) return;
-  if (props.dirty) {
-    linkError.value = '选段参考需要已保存的来源，请先保存文件';
-    return;
-  }
-  library.add(props.document.relativePath, selection.text);
-  navigation.showAuxiliary('references');
-}
-
 onMounted(() => {
-  if (props.document.head.status === 'ok') void templates.load();
   if (!host.value) return;
   view = createDocumentView(host.value, props.document.content, {
     markdown: /\.(md|markdown)$/i.test(props.document.relativePath),
@@ -183,23 +124,13 @@ onMounted(() => {
     buffer: props.buffer,
     onChange: buffer => {
       emit('change', buffer);
-      if (showForm.value) syncForm();
       clearTimeout(outlineTimer);
       outlineTimer = setTimeout(updateOutline, 200);
     },
-    foldHead: props.document.head.status === 'ok',
-    assets: async () => {
-      if (!library.snapshot) await library.load();
-      return library.assets;
-    },
-    onOpenLink: link => {
-      void openLink(link);
-    },
-    onReviewClick: reviews.selectMark
+    foldHead: props.document.head.status === 'ok'
   });
   if (view.buffer) emit('change', view.buffer);
   updateOutline();
-  view.setReviewMarks(reviews.marks(props.document.relativePath));
   if (editor.location?.path === props.document.relativePath) view.goTo(editor.location.from, editor.location.to);
 });
 onBeforeUnmount(() => {
@@ -209,11 +140,6 @@ onBeforeUnmount(() => {
   view.destroy();
 });
 watch(() => props.searchRequest, find);
-watch(
-  () => reviews.marks(props.document.relativePath),
-  marks => view?.setReviewMarks(marks),
-  { deep: true }
-);
 watch(
   () => editor.location,
   location => {
@@ -234,88 +160,27 @@ watch(
       :path="document.relativePath"
       :large="large"
       :has-metadata="document.head.status === 'ok'"
-      :has-template="Boolean(assetTemplate)"
-      :show-form="showForm"
       :show-outline="showOutline"
       :dirty="dirty"
       :saving="saving"
-      @mode="showForm = $event"
       @metadata="view?.toggleHead()"
       @outline="
         showOutline = !showOutline;
         updateOutline();
       "
-      @reference="addSelection"
-      @assets="navigation.showAuxiliary('assets')"
-      @versions="versions.open()"
       @save="emit('save')"
       @find="find"
       @reload="emit('reload')"
     />
-    <div v-if="linkResult || linkError" class="document-diagnostic" role="status">
-      <span>{{ linkError || (linkResult?.status === 'ambiguous' ? '引用存在多个同名来源' : '引用来源不存在') }}</span>
-      <AppButton
-        variant="link"
-        v-for="candidate in linkResult?.candidates"
-        :key="candidate"
-        class="document-link-choice"
-        @click="
-          editor.openDocument(candidate);
-          linkResult = null;
-        "
-      >
-        {{ candidate }}
-      </AppButton>
-      <AppButton
-        icon
-        size="xs"
-        variant="ghost"
-        aria-label="关闭引用提示"
-        @click="
-          linkResult = null;
-          linkError = '';
-        "
-        ><span class="i-mingcute-close-line size-3"
-      /></AppButton>
-    </div>
-    <div v-if="saveError || recoveryError || conflict || versions.error" class="document-diagnostic" role="alert">
-      {{ saveError || recoveryError || versions.error || '磁盘版本与本地版本不同' }}
+    <div v-if="actionError" class="document-diagnostic" role="alert">{{ actionError }}</div>
+    <div v-if="saveError || recoveryError || conflict" class="document-diagnostic" role="alert">
+      {{ saveError || recoveryError || '磁盘版本与本地版本不同' }}
       <AppButton v-if="conflict" size="xs" @click="emit('compare')">对比版本</AppButton>
     </div>
     <details v-if="document.head.status === 'invalid'" class="document-diagnostic">
       <summary>frontmatter 无法解析</summary>
       <p>{{ document.head.error }}</p>
     </details>
-    <AppScrollArea
-      v-if="assetTemplate"
-      v-show="showForm"
-      id="document-form-panel"
-      class="document-form"
-      aria-label="文档元数据表单"
-    >
-      <div class="document-form-content">
-        <TemplateFields
-          :fields="assetTemplate.fields"
-          :values="formValues"
-          :assets="library.available"
-          :disabled="readonly || saving || conflict"
-          @field="changeField"
-        />
-        <p v-if="formError" role="alert">{{ formError }}</p>
-        <AppButton
-          v-if="assetTemplate.targetKind === 'scene-card'"
-          size="xs"
-          :disabled="dirty || saving"
-          @click="
-            library.useScene(document.relativePath);
-            navigation.showAuxiliary('references');
-          "
-          >组装本次参考</AppButton
-        >
-      </div>
-    </AppScrollArea>
-    <!-- 放在编辑器上方而非浮动层：空章节里还有标题行，浮上去会把标题盖住。 -->
-    <StartFromScratchCard v-if="showStartGuide" :busy="isStartingGuide" @start="startGuide" />
     <div id="document-source-panel" class="document-surface">
       <AppScrollArea v-if="showOutline" class="document-outline">
         <nav aria-label="标题大纲">
@@ -355,22 +220,6 @@ watch(
 <style scoped lang="scss">
 .document-view {
   @apply flex h-full min-h-0 min-w-0 flex-col overflow-hidden;
-}
-
-.document-form {
-  @apply min-h-0 shrink-0 border-b;
-  max-height: 55%;
-  border-color: var(--border-subtle);
-}
-.document-form-content {
-  @apply mx-auto flex max-w-2xl flex-col gap-3 p-4;
-}
-.document-form :deep([data-slot='app-scroll-area-viewport']) {
-  max-height: 100%;
-}
-.document-form-content [role='alert'] {
-  @apply text-xs;
-  color: var(--destructive);
 }
 
 .document-surface {

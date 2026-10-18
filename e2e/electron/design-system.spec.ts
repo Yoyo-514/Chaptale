@@ -40,7 +40,7 @@ test.beforeEach(async () => {
   );
   await writeFile(
     path.join(home, '.chaptale/settings.json'),
-    JSON.stringify({ version: 1, theme: 'dark', workspace: { path: workspace }, onboarding: { completedVersion: 1 } })
+    JSON.stringify({ version: 1, theme: 'dark', workspace: { path: workspace } })
   );
   const env = { ...process.env, HOME: home, USERPROFILE: home, NODE_ENV: 'production' };
   delete (env as NodeJS.ProcessEnv).VITE_DEV_SERVER_URL;
@@ -104,61 +104,23 @@ async function assertFieldsFit(surface: Locator) {
 }
 
 const settingsSections = [
-  ['workspace', '作品', '作品与会话存储'],
-  ['llm', '模型', '模型服务'],
-  ['prompt', 'Prompt', 'Prompt 自定义'],
-  ['content', '专员与内容', '专员与创作内容'],
-  ['web', '联网', '联网与内容提取'],
-  ['permissions', '权限', '权限'],
+  ['workspace', '作品', '作品'],
+  ['llm', '模型', '模型'],
+  ['prompt', '写作指令', '写作指令'],
   ['cloud', '云端备份', '云端备份'],
-  ['files', '配置文件', '配置文件']
+  ['files', '应用数据', '应用数据']
 ] as const;
 
 async function captureSettings(settings: Locator, theme: string, viewport: 'minimum' | 'desktop') {
   for (const [key, label, heading] of settingsSections) {
     await settings.getByRole('button', { name: label, exact: true }).click();
-    await expect(settings.getByRole('heading', { name: heading, exact: true, level: 3 })).toBeVisible();
-    if (key === 'content') {
-      await expect(settings.getByRole('button', { name: '刷新内容', exact: true })).toBeEnabled();
-      const filter = await settings.getByRole('textbox', { name: '筛选创作内容', exact: true }).boundingBox();
-      expect(filter!.width).toBeGreaterThanOrEqual(120);
-    }
+    await expect(settings.getByRole('heading', { name: heading, exact: true }).first()).toBeVisible();
     await assertFieldsFit(settings);
     await page.screenshot({ path: path.join(visualDir, `settings-${key}-${theme}-${viewport}.png`) });
   }
 }
 
 for (const theme of ['light', 'warm', 'dark'] as const) {
-  test(`${theme} 审查筛选同排显示并可用键盘清除`, async () => {
-    await resize(1440, 900);
-    await page.evaluate(value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }), theme);
-    await page.reload();
-    await page
-      .getByRole('navigation', { name: '创作视图', exact: true })
-      .getByRole('button', { name: '审查', exact: true })
-      .click();
-    const panel = page.getByRole('region', { name: '审查中心', exact: true });
-    const trigger = panel.getByRole('button', { name: '审查筛选', exact: true });
-    const chapter = await panel.getByRole('combobox', { name: '审查章节' }).boundingBox();
-    const filter = await trigger.boundingBox();
-    expect(Math.abs(chapter!.y - filter!.y)).toBeLessThanOrEqual(1);
-    await trigger.focus();
-    await page.keyboard.press('Enter');
-    const popover = page.getByRole('dialog', { name: '审查筛选', exact: true });
-    await expect(popover).toBeVisible();
-    await popover.getByRole('combobox', { name: '审查运行状态' }).click();
-    await page.getByRole('option', { name: '失败', exact: true }).click();
-    await expect(trigger).toContainText('1');
-    await expect(panel).toContainText('没有符合筛选的审查');
-    await page.screenshot({ path: path.join(visualDir, `review-filters-${theme}.png`) });
-    await popover.getByRole('button', { name: '清除全部筛选' }).click();
-    await expect(trigger).not.toContainText('1');
-    await expect(panel).toContainText('还没有审查记录');
-    await page.keyboard.press('Escape');
-    await expect(popover).toBeHidden();
-    await expect(trigger).toBeFocused();
-  });
-
   test(`${theme} 主题在桌面与最小窗口保留可读表单和键盘焦点`, async () => {
     test.setTimeout(120_000);
     await resize(1440, 900);
@@ -228,56 +190,9 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
     await page.keyboard.press('Escape');
     await expect(settings).toBeHidden();
     await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toContainText('林晚');
-    await expect(page.getByRole('complementary', { name: '作品侧栏', exact: true })).toBeVisible();
-    await expect(page.getByRole('complementary', { name: '辅助栏', exact: true })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: '作品导航', exact: true })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: '协作栏', exact: true })).toBeVisible();
     await page.screenshot({ path: path.join(visualDir, `workbench-${theme}-minimum.png`) });
-  });
-
-  test(`${theme} 非目录树侧栏在两种窗口下保留列表与操作区`, async () => {
-    test.setTimeout(120_000);
-    await page.evaluate(value => (window as DesktopWindow).chaptaleDesktop.settings.update({ theme: value }), theme);
-    await page.reload();
-    await openChapter();
-    const primary = page.getByRole('complementary', { name: '作品侧栏', exact: true });
-    const auxiliary = page.getByRole('complementary', { name: '辅助栏', exact: true });
-
-    for (const viewport of ['desktop', 'minimum'] as const) {
-      await resize(viewport === 'minimum' ? 960 : 1440, viewport === 'minimum' ? 640 : 900);
-      for (const [key, label, region] of [
-        ['search', '搜索', '作品全文搜索'],
-        ['structure', '资料库', '资料库导航'],
-        ['review', '审查', '审查中心'],
-        ['memory', '记忆', '作品记忆']
-      ]) {
-        await page
-          .getByRole('navigation', { name: '创作视图', exact: true })
-          .getByRole('button', { name: label, exact: true })
-          .click();
-        const panel = primary.getByRole('region', { name: region, exact: true });
-        await expect(panel).toBeVisible();
-        if (key === 'search') {
-          await panel.getByRole('textbox', { name: '搜索作品文本', exact: true }).fill('林晚');
-          await expect(panel.locator('.search-match').first()).toBeVisible();
-        }
-        if (key === 'memory') await expect(panel.getByRole('button', { name: /关于林晚与旧车站/ })).toBeVisible();
-        await assertFieldsFit(panel);
-        await page.screenshot({ path: path.join(visualDir, `sidebar-${key}-${theme}-${viewport}.png`) });
-      }
-      for (const [key, label, region] of [
-        ['references', '参考', '本次写作参考'],
-        ['candidates', '候选', '候选稿'],
-        ['review', '审查', '独立审查'],
-        ['settlement', '结算', '章节结算'],
-        ['assets', '资产', '资产详情'],
-        ['runs', '运行', '运行记录']
-      ]) {
-        await auxiliary.getByRole('tab', { name: label, exact: true }).click();
-        const panel = auxiliary.getByRole('region', { name: region, exact: true });
-        await expect(panel).toBeVisible();
-        await assertFieldsFit(panel);
-        await page.screenshot({ path: path.join(visualDir, `auxiliary-${key}-${theme}-${viewport}.png`) });
-      }
-    }
   });
 }
 

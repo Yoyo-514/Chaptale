@@ -5,9 +5,6 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppTooltip } from '@/components/AppTooltip';
-import { useLibraryStore } from '@/features/library';
-import { useTemplateStore } from '@/features/templates';
-import { useWorkbenchStore } from '@/features/workbench';
 
 import { useWorkspaceActions } from '../actions';
 import { useFileTreeStore } from '../file-tree/store';
@@ -23,10 +20,7 @@ const TREE_PADDING_START = 8;
 const emit = defineEmits<{ openFile: [relativePath: string] }>();
 const workspace = useWorkspaceStore();
 const tree = useFileTreeStore();
-const navigation = useWorkbenchStore();
 const actions = useWorkspaceActions();
-const library = useLibraryStore();
-const templates = useTemplateStore();
 const contextItems = ref<AppContextMenuItem[]>([]);
 const contextPath = ref('');
 function prepareContext(event: MouseEvent) {
@@ -43,8 +37,7 @@ function prepareContext(event: MouseEvent) {
     ...(file
       ? [
           { id: 'open', label: '打开', icon: 'i-mingcute-file-line' },
-          { id: 'agent', label: '与 Agent 讨论此文件', icon: 'i-mingcute-chat-3-line' },
-          { id: 'reference', label: '加入写作参考', icon: 'i-mingcute-bookmark-add-line' }
+          { id: 'agent', label: '与 Agent 讨论此文件', icon: 'i-mingcute-chat-3-line' }
         ]
       : [
           { id: 'new-file', label: '新建文件…', icon: 'i-mingcute-file-new-line', disabled: !workspace.rootPath },
@@ -54,7 +47,6 @@ function prepareContext(event: MouseEvent) {
             icon: 'i-mingcute-folder-2-line',
             disabled: !workspace.rootPath
           },
-          { id: 'new-template', label: '从模板新建…', disabled: !workspace.rootPath },
           { id: 'collapse', label: '折叠全部文件夹' }
         ]),
     ...(row
@@ -88,12 +80,8 @@ function selectContext(id: string) {
     void actions.prepare(id as 'rename' | 'move' | 'duplicate' | 'trash', path);
   else if (id === 'open') emit('openFile', path);
   else if (id === 'agent') actions.askAgent(path);
-  else if (id === 'reference') {
-    library.add(path);
-    navigation.showAuxiliary('references');
-  } else if (id === 'new-file' || id === 'new-directory')
+  else if (id === 'new-file' || id === 'new-directory')
     void tree.startCreation(id === 'new-file' ? 'file' : 'directory');
-  else if (id === 'new-template') void templates.openCreate();
   else if (id === 'copy-path' || id === 'copy-absolute') void actions.copyPath(path, id === 'copy-absolute');
   else if (id === 'reveal') void actions.reveal(path);
   else if (id === 'refresh') void tree.reload();
@@ -193,10 +181,8 @@ async function handleCreate(name: string) {
 }
 
 onMounted(async () => {
-  // 严格先后：作品状态刷新会触发下面那个 revision 监听并立即取数，
-  // 先拿到「显示内部文件」偏好，首次请求才不会按默认值白拉一遍。
+  // 作品状态由工作台在启动时读取；这里先拿「显示内部文件」偏好，首次请求才不会按默认值白拉一遍。
   await tree.loadPreferences();
-  await workspace.refreshState();
   if (workspace.rootPath) await tree.load();
 });
 
@@ -213,30 +199,6 @@ watch(
 <template>
   <AppContextMenu :items="contextItems" @prepare="prepareContext" @select="selectContext">
     <div class="workspace-explorer">
-      <!-- 视图标题行：管的是「这个视图怎么显示」，与针对根目录的操作分开。 -->
-      <header class="workspace-explorer-header">
-        <span class="workspace-explorer-title">资源管理器</span>
-        <div class="flex items-center">
-          <AppTooltip :text="tree.showInternalFiles ? '隐藏内部文件' : '显示内部文件'" side="bottom" :side-offset="3">
-            <AppButton
-              icon
-              size="xs"
-              variant="ghost"
-              :selected="tree.showInternalFiles"
-              :aria-pressed="tree.showInternalFiles"
-              :aria-label="tree.showInternalFiles ? '隐藏内部文件' : '显示内部文件'"
-              @click="tree.setShowInternalFiles(!tree.showInternalFiles)"
-            >
-              <span
-                :class="tree.showInternalFiles ? 'i-mingcute-eye-line' : 'i-mingcute-eye-close-line'"
-                class="size-3.5"
-                aria-hidden="true"
-              />
-            </AppButton>
-          </AppTooltip>
-        </div>
-      </header>
-
       <!-- 根节点行：作品名 + 针对根目录的操作，按钮在 hover/键盘聚焦时出现。 -->
       <div v-if="workspace.rootPath" class="workspace-explorer-root">
         <span class="workspace-explorer-root-name" :title="workspace.rootPath">
@@ -268,6 +230,23 @@ watch(
               @click="tree.collapseAll()"
             >
               <span class="i-mingcute-list-collapse-line size-3.5" aria-hidden="true" />
+            </AppButton>
+          </AppTooltip>
+          <AppTooltip :text="tree.showInternalFiles ? '隐藏内部文件' : '显示内部文件'" side="bottom" :side-offset="3">
+            <AppButton
+              icon
+              size="xs"
+              variant="ghost"
+              :selected="tree.showInternalFiles"
+              :aria-pressed="tree.showInternalFiles"
+              :aria-label="tree.showInternalFiles ? '隐藏内部文件' : '显示内部文件'"
+              @click="tree.setShowInternalFiles(!tree.showInternalFiles)"
+            >
+              <span
+                :class="tree.showInternalFiles ? 'i-mingcute-eye-line' : 'i-mingcute-eye-close-line'"
+                class="size-3.5"
+                aria-hidden="true"
+              />
             </AppButton>
           </AppTooltip>
         </div>
@@ -387,21 +366,9 @@ watch(
   @apply flex min-h-0 flex-1 flex-col overflow-hidden;
 }
 
-/* 侧栏标题不跟编辑器标签同高：那是给标签页留的尺寸，套在纯文字标题上会空出一大块。 */
-.workspace-explorer-header {
-  @apply flex h-9 shrink-0 items-center justify-between gap-1 pl-3 pr-1.5;
-}
-
-/* 标题是定位信息不是重点内容，加粗会盖过下面的作品名。 */
-.workspace-explorer-title {
-  @apply truncate text-xs font-normal;
-
-  color: var(--muted-foreground);
-}
-
-/* 根节点留出通用图标按钮的完整命中区。 */
+/* 根节点就是侧栏标题，留出通用图标按钮的完整命中区。 */
 .workspace-explorer-root {
-  @apply flex h-8 shrink-0 items-center gap-1 pl-3 pr-1;
+  @apply flex h-9 shrink-0 items-center gap-1 pl-3 pr-1;
 }
 
 .workspace-explorer-root-name {

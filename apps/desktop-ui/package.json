@@ -12,9 +12,9 @@
     "test:watch": "cd ../.. && vitest --config vitest.config.ts --project ui"
   },
   "dependencies": {
+    "@chaptale/agent-host": "workspace:*",
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
-    "@codemirror/autocomplete": "catalog:",
     "@codemirror/commands": "catalog:",
     "@codemirror/lang-markdown": "catalog:",
     "@codemirror/language": "catalog:",
@@ -25,22 +25,18 @@
     "@lezer/highlight": "catalog:",
     "@tanstack/vue-virtual": "catalog:",
     "@unocss/reset": "catalog:",
-    "@vue-flow/background": "catalog:",
-    "@vue-flow/core": "catalog:",
     "clsx": "catalog:",
-    "klona": "catalog:",
     "marked": "catalog:",
     "pinia": "catalog:",
-    "radash": "catalog:",
     "reka-ui": "catalog:",
-    "vue": "catalog:",
-    "vue-router": "catalog:"
+    "vue": "catalog:"
   },
   "devDependencies": {
     "@iconify-json/mingcute": "catalog:",
     "@unocss/preset-icons": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "@vue/test-utils": "catalog:",
+    "@vue/typescript-plugin": "catalog:",
     "happy-dom": "catalog:",
     "sass": "catalog:",
     "typescript": "catalog:",

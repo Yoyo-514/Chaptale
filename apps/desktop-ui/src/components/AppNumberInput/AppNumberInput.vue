@@ -209,6 +209,10 @@ function stepBy(direction: -1 | 1) {
   border-color: var(--border-subtle);
 }
 
+.app-number-input:not(.app-number-input-muted):not(.is-disabled):hover {
+  border-color: var(--input-hover-border);
+}
+
 .app-number-input:focus-within {
   box-shadow: var(--input-focus-shadow);
 }

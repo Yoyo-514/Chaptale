@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ChaptaleSettings, UpdateWebToolsSettingsPayload } from '@chaptale/ipc-contract';
+import type { ChaptaleSettings } from '@chaptale/ipc-contract';
 
-import {
-  cloneDefaultSettings,
-  cloneDefaultWebToolsSettings,
-  DEFAULT_WEB_TOOLS_SETTINGS,
-  mergeSettings,
-  mergeWebToolsSettings
-} from '../defaults';
+import { cloneDefaultSettings, mergeSettings } from '../defaults';
 
 /** 落盘文件不受类型约束：这个助手就是用来把“只给一半字段、或给错类型”喂进去的。 */
 function partial(value: Record<string, unknown>): ChaptaleSettings {
@@ -36,7 +30,6 @@ describe('settings defaults', () => {
       explorer: { showInternalFiles: false },
       editor: { autoSave: false },
       backup: { auto: true, intervalMinutes: 1440 },
-      onboarding: { completedVersion: 0 },
       theme: 'dark'
     });
   });
@@ -74,49 +67,5 @@ describe('settings defaults', () => {
     const settings = mergeSettings({ theme: '将来某个主题' } as unknown as Partial<ChaptaleSettings>);
 
     expect(settings.theme).toBe('dark');
-  });
-
-  it('returns isolated web tools default clones', () => {
-    const first = cloneDefaultWebToolsSettings();
-    const second = cloneDefaultWebToolsSettings();
-
-    first.search.enabled = false;
-    first.fetch.timeoutSeconds = 5;
-
-    expect(second.search.enabled).toBe(true);
-    expect(second.fetch.timeoutSeconds).toBe(DEFAULT_WEB_TOOLS_SETTINGS.fetch.timeoutSeconds);
-  });
-});
-
-describe('mergeWebToolsSettings', () => {
-  it('merges nested groups while preserving unsubmitted values', () => {
-    const current = cloneDefaultWebToolsSettings();
-    const payload: UpdateWebToolsSettingsPayload = {
-      search: { enabled: false, provider: 'brave' },
-      keys: { braveApiKey: 'bk' }
-    };
-
-    const settings = mergeWebToolsSettings(current, payload);
-
-    expect(settings.search).toEqual({ enabled: false, provider: 'brave' });
-    expect(settings.keys.braveApiKey).toBe('bk');
-    // 未提交分组保持现值。
-    expect(settings.fetch.timeoutSeconds).toBe(current.fetch.timeoutSeconds);
-    expect(settings.ssrf.allowRanges).toEqual([]);
-  });
-
-  it('keeps explicit falsey values instead of replacing them with defaults', () => {
-    const current = cloneDefaultWebToolsSettings();
-    const settings = mergeWebToolsSettings(current, {
-      search: { enabled: false },
-      fetch: { timeoutSeconds: 0, maxBytes: 0 },
-      ssrf: { allowRanges: [] }
-    });
-
-    expect(settings.search.enabled).toBe(false);
-    expect(settings.search.provider).toBe('duckduckgo');
-    expect(settings.fetch.timeoutSeconds).toBe(0);
-    expect(settings.fetch.maxBytes).toBe(0);
-    expect(settings.ssrf.allowRanges).toEqual([]);
   });
 });

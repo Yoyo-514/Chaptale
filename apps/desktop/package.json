@@ -25,14 +25,9 @@
     "preview": "pnpm build && cross-env NODE_ENV=production electron ."
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "catalog:",
-    "@ai-sdk/google": "catalog:",
-    "@ai-sdk/openai": "catalog:",
-    "@ai-sdk/openai-compatible": "catalog:",
     "@chaptale/agent-host": "workspace:*",
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
-    "@codemirror/merge": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@mozilla/readability": "catalog:",
     "@node-rs/jieba": "catalog:",
@@ -43,12 +38,9 @@
     "klona": "catalog:",
     "linkedom": "catalog:",
     "marked": "catalog:",
-    "minisearch": "catalog:",
     "officeparser": "catalog:",
     "pinyin-pro": "catalog:",
-    "radash": "catalog:",
     "turndown": "catalog:",
-    "typebox": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {

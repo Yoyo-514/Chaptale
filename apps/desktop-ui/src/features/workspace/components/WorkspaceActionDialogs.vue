@@ -32,12 +32,6 @@ const title = computed(
         >{{ actions.pending.action === 'rename' ? '新名称' : '目标相对路径' }}
         <AppInput v-model="actions.destination" :disabled="actions.busy" aria-label="文件操作目标" />
       </label>
-      <details v-if="actions.affectedLinks.length && actions.pending.action !== 'duplicate'" open>
-        <summary>{{ actions.affectedLinks.length }} 个文件的引用可能受影响</summary>
-        <ul>
-          <li v-for="asset in actions.affectedLinks" :key="asset.sourcePath">{{ asset.sourcePath }}</li>
-        </ul>
-      </details>
       <p v-if="actions.error" class="workspace-action-error" role="alert">{{ actions.error }}</p>
       <AppFormActions>
         <AppButton :disabled="actions.busy" @click="actions.pending = null">取消</AppButton>

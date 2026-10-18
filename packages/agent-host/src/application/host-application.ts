@@ -13,6 +13,7 @@ import {
   type ModelRef,
   modeEntryType,
   type ProviderInput,
+  type ProviderSummary,
   type SessionView
 } from '../protocol.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
@@ -31,6 +32,7 @@ export interface HostApplicationOptions {
   /** 作者尚未设置全局默认时，新会话复制的应用内置指令。 */
   builtinInstructions: AgentInstructions;
   modelRuntime: ModelRuntime;
+  configuredModels: () => Promise<ProviderSummary[]>;
   configureModel: (input: ProviderInput) => Promise<void>;
   tools: (cwd: string) => ToolDefinition[];
 }
@@ -100,17 +102,19 @@ export class HostApplication {
       case 'state':
         return this.snapshot();
       case 'create':
-        return this.create(command.input.model, command.input.instructions);
+        return this.create(command.input.model, command.input.instructions, command.input.cwd ?? this.options.cwd);
       case 'open':
         return this.open(command.input.file, command.input.cwd);
       case 'history':
-        return (await SessionManager.list(this.options.cwd, this.options.sessionDir)).map(item => ({
-          id: item.id,
-          file: item.path,
-          cwd: item.cwd,
-          title: item.name || item.firstMessage || '未命名会话',
-          modified: item.modified.toISOString()
-        }));
+        return (await SessionManager.list(command.input?.cwd ?? this.options.cwd, this.options.sessionDir)).map(
+          item => ({
+            id: item.id,
+            file: item.path,
+            cwd: item.cwd,
+            title: item.name || item.firstMessage || '未命名会话',
+            modified: item.modified.toISOString()
+          })
+        );
       case 'prompt':
         return this.live(command.input.id).prompt(command.input.text);
       case 'cancel':
@@ -141,6 +145,8 @@ export class HostApplication {
       case 'defaultMode':
         await this.settings.setDefaultMode(command.input.mode);
         return this.emitSettings();
+      case 'configuredModels':
+        return this.options.configuredModels();
       case 'configure':
         await this.options.configureModel(command.input);
         this.emit({ kind: 'models', models: this.models() });
@@ -170,10 +176,10 @@ export class HostApplication {
   }
 
   /** 新会话复制一份指令与默认模式，之后与设置各自独立。 */
-  private async create(model: ModelRef, name?: string): Promise<string> {
+  private async create(model: ModelRef, name: string | undefined, cwd: string): Promise<string> {
     const applied = { entries: this.settings.instructionsFor(name) };
     const mode = this.settings.defaultMode;
-    const { session } = await this.pool.createSession({ ...this.sessionInput(applied, this.options.cwd), model });
+    const { session } = await this.pool.createSession({ ...this.sessionInput(applied, cwd), model });
     session.sessionManager.appendCustomEntry(instructionsEntryType, { entries: applied.entries });
     session.sessionManager.appendCustomEntry(modeEntryType, { mode });
     const live = new LiveSession(session, applied, mode, change => this.emit(change));

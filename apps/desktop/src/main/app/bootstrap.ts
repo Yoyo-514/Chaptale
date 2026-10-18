@@ -54,13 +54,10 @@ export function bootstrapDesktopApp(): void {
         stopped = true;
         app.quit();
       };
-      void Promise.all([agentHost.dispose(), context.workspaceService.dispose(), context.indexService.dispose()]).then(
-        finish,
-        () => {
-          console.error('退出时资源释放失败');
-          finish();
-        }
-      );
+      void Promise.all([agentHost.dispose(), context.workspaceService.dispose()]).then(finish, () => {
+        console.error('退出时资源释放失败');
+        finish();
+      });
     });
     registerApplicationIpc(context);
     // 心跳在窗口建好之前就可以跑：第一拍要等一分钟，而那时作品与登录状态都已经落定。

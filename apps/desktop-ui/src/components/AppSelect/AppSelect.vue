@@ -20,7 +20,7 @@ const props = withDefaults(
     contentClass?: string;
     contentSize?: 'sm' | 'md';
     size?: 'sm' | 'md';
-    variant?: 'default' | 'muted';
+    variant?: 'default' | 'muted' | 'ghost';
     sideOffset?: number;
     align?: 'start' | 'center' | 'end';
     disabled?: boolean;
@@ -167,6 +167,26 @@ const contentClassName = computed(() =>
 .app-select-trigger-default {
   background: var(--input);
   border-color: var(--input-border);
+  color: var(--foreground);
+}
+
+.app-select-trigger-default:hover:not([data-disabled]) {
+  border-color: var(--input-hover-border);
+}
+
+// 无边框入口，用在工具栏和输入区内；悬停时才显示底色。
+.app-select-trigger-ghost {
+  width: auto;
+  max-width: 100%;
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  padding-inline: 8px;
+}
+
+.app-select-trigger-ghost:hover:not([data-disabled]),
+.app-select-trigger-ghost[data-state='open'] {
+  background: var(--surface-hover);
   color: var(--foreground);
 }
 

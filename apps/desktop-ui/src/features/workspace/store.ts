@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 
 import { useNotificationStore } from '@/features/notifications';
-import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { confirmWorkspaceTransition } from '@/utils/workspace-transition';
@@ -20,13 +19,6 @@ export const useWorkspaceStore = defineStore('workspace', {
     revision: 0
   }),
   actions: {
-    async syncSession() {
-      const sessionStore = useSessionStore();
-      if (this.rootPath) {
-        await sessionStore.bindCwd(this.rootPath);
-        await sessionStore.loadStorageDebugInfo();
-      }
-    },
     async refreshState() {
       const state = await getDesktopApi().workspace.getState();
       const changed = state.rootPath !== this.rootPath;
@@ -67,7 +59,6 @@ export const useWorkspaceStore = defineStore('workspace', {
         useSettingsStore().applyStateSnapshot(nextState);
         await this.refreshState();
 
-        await this.syncSession();
         return true;
       } catch (error) {
         this.error = toErrorMessage(error);
@@ -77,17 +68,14 @@ export const useWorkspaceStore = defineStore('workspace', {
         this.isOpening = false;
       }
     },
-    /** 关闭作品：此后没有会话落脚点，聊天随之停用，直到再次新建或打开作品。 */
+    /** 关闭作品只改变导航范围，后台会话保留各自目录。 */
     async closeWorkspace() {
       if (!(await useSettingsStore().update({ workspace: { path: null } }))) return;
       await this.refreshState();
-      // update 已把会话 cwd 绑成空；这里补一次存储信息，免得设置面板还显示上一部作品的目录。
-      await useSessionStore().loadStorageDebugInfo();
     },
     async openRecent(path: string) {
       if (!(await useSettingsStore().update({ workspace: { path } }))) return;
       await this.refreshState();
-      await this.syncSession();
     }
   }
 });

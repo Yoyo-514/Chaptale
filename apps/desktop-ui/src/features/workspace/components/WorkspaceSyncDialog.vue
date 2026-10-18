@@ -63,7 +63,7 @@ function saveAll() {
   });
 }
 async function showFile(id: string, conflict = false) {
-  navigation.center = 'editor';
+  navigation.focusEditor();
   editor.selectTab(id);
   workspace.syncOpen = false;
   await nextTick();

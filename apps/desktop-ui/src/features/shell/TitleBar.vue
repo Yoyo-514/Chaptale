@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
+import { useAgentStore } from '@/features/agent';
 import { useEditorStore } from '@/features/editor';
-import { useWorkbenchStore, workspaceViews } from '@/features/workbench';
+import { useWorkbenchStore } from '@/features/workbench';
 import { useWorkspaceStore } from '@/features/workspace';
 import { APP_ICON_URL } from '@/utils/app-icon';
 
@@ -12,13 +13,12 @@ import { useWindowControls } from './useWindowControls';
 const appIconUrl = APP_ICON_URL;
 const workspace = useWorkspaceStore();
 const editor = useEditorStore();
+const agent = useAgentStore();
 const navigation = useWorkbenchStore();
 const documentTitle = computed(
   () =>
     [
-      navigation.center === 'editor'
-        ? editor.activeTab?.title
-        : workspaceViews.find(view => view.id === navigation.center)?.label,
+      navigation.agentInMain ? (agent.active ? agent.title(agent.active) : '新建会话') : editor.activeTab?.title,
       workspace.displayName
     ]
       .filter(Boolean)

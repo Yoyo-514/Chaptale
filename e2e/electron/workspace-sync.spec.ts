@@ -29,8 +29,7 @@ test.beforeEach(async () => {
     path.join(home, '.chaptale/settings.json'),
     JSON.stringify({
       version: 1,
-      workspace: { path: work },
-      onboarding: { completedVersion: 1 }
+      workspace: { path: work }
     })
   );
   errors = [];

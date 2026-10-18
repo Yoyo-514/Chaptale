@@ -1,24 +1,8 @@
 import { EditCommandValidator, IPC_CHANNELS, type AppPlatformResult, type EditCommand } from '@chaptale/ipc-contract';
 
-import { registerAgentIpc } from '../features/agent/ipc';
 import { registerCloudSyncIpc } from '../features/cloud-sync/ipc';
-import { registerSlashCommandIpc } from '../features/commands/ipc';
-import { registerContentIpc } from '../features/content/ipc';
-import { registerLibraryIpc } from '../features/library/ipc';
-import { registerMemoryIpc } from '../features/memory/ipc';
-import { registerModelsIpc } from '../features/models/ipc';
-import { registerPermissionsIpc } from '../features/permissions/ipc';
-import { registerPromptSettingsIpc } from '../features/prompts/ipc';
-import { registerReviewIpc } from '../features/reviews/ipc';
-import { registerSessionIpc } from '../features/sessions/ipc';
 import { registerSettingsIpc } from '../features/settings/ipc';
-import { registerSettlementIpc } from '../features/settlement/ipc';
-import { registerSubagentIpc } from '../features/subagent/ipc';
-import { registerTaskIpc } from '../features/tasks/ipc';
-import { registerTemplatesIpc } from '../features/templates/ipc';
-import { registerTodoIpc } from '../features/todo/ipc';
 import { registerWorkspaceIpc } from '../features/workspace/ipc';
-import { registerWritingIpc } from '../features/writing/ipc';
 import { ElectronUiShell } from '../infra/electron/ui-shell';
 import { registerWindowIpc } from '../infra/electron/window-ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
@@ -32,18 +16,12 @@ import type { AppContext } from './app-context';
  */
 export function registerApplicationIpc(context: AppContext): void {
   const ui = new ElectronUiShell();
-  registerContentIpc(context.contentService, ui);
   registerWorkspaceIpc(context.workspaceService, ui);
   registerCloudSyncIpc(context.cloudSyncService, ui);
-  registerLibraryIpc(context.libraryService);
-  registerWritingIpc(context.writingService);
-  registerTemplatesIpc(context.templateService);
-  registerReviewIpc(context.reviewService);
-  registerSettlementIpc(context.settlementService);
+  registerSettingsIpc(context.settingsService, ui);
   handleValidatedIpc(IPC_CHANNELS.app.editCommand, EditCommandValidator, (event, command: EditCommand) => {
     if (!event.sender.isDestroyed()) event.sender[command]();
   });
-
   handleTrustedIpc(
     IPC_CHANNELS.app.getPlatform,
     () =>
@@ -54,29 +32,5 @@ export function registerApplicationIpc(context: AppContext): void {
         )
       }) satisfies AppPlatformResult
   );
-
-  registerSessionIpc(context.sessionRepository, ui, {
-    onSessionsDeleted: sessionIds => {
-      for (const sessionId of sessionIds) {
-        void context.todoStore.remove(sessionId).catch(() => undefined);
-        // 会话删除后释放其挂起的授权请求与会话级规则。
-        context.permissionBroker.rejectSession(sessionId);
-        context.permissionRuleStore.clearSession(sessionId);
-      }
-    }
-  });
-  registerSettingsIpc(context.settingsService, ui, () => context.agentRuntime.invalidateSessions());
-  registerPromptSettingsIpc(context.promptFileService, () => context.agentRuntime.invalidateSessions());
-  registerModelsIpc(context.modelService);
-  registerAgentIpc({ runtime: context.agentRuntime, contextFileService: context.contextFileService, ui });
-  registerSlashCommandIpc(context.commandService);
-  registerTaskIpc(context.taskService, context.runStore, context.taskOutputStore);
-  registerTodoIpc(context.todoStore, ui);
-  registerSubagentIpc(context.subagentPool, ui);
-  registerMemoryIpc(context.memoryPendingStore, ui, { resolveCwd: context.getMemoryPendingCwd });
-  registerPermissionsIpc(context.permissionBroker, context.permissionRuleStore, ui, {
-    resolveCwd: context.getPermissionSettingsCwd,
-    protectedRoots: [context.settingsService.rootDir]
-  });
   registerWindowIpc();
 }

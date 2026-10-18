@@ -6,7 +6,7 @@ import { createApp } from 'vue';
 
 import { applyTheme, readCachedTheme } from '@/features/settings';
 
-import { router } from '../router';
+// 根组件采用 Vue SFC，类型检查由 Vue TypeScript 插件与 vue-tsc 处理。
 import App from './App.vue';
 
 // 设置要过一次 IPC 才拿得到，赶不上首帧。先按启动期缓存把主题类挂上，
@@ -27,4 +27,4 @@ window.addEventListener('error', event => {
   console.error('[chaptale] 未捕获错误:', event.error ?? event.message);
 });
 
-createApp(App).use(createPinia()).use(router).mount('#root');
+createApp(App).use(createPinia()).mount('#root');

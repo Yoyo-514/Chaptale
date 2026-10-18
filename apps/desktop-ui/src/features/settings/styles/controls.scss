@@ -1,4 +1,4 @@
-:where(.settings-panel-content .settings-section, .llm-settings, .llm-provider-form, .model-draft-fields) {
+:where(.settings-panel-content .settings-section) {
   .settings-empty-card {
     @apply border px-3 py-2 text-xs leading-5;
 

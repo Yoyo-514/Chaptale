@@ -1,123 +1,40 @@
 import path from 'node:path';
 
-import { ImageAttachmentService } from '../core/attachments/service';
-import { ContextFileAuthorizationRegistry } from '../core/context/authorization';
-import { ContextFileService } from '../core/context/service';
-import { parseFrontmatter } from '../core/frontmatter/parse';
-import { ModelService } from '../core/models/service';
 import { SettingsService } from '../core/settings/service';
-import { createDefaultToolCatalog } from '../core/tool-protocol/catalog';
-import { createBrokerPermissionGate, createChatRuntimeBundle } from '../features/agent/chat-bundle';
-import { AgentService } from '../features/agent/service';
-import { buildTaskSessionTools } from '../features/agent/tool-assembly';
 import { createAutoBackupScheduler } from '../features/cloud-sync/auto-backup';
 import { createCloudProviderAdapters } from '../features/cloud-sync/providers/registry';
 import { CloudSyncService } from '../features/cloud-sync/service';
 import { CloudSyncStore } from '../features/cloud-sync/store';
-import { SlashCommandService } from '../features/commands/service';
-import { ContentService } from '../features/content/service';
-import { LibraryService } from '../features/library/service';
-import { CompactCoord } from '../features/memory/compaction/coord';
-import { CompactionSummaryStore } from '../features/memory/compaction/summary-store';
-import { MemoryInjector } from '../features/memory/injector';
-import { MemoryPendingStore } from '../features/memory/pending/store';
-import { MemoryService } from '../features/memory/service';
-import { PermissionBroker } from '../features/permissions/broker';
-import { PermissionRuleStore } from '../features/permissions/rule-store';
-import { builtinPersonaSources } from '../features/personas/builtin';
-import { resolvePersonaMemoryPolicy } from '../features/personas/memory-access';
-import { createDefaultPersonaRegistry } from '../features/personas/persona-registry-factory';
-import { PromptFileService } from '../features/prompts/file-service';
-import { ReviewFeedbackStore } from '../features/reviews/feedback';
-import { ReviewService } from '../features/reviews/service';
-import { ReviewOutputStore } from '../features/reviews/store';
-import { ReviewWorkflowStore } from '../features/reviews/workflow-store';
-import { AgentRunStore } from '../features/runs/store';
-import { AttachedFileSearchService } from '../features/search/attached-file-service';
-import { WorkspaceIndexSourceResolver } from '../features/search/index/source-resolver';
-import { WorkspaceIndexWorker } from '../features/search/index/worker-client';
-import { MemorySearchService } from '../features/search/memory/service';
-import { JsonlSessionRepository } from '../features/sessions/repository';
-import { SettlementService } from '../features/settlement/service';
-import { builtinSkillSources } from '../features/skills/builtin';
-import { materializeBuiltinSkills } from '../features/skills/builtin-materializer';
-import { SkillsProvider } from '../features/skills/provider';
-import { SubagentPool } from '../features/subagent/pool';
-import type { TaskOutputStorePort } from '../features/tasks/output-port';
-import { TaskRunner } from '../features/tasks/runner';
-import { TaskService } from '../features/tasks/service';
-import { TaskSessionFactory } from '../features/tasks/session-factory';
-import { builtinTemplates } from '../features/templates/builtin';
-import { TemplateService } from '../features/templates/service';
-import { TodoStore } from '../features/todo/store';
-import { WebToolsSettingsAdapter } from '../features/web-tools/adapter';
-import { WebToolsSettingsStore } from '../features/web-tools/settings';
 import { RecoveryStore } from '../features/workspace/recovery';
 import { WorkspaceService } from '../features/workspace/service';
 import { WorkspaceWatcher } from '../features/workspace/watcher';
-import { WritingService } from '../features/writing/service';
-import { VersionStore } from '../features/writing/versions';
-import { ElectronContextFilePlatform } from '../infra/electron/context-file-platform';
 import { openExternalUrl } from '../infra/electron/external-link';
 import { createSafeStorageCipher } from '../infra/electron/safe-storage';
-import { createElectronThumbnail } from '../infra/electron/thumbnail';
 import { TokenVault } from '../infra/security/token-vault';
-import { OfficeDocumentParser } from '../integrations/officeparser/parser';
-import { TaskOutputRouter } from './task-output-router';
 
 export type AppContext = {
-  contentService: ContentService;
   settingsService: SettingsService;
   workspaceService: WorkspaceService;
-  sessionRepository: JsonlSessionRepository;
-  modelService: ModelService;
-  agentRuntime: AgentService;
-  contextFileService: ContextFileService;
-  promptFileService: PromptFileService;
-  commandService: SlashCommandService;
-  taskService: TaskService;
-  runStore: AgentRunStore;
-  taskOutputStore: TaskOutputStorePort;
-  todoStore: TodoStore;
-  subagentPool: SubagentPool;
-  memoryPendingStore: MemoryPendingStore;
-  indexService: WorkspaceIndexWorker;
-  libraryService: LibraryService;
-  writingService: WritingService;
-  templateService: TemplateService;
-  reviewService: ReviewService;
-  settlementService: SettlementService;
-  permissionBroker: PermissionBroker;
-  permissionRuleStore: PermissionRuleStore;
   cloudSyncService: CloudSyncService;
   /** 自动备份心跳；由 `bootstrap` 在应用就绪后启动，退出时停下。 */
   autoBackupScheduler: { start: () => void; stop: () => void };
-  /** 权限设置页使用 UI 当前 workspace；工具调用授权仍由会话 ctx 绑定。 */
-  getPermissionSettingsCwd: () => Promise<string | null>;
-  /** Pending 面板只按 UI 当前 workspace 拉取，避免复用会话工具闭包 cwd。 */
-  getMemoryPendingCwd: () => Promise<string>;
 };
 
 export function createAppContext(): AppContext {
-  const settingsService = new SettingsService(new WebToolsSettingsAdapter());
-  const personaRegistry = createDefaultPersonaRegistry(settingsService);
-  const indexService = new WorkspaceIndexWorker(path.join(settingsService.rootDir, 'cache'));
-  const versions = new VersionStore(async cwd => (await indexService.listAssets(cwd)).assets);
+  const settingsService = new SettingsService();
   const workspaceService = new WorkspaceService(
     settingsService,
     {},
     new WorkspaceWatcher(),
-    new RecoveryStore(path.join(settingsService.rootDir, 'cache')),
-    (next, previous) => versions.preserveFinalization(next, previous)
+    new RecoveryStore(path.join(settingsService.rootDir, 'cache'))
   );
-  const webToolsSettingsStore = new WebToolsSettingsStore({ configPath: settingsService.webToolsConfigPath });
 
   // 云同步账户与绑定落应用配置目录：凭据经 safeStorage 加密后存盘，作品目录里不放任何 token。
   const cloudSyncService = new CloudSyncService({
     adapters: createCloudProviderAdapters(),
     store: new CloudSyncStore(
       new TokenVault(createSafeStorageCipher()),
-      path.join(settingsService.agentDir, 'cloud-sync.json')
+      path.join(settingsService.rootDir, 'agent', 'cloud-sync.json')
     ),
     openExternal: openExternalUrl,
     // 备份的身份标记靠作品清单的 id：没清单就无法核对，如实报第三种状态，不凑一个 id 出来。
@@ -150,210 +67,5 @@ export function createAppContext(): AppContext {
     tick: now => cloudSyncService.autoBackupTick(now)
   });
 
-  // 内置 skills 先于任何会话创建物化到磁盘；失败只影响内置 skills 可用性，不阻塞启动。
-  try {
-    materializeBuiltinSkills(settingsService.builtinSkillsDir);
-  } catch (error) {
-    console.error('内置 skills 物化失败:', error);
-  }
-
-  const contextFileAuthorization = new ContextFileAuthorizationRegistry();
-  const contextFileService = new ContextFileService(
-    new ElectronContextFilePlatform(),
-    new OfficeDocumentParser(),
-    new AttachedFileSearchService(),
-    contextFileAuthorization
-  );
-  // createElectronThumbnail 失败时抛错，保留 attachments 层“跳过此图”分支。
-  const imageAttachmentService = new ImageAttachmentService((data, mimeType) => {
-    const thumbnail = createElectronThumbnail(data, mimeType);
-
-    if (!thumbnail) {
-      throw new Error('无法生成缩略图');
-    }
-
-    return thumbnail;
-  }, contextFileAuthorization);
-  const sessionRepository = new JsonlSessionRepository({
-    rootDir: settingsService.agentDir,
-    cwd: () => settingsService.getCurrentCwd(),
-    sessionDir: () => settingsService.getCurrentSessionDir(),
-    sessionsRootDir: settingsService.sessionsRootDir,
-    getStorageContext: () => settingsService.getStorageContext(),
-    imageAttachmentService,
-    validatePersona: async (cwd, id) => {
-      const persona = await personaRegistry.get(cwd, id);
-      if (!persona || persona.execution !== 'chat') throw new Error('请选择已启用的对话专员');
-    }
-  });
-  const modelService = new ModelService({ modelsPath: settingsService.modelsPath });
-  const promptFileService = new PromptFileService(settingsService.agentDir);
-  const toolCatalog = createDefaultToolCatalog();
-  const skillsProvider = new SkillsProvider(settingsService);
-  const todoStore = new TodoStore(settingsService.todosDir);
-  const permissionBroker = new PermissionBroker();
-  const permissionRuleStore = new PermissionRuleStore({ globalDir: settingsService.rootDir });
-  const commandService = new SlashCommandService(settingsService, skillsProvider);
-  const subagentPool = new SubagentPool();
-  const memoryPendingStore = new MemoryPendingStore({ parseFrontmatter });
-  const indexSourceResolver = new WorkspaceIndexSourceResolver();
-  const libraryService = new LibraryService(workspaceService, indexService);
-  const templateService = new TemplateService(workspaceService, path.join(settingsService.rootDir, 'templates'));
-  const contentService = new ContentService({
-    userRoot: settingsService.rootDir,
-    currentWorkspace: async () => (await workspaceService.getState()).rootPath,
-    builtins: [
-      ...builtinPersonaSources.map(markdown => ({ kind: 'persona' as const, markdown })),
-      ...builtinSkillSources.map(item => ({ kind: 'skill' as const, markdown: item.source })),
-      ...builtinTemplates.map(markdown => ({ kind: 'template' as const, markdown }))
-    ]
-  });
-  workspaceService.onChange(event => {
-    void indexService
-      .invalidate(
-        event.rootPath,
-        event.changes.map(change => change.relativePath)
-      )
-      .catch(error => console.error('索引失效通知失败:', error));
-  });
-  const memorySearchService = new MemorySearchService({
-    indexSearch: (cwd, query, options) => indexService.search(cwd, query, options),
-    literalSearch: { search: input => indexService.literalSearch(input) },
-    sourceResolver: indexSourceResolver
-  });
-  // runs/reviews 归属作品：审查历史是创作产物，随作品同步；没打开作品时退回配置目录而不是空 cwd。
-  const appStateCwd = () => settingsService.getAppStateCwd();
-  const runStore = new AgentRunStore({ resolveCwd: appStateCwd });
-  const reviewStore = new ReviewOutputStore({ resolveCwd: appStateCwd });
-  const taskOutputStore = new TaskOutputRouter({ runStore, reviewStore });
-  const reviewWorkflowStore = new ReviewWorkflowStore();
-  const reviewFeedbackStore = new ReviewFeedbackStore(reviewWorkflowStore, settingsService.rootDir);
-
-  // task 链路：TaskSessionFactory/TaskRunner 承接结构化任务会话。
-  const taskSessionFactory = new TaskSessionFactory({
-    settingsService,
-    modelService,
-    skillsProvider,
-    reviewPreferences: reviewFeedbackStore,
-    buildTaskTools: (spec, cwd, onMemoryRead) =>
-      buildTaskSessionTools({
-        spec,
-        cwd,
-        memorySearchService,
-        onMemoryRead,
-        webToolsSettingsStore,
-        protectedRoots: [settingsService.rootDir]
-      }),
-    // 委派子任务的授权挂到宿主会话：卡片出现在发起委派的对话里，会话级规则也记在宿主会话上。
-    createDelegatedGate: ({ parentSessionId, requester, cwd }) =>
-      createBrokerPermissionGate({
-        broker: permissionBroker,
-        ruleStore: permissionRuleStore,
-        ctx: { sessionId: parentSessionId, cwd },
-        requester
-      })
-  });
-  const taskRunner = new TaskRunner(taskSessionFactory, runStore, taskOutputStore, toolCatalog);
-  const taskService = new TaskService({ settingsService, personaRegistry, taskRunner, contextFileService });
-  const writingService = new WritingService({
-    workspace: workspaceService,
-    library: libraryService,
-    personas: personaRegistry,
-    models: modelService,
-    tasks: taskRunner,
-    versions,
-    readReview: (rootPath, id) => reviewWorkflowStore.read(rootPath, id)
-  });
-  const reviewService = new ReviewService({
-    workspace: workspaceService,
-    library: libraryService,
-    personas: personaRegistry,
-    models: modelService,
-    tasks: taskRunner,
-    candidates: writingService.candidates,
-    store: reviewWorkflowStore,
-    feedback: reviewFeedbackStore
-  });
-  const settlementService = new SettlementService({
-    workspace: workspaceService,
-    library: libraryService,
-    personas: personaRegistry,
-    models: modelService,
-    tasks: taskRunner,
-    versions: writingService.candidates.versions
-  });
-
-  // 会话压缩 = 创作检查点管线：memory-distiller 蒸馏出结构化检查点并原子落盘，
-  // 同一正文才写入会话流；任一步失败即取消压缩，不留半截状态。
-  const memoryService = new MemoryService({
-    chaptaleRootDir: settingsService.rootDir,
-    listAssets: cwd => indexService.listAssets(cwd)
-  });
-  const compactCoord = new CompactCoord({
-    personas: personaRegistry,
-    tasks: taskRunner,
-    memory: memoryService,
-    summaries: new CompactionSummaryStore()
-  });
-
-  // chat 链路（自有）：systemPrompt 经 persona 三层覆盖解析。
-  const runtimeBundle = createChatRuntimeBundle({
-    personaRegistry,
-    taskRunner,
-    skillsProvider,
-    toolCatalog,
-    todoStore,
-    subagentPool,
-    memoryPendingStore,
-    memorySearchService,
-    webToolsSettingsStore,
-    modelService,
-    // 闸门由 bundle 按轮产出：只有它同时握有会话 cwd 与三层规则，能让 workspace 级授权真正命中。
-    permissionBroker,
-    permissionRuleStore,
-    // 配置目录里有模型凭据与全局授权规则：任何规则都不能把它开放给文件工具。
-    protectedRoots: [settingsService.rootDir]
-  });
-  const agentRuntime = new AgentService({
-    sessionRepository,
-    modelService,
-    runtimeBundle,
-    contextFileService,
-    imageAttachmentService,
-    memoryInjector: new MemoryInjector(memoryService, async (cwd, id) => {
-      const persona = await personaRegistry.get(cwd, id);
-      return persona ? resolvePersonaMemoryPolicy(persona) : { domains: [], author: false };
-    }),
-    compactSummarizer: input => compactCoord.run(input)
-  });
-
-  return {
-    contentService,
-    settingsService,
-    workspaceService,
-    sessionRepository,
-    modelService,
-    agentRuntime,
-    contextFileService,
-    promptFileService,
-    commandService,
-    taskService,
-    runStore,
-    taskOutputStore,
-    todoStore,
-    subagentPool,
-    memoryPendingStore,
-    indexService,
-    libraryService,
-    writingService,
-    templateService,
-    reviewService,
-    settlementService,
-    permissionBroker,
-    permissionRuleStore,
-    cloudSyncService,
-    autoBackupScheduler,
-    getPermissionSettingsCwd: appStateCwd,
-    getMemoryPendingCwd: appStateCwd
-  };
+  return { settingsService, workspaceService, cloudSyncService, autoBackupScheduler };
 }

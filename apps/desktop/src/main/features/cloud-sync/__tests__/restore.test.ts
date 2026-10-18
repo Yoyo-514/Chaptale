@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { toWorkspaceSessionDirName } from '../../../core/settings/workspace-session-directory';
 import { packWorkspace, unpackArchive } from '../backup/archive';
+import { toWorkspaceDirName } from '../backup/workspace-dir-name';
 import { createSyncService, TEST_WORKSPACE_ID as WORKSPACE_ID } from './harness';
 
 const OTHER_WORKSPACE_ID = 'ffffffff-0000-0000-0000-000000000000';
@@ -52,7 +52,7 @@ async function seedArchive(
 }
 
 function guardZip(snapshotId: string) {
-  return path.join(cacheRoot, toWorkspaceSessionDirName(workspace), 'restore-guard', `${snapshotId}.zip`);
+  return path.join(cacheRoot, toWorkspaceDirName(workspace), 'restore-guard', `${snapshotId}.zip`);
 }
 
 beforeEach(async () => {
@@ -112,7 +112,7 @@ describe('恢复计划', () => {
     expect(applied.ok ? '' : applied.message).toContain('不能自证');
     // 一个字节都没写，也没有快照——它根本没走到那一步。
     expect(await readFile(path.join(workspace, '正文.md'), 'utf8')).toBe('第一章\n');
-    await expect(stat(path.join(cacheRoot, toWorkspaceSessionDirName(workspace)))).rejects.toThrow();
+    await expect(stat(path.join(cacheRoot, toWorkspaceDirName(workspace)))).rejects.toThrow();
   });
   it('没绑定就不动远端，也不下载任何东西', async () => {
     const { instance, downloads, put } = await createSyncService({ dir, workspace, cacheRoot, bound: false });

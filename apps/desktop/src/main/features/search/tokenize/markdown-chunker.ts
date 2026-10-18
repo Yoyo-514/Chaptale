@@ -1,13 +1,9 @@
 import { marked, type Token } from 'marked';
 import { createHash } from 'node:crypto';
 
-import {
-  estimateTextTokens,
-  takeTextTailToTokenBudget,
-  takeTextToTokenBudget
-} from '../../../core/context/token-counter';
 import type { IndexChunk, IndexSourceDocument } from '../types';
 import { buildPinyinAliases } from './pinyin-aliases';
+import { estimateTextTokens, takeTextTailToTokenBudget, takeTextToTokenBudget } from './token-counter';
 
 export type MarkdownChunkOptions = {
   maxTokens?: number;

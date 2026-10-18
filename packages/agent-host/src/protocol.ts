@@ -53,7 +53,9 @@ export interface ProviderInput {
   reasoning: boolean;
   apiKey?: string;
 }
-export type ProviderSummary = Omit<ProviderInput, 'apiKey'>;
+export interface ProviderSummary extends Omit<ProviderInput, 'apiKey' | 'api'> {
+  api: string;
+}
 export interface ChatMessage {
   role: string;
   text: string;
@@ -101,15 +103,17 @@ export interface HistoryItem {
 }
 export interface HostCommands {
   state: { input: undefined; output: HostState };
-  /** instructions 为命名指令名称；省略时复制全局默认指令。 */
-  create: { input: { model: ModelRef; instructions?: string }; output: string };
+  /** instructions 省略时复制全局默认指令；cwd 省略时创建应用目录内的独立会话。 */
+  create: { input: { model: ModelRef; instructions?: string; cwd?: string }; output: string };
   open: { input: { file: string; cwd: string }; output: string };
   prompt: { input: { id: string; text: string }; output: void };
   cancel: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
   model: { input: { id: string; model: ModelRef }; output: void };
   approve: { input: { id: string; allow: boolean }; output: void };
-  history: { input: undefined; output: HistoryItem[] };
+  /** 按作品目录筛选；省略输入时列出应用目录内的独立会话历史。 */
+  history: { input: { cwd: string } | undefined; output: HistoryItem[] };
+  configuredModels: { input: undefined; output: ProviderSummary[] };
   configure: { input: ProviderInput; output: void };
   instructions: { input: { id: string; entries: AgentInstructions }; output: void };
   mode: { input: { id: string; mode: EditMode }; output: void };

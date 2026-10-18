@@ -10,8 +10,6 @@ import {
   type Transaction
 } from '@codemirror/state';
 
-import { normalizeDocumentText } from '@chaptale/shared';
-
 type LineFormat = { bom: boolean; preferred: string; separators: readonly string[] };
 const restoreLineFormat = StateEffect.define<LineFormat>();
 const controlledEdit = Annotation.define<boolean>();
@@ -129,7 +127,7 @@ export class DocumentBuffer {
 
   replaceContent(content: string, isolated = false) {
     const format = parseLineFormat(content);
-    const normalized = normalizeDocumentText(content);
+    const normalized = content.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
     const transaction = this.state.update({
       changes: diff(this.state.doc.toString(), normalized).map(change => ({
         from: change.fromA,

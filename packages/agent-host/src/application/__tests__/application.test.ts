@@ -89,6 +89,7 @@ beforeEach(async () => {
     settingsFile: join(root, 'data', 'settings.json'),
     builtinInstructions: builtin,
     modelRuntime: runtime,
+    configuredModels: async () => [],
     configureModel: async () => {
       throw new Error('本测试不配置模型');
     },
@@ -152,6 +153,45 @@ it('重连读取快照不会创建新执行者，返回值不能修改宿主状�
   expect(app.snapshot().sessions.map(value => value.id)).toEqual([first, second]);
   expect(view(first).instructions).toEqual(builtin);
   expect(await readdir(options.sessionDir)).toEqual([]);
+});
+
+it('不同作品与独立会话共用宿主，各自保留创建时的目录和原生执行者', async () => {
+  const firstWork = join(root, 'first-work');
+  const secondWork = join(root, 'second-work');
+  await Promise.all([mkdir(firstWork), mkdir(secondWork)]);
+  const first = (await app.execute({ method: 'create', input: { model, cwd: firstWork } })) as string;
+  const executor = app.liveSession(first);
+  const second = (await app.execute({ method: 'create', input: { model, cwd: secondWork } })) as string;
+  const independent = await create();
+  expect(view(first).cwd).toBe(firstWork);
+  expect(view(second).cwd).toBe(secondWork);
+  expect(view(independent).cwd).toBe(options.cwd);
+  expect(app.liveSession(first)).toBe(executor);
+  expect(app.snapshot().sessions.map(session => session.id)).toEqual([first, second, independent]);
+});
+
+it('历史按指定作品目录筛选，独立会话历史使用应用默认目录', async () => {
+  const work = join(root, 'first-work');
+  await mkdir(work);
+  const own = history(['独立会话历史']);
+  const manager = SessionManager.create(work, options.sessionDir);
+  manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
+  manager.appendCustomEntry(modeEntryType, { mode: 'review' });
+  manager.appendMessage({ role: 'user', content: '作品会话历史', timestamp: Date.now() });
+  const scoped = await app.execute({ method: 'history', input: { cwd: work } });
+  expect(scoped).toMatchObject([{ cwd: work, file: manager.getSessionFile(), title: '作品会话历史' }]);
+  expect(scoped).toHaveLength(1);
+  const independent = await app.execute({ method: 'history', input: undefined });
+  expect(independent).toMatchObject([{ cwd: options.cwd, file: own.file, title: '独立会话历史' }]);
+  expect(independent).toHaveLength(1);
+});
+
+it('不存在的作品目录不能创建会话，既有会话保持可用', async () => {
+  const existing = await create();
+  const executor = app.liveSession(existing);
+  await expect(app.execute({ method: 'create', input: { model, cwd: join(root, 'missing') } })).rejects.toThrow();
+  expect(app.snapshot().sessions.map(session => session.id)).toEqual([existing]);
+  expect(app.liveSession(existing)).toBe(executor);
 });
 
 it('全局默认指令只影响之后创建的会话并写入设置文件，会话指令互不串用', async () => {

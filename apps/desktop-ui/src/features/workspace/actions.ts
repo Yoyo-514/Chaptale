@@ -1,10 +1,9 @@
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 
 import type { WorkspaceEntryInfo } from '@chaptale/ipc-contract';
 
 import { useEditorStore } from '@/features/editor';
-import { useLibraryStore } from '@/features/library';
 import { useNotificationStore } from '@/features/notifications';
 import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
@@ -15,7 +14,6 @@ import { useWorkspaceStore } from './store';
 export const useWorkspaceActions = defineStore('workspace-actions', () => {
   const workspace = useWorkspaceStore();
   const editor = useEditorStore();
-  const library = useLibraryStore();
   const tree = useFileTreeStore();
   const pending = ref<{
     action: 'rename' | 'move' | 'duplicate' | 'trash';
@@ -25,17 +23,6 @@ export const useWorkspaceActions = defineStore('workspace-actions', () => {
   const destination = ref('');
   const error = ref('');
   const busy = ref(false);
-  const affectedLinks = computed(() =>
-    pending.value
-      ? library.assets.filter(asset =>
-          asset.links.some(
-            link =>
-              link.targetPath === pending.value!.entry.relativePath ||
-              link.targetPath?.startsWith(`${pending.value!.entry.relativePath}/`)
-          )
-        )
-      : []
-  );
   async function prepare(action: 'rename' | 'move' | 'duplicate' | 'trash', relativePath: string) {
     const rootPath = workspace.rootPath;
     if (!rootPath || busy.value) return;
@@ -54,7 +41,6 @@ export const useWorkspaceActions = defineStore('workspace-actions', () => {
             ? relativePath.replace(/(\.[^/.]+)?$/, '-副本$1')
             : relativePath;
       pending.value = { action, entry: result.entry, rootPath };
-      if (!library.snapshot) await library.load();
     } catch (cause) {
       useNotificationStore().error('文件操作无法开始', toErrorMessage(cause));
     } finally {
@@ -98,7 +84,6 @@ export const useWorkspaceActions = defineStore('workspace-actions', () => {
         editor.acceptPathMove(request.entry.relativePath, result.relativePath);
       pending.value = null;
       await tree.reload();
-      await library.refresh();
       if (result.relativePath) {
         tree.selectedPath = result.relativePath;
         const parent = result.relativePath.split('/').slice(0, -1).join('/');
@@ -141,5 +126,5 @@ export const useWorkspaceActions = defineStore('workspace-actions', () => {
       error.value = '';
     }
   );
-  return { pending, destination, error, busy, affectedLinks, prepare, apply, reveal, copyPath, askAgent };
+  return { pending, destination, error, busy, prepare, apply, reveal, copyPath, askAgent };
 });

@@ -1,0 +1,783 @@
+.agent-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  // 主区里消息和输入框共用一列，协作栏里自然铺满。
+  --agent-column: 46rem;
+}
+
+/* 标题栏：标题即会话切换入口，右侧只留新建和更多。 */
+.agent-header {
+  display: flex;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.agent-title-button {
+  display: flex;
+  min-width: 0;
+  max-width: calc(100% - 64px);
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+.agent-title-button:hover:not(:disabled),
+.agent-title-button[data-state='open'] {
+  background: var(--surface-hover);
+}
+.agent-title-button:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+.agent-title-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.agent-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-back {
+  flex-shrink: 0;
+}
+.agent-header-subtitle {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  margin: 0;
+  font-size: var(--ui-font-size);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-menu-heading {
+  margin: 0;
+  padding: 4px 10px 2px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-menu-item {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-width: 12rem;
+}
+.agent-menu-meta {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-menu-separator {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.agent-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 16px 8px;
+  scrollbar-gutter: stable both-edges;
+  overscroll-behavior: contain;
+}
+.agent-column {
+  width: 100%;
+  max-width: var(--agent-column);
+  margin-inline: auto;
+}
+.agent-body > .agent-column {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+.agent-start {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 8px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.agent-start h3 {
+  margin: 0 0 6px;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+}
+.agent-start p {
+  margin: 0 0 16px;
+  font-size: var(--ui-font-size);
+  line-height: 1.7;
+}
+.agent-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.agent-readonly {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+
+/* 对话：作者浅色气泡靠右，助手正文铺满；活动行是一行小字，点开看细节。 */
+.agent-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+}
+.agent-user {
+  display: flex;
+  justify-content: flex-end;
+  margin: 16px 0 12px;
+}
+.agent-user:first-child {
+  margin-top: 0;
+}
+.agent-user-text {
+  max-width: 85%;
+  padding: 8px 14px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-assistant {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.agent-assistant-text {
+  margin-block: 4px 8px;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.agent-activity {
+  min-width: 0;
+}
+.agent-activity-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 6px;
+  margin-left: -6px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  text-align: left;
+  cursor: pointer;
+}
+.agent-activity-row:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+.agent-activity-row:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+.agent-activity-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.agent-activity-icon.is-error {
+  color: var(--destructive);
+}
+.agent-activity-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-activity-chevron {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition:
+    transform 150ms ease-out,
+    opacity 150ms ease-out;
+}
+.agent-activity-row:hover .agent-activity-chevron,
+.agent-activity-row[aria-expanded='true'] .agent-activity-chevron {
+  opacity: 1;
+}
+.agent-activity-row[aria-expanded='true'] .agent-activity-chevron {
+  transform: rotate(90deg);
+}
+.agent-activity-detail {
+  margin: 2px 0 8px 7px;
+  padding: 4px 0 4px 12px;
+  border-left: 1px solid var(--border-subtle);
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.65;
+}
+.agent-activity-detail pre {
+  max-height: 16rem;
+  overflow: auto;
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--ui-caption-size);
+}
+.agent-thinking {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-activity-empty {
+  margin: 0;
+}
+.agent-approval {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-block: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-overlay);
+  background: var(--surface-elevated);
+}
+.agent-approval-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--ui-font-size);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.agent-approval-title > span:first-child {
+  margin-top: 2px;
+  color: var(--primary-solid);
+}
+.agent-approval-detail {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-approval-detail summary {
+  cursor: pointer;
+}
+.agent-approval-detail pre {
+  max-height: 12rem;
+  overflow: auto;
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 输入区：大圆角输入框，模型与模式是无边框文字菜单。 */
+.agent-composer {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 4px 16px 12px;
+}
+.agent-composer-box {
+  overflow: hidden;
+  border: 1px solid var(--input-border);
+  border-radius: calc(var(--radius-overlay) * 2);
+  background: var(--input);
+  transition: border-color 150ms ease-out;
+}
+.agent-composer-box:hover {
+  border-color: var(--input-hover-border);
+}
+.agent-composer-box:focus-within {
+  border-color: var(--ring);
+}
+.agent-composer textarea {
+  min-height: 3.5rem;
+  max-height: 14rem;
+  padding: 12px 14px 4px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.agent-composer-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px 8px 6px;
+}
+.agent-model-picker {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.agent-send-button {
+  border-radius: var(--radius-pill);
+}
+.agent-error {
+  color: var(--destructive);
+  overflow-wrap: anywhere;
+  font-size: var(--ui-font-size);
+  line-height: 1.6;
+}
+.agent-panel-error {
+  max-height: 6rem;
+  flex-shrink: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 4px 12px 8px;
+}
+.agent-empty-small,
+.agent-field-help {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.65;
+}
+.agent-form {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+.agent-form label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--ui-font-size);
+}
+.agent-form h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.agent-form-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.agent-form .agent-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.agent-field-help {
+  margin: -4px 0 0;
+}
+.agent-settings,
+.model-settings,
+.instruction-settings,
+.agent-session-settings {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.agent-settings {
+  overflow: auto;
+  padding: 20px;
+}
+.agent-settings-heading {
+  flex-shrink: 0;
+  padding: 20px 20px 14px;
+}
+.agent-settings-heading h2,
+.agent-settings-heading h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.agent-settings-heading p {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-font-size);
+  line-height: 1.6;
+}
+.agent-settings-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px 12px;
+}
+.agent-subnav {
+  display: flex;
+  gap: 4px;
+}
+.agent-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-inline-field > .app-select-trigger {
+  width: 6rem;
+}
+.agent-settings-scroll {
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+}
+.agent-settings-fields {
+  box-sizing: border-box;
+  padding: 18px 20px;
+}
+.agent-settings-footer,
+.instruction-save {
+  display: flex;
+  min-height: 56px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.agent-settings-footer > span,
+.instruction-save > span {
+  margin-right: auto;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-settings-status {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 6px 20px;
+  font-size: var(--ui-caption-size);
+}
+.model-settings-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  border-top: 1px solid var(--border-subtle);
+}
+.model-provider-list {
+  min-height: 0;
+  padding: 8px;
+  border-right: 1px solid var(--border-subtle);
+}
+.model-provider-group {
+  margin-top: 16px;
+}
+.model-provider-group > header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 8px;
+}
+.model-provider-group h3 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-list-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+.model-list-item > * {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-list-item small {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.model-list-item:hover,
+.instruction-list-item:hover,
+.agent-session-link:hover {
+  background: var(--surface-hover);
+}
+.model-list-item[aria-current='true'],
+.instruction-list-item[aria-current='true'],
+.agent-session-link[aria-current='page'] {
+  background: var(--secondary);
+  color: var(--primary-solid);
+}
+.model-list-item:focus-visible,
+.instruction-list-item:focus-visible,
+.agent-session-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.model-editor {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+}
+.model-section-title {
+  margin: 8px 0 -2px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-weight: 600;
+}
+.instruction-scope {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 20px 12px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.6;
+}
+.instruction-editor {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.instruction-editor-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(7rem, 26%) minmax(0, 1fr);
+  border-top: 1px solid var(--border-subtle);
+}
+.instruction-list {
+  min-height: 0;
+  padding: 8px;
+  border-right: 1px solid var(--border-subtle);
+}
+.instruction-list-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  text-align: left;
+  cursor: pointer;
+}
+.instruction-order {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+.instruction-list-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.instruction-off {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.instruction-detail {
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  gap: 8px;
+}
+.instruction-actions {
+  justify-content: space-between;
+}
+.instruction-content {
+  min-height: 8rem;
+  flex: 1;
+  line-height: 1.75;
+}
+.instruction-advanced {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.instruction-advanced summary {
+  padding-block: 4px;
+  cursor: pointer;
+}
+.instruction-advanced label {
+  margin-block: 8px 4px;
+}
+.instruction-library-toolbar {
+  flex-shrink: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 0 20px 12px;
+}
+.instruction-library-toolbar > .app-select-trigger,
+.instruction-library-toolbar > label {
+  min-width: 10rem;
+  flex: 1;
+}
+.agent-subpage {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+.agent-subpage-toolbar {
+  flex-shrink: 0;
+  padding: 12px 16px 4px;
+}
+.agent-session-facts {
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  padding: 14px 16px 4px;
+  font-size: var(--ui-font-size);
+}
+.agent-session-facts dt {
+  color: var(--muted-foreground);
+}
+.agent-session-facts dd {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-session-scope {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 16px 10px;
+}
+.agent-session-settings > .agent-settings-scroll {
+  padding: 16px;
+  overflow: auto;
+}
+/* 窄栏里的指令：条目列表在上、编辑区在下。 */
+.instruction-editor-layout.is-stacked {
+  display: flex;
+  flex-direction: column;
+}
+.instruction-editor-layout.is-stacked > .instruction-list {
+  max-height: 11rem;
+  flex-shrink: 0;
+  border-right: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.instruction-editor-layout.is-stacked > .instruction-detail {
+  flex: 1;
+}
+.instruction-editor-layout.is-stacked .instruction-list-item {
+  padding-block: 6px;
+}
+.agent-history-scroll {
+  min-height: 0;
+  flex: 1;
+}
+.agent-history {
+  box-sizing: border-box;
+  padding: 4px 8px 16px;
+}
+.agent-history h4 {
+  margin: 16px 8px 4px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-weight: 600;
+}
+.agent-session-link {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  text-align: left;
+  cursor: pointer;
+}
+.agent-session-link > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-session-link > time,
+.agent-session-link > span + span {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+@container settings-panel (max-width: 760px) {
+  .model-settings-layout {
+    grid-template-columns: 10rem minmax(0, 1fr);
+  }
+  .agent-form-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .agent-settings-heading {
+    padding: 16px 16px 12px;
+  }
+  .agent-settings-fields {
+    padding: 16px;
+  }
+  .agent-settings-toolbar {
+    padding-inline: 16px;
+  }
+}

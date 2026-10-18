@@ -2,53 +2,14 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationStore } from '@/features/notifications';
-import { useSessionStore } from '@/features/sessions';
 import { useSettingsStore } from '@/features/settings';
 
 import { useWorkspaceStore } from '../store';
 
 function createSettingsState(workspacePath = 'E:/workspace-b') {
   return {
-    settings: {
-      version: 1,
-      workspace: { path: workspacePath }
-    },
-    webAccess: {
-      webSearchEnabled: true,
-      provider: 'auto' as const,
-      workflow: 'none' as const,
-      allowBrowserCookies: false,
-      curatorTimeoutSeconds: 20,
-      githubClone: { enabled: true, maxRepoSizeMB: 350, cloneTimeoutSeconds: 30 },
-      youtube: { enabled: true, preferredModel: 'gemini-3-flash-preview' },
-      video: { enabled: true, preferredModel: 'gemini-3-flash-preview', maxSizeMB: 50 },
-      ssrf: { allowRanges: [] }
-    },
-    paths: {
-      rootDir: 'root',
-      agentDir: 'agent',
-      settingsPath: 'settings.json',
-      modelsPath: 'agent/models.json',
-      webToolsConfigPath: 'agent/web-tools.json',
-      sessionsRootDir: 'agent/sessions',
-      effectiveSessionDir: `${workspacePath}/.chaptale/sessions`,
-      currentCwd: workspacePath
-    }
-  };
-}
-
-function createSession(id: string, cwd: string) {
-  return {
-    id,
-    createdAt: '2026-07-06T00:00:00.000Z',
-    updatedAt: '2026-07-06T00:00:00.000Z',
-    cwd,
-    path: `${id}.jsonl`,
-    leafId: null,
-    messageCount: 1,
-    scope: 'workspace' as const,
-    totalTokens: 0,
-    totalCost: 0
+    settings: { version: 1, workspace: { path: workspacePath }, theme: 'light' },
+    paths: { rootDir: 'root', settingsPath: 'settings.json', currentCwd: workspacePath }
   };
 }
 
@@ -59,21 +20,11 @@ function installDesktopApi(state = createSettingsState()) {
         rootPath: state.paths.currentCwd,
         displayName: 'workspace-b',
         hasChaptaleMetadata: false
-      }),
-      listDirectory: vi.fn().mockResolvedValue({ ok: true, entries: [] })
+      })
     },
     settings: {
       selectWorkspaceDir: vi.fn().mockResolvedValue({ canceled: false, state }),
-      getState: vi.fn().mockResolvedValue(state),
       update: vi.fn().mockResolvedValue(state)
-    },
-    session: {
-      list: vi.fn().mockResolvedValue([createSession('session-b', state.paths.currentCwd)]),
-      getStorageDebugInfo: vi.fn().mockResolvedValue({
-        rootDir: 'root',
-        sessionDir: 'sessions',
-        cwd: state.paths.currentCwd
-      })
     }
   };
   window.chaptaleDesktop = api as any;
@@ -87,60 +38,45 @@ beforeEach(() => {
 });
 
 describe('workspace store', () => {
-  it('opens a workspace and synchronizes settings and session projections', async () => {
+  it('打开作品后同步设置快照与作品状态', async () => {
     const state = createSettingsState();
     const api = installDesktopApi(state);
     const workspaceStore = useWorkspaceStore();
-    const settingsStore = useSettingsStore();
-    const sessionStore = useSessionStore();
 
     await expect(workspaceStore.openWorkspace()).resolves.toBe(true);
 
     expect(api.settings.selectWorkspaceDir).toHaveBeenCalledOnce();
-    expect(settingsStore.state).toStrictEqual(state);
-    expect(sessionStore.activeCwd).toBe(state.paths.currentCwd);
-    expect(sessionStore.currentSessionId).toBe('session-b');
-    expect(api.session.getStorageDebugInfo).toHaveBeenCalledOnce();
+    expect(useSettingsStore().state).toStrictEqual(state);
+    expect(workspaceStore.rootPath).toBe(state.paths.currentCwd);
+    expect(workspaceStore.displayName).toBe('workspace-b');
+    expect(workspaceStore.revision).toBe(1);
     expect(workspaceStore.isOpening).toBe(false);
-    expect(workspaceStore.error).toBe('');
   });
 
-  it('treats directory picker cancellation as a no-op', async () => {
+  it('取消选择目录不改变任何状态', async () => {
     const api = installDesktopApi();
     api.settings.selectWorkspaceDir.mockResolvedValue({ canceled: true });
     const workspaceStore = useWorkspaceStore();
-    const settingsStore = useSettingsStore();
 
     await expect(workspaceStore.openWorkspace()).resolves.toBe(false);
 
-    expect(settingsStore.state).toBeUndefined();
-    expect(api.session.list).not.toHaveBeenCalled();
+    expect(useSettingsStore().state).toBeUndefined();
+    expect(api.workspace.getState).not.toHaveBeenCalled();
     expect(workspaceStore.error).toBe('');
   });
 
-  it('keeps the new workspace boundary when session rebinding fails', async () => {
-    const previousWorkspace = 'E:/workspace-a';
-    const state = createSettingsState();
-    const api = installDesktopApi(state);
-    api.session.list.mockRejectedValue(new Error('list failed'));
+  it('读取作品状态失败时提示作者', async () => {
+    const api = installDesktopApi();
+    api.workspace.getState.mockRejectedValue(new Error('read failed'));
     const workspaceStore = useWorkspaceStore();
-    const settingsStore = useSettingsStore();
-    const sessionStore = useSessionStore();
-    const notifications = useNotificationStore();
-    sessionStore.sessions = [createSession('session-a', previousWorkspace)];
-    sessionStore.activeCwd = previousWorkspace;
-    sessionStore.currentSessionId = 'session-a';
 
     await expect(workspaceStore.openWorkspace()).resolves.toBe(false);
 
-    expect(settingsStore.state).toStrictEqual(state);
-    expect(sessionStore.activeCwd).toBe(state.paths.currentCwd);
-    expect(sessionStore.currentSessionId).toBe('');
-    expect(workspaceStore.error).toBe('list failed');
-    expect(notifications.items.at(-1)).toMatchObject({
+    expect(workspaceStore.error).toBe('read failed');
+    expect(useNotificationStore().items.at(-1)).toMatchObject({
       kind: 'error',
       title: '打开作品失败',
-      description: 'list failed'
+      description: 'read failed'
     });
   });
 });

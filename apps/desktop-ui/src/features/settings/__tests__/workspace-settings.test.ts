@@ -20,10 +20,7 @@ function installState(showInternalFiles = false, workspacePath = 'E:/novel') {
       explorer: { showInternalFiles },
       theme: 'dark'
     },
-    paths: {
-      effectiveSessionDir: workspacePath ? 'E:/chaptale/sessions/novel' : '',
-      currentCwd: workspacePath
-    }
+    paths: { currentCwd: workspacePath }
   } as any;
   return settingsStore;
 }
@@ -36,7 +33,6 @@ describe('WorkspaceSettings', () => {
 
     expect(wrapper.text()).toContain('当前作品');
     expect(wrapper.text()).toContain('E:/novel');
-    expect(wrapper.text()).toContain('E:/chaptale/sessions/novel');
   });
 
   it('打开作品…走作品生命周期，而不是自己选目录', async () => {
@@ -58,8 +54,8 @@ describe('WorkspaceSettings', () => {
 
     expect(wrapper.text()).toContain('未打开作品');
     expect(wrapper.text()).toContain('尚未打开作品');
-    // 「关闭作品」只在有作品可关时出现。
-    expect(wrapper.text()).not.toContain('关闭作品');
+    // 「关闭作品」按钮只在有作品可关时出现。
+    expect(wrapper.findAll('button').some(button => button.text().includes('关闭作品'))).toBe(false);
     expect(wrapper.text()).not.toContain('Global');
   });
 

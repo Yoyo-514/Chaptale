@@ -1,10 +1,8 @@
 import {
   IPC_CHANNELS,
   UpdateChaptaleSettingsArgsValidator,
-  UpdateWebToolsSettingsArgsValidator,
   type SelectWorkspaceDirResult,
-  type UpdateChaptaleSettingsPayload,
-  type UpdateWebToolsSettingsPayload
+  type UpdateChaptaleSettingsPayload
 } from '@chaptale/ipc-contract';
 
 import type { UiShell } from '../../core/ipc-ports';
@@ -14,29 +12,15 @@ import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 
 /**
  * 归属设置读写、目录选择与配置目录频道；IPC 层校验信任和参数结构，持久化语义交给服务。
- * 目录选择绑定请求 sender 所属窗口，含存储设置的更新成功后触发失效回调。
+ * 目录选择绑定请求 sender 所属窗口。
  */
-export function registerSettingsIpc(settingsService: SettingsService, ui: UiShell, onStorageChanged?: () => void) {
+export function registerSettingsIpc(settingsService: SettingsService, ui: UiShell) {
   handleTrustedIpc(IPC_CHANNELS.settings.getState, () => settingsService.getState());
 
   handleValidatedIpc(
     IPC_CHANNELS.settings.update,
     UpdateChaptaleSettingsArgsValidator,
-    async (_event, payload: UpdateChaptaleSettingsPayload) => {
-      const state = await settingsService.update(payload);
-
-      if (payload.workspace) {
-        onStorageChanged?.();
-      }
-
-      return state;
-    }
-  );
-
-  handleValidatedIpc(
-    IPC_CHANNELS.settings.updateWebTools,
-    UpdateWebToolsSettingsArgsValidator,
-    (_event, payload: UpdateWebToolsSettingsPayload) => settingsService.updateWebTools(payload)
+    (_event, payload: UpdateChaptaleSettingsPayload) => settingsService.update(payload)
   );
 
   handleTrustedIpc(IPC_CHANNELS.settings.selectWorkspaceDir, async (event): Promise<SelectWorkspaceDirResult> => {
@@ -47,13 +31,12 @@ export function registerSettingsIpc(settingsService: SettingsService, ui: UiShel
     }
 
     const state = await settingsService.update({ workspace: { path: workspacePath } });
-    onStorageChanged?.();
 
     return { canceled: false, workspacePath, state };
   });
 
   handleTrustedIpc(IPC_CHANNELS.settings.openConfigDir, async () => {
-    await settingsService.ensureBaseDirs();
+    await settingsService.ensureSettingsFile();
     await ui.openPath(settingsService.rootDir);
   });
 }

@@ -7,11 +7,6 @@ const settingsStore = useSettingsStore();
 
 const sections: { id: SettingsSection; title: string; icon: string }[] = [
   {
-    id: 'content',
-    title: '专员与内容',
-    icon: 'i-mingcute-user-setting-line'
-  },
-  {
     id: 'workspace',
     title: '作品',
     icon: 'i-mingcute-folder-2-line'
@@ -23,18 +18,8 @@ const sections: { id: SettingsSection; title: string; icon: string }[] = [
   },
   {
     id: 'prompt',
-    title: 'Prompt',
+    title: '写作指令',
     icon: 'i-mingcute-edit-3-line'
-  },
-  {
-    id: 'webTools',
-    title: '联网',
-    icon: 'i-mingcute-earth-line'
-  },
-  {
-    id: 'permissions',
-    title: '权限',
-    icon: 'i-mingcute-shield-shape-line'
   },
   {
     id: 'cloudSync',
@@ -43,7 +28,7 @@ const sections: { id: SettingsSection; title: string; icon: string }[] = [
   },
   {
     id: 'files',
-    title: '配置文件',
+    title: '应用数据',
     icon: 'i-mingcute-file-info-line'
   }
 ];

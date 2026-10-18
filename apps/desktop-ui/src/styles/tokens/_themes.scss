@@ -8,7 +8,9 @@
   --input: var(--surface-elevated);
   --input-background: var(--input);
   --input-foreground: var(--foreground);
+  // 控件边界保持 >= 3:1；悬停再加深一档。
   --input-border: var(--border-strong);
+  --input-hover-border: var(--muted-foreground);
   --input-focus-border: var(--ring);
   --input-focus-shadow: 0 0 0 1px var(--surface-elevated), 0 0 0 3px var(--ring);
   --info: var(--primary-solid);

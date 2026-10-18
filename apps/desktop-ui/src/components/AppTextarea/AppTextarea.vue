@@ -111,6 +111,10 @@ defineExpose<AppTextareaExpose>({
   border-color: var(--input-border);
 }
 
+.app-textarea-default:hover:not(.is-disabled) {
+  border-color: var(--input-hover-border);
+}
+
 .app-textarea-muted {
   background: var(--surface-muted);
   border-color: var(--border-subtle);
@@ -161,5 +165,15 @@ defineExpose<AppTextareaExpose>({
 
 .app-textarea-resize-vertical {
   resize: vertical;
+}
+
+.app-textarea-resize-auto {
+  @apply resize-none;
+  field-sizing: content;
+}
+
+// 无边框文本域嵌在其他容器里，拖拽手柄会破坏容器轮廓。
+.app-textarea-plain {
+  resize: none;
 }
 </style>

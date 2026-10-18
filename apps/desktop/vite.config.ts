@@ -44,8 +44,7 @@ export default defineConfig(async () => ({
       main: {
         entry: {
           index: path.resolve(desktopRoot, 'src/main/index.ts'),
-          'agent-host': path.resolve(desktopRoot, 'src/main/agent-host/worker.ts'),
-          'index-worker': path.resolve(desktopRoot, 'src/main/features/search/index/worker-entry.ts')
+          'agent-host': path.resolve(desktopRoot, 'src/main/agent-host/worker.ts')
         },
         onstart: async ({ startup }) => {
           await startup(['.'], { cwd: desktopRoot });

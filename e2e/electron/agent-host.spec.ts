@@ -16,10 +16,7 @@ let home: string;
 test.beforeEach(async () => {
   home = await mkdtemp(path.join(tmpdir(), 'chaptale-host-e2e-'));
   await mkdir(path.join(home, '.chaptale'));
-  await writeFile(
-    path.join(home, '.chaptale/settings.json'),
-    JSON.stringify({ version: 1, workspace: {}, onboarding: { completedVersion: 1 } })
-  );
+  await writeFile(path.join(home, '.chaptale/settings.json'), JSON.stringify({ version: 1, workspace: {} }));
   const env = { ...process.env, HOME: home, USERPROFILE: home, NODE_ENV: 'production' };
   delete (env as Record<string, string | undefined>).VITE_DEV_SERVER_URL;
   application = await electron.launch({
@@ -123,6 +120,102 @@ test('真实宿主保存模型、创建独立会话，刷新界面后读取同�
     messages: [{ role: 'user', text: '已有历史正文' }]
   });
   expect(await readFile(file, 'utf8')).toBe(original);
+});
+
+test('界面管理多个模型、直接聊天与切换会话，移动视图保留草稿，长指令可滚动', async () => {
+  /** 标题即会话切换入口；其余会话操作在「更多」菜单里。 */
+  async function switchSession(title: string) {
+    await page.getByRole('button', { name: '切换会话', exact: true }).click();
+    await page.getByRole('menuitem', { name: `查看${title}`, exact: true }).click();
+  }
+  async function sessionAction(name: string) {
+    await page.getByRole('button', { name: '更多会话操作', exact: true }).click();
+    await page.getByRole('menuitem', { name, exact: true }).click();
+  }
+  await expect(page.getByRole('complementary', { name: '应用活动栏', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '会话', exact: true }).click();
+  await page.getByRole('button', { name: '新建会话', exact: true }).click();
+  await expect(page.getByLabel('消息', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '创建会话', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '配置模型', exact: true }).click();
+  const settings = page.getByRole('dialog');
+  await settings.getByLabel('供应商标识', { exact: true }).fill('ui-offline');
+  await settings.getByLabel('服务地址', { exact: true }).fill('http://127.0.0.1:9/v1');
+  await settings.getByLabel('模型 ID', { exact: true }).fill('ui-model');
+  await settings.getByLabel('显示名称', { exact: true }).fill('界面离线模型');
+  await settings.getByLabel('上下文长度', { exact: true }).fill('8192');
+  await settings.getByLabel('最大输出长度', { exact: true }).fill('512');
+  await settings.getByLabel('API 密钥', { exact: true }).fill('ui-offline-key');
+  await settings.getByRole('button', { name: '保存模型', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('已保存');
+  await settings.getByRole('button', { name: '为 ui-offline 添加模型', exact: true }).click();
+  await settings.getByLabel('模型 ID', { exact: true }).fill('ui-model-two');
+  await settings.getByLabel('显示名称', { exact: true }).fill('第二个离线模型');
+  await settings.getByLabel('上下文长度', { exact: true }).fill('16384');
+  await settings.getByLabel('最大输出长度', { exact: true }).fill('1024');
+  await settings.getByRole('button', { name: '保存模型', exact: true }).click();
+  await expect(settings.getByRole('status')).toContainText('已保存');
+  const models = await page.evaluate(() => window.chaptaleDesktop.agentHost.request('configuredModels', undefined));
+  expect(models.map(item => item.modelId)).toEqual(['ui-model', 'ui-model-two']);
+  expect(JSON.stringify(models)).not.toContain('ui-offline-key');
+  await settings.getByRole('button', { name: '关闭设置', exact: true }).click();
+  // 用真实宿主建立空会话，避免在离线测试里向模型发请求。
+  const ids = await page.evaluate(async () => {
+    const client = window.chaptaleDesktop.agentHost;
+    const model = { provider: 'ui-offline', id: 'ui-model' };
+    return [await client.request('create', { model }), await client.request('create', { model })];
+  });
+  await switchSession('会话 1');
+  await page.getByLabel('消息', { exact: true }).fill('保留这份草稿');
+  await page.getByRole('combobox', { name: '修改模式', exact: true }).click();
+  await page.getByRole('option', { name: '讨论', exact: true }).click();
+  await sessionAction('移到主区');
+  await expect(page.getByLabel('消息', { exact: true })).toHaveValue('保留这份草稿');
+  await expect(page.getByLabel('消息', { exact: true })).toHaveCount(1);
+  await sessionAction('移到协作栏');
+  await switchSession('会话 2');
+  await page.getByLabel('消息', { exact: true }).fill('第二份独立草稿');
+  await switchSession('会话 1');
+  await expect(page.getByLabel('消息', { exact: true })).toHaveValue('保留这份草稿');
+  await sessionAction('会话设置');
+  await page.getByLabel('指令内容', { exact: true }).fill('只修改第一个会话的指令');
+  await page.getByRole('button', { name: '保存当前会话指令', exact: true }).click();
+  await expect
+    .poll(async () => {
+      const state = await page.evaluate(() => window.chaptaleDesktop.agentHost.request('state', undefined));
+      return state.sessions.find(session => session.id === ids[0])?.instructions[0].text;
+    })
+    .toBe('只修改第一个会话的指令');
+  const after = await page.evaluate(() => window.chaptaleDesktop.agentHost.request('state', undefined));
+  expect(after.sessions.map(session => session.id)).toEqual(ids);
+  expect(after.sessions[0].mode).toBe('discuss');
+  expect(after.sessions[1].instructions[0].text).not.toBe('只修改第一个会话的指令');
+  await page.getByRole('button', { name: '返回会话', exact: true }).click();
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  await settings.getByRole('button', { name: '写作指令', exact: true }).click();
+  const long = '写作要求需要明确，重要决定先与作者确认。\n'.repeat(200);
+  const editor = settings.getByLabel('指令内容', { exact: true });
+  await editor.fill(long);
+  expect(await editor.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+  const save = settings.getByRole('button', { name: '保存新会话默认指令', exact: true });
+  await save.click();
+  await expect(settings.getByRole('status')).toContainText('已保存');
+  const bounds = await settings.boundingBox();
+  const action = await save.boundingBox();
+  expect(action!.y + action!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+  const evidence = path.resolve('temp/batch-b-ui');
+  await mkdir(evidence, { recursive: true });
+  await page.screenshot({ path: path.join(evidence, 'instructions-wide.png') });
+  await settings.getByRole('button', { name: '模型', exact: true }).click();
+  await page.screenshot({ path: path.join(evidence, 'models-wide.png') });
+  await settings.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await page.screenshot({ path: path.join(evidence, 'workbench-wide.png') });
+  await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 760));
+  await page.screenshot({ path: path.join(evidence, 'workbench-narrow.png') });
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  await settings.getByRole('button', { name: '写作指令', exact: true }).click();
+  await expect(settings.getByLabel('指令内容', { exact: true })).toHaveValue(long);
+  await page.screenshot({ path: path.join(evidence, 'instructions-narrow.png') });
 });
 
 test('真实子进程退出会通知界面，重新连接只读快照', async () => {

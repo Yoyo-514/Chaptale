@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TodosUpdatedEventValidator } from '@chaptale/ipc-contract';
+import { WorkspaceChangedValidator } from '@chaptale/ipc-contract';
 
 const electronMock = vi.hoisted(() => {
   type Listener = (...args: unknown[]) => void;
@@ -48,11 +48,12 @@ beforeEach(() => {
 describe('onValidatedEvent', () => {
   it('合法 payload 传递给 listener', () => {
     const listener = vi.fn();
-    onValidatedEvent(CHANNEL, TodosUpdatedEventValidator, listener);
+    onValidatedEvent(CHANNEL, WorkspaceChangedValidator, listener);
 
     const payload = {
-      sessionId: 'session-1',
-      items: [{ id: 't1', content: '写第三章大纲', status: 'pending' }]
+      rootPath: 'E:/novel',
+      sequence: 1,
+      changes: [{ relativePath: '正文/第一章.md', type: 'change' }]
     };
     electronMock.emit(CHANNEL, payload);
 
@@ -63,7 +64,7 @@ describe('onValidatedEvent', () => {
   it('非法 payload 被丢弃且 console.error', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const listener = vi.fn();
-    onValidatedEvent(CHANNEL, TodosUpdatedEventValidator, listener);
+    onValidatedEvent(CHANNEL, WorkspaceChangedValidator, listener);
 
     electronMock.emit(CHANNEL, { bogus: 1 });
 
@@ -73,17 +74,14 @@ describe('onValidatedEvent', () => {
 
   it('返回的清理函数以同一 handler 移除监听', () => {
     const listener = vi.fn();
-    const cleanup = onValidatedEvent(CHANNEL, TodosUpdatedEventValidator, listener);
+    const cleanup = onValidatedEvent(CHANNEL, WorkspaceChangedValidator, listener);
 
     const handler = electronMock.on.mock.calls[0]?.[1];
     cleanup();
 
     expect(electronMock.removeListener).toHaveBeenCalledWith(CHANNEL, handler);
 
-    electronMock.emit(CHANNEL, {
-      sessionId: 'session-1',
-      items: []
-    });
+    electronMock.emit(CHANNEL, { rootPath: 'E:/novel', sequence: 1, changes: [] });
     expect(listener).not.toHaveBeenCalled();
   });
 });

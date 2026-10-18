@@ -19,12 +19,9 @@ import {
   lineNumbers
 } from '@codemirror/view';
 
-import type { AssetRecord, ReviewMark } from '@chaptale/shared';
-
 import type { DocumentViewState } from '../types';
 import { DocumentBuffer } from './document-buffer';
-import { documentHeadings, documentHeadRange, wikiLinks } from './markdown-navigation';
-import { reviewDecorations, setReviewMarks } from './review-marks';
+import { documentHeadings, documentHeadRange } from './markdown-navigation';
 import { theme, writingHighlight } from './theme';
 
 /** 视图可卸载，正文、原始换行与撤销历史由标签的 DocumentBuffer 持有。 */
@@ -37,10 +34,7 @@ export function createDocumentView(
     viewState?: DocumentViewState;
     buffer?: DocumentBuffer;
     onChange?: (buffer: DocumentBuffer) => void;
-    assets?: () => Promise<readonly AssetRecord[]>;
-    onOpenLink?: (link: string) => void;
     foldHead?: boolean;
-    onReviewClick?: (id: string) => void;
   }
 ) {
   const extensions = [
@@ -63,7 +57,6 @@ export function createDocumentView(
     highlightActiveLine(),
     highlightActiveLineGutter(),
     theme,
-    ...(options.onReviewClick ? reviewDecorations(options.onReviewClick) : []),
     EditorState.phrases.of({
       Find: '查找',
       Replace: '替换',
@@ -84,10 +77,7 @@ export function createDocumentView(
           markdown(),
           syntaxHighlighting(writingHighlight),
           foldGutter(),
-          foldService.of((state, from) => (from === 0 ? documentHeadRange(state) : null)),
-          ...(options.assets && options.onOpenLink
-            ? [wikiLinks({ assets: options.assets, open: options.onOpenLink })]
-            : [])
+          foldService.of((state, from) => (from === 0 ? documentHeadRange(state) : null))
         ]
       : []
   ];
@@ -143,7 +133,6 @@ export function createDocumentView(
   return {
     buffer,
     focus: () => view.focus(),
-    setReviewMarks: (marks: ReviewMark[]) => view.dispatch({ effects: setReviewMarks.of(marks) }),
     find: () => openSearchPanel(view),
     undo: () => undo(view),
     redo: () => redo(view),

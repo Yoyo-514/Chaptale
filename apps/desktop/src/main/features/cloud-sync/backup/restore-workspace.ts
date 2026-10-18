@@ -10,7 +10,6 @@ import type {
   CloudRestoreSkip
 } from '@chaptale/ipc-contract';
 
-import { toWorkspaceSessionDirName } from '../../../core/settings/workspace-session-directory';
 import { writeBytesAtomically } from '../../../infra/filesystem/atomic-bytes';
 import { resolveWithinCwd } from '../../../infra/filesystem/path-guard';
 import { collectWorkspaceContent, unpackArchive } from './archive';
@@ -19,6 +18,7 @@ import { manifestOf, readArchiveContent, readArchiveEntry, workspaceIdentityOf, 
 import { conflictCopyName, sanitizeName, timestamp } from './remote-layout';
 import { createRestoreGuard } from './restore-guard';
 import { compareRestore } from './restore-plan';
+import { toWorkspaceDirName } from './workspace-dir-name';
 
 export type RestoreWorkspaceTarget = { rootPath: string; id: string; title: string };
 const MAX_DIFF_CHARS = 512 * 1024;
@@ -102,7 +102,7 @@ export class WorkspaceRestorer {
     }
     const guard = await createRestoreGuard({
       workspaceRoot: rootPath,
-      guardRoot: path.join(this.cacheRoot, toWorkspaceSessionDirName(rootPath), 'restore-guard'),
+      guardRoot: path.join(this.cacheRoot, toWorkspaceDirName(rootPath), 'restore-guard'),
       at: new Date()
     });
     const result =
