@@ -70,7 +70,8 @@ const contentClassName = computed(() =>
 .app-dropdown-content {
   @apply z-$z-popover flex flex-col gap-1 border p-1 shadow-$shadow-float;
 
-  width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 16rem));
+  /* 至少与触发器同宽，内容更宽时按内容撑开，避免出现横向滚动。 */
+  width: max-content;
   max-width: min(32rem, var(--reka-dropdown-menu-content-available-width));
   max-height: var(--reka-dropdown-menu-content-available-height);
   overflow-y: auto;
@@ -81,14 +82,10 @@ const contentClassName = computed(() =>
 }
 
 .app-dropdown-content-sm {
-  @apply min-w-32;
-
-  width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 10rem));
+  min-width: max(8rem, var(--reka-dropdown-menu-trigger-width, 0px));
 }
 
 .app-dropdown-content-md {
-  @apply min-w-64;
-
-  width: var(--reka-dropdown-menu-trigger-width, var(--radix-dropdown-menu-trigger-width, 24rem));
+  min-width: max(16rem, var(--reka-dropdown-menu-trigger-width, 0px));
 }
 </style>

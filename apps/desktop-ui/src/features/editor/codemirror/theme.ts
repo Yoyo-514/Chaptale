@@ -9,7 +9,7 @@ export const theme = EditorView.theme({
   '&': { height: '100%', fontSize: '14px', color: 'var(--foreground)', backgroundColor: 'var(--mica-background)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { overflow: 'auto', fontFamily: 'inherit', lineHeight: '26px' },
-  '.cm-content': { padding: '20px 0 48px', caretColor: 'var(--foreground)' },
+  '.cm-content': { padding: '4px 0 48px', caretColor: 'var(--foreground)' },
   '.cm-line': { padding: '0 24px 0 16px', transition: 'none' },
   '.cm-gutters': {
     backgroundColor: 'var(--mica-background)',

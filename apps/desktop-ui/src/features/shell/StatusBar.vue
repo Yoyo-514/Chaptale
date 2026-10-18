@@ -51,6 +51,20 @@ function refreshCloud() {
 // 换作品就要重新问一次绑定；绑定是按作品存的。
 watch(() => [workspace.rootPath, workspace.revision], refreshCloud, { immediate: true });
 
+/** 当前文档信息放在状态栏右侧，与 VS Code 一致。 */
+const documentInfo = computed(() => {
+  const tab = editor.activeTab;
+  if (!tab?.document) return undefined;
+  const bytes = tab.document.sizeBytes;
+  const size =
+    bytes < 1024
+      ? `${bytes} B`
+      : bytes < 1024 * 1024
+        ? `${(bytes / 1024).toFixed(1)} KiB`
+        : `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  return { words: tab.words ?? 0, notice: tab.notice, readonly: tab.readonly, size };
+});
+
 const hasError = computed(() => notificationStore.items.some(item => item.kind === 'error'));
 const notificationCountLabel = computed(() =>
   notificationStore.unseenCount > 99 ? '99+' : String(notificationStore.unseenCount)
@@ -86,6 +100,13 @@ const notificationTooltip = computed(() =>
       </AppButton>
     </AppTooltip>
     <div class="status-bar-spacer" />
+    <div v-if="documentInfo" class="status-document">
+      <span v-if="documentInfo.notice" class="truncate" role="status">{{ documentInfo.notice }}</span>
+      <span v-if="documentInfo.readonly">大文件只读</span>
+      <span>{{ documentInfo.words }} 字</span>
+      <span>UTF-8</span>
+      <span>{{ documentInfo.size }}</span>
+    </div>
     <AppButton v-if="navigation.focusMode" size="xs" variant="ghost" @click="navigation.focusMode = false"
       >退出专注</AppButton
     >
@@ -121,6 +142,10 @@ const notificationTooltip = computed(() =>
 
 .status-bar-spacer {
   @apply flex-1;
+}
+.status-document {
+  @apply flex min-w-0 items-center gap-3 px-2 whitespace-nowrap;
+  font-size: var(--ui-caption-size);
 }
 .status-sync {
   @apply flex min-w-0 items-center gap-1.5 px-2;

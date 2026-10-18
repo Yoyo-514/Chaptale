@@ -15,6 +15,7 @@ import type { DocumentHeading } from '../codemirror/markdown-navigation';
 import { createDocumentView } from '../codemirror/view';
 import { useEditorStore } from '../store';
 import type { DocumentViewState } from '../types';
+import DocumentBreadcrumb from './DocumentBreadcrumb.vue';
 import DocumentToolbar from './DocumentToolbar.vue';
 
 const props = defineProps<{
@@ -28,7 +29,6 @@ const props = defineProps<{
   saving?: boolean;
   saveError?: string;
   recoveryError?: string;
-  notice?: string;
   conflict?: boolean;
 }>();
 const emit = defineEmits<{
@@ -102,15 +102,13 @@ const headings = ref<DocumentHeading[]>([]);
 const actionError = ref('');
 let outlineTimer: ReturnType<typeof setTimeout> | undefined;
 const large = computed(() => props.readonly);
-const size = computed(() => {
-  const bytes = props.document.sizeBytes;
-  if (bytes < 1024) return `${bytes} B`;
-  return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-});
 let view: ReturnType<typeof createDocumentView> | undefined;
 
 function find() {
   view?.find();
+}
+function goToHeading(heading: DocumentHeading) {
+  view?.goTo(heading.from, heading.to);
 }
 function updateOutline() {
   headings.value = view?.headings() ?? [];
@@ -156,6 +154,12 @@ watch(
 
 <template>
   <section class="document-view">
+    <DocumentBreadcrumb
+      :path="document.relativePath"
+      :headings="headings"
+      @open="updateOutline"
+      @heading="goToHeading"
+    />
     <DocumentToolbar
       :path="document.relativePath"
       :large="large"
@@ -207,13 +211,6 @@ watch(
         >空文件</span
       >
     </div>
-    <footer class="document-footer">
-      <span class="document-words">{{ editor.activeTab?.words ?? 0 }} 字</span>
-      <span v-if="notice" class="truncate" role="status">{{ notice }}</span>
-      <span v-if="large">大文件模式</span>
-      <span>UTF-8</span>
-      <span>{{ size }}</span>
-    </footer>
   </section>
 </template>
 
@@ -250,7 +247,7 @@ watch(
 }
 
 .document-empty {
-  @apply pointer-events-none absolute left-17 top-5 text-sm;
+  @apply pointer-events-none absolute left-17 top-1 text-sm;
 
   color: var(--muted-foreground);
 }
@@ -270,16 +267,5 @@ watch(
 
 .document-diagnostic p {
   @apply mt-2 whitespace-pre-wrap;
-}
-
-.document-footer {
-  @apply flex h-7 shrink-0 items-center justify-end gap-3 border-t px-3 text-xs;
-
-  border-color: var(--border-subtle);
-  color: var(--muted-foreground);
-}
-.document-words {
-  margin-right: auto;
-  white-space: nowrap;
 }
 </style>

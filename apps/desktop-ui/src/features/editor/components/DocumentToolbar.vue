@@ -72,12 +72,8 @@ function select(id: ToolId) {
 </script>
 
 <template>
-  <header class="document-toolbar">
-    <span class="document-toolbar-spacer" />
-    <span v-if="large" class="document-status"><span class="i-mingcute-lock-line" aria-hidden="true" />只读</span>
-    <span v-else class="document-status" :class="{ 'is-dirty': dirty }" role="status">
-      {{ saving ? '正在保存' : dirty ? '未保存' : '已保存' }}
-    </span>
+  <!-- 文档操作并入标签栏右端，与 VS Code 的编辑器操作位置一致。 -->
+  <Teleport defer to="#editor-tab-actions">
     <AppDropdownMenu align="end" content-size="sm">
       <template #trigger>
         <AppButton icon size="xs" variant="ghost" aria-label="文档操作">
@@ -100,25 +96,10 @@ function select(id: ToolId) {
         </AppDropdownMenuItem>
       </template>
     </AppDropdownMenu>
-  </header>
+  </Teleport>
 </template>
 
 <style scoped lang="scss">
-.document-toolbar {
-  @apply flex h-8 shrink-0 items-center gap-1 px-2;
-  font-size: var(--ui-font-size);
-  color: var(--muted-foreground);
-}
-.document-toolbar-spacer {
-  @apply flex-1;
-}
-.document-status {
-  @apply mr-1 inline-flex shrink-0 items-center gap-1;
-  font-size: var(--ui-caption-size);
-}
-.document-status.is-dirty {
-  color: var(--foreground);
-}
 .document-menu-path {
   @apply m-0 max-w-72 truncate px-2.5 pb-1.5 pt-1;
   font-size: var(--ui-caption-size);
@@ -132,10 +113,9 @@ function select(id: ToolId) {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 13rem;
 }
 .document-menu-shortcut {
-  @apply font-sans;
+  @apply ml-3 font-sans;
   font-size: var(--ui-caption-size);
   color: var(--muted-foreground);
 }

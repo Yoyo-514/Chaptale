@@ -204,6 +204,8 @@ watch(selectedId, async () => {
           </AppContextMenu>
         </TabsList>
       </AppScrollArea>
+      <!-- 有标签时始终占位：切换文档时 Teleport 内容会短暂卸载，占位避免标签区宽度跳动。 -->
+      <div v-if="editor.tabs.length" id="editor-tab-actions" class="editor-tab-actions" />
     </div>
 
     <TabsContent v-if="!editor.tabs.length" value="welcome" class="editor-welcome">
@@ -252,7 +254,6 @@ watch(selectedId, async () => {
         :saving="tab.saving"
         :save-error="tab.saveError"
         :recovery-error="tab.recoveryError"
-        :notice="tab.notice"
         :conflict="Boolean(tab.external)"
         :command="editor.command"
         :view-state="tab.viewState"
@@ -287,14 +288,20 @@ watch(selectedId, async () => {
 }
 
 .editor-tabs-scroll {
-  @apply h-9 min-w-0 shrink-0 overflow-hidden border-b;
+  @apply flex h-9 min-w-0 shrink-0 overflow-hidden border-b;
 
   border-color: var(--border-subtle);
   background: var(--surface-acrylic-subtle);
 }
 
 .editor-tabs-area {
-  @apply h-full w-full;
+  @apply h-full min-w-0 flex-1;
+}
+
+.editor-tab-actions {
+  @apply flex min-w-9 shrink-0 items-center justify-end gap-1 px-1.5;
+
+  color: var(--muted-foreground);
 }
 
 .editor-tabs-area :deep(.editor-tabs-viewport > div) {

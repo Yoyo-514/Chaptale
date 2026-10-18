@@ -131,11 +131,6 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
       'background-color',
       theme === 'dark' ? 'rgb(40, 44, 52)' : theme === 'warm' ? 'rgb(248, 243, 231)' : 'rgb(244, 246, 248)'
     );
-    const source = page.getByRole('tab', { name: '源文件', exact: true });
-    await source.focus();
-    await source.press('ArrowLeft');
-    await expect(page.getByRole('tab', { name: '表单', exact: true })).toHaveAttribute('aria-selected', 'true');
-    await source.click();
     await page.screenshot({ path: path.join(visualDir, `workbench-${theme}-desktop.png`) });
 
     await page.getByRole('button', { name: '打开设置', exact: true }).click();
@@ -150,12 +145,9 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
           element.getBoundingClientRect().bottom <= element.closest('.settings-panel')!.getBoundingClientRect().bottom
       )
     ).toBe(true);
-    await settings.getByRole('button', { name: 'Prompt', exact: true }).click();
-    await expect(page.getByRole('textbox', { name: 'System Prompt', exact: true })).toBeVisible();
     await page.screenshot({ path: path.join(visualDir, `settings-${theme}-desktop.png`) });
     await captureSettings(settings, theme, 'desktop');
-    await settings.getByRole('button', { name: 'Prompt', exact: true }).click();
-    await expect(page.getByRole('textbox', { name: 'System Prompt', exact: true })).toBeVisible();
+    await settings.getByRole('button', { name: '模型', exact: true }).click();
     await resize(960, 640);
     await expect
       .poll(() => settings.evaluate(element => element.getBoundingClientRect().right <= innerWidth))
@@ -175,15 +167,6 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
     }
     await page.screenshot({ path: path.join(visualDir, `settings-${theme}-minimum.png`) });
     await expect(settings.getByRole('navigation', { name: '设置分类', exact: true })).toBeVisible();
-    const save = settings.getByRole('button', { name: '保存 Prompt 设置', exact: true });
-    expect(
-      await save.evaluate(element => {
-        const rect = element.getBoundingClientRect();
-        const panel = element.closest('.settings-panel')!.getBoundingClientRect();
-        return rect.top >= panel.top && rect.bottom <= panel.bottom;
-      })
-    ).toBe(true);
-    expect(await save.evaluate(element => (element as HTMLButtonElement).form?.id)).toBe('prompt-settings-form');
 
     await captureSettings(settings, theme, 'minimum');
     await page.getByRole('button', { name: '关闭设置', exact: true }).focus();
@@ -191,7 +174,6 @@ for (const theme of ['light', 'warm', 'dark'] as const) {
     await expect(settings).toBeHidden();
     await expect(page.getByRole('textbox', { name: '文档正文', exact: true })).toContainText('林晚');
     await expect(page.getByRole('complementary', { name: '作品导航', exact: true })).toBeVisible();
-    await expect(page.getByRole('complementary', { name: '协作栏', exact: true })).toBeVisible();
     await page.screenshot({ path: path.join(visualDir, `workbench-${theme}-minimum.png`) });
   });
 }

@@ -142,13 +142,14 @@ test('新建作品可直接编辑，同名目录不覆盖', async () => {
 });
 
 test('面板隐藏保留 Agent 草稿，重开后拖动方向一致', async () => {
-  const input = page.getByPlaceholder('描述你的创作需求...');
+  const input = page.getByLabel('消息', { exact: true });
+  await page.getByRole('button', { name: '会话', exact: true }).click();
   await input.fill('尚未发送的创作草稿');
-  await page.getByRole('button', { name: '切换 Agent 面板', exact: true }).click();
+  await page.getByRole('button', { name: '会话', exact: true }).click();
   await expect(input).not.toBeVisible();
-  await page.getByRole('button', { name: '切换 Agent 面板', exact: true }).click();
+  await page.getByRole('button', { name: '会话', exact: true }).click();
   await expect(input).toHaveValue('尚未发送的创作草稿');
-  const sidebar = page.locator('#workbench-primary-sidebar');
+  const sidebar = page.locator('.workbench-primary-sidebar');
   for (let attempt = 0; attempt < 2; attempt++) {
     await page.getByRole('button', { name: '作品', exact: true }).click();
     await expect.poll(async () => (await sidebar.boundingBox())?.width ?? 0).toBeLessThan(1);
@@ -157,11 +158,15 @@ test('面板隐藏保留 Agent 草稿，重开后拖动方向一致', async () =
     const handle = (await page.getByRole('separator', { name: '调整作品导航宽度', exact: true }).boundingBox())!;
     await page.mouse.move(handle.x + handle.width / 2, handle.y + 150);
     await page.mouse.down();
-    await page.mouse.move(handle.x + 40, handle.y + 150, { steps: 8 });
+    // 第一次向右拉宽、第二次向左收窄，避免连续拉宽碰到最大宽度。
+    const delta = attempt ? -40 : 40;
+    await page.mouse.move(handle.x + delta, handle.y + 150, { steps: 8 });
     await page.mouse.up();
-    await expect.poll(async () => (await sidebar.boundingBox())!.width).toBeGreaterThan(before + 15);
+    await expect
+      .poll(async () => ((await sidebar.boundingBox())!.width - before) * Math.sign(delta))
+      .toBeGreaterThan(15);
   }
-  const auxiliary = page.locator('#workbench-auxiliary-bar');
+  const auxiliary = page.locator('#side-agent-host');
   const before = (await auxiliary.boundingBox())!.width;
   const handle = (await page.getByRole('separator', { name: '调整协作栏宽度', exact: true }).boundingBox())!;
   await page.mouse.move(handle.x + handle.width / 2, handle.y + 180);
@@ -267,7 +272,7 @@ test('Ctrl+S 保留混合换行和 BOM，保存及标签切换不丢撤销', asy
   await content.click();
   await page.keyboard.press('Control+End');
   await page.keyboard.insertText('新增');
-  await expect(page.getByText('未保存', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('未保存', { exact: true })).toBeVisible();
   await page.keyboard.press('Control+s');
   await expect.poll(() => readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(raw + '新增');
   await page.getByRole('treeitem', { name: '空文件.txt', exact: true }).click();
@@ -325,7 +330,7 @@ test('关闭作品先保护脏缓冲，取消不改变作品', async () => {
   await page.getByRole('menuitem', { name: '文件', exact: true }).click();
   await page.getByRole('menuitem', { name: '关闭作品', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: '不保存', exact: true }).click();
-  await expect(page.getByText('尚未打开作品', { exact: true })).toBeVisible();
+  await expect(page.getByText('打开作品后，在这里浏览章节和资料。', { exact: true })).toBeVisible();
   expect(await readFile(path.join(workspace, '正文/第一章.md'), 'utf8')).toBe(chapter);
 });
 
@@ -523,7 +528,7 @@ test('关闭作品清空标签和正文', async () => {
   await page.getByRole('menuitem', { name: '关闭作品', exact: true }).click();
   await expect(page.getByRole('tab', { name: '欢迎', exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: '文档正文' })).toHaveCount(0);
-  await expect(page.getByText('尚未打开作品', { exact: true })).toBeVisible();
+  await expect(page.getByText('打开作品后，在这里浏览章节和资料。', { exact: true })).toBeVisible();
 });
 
 test('HTML 作为源码显示，不执行脚本或加载文档中的远程图片', async () => {
@@ -549,7 +554,7 @@ test('读取尚未完成时关闭标签，迟到的结果不能重新打开文�
     document.querySelector('[data-tree-path="在途.md"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await Promise.resolve();
     const wasLoading = document
-      .querySelector('[aria-label="编辑器区域"] [role="status"]')
+      .querySelector('[aria-label="主要工作区"] [role="status"]')
       ?.textContent?.includes('正在读取');
     document.querySelector<HTMLButtonElement>('[aria-label="关闭 在途.md"]')!.click();
     await (window as DesktopWindow).chaptaleDesktop.workspace.readDocument({ rootPath, relativePath: '后续读取.txt' });
@@ -793,7 +798,7 @@ for (const width of [1280, 1024]) {
     const bounds = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
       document: document.documentElement.scrollWidth,
-      editor: document.querySelector('[aria-label="编辑器区域"]')?.getBoundingClientRect().width
+      editor: document.querySelector('[aria-label="主要工作区"]')?.getBoundingClientRect().width
     }));
     expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
     expect(bounds.editor).toBeGreaterThan(300);

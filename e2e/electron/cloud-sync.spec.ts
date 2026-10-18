@@ -25,7 +25,7 @@ async function launch() {
   });
   page = await app.firstWindow();
   page.on('pageerror', error => errors.push(error.message));
-  await expect(page.getByPlaceholder('描述你的创作需求...')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: '应用活动栏', exact: true })).toBeVisible();
 }
 
 async function openCloudSync() {
