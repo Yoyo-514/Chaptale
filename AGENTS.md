@@ -14,16 +14,16 @@ Chaptale 是面向小说与剧本的跨平台创作 IDE，正在重建为由 pi 
 
 ## 仓库结构
 
-| 路径                  | 包名                     | 职责                                                                                  |
-| --------------------- | ------------------------ | ------------------------------------------------------------------------------------- |
-| `packages/agent-host` | `@chaptale/agent-host`   | Node 宿主内的 pi SDK 接入：模型运行时、原生会话池、工具授权、应用会话入口与传输协议。 |
-| `packages/ipc`        | `@chaptale/ipc-contract` | Electron 主进程与界面之间的 IPC 契约。                                                |
-| `packages/shared`     | `@chaptale/shared`       | 跨端共享的领域类型与工具。                                                            |
-| `apps/desktop`        | `@chaptale/desktop`      | Electron 主进程与打包。旧 Agent 调用链尚未切换到 agent-host。                         |
-| `apps/desktop-ui`     | `@chaptale/desktop-ui`   | Vue 界面（Renderer），不得导入 agent-host 的 Node 运行时代码，只能使用 `/protocol`。  |
-| `docs/`               | —                        | VitePress 用户手册，按实际界面与实现编写。                                            |
-| `e2e/`、`scripts/`    | —                        | Electron Playwright 测试与发布脚本。                                                  |
-| `mobile-virtual/`     | —                        | 被忽略的 Android 实验环境与证据，不是正式移动应用；不得清理、停止设备或当作生产部署。 |
+| 路径                  | 包名                     | 职责                                                                                   |
+| --------------------- | ------------------------ | -------------------------------------------------------------------------------------- |
+| `packages/agent-host` | `@chaptale/agent-host`   | Node 宿主内的 pi SDK 接入：模型运行时、原生会话池、工具授权、应用会话入口与传输协议。  |
+| `packages/ipc`        | `@chaptale/ipc-contract` | Electron 主进程与界面之间的 IPC 契约。                                                 |
+| `packages/shared`     | `@chaptale/shared`       | 跨端共享的领域类型与工具。                                                             |
+| `apps/desktop`        | `@chaptale/desktop`      | Electron 主进程与打包；用 `utilityProcess` 运行 agent-host（`src/main/agent-host/`）。 |
+| `apps/desktop-ui`     | `@chaptale/desktop-ui`   | Vue 界面（Renderer），不得导入 agent-host 的 Node 运行时代码，只能使用 `/protocol`。   |
+| `docs/`               | —                        | VitePress 用户手册，按实际界面与实现编写。                                             |
+| `e2e/`、`scripts/`    | —                        | Electron Playwright 测试与发布脚本。                                                   |
+| `mobile-virtual/`     | —                        | 被忽略的 Android 实验环境与证据，不是正式移动应用；不得清理、停止设备或当作生产部署。  |
 
 agent-host 子路径入口：`.`（会话池与模型运行时）、`./application`（`HostApplication`）、`./protocol`（纯类型与持久化常量，无 Node 依赖）。
 

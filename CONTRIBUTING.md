@@ -33,7 +33,9 @@ pnpm build
 pnpm exec playwright test --config playwright.electron.config.ts
 ```
 
-类型检查、构建和测试共享契约产物，按顺序运行。Electron 测试使用临时作品与独立用户目录，不需要模型凭据。图形测试保持单 worker；当前操作快捷键与 CI 验收基于 Windows。
+类型检查、构建和测试共享契约产物，按顺序运行。Electron 测试使用临时作品与独立用户目录，不需要模型凭据；每个用例启动独立的 Electron 实例，全并行运行（本地 4 workers，CI 2）。当前操作快捷键与 CI 验收基于 Windows。
+
+`pnpm --filter @chaptale/agent-host test:live*` 会调用真实模型并可能计费，只在需要真实模型验收时运行，配置放在被忽略的 `temp/`。
 
 CI 在 PR、main 分支推送和手动触发时运行上述检查，再在 Windows x64、Linux x64、macOS Intel 与 Apple Silicon 上分别打包。失败截图和 trace 保留 7 天。测试运行的是开发分发版 Electron；安装包还应进行安装、启动与升级的人工验收。
 
@@ -47,12 +49,12 @@ pnpm dist:desktop:mac
 pnpm dist:desktop:linux
 ```
 
-产物在 `apps/desktop/release/`。优先在目标系统及目标架构构建，以正确安装原生分词依赖。macOS 单架构构建可在 `apps/desktop` 中执行 `pnpm exec electron-builder --mac --arm64 --publish never`（先运行根目录 `pnpm build:desktop`）；Intel 使用 `--x64`。
+产物在 `apps/desktop/release/`。优先在目标系统及目标架构构建，以正确安装原生依赖（如中文分词）。macOS 单架构构建可在 `apps/desktop` 中执行 `pnpm exec electron-builder --mac --arm64 --publish never`（先运行根目录 `pnpm build:desktop`）；Intel 使用 `--x64`。
 
 ## 发布版本
 
 1. 完成检查并提交到 `main`，并确保工作树干净（`pnpm release` 会校验这一点）。
-2. 由维护者运行 `pnpm release` 选择版本号。`bumpp` 按 `bump.config.ts` 同步根目录与 `apps/desktop/package.json` 的版本，提交、创建附注标签 `v<version>` 并推送。默认模型 User-Agent 会随桌面包版本更新。
+2. 由维护者运行 `pnpm release` 选择版本号。`bumpp` 按 `bump.config.ts` 同步根目录与 `apps/desktop/package.json` 的版本，提交、创建附注标签 `v<version>` 并推送。
 3. 标签名必须严格等于 `v<version>`，且两处 `package.json` 版本一致；`bump.config.ts` 与 CI 的 `check-release.mjs` 共同保证。若需手工发布，等价操作是附注标签（`git tag -a`）后单独推送该标签——`git push --follow-tags` 只推送附注标签，轻量标签会被静默跳过。
 4. Release workflow 校验标签、运行 CI，构建四个平台/架构的安装包。
 5. 流程汇总安装包与 `SHA256SUMS.txt`，创建 GitHub Release **草稿**。
