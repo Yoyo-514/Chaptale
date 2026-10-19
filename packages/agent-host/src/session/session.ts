@@ -13,6 +13,7 @@ import { stat } from 'node:fs/promises';
 import { isAbsolute, relative } from 'node:path';
 
 import { bindHostTools, type HostToolAccess } from '../tools/tool-access.ts';
+import { writingCompaction } from './compaction.ts';
 
 export interface CreateHostSessionOptions {
   /** 已存在的工作目录；不是文件或命令沙箱。 */
@@ -65,7 +66,9 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
   }
 
   const bindings = options.toolAccess ? bindHostTools(options.toolAccess) : undefined;
-  const extensionFactories: ExtensionFactory[] = bindings ? [bindings.guard] : [];
+  const settingsManager = SettingsManager.inMemory({ cacheWarming: 'off' });
+  const extensionFactories: ExtensionFactory[] = [writingCompaction(settingsManager, sessionManager, modelRuntime)];
+  if (bindings) extensionFactories.push(bindings.guard);
   const { prefixMessages } = options;
   if (prefixMessages) {
     extensionFactories.push(pi => {
@@ -73,7 +76,6 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
       pi.on('context', (event, ctx) => ({ messages: [...prefixMessages(ctx.model!), ...event.messages] }));
     });
   }
-  const settingsManager = SettingsManager.inMemory({ cacheWarming: 'off' });
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
