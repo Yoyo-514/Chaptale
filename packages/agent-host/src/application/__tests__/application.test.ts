@@ -287,6 +287,31 @@ it('严格重开保留原消息与会话指令，并发打开不重复占用', a
   expect((await readFile(input.file, 'utf8')).startsWith(original)).toBe(true);
 });
 
+it('压缩过的历史重开时保留压缩前的对话并标记，总结按记录位置显示', async () => {
+  const manager = SessionManager.create(options.cwd, options.sessionDir);
+  manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
+  manager.appendCustomEntry(modeEntryType, { mode: 'review' });
+  manager.appendMessage({ role: 'user', content: '早先的讨论', timestamp: Date.now() });
+  const kept = manager.appendMessage({ role: 'user', content: '最近的要求', timestamp: Date.now() });
+  manager.appendCompaction('## 进度：写完第三章', kept, 1200);
+  manager.appendMessage({ role: 'user', content: '压缩后的新消息', timestamp: Date.now() });
+  const id = await open({ file: manager.getSessionFile()!, cwd: options.cwd });
+
+  expect(view(id).readonly).toBeUndefined();
+  expect(view(id).messages).toEqual([
+    expect.objectContaining({ role: 'user', text: '早先的讨论', compacted: true }),
+    expect.not.objectContaining({ compacted: true }),
+    expect.objectContaining({ role: 'compactionSummary', text: '## 进度：写完第三章' }),
+    expect.objectContaining({ role: 'user', text: '压缩后的新消息' })
+  ]);
+  expect(view(id).messages[1]).toMatchObject({ role: 'user', text: '最近的要求' });
+  expect(
+    view(id)
+      .messages.slice(2)
+      .some(message => message.compacted)
+  ).toBe(false);
+});
+
 it('修改后的会话指令随原生历史重开，不跟随应用默认值', async () => {
   const input = history();
   const id = await open(input);

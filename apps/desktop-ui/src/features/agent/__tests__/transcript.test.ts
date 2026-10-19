@@ -12,6 +12,21 @@ const message = (fields: Partial<ChatMessage> & Pick<ChatMessage, 'role'>): Chat
 });
 
 describe('buildTranscript', () => {
+  it('压缩总结单独成条，压缩前的消息保留并带标记', () => {
+    const items = buildTranscript([
+      message({ role: 'user', text: '早先的讨论', compacted: true }),
+      message({ role: 'assistant', text: '早先的回复', compacted: true }),
+      message({ role: 'compactionSummary', text: '## 进度：写完第三章' }),
+      message({ role: 'user', text: '继续' })
+    ]);
+    expect(items).toMatchObject([
+      { kind: 'user', text: '早先的讨论', compacted: true },
+      { kind: 'assistant', text: '早先的回复', compacted: true },
+      { kind: 'summary', key: '2', text: '## 进度：写完第三章' },
+      { kind: 'user', text: '继续', compacted: undefined }
+    ]);
+  });
+
   it('工具结果并回发起它的工具行，不单独成条', () => {
     const items = buildTranscript([
       message({ role: 'user', text: '看看第一章' }),

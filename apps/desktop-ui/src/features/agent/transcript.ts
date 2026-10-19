@@ -11,7 +11,9 @@ export type ToolActivity = {
 };
 export type ThinkingActivity = { kind: 'thinking'; key: string; text: string };
 export type TranscriptItem =
-  | { kind: 'user'; key: string; text: string }
+  | { kind: 'user'; key: string; text: string; compacted?: boolean }
+  /** 会话压缩总结，只读；它之前的对话已由总结代替。 */
+  | { kind: 'summary'; key: string; text: string }
   | {
       kind: 'assistant';
       key: string;
@@ -21,6 +23,8 @@ export type TranscriptItem =
       text: string;
       error: boolean;
       tools: ToolActivity[];
+      /** 已被压缩总结代替，只供查看。 */
+      compacted?: boolean;
     };
 
 const verbs: Record<string, [done: string, pending: string]> = {
@@ -55,7 +59,11 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
   messages.forEach((message, index) => {
     const key = String(index);
     if (message.role === 'user') {
-      items.push({ kind: 'user', key, text: message.text });
+      items.push({ kind: 'user', key, text: message.text, compacted: message.compacted });
+      return;
+    }
+    if (message.role === 'compactionSummary') {
+      items.push({ kind: 'summary', key, text: message.text });
       return;
     }
     if (message.role === 'toolResult') {
@@ -74,7 +82,15 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
         input: undefined,
         result: { text: message.text, error: message.error === true }
       };
-      items.push({ kind: 'assistant', key, index, text: '', error: false, tools: [orphan] });
+      items.push({
+        kind: 'assistant',
+        key,
+        index,
+        text: '',
+        error: false,
+        tools: [orphan],
+        compacted: message.compacted
+      });
       return;
     }
     const tools = message.tools.map<ToolActivity>(tool => ({
@@ -92,7 +108,8 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
       thinking: message.thinking ? { kind: 'thinking', key: `${key}:thinking`, text: message.thinking } : undefined,
       text: message.text,
       error: message.error === true,
-      tools
+      tools,
+      compacted: message.compacted
     });
   });
   return items;

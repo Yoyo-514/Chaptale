@@ -84,12 +84,15 @@ export interface DiscoveredModel {
   name: string;
 }
 export interface ChatMessage {
+  /** pi 消息角色；`compactionSummary` 为会话压缩总结，text 是总结内容。 */
   role: string;
   text: string;
   thinking: string;
   tools: { id: string; name: string; input: unknown }[];
   toolName?: string;
   error?: boolean;
+  /** 已被压缩总结代替、不再发送给模型的消息，界面仍可查看。 */
+  compacted?: boolean;
 }
 export interface SessionView {
   id: string;

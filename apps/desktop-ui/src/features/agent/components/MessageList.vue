@@ -42,10 +42,32 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
 <template>
   <div class="agent-transcript">
     <template v-for="item in items" :key="item.key">
-      <article v-if="item.kind === 'user'" class="agent-user" aria-label="作者">
+      <article
+        v-if="item.kind === 'user'"
+        class="agent-user"
+        :class="{ 'is-compacted': item.compacted }"
+        aria-label="作者"
+      >
         <div class="agent-user-text">{{ item.text }}</div>
       </article>
-      <article v-else class="agent-assistant" aria-label="助手">
+      <section v-else-if="item.kind === 'summary'" class="agent-activity agent-summary" aria-label="压缩总结">
+        <button
+          type="button"
+          class="agent-activity-row"
+          :aria-expanded="expanded.has(item.key)"
+          @click="toggle(item.key)"
+        >
+          <span class="i-mingcute-archive-line agent-activity-icon" aria-hidden="true" />
+          <span class="agent-activity-summary">之前的对话已压缩为总结</span>
+          <span class="i-mingcute-right-line agent-activity-chevron" aria-hidden="true" />
+        </button>
+        <div
+          v-if="expanded.has(item.key)"
+          class="agent-activity-detail agent-summary-text markdown-body"
+          v-html="renderMarkdown(item.text)"
+        />
+      </section>
+      <article v-else class="agent-assistant" :class="{ 'is-compacted': item.compacted }" aria-label="助手">
         <div v-if="item.thinking" class="agent-activity">
           <button
             type="button"

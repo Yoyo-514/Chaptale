@@ -216,8 +216,8 @@
   outline: none;
 }
 .agent-activity-icon {
-  width: 14px;
-  height: 14px;
+  /* 图标尺寸为 1em，width/height 会被图标工具类覆盖，用字号控制 */
+  font-size: 16px;
   flex-shrink: 0;
 }
 .agent-activity-icon.is-error {
@@ -230,8 +230,7 @@
   white-space: nowrap;
 }
 .agent-activity-chevron {
-  width: 12px;
-  height: 12px;
+  font-size: 14px;
   flex-shrink: 0;
   opacity: 0;
   transition:
@@ -244,6 +243,23 @@
 }
 .agent-activity-row[aria-expanded='true'] .agent-activity-chevron {
   transform: rotate(90deg);
+}
+.agent-user.is-compacted,
+.agent-assistant.is-compacted {
+  opacity: 0.6;
+}
+.agent-summary {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.agent-summary-text {
+  max-height: 24rem;
+  overflow: auto;
+}
+.agent-summary-text.markdown-body :is(h1, h2, h3, h4) {
+  margin: 8px 0 4px;
+  font-size: var(--ui-caption-size);
+  font-weight: 600;
 }
 .agent-activity-detail {
   margin: 2px 0 8px 7px;

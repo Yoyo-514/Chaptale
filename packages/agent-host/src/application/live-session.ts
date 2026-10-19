@@ -9,7 +9,7 @@ import {
   modeEntryType,
   type SessionView
 } from '../protocol.ts';
-import { messageView } from './message-view.ts';
+import { messageView, transcriptView } from './message-view.ts';
 
 /** 当前请求使用的指令；创建会话前交给 SDK 回调，之后在每次发送前更新。 */
 export interface AppliedInstructions {
@@ -49,7 +49,7 @@ export class LiveSession {
       running: false,
       instructions: applied.entries,
       mode,
-      messages: session.messages.map(messageView)
+      messages: transcriptView(session.sessionManager)
     };
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
   }
@@ -130,6 +130,10 @@ export class LiveSession {
       const message = messageView(event.message);
       view.messages[index] = message;
       this.emit({ kind: 'message', id: view.id, index, message });
+    } else if (event.type === 'compaction_end' && event.result) {
+      // 压缩前的对话保留显示并标记，总结插在记录位置。
+      view.messages = transcriptView(this.session.sessionManager);
+      this.emit({ kind: 'session', session: view });
     }
   }
 }

@@ -10,7 +10,7 @@ import {
   type ReadonlyHistory
 } from '../protocol.ts';
 import { type DamagedHistory, readDamagedHistory } from '../session/session-storage.ts';
-import { messageView, type SdkMessage } from './message-view.ts';
+import { messageView, type SdkMessage, transcriptView } from './message-view.ts';
 
 /** 打开历史的结论：完整历史可继续对话；损坏或缺少记录的只能查看。 */
 export type SessionHistory =
@@ -61,7 +61,7 @@ function damagedMessages(history: DamagedHistory): { messages: ChatMessage[]; li
 }
 
 function readonlyFrom(manager: SessionManager, reason: ReadonlyHistory['reason'], message: string): SessionHistory {
-  const messages = manager.buildSessionContext().messages.map(messageView);
+  const messages = transcriptView(manager);
   return { kind: 'readonly', readonly: { reason, message, lines: [] }, messages };
 }
 

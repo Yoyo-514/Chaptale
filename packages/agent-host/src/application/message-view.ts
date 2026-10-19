@@ -1,4 +1,4 @@
-import type { AgentSession } from '@earendil-works/pi-coding-agent';
+import { type AgentSession, type SessionManager, sessionEntryToContextMessages } from '@earendil-works/pi-coding-agent';
 
 import type { ChatMessage } from '../protocol.ts';
 
@@ -9,6 +9,11 @@ export function messageView(message: SdkMessage): ChatMessage {
   const view: ChatMessage = { role: message.role, text: '', thinking: '', tools: [] };
   if ('toolName' in message) view.toolName = message.toolName;
   if ('isError' in message) view.error = message.isError;
+  // 压缩总结只有 summary，没有 content；界面只读显示。
+  if (message.role === 'compactionSummary') {
+    view.text = message.summary;
+    return view;
+  }
   if (!('content' in message)) return view;
   if (typeof message.content === 'string') {
     view.text = message.content;
@@ -21,4 +26,21 @@ export function messageView(message: SdkMessage): ChatMessage {
     else if (block.type === 'image') view.text += '\n[图片内容；当前会话界面尚不提供附件预览]\n';
   }
   return view;
+}
+
+/**
+ * 按当前分支的记录顺序列出全部消息：压缩前的对话保留显示，已不在模型上下文中的标记 compacted；
+ * 压缩总结出现在它被记录的位置。模型实际收到的内容仍由 pi 决定。
+ */
+export function transcriptView(manager: SessionManager): ChatMessage[] {
+  const inContext = new Set(manager.buildContextEntries().map(entry => entry.id));
+  return manager.getBranch().flatMap(entry =>
+    sessionEntryToContextMessages(entry)
+      .filter(message => message.role !== 'system')
+      .map(message => {
+        const view = messageView(message);
+        if (!inContext.has(entry.id)) view.compacted = true;
+        return view;
+      })
+  );
 }
