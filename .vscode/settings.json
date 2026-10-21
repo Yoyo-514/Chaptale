@@ -4,5 +4,6 @@
     "source.organizeImports": "explicit"
   },
   "scss.lint.unknownAtRules": "ignore",
-  "css.lint.unknownAtRules": "ignore"
+  "css.lint.unknownAtRules": "ignore",
+  "js/ts.experimental.useTsgo": false
 }
