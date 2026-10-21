@@ -23,9 +23,13 @@ const modelKey = computed(() =>
 );
 /** 会话用的模型可能已从配置里删掉，这时仍显示它的 ID。 */
 const modelPlaceholder = computed(() => (current.value ? `${current.value.id}（未配置）` : '选择模型'));
-const placeholder = computed(() =>
-  agent.active?.readonly ? '只读历史不能继续对话' : '写下想讨论或推进的事，Ctrl + Enter 发送'
-);
+const placeholder = computed(() => {
+  if (agent.active?.readonly) return '只读历史不能继续对话';
+  if (agent.active?.compacting) return '正在压缩，可以先写下下一条消息';
+  return agent.active?.running
+    ? 'Ctrl + Enter 插话，助手会在当前步骤后读到'
+    : '写下想讨论或推进的事，Ctrl + Enter 发送';
+});
 const modes: { value: EditMode; label: string }[] = [
   { value: 'discuss', label: '讨论' },
   { value: 'review', label: '审阅' },
@@ -100,21 +104,15 @@ function mode(value: string) {
             ><span class="i-mingcute-stop-fill size-4" aria-hidden="true"
           /></AppButton>
         </AppTooltip>
-        <AppTooltip
-          :text="
-            agent.active?.compacting ? '正在压缩' : agent.active?.running ? '插话：助手会在当前步骤后读到' : '发送'
-          "
-        >
+        <AppTooltip v-else text="发送">
           <AppButton
             class="agent-send-button"
             type="submit"
             icon
             size="sm"
             variant="primary"
-            :aria-label="agent.active?.running ? '插话' : '发送'"
-            :disabled="
-              !editable || agent.active?.compacting || !agent.draft.trim() || (!agent.active && !agent.selectedModel)
-            "
+            aria-label="发送"
+            :disabled="!editable || !agent.draft.trim() || (!agent.active && !agent.selectedModel)"
           >
             <span class="i-mingcute-send-plane-line size-4" aria-hidden="true" />
           </AppButton>

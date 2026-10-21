@@ -1,6 +1,7 @@
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -305,6 +306,140 @@ test('会话用量可用键盘查看，手动压缩走真实宿主且保留草�
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
   await page.screenshot({ path: path.join(evidence, 'usage-narrow.png') });
+});
+
+test('生成时停止原位替换发送，快捷键插话不另起请求且停止后保留草稿', async () => {
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => {
+    markStarted = resolve;
+  });
+  let requests = 0;
+  // 本地端点只挂起请求，供取消测试使用，不返回生成内容。
+  const server = createServer((request, response) => {
+    requests++;
+    request.resume();
+    response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    response.flushHeaders();
+    markStarted();
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as { port: number };
+  try {
+    await page.getByRole('button', { name: '会话', exact: true }).click();
+    await page.evaluate(async port => {
+      const host = window.chaptaleDesktop.agentHost;
+      await host.request('saveProvider', {
+        id: 'pending-local',
+        apiKey: 'offline-test',
+        config: {
+          baseUrl: `http://127.0.0.1:${port}/v1`,
+          api: 'openai-completions',
+          models: [{ id: 'pending', name: '本地挂起请求', contextWindow: 8192, maxTokens: 512 }]
+        }
+      });
+      await host.request('create', { model: { provider: 'pending-local', id: 'pending' } });
+    }, address.port);
+    await page.getByRole('button', { name: '切换会话', exact: true }).click();
+    await page.getByRole('menuitem', { name: '查看会话 1', exact: true }).click();
+    const input = page.getByLabel('消息', { exact: true });
+    const send = page.getByRole('button', { name: '发送', exact: true });
+    const stop = page.getByRole('button', { name: '停止生成', exact: true });
+    await input.fill('开始讨论');
+    const before = await send.boundingBox();
+    await send.click();
+    await started;
+    await expect(stop).toBeVisible();
+    await expect(send).toHaveCount(0);
+    const during = await stop.boundingBox();
+    expect(Math.abs(before!.x - during!.x)).toBeLessThan(1);
+    expect(Math.abs(before!.width - during!.width)).toBeLessThan(1);
+    await input.fill('补充写作要求');
+    await input.press('Control+Enter');
+    await expect(input).toHaveValue('');
+    expect(requests).toBe(1);
+    await input.fill('停止后保留的草稿');
+    const evidence = path.resolve('temp/model-selection');
+    await mkdir(evidence, { recursive: true });
+    await page.screenshot({ path: path.join(evidence, 'stop-in-place.png') });
+    await stop.click();
+    await expect(send).toBeVisible();
+    await expect(stop).toHaveCount(0);
+    await expect(input).toHaveValue('停止后保留的草稿');
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
+  }
+});
+
+test('拉取大量模型后在搜索多选下拉中确认添加，收起保留勾选且不提前保存', async () => {
+  // 只提供模型目录元数据；本用例不处理对话或伪造模型回复。
+  const server = createServer((_request, response) => {
+    response.setHeader('Content-Type', 'application/json');
+    response.end(
+      JSON.stringify({
+        data: Array.from({ length: 450 }, (_, i) => {
+          const suffix = String(i).padStart(3, '0');
+          return { id: `model-${suffix}`, displayName: `推荐模型${suffix}` };
+        })
+      })
+    );
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as { port: number };
+  try {
+    await page.getByRole('button', { name: '会话', exact: true }).click();
+    await page.getByRole('button', { name: '配置模型', exact: true }).click();
+    const settings = page.getByRole('dialog');
+    await settings.getByLabel('供应商标识', { exact: true }).fill('model-directory');
+    await settings.getByLabel('服务地址', { exact: true }).fill(`http://127.0.0.1:${address.port}/v1`);
+    await settings.getByRole('button', { name: '拉取模型列表', exact: true }).click();
+    const search = page.getByPlaceholder('搜索模型名称或 ID…', { exact: true });
+    await expect(search).toBeVisible();
+    await expect(search).toBeFocused();
+    await search.fill('model-449');
+    await expect(page.getByRole('option')).toHaveCount(1);
+    await page.getByRole('option').click();
+    await expect(search).toBeVisible();
+    await expect(page.getByRole('option')).toHaveAttribute('aria-selected', 'true');
+    await settings.getByRole('heading', { name: '连接', exact: true }).click();
+    await expect(search).toBeHidden();
+    await settings.getByRole('button', { name: '选择要添加的模型', exact: true }).click();
+    await expect(page.getByRole('option')).toHaveAttribute('aria-selected', 'true');
+    await search.fill('推荐模型001');
+    await expect(page.getByRole('option')).toHaveCount(1);
+    await search.press('ArrowDown');
+    await search.press('Enter');
+    await expect(page.getByText('已选 2 个', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => window.chaptaleDesktop.agentHost.request('providers', undefined))).toEqual([]);
+    const evidence = path.resolve('temp/model-selection');
+    await mkdir(evidence, { recursive: true });
+    await page.screenshot({ path: path.join(evidence, 'selected.png') });
+    await page.getByRole('button', { name: '添加所选', exact: true }).click();
+    await expect(search).toBeHidden();
+    await settings.getByRole('button', { name: '选择要添加的模型', exact: true }).click();
+    await search.fill('model-449');
+    await expect(page.getByRole('option')).toHaveCount(0);
+    await expect(page.getByText('没有匹配项', { exact: true })).toBeVisible();
+    await search.fill('推荐模型');
+    await expect(page.getByRole('option')).toHaveCount(448);
+    await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 760));
+    const popup = page.locator('.app-combobox-content');
+    const bounds = await popup.boundingBox();
+    expect(bounds!.width).toBeGreaterThan(250);
+    expect(bounds!.height).toBeLessThan(450);
+    await page.screenshot({ path: path.join(evidence, 'narrow.png') });
+    await search.press('Escape');
+    await settings.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(settings.getByRole('status')).toContainText('已保存');
+    const providers = await page.evaluate(() => window.chaptaleDesktop.agentHost.request('providers', undefined));
+    expect(providers[0].config.models).toEqual([
+      { id: 'model-001', name: '推荐模型001' },
+      { id: 'model-449', name: '推荐模型449' }
+    ]);
+    await expect(settings.getByRole('button', { name: '选择要添加的模型', exact: true })).toHaveCount(0);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
+  }
 });
 
 test('真实子进程退出会通知界面，重新连接只读快照', async () => {

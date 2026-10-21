@@ -697,6 +697,59 @@ it('重载期间再次修改指令，在下一次发送生效而不是被丢弃'
   expect(session.systemPrompt).toContain('重载期间再次修改');
 });
 
+it('生成中发送通过原生插话队列接收，空消息被拒绝且其他会话保持空闲', async () => {
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => {
+    markStarted = resolve;
+  });
+  options.modelRuntime.registerProvider(capture.provider, {
+    baseUrl: 'http://127.0.0.1:9',
+    apiKey: 'offline-capture',
+    api: 'application-capture',
+    models: [{ id: capture.id, ...offlineModel }],
+    streamSimple: (target, _context, request) => {
+      const stream = createAssistantMessageEventStream();
+      // 真实 SDK 请求保持未完成，取消时返回错误，不生成模型回复。
+      request?.signal?.addEventListener(
+        'abort',
+        () =>
+          stream.push({
+            type: 'error',
+            reason: 'aborted',
+            error: {
+              role: 'assistant',
+              content: [],
+              api: target.api,
+              provider: target.provider,
+              model: target.id,
+              usage: zeroUsage,
+              stopReason: 'aborted',
+              errorMessage: '离线请求已取消',
+              timestamp: Date.now()
+            }
+          }),
+        { once: true }
+      );
+      markStarted();
+      return stream;
+    }
+  });
+  const id = await create(undefined, capture);
+  const other = await create();
+  await app.execute({ method: 'prompt', input: { id, text: '开始写作' } });
+  await started;
+  try {
+    await app.execute({ method: 'prompt', input: { id, text: '先停在第三章' } });
+    await expect(app.execute({ method: 'prompt', input: { id, text: '  ' } })).rejects.toThrow('消息不能为空');
+    expect(app.liveSession(id)!.getSteeringMessages()).toEqual(['先停在第三章']);
+    expect(view(id).running).toBe(true);
+    expect(view(other).running).toBe(false);
+  } finally {
+    await app.execute({ method: 'cancel', input: { id } });
+  }
+  expect(view(id).running).toBe(false);
+});
+
 it('已经结束的授权请求不能被批准', async () => {
   await expect(app.execute({ method: 'approve', input: { id: 'finished', allow: true } })).rejects.toThrow(
     '授权请求已结束'

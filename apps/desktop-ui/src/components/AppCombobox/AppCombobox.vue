@@ -11,7 +11,7 @@ import {
   ComboboxTrigger,
   ComboboxViewport
 } from 'reka-ui';
-import { computed, inject, useAttrs } from 'vue';
+import { computed, inject, nextTick, ref, useAttrs, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useOverlayLayer } from '@/composables';
@@ -23,14 +23,31 @@ defineOptions({ inheritAttrs: false });
 const props = withDefaults(
   defineProps<{
     modelValue?: string;
+    /** 提供数组时使用多选下拉；搜索文字与选中值分开保存。 */
+    selectedValues?: string[];
+    searchPlaceholder?: string;
     options: Array<{ value: string; label: string; description?: string }>;
     disabled?: boolean;
     invalid?: boolean;
     placeholder?: string;
   }>(),
-  { modelValue: '', disabled: false, invalid: false, placeholder: undefined }
+  { modelValue: '', disabled: false, invalid: false, placeholder: undefined, searchPlaceholder: '搜索选项…' }
 );
-const emit = defineEmits<{ 'update:modelValue': [value: string]; select: [value: string] }>();
+const open = defineModel<boolean>('open', { default: false });
+const emit = defineEmits<{
+  'update:modelValue': [value: string];
+  'update:selectedValues': [value: string[]];
+  select: [value: string];
+}>();
+const multiple = computed(() => props.selectedValues !== undefined);
+const search = ref('');
+const searchInput = ref<InstanceType<typeof ComboboxInput>>();
+watch(open, async value => {
+  if (value && multiple.value) {
+    await nextTick();
+    searchInput.value?.$el.focus();
+  }
+});
 const attrs = useAttrs();
 const form = inject(appFormContextKey, undefined);
 const disabled = computed(() => props.disabled || form?.disabled.value === true);
@@ -42,17 +59,23 @@ const inputAttrs = computed(() => {
 const layer = useOverlayLayer();
 const options = computed(() => {
   const selected = props.options.find(option => option.value === props.modelValue);
-  const query = props.modelValue.toLocaleLowerCase().replace(/^\[\[|\]\]$/g, '');
-  const filtered = selected
-    ? props.options
-    : props.options.filter(option =>
-        `${option.label} ${option.value} ${option.description ?? ''}`.toLocaleLowerCase().includes(query)
-      );
+  const query = (multiple.value ? search.value : props.modelValue).toLocaleLowerCase().replace(/^\[\[|\]\]$/g, '');
+  const filtered =
+    selected && !multiple.value
+      ? props.options
+      : props.options.filter(option =>
+          `${option.label} ${option.value} ${option.description ?? ''}`.toLocaleLowerCase().includes(query)
+        );
+  if (multiple.value) return filtered;
   const visible = filtered.slice(0, 200);
   if (selected && !visible.includes(selected)) return [selected, ...visible.slice(0, 199)];
   return visible;
 });
 function choose(value: unknown) {
+  if (Array.isArray(value)) {
+    emit('update:selectedValues', value.map(String));
+    return;
+  }
   const selected = String(value ?? '');
   emit('update:modelValue', selected);
   emit('select', selected);
@@ -60,7 +83,9 @@ function choose(value: unknown) {
 </script>
 <template>
   <ComboboxRoot
-    :model-value="modelValue"
+    v-model:open="open"
+    :model-value="selectedValues ?? modelValue"
+    :multiple="multiple"
     :disabled="disabled"
     ignore-filter
     open-on-click
@@ -69,6 +94,28 @@ function choose(value: unknown) {
     @update:model-value="choose"
   >
     <ComboboxAnchor
+      v-if="multiple"
+      class="app-combobox-multiple-anchor"
+      :class="attrs.class"
+      :style="attrs.style"
+      data-slot="app-combobox"
+    >
+      <ComboboxTrigger as-child>
+        <AppButton
+          v-bind="inputAttrs"
+          type="button"
+          variant="outline"
+          :disabled="disabled"
+          :aria-invalid="invalid || undefined"
+        >
+          {{ placeholder || '选择选项' }}
+          <span v-if="selectedValues?.length">（已选 {{ selectedValues.length }} 项）</span>
+          <span class="i-mingcute-down-line size-4" aria-hidden="true" />
+        </AppButton>
+      </ComboboxTrigger>
+    </ComboboxAnchor>
+    <ComboboxAnchor
+      v-else
       :class="cn('app-combobox-anchor', attrs.class)"
       :style="attrs.style"
       :data-disabled="disabled || undefined"
@@ -101,10 +148,20 @@ function choose(value: unknown) {
     <ComboboxPortal>
       <ComboboxContent
         class="app-combobox-content"
+        :class="{ 'app-combobox-content-multiple': multiple }"
         position="popper"
+        align="start"
         :side-offset="6"
         :style="{ zIndex: `var(--z-${layer})` }"
       >
+        <ComboboxInput
+          v-if="multiple"
+          ref="searchInput"
+          v-model="search"
+          class="app-combobox-input app-combobox-search"
+          :placeholder="searchPlaceholder"
+          :aria-label="searchPlaceholder"
+        />
         <ComboboxViewport class="app-combobox-viewport">
           <ComboboxEmpty class="app-combobox-empty">没有匹配项</ComboboxEmpty>
           <ComboboxItem v-for="option in options" :key="option.value" :value="option.value" class="app-combobox-item">
@@ -117,6 +174,7 @@ function choose(value: unknown) {
             /></ComboboxItemIndicator>
           </ComboboxItem>
         </ComboboxViewport>
+        <div v-if="$slots.footer" class="app-combobox-footer"><slot name="footer" /></div>
       </ComboboxContent>
     </ComboboxPortal>
   </ComboboxRoot>
@@ -156,6 +214,26 @@ function choose(value: unknown) {
   border-color: var(--border-subtle);
   border-radius: var(--radius-control);
   color: var(--foreground);
+}
+.app-combobox-multiple-anchor {
+  width: fit-content;
+  max-width: 100%;
+}
+.app-combobox-content-multiple {
+  width: max(20rem, var(--reka-combobox-trigger-width));
+}
+.app-combobox-search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.app-combobox-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--ui-caption-size);
 }
 .app-combobox-viewport {
   max-height: min(var(--reka-combobox-content-available-height, 16rem), 16rem);

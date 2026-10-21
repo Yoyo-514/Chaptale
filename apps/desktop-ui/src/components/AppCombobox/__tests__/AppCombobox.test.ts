@@ -80,6 +80,65 @@ describe('AppCombobox', () => {
     expect(document.querySelector('[role="option"]')?.textContent).toContain('人物449');
   });
 
+  it('多选下拉按名称与标识搜索，收起重开保留选择并通过页脚确认', async () => {
+    const selected = ref<string[]>([]);
+    const open = ref(false);
+    wrapper = mount(
+      defineComponent({
+        setup: () => () =>
+          h(
+            AppCombobox,
+            {
+              selectedValues: selected.value,
+              open: open.value,
+              options,
+              placeholder: '选择来源',
+              'aria-label': '选择来源',
+              'onUpdate:selectedValues': (values: string[]) => {
+                selected.value = values;
+              },
+              'onUpdate:open': (value: boolean) => {
+                open.value = value;
+              }
+            },
+            {
+              footer: () =>
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: () => {
+                      open.value = false;
+                    }
+                  },
+                  `确认 ${selected.value.length} 项`
+                )
+            }
+          )
+      }),
+      { attachTo: document.body }
+    );
+    expect(document.querySelector('[role="option"]')).toBeNull();
+    await wrapper.get('button').trigger('click');
+    await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]')).toHaveLength(2));
+    (document.querySelector('[role="option"]') as HTMLElement).click();
+    await vi.waitFor(() => expect(selected.value).toEqual(['[[角色/林晚.md]]']));
+    expect(open.value).toBe(true);
+    const search = document.querySelector<HTMLInputElement>('input[placeholder="搜索选项…"]')!;
+    search.value = '角色/沈';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]')).toHaveLength(1));
+    (document.querySelector('[role="option"]') as HTMLElement).click();
+    await vi.waitFor(() => expect(selected.value).toHaveLength(2));
+    const confirm = [...document.querySelectorAll('button')].find(button => button.textContent === '确认 2 项')!;
+    confirm.click();
+    await flushPromises();
+    expect(open.value).toBe(false);
+    await wrapper.get('button').trigger('click');
+    await vi.waitFor(() => expect(document.querySelector('[role="option"][data-state="checked"]')).not.toBeNull());
+    expect(selected.value).toEqual(['[[角色/林晚.md]]', '[[角色/沈舟.md]]']);
+  });
+
   it('继承表单禁用状态并将错误与标签属性传到输入框', () => {
     wrapper = mount(AppForm, {
       props: { disabled: true },

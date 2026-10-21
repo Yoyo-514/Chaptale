@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 
 import type { DiscoveredModel, NativeModel, NativeProvider, ProviderView } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppCollapsible } from '@/components/AppCollapsible';
+import { AppCombobox } from '@/components/AppCombobox';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppForm } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
@@ -34,6 +35,8 @@ const apiKey = ref('');
 const json = ref('');
 const jsonOpen = ref(false);
 const discovered = ref<DiscoveredModel[]>([]);
+const selectedModels = ref<string[]>([]);
+const candidatesOpen = ref(false);
 /** 展开中的模型条目；新手动添加的模型默认展开。 */
 const expanded = ref(new Set<NativeModel>());
 const loading = ref(true);
@@ -45,6 +48,13 @@ const status = ref('');
 const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const models = computed(() => config.value.models ?? []);
 const candidates = computed(() => discovered.value.filter(item => !models.value.some(model => model.id === item.id)));
+const candidateOptions = computed(() =>
+  candidates.value.map(item => ({
+    value: item.id,
+    label: item.name,
+    description: item.name !== item.id ? item.id : undefined
+  }))
+);
 /** 正在生成内容的模型不能删除，宿主同样会拒绝。 */
 const running = computed(
   () =>
@@ -63,6 +73,8 @@ function edit(provider?: ProviderView) {
   config.value = provider ? plain(provider.config) : { api: 'openai-completions', models: [] };
   apiKey.value = '';
   discovered.value = [];
+  selectedModels.value = [];
+  candidatesOpen.value = false;
   expanded.value = new Set();
   jsonOpen.value = false;
   error.value = '';
@@ -136,8 +148,9 @@ function removeProvider() {
   });
 }
 
-function discover() {
-  return run('discover', async () => {
+async function discover() {
+  candidatesOpen.value = false;
+  await run('discover', async () => {
     discovered.value = await host().request('discoverModels', {
       id: current.value?.id,
       baseUrl: config.value.baseUrl ?? '',
@@ -145,15 +158,22 @@ function discover() {
       headers: config.value.headers && plain(config.value.headers),
       apiKey: apiKey.value || undefined
     });
+    selectedModels.value = selectedModels.value.filter(id => candidates.value.some(item => item.id === id));
     if (!candidates.value.length) status.value = '没有可添加的新模型。';
   });
+  // 请求结束后表单解除禁用，再打开下拉让搜索输入框获得焦点。
+  await nextTick();
+  if (!error.value && candidates.value.length) candidatesOpen.value = true;
 }
 
-function addModels(items: DiscoveredModel[]) {
+function addSelectedModels() {
+  const items = candidates.value.filter(item => selectedModels.value.includes(item.id));
   config.value.models = [
     ...models.value,
     ...items.map(item => (item.name === item.id ? { id: item.id } : { id: item.id, name: item.name }))
   ];
+  selectedModels.value = [];
+  candidatesOpen.value = false;
 }
 
 function addManual() {
@@ -186,6 +206,7 @@ function setInput(model: NativeModel, image: boolean) {
             :key="provider.id"
             type="button"
             class="model-list-item"
+            :disabled="!!pending"
             :aria-current="current?.id === provider.id ? 'true' : undefined"
             @click="edit(provider)"
           >
@@ -193,7 +214,7 @@ function setInput(model: NativeModel, image: boolean) {
             ><small>{{ provider.config.models?.length ?? 0 }} 个模型</small>
           </button>
           <p v-if="loading" class="agent-empty-small">正在读取模型…</p>
-          <AppButton type="button" variant="ghost" :disabled="loading" @click="edit()"
+          <AppButton type="button" variant="ghost" :disabled="loading || !!pending" @click="edit()"
             ><span class="i-mingcute-add-line size-4" aria-hidden="true" />添加供应商</AppButton
           >
         </nav></AppScrollArea
@@ -273,17 +294,27 @@ function setInput(model: NativeModel, image: boolean) {
                 ><AppButton type="button" variant="ghost" size="sm" @click="addManual">手动添加</AppButton>
               </span>
             </header>
-            <div v-if="candidates.length" class="model-candidates" aria-label="可添加的模型">
-              <AppButton
-                v-for="item in candidates"
-                :key="item.id"
-                type="button"
-                variant="outline"
-                size="sm"
-                @click="addModels([item])"
-                ><span class="i-mingcute-add-line size-3.5" aria-hidden="true" />{{ item.name }}</AppButton
-              ><AppButton type="button" variant="ghost" size="sm" @click="addModels(candidates)">全部添加</AppButton>
-            </div>
+            <AppCombobox
+              v-if="candidates.length"
+              v-model:selected-values="selectedModels"
+              v-model:open="candidatesOpen"
+              :options="candidateOptions"
+              placeholder="选择要添加的模型"
+              aria-label="选择要添加的模型"
+              search-placeholder="搜索模型名称或 ID…"
+            >
+              <template #footer>
+                <span>已选 {{ selectedModels.length }} 个</span>
+                <AppButton
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  :disabled="!selectedModels.length"
+                  @click="addSelectedModels"
+                  >添加所选</AppButton
+                >
+              </template>
+            </AppCombobox>
             <p v-if="!models.length" class="agent-field-help">还没有模型。拉取模型列表，或手动添加模型 ID。</p>
             <AppCollapsible
               v-for="(model, index) in models"

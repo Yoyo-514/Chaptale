@@ -56,10 +56,16 @@ export class LiveSession {
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
   }
 
-  prompt(text: string): void {
+  async prompt(text: string): Promise<void> {
     const { view } = this;
-    if (view.running) throw new Error('该会话正在运行，请等待结束或停止后再发送');
     if (!text.trim()) throw new Error('消息不能为空');
+    if (view.compacting) throw new Error('该会话正在运行压缩，请等待结束或停止后再发送');
+    if (view.running) {
+      // 重载与停止尚未进入可插话的生成阶段，失败交由界面保留草稿。
+      if (this.cancelled || !this.session.isStreaming) throw new Error('会话正在启动或停止，请稍后再发送');
+      await this.session.steer(text);
+      return;
+    }
     this.cancelled = false;
     view.running = true;
     delete view.error;
