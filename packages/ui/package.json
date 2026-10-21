@@ -1,0 +1,25 @@
+{
+  "name": "@chaptale/ui",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./client": {
+      "types": "./dist/client/connection.d.ts",
+      "default": "./src/client/connection.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json",
+    "test": "cd ../.. && vitest run --config vitest.config.ts --project ui-client"
+  },
+  "dependencies": {
+    "@chaptale/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -9,10 +9,6 @@
       "types": "./dist/protocol.d.ts",
       "default": "./src/protocol.ts"
     },
-    "./transport": {
-      "types": "./dist/application/connection.d.ts",
-      "default": "./src/application/connection.ts"
-    },
     "./application": {
       "types": "./dist/application/index.d.ts",
       "default": "./src/application/index.ts"
@@ -31,6 +27,7 @@
     "test:live:electron": "node scripts/verify-live-session.mjs --electron-host"
   },
   "dependencies": {
+    "@chaptale/contracts": "workspace:*",
     "@earendil-works/pi-coding-agent": "catalog:"
   },
   "devDependencies": {

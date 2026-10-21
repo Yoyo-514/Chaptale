@@ -1,8 +1,19 @@
 import type Database from 'better-sqlite3';
 
-import type { Document, DraftState, Entry, RecoveryDraft, Revision, Work } from '../contracts.ts';
-import type { CreationRepository } from '../repository.ts';
-import { commitCommand, readCommandReceipt } from './commands.ts';
+import type { CommandCommit, CommitEffect, CreationRepository } from '@chaptale/creation';
+import type {
+  CreationChanges,
+  CreationCursor,
+  CreationSnapshot,
+  Document,
+  DraftState,
+  Entry,
+  RecoveryDraft,
+  Revision,
+  Work
+} from '@chaptale/creation/contracts';
+
+import { commitCommand, readChanges, readCommandReceipt, readCursor } from './commands.ts';
 import { openLibrary, openWorkDatabase } from './database.ts';
 
 export async function openCreationStorage(options: { rootDir: string }): Promise<CreationRepository> {
@@ -23,12 +34,30 @@ class SqliteCreationRepository implements CreationRepository {
     return this.library.transaction(apply)();
   }
 
-  libraryCommand<T>(commandId: string, parameters: readonly unknown[], apply: () => T): T {
-    return commitCommand(this.library, commandId, parameters, apply);
+  command<T extends Work | Entry>(
+    workId: string | null,
+    commandId: string,
+    parameters: readonly unknown[],
+    effect: CommitEffect,
+    apply: () => T
+  ): CommandCommit<T> {
+    const database = workId === null ? this.library : this.useWork(workId);
+    return commitCommand(database, workId, commandId, parameters, effect, apply);
   }
 
-  workCommand<T>(workId: string, commandId: string, parameters: readonly unknown[], apply: () => T): T {
-    return commitCommand(this.useWork(workId), commandId, parameters, apply);
+  snapshot(workId: string | null): CreationSnapshot {
+    const database = workId === null ? this.library : this.useWork(workId);
+    return database.transaction((): CreationSnapshot => {
+      const cursor = readCursor(database, workId);
+      return workId === null
+        ? { kind: 'library', cursor, works: this.listWorks() }
+        : { kind: 'work', workId, cursor, entries: this.listEntries(workId) };
+    })();
+  }
+
+  readChanges(cursor: CreationCursor, limit: number): CreationChanges {
+    const database = cursor.workId === null ? this.library : this.useWork(cursor.workId);
+    return readChanges(database, cursor, limit);
   }
 
   readWorkReceipt<T>(workId: string, commandId: string, parameters: readonly unknown[]): T | undefined {
@@ -85,6 +114,27 @@ class SqliteCreationRepository implements CreationRepository {
     `)
       .run(document);
     this.insertRevision(database, revision);
+  }
+
+  updateDirectory(workId: string, entry: Entry, revision: Revision): void {
+    const database = this.useWork(workId);
+    database
+      .prepare('UPDATE entries SET title = @title, revisionId = @revisionId, updatedAt = @updatedAt WHERE id = @id')
+      .run(entry);
+    this.insertRevision(database, revision);
+  }
+
+  relocateEntry(workId: string, entry: Entry, parentId: string | null, position: number): void {
+    const database = this.useWork(workId);
+    database
+      .prepare('UPDATE entries SET position = position - 1 WHERE section = ? AND parentId IS ? AND position > ?')
+      .run(entry.section, entry.parentId, entry.position);
+    database
+      .prepare(
+        'UPDATE entries SET position = position + 1 WHERE section = ? AND parentId IS ? AND position >= ? AND id != ?'
+      )
+      .run(entry.section, parentId, position, entry.id);
+    database.prepare('UPDATE entries SET parentId = ?, position = ? WHERE id = ?').run(parentId, position, entry.id);
   }
 
   listEntries(workId: string): Entry[] {

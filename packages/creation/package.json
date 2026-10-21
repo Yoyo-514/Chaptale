@@ -13,24 +13,22 @@
       "types": "./dist/contracts.d.ts",
       "default": "./src/contracts.ts"
     },
-    "./storage": {
-      "types": "./dist/storage/index.d.ts",
-      "default": "./src/storage/index.ts"
+    "./application": {
+      "types": "./dist/application.d.ts",
+      "default": "./src/application.ts"
     }
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",
-    "typecheck": "tsc -b tsconfig.json",
-    "test": "cd ../.. && vitest run --config vitest.config.ts --project creation"
+    "typecheck": "tsc -b tsconfig.json"
   },
   "dependencies": {
+    "@chaptale/contracts": "workspace:*",
     "@chaptale/shared": "workspace:*",
-    "better-sqlite3": "catalog:"
+    "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   }
 }

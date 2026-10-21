@@ -28,6 +28,7 @@
     "@chaptale/agent-host": "workspace:*",
     "@chaptale/ipc-contract": "workspace:*",
     "@chaptale/shared": "workspace:*",
+    "@chaptale/ui": "workspace:*",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@mozilla/readability": "catalog:",
     "@node-rs/jieba": "catalog:",

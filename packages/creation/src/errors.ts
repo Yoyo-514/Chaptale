@@ -6,7 +6,7 @@ export class RevisionConflictError extends Error {
   readonly actualRevisionId: string;
 
   constructor(expectedRevisionId: string, actualRevisionId: string) {
-    super('文稿已有新修订，请比较后再保存');
+    super('内容已有新修订，请比较后再保存');
     this.name = 'RevisionConflictError';
     this.expectedRevisionId = expectedRevisionId;
     this.actualRevisionId = actualRevisionId;
@@ -18,6 +18,28 @@ export class RevisionConflictError extends Error {
       message: this.message,
       expectedRevisionId: this.expectedRevisionId,
       actualRevisionId: this.actualRevisionId
+    };
+  }
+}
+
+export class EntryLocationConflictError extends Error {
+  readonly code = 'entry-location-conflict';
+  readonly actualParentId: string | null;
+  readonly actualPosition: number;
+
+  constructor(actualParentId: string | null, actualPosition: number) {
+    super('目录位置已变化，请刷新后再移动');
+    this.name = 'EntryLocationConflictError';
+    this.actualParentId = actualParentId;
+    this.actualPosition = actualPosition;
+  }
+
+  toJSON(): CreationError {
+    return {
+      code: this.code,
+      message: this.message,
+      actualParentId: this.actualParentId,
+      actualPosition: this.actualPosition
     };
   }
 }

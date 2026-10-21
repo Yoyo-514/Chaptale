@@ -2,7 +2,9 @@ import { utilityProcess, type UtilityProcess } from 'electron';
 
 import type { HostBootstrapOptions } from '@chaptale/agent-host/application';
 import type { AgentClient, HostCommands, HostEvent, HostPacket } from '@chaptale/agent-host/protocol';
-import { HostConnection } from '@chaptale/agent-host/transport';
+import { RpcConnection } from '@chaptale/ui/client';
+
+type AgentConnection = RpcConnection<HostCommands, HostEvent>;
 
 export interface AgentProcessOptions extends HostBootstrapOptions {
   script: string;
@@ -14,7 +16,7 @@ export class DesktopAgentProcess implements AgentClient {
   private readonly listeners = new Set<(event: HostEvent) => void>();
   private readonly exits = new Set<(message: string) => void>();
   private child?: UtilityProcess;
-  private connection?: Promise<HostConnection>;
+  private connection?: Promise<AgentConnection>;
   private exited?: Promise<void>;
   private disposed = false;
 
@@ -41,7 +43,7 @@ export class DesktopAgentProcess implements AgentClient {
     return () => this.exits.delete(listener);
   }
 
-  private connect(): Promise<HostConnection> {
+  private connect(): Promise<AgentConnection> {
     if (this.connection) return this.connection;
     const allowed = new Set([
       'path',
@@ -63,14 +65,14 @@ export class DesktopAgentProcess implements AgentClient {
       stdio: 'pipe'
     });
     this.child = child;
-    const client = new HostConnection(request => {
+    const client = new RpcConnection<HostCommands, HostEvent>(request => {
       // oxlint-disable-next-line unicorn/require-post-message-target-origin
       child.postMessage(request);
     });
     client.subscribe(event => {
       for (const listener of this.listeners) listener(event);
     });
-    this.connection = new Promise<HostConnection>((resolve, reject) => {
+    this.connection = new Promise<AgentConnection>((resolve, reject) => {
       child.on('message', (packet: HostPacket | { type: 'ready' } | { type: 'failed'; error: string }) => {
         if (packet.type === 'ready') resolve(client);
         else if (packet.type === 'failed') reject(new Error(packet.error));

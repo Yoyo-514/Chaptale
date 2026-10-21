@@ -33,7 +33,7 @@
 - `snapshot()` 和 `subscribe()` 提供界面投影与进程内游标；重连读取快照。空会话遵循 SDK 首条 user/assistant 消息前不落盘的行为。
 - `dispose()` 停止接收命令、取消活动会话并释放会话池；平台随后回收宿主进程。
 
-`@chaptale/agent-host/protocol` 提供纯传输契约和持久化记录常量；`/transport` 提供 `HostConnection` 请求关联与事件转发。桌面构建将 pi SDK 外置，因此桌面包保留 SDK 运行依赖，供构建后的 worker 解析。
+`@chaptale/agent-host/protocol` 提供 Agent 契约和持久化记录常量，传输信封复用 `@chaptale/contracts`。应用客户端使用 `@chaptale/ui/client` 的 `RpcConnection` 关联请求并转发事件。桌面构建将 pi SDK 外置，因此桌面包保留 SDK 运行依赖，供构建后的 worker 解析。
 
 ## 底层会话 API 的默认行为与边界
 

@@ -1,3 +1,5 @@
+import type { RpcClient, RpcCommand, RpcPacket, RpcReply, RpcRequest } from '@chaptale/contracts';
+
 /**
  * 原生 JSONL 中保存会话指令与修改模式的自定义记录类型。
  * 这是持久化格式标识，属于存储契约；宿主与历史恢复必须使用同一常量。
@@ -170,9 +172,7 @@ export interface HostCommands {
   deleteNamedInstructions: { input: { name: string }; output: void };
   defaultMode: { input: { mode: EditMode }; output: void };
 }
-export type HostCommand = {
-  [K in keyof HostCommands]: { method: K; input: HostCommands[K]['input'] };
-}[keyof HostCommands];
+export type HostCommand = RpcCommand<HostCommands>;
 export type HostChange =
   | { kind: 'session'; session: SessionView }
   | { kind: 'message'; id: string; index: number; message: ChatMessage }
@@ -185,13 +185,7 @@ export type HostChange =
   | { kind: 'models'; models: ModelChoice[] }
   | { kind: 'settings'; settings: HostSettings };
 export type HostEvent = HostChange & { cursor: number };
-export interface HostRequest {
-  id: string;
-  command: HostCommand;
-}
-export type HostReply = { id: string; ok: true; value: unknown } | { id: string; ok: false; error: string };
-export type HostPacket = { type: 'event'; event: HostEvent } | { type: 'reply'; reply: HostReply };
-export interface AgentClient {
-  request<K extends keyof HostCommands>(method: K, input: HostCommands[K]['input']): Promise<HostCommands[K]['output']>;
-  subscribe(listener: (event: HostEvent) => void): () => void;
-}
+export type HostRequest = RpcRequest<HostCommands>;
+export type HostReply = RpcReply;
+export type HostPacket = RpcPacket<HostEvent>;
+export type AgentClient = RpcClient<HostCommands, HostEvent>;

@@ -5,8 +5,16 @@ import { defineConfig, defineProject } from 'vitest/config';
 export const vitestProjects = [
   defineProject({
     test: {
-      name: 'creation',
-      root: './packages/creation',
+      name: 'ui-client',
+      root: './packages/ui',
+      environment: 'node',
+      include: ['src/**/*.test.ts']
+    }
+  }),
+  defineProject({
+    test: {
+      name: 'storage',
+      root: './packages/storage',
       environment: 'node',
       include: ['src/**/*.test.ts']
     }
@@ -72,6 +80,8 @@ export default defineConfig({
         'apps/desktop-ui/src/{features,components,composables,utils}/**/*.ts',
         'packages/shared/src/**/*.ts',
         'packages/creation/src/**/*.ts',
+        'packages/storage/src/**/*.ts',
+        'packages/ui/src/**/*.ts',
         'packages/agent-host/src/**/*.ts'
       ],
       exclude: [

@@ -27,7 +27,7 @@
   ],
   "overrides": [
     {
-      "files": ["packages/creation/src/**/*.ts", "packages/agent-host/src/**/*.ts"],
+      "files": ["packages/creation/src/**/*.ts", "packages/agent-host/src/**/*.ts", "packages/storage/src/**/*.ts"],
       "rules": {
         "import/no-cycle": ["error", { "ignoreExternal": true, "ignoreTypes": false }],
         "no-restricted-imports": [
@@ -47,7 +47,7 @@
       }
     },
     {
-      "files": ["packages/creation/src/{service,drafts,repository,errors,index}.ts"],
+      "files": ["packages/creation/src/{service,drafts,repository,errors,index,application}.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -59,7 +59,8 @@
               "**/apps/**",
               "better-sqlite3",
               "./storage/**",
-              "@chaptale/creation/storage",
+              "@chaptale/storage",
+              "@chaptale/storage/**",
               "@chaptale/agent-host*",
               "@chaptale/agent-host/**",
               "@earendil-works/**"
@@ -69,7 +70,7 @@
       }
     },
     {
-      "files": ["packages/creation/src/contracts.ts"],
+      "files": ["packages/creation/src/contracts.ts", "packages/contracts/src/**/*.ts", "packages/ui/src/client/*.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -80,6 +81,9 @@
               "electron",
               "vue",
               "better-sqlite3",
+              "@chaptale/storage",
+              "@chaptale/storage/**",
+              "@chaptale/creation/application",
               "@chaptale/desktop*",
               "**/apps/**",
               "@chaptale/agent-host*",

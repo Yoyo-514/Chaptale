@@ -17,9 +17,12 @@ Chaptale 是面向小说与剧本的跨平台创作 IDE，正在重建为由 pi 
 | 路径                  | 包名                     | 职责                                                                                   |
 | --------------------- | ------------------------ | -------------------------------------------------------------------------------------- |
 | `packages/agent-host` | `@chaptale/agent-host`   | Node 宿主内的 pi SDK 接入：模型运行时、原生会话池、工具授权、应用会话入口与传输协议。  |
-| `packages/creation`   | `@chaptale/creation`     | 跨平台作品业务与 SQLite 存储；纯契约从 `/contracts` 导出，存储由启动代码注入。         |
-| `packages/ipc`        | `@chaptale/ipc-contract` | Electron 主进程与界面之间的 IPC 契约。                                                 |
-| `packages/shared`     | `@chaptale/shared`       | 跨端共享的领域类型与工具。                                                             |
+| `packages/creation`   | `@chaptale/creation`     | 作品业务、作者应用入口与仓储接口；纯契约从 `/contracts` 导出。                         |
+| `packages/storage`    | `@chaptale/storage`      | SQLite 连接、schema、事务、仓储实现与真实存储集成测试。                                |
+| `packages/contracts`  | `@chaptale/contracts`    | 跨平台公共传输信封与客户端接口类型。                                                   |
+| `packages/ui`         | `@chaptale/ui`           | 应用客户端；`/client` 提供请求关联与事件转发。                                         |
+| `packages/ipc`        | `@chaptale/ipc-contract` | 待清退的旧 IPC 契约；业务契约按职责归位，Electron 桥接归桌面平台，旧功能契约随替换删除。 |
+| `packages/shared`     | `@chaptale/shared`       | 待按职责归位的旧类型与工具；停止新增职责，清空后移除。                                 |
 | `apps/desktop`        | `@chaptale/desktop`      | Electron 主进程与打包；用 `utilityProcess` 运行 agent-host（`src/main/agent-host/`）。 |
 | `apps/desktop-ui`     | `@chaptale/desktop-ui`   | Vue 界面（Renderer），不得导入 agent-host 的 Node 运行时代码，只能使用 `/protocol`。   |
 | `docs/`               | —                        | VitePress 用户手册，按实际界面与实现编写。                                             |
@@ -28,7 +31,7 @@ Chaptale 是面向小说与剧本的跨平台创作 IDE，正在重建为由 pi 
 
 agent-host 子路径入口：`.`（会话池与模型运行时）、`./application`（`HostApplication` 与通用 Node 启动装配）、`./protocol`（纯类型与持久化常量，无 Node 依赖）。
 
-creation 子路径入口：`.`（作品服务与存储接口）、`./contracts`（纯数据契约）、`./storage`（SQLite 装配）。业务通过 `CreationRepository` 访问存储，Renderer 只使用 `/contracts`；依赖方向与循环依赖由 oxlint 检查。
+creation 子路径入口：`.`（作品服务与仓储接口）、`./contracts`（纯数据契约）、`./application`（作者请求入口）。`@chaptale/storage` 导出 `openCreationStorage`，实现 creation 定义的 `CreationRepository`，由启动代码注入。Renderer 只使用业务纯契约与应用客户端；依赖方向与循环依赖由 oxlint 检查。
 
 ## 环境与命令
 
@@ -44,7 +47,8 @@ pnpm format:check
 pnpm lint
 pnpm typecheck                     # 怀疑缓存时改用 pnpm exec turbo run typecheck --force
 pnpm --filter @chaptale/agent-host test
-pnpm --filter @chaptale/creation test
+pnpm --filter @chaptale/storage test
+pnpm --filter @chaptale/ui test
 pnpm test:unit                     # 全仓单测，较慢
 ```
 
