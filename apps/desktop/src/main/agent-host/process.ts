@@ -1,15 +1,11 @@
 import { utilityProcess, type UtilityProcess } from 'electron';
 
+import type { HostBootstrapOptions } from '@chaptale/agent-host/application';
 import type { AgentClient, HostCommands, HostEvent, HostPacket } from '@chaptale/agent-host/protocol';
 import { HostConnection } from '@chaptale/agent-host/transport';
 
-export interface AgentProcessOptions {
+export interface AgentProcessOptions extends HostBootstrapOptions {
   script: string;
-  cwd: string;
-  agentDir: string;
-  configDir: string;
-  sessionDir: string;
-  settingsFile: string;
 }
 
 /** 一个桌面宿主进程；窗口只订阅它，切换或卸载视图不会停止会话。 */

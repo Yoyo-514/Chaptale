@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { countDocumentWords } from '../word-count';
+import { countDocumentWords } from '@chaptale/shared';
 
 describe('正文计数', () => {
   it.each([

@@ -1,0 +1,49 @@
+import type { DraftState, RecoveryDraft, WriteDraftInput } from './contracts.ts';
+import { DraftConflictError } from './errors.ts';
+import type { CreationRepository } from './repository.ts';
+
+export function writeDraft(repository: CreationRepository, input: WriteDraftInput): DraftState {
+  return repository.libraryTransaction(() => {
+    const current = repository.getDraftState(input.workId, input.documentId);
+    if (current.version === input.draftId) {
+      if (!current.draft) throw new DraftConflictError(current.version);
+      const draft = current.draft;
+      if (
+        draft.expectedRevisionId !== input.expectedRevisionId ||
+        draft.title !== input.title ||
+        draft.format !== input.format ||
+        draft.content !== input.content
+      ) {
+        throw new Error('同一草稿身份不能用于不同内容');
+      }
+      return current;
+    }
+    if (current.version !== input.expectedDraftVersion) throw new DraftConflictError(current.version);
+    const draft: RecoveryDraft = {
+      id: input.draftId,
+      workId: input.workId,
+      documentId: input.documentId,
+      expectedRevisionId: input.expectedRevisionId,
+      title: input.title,
+      format: input.format,
+      content: input.content,
+      updatedAt: Date.now()
+    };
+    repository.putDraft(draft);
+    return { version: draft.id, draft };
+  });
+}
+
+export function discardDraft(
+  repository: CreationRepository,
+  workId: string,
+  documentId: string,
+  version: string
+): DraftState {
+  return repository.libraryTransaction(() => {
+    const current = repository.getDraftState(workId, documentId);
+    if (current.version !== version) throw new DraftConflictError(current.version);
+    repository.clearDraft(workId, documentId, version);
+    return { version, draft: null };
+  });
+}

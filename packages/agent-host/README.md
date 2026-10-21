@@ -1,6 +1,6 @@
 # @chaptale/agent-host
 
-供 Node 宿主使用的 pi SDK 接入包，管理应用模型配置、原生会话和工具授权。Renderer 不应导入；桌面生产 Agent 和正式移动端 UI 尚未切换到此包。
+供 Node 宿主使用的 pi SDK 接入包，管理应用模型配置、原生会话和工具授权。桌面生产 Agent 在 Electron `utilityProcess` 中使用此包；Renderer 通过 `/protocol` 契约与宿主通信。移动端运行验收留待平台接入阶段。
 
 ## 使用
 
@@ -21,27 +21,28 @@
 
 如需自行管理生命周期，可将原生 `SessionManager` 与 `ModelRuntime` 传入 `createHostSession()`；恢复历史时先调用 `openHostSessionManager({ file, cwd })`。使用原生 SDK 的调用方应声明自己的直接依赖，本包不重导出整个 SDK。
 
-## 应用会话入口（尚未接入平台 UI）
+## 应用会话入口
 
-`@chaptale/agent-host/application` 导出 `HostApplication`，由 Node 宿主装配模型运行时、目录、工具以及应用设置的保存回调。`@chaptale/agent-host/protocol` 只提供传输类型，不包含 Node 运行时代码。
+平台启动代码使用 `@chaptale/agent-host/application` 的 `createHostApplication(options)`。`HostBootstrapOptions` 包含 `cwd`、`agentDir`、`configDir`、`sessionDir`、`settingsFile`，由平台解析为应用私有位置的绝对路径。工厂准备目录，装配模型运行时、模型配置、内置创作指令、本机设置，以及 `read`、`ls`、`find`、`grep` 四个工具。工具调用逐次经过授权边界。
 
-已实现的提示词链路：
+需要显式提供运行时和工具的 Node 调用方可使用 `HostApplication.create(options)`。会话管理、指令、模型配置、快照和事件均由 `HostApplication` 提供。平台负责传输与进程生命周期；桌面实现位于 `apps/desktop/src/main/agent-host/`。
 
-- 装配时显式提供应用默认提示词；`defaultSystemPrompt` 命令先调用设置保存回调，成功后只影响新建会话。没有内置创作提示词或根目录参数文件。
-- `systemPrompt` 命令修改单个会话；原生 JSONL 的自定义记录保存其值。下一次发送前通过 SDK 的 `reload()` 应用，不中途替换运行中的提示词。
-- 历史重开读取该会话自己的提示词，不套用后来修改的应用默认值。缺少该记录的历史明确拒绝打开，不自动迁移或覆盖；底层原生会话池接口不受影响。
-- `snapshot()` 和 `subscribe()` 提供界面投影与进程内游标；读取快照、断开订阅不新建或取消会话。游标不是持久投递回执。
+- `defaultInstructions` 保存全局默认指令，只影响后续新建会话；`namedInstructions` / `deleteNamedInstructions` 管理命名指令集。
+- `instructions` 修改单个会话的指令条目，原生 JSONL 保存指令与修改模式记录。新会话复制默认值，后续独立修改。
+- 历史重开使用原会话记录。损坏或缺少指令、模式记录的历史只读展示并说明原因；需要迁移的历史明确报错。历史原件保持原样。
+- `snapshot()` 和 `subscribe()` 提供界面投影与进程内游标；重连读取快照。空会话遵循 SDK 首条 user/assistant 消息前不落盘的行为。
+- `dispose()` 停止接收命令、取消活动会话并释放会话池；平台随后回收宿主进程。
 
-应用默认值的实际存储、系统凭据存储、Electron/Android IPC 和配置界面由平台接入负责，目前均未完成。其他命令已有初步实现，但流式事件、桥接授权与取消仍须真实模型和双端验收，不能据此宣称正式宿主闭环已完成。空会话仍遵循 SDK 首条消息前不落盘的行为。
+`@chaptale/agent-host/protocol` 提供纯传输契约和持久化记录常量；`/transport` 提供 `HostConnection` 请求关联与事件转发。桌面构建将 pi SDK 外置，因此桌面包保留 SDK 运行依赖，供构建后的 worker 解析。
 
-## 默认行为与边界
+## 底层会话 API 的默认行为与边界
 
 - `systemPrompt` 必须非空，接受文本或返回文本的函数；函数在装配和显式资源重载时求值，不自动热更新。文本始终按内容而非文件路径使用。会话工作目录须与 `cwd` 一致。宿主不自动发现目录中的配置、扩展、Skills、提示词或上下文文件；每个会话使用独立内存设置，默认关闭额外缓存保温请求。
 - `model: { provider, id }` 只选择已注册模型，未知引用报错；省略时由 SDK 恢复历史模型或选择默认模型。模型地址和凭据由 `ModelRuntime` 管理。
 - 默认没有工具。`toolAccess` 提供原生 `ToolDefinition[]` 和 `authorize(request, signal)`，每次直接或嵌套执行都重新授权。授权方只接收会话信息和参数快照；授权被拒绝、失败或在等待期间取消时，都不会启动工具；迟到的批准也无效。未登记工具被阻断。
 - `openHostSessionManager()` 在恢复前检查普通文件、当前 SDK 版本、UTF-8/JSON 行、工作目录和基本历史链。文件缺失、损坏、缺少末尾换行或需要迁移时抛出带 `code` 的 `HostSessionOpenError`，不让 SDK 自动修复原件。空会话在首条 user/assistant 消息前不落盘。
 
-工具实现是受信任的宿主代码，工作目录和授权回调不构成 OS 沙箱。单写者保护仅限本进程通过池操作的文件，不覆盖外部写入；直接管理会话的调用方须自行持有写入权。附件存储、平台 IPC、持久任务及 MCP、Code Mode 等扩展接入不属于当前实现。
+工具实现是受信任的宿主代码，授权回调控制工具执行，OS 级隔离由平台负责。单写者保护覆盖本进程通过池操作的文件；直接管理会话的调用方须自行持有写入权。附件存储、持久任务及 MCP、Code Mode 等扩展接入按后续需求推进。
 
 ## 验证
 

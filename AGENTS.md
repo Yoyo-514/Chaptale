@@ -17,6 +17,7 @@ Chaptale 是面向小说与剧本的跨平台创作 IDE，正在重建为由 pi 
 | 路径                  | 包名                     | 职责                                                                                   |
 | --------------------- | ------------------------ | -------------------------------------------------------------------------------------- |
 | `packages/agent-host` | `@chaptale/agent-host`   | Node 宿主内的 pi SDK 接入：模型运行时、原生会话池、工具授权、应用会话入口与传输协议。  |
+| `packages/creation`   | `@chaptale/creation`     | 跨平台作品业务与 SQLite 存储；纯契约从 `/contracts` 导出，存储由启动代码注入。         |
 | `packages/ipc`        | `@chaptale/ipc-contract` | Electron 主进程与界面之间的 IPC 契约。                                                 |
 | `packages/shared`     | `@chaptale/shared`       | 跨端共享的领域类型与工具。                                                             |
 | `apps/desktop`        | `@chaptale/desktop`      | Electron 主进程与打包；用 `utilityProcess` 运行 agent-host（`src/main/agent-host/`）。 |
@@ -25,7 +26,9 @@ Chaptale 是面向小说与剧本的跨平台创作 IDE，正在重建为由 pi 
 | `e2e/`、`scripts/`    | —                        | Electron Playwright 测试与发布脚本。                                                   |
 | `mobile-virtual/`     | —                        | 被忽略的 Android 实验环境与证据，不是正式移动应用；不得清理、停止设备或当作生产部署。  |
 
-agent-host 子路径入口：`.`（会话池与模型运行时）、`./application`（`HostApplication`）、`./protocol`（纯类型与持久化常量，无 Node 依赖）。
+agent-host 子路径入口：`.`（会话池与模型运行时）、`./application`（`HostApplication` 与通用 Node 启动装配）、`./protocol`（纯类型与持久化常量，无 Node 依赖）。
+
+creation 子路径入口：`.`（作品服务与存储接口）、`./contracts`（纯数据契约）、`./storage`（SQLite 装配）。业务通过 `CreationRepository` 访问存储，Renderer 只使用 `/contracts`；依赖方向与循环依赖由 oxlint 检查。
 
 ## 环境与命令
 
@@ -41,6 +44,7 @@ pnpm format:check
 pnpm lint
 pnpm typecheck                     # 怀疑缓存时改用 pnpm exec turbo run typecheck --force
 pnpm --filter @chaptale/agent-host test
+pnpm --filter @chaptale/creation test
 pnpm test:unit                     # 全仓单测，较慢
 ```
 

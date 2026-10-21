@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 
 import { MAX_DOCUMENT_BYTES, type WorkspaceDocument } from '@chaptale/ipc-contract';
+import { countDocumentWords } from '@chaptale/shared';
 
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
@@ -13,7 +14,6 @@ import { DocumentBuffer } from './codemirror/document-buffer';
 import { createExternalChanges } from './state/external-changes';
 import { createDocumentRecovery } from './state/recovery';
 import { NORMAL_PREVIEW_BYTES, type DocumentViewState, type EditorTab } from './types';
-import { countDocumentWords } from './word-count';
 
 /** 标签是磁盘快照与在内存中编辑的缓冲投影；保存必须带原始磁盘基线。 */
 export const useEditorStore = defineStore('editor', () => {

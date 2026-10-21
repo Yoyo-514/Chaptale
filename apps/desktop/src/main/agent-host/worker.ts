@@ -1,17 +1,5 @@
-import {
-  defineTool,
-  createReadToolDefinition,
-  createLsToolDefinition,
-  createFindToolDefinition,
-  createGrepToolDefinition
-} from '@earendil-works/pi-coding-agent';
-import { mkdir } from 'node:fs/promises';
-
-import { builtinWritingInstructions, createHostModelRuntime, HostModelConfiguration } from '@chaptale/agent-host';
-import { HostApplication } from '@chaptale/agent-host/application';
+import { createHostApplication, type HostBootstrapOptions } from '@chaptale/agent-host/application';
 import type { HostRequest, HostPacket } from '@chaptale/agent-host/protocol';
-
-import type { AgentProcessOptions } from './process';
 
 // ParentPort 是 Electron 进程 IPC；消息与 DOM Window.postMessage 无关。
 const parent = process.parentPort!;
@@ -22,26 +10,8 @@ function send(packet: HostPacket | { type: 'ready' } | { type: 'failed'; error: 
 
 async function start() {
   try {
-    const options = JSON.parse(process.argv[2]) as AgentProcessOptions;
-    await Promise.all(
-      [options.configDir, options.agentDir, options.sessionDir, options.cwd].map(directory =>
-        mkdir(directory, { recursive: true })
-      )
-    );
-    const runtime = await createHostModelRuntime({ configDir: options.configDir });
-    const application = await HostApplication.create({
-      ...options,
-      builtinInstructions: builtinWritingInstructions,
-      modelRuntime: runtime,
-      modelConfiguration: new HostModelConfiguration(options.configDir, runtime),
-      // 作品写入随创作工具接入。只读工具仍逐次经过 HostApplication 的授权边界。
-      tools: cwd => [
-        defineTool(createReadToolDefinition(cwd)),
-        defineTool(createLsToolDefinition(cwd)),
-        defineTool(createFindToolDefinition(cwd)),
-        defineTool(createGrepToolDefinition(cwd))
-      ]
-    });
+    const options = JSON.parse(process.argv[2]) as HostBootstrapOptions;
+    const application = await createHostApplication(options);
     application.subscribe(event => send({ type: 'event', event }));
     parent.on('message', ({ data }: { data: HostRequest | { type: 'shutdown' } }) => {
       if ('type' in data) {

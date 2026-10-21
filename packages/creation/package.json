@@ -1,0 +1,36 @@
+{
+  "name": "@chaptale/creation",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "default": "./src/contracts.ts"
+    },
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "default": "./src/storage/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json",
+    "test": "cd ../.. && vitest run --config vitest.config.ts --project creation"
+  },
+  "dependencies": {
+    "@chaptale/shared": "workspace:*",
+    "better-sqlite3": "catalog:"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

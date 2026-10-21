@@ -25,6 +25,77 @@
     "pnpm-lock.yaml",
     "package-lock.json"
   ],
+  "overrides": [
+    {
+      "files": ["packages/creation/src/**/*.ts", "packages/agent-host/src/**/*.ts"],
+      "rules": {
+        "import/no-cycle": ["error", { "ignoreExternal": true, "ignoreTypes": false }],
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "electron",
+              "electron/**",
+              "vue",
+              "vue/**",
+              "@chaptale/desktop*",
+              "@chaptale/desktop*/**",
+              "**/apps/**"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/creation/src/{service,drafts,repository,errors,index}.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "electron",
+              "vue",
+              "@chaptale/desktop*",
+              "**/apps/**",
+              "better-sqlite3",
+              "./storage/**",
+              "@chaptale/creation/storage",
+              "@chaptale/agent-host*",
+              "@chaptale/agent-host/**",
+              "@earendil-works/**"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/creation/src/contracts.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "node:*",
+              "node:*/**",
+              "electron",
+              "vue",
+              "better-sqlite3",
+              "@chaptale/desktop*",
+              "**/apps/**",
+              "@chaptale/agent-host*",
+              "@chaptale/agent-host/**",
+              "@earendil-works/**",
+              "./service*",
+              "./drafts*",
+              "./errors*",
+              "./repository*",
+              "./storage/**"
+            ]
+          }
+        ]
+      }
+    }
+  ],
   "rules": {
     "no-console": "off",
     "no-unused-vars": "off",
