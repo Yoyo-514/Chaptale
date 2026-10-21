@@ -5,12 +5,13 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { ChaptaleDesktopApi, ChaptaleTheme } from '@chaptale/ipc-contract';
+import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
+import type { ChaptaleTheme } from '@chaptale/ipc-contract';
 
 const desktopDir = path.resolve('apps/desktop');
 const executablePath = createRequire(path.join(desktopDir, 'package.json'))('electron') as string;
 const visualDir = path.resolve('temp/visual-qa', `editor-selection-${Date.now()}`);
-type DesktopWindow = Window & { chaptaleDesktop: ChaptaleDesktopApi };
+type DesktopWindow = typeof window & { chaptaleDesktop: ChaptaleDesktopApi };
 
 const chapter = '# 第一章\n\n雪落在窗沿，林晚收起了信。\n';
 let home: string;

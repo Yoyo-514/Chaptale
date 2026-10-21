@@ -2,7 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { registerAgentHostIpc } from '../agent-host/ipc';
+import { registerApplicationHostIpc } from '../application-host/ipc';
 import { DesktopApplicationProcess } from '../application-host/process';
 import { configureTrustedRendererUrl } from '../infra/security/trusted-ipc';
 import { createAppContext } from './app-context';
@@ -43,7 +43,7 @@ export function bootstrapDesktopApp(): void {
         settingsFile: path.join(hostRoot, 'settings.json')
       }
     });
-    registerAgentHostIpc(host);
+    registerApplicationHostIpc(host);
     let stopping = false;
     let stopped = false;
     // 窗口关闭已获确认后再停止宿主；取消退出时，后台会话继续运行。

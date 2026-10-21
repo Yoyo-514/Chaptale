@@ -1,6 +1,8 @@
-import type { DesktopAgentClient } from './agent-host';
-import type { AppPlatformResult, EditCommand } from './app';
+import type { AgentClient } from '@chaptale/agent-host/protocol';
+import type { CreationClient } from '@chaptale/creation/contracts';
 import type {
+  AppPlatformResult,
+  EditCommand,
   CloudArchiveArgs,
   CloudArchiveListArgs,
   CloudAuthResult,
@@ -19,11 +21,12 @@ import type {
   CloudRestoreDiffResult,
   CloudRestorePlanResult,
   CloudRestoreResult,
-  CloudSyncState
-} from './cloud-sync';
-import type { ChaptaleSettingsState, SelectWorkspaceDirResult, UpdateChaptaleSettingsPayload } from './settings';
-import type { WindowStateResult, WindowZoomCommand } from './window';
-import type {
+  CloudSyncState,
+  ChaptaleSettingsState,
+  SelectWorkspaceDirResult,
+  UpdateChaptaleSettingsPayload,
+  WindowStateResult,
+  WindowZoomCommand,
   WorkspaceState,
   SelectDirectoryArgs,
   ListDirectoryArgs,
@@ -47,7 +50,15 @@ import type {
   SaveRecoveryArgs,
   RecoveryDraft,
   RecoverySummary
-} from './workspace';
+} from '@chaptale/ipc-contract';
+
+export interface DesktopAgentClient extends AgentClient {
+  onDisconnected(listener: (message: string) => void): () => void;
+}
+
+export interface DesktopCreationClient extends CreationClient {
+  onDisconnected(listener: (message: string) => void): () => void;
+}
 
 /**
  * Preload 暴露给启用上下文隔离且关闭 Node 集成的 Renderer 的完整能力契约。
@@ -55,6 +66,7 @@ import type {
  */
 export type ChaptaleDesktopApi = {
   agentHost: DesktopAgentClient;
+  creation: DesktopCreationClient;
   workspace: {
     getState: () => Promise<WorkspaceState>;
     selectParent: (args?: SelectDirectoryArgs) => Promise<string | null>;

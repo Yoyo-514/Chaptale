@@ -1,8 +1,9 @@
 import { ipcRenderer } from 'electron';
 
-import { WorkspaceChangedValidator, type ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import { WorkspaceChangedValidator } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 
+import type { ChaptaleDesktopApi } from '../../bridge/contracts';
 import { onValidatedEvent } from './validated-event';
 
 export function createWorkspaceApi(): ChaptaleDesktopApi['workspace'] {

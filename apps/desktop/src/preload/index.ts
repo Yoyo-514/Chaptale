@@ -1,16 +1,20 @@
 import { contextBridge } from 'electron';
 
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import type { HostCommands, HostEvent } from '@chaptale/agent-host/protocol';
+import type { CreationCommands, CreationEvent } from '@chaptale/creation/contracts';
 
-import { createAgentHostApi } from './api/agent-host';
+import { APPLICATION_HOST_CHANNELS } from '../bridge/channels';
+import type { ChaptaleDesktopApi } from '../bridge/contracts';
 import { createEditCommandApi, createGetPlatformApi } from './api/app';
 import { createCloudSyncApi } from './api/cloud-sync';
+import { createHostApi } from './api/host';
 import { createSettingsApi } from './api/settings';
 import { createWindowControlApi } from './api/window';
 import { createWorkspaceApi } from './api/workspace';
 
 const desktopApi: ChaptaleDesktopApi = {
-  agentHost: createAgentHostApi(),
+  agentHost: createHostApi<HostCommands, HostEvent>(APPLICATION_HOST_CHANNELS.agent),
+  creation: createHostApi<CreationCommands, CreationEvent>(APPLICATION_HOST_CHANNELS.creation),
   workspace: createWorkspaceApi(),
   cloudSync: createCloudSyncApi(),
   getPlatform: createGetPlatformApi(),
@@ -20,5 +24,3 @@ const desktopApi: ChaptaleDesktopApi = {
 };
 
 contextBridge.exposeInMainWorld('chaptaleDesktop', desktopApi);
-
-export type { ChaptaleDesktopApi };

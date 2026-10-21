@@ -56,6 +56,8 @@
   },
   "devDependencies": {
     "@chaptale/creation": "workspace:*",
+    "@chaptale/desktop": "workspace:*",
+    "@chaptale/ipc-contract": "workspace:*",
     "@playwright/test": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "@vitest/coverage-v8": "catalog:",

@@ -5,13 +5,13 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
 
 const desktopDir = path.resolve('apps/desktop');
 const executablePath = createRequire(path.join(desktopDir, 'package.json'))('electron') as string;
 const visualDir = path.resolve('temp/visual-qa', `workspace-sync-${Date.now()}`);
 const original = '# 原稿\n\n作者原有的段落。\n';
-type DesktopWindow = Window & { chaptaleDesktop: ChaptaleDesktopApi };
+type DesktopWindow = typeof window & { chaptaleDesktop: ChaptaleDesktopApi };
 let home: string;
 let work: string;
 let app: ElectronApplication | undefined;
@@ -50,13 +50,13 @@ test.afterEach(async () => {
 });
 
 async function launch() {
-  const env: NodeJS.ProcessEnv = {
+  const env = {
     ...process.env,
     NODE_ENV: 'production',
     HOME: home,
     USERPROFILE: home
   };
-  delete env.VITE_DEV_SERVER_URL;
+  delete (env as NodeJS.ProcessEnv).VITE_DEV_SERVER_URL;
   app = await electron.launch({
     executablePath,
     args: [desktopDir, `--user-data-dir=${path.join(home, 'user-data')}`],

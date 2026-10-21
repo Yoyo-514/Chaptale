@@ -1,6 +1,6 @@
 # @chaptale/creation
 
-供 Node 宿主使用的作品业务包，负责作品、文稿与资料条目、修订和恢复草稿。当前通过真实 SQLite 的公共接口测试及 Electron 业务进程验收；renderer IPC、preload 与新工作台继续按 A 批推进。
+供 Node 宿主使用的作品业务包，负责作品、文稿与资料条目、修订和恢复草稿。当前通过真实 SQLite 的公共接口测试及 Electron renderer API 验收；新工作台继续按 A 批推进。
 
 ## 模块与入口
 
@@ -27,7 +27,9 @@ export async function openCreationService(rootDir: string): Promise<CreationServ
 
 `CreationApplication` 接收宿主注入的仓储，`executeAuthor(command)` 校验方法和业务参数后执行作品操作。请求成功返回 `{ ok: true, value }`；修订、草稿和位置冲突返回可序列化的错误字段，便于界面保留输入并处理冲突。非法输入返回 `invalid-request`。
 
-作者身份固定在这个入口，宿主应从受信任的作者通道调用；请求体只允许业务参数。`subscribe` 和 `close` 分别转发已提交事件、释放存储。桌面通过 `DesktopApplicationProcess.creation` 调用真实 utilityProcess 中的入口，与 Agent 共用一个进程，分别收发命令和事件。存储目录由启动代码传入；关闭进程时先释放 Agent，再关闭作品库。renderer IPC 和 preload 接入继续推进。
+作者身份固定在这个入口，宿主应从受信任的作者通道调用；请求体只允许业务参数。`subscribe` 和 `close` 分别转发已提交事件、释放存储。桌面通过 `DesktopApplicationProcess.creation` 调用真实 utilityProcess 中的入口，与 Agent 共用一个进程，分别收发命令和事件。存储目录由启动代码传入；关闭进程时先释放 Agent，再关闭作品库。Renderer 通过 `window.chaptaleDesktop.creation` 请求、订阅提交事件和接收断线通知。IPC 复用桌面来源校验，业务参数由作者入口校验，冲突结果作为普通数据返回。断线后调用方重新读取快照，写入请求保持原 commandId 以便核对回执。
+
+桌面桥接类型从 `@chaptale/desktop/bridge` 导入；该入口只有类型声明。完整链路测试位于 `e2e/electron/creation-bridge.spec.ts`，覆盖保存与重启、冲突、取消订阅、拒绝无效输入及非可信页面、断线后继续订阅。
 
 ## 当前接口与保存规则
 
@@ -74,4 +76,4 @@ pnpm --filter @chaptale/creation typecheck
 pnpm --filter @chaptale/storage test
 ```
 
-跨包集成测试位于 `packages/storage/src/__tests__`，通过公开作品接口和真实 SQLite 验证行为，覆盖重开、幂等命令、修订冲突、草稿版本、目录改名与移动、快照及事件分页。故障用例覆盖正式 COMMIT 失败、移动回执写入失败时的事务回滚，以及正式提交后草稿清理失败的恢复；事件测试还覆盖旧备份恢复、订阅取消和监听器重入。升级 better-sqlite3 或 Electron 后，重新验证目标运行时中的驱动加载、事务及关闭重开；正式作品链的打包验收在宿主接入后进行。
+跨包集成测试位于 `packages/storage/src/__tests__`，通过公开作品接口和真实 SQLite 验证行为，覆盖重开、幂等命令、修订冲突、草稿版本、目录改名与移动、快照及事件分页。故障用例覆盖正式 COMMIT 失败、移动回执写入失败时的事务回滚，以及正式提交后草稿清理失败的恢复；事件测试还覆盖旧备份恢复、订阅取消和监听器重入。升级 better-sqlite3 或 Electron 后，重新验证目标运行时中的驱动加载、事务及关闭重开；完整写作流程与安装包验收随工作台交付进行。

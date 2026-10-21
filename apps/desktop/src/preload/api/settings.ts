@@ -1,7 +1,9 @@
 import { ipcRenderer } from 'electron';
 
-import type { ChaptaleDesktopApi, UpdateChaptaleSettingsPayload } from '@chaptale/ipc-contract';
+import type { UpdateChaptaleSettingsPayload } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
+
+import type { ChaptaleDesktopApi } from '../../bridge/contracts';
 
 /** 为 Renderer 提供应用设置的类型化 IPC 门面。 */
 export function createSettingsApi(): ChaptaleDesktopApi['settings'] {

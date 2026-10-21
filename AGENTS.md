@@ -33,6 +33,8 @@ agent-host 子路径入口：`.`（会话池与模型运行时）、`./applicati
 
 creation 子路径入口：`.`（作品服务与仓储接口）、`./contracts`（纯数据契约）、`./application`（作者请求入口）。`@chaptale/storage` 导出 `openCreationStorage`，实现 creation 定义的 `CreationRepository`，由启动代码注入。Renderer 只使用业务纯契约与应用客户端；依赖方向与循环依赖由 oxlint 检查。
 
+桌面 preload 与 Renderer 共用 `@chaptale/desktop/bridge` 的纯类型声明；Electron 通道归 `apps/desktop/src/bridge/channels.ts`，主进程桥接归 `application-host/ipc.ts`。旧 ipc 包继续保留待替换的工作区、设置和云同步等契约，桌面总 API 与 Agent 通道已迁出。
+
 ## 环境与命令
 
 - Node.js >= 24，pnpm 版本由根 `package.json` 固定；在 Windows 11 + Git Bash 下开发。

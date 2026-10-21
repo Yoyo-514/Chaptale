@@ -32,6 +32,7 @@
     "vue": "catalog:"
   },
   "devDependencies": {
+    "@chaptale/desktop": "workspace:*",
     "@iconify-json/mingcute": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "@vue/test-utils": "catalog:",

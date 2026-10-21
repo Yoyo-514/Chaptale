@@ -1,7 +1,6 @@
 import { ipcRenderer } from 'electron';
 
 import type {
-  ChaptaleDesktopApi,
   CloudArchiveArgs,
   CloudArchiveListArgs,
   CloudBackupProgress,
@@ -14,6 +13,7 @@ import type {
 import { CloudBackupProgressValidator } from '@chaptale/ipc-contract';
 import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
 
+import type { ChaptaleDesktopApi } from '../../bridge/contracts';
 import { onValidatedEvent } from './validated-event';
 
 export function createCloudSyncApi(): ChaptaleDesktopApi['cloudSync'] {

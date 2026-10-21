@@ -9,13 +9,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
 
 const desktopDir = path.resolve('apps/desktop');
 const desktopRequire = createRequire(path.join(desktopDir, 'package.json'));
 const electronExecutable = desktopRequire('electron') as string;
 const visualDir = path.resolve('temp/visual-qa', `t5-editor-${Date.now()}`);
-type DesktopWindow = Window & { chaptaleDesktop: ChaptaleDesktopApi };
+type DesktopWindow = typeof window & { chaptaleDesktop: ChaptaleDesktopApi };
 
 const chapter = '---\r\ntitle: 初雪\r\n---\r\n# 第一章\r\n\r\n雪落在窗沿，林晚收起了信。\r\n';
 let app: ElectronApplication | undefined;

@@ -5,12 +5,12 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { ChaptaleDesktopApi } from '@chaptale/ipc-contract';
+import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
 
 const desktopDir = path.resolve('apps/desktop');
 const executablePath = createRequire(path.join(desktopDir, 'package.json'))('electron') as string;
 const visualDir = path.resolve('temp/visual-qa', `design-review-${Date.now()}`);
-type DesktopWindow = Window & { chaptaleDesktop: ChaptaleDesktopApi };
+type DesktopWindow = typeof window & { chaptaleDesktop: ChaptaleDesktopApi };
 let app: ElectronApplication;
 let page: Page;
 let home: string;
@@ -204,7 +204,7 @@ test('200% 缩放可还原，保存与原图资源不受影响', async () => {
       page
         .locator('img[src]')
         .evaluateAll(elements =>
-          elements
+          (elements as HTMLImageElement[])
             .filter(element => element.getClientRects().length && (!element.complete || element.naturalWidth === 0))
             .map(element => ({ src: element.currentSrc || element.src, complete: element.complete }))
         )
