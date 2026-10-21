@@ -47,10 +47,12 @@ export class LiveSession {
       cwd: session.sessionManager.getCwd(),
       model: session.model && { provider: session.model.provider, id: session.model.id },
       running: false,
+      compacting: false,
       instructions: applied.entries,
       mode,
       messages: transcriptView(session.sessionManager)
     };
+    this.view.usage = this.usage();
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
   }
 
@@ -61,7 +63,7 @@ export class LiveSession {
     this.cancelled = false;
     view.running = true;
     delete view.error;
-    this.emit({ kind: 'running', id: view.id, running: true });
+    this.emitRunning();
     this.operation = (async () => {
       try {
         // 修改后的指令在发送前 reload 生效；reload 期间再次修改的指令留到下一次发送。
@@ -73,8 +75,37 @@ export class LiveSession {
       } catch {
         view.error = '本次请求未完成，请检查模型设置或连接后重新发送';
       } finally {
+        this.refreshUsage();
         view.running = false;
-        this.emit({ kind: 'running', id: view.id, running: false, error: view.error });
+        this.emitRunning();
+      }
+    })();
+  }
+
+  /** 先占用会话，再进入会中止当前运行的 SDK 手动压缩入口。 */
+  compact(): void {
+    const { view } = this;
+    if (view.running) throw new Error('该会话正在运行，请等待结束或停止后再压缩');
+    this.cancelled = false;
+    view.running = true;
+    view.compacting = true;
+    delete view.error;
+    this.emitRunning();
+    this.operation = (async () => {
+      try {
+        await this.session.compact();
+      } catch (error) {
+        if (!this.cancelled) {
+          const reason = error instanceof Error ? error.message : String(error);
+          if (reason.includes('Nothing to compact')) view.error = '对话内容较少，暂时无需压缩';
+          else if (reason.includes('Already compacted')) view.error = '对话已压缩，请继续交流后再试';
+          else view.error = `压缩未完成：${reason}`;
+        }
+      } finally {
+        view.running = false;
+        view.compacting = false;
+        this.refreshUsage();
+        this.emitRunning();
       }
     })();
   }
@@ -104,12 +135,34 @@ export class LiveSession {
     if (this.view.running) throw new Error('请在当前请求结束后切换模型');
     await this.session.setModel(model);
     this.view.model = { provider: model.provider, id: model.id };
+    this.view.usage = this.usage();
     this.emit({ kind: 'session', session: this.view });
   }
 
   /** 停止转发事件；原生会话由会话池释放。 */
   detach(): void {
     this.unsubscribe();
+  }
+
+  private emitRunning(): void {
+    const { id, running, compacting, error } = this.view;
+    this.emit({ kind: 'running', id, running, compacting, error });
+  }
+
+  private usage() {
+    const { tokens, contextUsage } = this.session.getSessionStats();
+    return {
+      input: tokens.input,
+      output: tokens.output,
+      cacheRead: tokens.cacheRead,
+      cacheWrite: tokens.cacheWrite,
+      context: contextUsage
+    };
+  }
+
+  private refreshUsage(): void {
+    this.view.usage = this.usage();
+    this.emit({ kind: 'usage', id: this.view.id, usage: this.view.usage });
   }
 
   private onEvent(event: AgentSessionEvent): void {
@@ -130,9 +183,21 @@ export class LiveSession {
       const message = messageView(event.message);
       view.messages[index] = message;
       this.emit({ kind: 'message', id: view.id, index, message });
-    } else if (event.type === 'compaction_end' && event.result) {
-      // 压缩前的对话保留显示并标记，总结插在记录位置。
-      view.messages = transcriptView(this.session.sessionManager);
+    } else if (event.type === 'turn_end') {
+      // message_end 早于 SDK 持久化；一轮结束时消息与工具结果已写入 JSONL。
+      this.refreshUsage();
+    } else if (event.type === 'compaction_start') {
+      view.compacting = true;
+      // cancel 可能发生在 compact() 内部的首次 await 与控制器创建之间。
+      if (this.cancelled) this.session.abortCompaction();
+      this.emitRunning();
+    } else if (event.type === 'compaction_end') {
+      view.compacting = false;
+      if (event.result) {
+        // 压缩前的对话保留显示并标记，总结插在记录位置。
+        view.messages = transcriptView(this.session.sessionManager);
+      }
+      view.usage = this.usage();
       this.emit({ kind: 'session', session: view });
     }
   }

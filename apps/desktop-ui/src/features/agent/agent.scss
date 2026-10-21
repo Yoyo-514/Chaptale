@@ -328,6 +328,18 @@
   margin: 0;
   padding: 4px 16px 12px;
 }
+.agent-composer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-composer-meta [role='status'] {
+  margin-right: auto;
+}
 .agent-composer-box {
   overflow: hidden;
   border: 1px solid var(--input-border);

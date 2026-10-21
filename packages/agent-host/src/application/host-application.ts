@@ -117,6 +117,8 @@ export class HostApplication {
         return this.live(command.input.id).prompt(command.input.text);
       case 'cancel':
         return this.live(command.input.id).stop();
+      case 'compact':
+        return this.live(command.input.id).compact();
       case 'close':
         return this.close(command.input.id);
       case 'approve':
@@ -245,7 +247,7 @@ export class HostApplication {
       // 只读视图使用新的随机 id，避免与同一会话 id 的可写副本冲突。
       const { readonly, messages } = history;
       return this.attach({
-        view: { id: randomUUID(), file, cwd, running: false, instructions: [], messages, readonly }
+        view: { id: randomUUID(), file, cwd, running: false, compacting: false, instructions: [], messages, readonly }
       });
     }
     const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change));

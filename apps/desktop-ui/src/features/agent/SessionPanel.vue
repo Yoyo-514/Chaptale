@@ -110,7 +110,7 @@ function approve(id: string, allow: boolean) {
             @select="select(session.id)"
           >
             <span class="min-w-0 flex-1 truncate">{{ agent.title(session) }}</span>
-            <span v-if="session.running" class="agent-menu-meta">生成中</span>
+            <span v-if="session.running" class="agent-menu-meta">{{ session.compacting ? '压缩中' : '生成中' }}</span>
             <span v-else-if="session.readonly" class="agent-menu-meta">只读</span>
           </AppDropdownMenuItem>
           <hr v-if="opened.length" class="agent-menu-separator" />
@@ -138,6 +138,14 @@ function approve(id: string, allow: boolean) {
           @select="navigation.agentView = 'settings'"
         >
           <span class="i-mingcute-settings-6-line size-4 shrink-0" aria-hidden="true" />会话设置
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          density="sm"
+          item-class="agent-menu-item"
+          :disabled="!agent.connected || !agent.active || !!agent.active.readonly || agent.active.running"
+          @select="agent.perform(() => getDesktopApi().agentHost.request('compact', { id: agent.activeId! }))"
+        >
+          <span class="i-mingcute-minimize-line size-4 shrink-0" aria-hidden="true" />压缩对话
         </AppDropdownMenuItem>
         <AppDropdownMenuItem density="sm" item-class="agent-menu-item" @select="move">
           <span

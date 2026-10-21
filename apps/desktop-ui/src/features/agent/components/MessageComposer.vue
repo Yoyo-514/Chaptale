@@ -12,6 +12,7 @@ import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi } from '@/utils/desktop-api';
 
 import { useAgentStore } from '../store';
+import SessionUsage from './SessionUsage.vue';
 
 const agent = useAgentStore();
 const settings = useSettingsStore();
@@ -65,6 +66,7 @@ function mode(value: string) {
           variant="ghost"
           content-size="md"
           class="agent-model-picker"
+          :disabled="agent.active?.running"
           :model-value="modelKey"
           :placeholder="modelPlaceholder"
           @update:model-value="model"
@@ -87,18 +89,22 @@ function mode(value: string) {
           <AppSelectItem v-for="item in modes" :key="item.value" :value="item.value">{{ item.label }}</AppSelectItem>
         </AppSelect>
         <span class="flex-1" />
-        <AppTooltip v-if="agent.active?.running" text="停止生成">
+        <AppTooltip v-if="agent.active?.running" :text="agent.active.compacting ? '停止压缩' : '停止生成'">
           <AppButton
             type="button"
             icon
             size="sm"
             variant="ghost"
-            aria-label="停止生成"
+            :aria-label="agent.active.compacting ? '停止压缩' : '停止生成'"
             @click="agent.perform(() => getDesktopApi().agentHost.request('cancel', { id: agent.activeId! }))"
             ><span class="i-mingcute-stop-fill size-4" aria-hidden="true"
           /></AppButton>
         </AppTooltip>
-        <AppTooltip :text="agent.active?.running ? '插话：助手会在当前步骤后读到' : '发送'">
+        <AppTooltip
+          :text="
+            agent.active?.compacting ? '正在压缩' : agent.active?.running ? '插话：助手会在当前步骤后读到' : '发送'
+          "
+        >
           <AppButton
             class="agent-send-button"
             type="submit"
@@ -106,12 +112,18 @@ function mode(value: string) {
             size="sm"
             variant="primary"
             :aria-label="agent.active?.running ? '插话' : '发送'"
-            :disabled="!editable || !agent.draft.trim() || (!agent.active && !agent.selectedModel)"
+            :disabled="
+              !editable || agent.active?.compacting || !agent.draft.trim() || (!agent.active && !agent.selectedModel)
+            "
           >
             <span class="i-mingcute-send-plane-line size-4" aria-hidden="true" />
           </AppButton>
         </AppTooltip>
       </div>
+    </div>
+    <div v-if="agent.active" class="agent-composer-meta agent-column">
+      <span v-if="agent.active.compacting" role="status">正在压缩…</span>
+      <SessionUsage :key="agent.active.id" :usage="agent.active.usage" />
     </div>
   </AppForm>
 </template>

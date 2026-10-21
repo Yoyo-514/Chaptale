@@ -49,9 +49,13 @@ export const useAgentStore = defineStore('agent', () => {
       case 'running': {
         const session = snapshot.sessions.find(session => session.id === event.id)!;
         session.running = event.running;
+        session.compacting = event.compacting;
         session.error = event.error;
         break;
       }
+      case 'usage':
+        snapshot.sessions.find(session => session.id === event.id)!.usage = event.usage;
+        break;
       case 'closed':
         snapshot.sessions = snapshot.sessions.filter(session => session.id !== event.id);
         break;
@@ -154,6 +158,7 @@ export const useAgentStore = defineStore('agent', () => {
   }
 
   async function send() {
+    if (active.value?.compacting) return;
     const text = draft.value.trim();
     if (!text) return;
     if (!active.value) {

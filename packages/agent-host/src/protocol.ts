@@ -94,16 +94,29 @@ export interface ChatMessage {
   /** 已被压缩总结代替、不再发送给模型的消息，界面仍可查看。 */
   compacted?: boolean;
 }
+/** pi 记录的累计用量；供应商未报告的项目可能记为 0。 */
+export interface SessionUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  /** 上下文为估算值；压缩后尚无有效回复时 tokens、percent 为 null。 */
+  context?: { tokens: number | null; contextWindow: number; percent: number | null };
+}
 export interface SessionView {
   id: string;
   file: string;
   cwd: string;
   model?: ModelRef;
   running: boolean;
+  /** 手动或自动压缩期间为 true；running 包含压缩占用。 */
+  compacting: boolean;
   /** 只读历史缺少记录时为空列表。 */
   instructions: AgentInstructions;
   mode?: EditMode;
   messages: ChatMessage[];
+  /** 可继续的会话从原生 SDK 读取；只读历史不计算用量。 */
+  usage?: SessionUsage;
   error?: string;
   /** 存在时会话只能查看，不能发送、切换模型或修改指令与模式。 */
   readonly?: ReadonlyHistory;
@@ -138,6 +151,7 @@ export interface HostCommands {
   open: { input: { file: string; cwd: string }; output: string };
   prompt: { input: { id: string; text: string }; output: void };
   cancel: { input: { id: string }; output: void };
+  compact: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
   model: { input: { id: string; model: ModelRef }; output: void };
   approve: { input: { id: string; allow: boolean }; output: void };
@@ -163,7 +177,8 @@ export type HostChange =
   | { kind: 'session'; session: SessionView }
   | { kind: 'message'; id: string; index: number; message: ChatMessage }
   | { kind: 'delta'; id: string; index: number; field: 'text' | 'thinking'; text: string }
-  | { kind: 'running'; id: string; running: boolean; error?: string }
+  | { kind: 'running'; id: string; running: boolean; compacting: boolean; error?: string }
+  | { kind: 'usage'; id: string; usage: SessionUsage }
   | { kind: 'closed'; id: string }
   | { kind: 'approval'; approval: Approval }
   | { kind: 'approval-closed'; id: string }

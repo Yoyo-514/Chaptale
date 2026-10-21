@@ -215,6 +215,98 @@ test('界面管理多个模型、直接聊天与切换会话，移动视图保�
   await page.screenshot({ path: path.join(evidence, 'instructions-narrow.png') });
 });
 
+test('会话用量可用键盘查看，手动压缩走真实宿主且保留草稿', async () => {
+  await page.getByRole('button', { name: '会话', exact: true }).click();
+  await page.getByRole('button', { name: '更多会话操作', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: '压缩对话', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  const state = await page.evaluate(async () => {
+    const client = window.chaptaleDesktop.agentHost;
+    await client.request('saveProvider', {
+      id: 'usage-offline',
+      apiKey: 'offline-usage-key',
+      config: {
+        baseUrl: 'http://127.0.0.1:9/v1',
+        api: 'openai-completions',
+        models: [{ id: 'offline', name: '离线用量模型', contextWindow: 100000, maxTokens: 512 }]
+      }
+    });
+    return client.request('state', undefined);
+  });
+  const output = path.join(home, 'usage-fixture.json');
+  await promisify(execFile)(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `
+    import { SessionManager } from '@earendil-works/pi-coding-agent';
+    import { writeFile } from 'node:fs/promises';
+    const [cwd, directory, output, instructions] = process.argv.slice(1);
+    const manager = SessionManager.create(cwd, directory);
+    manager.appendModelChange('usage-offline', 'offline');
+    manager.appendCustomEntry('chaptale-agent-instructions', { entries: JSON.parse(instructions) });
+    manager.appendCustomEntry('chaptale-edit-mode', { mode: 'review' });
+    manager.appendMessage({ role: 'user', content: '用量验收历史', timestamp: Date.now() });
+    manager.appendMessage({
+      role: 'assistant', content: [{ type: 'text', text: '已有的创作讨论。' }],
+      api: 'openai-completions', provider: 'usage-offline', model: 'offline',
+      usage: { input: 20000, output: 4000, cacheRead: 8000, cacheWrite: 0, totalTokens: 32000,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+      stopReason: 'stop', timestamp: Date.now()
+    });
+    await writeFile(output, JSON.stringify({ file: manager.getSessionFile(), cwd }));
+  `,
+      state.cwd,
+      path.join(home, '.chaptale/pi/sessions'),
+      output,
+      JSON.stringify(state.settings.defaultInstructions)
+    ],
+    { cwd: desktop }
+  );
+  const fixture = JSON.parse(await readFile(output, 'utf8')) as { file: string; cwd: string };
+  await page.evaluate(input => window.chaptaleDesktop.agentHost.request('open', input), fixture);
+  await page.getByRole('button', { name: '切换会话', exact: true }).click();
+  await page.getByRole('menuitem', { name: '查看用量验收历史', exact: true }).click();
+  const usage = page.getByRole('button', { name: '会话用量', exact: true });
+  await expect(usage).toHaveText('上下文约 32%');
+  await usage.focus();
+  await page.keyboard.press('Enter');
+  const details = page.getByRole('dialog', { name: '会话用量', exact: true });
+  await expect(details).toBeVisible();
+  await expect(details).toHaveCSS('padding', '12px');
+  await expect(details).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(details.locator('dd')).toHaveText(['20,000', '8,000', '0', '4,000', '32,000 / 100,000']);
+  const evidence = path.resolve('temp/session-usage');
+  await mkdir(evidence, { recursive: true });
+  await page.screenshot({ path: path.join(evidence, 'usage-sidebar.png') });
+  await page.keyboard.press('Escape');
+  await expect(usage).toBeFocused();
+  await page.getByLabel('消息', { exact: true }).fill('压缩操作保留草稿');
+  await page.getByRole('button', { name: '更多会话操作', exact: true }).click();
+  await page.getByRole('menuitem', { name: '压缩对话', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('对话内容较少，暂时无需压缩');
+  await expect(page.getByLabel('消息', { exact: true })).toHaveValue('压缩操作保留草稿');
+  await expect(usage).toHaveText('上下文约 32%');
+  await page.reload();
+  await expect(usage).toHaveText('上下文约 32%');
+  await page.getByRole('button', { name: '更多会话操作', exact: true }).click();
+  await page.getByRole('menuitem', { name: '移到主区', exact: true }).click();
+  await usage.click();
+  await expect(details).toBeVisible();
+  await page.screenshot({ path: path.join(evidence, 'usage-main.png') });
+  await page.keyboard.press('Escape');
+  await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 760));
+  await usage.click();
+  await expect(details).toBeVisible();
+  const bounds = await details.boundingBox();
+  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
+  await page.screenshot({ path: path.join(evidence, 'usage-narrow.png') });
+});
+
 test('真实子进程退出会通知界面，重新连接只读快照', async () => {
   await page.evaluate(async () => {
     await window.chaptaleDesktop.agentHost.request('state', undefined);
