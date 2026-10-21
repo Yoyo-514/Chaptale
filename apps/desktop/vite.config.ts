@@ -44,7 +44,7 @@ export default defineConfig(async () => ({
       main: {
         entry: {
           index: path.resolve(desktopRoot, 'src/main/index.ts'),
-          'agent-host': path.resolve(desktopRoot, 'src/main/agent-host/worker.ts')
+          'application-host': path.resolve(desktopRoot, 'src/main/application-host/worker.ts')
         },
         onstart: async ({ startup }) => {
           await startup(['.'], { cwd: desktopRoot });
@@ -58,7 +58,7 @@ export default defineConfig(async () => ({
             outDir: path.resolve(desktopRoot, 'dist/main'),
             emptyOutDir: true,
             rolldownOptions: {
-              external: ['@earendil-works/pi-coding-agent', '@node-rs/jieba', '@node-rs/jieba/dict']
+              external: ['@earendil-works/pi-coding-agent', 'better-sqlite3', '@node-rs/jieba', '@node-rs/jieba/dict']
             }
           }
         }

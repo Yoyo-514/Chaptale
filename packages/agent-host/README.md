@@ -25,7 +25,7 @@
 
 平台启动代码使用 `@chaptale/agent-host/application` 的 `createHostApplication(options)`。`HostBootstrapOptions` 包含 `cwd`、`agentDir`、`configDir`、`sessionDir`、`settingsFile`，由平台解析为应用私有位置的绝对路径。工厂准备目录，装配模型运行时、模型配置、内置创作指令、本机设置，以及 `read`、`ls`、`find`、`grep` 四个工具。工具调用逐次经过授权边界。
 
-需要显式提供运行时和工具的 Node 调用方可使用 `HostApplication.create(options)`。会话管理、指令、模型配置、快照和事件均由 `HostApplication` 提供。平台负责传输与进程生命周期；桌面实现位于 `apps/desktop/src/main/agent-host/`。
+需要显式提供运行时和工具的 Node 调用方可使用 `HostApplication.create(options)`。会话管理、指令、模型配置、快照和事件均由 `HostApplication` 提供。平台负责传输与进程生命周期；桌面共用业务进程位于 `apps/desktop/src/main/application-host/`，Agent 的 renderer IPC 桥接位于 `agent-host/ipc.ts`。
 
 - `defaultInstructions` 保存全局默认指令，只影响后续新建会话；`namedInstructions` / `deleteNamedInstructions` 管理命名指令集。
 - `instructions` 修改单个会话的指令条目，原生 JSONL 保存指令与修改模式记录。新会话复制默认值，后续独立修改。

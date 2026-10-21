@@ -55,6 +55,7 @@
     "typecheck:shared": "turbo run typecheck --filter @chaptale/shared"
   },
   "devDependencies": {
+    "@chaptale/creation": "workspace:*",
     "@playwright/test": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "@vitest/coverage-v8": "catalog:",

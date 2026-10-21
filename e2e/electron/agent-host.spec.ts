@@ -450,11 +450,11 @@ test('真实子进程退出会通知界面，重新连接只读快照', async ()
     });
   });
   const pid = await application.evaluate(
-    ({ app }) => app.getAppMetrics().find(process => process.name === 'Chaptale Agent')?.pid
+    ({ app }) => app.getAppMetrics().find(process => process.name === 'Chaptale Application')?.pid
   );
   expect(pid).toBeDefined();
   await application.evaluate((_electron, target) => process.kill(target!), pid);
-  await expect.poll(() => page.evaluate(() => document.body.dataset.hostExit)).toContain('Agent 宿主已退出');
+  await expect.poll(() => page.evaluate(() => document.body.dataset.hostExit)).toContain('应用宿主已退出');
   const state = await page.evaluate(() => window.chaptaleDesktop.agentHost.request('state', undefined));
   expect(state.sessions).toEqual([]);
 });

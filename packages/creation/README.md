@@ -1,6 +1,6 @@
 # @chaptale/creation
 
-供 Node 宿主使用的作品业务包，负责作品、文稿与资料条目、修订和恢复草稿。当前通过真实 SQLite 的公共接口测试验证；桌面业务进程与新工作台接入继续按 A 批推进。
+供 Node 宿主使用的作品业务包，负责作品、文稿与资料条目、修订和恢复草稿。当前通过真实 SQLite 的公共接口测试及 Electron 业务进程验收；renderer IPC、preload 与新工作台继续按 A 批推进。
 
 ## 模块与入口
 
@@ -27,7 +27,7 @@ export async function openCreationService(rootDir: string): Promise<CreationServ
 
 `CreationApplication` 接收宿主注入的仓储，`executeAuthor(command)` 校验方法和业务参数后执行作品操作。请求成功返回 `{ ok: true, value }`；修订、草稿和位置冲突返回可序列化的错误字段，便于界面保留输入并处理冲突。非法输入返回 `invalid-request`。
 
-作者身份固定在这个入口，宿主应从受信任的作者通道调用；请求体只允许业务参数。`subscribe` 和 `close` 分别转发已提交事件、释放存储。当前入口已由真实存储集成测试验证，桌面传输接入继续推进。
+作者身份固定在这个入口，宿主应从受信任的作者通道调用；请求体只允许业务参数。`subscribe` 和 `close` 分别转发已提交事件、释放存储。桌面通过 `DesktopApplicationProcess.creation` 调用真实 utilityProcess 中的入口，与 Agent 共用一个进程，分别收发命令和事件。存储目录由启动代码传入；关闭进程时先释放 Agent，再关闭作品库。renderer IPC 和 preload 接入继续推进。
 
 ## 当前接口与保存规则
 

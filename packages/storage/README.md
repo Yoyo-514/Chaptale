@@ -11,7 +11,7 @@ export async function openApplication(rootDir: string): Promise<CreationApplicat
 }
 ```
 
-宿主退出时调用应用的 `close()` 释放连接。
+宿主退出时调用应用的 `close()` 释放连接。桌面 worker 打包存储实现，将 better-sqlite3 原生驱动外置；桌面分发包也声明驱动运行依赖，供构建后的 worker 解析。
 
 ## 文件与事务
 
@@ -35,4 +35,11 @@ pnpm --filter @chaptale/storage test
 
 集成测试通过 creation 的公开服务和应用入口操作真实临时数据库，覆盖重开、修订和草稿冲突、目录改名与移动、命令幂等、事件分页、备份恢复后的游标失效和事务故障。测试随存储实现归包，creation 的生产依赖保持单向。
 
-升级驱动或 Electron 后，另在真实 utilityProcess 中检查驱动加载、事务和关闭重开。
+真实 utilityProcess 验收使用应用的公开客户端，覆盖 Agent 与作品共用进程、保存冲突、事件、关闭重开及异常退出后的快照恢复：
+
+```sh
+pnpm --filter @chaptale/desktop build
+pnpm exec playwright test --config playwright.electron.config.ts e2e/electron/application-host.spec.ts
+```
+
+升级驱动或 Electron 后重跑该用例；安装包另行验收。

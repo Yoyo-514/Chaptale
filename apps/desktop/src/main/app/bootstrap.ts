@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { registerAgentHostIpc } from '../agent-host/ipc';
-import { DesktopAgentProcess } from '../agent-host/process';
+import { DesktopApplicationProcess } from '../application-host/process';
 import { configureTrustedRendererUrl } from '../infra/security/trusted-ipc';
 import { createAppContext } from './app-context';
 import { registerApplicationIpc } from './ipc-registry';
@@ -32,15 +32,18 @@ export function bootstrapDesktopApp(): void {
 
     const context = createAppContext();
     const hostRoot = path.join(context.settingsService.rootDir, 'pi');
-    const agentHost = new DesktopAgentProcess({
-      script: path.join(currentDir, 'agent-host.js'),
-      cwd: path.join(hostRoot, 'work'),
-      configDir: path.join(hostRoot, 'config'),
-      agentDir: path.join(hostRoot, 'agent'),
-      sessionDir: path.join(hostRoot, 'sessions'),
-      settingsFile: path.join(hostRoot, 'settings.json')
+    const host = new DesktopApplicationProcess({
+      script: path.join(currentDir, 'application-host.js'),
+      creationDir: path.join(context.settingsService.rootDir, 'creation'),
+      agent: {
+        cwd: path.join(hostRoot, 'work'),
+        configDir: path.join(hostRoot, 'config'),
+        agentDir: path.join(hostRoot, 'agent'),
+        sessionDir: path.join(hostRoot, 'sessions'),
+        settingsFile: path.join(hostRoot, 'settings.json')
+      }
     });
-    registerAgentHostIpc(agentHost);
+    registerAgentHostIpc(host);
     let stopping = false;
     let stopped = false;
     // 窗口关闭已获确认后再停止宿主；取消退出时，后台会话继续运行。
@@ -54,7 +57,7 @@ export function bootstrapDesktopApp(): void {
         stopped = true;
         app.quit();
       };
-      void Promise.all([agentHost.dispose(), context.workspaceService.dispose()]).then(finish, () => {
+      void Promise.all([host.dispose(), context.workspaceService.dispose()]).then(finish, () => {
         console.error('退出时资源释放失败');
         finish();
       });
