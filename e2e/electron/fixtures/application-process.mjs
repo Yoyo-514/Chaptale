@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const [root, script, report] = process.argv.slice(2);
@@ -62,6 +62,20 @@ app.whenReady().then(async () => {
     process.kill(child.pid);
     const exitMessage = await disconnected;
     const afterCrash = value(await host.creation.request('snapshot', { workId: work.id }));
+    const source = path.join(root, '关闭前导入');
+    await mkdir(source);
+    for (let index = 0; index < 8; index += 1) await writeFile(path.join(source, `${index}.txt`), `正文 ${index}`);
+    const plan = value(await host.creation.request('prepareImport', { paths: [source] }));
+    const importing = host.creation.request('importFiles', {
+      ...plan,
+      workId: work.id,
+      parentId: null,
+      section: 'manuscript'
+    });
+    await host.dispose();
+    const shutdownImport = value(await importing);
+    host = new DesktopApplicationProcess(options);
+    const afterShutdownImport = value(await host.creation.request('snapshot', { workId: work.id }));
     await host.dispose();
     await writeFile(
       report,
@@ -74,6 +88,8 @@ app.whenReady().then(async () => {
         conflict,
         snapshot,
         afterCrash,
+        shutdownImport,
+        afterShutdownImport,
         exitMessage
       })
     );

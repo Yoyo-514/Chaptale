@@ -128,7 +128,46 @@ export type CreationResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: CreationError | { code: 'invalid-request' | 'failed'; message: string } };
 
-export interface CreationCommands {
+export type ImportSource = {
+  sourcePath: string;
+  parentIndex: number | null;
+  title: string;
+} & ({ kind: 'directory'; format: null } | { kind: 'document'; format: Document['format'] });
+
+/** 预览确定本次导入的范围和顺序；重试沿用同一计划及命令身份。 */
+export interface ImportPlan {
+  commandId: string;
+  entries: ImportSource[];
+  skippedPaths: string[];
+}
+
+export interface ImportFilesInput extends ImportPlan {
+  workId: string;
+  parentId: string | null;
+  section: Entry['section'];
+}
+
+/** 按条目提交，失败时明确返回已完成项；原计划可继续重试。 */
+export interface ImportReport {
+  entries: Entry[];
+  failure: { index: number; message: string } | null;
+}
+
+export interface ExportFilesInput {
+  workId: string;
+  directory: string;
+  target:
+    | { kind: 'document'; documentId: string; format: Document['format'] }
+    | { kind: 'manuscript'; format: Document['format'] }
+    | { kind: 'book' };
+}
+
+export interface ExportReport {
+  paths: string[];
+  failure: { documentId: string | null; message: string } | null;
+}
+
+export interface CreationAuthorCommands {
   createWork: { input: CreateWorkInput; output: CreationResult<Work> };
   createEntry: { input: CreateEntryInput; output: CreationResult<Entry> };
   saveDocument: { input: SaveDocumentInput; output: CreationResult<Entry> };
@@ -142,6 +181,13 @@ export interface CreationCommands {
   snapshot: { input: { workId: string | null }; output: CreationResult<CreationSnapshot> };
   readChanges: { input: { cursor: CreationCursor; limit: number }; output: CreationResult<CreationChanges> };
 }
+export interface CreationCommands extends CreationAuthorCommands {
+  prepareImport: { input: { paths: string[] }; output: CreationResult<ImportPlan> };
+  importFiles: { input: ImportFilesInput; output: CreationResult<ImportReport> };
+  exportFiles: { input: ExportFilesInput; output: CreationResult<ExportReport> };
+}
+
+export type CreationAuthorCommand = RpcCommand<CreationAuthorCommands>;
 export type CreationCommand = RpcCommand<CreationCommands>;
 export type CreationClient = RpcClient<CreationCommands, CreationEvent>;
 

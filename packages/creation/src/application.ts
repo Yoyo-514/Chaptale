@@ -1,8 +1,9 @@
 import { Type, type TSchema } from 'typebox';
 import { Compile } from 'typebox/compile';
 
-import type { CreationCommand, CreationCommands, CreationResult } from './contracts.ts';
+import type { CreationAuthorCommand, CreationAuthorCommands, CreationCommands, CreationResult } from './contracts.ts';
 import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from './errors.ts';
+import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './file-exchange.ts';
 import type { CreationRepository } from './repository.ts';
 import { CreationService } from './service.ts';
 
@@ -56,11 +57,12 @@ const inputs = {
     cursor: object({ workId: parentId, sequence: Type.Integer({ minimum: 0 }), token: parentId }),
     limit: Type.Integer({ minimum: 1 })
   })
-} satisfies Record<keyof CreationCommands, TSchema>;
+} satisfies Record<keyof CreationAuthorCommands, TSchema>;
 const validator = Compile(
   Type.Union(Object.entries(inputs).map(([method, input]) => object({ method: Type.Literal(method), input })))
 );
 
+type AuthorValue = Extract<CreationAuthorCommands[keyof CreationAuthorCommands]['output'], { ok: true }>['value'];
 type CreationValue = Extract<CreationCommands[keyof CreationCommands]['output'], { ok: true }>['value'];
 
 /** 平台作者通道的应用入口；调用身份由入口固定，命令只携带业务参数。 */
@@ -75,30 +77,44 @@ export class CreationApplication {
     return this.service.subscribe(listener);
   }
 
-  executeAuthor<K extends keyof CreationCommands>(command: {
+  execute<K extends keyof CreationCommands>(command: {
     method: K;
     input: CreationCommands[K]['input'];
-  }): CreationCommands[K]['output'];
-  executeAuthor(command: unknown): CreationResult<CreationValue>;
-  executeAuthor(command: unknown): CreationResult<CreationValue> {
-    if (!validator.Check(command))
-      return { ok: false, error: { code: 'invalid-request', message: '作品请求参数无效' } };
+  }): Promise<CreationCommands[K]['output']>;
+  execute(command: unknown): Promise<CreationResult<CreationValue>>;
+  async execute(command: unknown): Promise<CreationResult<CreationValue>> {
+    if (!fileCommandValidator.Check(command)) return this.executeAuthor(command);
     try {
-      return { ok: true, value: this.execute(command as CreationCommand) };
+      const file = command as FileCommand;
+      switch (file.method) {
+        case 'prepareImport':
+          return { ok: true, value: await prepareImport(file.input.paths) };
+        case 'importFiles':
+          return { ok: true, value: await importFiles(this.service, file.input) };
+        case 'exportFiles':
+          return { ok: true, value: await exportFiles(this.service, file.input) };
+      }
     } catch (error) {
-      return {
-        ok: false,
-        error:
-          error instanceof RevisionConflictError ||
-          error instanceof DraftConflictError ||
-          error instanceof EntryLocationConflictError
-            ? error.toJSON()
-            : { code: 'failed', message: error instanceof Error ? error.message : '作品请求失败' }
-      };
+      return creationFailure(error);
     }
   }
 
-  private execute(command: CreationCommand): CreationValue {
+  executeAuthor<K extends keyof CreationAuthorCommands>(command: {
+    method: K;
+    input: CreationAuthorCommands[K]['input'];
+  }): CreationAuthorCommands[K]['output'];
+  executeAuthor(command: unknown): CreationResult<AuthorValue>;
+  executeAuthor(command: unknown): CreationResult<AuthorValue> {
+    if (!validator.Check(command))
+      return { ok: false, error: { code: 'invalid-request', message: '作品请求参数无效' } };
+    try {
+      return { ok: true, value: this.executeBusiness(command as CreationAuthorCommand) };
+    } catch (error) {
+      return creationFailure(error);
+    }
+  }
+
+  private executeBusiness(command: CreationAuthorCommand): AuthorValue {
     switch (command.method) {
       case 'createWork':
         return this.service.createWork(command.input);
@@ -130,4 +146,16 @@ export class CreationApplication {
   close(): void {
     this.service.close();
   }
+}
+
+function creationFailure(error: unknown): CreationResult<never> {
+  return {
+    ok: false,
+    error:
+      error instanceof RevisionConflictError ||
+      error instanceof DraftConflictError ||
+      error instanceof EntryLocationConflictError
+        ? error.toJSON()
+        : { code: 'failed', message: error instanceof Error ? error.message : '作品请求失败' }
+  };
 }

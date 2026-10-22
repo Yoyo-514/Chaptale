@@ -6,7 +6,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { CreationEvent, CreationResult, CreationSnapshot, Document, Entry } from '@chaptale/creation/contracts';
+import type {
+  CreationEvent,
+  CreationResult,
+  CreationSnapshot,
+  Document,
+  Entry,
+  ImportReport
+} from '@chaptale/creation/contracts';
 
 const desktop = path.resolve('apps/desktop');
 const executable = createRequire(path.join(desktop, 'package.json'))('electron') as string;
@@ -37,6 +44,8 @@ test('作品客户端与 Agent 共用真实业务进程，保存冲突、事件�
       conflict: CreationResult<Entry>;
       snapshot: CreationSnapshot;
       afterCrash: CreationSnapshot;
+      shutdownImport: ImportReport;
+      afterShutdownImport: CreationSnapshot;
       exitMessage: string;
     };
     expect(result.processCount).toBe(1);
@@ -53,6 +62,11 @@ test('作品客户端与 Agent 共用真实业务进程，保存冲突、事件�
     });
     expect(result.snapshot).toMatchObject({ kind: 'work', entries: [{ id: result.saved.id, title: '雨夜' }] });
     expect(result.afterCrash).toEqual(result.snapshot);
+    expect(result.shutdownImport.failure).toBeNull();
+    expect(result.shutdownImport.entries).toHaveLength(9);
+    expect(result.afterShutdownImport).toMatchObject({ kind: 'work', entries: expect.any(Array) });
+    if (result.afterShutdownImport.kind !== 'work') throw new Error('应返回作品快照');
+    expect(result.afterShutdownImport.entries).toHaveLength(10);
     expect(result.exitMessage).toContain('应用宿主已退出');
     expect(JSON.stringify(result.events)).not.toContain('第一行');
     expect(JSON.stringify(result.snapshot)).not.toContain('第一行');

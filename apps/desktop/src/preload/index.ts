@@ -1,4 +1,4 @@
-import { contextBridge } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
 
 import type { HostCommands, HostEvent } from '@chaptale/agent-host/protocol';
 import type { CreationCommands, CreationEvent } from '@chaptale/creation/contracts';
@@ -14,7 +14,10 @@ import { createWorkspaceApi } from './api/workspace';
 
 const desktopApi: ChaptaleDesktopApi = {
   agentHost: createHostApi<HostCommands, HostEvent>(APPLICATION_HOST_CHANNELS.agent),
-  creation: createHostApi<CreationCommands, CreationEvent>(APPLICATION_HOST_CHANNELS.creation),
+  creation: {
+    ...createHostApi<CreationCommands, CreationEvent>(APPLICATION_HOST_CHANNELS.creation),
+    selectPaths: purpose => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.selectPaths, purpose)
+  },
   workspace: createWorkspaceApi(),
   cloudSync: createCloudSyncApi(),
   getPlatform: createGetPlatformApi(),

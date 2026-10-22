@@ -25,9 +25,9 @@ export async function openCreationService(rootDir: string): Promise<CreationServ
 
 ## 作者应用入口
 
-`CreationApplication` 接收宿主注入的仓储，`executeAuthor(command)` 校验方法和业务参数后执行作品操作。请求成功返回 `{ ok: true, value }`；修订、草稿和位置冲突返回可序列化的错误字段，便于界面保留输入并处理冲突。非法输入返回 `invalid-request`。
+`CreationApplication` 接收宿主注入的仓储，`execute(command)` 异步处理作者请求，包括文件交换；`executeAuthor(command)` 提供同步的作品数据库操作。两者均校验方法和业务参数。请求成功返回 `{ ok: true, value }`；修订、草稿和位置冲突返回可序列化的错误字段，便于界面保留输入并处理冲突。非法输入返回 `invalid-request`。
 
-作者身份固定在这个入口，宿主应从受信任的作者通道调用；请求体只允许业务参数。`subscribe` 和 `close` 分别转发已提交事件、释放存储。桌面通过 `DesktopApplicationProcess.creation` 调用真实 utilityProcess 中的入口，与 Agent 共用一个进程，分别收发命令和事件。存储目录由启动代码传入；关闭进程时先释放 Agent，再关闭作品库。Renderer 通过 `window.chaptaleDesktop.creation` 请求、订阅提交事件和接收断线通知。IPC 复用桌面来源校验，业务参数由作者入口校验，冲突结果作为普通数据返回。断线后调用方重新读取快照，写入请求保持原 commandId 以便核对回执。
+作者身份固定在这个入口，宿主应从受信任的作者通道调用；请求体只允许业务参数。`subscribe` 和 `close` 分别转发已提交事件、释放存储。桌面通过 `DesktopApplicationProcess.creation` 调用真实 utilityProcess 中的入口，与 Agent 共用一个进程，分别收发命令和事件。存储目录由启动代码传入；关闭进程时等待已接收的作品请求结束，再释放 Agent 和作品库。Renderer 通过 `window.chaptaleDesktop.creation` 请求、订阅提交事件和接收断线通知。IPC 复用桌面来源校验，业务参数由作者入口校验，冲突结果作为普通数据返回。断线后调用方重新读取快照，写入请求保持原 commandId 以便核对回执。
 
 桌面桥接类型从 `@chaptale/desktop/bridge` 导入；该入口只有类型声明。完整链路测试位于 `e2e/electron/creation-bridge.spec.ts`，覆盖保存与重启、冲突、取消订阅、拒绝无效输入及非可信页面、断线后继续订阅。
 
@@ -43,6 +43,18 @@ export async function openCreationService(rootDir: string): Promise<CreationServ
 创建、改名、移动与正式保存使用 `commandId`。相同命令和参数重试返回原结果，同 ID 改参数时报错。文稿内容、修订与命令回执在同一作品数据库事务中提交。
 
 草稿快照的 `id` 作为该快照正式保存时的 `commandId`。正式保存按 ID 清理对应草稿；读取草稿时按作品库回执核对已提交快照，处理正式提交成功、草稿清理失败后的恢复。修订冲突与草稿冲突分别使用 `RevisionConflictError`、`DraftConflictError`，纯数据错误类型见 `/contracts`。
+
+## TXT / Markdown 文件交换
+
+文件 IO 在业务进程中异步执行，正文逐文档读取；Electron 只提供受信任的 `creation.selectPaths` 系统选择器。业务接口沿用 `creation.request`：
+
+- `prepareImport({ paths })`：读取文件／目录元数据，返回导入计划、层级、格式和跳过的路径。目录内按中文自然顺序排列，根项沿用选择顺序；支持 `.txt`、`.md`、`.markdown`，其他文件和符号链接列入跳过清单。预览保持作品库原样。
+- `importFiles({ ...plan, workId, parentId, section })`：按计划逐项提交，文件名作为独立标题，UTF-8 正文保留 BOM、frontmatter、换行及空白。编码错误和读取失败返回已完成条目及失败位置；重试沿用原计划和 commandId，通过逐项回执避免重复创建。每个条目单独提交，调用方需检查返回值中的 `failure`。
+- `exportFiles({ workId, directory, target })`：`document` 导出单份文稿或资料，`manuscript` 按目录顺序分别导出文稿，`book` 合并整本 TXT。前两种指定 `txt` 或 `markdown`。标题放在正文前，Markdown 标题使用一级标题，正文原字符保留。导出固定开始时的修订，期间保存的新内容留给下次导出。
+
+导出文件名将 Windows 禁用字符替换为 `_`，保留设备名加 `_` 前缀，去掉末尾空格与句点；清理后为空则报告失败。重名加 ` (2)`、` (3)` 后缀，通过独占创建保留既有文件。失败返回已完成路径与失败对象；当前文件的普通 IO 失败会关闭并移除本次创建的未完成文件。导出目录由调用方明确选择，重复导出生成新的文件。
+
+宿主正常关闭等待文件交换完成。进程被强制终止时，调用方按结果未知处理：导入可用原计划核对回执，导出先核对目标目录。新工作台的导入预览、结果展示和系统选择器人工验收随界面交付。
 
 ## 目录移动与并发
 

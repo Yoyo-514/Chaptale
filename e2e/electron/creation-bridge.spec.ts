@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -184,4 +184,64 @@ test('renderer 收到宿主断线后重取作品快照，原订阅继续接收�
   );
   expect(second).toMatchObject({ ok: true, value: { title: '新作' } });
   await expect.poll(() => page.evaluate(() => document.body.dataset.creationCount)).toBe('2');
+});
+
+test('renderer 预览并导入真实文件，导出保留原文和同名原件，重启后可重试同一计划', async () => {
+  test.setTimeout(60_000);
+  const source = path.join(home, '导入来源');
+  const directory = path.join(home, '导出结果');
+  await mkdir(source);
+  await mkdir(directory);
+  const body = '\uFEFF---\r\ntitle: 原标题\r\n---\r\n章节\r\n正文  \r\n';
+  await writeFile(path.join(source, '章节.txt'), body);
+  await writeFile(path.join(directory, '章节.txt'), '此前的导出');
+  const result = await page.evaluate(
+    async ({ source: sourcePath, directory: outputDirectory }) => {
+      const client = (window as DesktopWindow).chaptaleDesktop.creation;
+      // 辅助函数随 evaluate 一起进入浏览器执行。
+      // oxlint-disable-next-line unicorn/consistent-function-scoping
+      function value<T>(response: CreationResult<T>): T {
+        if (!response.ok) throw new Error(response.error.message);
+        return response.value;
+      }
+      const work = value(
+        await client.request('createWork', { commandId: crypto.randomUUID(), title: '新作品', kind: 'novel' })
+      );
+      const plan = value(await client.request('prepareImport', { paths: [sourcePath] }));
+      const before = value(await client.request('snapshot', { workId: work.id }));
+      const input = { ...plan, workId: work.id, parentId: null, section: 'manuscript' as const };
+      const imported = value(await client.request('importFiles', input));
+      const exported = value(
+        await client.request('exportFiles', {
+          workId: work.id,
+          directory: outputDirectory,
+          target: { kind: 'manuscript', format: 'txt' }
+        })
+      );
+      const book = value(
+        await client.request('exportFiles', { workId: work.id, directory: outputDirectory, target: { kind: 'book' } })
+      );
+      return { before, input, imported, exported, book };
+    },
+    { source, directory }
+  );
+  expect(result.before).toMatchObject({ kind: 'work', entries: [] });
+  expect(result.imported.failure).toBeNull();
+  expect(result.imported.entries).toHaveLength(2);
+  expect(result.exported).toEqual({ paths: [path.join(directory, '章节 (2).txt')], failure: null });
+  expect(result.book.failure).toBeNull();
+  expect(await readFile(result.exported.paths[0]!, 'utf8')).toBe(`章节\n\n${body}`);
+  expect(await readFile(result.book.paths[0]!, 'utf8')).toBe(`章节\n\n${body}`);
+  expect(await readFile(path.join(directory, '章节.txt'), 'utf8')).toBe('此前的导出');
+  expect(await readFile(path.join(source, '章节.txt'), 'utf8')).toBe(body);
+  await expect(
+    page.evaluate(() => (window as DesktopWindow).chaptaleDesktop.creation.selectPaths('unknown' as never))
+  ).rejects.toThrow('文件选择用途无效');
+  await application.close();
+  await launch();
+  const retry = await page.evaluate(
+    input => (window as DesktopWindow).chaptaleDesktop.creation.request('importFiles', input),
+    result.input
+  );
+  expect(retry).toEqual({ ok: true, value: result.imported });
 });

@@ -18,33 +18,29 @@ async function start() {
     creation = new CreationApplication(await openCreationStorage({ rootDir: options.creationDir }));
     const author = creation;
     const agent = await createHostApplication(options.agent);
+    const pendingCreation = new Set<Promise<void>>();
     agent.subscribe(event => send({ type: 'agent', packet: { type: 'event', event } }));
     author.subscribe(event => send({ type: 'creation', packet: { type: 'event', event } }));
     parent.on('message', ({ data }: { data: ApplicationRequest }) => {
       switch (data.type) {
         case 'shutdown':
-          void agent
-            .dispose()
+          void Promise.allSettled(pendingCreation)
+            .then(() => agent.dispose())
             .finally(() => author.close())
             .then(
               () => process.exit(0),
               () => process.exit(1)
             );
           break;
-        case 'creation':
-          // 作者身份由主进程通道绑定，命令中的业务参数由作品入口校验。
-          send({
-            type: 'creation',
-            packet: {
-              type: 'reply',
-              reply: {
-                id: data.request.id,
-                ok: true,
-                value: author.executeAuthor(data.request.command)
-              }
-            }
+        case 'creation': {
+          // 文件交换包含异步 IO；关闭宿主前等待已接收的作品请求结束。
+          const pending = author.execute(data.request.command).then(value => {
+            send({ type: 'creation', packet: { type: 'reply', reply: { id: data.request.id, ok: true, value } } });
           });
+          pendingCreation.add(pending);
+          void pending.finally(() => pendingCreation.delete(pending));
           break;
+        }
         case 'agent':
           void agent.execute(data.request.command).then(
             value =>

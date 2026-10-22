@@ -57,6 +57,7 @@ export interface DesktopAgentClient extends AgentClient {
 }
 
 export interface DesktopCreationClient extends CreationClient {
+  selectPaths(purpose: 'import-files' | 'import-directory' | 'export-directory'): Promise<string[] | null>;
   onDisconnected(listener: (message: string) => void): () => void;
 }
 
