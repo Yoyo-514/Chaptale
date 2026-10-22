@@ -1,35 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { EditCommandValidator } from '../../../bridge/app';
+import { IPC_CHANNELS } from '../../../bridge/channels';
 import {
-  CloudArchiveArgsValidator,
-  CloudArchiveListArgsValidator,
-  CloudBindArgsValidator,
   CloudListFoldersArgsValidator,
   CloudNoArgsValidator,
-  CloudProviderArgsValidator,
-  CloudRestoreArgsValidator,
-  CloudRestoreDiffArgsValidator,
-  CreateWorkspaceArgsValidator,
-  EditCommandValidator,
-  EntryPathArgsValidator,
-  MutateEntryArgsValidator,
-  IPC_CHANNELS,
-  UpdateChaptaleSettingsArgsValidator,
-  WorkspaceGetStateArgsValidator,
-  SelectDirectoryArgsValidator,
-  ListDirectoryArgsValidator,
-  CreateEntryArgsValidator,
-  ReadDocumentArgsValidator,
-  WriteDocumentArgsValidator,
-  WorkspaceRootArgsValidator,
-  CreateChapterArgsValidator,
-  WindowCompleteCloseArgsValidator,
-  WindowZoomArgsValidator,
-  RecoveryPathArgsValidator,
-  SaveRecoveryArgsValidator
-} from '@chaptale/ipc-contract';
-
-import { WorkspaceService } from '../../features/workspace/service';
+  CloudProviderArgsValidator
+} from '../../../bridge/schemas/cloud-sync';
+import { UpdateChaptaleSettingsArgsValidator } from '../../../bridge/schemas/settings';
+import { WindowCompleteCloseArgsValidator, WindowZoomArgsValidator } from '../../../bridge/window';
 import type { AppContext } from '../app-context';
 import { registerApplicationIpc } from '../ipc-registry';
 
@@ -73,39 +52,12 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.app.editCommand, EditCommandValidator),
   trusted(IPC_CHANNELS.settings.getState),
   validated(IPC_CHANNELS.settings.update, UpdateChaptaleSettingsArgsValidator),
-  trusted(IPC_CHANNELS.settings.selectWorkspaceDir),
   trusted(IPC_CHANNELS.settings.openConfigDir),
-  validated(IPC_CHANNELS.workspace.getState, WorkspaceGetStateArgsValidator),
-  validated(IPC_CHANNELS.workspace.selectParent, SelectDirectoryArgsValidator),
-  validated(IPC_CHANNELS.workspace.createWorkspace, CreateWorkspaceArgsValidator),
-  validated(IPC_CHANNELS.workspace.inspectEntry, EntryPathArgsValidator),
-  validated(IPC_CHANNELS.workspace.mutateEntry, MutateEntryArgsValidator),
-  validated(IPC_CHANNELS.workspace.revealEntry, EntryPathArgsValidator),
-  validated(IPC_CHANNELS.workspace.listDirectory, ListDirectoryArgsValidator),
-  validated(IPC_CHANNELS.workspace.createEntry, CreateEntryArgsValidator),
-  validated(IPC_CHANNELS.workspace.readDocument, ReadDocumentArgsValidator),
-  validated(IPC_CHANNELS.workspace.writeDocument, WriteDocumentArgsValidator),
-  validated(IPC_CHANNELS.workspace.getLayout, WorkspaceRootArgsValidator),
-  validated(IPC_CHANNELS.workspace.createChapter, CreateChapterArgsValidator),
-  validated(IPC_CHANNELS.workspace.listRecoveries, WorkspaceRootArgsValidator),
-  validated(IPC_CHANNELS.workspace.readRecovery, RecoveryPathArgsValidator),
-  validated(IPC_CHANNELS.workspace.saveRecovery, SaveRecoveryArgsValidator),
-  validated(IPC_CHANNELS.workspace.discardRecovery, RecoveryPathArgsValidator),
   validated(IPC_CHANNELS.cloudSync.getState, CloudNoArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.getBinding, CloudNoArgsValidator),
   validated(IPC_CHANNELS.cloudSync.beginAuth, CloudProviderArgsValidator),
   validated(IPC_CHANNELS.cloudSync.cancelAuth, CloudNoArgsValidator),
   validated(IPC_CHANNELS.cloudSync.signOut, CloudProviderArgsValidator),
   validated(IPC_CHANNELS.cloudSync.listFolders, CloudListFoldersArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.bind, CloudBindArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.unbind, CloudNoArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.listBackups, CloudNoArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.createBackup, CloudNoArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.planRestore, CloudArchiveArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.readRestoreDiff, CloudRestoreDiffArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.applyRestore, CloudRestoreArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.cancelRestore, CloudNoArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.removeBackups, CloudArchiveListArgsValidator),
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),
   trusted(IPC_CHANNELS.window.close),
@@ -113,17 +65,12 @@ const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.window.isMaximized)
 ];
 
-const mainToRendererEvents = new Set<string>([
-  IPC_CHANNELS.window.closeRequested,
-  IPC_CHANNELS.workspace.changed,
-  IPC_CHANNELS.cloudSync.backupProgress
-]);
+const mainToRendererEvents = new Set<string>([IPC_CHANNELS.window.closeRequested]);
 
 function createContext(): AppContext {
   return {
     settingsService: {},
-    workspaceService: new WorkspaceService({ getStorageContext: async () => ({ workspacePath: undefined }) }),
-    cloudSyncService: { onProgress: () => () => undefined }
+    cloudSyncService: {}
   } as unknown as AppContext;
 }
 

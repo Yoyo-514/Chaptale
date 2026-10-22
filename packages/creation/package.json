@@ -28,7 +28,6 @@
   },
   "dependencies": {
     "@chaptale/contracts": "workspace:*",
-    "@chaptale/shared": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {

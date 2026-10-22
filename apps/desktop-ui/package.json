@@ -14,8 +14,7 @@
   "dependencies": {
     "@chaptale/agent-host": "workspace:*",
     "@chaptale/creation": "workspace:*",
-    "@chaptale/ipc-contract": "workspace:*",
-    "@chaptale/shared": "workspace:*",
+    "@chaptale/desktop": "workspace:*",
     "@codemirror/commands": "catalog:",
     "@codemirror/lang-markdown": "catalog:",
     "@codemirror/language": "catalog:",
@@ -33,7 +32,6 @@
     "vue": "catalog:"
   },
   "devDependencies": {
-    "@chaptale/desktop": "workspace:*",
     "@chaptale/storage": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",

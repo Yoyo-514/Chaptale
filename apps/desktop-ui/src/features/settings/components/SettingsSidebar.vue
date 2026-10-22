@@ -7,7 +7,7 @@ const settingsStore = useSettingsStore();
 
 const sections: { id: SettingsSection; title: string; icon: string }[] = [
   {
-    id: 'workspace',
+    id: 'writing',
     title: '写作',
     icon: 'i-mingcute-folder-2-line'
   },

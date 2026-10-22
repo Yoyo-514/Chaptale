@@ -10,7 +10,6 @@ import { createCloudSyncApi } from './api/cloud-sync';
 import { createHostApi } from './api/host';
 import { createSettingsApi } from './api/settings';
 import { createWindowControlApi } from './api/window';
-import { createWorkspaceApi } from './api/workspace';
 
 const desktopApi: ChaptaleDesktopApi = {
   agentHost: createHostApi<HostCommands, HostEvent>(APPLICATION_HOST_CHANNELS.agent),
@@ -18,7 +17,6 @@ const desktopApi: ChaptaleDesktopApi = {
     ...createHostApi<CreationCommands, CreationEvent>(APPLICATION_HOST_CHANNELS.creation),
     selectPaths: purpose => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.selectPaths, purpose)
   },
-  workspace: createWorkspaceApi(),
   cloudSync: createCloudSyncApi(),
   getPlatform: createGetPlatformApi(),
   editCommand: createEditCommandApi(),

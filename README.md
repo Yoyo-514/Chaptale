@@ -70,14 +70,12 @@ pnpm dev
 
 ### 项目结构
 
-| 目录                  | 职责                                                       |
-| --------------------- | ---------------------------------------------------------- |
-| `apps/desktop`        | Electron 主进程与 preload，负责文件、备份和 Agent 宿主进程 |
-| `apps/desktop-ui`     | Vue 3 + Pinia 界面，CodeMirror 编辑器                      |
-| `packages/agent-host` | pi SDK 接入：模型运行时、会话、工具授权与传输协议          |
-| `packages/ipc`        | 进程间通信契约与校验                                       |
-| `packages/shared`     | 共享类型与逻辑                                             |
-| `docs`                | VitePress 使用手册（随新界面重写中）                       |
+| 目录                  | 职责                                                               |
+| --------------------- | ------------------------------------------------------------------ |
+| `apps/desktop`        | Electron 主进程与 preload，负责桌面桥接、云端账户和 Agent 宿主进程 |
+| `apps/desktop-ui`     | Vue 3 + Pinia 界面，CodeMirror 编辑器                              |
+| `packages/agent-host` | pi SDK 接入：模型运行时、会话、工具授权与传输协议                  |
+| `docs`                | VitePress 使用手册（随新界面重写中）                               |
 
 项目使用 TypeScript、pnpm workspace 和 Turborepo；单元测试使用 Vitest，桌面端到端测试通过 Playwright 启动真实 Electron。开发检查、安装包构建与发布步骤见[开发与发布](./CONTRIBUTING.md)。
 

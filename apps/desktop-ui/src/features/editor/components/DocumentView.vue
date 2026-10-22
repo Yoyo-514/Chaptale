@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import type { EditCommand } from '@chaptale/ipc-contract';
+import type { EditCommand } from '@chaptale/desktop/bridge';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';

@@ -1,8 +1,6 @@
 import { ipcMain } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 
-import { errorToMessage } from '@chaptale/shared';
-
 import { isTrustedRendererUrl } from './navigation-security';
 
 let trustedRendererUrl: string | undefined;
@@ -36,7 +34,7 @@ export function handleTrustedIpc<TArgs extends unknown[], TResult>(
       return await listener(event, ...(args as TArgs));
     } catch (error) {
       // 统一 IPC 错误面：非 Error 抛出物归一为 Error，renderer 侧不会收到 "[object Object]"。
-      throw error instanceof Error ? error : new Error(errorToMessage(error));
+      throw error instanceof Error ? error : new Error(String(error));
     }
   });
 }

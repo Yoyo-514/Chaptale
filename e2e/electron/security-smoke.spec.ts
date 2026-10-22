@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { ChaptaleSettingsState, UpdateChaptaleSettingsPayload } from '@chaptale/ipc-contract';
+import type { ChaptaleSettingsState, UpdateChaptaleSettingsPayload } from '@chaptale/desktop/bridge';
 
 const desktopDir = path.resolve('apps/desktop');
 const desktopRequire = createRequire(path.join(desktopDir, 'package.json'));

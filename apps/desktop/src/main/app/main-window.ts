@@ -2,8 +2,7 @@ import { BrowserWindow, Menu, shell, type Event as ElectronEvent } from 'electro
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { ChaptaleTheme } from '@chaptale/ipc-contract';
-
+import type { ChaptaleTheme } from '../../bridge/settings';
 import { guardWindowClose } from '../infra/electron/window-close';
 import { isExternalUrl, isTrustedRendererUrl } from '../infra/security/navigation-security';
 

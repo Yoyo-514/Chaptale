@@ -1,6 +1,6 @@
 import { dialog, type BrowserWindow } from 'electron';
 
-import { IPC_CHANNELS } from '@chaptale/ipc-contract';
+import { IPC_CHANNELS } from '../../../bridge/channels';
 
 const approved = new WeakSet<BrowserWindow>();
 const pending = new WeakMap<BrowserWindow, ReturnType<typeof setTimeout>>();

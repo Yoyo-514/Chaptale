@@ -1,14 +1,13 @@
 import { defineStore } from 'pinia';
 
-import type { ChaptaleSettingsState, ChaptaleTheme, UpdateChaptaleSettingsPayload } from '@chaptale/ipc-contract';
+import type { ChaptaleSettingsState, ChaptaleTheme, UpdateChaptaleSettingsPayload } from '@chaptale/desktop/bridge';
 
 import { useNotificationStore } from '@/features/notifications';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
-import { confirmWorkspaceTransition } from '@/utils/workspace-transition';
 
 import { applyTheme, cacheTheme } from '../theme';
 
-export type SettingsSection = 'workspace' | 'llm' | 'prompt' | 'cloudSync' | 'files';
+export type SettingsSection = 'writing' | 'llm' | 'prompt' | 'cloudSync' | 'files';
 
 /** 设置快照是主题的事实源；每次拿到新快照都据此校准界面与启动期缓存。 */
 function syncTheme(state: ChaptaleSettingsState) {
@@ -20,7 +19,7 @@ function syncTheme(state: ChaptaleSettingsState) {
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
     state: undefined as ChaptaleSettingsState | undefined,
-    activeSection: 'workspace' as SettingsSection,
+    activeSection: 'writing' as SettingsSection,
     isOpen: false,
     isLoading: false,
     error: ''
@@ -68,7 +67,6 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async update(payload: UpdateChaptaleSettingsPayload) {
-      if (payload.workspace && !(await confirmWorkspaceTransition())) return false;
       this.isLoading = true;
       try {
         const state = await this.runAction('更新设置失败', () => getDesktopApi().settings.update(payload));

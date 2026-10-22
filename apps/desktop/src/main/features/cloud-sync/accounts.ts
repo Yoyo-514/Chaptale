@@ -1,7 +1,5 @@
-import { CLOUD_PROVIDER_LABELS, CLOUD_PROVIDERS } from '@chaptale/ipc-contract';
-import type { CloudAuthResult, CloudProvider, CloudSyncState } from '@chaptale/ipc-contract';
-import { errorToMessage } from '@chaptale/shared';
-
+import { CLOUD_PROVIDER_LABELS, CLOUD_PROVIDERS } from '../../../bridge/cloud-sync';
+import type { CloudAuthResult, CloudProvider, CloudSyncState } from '../../../bridge/cloud-sync';
 import { runAuthorizationCodeFlow } from './oauth-flow';
 import type { CloudProviderAdapter } from './providers/provider-port';
 import type { CloudSyncStore } from './store';
@@ -68,7 +66,11 @@ export class CloudAccounts {
     } catch (error) {
       return controller.signal.aborted
         ? { ok: false, code: 'canceled', message: '已取消登录' }
-        : { ok: false, code: 'network', message: `换取 ${label} 凭据失败：${errorToMessage(error)}` };
+        : {
+            ok: false,
+            code: 'network',
+            message: `换取 ${label} 凭据失败：${error instanceof Error ? error.message : String(error)}`
+          };
     } finally {
       this.authorizing = null;
       this.controller = null;

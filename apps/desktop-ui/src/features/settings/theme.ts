@@ -1,5 +1,5 @@
-import type { ChaptaleTheme } from '@chaptale/ipc-contract';
-import { isChaptaleTheme } from '@chaptale/ipc-contract';
+import type { ChaptaleTheme } from '@chaptale/desktop/bridge';
+import { isChaptaleTheme } from '@chaptale/desktop/bridge';
 
 /**
  * 主题对应的 <html> 类名。

@@ -2,14 +2,13 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationStore } from '@/features/notifications';
-import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
 import { useSettingsStore } from '../store';
 
-function createSettingsState(workspacePath = 'E:/Stories/Story-1') {
+function createSettingsState(theme = 'light') {
   return {
-    settings: { version: 1, workspace: { path: workspacePath }, theme: 'light' },
-    paths: { rootDir: 'root', settingsPath: 'settings.json', currentCwd: workspacePath }
+    settings: { version: 1, editor: { autoSave: false }, theme },
+    paths: { rootDir: 'root', settingsPath: 'settings.json' }
   };
 }
 
@@ -17,7 +16,7 @@ function installDesktopApi() {
   const api = {
     settings: {
       getState: vi.fn().mockResolvedValue(createSettingsState()),
-      update: vi.fn().mockResolvedValue(createSettingsState('E:/workspace-b')),
+      update: vi.fn().mockResolvedValue(createSettingsState('dark')),
       openConfigDir: vi.fn().mockResolvedValue(undefined)
     }
   };
@@ -47,22 +46,6 @@ describe('settings store', () => {
     store.closePanel();
     expect(store.isOpen).toBe(false);
     expect(api.settings.getState).toHaveBeenCalledOnce();
-  });
-
-  it('切换作品前先征得确认，拒绝后不写设置', async () => {
-    const api = installDesktopApi();
-    const store = useSettingsStore();
-    const confirm = vi.fn().mockResolvedValue(false);
-    const unregister = registerWorkspaceTransitionGuard(confirm);
-
-    try {
-      await expect(store.update({ workspace: { path: 'E:/workspace-b' } })).resolves.toBe(false);
-    } finally {
-      unregister();
-    }
-
-    expect(confirm).toHaveBeenCalledOnce();
-    expect(api.settings.update).not.toHaveBeenCalled();
   });
 
   it('保存失败时保留原快照并通知作者', async () => {

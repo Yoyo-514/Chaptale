@@ -1,9 +1,8 @@
 import { ipcRenderer } from 'electron';
 
-import type { WindowStateResult } from '@chaptale/ipc-contract';
-import { IPC_CHANNELS } from '@chaptale/ipc-contract/channels';
-
+import { IPC_CHANNELS } from '../../bridge/channels';
 import type { ChaptaleDesktopApi } from '../../bridge/contracts';
+import type { WindowStateResult } from '../../bridge/window';
 
 export function createWindowControlApi(): ChaptaleDesktopApi['windowControl'] {
   return {

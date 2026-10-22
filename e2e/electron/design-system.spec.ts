@@ -104,7 +104,7 @@ async function assertFieldsFit(surface: Locator) {
 }
 
 const settingsSections = [
-  ['workspace', '作品', '作品'],
+  ['writing', '写作', '写作'],
   ['llm', '模型', '模型'],
   ['prompt', '写作指令', '写作指令'],
   ['cloud', '云端备份', '云端备份'],

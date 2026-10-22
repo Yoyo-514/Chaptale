@@ -1,8 +1,7 @@
-import { EditCommandValidator, IPC_CHANNELS, type AppPlatformResult, type EditCommand } from '@chaptale/ipc-contract';
-
+import { EditCommandValidator, type AppPlatformResult, type EditCommand } from '../../bridge/app';
+import { IPC_CHANNELS } from '../../bridge/channels';
 import { registerCloudSyncIpc } from '../features/cloud-sync/ipc';
 import { registerSettingsIpc } from '../features/settings/ipc';
-import { registerWorkspaceIpc } from '../features/workspace/ipc';
 import { ElectronUiShell } from '../infra/electron/ui-shell';
 import { registerWindowIpc } from '../infra/electron/window-ipc';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
@@ -16,8 +15,7 @@ import type { AppContext } from './app-context';
  */
 export function registerApplicationIpc(context: AppContext): void {
   const ui = new ElectronUiShell();
-  registerWorkspaceIpc(context.workspaceService, ui);
-  registerCloudSyncIpc(context.cloudSyncService, ui);
+  registerCloudSyncIpc(context.cloudSyncService);
   registerSettingsIpc(context.settingsService, ui);
   handleValidatedIpc(IPC_CHANNELS.app.editCommand, EditCommandValidator, (event, command: EditCommand) => {
     if (!event.sender.isDestroyed()) event.sender[command]();

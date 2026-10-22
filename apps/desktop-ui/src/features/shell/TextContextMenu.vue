@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
-import type { EditCommand } from '@chaptale/ipc-contract';
+import type { EditCommand } from '@chaptale/desktop/bridge';
 
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { useNotificationStore } from '@/features/notifications';

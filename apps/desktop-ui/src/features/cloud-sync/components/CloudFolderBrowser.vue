@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CLOUD_PROVIDER_LABELS } from '@chaptale/ipc-contract';
+import { CLOUD_PROVIDER_LABELS } from '@chaptale/desktop/bridge';
 
 import { AppButton } from '@/components/AppButton';
 

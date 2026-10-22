@@ -1,6 +1,6 @@
 import { nextTick } from 'vue';
 
-import type { EditCommand } from '@chaptale/ipc-contract';
+import type { EditCommand } from '@chaptale/desktop/bridge';
 
 import { getDesktopApi } from './desktop-api';
 

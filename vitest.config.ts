@@ -51,22 +51,6 @@ export const vitestProjects = [
       sequence: { groupOrder: 1 },
       include: ['src/**/*.test.ts']
     }
-  }),
-  defineProject({
-    test: {
-      name: 'shared',
-      root: './packages/shared',
-      environment: 'node',
-      include: ['src/**/*.test.ts']
-    }
-  }),
-  defineProject({
-    test: {
-      name: 'ipc',
-      root: './packages/ipc',
-      environment: 'node',
-      include: ['src/**/*.test.ts']
-    }
   })
 ];
 
@@ -78,7 +62,6 @@ export default defineConfig({
       include: [
         'apps/desktop/src/main/**/*.ts',
         'apps/desktop-ui/src/{features,components,composables,utils}/**/*.ts',
-        'packages/shared/src/**/*.ts',
         'packages/creation/src/**/*.ts',
         'packages/storage/src/**/*.ts',
         'packages/ui/src/**/*.ts',
@@ -98,10 +81,7 @@ export default defineConfig({
         '**/*.factory.ts',
         '**/services/*model.service.ts',
         '**/infra/dialog-gateway.ts',
-        '**/infra/shell-gateway.ts',
-
-        // Type-only contract packages are validated by TypeScript and package consumers.
-        'packages/ipc/src/**'
+        '**/infra/shell-gateway.ts'
       ],
       thresholds: {
         statements: 80,

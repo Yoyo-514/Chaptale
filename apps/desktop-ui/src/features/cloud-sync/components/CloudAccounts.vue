@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { CLOUD_PROVIDER_LABELS, type CloudProvider } from '@chaptale/ipc-contract';
+import { CLOUD_PROVIDER_LABELS, type CloudProvider } from '@chaptale/desktop/bridge';
 
 import { AppButton } from '@/components/AppButton';
 

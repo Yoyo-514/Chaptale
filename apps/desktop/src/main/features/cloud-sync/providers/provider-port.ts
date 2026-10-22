@@ -1,4 +1,4 @@
-import type { CloudProvider } from '@chaptale/ipc-contract';
+import type { CloudProvider } from '../../../../bridge/cloud-sync';
 
 /**
  * 服务商授权配置。

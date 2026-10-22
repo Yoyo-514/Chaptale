@@ -5,7 +5,11 @@
     "useDefineForClassFields": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "vitest"],
-    "plugins": [{ "name": "@vue/typescript-plugin" }],
+    "plugins": [
+      {
+        "name": "@vue/typescript-plugin"
+      }
+    ],
     "composite": true,
     "declaration": true,
     "declarationMap": true,
@@ -15,22 +19,19 @@
     "paths": {
       "@/*": ["./src/*"],
       "@chaptale/agent-host/protocol": ["../../packages/agent-host/src/protocol.ts"],
-      "@chaptale/creation/contracts": ["../../packages/creation/src/contracts.ts"],
-      "@chaptale/ipc-contract": ["../../packages/ipc/src/index.ts"],
-      "@chaptale/shared": ["../../packages/shared/src/index.ts"]
+      "@chaptale/creation/contracts": ["../../packages/creation/src/contracts.ts"]
     }
   },
   "include": ["src", "build", "vite.config.ts", "uno.config.ts"],
   "references": [
-    { "path": "../../packages/creation/tsconfig.json" },
+    {
+      "path": "../../packages/creation/tsconfig.json"
+    },
     {
       "path": "../../packages/agent-host/tsconfig.json"
     },
     {
-      "path": "../../packages/shared/tsconfig.json"
-    },
-    {
-      "path": "../../packages/ipc/tsconfig.json"
+      "path": "../desktop/tsconfig.bridge.json"
     }
   ]
 }

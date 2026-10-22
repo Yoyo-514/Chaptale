@@ -1,6 +1,6 @@
 import { onBeforeUnmount, onMounted } from 'vue';
 
-import type { WindowZoomCommand } from '@chaptale/ipc-contract';
+import type { WindowZoomCommand } from '@chaptale/desktop/bridge';
 
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 

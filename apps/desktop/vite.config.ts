@@ -8,7 +8,6 @@ import { rendererSecurity } from '../desktop-ui/build/renderer-security.ts';
 
 const desktopRoot = import.meta.dirname;
 const rendererRoot = path.resolve(desktopRoot, '../desktop-ui');
-const ipcPackageRoot = path.resolve(desktopRoot, '../../packages/ipc/src');
 
 const agentHostRoot = path.resolve(desktopRoot, '../../packages/agent-host/src');
 const workspaceAliases = [
@@ -16,22 +15,7 @@ const workspaceAliases = [
   { find: '@chaptale/ui/client', replacement: path.resolve(desktopRoot, '../../packages/ui/src/client/connection.ts') },
   { find: '@chaptale/agent-host/application', replacement: path.join(agentHostRoot, 'application/index.ts') },
   { find: '@chaptale/agent-host', replacement: path.join(agentHostRoot, 'index.ts') },
-  {
-    find: '@chaptale/shared/document-frontmatter',
-    replacement: path.resolve(desktopRoot, '../../packages/shared/src/document-frontmatter.ts')
-  },
-  {
-    find: '@chaptale/ipc-contract/channels',
-    replacement: path.resolve(ipcPackageRoot, 'channels.ts')
-  },
-  {
-    find: '@chaptale/ipc-contract',
-    replacement: path.resolve(ipcPackageRoot, 'index.ts')
-  },
-  {
-    find: '@chaptale/shared',
-    replacement: path.resolve(desktopRoot, '../../packages/shared/src/index.ts')
-  }
+  { find: '@chaptale/desktop/bridge', replacement: path.resolve(desktopRoot, 'src/bridge/index.ts') }
 ];
 
 export default defineConfig(async () => ({
@@ -58,7 +42,7 @@ export default defineConfig(async () => ({
             outDir: path.resolve(desktopRoot, 'dist/main'),
             emptyOutDir: true,
             rolldownOptions: {
-              external: ['@earendil-works/pi-coding-agent', 'better-sqlite3', '@node-rs/jieba', '@node-rs/jieba/dict']
+              external: ['@earendil-works/pi-coding-agent', 'better-sqlite3']
             }
           }
         }

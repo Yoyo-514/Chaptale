@@ -20,7 +20,6 @@
   "scripts": {
     "build": "turbo run build",
     "build:desktop": "turbo run build --filter @chaptale/desktop",
-    "build:shared": "turbo run build --filter @chaptale/shared",
     "check": "run-s lint typecheck test",
     "dev": "pnpm --filter @chaptale/desktop dev",
     "dev:desktop": "pnpm --filter @chaptale/desktop dev",
@@ -51,13 +50,11 @@
     "test:release": "node --test scripts/release.test.mjs",
     "test:watch": "vitest --config vitest.config.ts",
     "typecheck": "turbo run typecheck",
-    "typecheck:desktop": "turbo run typecheck --filter @chaptale/desktop",
-    "typecheck:shared": "turbo run typecheck --filter @chaptale/shared"
+    "typecheck:desktop": "turbo run typecheck --filter @chaptale/desktop"
   },
   "devDependencies": {
     "@chaptale/creation": "workspace:*",
     "@chaptale/desktop": "workspace:*",
-    "@chaptale/ipc-contract": "workspace:*",
     "@playwright/test": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "@vitest/coverage-v8": "catalog:",

@@ -51,19 +51,16 @@ export function bootstrapDesktopApp(): void {
       event.preventDefault();
       if (stopping) return;
       stopping = true;
-      context.autoBackupScheduler.stop();
       const finish = () => {
         stopped = true;
         app.quit();
       };
-      void Promise.all([host.dispose(), context.workspaceService.dispose()]).then(finish, () => {
+      void host.dispose().then(finish, () => {
         console.error('退出时资源释放失败');
         finish();
       });
     });
     registerApplicationIpc(context);
-    // 心跳在窗口建好之前就可以跑：第一拍要等一分钟，而那时作品与登录状态都已经落定。
-    context.autoBackupScheduler.start();
     // 主题要在建窗口之前读到：backgroundColor 决定首帧之前那一瞬露出的底色，
     // 建完再改就已经闪过去了。
     const { theme } = await context.settingsService.readSettings();

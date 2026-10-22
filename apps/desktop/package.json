@@ -13,9 +13,7 @@
   "type": "module",
   "main": "dist/main/index.js",
   "exports": {
-    "./bridge": {
-      "types": "./src/bridge/contracts.d.ts"
-    }
+    "./bridge": "./src/bridge/index.ts"
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=development vite --config vite.config.ts",
@@ -33,29 +31,17 @@
     "@chaptale/agent-host": "workspace:*",
     "@chaptale/contracts": "workspace:*",
     "@chaptale/creation": "workspace:*",
-    "@chaptale/ipc-contract": "workspace:*",
-    "@chaptale/shared": "workspace:*",
     "@chaptale/storage": "workspace:*",
     "@chaptale/ui": "workspace:*",
     "@earendil-works/pi-coding-agent": "catalog:",
-    "@mozilla/readability": "catalog:",
-    "@node-rs/jieba": "catalog:",
     "atomically": "catalog:",
     "better-sqlite3": "catalog:",
-    "chokidar": "catalog:",
-    "fflate": "catalog:",
     "klona": "catalog:",
-    "linkedom": "catalog:",
-    "marked": "catalog:",
-    "officeparser": "catalog:",
-    "pinyin-pro": "catalog:",
-    "turndown": "catalog:",
-    "yaml": "catalog:"
+    "typebox": "catalog:"
   },
   "devDependencies": {
     "@electron/fuses": "catalog:",
     "@types/node": "catalog:",
-    "@types/turndown": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "cross-env": "catalog:",
     "electron": "catalog:",

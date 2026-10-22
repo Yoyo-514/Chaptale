@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CloudAccount, CloudSyncState } from '@chaptale/ipc-contract';
+import type { CloudAccount, CloudSyncState } from '@chaptale/desktop/bridge';
 
 import { useCloudSyncStore } from '../store';
 
@@ -27,23 +27,10 @@ function cloudState(accounts: CloudAccount[] = []): CloudSyncState {
 function installApi(overrides: Partial<CloudSyncApi> = {}) {
   const api: CloudSyncApi = {
     getState: vi.fn().mockResolvedValue(cloudState()),
-    getBinding: vi.fn().mockResolvedValue({ ok: false, code: 'no-binding', message: '这部作品还没有绑定云端备份位置' }),
     beginAuth: vi.fn(),
     cancelAuth: vi.fn().mockResolvedValue(undefined),
     signOut: vi.fn().mockResolvedValue(cloudState()),
     listFolders: vi.fn(),
-    bind: vi.fn(),
-    unbind: vi.fn().mockResolvedValue({ ok: true }),
-    listBackups: vi
-      .fn()
-      .mockResolvedValue({ ok: false, code: 'no-binding', message: '这部作品还没有绑定云端备份位置' }),
-    createBackup: vi.fn(),
-    planRestore: vi.fn(),
-    readRestoreDiff: vi.fn(),
-    applyRestore: vi.fn(),
-    cancelRestore: vi.fn().mockResolvedValue({ ok: true }),
-    removeBackups: vi.fn().mockResolvedValue({ ok: true, removed: [], failed: [] }),
-    onBackupProgress: vi.fn().mockReturnValue(() => undefined),
     ...overrides
   };
 

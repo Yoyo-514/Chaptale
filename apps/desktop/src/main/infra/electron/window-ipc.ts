@@ -1,13 +1,12 @@
 import { BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 
+import { IPC_CHANNELS } from '../../../bridge/channels';
 import {
-  IPC_CHANNELS,
   WindowCompleteCloseArgsValidator,
   WindowZoomArgsValidator,
   type WindowStateResult,
   type WindowZoomCommand
-} from '@chaptale/ipc-contract';
-
+} from '../../../bridge/window';
 import { handleTrustedIpc } from '../security/trusted-ipc';
 import { handleValidatedIpc } from '../security/validated-ipc';
 import { completeWindowClose } from './window-close';

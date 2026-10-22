@@ -1,5 +1,3 @@
-import { errorToMessage } from '@chaptale/shared';
-
 /**
  * 渲染层访问桌面 IPC 的唯一入口。
  * 约定：组件/composable 不直接读 window.chaptaleDesktop，一律经由本模块（或封装它的 store）。
@@ -19,5 +17,8 @@ export function hasDesktopApi() {
 
 export function toErrorMessage(error: unknown) {
   // Electron IPC 错误带有 "Error invoking remote method 'xxx':" 前缀，去掉后更可读
-  return errorToMessage(error).replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '');
+  return (error instanceof Error ? error.message : String(error)).replace(
+    /^Error invoking remote method '[^']+':\s*(Error:\s*)?/,
+    ''
+  );
 }

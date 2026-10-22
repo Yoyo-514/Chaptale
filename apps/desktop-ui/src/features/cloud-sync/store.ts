@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 
-import type { CloudProvider, CloudRemoteFolder, CloudSyncState } from '@chaptale/ipc-contract';
+import type { CloudProvider, CloudRemoteFolder, CloudSyncState } from '@chaptale/desktop/bridge';
 
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 

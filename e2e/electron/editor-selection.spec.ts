@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
-import type { ChaptaleTheme } from '@chaptale/ipc-contract';
+import type { ChaptaleTheme } from '@chaptale/desktop/bridge';
 
 const desktopDir = path.resolve('apps/desktop');
 const executablePath = createRequire(path.join(desktopDir, 'package.json'))('electron') as string;

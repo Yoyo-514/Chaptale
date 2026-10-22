@@ -91,7 +91,6 @@ SQLite 布局、连接和事务实现见 [storage](../storage/README.md)。creat
 在仓库根目录运行：
 
 ```sh
-pnpm --filter @chaptale/shared build
 pnpm --filter @chaptale/creation typecheck
 pnpm --filter @chaptale/storage test
 ```

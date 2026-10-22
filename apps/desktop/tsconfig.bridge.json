@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./dist-types/bridge/tsconfig.tsbuildinfo",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "src/bridge",
+    "outDir": "dist-types/bridge",
+    "lib": ["ES2024", "DOM"],
+    "types": []
+  },
+  "include": ["src/bridge/**/*.ts"],
+  "exclude": ["src/bridge/**/__tests__/**"],
+  "references": [
+    { "path": "../../packages/agent-host/tsconfig.json" },
+    { "path": "../../packages/creation/tsconfig.json" }
+  ]
+}

@@ -21,8 +21,12 @@ describe('SettingsService', () => {
 
     const state = await service.getState();
 
-    expect(state.paths).toEqual({ rootDir, settingsPath: service.settingsPath, currentCwd: '' });
-    expect(JSON.parse(await readFile(service.settingsPath, 'utf8'))).toMatchObject({ version: 1, workspace: {} });
+    expect(state.paths).toEqual({ rootDir, settingsPath: service.settingsPath });
+    expect(JSON.parse(await readFile(service.settingsPath, 'utf8'))).toEqual({
+      version: 1,
+      editor: { autoSave: false },
+      theme: 'dark'
+    });
   });
 
   it('已有设置文件不被默认值覆盖', async () => {
@@ -34,39 +38,12 @@ describe('SettingsService', () => {
     expect(JSON.parse(await readFile(service.settingsPath, 'utf8'))).toEqual({ theme: 'light' });
   });
 
-  it('打开作品后给出当前作品目录并记入最近作品', async () => {
-    const service = new SettingsService({ rootDir });
-    const workspacePath = path.join(rootDir, 'Story Workspace');
-
-    const state = await service.update({ workspace: { path: workspacePath } });
-
-    expect(state.paths.currentCwd).toBe(workspacePath);
-    expect(state.settings.recentWorkspaces).toEqual([workspacePath]);
-    expect(await service.getStorageContext()).toEqual({ workspacePath });
-  });
-
-  it('关闭作品时落盘不留空字段', async () => {
-    const service = new SettingsService({ rootDir });
-    await service.update({ workspace: { path: path.join(rootDir, 'novel') } });
-
-    const closed = await service.update({ workspace: { path: null } });
-
-    expect(closed.settings.workspace).toEqual({});
-    expect(closed.paths.currentCwd).toBe('');
-    const raw = JSON.parse(await readFile(service.settingsPath, 'utf8')) as { workspace?: { path?: string } };
-    expect(raw.workspace).toEqual({});
-  });
-
   it('部分更新只改提交的分组', async () => {
     const service = new SettingsService({ rootDir });
     await service.update({ theme: 'warm', editor: { autoSave: true } });
 
-    const state = await service.update({ explorer: { showInternalFiles: true } });
+    const state = await service.update({ theme: 'light' });
 
-    expect(state.settings).toMatchObject({
-      theme: 'warm',
-      editor: { autoSave: true },
-      explorer: { showInternalFiles: true }
-    });
+    expect(state.settings).toEqual({ version: 1, theme: 'light', editor: { autoSave: true } });
   });
 });

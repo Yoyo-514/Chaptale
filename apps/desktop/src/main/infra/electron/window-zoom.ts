@@ -1,4 +1,4 @@
-import type { WindowZoomCommand } from '@chaptale/ipc-contract';
+import type { WindowZoomCommand } from '../../../bridge/window';
 
 const ZOOM_LEVELS = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2] as const;
 

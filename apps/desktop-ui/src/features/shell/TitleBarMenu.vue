@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, shallowRef } from 'vue';
 
-import { isChaptaleTheme, type EditCommand } from '@chaptale/ipc-contract';
+import { isChaptaleTheme, type EditCommand } from '@chaptale/desktop/bridge';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useAgentStore } from '@/features/agent';

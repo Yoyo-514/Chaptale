@@ -11,7 +11,7 @@ import InstructionSettings from './sections/InstructionSettings.vue';
 import ModelSettings from './sections/ModelSettings.vue';
 import { useSettingsStore } from './store';
 
-const WorkspaceSettings = defineAsyncComponent(() => import('./sections/WorkspaceSettings.vue'));
+const WritingSettings = defineAsyncComponent(() => import('./sections/WritingSettings.vue'));
 
 const resizeDirections: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 
@@ -101,7 +101,7 @@ onMounted(() => {
               <SettingsSidebar />
 
               <main class="settings-panel-content">
-                <WorkspaceSettings v-if="settingsStore.activeSection === 'workspace'" />
+                <WritingSettings v-if="settingsStore.activeSection === 'writing'" />
                 <ModelSettings v-else-if="settingsStore.activeSection === 'llm'" />
                 <InstructionSettings v-else-if="settingsStore.activeSection === 'prompt'" />
                 <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
