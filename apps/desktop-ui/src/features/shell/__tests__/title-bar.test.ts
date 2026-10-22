@@ -3,8 +3,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 
+import { useCreationStore } from '@/features/creation';
 import { useSettingsStore } from '@/features/settings';
-import { useWorkspaceStore } from '@/features/workspace';
 
 import TitleBar from '../TitleBar.vue';
 
@@ -28,27 +28,27 @@ describe('TitleBar', () => {
     // 菜单项经 reka-ui 渲染为 menuitem；不断言具体 class 名。
     const menuTriggers = wrapper.findAll('[role="menubar"] [role="menuitem"]');
     expect(menuTriggers.map(trigger => trigger.text()).filter(Boolean)).toEqual(['文件', '编辑', '视图', '会话']);
-    expect(wrapper.get('.titlebar-document-title').text()).toBe('Chaptale');
+    expect(wrapper.get('.titlebar-document-title').text()).toBe('作品库');
     expect(wrapper.get('.titlebar-leading').attributes('aria-label')).toBe('Chaptale 应用菜单');
   });
 
-  it('opens the file menu from the keyboard and delegates workspace selection', async () => {
-    const workspaceStore = useWorkspaceStore();
-    const openWorkspaceAction = vi.spyOn(workspaceStore, 'openWorkspace').mockResolvedValue(true);
+  it('键盘打开文件菜单后进入作品库', async () => {
+    const creation = useCreationStore();
+    const showLibrary = vi.spyOn(creation, 'showLibrary').mockResolvedValue(undefined);
     const wrapper = mountTitleBar();
     const fileTrigger = wrapper.findAll('[role="menubar"] [role="menuitem"]')[0];
 
     await fileTrigger?.trigger('keydown', { key: 'Enter' });
     await nextTick();
 
-    const openWorkspace = document.body.querySelector<HTMLElement>('[data-item-id="file.open-workspace"]');
-    expect(openWorkspace?.textContent).toContain('打开作品');
+    const openWorkspace = document.body.querySelector<HTMLElement>('[data-item-id="file.library"]');
+    expect(openWorkspace?.textContent).toContain('作品库');
     expect(openWorkspace?.hasAttribute('data-disabled')).toBe(false);
 
     openWorkspace?.click();
     await nextTick();
 
-    expect(openWorkspaceAction).toHaveBeenCalledOnce();
+    expect(showLibrary).toHaveBeenCalledOnce();
   });
 
   it('从视图菜单的外观子菜单切换主题', async () => {

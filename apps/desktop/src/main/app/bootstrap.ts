@@ -12,7 +12,6 @@ import { createMainWindow } from './main-window';
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
 const appUserModelId = 'com.chaptale.desktop';
-const isDev = process.env.NODE_ENV === 'development';
 
 /**
  * 装配 Electron 主进程的生命周期、共享服务、IPC 与主窗口。
@@ -68,16 +67,7 @@ export function bootstrapDesktopApp(): void {
     // 主题要在建窗口之前读到：backgroundColor 决定首帧之前那一瞬露出的底色，
     // 建完再改就已经闪过去了。
     const { theme } = await context.settingsService.readSettings();
-    const mainWindow = createMainWindow(rendererEntryUrl, theme);
-
-    // 仅在开发环境注册快捷键，避免生产包暴露调试入口。
-    if (isDev) {
-      mainWindow.webContents.on('before-input-event', (_event, input) => {
-        if (input.key === 'F12' && input.type === 'keyDown') {
-          mainWindow.webContents.toggleDevTools();
-        }
-      });
-    }
+    createMainWindow(rendererEntryUrl, theme);
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

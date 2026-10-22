@@ -8,7 +8,7 @@ const settingsStore = useSettingsStore();
 const sections: { id: SettingsSection; title: string; icon: string }[] = [
   {
     id: 'workspace',
-    title: '作品',
+    title: '写作',
     icon: 'i-mingcute-folder-2-line'
   },
   {
@@ -23,7 +23,7 @@ const sections: { id: SettingsSection; title: string; icon: string }[] = [
   },
   {
     id: 'cloudSync',
-    title: '云端备份',
+    title: '云端账户',
     icon: 'i-mingcute-cloud-line'
   },
   {

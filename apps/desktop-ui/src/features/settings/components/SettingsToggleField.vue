@@ -34,17 +34,18 @@ const rootClassName = computed(() => cn('settings-toggle-field', props.wide && '
 <template>
   <div :class="rootClassName" data-slot="settings-toggle-field">
     <label :for="controlId" class="settings-toggle-field-label">
-      <AppCheckbox
-        :id="controlId"
-        class="settings-toggle-field-checkbox"
-        :model-value="props.modelValue"
-        :disabled="props.disabled"
-        @update:model-value="emit('update:modelValue', $event === true)"
-      />
-      <span class="settings-toggle-field-copy">
-        <strong>{{ props.title }}</strong>
-        <small v-if="props.description">{{ props.description }}</small>
-      </span>
+      <div class="settings-toggle-field-checkbox">
+        <AppCheckbox
+          :id="controlId"
+          :model-value="props.modelValue"
+          :disabled="props.disabled"
+          @update:model-value="emit('update:modelValue', $event === true)"
+        />
+      </div>
+      <div class="settings-toggle-field-copy">
+        <p>{{ props.title }}</p>
+        <span v-if="props.description">{{ props.description }}</span>
+      </div>
     </label>
 
     <div
@@ -75,10 +76,11 @@ const rootClassName = computed(() => cn('settings-toggle-field', props.wide && '
 }
 
 .settings-toggle-field-copy {
-  @apply flex min-w-0 flex-col gap-1 text-xs;
+  @apply flex min-w-0 flex-col gap-1 text-sm;
 }
 
-.settings-toggle-field-copy small {
+.settings-toggle-field-copy span {
+  @apply text-xs;
   color: var(--muted-foreground);
 }
 

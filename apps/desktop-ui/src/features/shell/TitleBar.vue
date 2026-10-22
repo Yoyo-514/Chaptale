@@ -2,16 +2,16 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { useAgentStore } from '@/features/agent';
+import { useCreationStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { useWorkbenchStore } from '@/features/workbench';
-import { useWorkspaceStore } from '@/features/workspace';
 import { APP_ICON_URL } from '@/utils/app-icon';
 
 import TitleBarMenu from './TitleBarMenu.vue';
 import { useWindowControls } from './useWindowControls';
 
 const appIconUrl = APP_ICON_URL;
-const workspace = useWorkspaceStore();
+const creation = useCreationStore();
 const editor = useEditorStore();
 const agent = useAgentStore();
 const navigation = useWorkbenchStore();
@@ -19,7 +19,7 @@ const documentTitle = computed(
   () =>
     [
       navigation.agentInMain ? (agent.active ? agent.title(agent.active) : '新建会话') : editor.activeTab?.title,
-      workspace.displayName
+      creation.libraryOpen ? '作品库' : creation.work?.title
     ]
       .filter(Boolean)
       .join(' - ') || 'Chaptale'

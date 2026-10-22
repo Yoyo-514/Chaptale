@@ -16,7 +16,7 @@ import SessionUsage from './SessionUsage.vue';
 
 const agent = useAgentStore();
 const settings = useSettingsStore();
-const editable = computed(() => agent.connected && !agent.active?.readonly);
+const editable = computed(() => agent.connected && !agent.creating && !agent.active?.readonly);
 const current = computed(() => (agent.active ? agent.active.model : agent.selectedModel));
 const modelKey = computed(() =>
   current.value ? JSON.stringify({ provider: current.value.provider, id: current.value.id }) : ''
@@ -24,6 +24,7 @@ const modelKey = computed(() =>
 /** 会话用的模型可能已从配置里删掉，这时仍显示它的 ID。 */
 const modelPlaceholder = computed(() => (current.value ? `${current.value.id}（未配置）` : '选择模型'));
 const placeholder = computed(() => {
+  if (agent.creating) return '正在创建会话…';
   if (agent.active?.readonly) return '只读历史不能继续对话';
   if (agent.active?.compacting) return '正在压缩，可以先写下下一条消息';
   return agent.active?.running

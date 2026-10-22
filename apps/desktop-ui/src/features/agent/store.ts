@@ -1,17 +1,33 @@
 import { defineStore } from 'pinia';
-import { computed, onScopeDispose, ref } from 'vue';
+import { computed, onScopeDispose, ref, watch } from 'vue';
 
 import type { HistoryItem, HostEvent, HostState, ModelRef, SessionView, EditMode } from '@chaptale/agent-host/protocol';
+import type { SessionState } from '@chaptale/creation/contracts';
 
+import { requestCreation, useCreationStore } from '@/features/creation';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
+
+export interface SessionEntry {
+  key: string;
+  title: string;
+  /** 历史文件的最近修改时间；尚未写入历史的新会话为空。 */
+  modified: string;
+  workId: string | null;
+  live?: SessionView;
+  item?: HistoryItem;
+}
 
 /** 界面只持有快照、草稿和查看位置；原生会话由宿主持有。 */
 export const useAgentStore = defineStore('agent', () => {
+  const creation = useCreationStore();
   const state = ref<HostState>();
+  const catalog = ref<SessionState>({ assignments: [], selections: [] });
+  const scope = ref<string | null>(creation.workId);
+  const creating = ref(false);
   const connected = ref(false);
   const connecting = ref(false);
   const error = ref('');
-  const activeId = ref(localStorage.getItem('chaptale.agent.active') ?? undefined);
+  const activeId = ref<string>();
   const drafts = ref<Record<string, string>>({});
   const composeCwd = ref<string>();
   const selectedModel = ref<ModelRef>();
@@ -19,12 +35,75 @@ export const useAgentStore = defineStore('agent', () => {
   const composeMode = ref<EditMode>();
   const history = ref<HistoryItem[]>([]);
   const active = computed(() => state.value?.sessions.find(session => session.id === activeId.value));
+  const draftKey = computed(() => activeId.value ?? `new:${scope.value ?? ''}`);
+  /** 原生历史与尚未写入历史的打开会话合并为一个列表，按最近修改排列。 */
+  const entries = computed<SessionEntry[]>(() => {
+    const sessions = state.value?.sessions ?? [];
+    const list: SessionEntry[] = history.value.map(item => {
+      const live = sessions.find(session => session.sessionId === item.id);
+      return {
+        key: item.id,
+        title: live ? title(live) : item.title,
+        modified: item.modified,
+        workId: owner(item.id),
+        live,
+        item
+      };
+    });
+    for (const live of sessions)
+      if (!list.some(entry => entry.live === live))
+        list.push({ key: live.id, title: title(live), modified: '', workId: owner(live.sessionId), live });
+    // 未写入历史的新会话排在最前。
+    // oxlint-disable-next-line unicorn/no-array-sort
+    return list.sort((a, b) => (b.modified || '~').localeCompare(a.modified || '~'));
+  });
+  const recent = computed(() => entries.value.filter(entry => entry.workId === scope.value).slice(0, 5));
   const draft = computed({
-    get: () => drafts.value[activeId.value ?? 'new'] ?? '',
+    get: () => drafts.value[draftKey.value] ?? '',
     set: (text: string) => {
-      drafts.value[activeId.value ?? 'new'] = text;
+      drafts.value[draftKey.value] = text;
     }
   });
+  // 查看请求防止迟到的打开结果抢回界面；每个范围的选择版本保留用户的后续选择。
+  let viewVersion = 0;
+  const choices = new Map<string | null, number>();
+  function choose(workId: string | null): number {
+    const version = (choices.get(workId) ?? 0) + 1;
+    choices.set(workId, version);
+    return version;
+  }
+  const owners = computed(() => new Map(catalog.value.assignments.map(item => [item.sessionId, item.workId])));
+  function owner(sessionId: string | null): string | null {
+    return sessionId === null ? null : (owners.value.get(sessionId) ?? null);
+  }
+  async function remember(workId: string | null, sessionId: string | null) {
+    catalog.value = await requestCreation('selectSession', { workId, sessionId });
+  }
+  function resetCompose() {
+    composeCwd.value = undefined;
+    composeInstructions.value = undefined;
+    composeMode.value = state.value?.settings.defaultMode;
+  }
+  async function changeScope(workId: string | null) {
+    const version = ++viewVersion;
+    scope.value = workId;
+    activeId.value = undefined;
+    resetCompose();
+    if (!connected.value) return;
+    await perform(async () => {
+      const selected = catalog.value.selections.find(item => item.workId === workId)?.sessionId;
+      if (!selected) return;
+      const live = state.value!.sessions.find(session => session.sessionId === selected);
+      if (live) {
+        activeId.value = live.id;
+        return;
+      }
+      const item = history.value.find(candidate => candidate.id === selected);
+      if (!item) throw new Error('上次选中的会话历史未找到，请在历史列表中选择其他会话');
+      const id = await getDesktopApi().agentHost.request('open', { file: item.file, cwd: item.cwd });
+      if (version === viewVersion) activeId.value = id;
+    });
+  }
   let connection: Promise<void> | undefined;
   let offEvents: (() => void) | undefined;
   let offDisconnected: (() => void) | undefined;
@@ -91,14 +170,20 @@ export const useAgentStore = defineStore('agent', () => {
       connected.value = false;
       error.value = message;
     });
-    connection = client
-      .request('state', undefined)
-      .then(snapshot => {
+    connection = Promise.all([
+      client.request('state', undefined),
+      requestCreation('readSessionState', {}),
+      client.request('history', undefined)
+    ])
+      .then(async ([snapshot, ownership, items]) => {
         state.value = snapshot;
+        catalog.value = ownership;
+        history.value = items;
         if (composeMode.value === undefined) composeMode.value = snapshot.settings.defaultMode;
         for (const event of buffered) apply(event);
         syncing = false;
         connected.value = true;
+        await changeScope(scope.value);
       })
       .catch(cause => {
         error.value = toErrorMessage(cause);
@@ -121,17 +206,25 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
-  function select(id: string) {
+  async function select(id: string) {
+    ++viewVersion;
+    const session = state.value!.sessions.find(item => item.id === id)!;
+    const workId = owner(session.sessionId);
+    choose(workId);
+    scope.value = workId;
     activeId.value = id;
-    localStorage.setItem('chaptale.agent.active', id);
+    return perform(() => remember(workId, session.sessionId));
   }
 
-  function newDraft(cwd?: string) {
+  async function newDraft(cwd?: string, independent = false) {
+    ++viewVersion;
+    const workId = independent ? null : creation.workId;
+    choose(workId);
+    scope.value = workId;
     activeId.value = undefined;
+    resetCompose();
     composeCwd.value = cwd;
-    composeInstructions.value = undefined;
-    composeMode.value = state.value?.settings.defaultMode;
-    localStorage.removeItem('chaptale.agent.active');
+    return perform(() => remember(workId, null));
   }
 
   function compose(cwd: string, prompt: string, files: string[]) {
@@ -139,59 +232,114 @@ export const useAgentStore = defineStore('agent', () => {
     draft.value = [prompt, ...files.map(file => `文件：${file}`)].join('\n');
   }
 
-  async function create(instructions = composeInstructions.value) {
-    const text = draft.value;
-    return perform(async () => {
+  async function create(instructions = composeInstructions.value): Promise<string | undefined> {
+    const workId = scope.value;
+    const key = draftKey.value;
+    const version = viewVersion;
+    const choice = choose(workId);
+    const mode = composeMode.value!;
+    let createdId: string | undefined;
+    creating.value = true;
+    const success = await perform(async () => {
       const { provider, id: modelId } = selectedModel.value!;
-      const id = await getDesktopApi().agentHost.request('create', {
+      const client = getDesktopApi().agentHost;
+      const id = await client.request('create', {
         model: { provider, id: modelId },
         cwd: composeCwd.value,
         instructions
       });
-      drafts.value[id] = text;
-      delete drafts.value.new;
-      select(id);
-      if (composeMode.value !== active.value!.mode) {
-        await getDesktopApi().agentHost.request('mode', { id, mode: composeMode.value! });
+      if (workId !== null) {
+        try {
+          catalog.value = await requestCreation('assignSession', { sessionId: id, workId });
+        } catch (cause) {
+          await client.request('close', { id });
+          throw cause;
+        }
       }
+      const session = state.value!.sessions.find(item => item.id === id)!;
+      if (mode !== session.mode) await client.request('mode', { id, mode });
+      if (choices.get(workId) === choice) await remember(workId, id);
+      drafts.value[id] = drafts.value[key] ?? '';
+      delete drafts.value[key];
+      if (version === viewVersion) activeId.value = id;
+      createdId = id;
     });
+    creating.value = false;
+    return success ? createdId : undefined;
   }
 
   async function send() {
-    if (active.value?.compacting) return;
+    if (active.value?.compacting || creating.value) return;
     const text = draft.value.trim();
     if (!text) return;
-    if (!active.value) {
+    let id = activeId.value;
+    if (!id) {
       if (!selectedModel.value) {
         error.value = '请先选择模型';
         return;
       }
-      if (!(await create())) return;
+      id = await create();
+      if (!id) return;
     }
-    const id = activeId.value!;
-    draft.value = '';
+    drafts.value[id] = '';
     const sent = await perform(() => getDesktopApi().agentHost.request('prompt', { id, text }));
     if (!sent && !drafts.value[id]) drafts.value[id] = text;
   }
 
-  async function loadHistory(cwd?: string) {
-    await perform(async () => {
-      history.value = await getDesktopApi().agentHost.request('history', cwd ? { cwd } : undefined);
+  async function loadHistory() {
+    return perform(async () => {
+      history.value = await getDesktopApi().agentHost.request('history', undefined);
     });
   }
 
   async function open(item: HistoryItem) {
-    await perform(async () =>
-      select(await getDesktopApi().agentHost.request('open', { file: item.file, cwd: item.cwd }))
-    );
+    const workId = owner(item.id);
+    const choice = choose(workId);
+    const version = ++viewVersion;
+    return perform(async () => {
+      const id = await getDesktopApi().agentHost.request('open', { file: item.file, cwd: item.cwd });
+      if (choices.get(workId) === choice) await remember(workId, item.id);
+      if (version === viewVersion) {
+        scope.value = workId;
+        activeId.value = id;
+      }
+    });
+  }
+
+  async function assign(sessionId: string) {
+    const workId = creation.workId!;
+    const version = viewVersion;
+    return perform(async () => {
+      catalog.value = await requestCreation('assignSession', { sessionId, workId });
+      if (version !== viewVersion) return;
+      const live = state.value!.sessions.find(session => session.sessionId === sessionId);
+      if (live) await select(live.id);
+      else await changeScope(workId);
+    });
+  }
+
+  async function rename(id: string, name: string) {
+    return perform(() => getDesktopApi().agentHost.request('rename', { id, name }));
+  }
+
+  async function view(entry: SessionEntry) {
+    return entry.live ? select(entry.live.id) : open(entry.item!);
   }
 
   function title(session: SessionView): string {
     return (
+      session.name ||
       session.messages.find(message => message.role === 'user' && message.text)?.text.slice(0, 32) ||
-      `会话 ${(state.value?.sessions.findIndex(item => item.id === session.id) ?? 0) + 1}`
+      '未命名会话'
     );
   }
+
+  watch(
+    () => creation.workId,
+    workId => {
+      void changeScope(workId);
+    }
+  );
 
   onScopeDispose(() => {
     offEvents?.();
@@ -199,6 +347,16 @@ export const useAgentStore = defineStore('agent', () => {
   });
   return {
     state,
+    catalog,
+    scope,
+    creating,
+    entries,
+    recent,
+    rename,
+    view,
+    owner,
+    changeScope,
+    assign,
     connected,
     connecting,
     error,

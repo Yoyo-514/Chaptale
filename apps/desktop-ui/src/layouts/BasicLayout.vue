@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 
+import { useCreationStore } from '@/features/creation';
 import { SettingsPanel, useSettingsStore } from '@/features/settings';
 import { ActivityBar, StatusBar, TextContextMenu, TitleBar } from '@/features/shell';
 import { useWorkbenchStore } from '@/features/workbench';
-import { useWorkspaceStore, WorkspaceSyncDialog } from '@/features/workspace';
 
 import WorkbenchLayout from './WorkbenchLayout.vue';
 const navigation = useWorkbenchStore();
-const workspace = useWorkspaceStore();
+const creation = useCreationStore();
 const settings = useSettingsStore();
 onMounted(() => {
   void settings.load();
@@ -28,12 +28,11 @@ watch(
     <div class="basic-layout">
       <TitleBar />
       <div class="basic-layout-body">
-        <ActivityBar />
+        <ActivityBar v-if="!creation.libraryOpen" />
         <WorkbenchLayout />
       </div>
       <StatusBar v-if="navigation.statusBarOpen && !navigation.focusMode" />
       <SettingsPanel v-if="settingsMounted" />
-      <WorkspaceSyncDialog v-if="workspace.syncOpen" />
     </div>
   </TextContextMenu>
 </template>

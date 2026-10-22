@@ -1,407 +1,277 @@
 <script setup lang="ts">
-import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
-import { computed, defineAsyncComponent, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
-import { AppTooltip } from '@/components/AppTooltip';
-import { useWorkspaceStore, useWorkspaceActions } from '@/features/workspace';
-import { APP_ICON_URL } from '@/utils/app-icon';
+import { useCreationStore } from '@/features/creation';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
 import { useEditorStore } from '../store';
-import NewChapterDialog from './NewChapterDialog.vue';
+import DocumentView from './DocumentView.vue';
 import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 
-const DocumentView = defineAsyncComponent(() => import('./DocumentView.vue'));
-const ExternalChangeDialog = defineAsyncComponent(() => import('./ExternalChangeDialog.vue'));
-
 const editor = useEditorStore();
-const workspace = useWorkspaceStore();
-const actions = useWorkspaceActions();
-const contextTabId = ref('');
-const orderedIds = computed(() => editor.tabs.map(tab => tab.id));
-const selectedId = computed(() => editor.activeId || 'welcome');
-function selectTab(id: string | number) {
-  editor.selectTab(String(id));
+const creation = useCreationStore();
+const primary = computed(() => editor.tabs.find(tab => tab.id === editor.activeId));
+const secondary = computed(() => editor.tabs.find(tab => tab.id === creation.view?.secondaryDocumentId));
+function split() {
+  if (!creation.view) return;
+  creation.view.secondaryDocumentId = secondary.value
+    ? null
+    : (editor.tabs.find(tab => tab.id !== editor.activeId)?.id ?? null);
 }
-const tabMenu = computed<AppContextMenuItem[]>(() => {
-  const tab = editor.tabs.find(item => item.id === contextTabId.value);
-  const index = orderedIds.value.indexOf(contextTabId.value);
-  return [
-    { id: 'close', label: '关闭', shortcut: 'Ctrl+W', icon: 'i-mingcute-close-line' },
-    { id: 'close-others', label: '关闭其他标签', disabled: orderedIds.value.length < 2 },
-    { id: 'close-right', label: '关闭右侧标签', disabled: index >= orderedIds.value.length - 1 },
-    {
-      id: 'close-saved',
-      label: '关闭已保存标签',
-      disabled: !editor.tabs.some(item => !item.dirty && !item.saving)
-    },
-    { id: 'close-all', label: '关闭全部标签' },
-    ...(tab
-      ? [
-          { id: 'save', label: '保存', shortcut: 'Ctrl+S', disabled: !tab.dirty, separatorBefore: true },
-          { id: 'save-all', label: '全部保存', disabled: !editor.hasUnsaved },
-          { id: 'copy-path', label: '复制相对路径', separatorBefore: true },
-          { id: 'reveal', label: '在系统文件管理器中显示' },
-          { id: 'rename', label: '重命名…' },
-          { id: 'agent', label: '与 Agent 讨论此文件', separatorBefore: true, icon: 'i-mingcute-chat-3-line' }
-        ]
-      : [])
-  ];
-});
-async function selectTabMenu(id: string) {
-  const tab = editor.tabs.find(item => item.id === contextTabId.value);
-  const index = orderedIds.value.indexOf(contextTabId.value);
-  if (id === 'close') await closeTab(contextTabId.value);
-  else if (id.startsWith('close-')) {
-    const candidates = orderedIds.value.filter(
-      (item, i) =>
-        id === 'close-all' ||
-        (id === 'close-others' && item !== contextTabId.value) ||
-        (id === 'close-right' && i > index) ||
-        (id === 'close-saved' &&
-          !editor.tabs.some(document => document.id === item && (document.dirty || document.saving)))
-    );
-    await editor.closeTabs(candidates);
-  } else if (!tab) return;
-  else if (id === 'save') await editor.saveDocument(tab.id);
-  else if (id === 'save-all') await editor.saveAll();
-  else if (id === 'copy-path') await actions.copyPath(tab.path);
-  else if (id === 'reveal') await actions.reveal(tab.path);
-  else if (id === 'rename') await actions.prepare('rename', tab.path);
-  else if (id === 'agent') actions.askAgent(tab.path);
-}
-let unsubscribeClose: (() => void) | undefined;
-const tabList = ref<HTMLElement | null>(null);
-const duplicateTitles = computed(() => {
-  const counts = new Map<string, number>();
-  for (const tab of editor.tabs) counts.set(tab.title, (counts.get(tab.title) ?? 0) + 1);
-  return new Set([...counts].filter(([, count]) => count > 1).map(([title]) => title));
-});
-
-async function closeTab(id: string) {
-  const focusedInside = tabList.value?.contains(document.activeElement);
-  await editor.closeTab(id);
-  if (focusedInside) {
-    await nextTick();
-    tabList.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
-  }
-}
-
-function scrollTabs(event: WheelEvent) {
-  if (event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
-  const viewport = tabList.value?.querySelector<HTMLElement>('[data-slot="app-scroll-area-viewport"]');
-  if (!viewport || viewport.scrollWidth <= viewport.clientWidth) return;
-  const previous = viewport.scrollLeft;
-  viewport.scrollLeft += event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 24 : 1);
-  if (viewport.scrollLeft !== previous) event.preventDefault();
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+function keydown(event: KeyboardEvent) {
+  if (!(event.ctrlKey || event.metaKey)) return;
+  if (event.key.toLowerCase() === 's') {
     event.preventDefault();
     if (event.shiftKey) void editor.saveAll();
     else void editor.saveDocument();
-    return;
   }
-  if (
-    (event.ctrlKey || event.metaKey) &&
-    !event.shiftKey &&
-    event.key.toLowerCase() === 'w' &&
-    selectedId.value !== 'welcome'
-  ) {
+  if (event.key.toLowerCase() === 'w' && editor.activeTab) {
     event.preventDefault();
     event.stopPropagation();
-    void closeTab(selectedId.value);
+    void editor.closeTab(editor.activeTab.id);
   }
 }
-
+let offClose: (() => void) | undefined;
 onMounted(() => {
-  window.addEventListener('keydown', handleKeydown);
+  window.addEventListener('keydown', keydown);
   window.addEventListener('beforeunload', editor.handleBeforeUnload);
   if (hasDesktopApi())
-    unsubscribeClose = getDesktopApi().windowControl.onCloseRequested?.(() => {
+    offClose = getDesktopApi().windowControl.onCloseRequested(() => {
       void editor.requestWindowClose();
     });
 });
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('keydown', keydown);
   window.removeEventListener('beforeunload', editor.handleBeforeUnload);
-  unsubscribeClose?.();
-});
-
-watch(selectedId, async () => {
-  await nextTick();
-  tabList.value
-    ?.querySelector('[role="tab"][aria-selected="true"]')
-    ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  offClose?.();
 });
 </script>
 
 <template>
-  <div v-if="editor.recoveries.length || editor.recoveryError" class="editor-recoveries">
-    <p v-if="editor.recoveryError" role="alert">{{ editor.recoveryError }}</p>
-    <details v-if="editor.recoveries.length" open>
-      <summary>上次未保存的草稿（{{ editor.recoveries.length }}）</summary>
-      <div v-for="draft in editor.recoveries" :key="draft.relativePath" class="editor-recovery-row">
-        <span :title="draft.relativePath">{{ draft.relativePath }}</span>
-        <AppButton size="xs" @click="editor.restoreRecovery(draft.relativePath)">恢复</AppButton>
-        <AppButton size="xs" variant="ghost" @click="editor.discardRecovery(draft.relativePath)">放弃</AppButton>
-      </div>
-    </details>
-  </div>
-  <TabsRoot :model-value="selectedId" class="editor-group" @update:model-value="selectTab">
-    <div ref="tabList" class="editor-tabs-scroll" @wheel="scrollTabs">
-      <AppScrollArea orientation="horizontal" class="editor-tabs-area" viewport-class="editor-tabs-viewport">
-        <TabsList class="editor-tabs" aria-label="编辑器标签">
-          <TabsTrigger v-if="!editor.tabs.length" value="welcome" class="editor-tab">欢迎</TabsTrigger>
-          <AppContextMenu
+  <TabsRoot
+    :model-value="editor.activeId"
+    class="editor-group"
+    @update:model-value="value => editor.selectTab(String(value))"
+  >
+    <div class="editor-tabbar">
+      <AppScrollArea orientation="horizontal" class="editor-tab-scroll">
+        <TabsList class="editor-tabs" aria-label="文档标签">
+          <div
             v-for="tab in editor.tabs"
             :key="tab.id"
-            :items="tabMenu"
-            @prepare="contextTabId = tab.id"
-            @select="selectTabMenu"
+            class="editor-tab-shell"
+            :class="{ selected: tab.id === editor.activeId }"
           >
-            <div
-              class="editor-tab-shell"
-              :class="{ 'is-active': tab.id === selectedId }"
-              @auxclick.middle.prevent="closeTab(tab.id)"
+            <TabsTrigger
+              :id="`document-tab-${tab.id}`"
+              :value="tab.id"
+              class="editor-tab"
+              :aria-label="`${tab.title}${tab.dirty ? '（未保存）' : ''}`"
+              :aria-busy="tab.saving || undefined"
+              :title="`${tab.title}${tab.dirty ? '（未保存）' : ''}`"
+              @keydown.delete.prevent="editor.closeTab(tab.id)"
             >
-              <TabsTrigger
-                :value="tab.id"
-                class="editor-tab"
-                :aria-label="tab.path"
-                :title="tab.path"
-                @keydown.delete.prevent="closeTab(tab.id)"
-              >
-                <span
-                  class="size-3.5 shrink-0"
-                  :class="tab.status === 'error' ? 'i-mingcute-warning-line' : 'i-mingcute-file-line'"
-                  aria-hidden="true"
-                />
-                <span class="editor-tab-title">{{ tab.title }}</span>
-                <span v-if="tab.dirty" class="editor-dirty" aria-label="未保存" />
-                <span v-if="duplicateTitles.has(tab.title)" class="editor-tab-parent">{{
-                  tab.path.split('/').slice(0, -1).join('/') || '/'
-                }}</span>
-              </TabsTrigger>
-              <AppTooltip :text="`关闭 ${tab.path}`" side="bottom">
-                <AppButton
-                  icon
-                  size="xs"
-                  variant="ghost"
-                  class="editor-tab-close"
-                  :aria-label="`关闭 ${tab.path}`"
-                  :tabindex="tab.id === selectedId ? 0 : -1"
-                  @click.stop="closeTab(tab.id)"
-                >
-                  <span class="i-mingcute-close-line size-3" aria-hidden="true" />
-                </AppButton>
-              </AppTooltip>
-            </div>
-          </AppContextMenu>
+              <span class="tab-title">{{ tab.title }}</span>
+              <span v-if="secondary?.id === tab.id" class="tab-location">右侧</span>
+            </TabsTrigger>
+            <AppButton
+              icon
+              size="xs"
+              variant="ghost"
+              class="editor-tab-close"
+              :class="{ 'is-dirty': tab.dirty }"
+              :aria-label="`关闭 ${tab.title}`"
+              :title="tab.dirty ? '关闭（未保存）' : '关闭'"
+              @click="editor.closeTab(tab.id)"
+              ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
+            /></AppButton>
+          </div>
         </TabsList>
       </AppScrollArea>
-      <!-- 有标签时始终占位：切换文档时 Teleport 内容会短暂卸载，占位避免标签区宽度跳动。 -->
-      <div v-if="editor.tabs.length" id="editor-tab-actions" class="editor-tab-actions" />
+      <AppButton
+        icon
+        size="xs"
+        variant="ghost"
+        :disabled="editor.tabs.length < 2"
+        :aria-label="secondary ? '关闭分栏' : '并排查看'"
+        :selected="Boolean(secondary)"
+        @click="split"
+        ><span class="i-mingcute-layout-right-line" aria-hidden="true"
+      /></AppButton>
     </div>
-
-    <TabsContent v-if="!editor.tabs.length" value="welcome" class="editor-welcome">
-      <img :src="APP_ICON_URL" alt="" width="44" height="44" aria-hidden="true" />
-      <h1>Chaptale</h1>
-      <p>尚未打开文件</p>
-      <div class="editor-state-actions">
-        <AppButton variant="primary" @click="workspace.newWorkspaceOpen = true"
-          ><span class="i-mingcute-book-2-line size-4" aria-hidden="true" />新建作品</AppButton
-        >
-        <AppButton @click="workspace.openWorkspace()"
-          ><span class="i-mingcute-folder-open-2-line size-4" aria-hidden="true" />打开作品</AppButton
-        >
-        <AppButton v-if="workspace.rootPath" @click="editor.newChapterOpen = true">新建章节</AppButton>
-      </div>
-    </TabsContent>
-    <TabsContent v-for="tab in editor.tabs" :key="tab.id" :value="tab.id" class="editor-tab-content">
-      <div v-if="tab.status === 'loading'" class="editor-state" role="status">
-        <span class="i-mingcute-loading-line size-5 animate-spin" aria-hidden="true" />
-        <p>正在读取文件…</p>
-      </div>
-      <div v-else-if="tab.error" class="editor-state" role="alert">
-        <span class="i-mingcute-warning-line size-6" aria-hidden="true" />
-        <h2>无法打开文件</h2>
-        <p>{{ tab.error.message }}</p>
-        <div class="editor-state-actions">
-          <AppButton size="sm" @click="editor.reloadDocument(tab.id)">
-            <span class="i-mingcute-refresh-3-line size-3.5" aria-hidden="true" />重新读取
-          </AppButton>
-          <AppButton
-            v-if="tab.error.code === 'too-large' && !tab.allowLarge"
-            size="sm"
-            @click="editor.reloadDocument(tab.id, true)"
-          >
-            以大文件模式打开
-          </AppButton>
+    <div v-if="!editor.tabs.length" class="editor-empty">
+      <h2>{{ creation.work?.title }}</h2>
+      <p>选择一份文稿或资料开始编辑。</p>
+      <AppButton @click="creation.newEntry = { kind: 'document', parentId: null }">{{
+        creation.view?.section === 'resource' ? '新建资料' : '新建文稿'
+      }}</AppButton>
+    </div>
+    <div v-else class="editor-panes" :class="{ split: secondary }">
+      <section
+        v-for="(tab, index) in [primary, secondary].filter(Boolean)"
+        :key="tab!.id"
+        class="editor-pane"
+        :aria-label="index ? '右侧文档' : '当前文档'"
+        @focusin="editor.focusedId = tab!.id"
+      >
+        <DocumentView
+          v-if="tab!.status === 'ready'"
+          :key="`${tab!.id}:${tab!.generation}`"
+          :tab="tab!"
+          :active="editor.activeTab?.id === tab!.id"
+        />
+        <div v-else-if="tab!.status === 'loading'" class="editor-empty" role="status">正在读取文档…</div>
+        <div v-else class="editor-empty" role="alert">
+          <p>{{ tab!.error }}</p>
+          <AppButton @click="editor.reloadDocument(tab!.id)">重新读取</AppButton>
         </div>
-      </div>
-      <DocumentView
-        v-else-if="tab.document"
-        :key="`${tab.id}:${tab.generation ?? 0}`"
-        :document="tab.document"
-        :readonly="tab.readonly"
-        :buffer="editor.getBuffer(tab.id)"
-        :dirty="tab.dirty"
-        :saving="tab.saving"
-        :save-error="tab.saveError"
-        :recovery-error="tab.recoveryError"
-        :conflict="Boolean(tab.external)"
-        :command="editor.command"
-        :view-state="tab.viewState"
-        :search-request="editor.searchRequest"
-        @reload="editor.reloadDocument(tab.id)"
-        @remember-view="state => editor.rememberView(tab.id, state)"
-        @change="buffer => editor.updateBuffer(tab.id, buffer)"
-        @save="editor.saveDocument(tab.id)"
-        @compare="editor.conflictId = tab.id"
-      />
-    </TabsContent>
+      </section>
+    </div>
   </TabsRoot>
   <UnsavedDocumentsDialog />
-  <NewChapterDialog />
-  <ExternalChangeDialog v-if="editor.conflictId" />
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .editor-group {
-  @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background);
 }
-.editor-recoveries {
-  @apply max-h-36 shrink-0 overflow-auto border-b p-2 text-xs;
-  border-color: var(--border-subtle);
+.editor-tabbar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 36px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-muted);
 }
-.editor-recovery-row {
-  @apply mt-2 flex items-center gap-2;
+.editor-tab-scroll {
+  flex: 1;
+  min-width: 0;
 }
-.editor-recovery-row > span {
-  @apply min-w-0 flex-1 truncate;
-}
-
-.editor-tabs-scroll {
-  @apply flex h-9 min-w-0 shrink-0 overflow-hidden border-b;
-
-  border-color: var(--border-subtle);
-  background: var(--surface-acrylic-subtle);
-}
-
-.editor-tabs-area {
-  @apply h-full min-w-0 flex-1;
-}
-
-.editor-tab-actions {
-  @apply flex min-w-9 shrink-0 items-center justify-end gap-1 px-1.5;
-
-  color: var(--muted-foreground);
-}
-
-.editor-tabs-area :deep(.editor-tabs-viewport > div) {
-  height: 100%;
-}
-
 .editor-tabs {
-  @apply flex h-full w-max min-w-full items-stretch;
+  display: flex;
+  width: max-content;
+  height: 35px;
 }
-
 .editor-tab-shell {
-  @apply relative flex max-w-72 shrink-0 items-center border-r pr-1;
-
-  border-color: var(--border-subtle);
-  transition: none;
-}
-
-.editor-tab-shell.is-active {
-  background: var(--mica-background);
-}
-
-.editor-tab-shell.is-active::before {
-  @apply absolute inset-x-0 top-0 h-0.5;
-
-  content: '';
-  background: var(--primary-solid);
-}
-
-.editor-tab {
-  @apply flex h-full min-w-0 items-center gap-2 border-0 bg-transparent px-3 outline-none;
-  font-size: var(--ui-font-size);
-
+  display: flex;
+  align-items: center;
+  padding-inline: 4px;
+  border-right: 1px solid var(--border-subtle);
   color: var(--muted-foreground);
-  letter-spacing: 0;
 }
-
-.editor-tab[data-state='active'] {
+.editor-tab-shell.selected {
+  background: var(--background);
   color: var(--foreground);
 }
-
+.editor-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 100%;
+  max-width: 240px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
 .editor-tab:focus-visible {
-  outline: 1px solid var(--ring);
-  outline-offset: -3px;
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
-
-.editor-tab-title {
-  @apply min-w-0 truncate;
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.editor-dirty {
+.tab-location {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.editor-tab-close {
+  position: relative;
+  flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.editor-tab-shell.selected .editor-tab-close,
+.editor-tab-shell:hover .editor-tab-close,
+.editor-tab-shell:focus-within .editor-tab-close,
+.editor-tab-close.is-dirty {
+  opacity: 1;
+  pointer-events: auto;
+}
+.editor-tab-close.is-dirty::before {
+  content: '';
+  position: absolute;
   width: 6px;
   height: 6px;
-  flex-shrink: 0;
   border-radius: 50%;
-  background: var(--foreground);
+  background: currentColor;
 }
-
-.editor-tab-parent {
-  @apply max-w-24 truncate text-xs;
-
-  color: var(--muted-foreground);
+.editor-tab-close.is-dirty .tab-close-icon {
+  visibility: hidden;
 }
-
-.editor-tab-close {
-  @apply shrink-0;
-}
-
-.editor-tab-content {
-  @apply min-h-0 min-w-0 flex-1 overflow-hidden outline-none;
-}
-
-.editor-tab-content[data-state='inactive'] {
+.editor-tab-shell:hover .editor-tab-close.is-dirty::before,
+.editor-tab-close:focus-visible::before {
   display: none;
 }
-
-.editor-welcome,
-.editor-state {
-  @apply flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 overflow-auto p-6 text-center text-xs;
-
+.editor-tab-shell:hover .editor-tab-close .tab-close-icon,
+.editor-tab-close:focus-visible .tab-close-icon {
+  visibility: visible;
+}
+.editor-tabbar span[aria-hidden='true'] {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+.editor-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.editor-panes.split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.editor-pane {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.editor-pane + .editor-pane {
+  border-left: 1px solid var(--border-subtle);
+}
+.editor-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
   color: var(--muted-foreground);
-  overflow-wrap: anywhere;
 }
-
-.editor-state {
-  @apply h-full;
-}
-
-.editor-welcome h1 {
-  @apply text-lg font-medium;
-
+.editor-empty h2 {
+  margin: 0;
   color: var(--foreground);
+  font-size: 18px;
+  font-weight: 500;
 }
-
-.editor-state h2 {
-  @apply text-sm font-medium;
-
-  color: var(--foreground);
-}
-
-.editor-state-actions {
-  @apply mt-1 flex flex-wrap justify-center gap-2;
+.editor-empty p {
+  margin: 0;
 }
 </style>

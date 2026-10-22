@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = await vi.hoisted(async () => {
   const { EventEmitter } = await import('node:events');
@@ -7,10 +7,8 @@ const electronMock = await vi.hoisted(async () => {
     setIcon: ReturnType<typeof vi.fn>;
     webContents: {
       on: ReturnType<typeof vi.fn>;
-      openDevTools: ReturnType<typeof vi.fn>;
       setWindowOpenHandler: ReturnType<typeof vi.fn>;
       setZoomMode: ReturnType<typeof vi.fn>;
-      toggleDevTools: ReturnType<typeof vi.fn>;
     };
   }> = [];
   const appListeners = new Map<string, () => void>();
@@ -21,10 +19,8 @@ const electronMock = await vi.hoisted(async () => {
       setIcon: vi.fn(),
       webContents: {
         on: vi.fn(),
-        openDevTools: vi.fn(),
         setWindowOpenHandler: vi.fn(),
-        setZoomMode: vi.fn(),
-        toggleDevTools: vi.fn()
+        setZoomMode: vi.fn()
       }
     });
     windows.push(window);
@@ -45,12 +41,8 @@ const electronMock = await vi.hoisted(async () => {
     BrowserWindow: Object.assign(BrowserWindow, {
       getAllWindows: vi.fn(() => windows)
     }),
-    Menu: {
-      setApplicationMenu: vi.fn()
-    },
-    shell: {
-      openExternal: vi.fn()
-    }
+    Menu: { setApplicationMenu: vi.fn() },
+    shell: { openExternal: vi.fn() }
   };
 });
 
@@ -62,75 +54,38 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('../app-context', () => ({
-  // 建窗口前要先读到主题（决定首帧之前那一瞬的窗口底色），替身得给得出这一步。
-  // 自动备份心跳也要给：它在建窗口之前启动，缺了这个成员后面就都不会跑。
   createAppContext: vi.fn(() => ({
     settingsService: { rootDir: process.cwd(), readSettings: vi.fn(async () => ({ theme: 'dark' })) },
     autoBackupScheduler: { start: vi.fn(), stop: vi.fn() }
   }))
 }));
 
-vi.mock('../ipc-registry', () => ({
-  registerApplicationIpc: vi.fn()
-}));
-
+vi.mock('../ipc-registry', () => ({ registerApplicationIpc: vi.fn() }));
 vi.mock('../../infra/security/trusted-ipc', () => ({
   configureTrustedRendererUrl: vi.fn(),
   handleTrustedIpc: vi.fn()
 }));
 
-function getBeforeInputListener(
-  windowIndex: number
-): ((event: unknown, input: { key: string; type: string }) => void) | undefined {
-  const call = electronMock.windows[windowIndex]?.webContents.on.mock.calls.find(
-    ([event]) => event === 'before-input-event'
-  );
-  return call?.[1] as ((event: unknown, input: { key: string; type: string }) => void) | undefined;
-}
-
 describe('bootstrapDesktopApp', () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('NODE_ENV', 'production');
     electronMock.windows.length = 0;
     electronMock.appListeners.clear();
     electronMock.BrowserWindow.mockClear();
     electronMock.BrowserWindow.getAllWindows.mockReset();
     electronMock.BrowserWindow.getAllWindows.mockImplementation(() => electronMock.windows);
   });
-
-  it('仅为开发模式启动时的首次窗口绑定 F12 监听', async () => {
-    // 必须动态导入：stubEnv(NODE_ENV) 与 vi.resetModules 要求每个用例重新求值模块，
-    // bootstrap 在模块求值期读 NODE_ENV，静态导入只求值一次、读不到各自的环境。
-    const { bootstrapDesktopApp } = await import('../bootstrap');
-
-    bootstrapDesktopApp();
-    await vi.waitFor(() => expect(electronMock.windows).toHaveLength(1));
-
-    const initialListener = getBeforeInputListener(0);
-    expect(initialListener).toBeTypeOf('function');
-    initialListener?.({}, { key: 'F12', type: 'keyDown' });
-    expect(electronMock.windows[0]?.webContents.toggleDevTools).toHaveBeenCalledOnce();
-
-    electronMock.BrowserWindow.getAllWindows.mockReturnValue([]);
-    electronMock.appListeners.get('activate')?.();
-
-    expect(electronMock.windows).toHaveLength(2);
-    expect(getBeforeInputListener(1)).toBeUndefined();
-  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it('每个窗口使用独立缩放，避免按 origin 共享界面尺寸', async () => {
     const { bootstrapDesktopApp } = await import('../bootstrap');
-
     bootstrapDesktopApp();
     await vi.waitFor(() => expect(electronMock.windows).toHaveLength(1));
-
     expect(electronMock.windows[0]?.webContents.setZoomMode).toHaveBeenCalledWith('isolated');
 
-    // activate 重建的窗口不能漏：漏了就只有首窗干净。
     electronMock.BrowserWindow.getAllWindows.mockReturnValue([]);
     electronMock.appListeners.get('activate')?.();
-
     expect(electronMock.windows[1]?.webContents.setZoomMode).toHaveBeenCalledWith('isolated');
   });
 });

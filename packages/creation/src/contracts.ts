@@ -167,7 +167,55 @@ export interface ExportReport {
   failure: { documentId: string | null; message: string } | null;
 }
 
+/** 本机工作台状态只保存身份和位置，正文仍由文档与恢复草稿持有。 */
+export interface DocumentPosition {
+  anchor: number;
+  head: number;
+  scrollTop: number;
+  scrollLeft: number;
+}
+
+export interface TreeState {
+  expandedIds: string[];
+  selectedId: string | null;
+  scrollTop: number;
+}
+
+export interface WorkViewState {
+  workId: string;
+  tabs: (DocumentPosition & { documentId: string })[];
+  activeDocumentId: string | null;
+  secondaryDocumentId: string | null;
+  section: Entry['section'];
+  manuscript: TreeState;
+  resource: TreeState;
+}
+
+export interface WorkbenchState {
+  activeWorkId: string | null;
+  works: WorkViewState[];
+}
+
+/** 会话正文与运行状态由 pi 持有；这里只记录固定归属和本机查看位置。 */
+export interface SessionAssignment {
+  sessionId: string;
+  workId: string;
+}
+export interface SessionSelection {
+  workId: string | null;
+  sessionId: string | null;
+}
+export interface SessionState {
+  assignments: SessionAssignment[];
+  selections: SessionSelection[];
+}
+
 export interface CreationAuthorCommands {
+  readSessionState: { input: Record<string, never>; output: CreationResult<SessionState> };
+  assignSession: { input: SessionAssignment; output: CreationResult<SessionState> };
+  selectSession: { input: SessionSelection; output: CreationResult<SessionState> };
+  readWorkbench: { input: Record<string, never>; output: CreationResult<WorkbenchState> };
+  writeWorkbench: { input: WorkbenchState; output: CreationResult<WorkbenchState> };
   createWork: { input: CreateWorkInput; output: CreationResult<Work> };
   createEntry: { input: CreateEntryInput; output: CreationResult<Entry> };
   saveDocument: { input: SaveDocumentInput; output: CreationResult<Entry> };

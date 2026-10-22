@@ -139,8 +139,11 @@ const rootAttrs = computed(() => {
   @apply min-w-0 p-3 pt-1;
 }
 
-.app-collapsible-plain .app-collapsible-trigger,
+.app-collapsible-plain .app-collapsible-trigger {
+  @apply px-1.5;
+}
+
 .app-collapsible-plain .app-collapsible-content {
-  @apply px-0;
+  @apply px-1;
 }
 </style>

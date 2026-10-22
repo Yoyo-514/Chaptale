@@ -19,6 +19,7 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
   const agent = useAgentStore();
   const session: SessionView = {
     id: 'session',
+    sessionId: 'session',
     file: 'history.jsonl',
     cwd: 'work',
     running: true,
@@ -38,7 +39,7 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
     settings: { defaultInstructions: [], defaultMode: 'review', namedInstructions: [] }
   };
   agent.connected = true;
-  agent.select(session.id);
+  agent.activeId = session.id;
   agent.draft = '继续创作的草稿';
   wrapper = mount(MessageComposer, { global: { plugins: [pinia] } });
   expect(wrapper.get('[role="status"]').text()).toBe('正在压缩…');

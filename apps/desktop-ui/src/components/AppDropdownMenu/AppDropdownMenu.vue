@@ -23,6 +23,9 @@ const props = withDefaults(
   }
 );
 
+/** 菜单项转移焦点时可阻止关闭后的默认焦点恢复。 */
+const emit = defineEmits<{ closeAutoFocus: [event: Event] }>();
+
 const triggerClassName = computed(() => cn('app-dropdown-trigger', props.triggerClass));
 const contentClassName = computed(() =>
   cn('app-dropdown-content', `app-dropdown-content-${props.contentSize}`, props.contentClass)
@@ -45,6 +48,7 @@ const contentClassName = computed(() =>
         :side-offset="props.sideOffset"
         :align="props.align"
         data-slot="app-dropdown-menu-content"
+        @close-auto-focus="emit('closeAutoFocus', $event)"
       >
         <slot />
       </DropdownMenuContent>

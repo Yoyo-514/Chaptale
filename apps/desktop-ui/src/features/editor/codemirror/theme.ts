@@ -40,53 +40,85 @@ export const theme = EditorView.theme({
     borderRadius: 'var(--radius-control-sm)'
   },
   '.cm-cursor': { borderLeftColor: 'var(--foreground)' },
-  '.cm-panels': { color: 'var(--foreground)', backgroundColor: 'var(--surface-muted)' },
-  '.cm-panels-top': { borderBottom: '1px solid var(--border-subtle)' },
-  '.cm-search': {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '8px 30px 8px 12px',
+  '.cm-panels-top': {
+    position: 'absolute',
+    top: '6px',
+    right: '8px',
+    left: 'auto',
+    zIndex: '5',
+    maxWidth: 'calc(100% - 16px)',
+    border: 'none',
+    backgroundColor: 'transparent'
+  },
+  '.cm-panel.cm-search': {
+    display: 'grid',
+    gridTemplateColumns: '24px minmax(0, 1fr) auto',
+    alignItems: 'start',
+    gap: '4px',
+    width: 'min(420px, 100%)',
+    boxSizing: 'border-box',
+    padding: '6px',
+    color: 'var(--foreground)',
+    backgroundColor: 'var(--surface-elevated)',
+    border: '1px solid var(--border-subtle)',
+    boxShadow: 'var(--shadow-float)',
+    borderRadius: 'var(--radius-control)',
     fontSize: 'var(--ui-font-size)'
   },
-  '.cm-search label': { display: 'inline-flex', gap: '4px', alignItems: 'center', whiteSpace: 'nowrap' },
-  '.cm-search .cm-textfield': {
-    width: '160px',
-    maxWidth: '100%',
-    minWidth: '0',
-    background: 'var(--input)',
-    color: 'var(--foreground)',
+  '.cm-panel.cm-search input, .cm-panel.cm-search button': { margin: '0', boxSizing: 'border-box' },
+  '.cm-search-field, .cm-search-actions': { display: 'flex', alignItems: 'center', minWidth: '0' },
+  '.cm-search-field': {
     border: '1px solid var(--input-border)',
     borderRadius: 'var(--radius-control)',
-    minHeight: 'var(--control-height-sm)',
+    backgroundColor: 'var(--input)'
+  },
+  '.cm-search .cm-textfield': {
+    width: '100%',
+    minWidth: '0',
+    height: '26px',
+    padding: '3px 6px',
     font: 'inherit',
-    padding: '4px 8px'
-  },
-  '.cm-search .cm-button': {
-    background: 'var(--surface-muted)',
     color: 'var(--foreground)',
-    border: '1px solid var(--border-subtle)',
-    fontSize: 'var(--ui-font-size)',
-    fontFamily: 'inherit',
-    textTransform: 'none',
-    minHeight: 'var(--control-height-sm)',
-    borderRadius: 'var(--radius-control)',
-    padding: '4px 8px'
-  },
-  '.cm-search input[type=checkbox]': { width: '24px', height: '24px', accentColor: 'var(--primary-solid)' },
-  '.cm-search .cm-textfield:focus, .cm-search button:focus-visible, .cm-search input[type=checkbox]:focus-visible': {
-    outline: 'none',
-    boxShadow: 'var(--input-focus-shadow)'
-  },
-  '.cm-search .cm-button:hover': { background: 'var(--surface-hover)' },
-  '.cm-search button[name=close]': {
-    width: '28px',
-    height: '28px',
-    fontSize: '18px',
-    color: 'var(--muted-foreground)',
+    background: 'var(--input)',
+    border: '1px solid var(--input-border)',
     borderRadius: 'var(--radius-control)'
   },
+  '.cm-search-field .cm-textfield': { flex: '1', height: '24px', border: 'none' },
+  '.cm-search button': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: '0',
+    width: '24px',
+    height: '26px',
+    padding: '3px',
+    border: '1px solid transparent',
+    borderRadius: 'var(--radius-control-sm)',
+    color: 'var(--muted-foreground)',
+    background: 'transparent',
+    font: 'inherit',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  '.cm-search-field button': { width: '22px', height: '22px' },
+  '.cm-search button svg': { display: 'block', width: '16px', height: '16px' },
+  '.cm-search button[aria-expanded=true] svg': { transform: 'rotate(90deg)' },
+  '.cm-search button[aria-pressed=true]': {
+    backgroundColor: 'var(--accent)',
+    color: 'var(--accent-foreground)',
+    borderColor: 'var(--ring)'
+  },
+  '.cm-search-wholeWord': { textDecoration: 'underline' },
+  '.cm-search button:hover:not(:disabled)': { backgroundColor: 'var(--surface-hover)' },
+  '.cm-search button:disabled': { opacity: '0.45', cursor: 'default' },
+  '.cm-search-field:focus-within, .cm-search .cm-textfield:focus, .cm-search button:focus-visible': {
+    outline: '1px solid var(--ring)',
+    outlineOffset: '-1px'
+  },
+  '.cm-search-field .cm-textfield:focus': { outline: 'none' },
+  '.cm-search .cm-textfield[aria-invalid=true]': { outline: '1px solid var(--destructive)' },
+  '.cm-replace-row': { display: 'grid', gridColumn: '2 / -1', gridTemplateColumns: 'minmax(0, 1fr) 72px', gap: '4px' },
+  '.cm-replace-row[hidden]': { display: 'none' },
   '.cm-searchMatch': { backgroundColor: 'var(--accent)' },
   '.cm-searchMatch-selected': { outline: '1px solid var(--primary-solid)' }
 });

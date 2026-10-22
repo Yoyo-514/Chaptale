@@ -22,7 +22,7 @@ const props = withDefaults(
     open: boolean;
     title: string;
     description?: string;
-    contentSize?: 'md' | 'lg';
+    contentSize?: 'sm' | 'md' | 'lg';
     contentClass?: string;
     overlayClass?: string;
     closeLabel?: string;
@@ -100,12 +100,17 @@ function closeDialog() {
 }
 
 .app-dialog-content {
-  @apply fixed left-1/2 top-1/2 z-$z-modal flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden border p-4 shadow-$shadow-float outline-none;
+  @apply fixed left-1/2 top-1/2 z-$z-modal flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden border px-4 pb-4 shadow-$shadow-float outline-none;
 
   background: var(--surface-elevated);
   border-color: var(--border-subtle);
   border-radius: var(--radius-overlay);
   color: var(--popover-foreground);
+}
+
+.app-dialog-content-sm {
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
 }
 
 .app-dialog-content-md {
@@ -117,7 +122,7 @@ function closeDialog() {
 }
 
 .app-dialog-header {
-  @apply -mx-4 flex items-center justify-between gap-3 border-b px-4 pb-3;
+  @apply -mx-5 flex items-center justify-between gap-3 border-b px-4 py-2;
 
   border-color: var(--border-subtle);
 }

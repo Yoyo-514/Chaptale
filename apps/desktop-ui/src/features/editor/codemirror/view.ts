@@ -8,7 +8,7 @@ import {
   syntaxHighlighting,
   unfoldEffect
 } from '@codemirror/language';
-import { getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
+import { openSearchPanel, search, searchKeymap } from '@codemirror/search';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import {
   drawSelection,
@@ -22,7 +22,17 @@ import {
 import type { DocumentViewState } from '../types';
 import { DocumentBuffer } from './document-buffer';
 import { documentHeadings, documentHeadRange } from './markdown-navigation';
+import { createSearchPanel, openReplacePanel } from './search-panel';
 import { theme, writingHighlight } from './theme';
+
+function position(view: EditorView): DocumentViewState {
+  return {
+    anchor: view.state.selection.main.anchor,
+    head: view.state.selection.main.head,
+    scrollTop: view.scrollDOM.scrollTop,
+    scrollLeft: view.scrollDOM.scrollLeft
+  };
+}
 
 /** 视图可卸载，正文、原始换行与撤销历史由标签的 DocumentBuffer 持有。 */
 export function createDocumentView(
@@ -34,6 +44,7 @@ export function createDocumentView(
     viewState?: DocumentViewState;
     buffer?: DocumentBuffer;
     onChange?: (buffer: DocumentBuffer) => void;
+    onPosition?: (position: DocumentViewState) => void;
     foldHead?: boolean;
   }
 ) {
@@ -50,8 +61,13 @@ export function createDocumentView(
       'aria-readonly': String(options.large),
       'aria-multiline': 'true'
     }),
-    keymap.of([...historyKeymap, ...searchKeymap, ...defaultKeymap]),
-    search({ top: true }),
+    keymap.of([
+      { key: 'Mod-h', mac: 'Mod-Alt-f', run: openReplacePanel, scope: 'editor search-panel', preventDefault: true },
+      ...historyKeymap,
+      ...searchKeymap,
+      ...defaultKeymap
+    ]),
+    search({ top: true, createPanel: createSearchPanel }),
     drawSelection(),
     lineNumbers(),
     highlightActiveLine(),
@@ -88,12 +104,16 @@ export function createDocumentView(
     state: buffer?.state ?? EditorState.create({ doc: content, extensions }),
     dispatchTransactions(transactions, currentView) {
       currentView.update(transactions);
+      if (transactions.some(transaction => transaction.selection || transaction.docChanged))
+        options.onPosition?.(position(currentView));
       if (buffer) {
         buffer.update(currentView.state);
         if (transactions.some(transaction => transaction.docChanged)) options.onChange?.(buffer);
       }
     }
   });
+  const rememberPosition = () => options.onPosition?.(position(view));
+  view.scrollDOM.addEventListener('scroll', rememberPosition, { passive: true });
   const detachBuffer = buffer?.attach(transaction => view.dispatch(transaction));
   const head = options.markdown && !options.large && options.foldHead ? documentHeadRange(view.state) : null;
   if (head && !options.viewState) {
@@ -102,18 +122,6 @@ export function createDocumentView(
       selection: { anchor: Math.min(head.to + 1, view.state.doc.length) }
     });
   }
-
-  // 搜索框也接收粘贴与输入法提交，不能只等 keyup 后才让 Enter 使用新查询。
-  const updateSearchInput = (event: Event) => {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement) || !input.closest('.cm-search')) return;
-    if (input.name !== 'search' && input.name !== 'replace') return;
-    if (event instanceof InputEvent && event.isComposing) return;
-    const query = new SearchQuery({ ...getSearchQuery(view.state), [input.name]: input.value });
-    view.dispatch({ effects: setSearchQuery.of(query) });
-  };
-  view.dom.addEventListener('input', updateSearchInput);
-  view.dom.addEventListener('compositionend', updateSearchInput);
 
   let restoreFrame: number | undefined;
   if (options.viewState) {
@@ -134,6 +142,7 @@ export function createDocumentView(
     buffer,
     focus: () => view.focus(),
     find: () => openSearchPanel(view),
+    replace: () => openReplacePanel(view),
     undo: () => undo(view),
     redo: () => redo(view),
     headings: () => documentHeadings(view.state),
@@ -161,17 +170,11 @@ export function createDocumentView(
       const range = documentHeadRange(view.state);
       if (range) view.dispatch({ effects: foldEffect.of(range) });
     },
-    getViewState: (): DocumentViewState => ({
-      anchor: view.state.selection.main.anchor,
-      head: view.state.selection.main.head,
-      scrollTop: view.scrollDOM.scrollTop,
-      scrollLeft: view.scrollDOM.scrollLeft
-    }),
+    getViewState: () => position(view),
     destroy() {
       detachBuffer?.();
       if (restoreFrame !== undefined) cancelAnimationFrame(restoreFrame);
-      view.dom.removeEventListener('input', updateSearchInput);
-      view.dom.removeEventListener('compositionend', updateSearchInput);
+      view.scrollDOM.removeEventListener('scroll', rememberPosition);
       view.destroy();
     }
   };

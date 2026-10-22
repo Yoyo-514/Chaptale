@@ -56,6 +56,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.agent-title-input {
+  min-width: 0;
+  flex: 1;
+}
 .agent-back {
   flex-shrink: 0;
 }
@@ -64,6 +68,7 @@
   flex: 1;
   overflow: hidden;
   margin: 0;
+  margin-left: 6px;
   font-size: var(--ui-font-size);
   font-weight: 600;
   text-overflow: ellipsis;
@@ -528,7 +533,7 @@
   min-width: 0;
   flex-direction: column;
   gap: 3px;
-  padding: 10px 8px;
+  padding: 8px 10px;
   border: 0;
   border-radius: var(--radius-control-sm);
   background: transparent;

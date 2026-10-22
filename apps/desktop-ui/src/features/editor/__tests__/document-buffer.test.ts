@@ -1,5 +1,5 @@
 import { redo, undo } from '@codemirror/commands';
-import { type Transaction } from '@codemirror/state';
+import { Transaction } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 
 import { DocumentBuffer } from '../codemirror/document-buffer';
@@ -79,6 +79,39 @@ describe('无损编辑缓冲', () => {
     buffer.markSaved(buffer.state);
     expect(buffer.dirty).toBe(false);
     undo(historyTarget(buffer));
+    expect(buffer.dirty).toBe(true);
+  });
+
+  it.each([false, true])('连续输入跨过保存点后，一次撤销回到已保存内容（保存期间输入：%s）', pending => {
+    const buffer = new DocumentBuffer('');
+    buffer.update(
+      buffer.state.update({
+        changes: { from: 0, insert: '甲' },
+        userEvent: 'input.type',
+        annotations: Transaction.time.of(Date.UTC(2026, 0, 1))
+      }).state
+    );
+    const sent = buffer.prepareSave();
+    if (!pending) buffer.markSaved(sent);
+    buffer.update(
+      buffer.state.update({
+        changes: { from: 1, insert: '乙' },
+        userEvent: 'input.type',
+        annotations: Transaction.time.of(Date.UTC(2026, 0, 1) + 1)
+      }).state
+    );
+    if (pending) buffer.markSaved(sent);
+    expect(buffer.content).toBe('甲乙');
+    expect(buffer.dirty).toBe(true);
+    expect(undo(historyTarget(buffer))).toBe(true);
+    expect(buffer.content).toBe('甲');
+    expect(buffer.dirty).toBe(false);
+    expect(redo(historyTarget(buffer))).toBe(true);
+    expect(buffer.content).toBe('甲乙');
+    expect(buffer.dirty).toBe(true);
+    undo(historyTarget(buffer));
+    undo(historyTarget(buffer));
+    expect(buffer.content).toBe('');
     expect(buffer.dirty).toBe(true);
   });
 

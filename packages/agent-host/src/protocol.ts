@@ -106,7 +106,12 @@ export interface SessionUsage {
   context?: { tokens: number | null; contextWindow: number; percent: number | null };
 }
 export interface SessionView {
+  /** 当前打开实例的操作句柄；只读副本具有独立句柄。 */
   id: string;
+  /** pi 原生会话身份；历史头损坏时为空。 */
+  sessionId: string | null;
+  /** 用户设置的会话名称，保存在 pi 原生 session_info 记录中。 */
+  name?: string;
   file: string;
   cwd: string;
   model?: ModelRef;
@@ -148,7 +153,7 @@ export interface HistoryItem {
 }
 export interface HostCommands {
   state: { input: undefined; output: HostState };
-  /** instructions 省略时复制全局默认指令；cwd 省略时创建应用目录内的独立会话。 */
+  /** instructions 省略时复制全局默认指令；cwd 省略时使用应用工作目录。 */
   create: { input: { model: ModelRef; instructions?: string; cwd?: string }; output: string };
   open: { input: { file: string; cwd: string }; output: string };
   prompt: { input: { id: string; text: string }; output: void };
@@ -157,8 +162,10 @@ export interface HostCommands {
   close: { input: { id: string }; output: void };
   model: { input: { id: string; model: ModelRef }; output: void };
   approve: { input: { id: string; allow: boolean }; output: void };
-  /** 按作品目录筛选；省略输入时列出应用目录内的独立会话历史。 */
-  history: { input: { cwd: string } | undefined; output: HistoryItem[] };
+  /** 只读历史不能重命名。 */
+  rename: { input: { id: string; name: string }; output: void };
+  /** 枚举宿主管理目录中的全部原生历史，业务归属由应用层筛选。 */
+  history: { input: undefined; output: HistoryItem[] };
   providers: { input: undefined; output: ProviderView[] };
   /** 正在生成内容的模型不能被移除。 */
   saveProvider: { input: ProviderSave; output: void };

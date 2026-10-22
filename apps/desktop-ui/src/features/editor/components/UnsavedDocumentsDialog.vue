@@ -19,7 +19,7 @@ const editor = useEditorStore();
     "
   >
     <ul class="unsaved-files">
-      <li v-for="path in editor.unsavedPrompt?.paths" :key="path">{{ path }}</li>
+      <li v-for="(title, index) in editor.unsavedPrompt?.titles" :key="index">{{ title }}</li>
     </ul>
     <AppFormActions>
       <AppButton @click="editor.resolveUnsaved('cancel')">取消</AppButton>

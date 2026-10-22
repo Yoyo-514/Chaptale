@@ -43,6 +43,8 @@ export class LiveSession {
     this.emit = emit;
     this.view = {
       id: session.sessionId,
+      sessionId: session.sessionId,
+      name: session.sessionName,
       file: session.sessionFile!,
       cwd: session.sessionManager.getCwd(),
       model: session.model && { provider: session.model.provider, id: session.model.id },
@@ -127,6 +129,14 @@ export class LiveSession {
   setInstructions(entries: AgentInstructions): void {
     this.session.sessionManager.appendCustomEntry(instructionsEntryType, { entries });
     this.view.instructions = entries;
+    this.emit({ kind: 'session', session: this.view });
+  }
+
+  rename(name: string): void {
+    const value = name.trim();
+    if (!value) throw new Error('会话名称不能为空');
+    this.session.setSessionName(value);
+    this.view.name = value;
     this.emit({ kind: 'session', session: this.view });
   }
 

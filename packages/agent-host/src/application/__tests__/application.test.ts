@@ -168,7 +168,7 @@ it('不同作品与独立会话共用宿主，各自保留创建时的目录和�
   expect(app.snapshot().sessions.map(session => session.id)).toEqual([first, second, independent]);
 });
 
-it('历史按指定作品目录筛选，独立会话历史使用应用默认目录', async () => {
+it('枚举宿主管理目录中的历史，保留各自工作目录与原生身份', async () => {
   const work = join(root, 'first-work');
   await mkdir(work);
   const own = history(['独立会话历史']);
@@ -176,12 +176,40 @@ it('历史按指定作品目录筛选，独立会话历史使用应用默认目�
   manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
   manager.appendCustomEntry(modeEntryType, { mode: 'review' });
   manager.appendMessage({ role: 'user', content: '作品会话历史', timestamp: Date.now() });
-  const scoped = await app.execute({ method: 'history', input: { cwd: work } });
-  expect(scoped).toMatchObject([{ cwd: work, file: manager.getSessionFile(), title: '作品会话历史' }]);
-  expect(scoped).toHaveLength(1);
-  const independent = await app.execute({ method: 'history', input: undefined });
-  expect(independent).toMatchObject([{ cwd: options.cwd, file: own.file, title: '独立会话历史' }]);
-  expect(independent).toHaveLength(1);
+  const items = await app.execute({ method: 'history', input: undefined });
+  expect(items).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: manager.getSessionId(),
+        cwd: work,
+        file: manager.getSessionFile(),
+        title: '作品会话历史'
+      }),
+      expect.objectContaining({ cwd: options.cwd, file: own.file, title: '独立会话历史' })
+    ])
+  );
+  expect(items).toHaveLength(2);
+  const opened = (await app.execute({
+    method: 'open',
+    input: { file: manager.getSessionFile()!, cwd: work }
+  })) as string;
+  expect(view(opened).sessionId).toBe(manager.getSessionId());
+});
+
+it('重命名写入原生记录，历史与重开均使用新名称，只读历史不能重命名', async () => {
+  const id = await create();
+  await expect(app.execute({ method: 'rename', input: { id, name: '  ' } })).rejects.toThrow('不能为空');
+  await app.execute({ method: 'rename', input: { id, name: ' 第三卷大纲 ' } });
+  expect(view(id).name).toBe('第三卷大纲');
+  const item = history(['历史输入']);
+  const opened = await open(item);
+  await app.execute({ method: 'rename', input: { id: opened, name: '人物小传' } });
+  await app.execute({ method: 'close', input: { id: opened } });
+  const items = (await app.execute({ method: 'history', input: undefined })) as { file: string; title: string }[];
+  expect(items.find(entry => entry.file === item.file)?.title).toBe('人物小传');
+  expect(view(await open(item)).name).toBe('人物小传');
+  const readonly = await open(history(['旧历史'], {}));
+  await expect(app.execute({ method: 'rename', input: { id: readonly, name: '新名' } })).rejects.toThrow('只读');
 });
 
 it('不存在的作品目录不能创建会话，既有会话保持可用', async () => {

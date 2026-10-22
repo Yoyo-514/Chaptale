@@ -44,6 +44,8 @@ onBeforeUnmount(() => textObserver?.disconnect());
       <SelectItemText :key="textRevision" class="app-select-item-text" data-slot="app-select-item-text">
         <slot />
       </SelectItemText>
+      <!-- 只在选项列表中显示的说明，不进入触发器 -->
+      <small v-if="$slots.hint" class="app-select-item-hint"><slot name="hint" /></small>
     </span>
     <SelectItemIndicator class="app-select-item-indicator" data-slot="app-select-item-indicator">
       <span class="i-mingcute-check-line" aria-hidden="true" />
@@ -80,6 +82,12 @@ onBeforeUnmount(() => textObserver?.disconnect());
 
 .app-select-item-indicator {
   @apply flex-center absolute top-1/2 right-2 -translate-y-1/2 text-xs;
+}
+
+.app-select-item-hint {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 16px;
 }
 
 .app-select-item[data-highlighted],

@@ -32,7 +32,39 @@ async function setup() {
       input: { commandId: randomUUID(), title: '长夜行', kind: 'novel' }
     })
   );
-  return { root, app, work };
+  function directory(title: string, parentId: string | null = null) {
+    return value(
+      app.executeAuthor({
+        method: 'createEntry',
+        input: {
+          commandId: randomUUID(),
+          workId: work.id,
+          parentId,
+          section: 'manuscript',
+          kind: 'directory',
+          title
+        }
+      })
+    );
+  }
+  function document(title: string, content: string, parentId: string | null = null) {
+    return value(
+      app.executeAuthor({
+        method: 'createEntry',
+        input: {
+          commandId: randomUUID(),
+          workId: work.id,
+          parentId,
+          section: 'manuscript',
+          kind: 'document',
+          title,
+          format: 'txt',
+          content
+        }
+      })
+    );
+  }
+  return { root, app, work, directory, document };
 }
 
 it('先预览目录层级，再导入原文；重复导入同一计划沿用回执', async () => {
@@ -144,7 +176,7 @@ it('导出按目录位置排列，标题单独输出，重名和 Windows 文件�
   );
   expect(result.failure).toBeNull();
   expect(result.paths).toEqual(
-    ['人物_关系 (2).txt', '人物_关系 (3).txt', '_CON.txt', '尾部.txt'].map(name => join(directory, name))
+    ['人物_关系 (2).txt', '人物_关系 (3).txt', join('卷', '_CON.txt'), '尾部.txt'].map(name => join(directory, name))
   );
   expect(await readFile(join(directory, '人物_关系.txt'), 'utf8')).toBe('既有文件');
   expect(await readFile(result.paths[0]!, 'utf8')).toBe('人物/关系\n\n乙  \n');
@@ -154,7 +186,7 @@ it('导出按目录位置排列，标题单独输出，重名和 Windows 文件�
   );
   expect(combined.failure).toBeNull();
   expect(await readFile(combined.paths[0]!, 'utf8')).toBe(
-    '人物/关系\n\n乙  \n\n\n人物/关系\n\n甲\r\n\n\nCON\n\n丙\n\n尾部. \n\n丁'
+    '人物/关系\n\n乙  \n\n\n人物/关系\n\n甲\r\n\n\n卷\n\nCON\n\n丙\n\n尾部. \n\n丁'
   );
   const markdown = value(
     await app.execute({
@@ -170,6 +202,151 @@ it('导出按目录位置排列，标题单独输出，重名和 Windows 文件�
   expect(
     value(app.executeAuthor({ method: 'readDocument', input: { workId: work.id, documentId: first.id } }))
   ).toMatchObject({ title: '人物/关系', content: '甲\r\n' });
+});
+
+it('分文件导出保留多卷和嵌套目录，清理路径重名且保留已有文件与目录', async () => {
+  const { root, app, work, directory, document } = await setup();
+  const first = directory('第一卷/');
+  const nested = directory('CON', first.id);
+  const deeper = directory('尾部. ', nested.id);
+  const body = '\uFEFF甲\r\n乙\n末尾  \r\n';
+  const chapter = document('章:节', body, deeper.id);
+  document('同名', '第一份', first.id);
+  document('同名', '第二份', first.id);
+  const second = directory('第一卷?');
+  document('同名', '第三份', second.id);
+  directory('空卷');
+  const output = join(root, '输出');
+  await mkdir(join(output, '第一卷_'), { recursive: true });
+  await writeFile(join(output, '第一卷_', '保留.txt'), '原件');
+  await writeFile(join(output, '第一卷_ (2)'), '占用目录名称的文件');
+  const report = value(
+    await app.execute({
+      method: 'exportFiles',
+      input: {
+        workId: work.id,
+        directory: output,
+        target: { kind: 'manuscript', format: 'markdown' }
+      }
+    })
+  );
+  expect(report.failure).toBeNull();
+  expect(report.paths).toEqual([
+    join(output, '第一卷_ (3)', '_CON', '尾部', '章_节.md'),
+    join(output, '第一卷_ (3)', '同名.md'),
+    join(output, '第一卷_ (3)', '同名 (2).md'),
+    join(output, '第一卷_ (4)', '同名.md')
+  ]);
+  expect(await Promise.all(report.paths.map(path => readFile(path, 'utf8')))).toEqual([
+    `# 章:节\n\n${body}`,
+    '# 同名\n\n第一份',
+    '# 同名\n\n第二份',
+    '# 同名\n\n第三份'
+  ]);
+  expect(await readdir(join(output, '空卷'))).toEqual([]);
+  expect(await readFile(join(output, '第一卷_', '保留.txt'), 'utf8')).toBe('原件');
+  expect(await readFile(join(output, '第一卷_ (2)'), 'utf8')).toBe('占用目录名称的文件');
+  const single = value(
+    await app.execute({
+      method: 'exportFiles',
+      input: {
+        workId: work.id,
+        directory: output,
+        target: { kind: 'document', documentId: chapter.id, format: 'txt' }
+      }
+    })
+  );
+  expect(single.paths).toEqual([join(output, '章_节.txt')]);
+  expect(await readFile(single.paths[0]!, 'utf8')).toBe(`章:节\n\n${body}`);
+  expect(
+    value(app.executeAuthor({ method: 'readDocument', input: { workId: work.id, documentId: chapter.id } }))
+  ).toMatchObject({ title: '章:节', parentId: deeper.id, content: body });
+});
+
+it('整本按当前目录顺序输出卷、嵌套目录和章节标题，正文字符原样保留', async () => {
+  const { root, app, work, directory, document } = await setup();
+  const first = directory('第一卷');
+  const nested = directory('第一幕', first.id);
+  document('同名', '甲\r\n', nested.id);
+  const second = directory('第二卷');
+  document('同名', '乙  \n', second.id);
+  document('尾声', '末尾');
+  value(
+    app.executeAuthor({
+      method: 'moveEntry',
+      input: {
+        commandId: randomUUID(),
+        workId: work.id,
+        entryId: second.id,
+        expectedParentId: null,
+        expectedPosition: second.position,
+        parentId: null,
+        beforeEntryId: first.id
+      }
+    })
+  );
+  const report = value(
+    await app.execute({
+      method: 'exportFiles',
+      input: {
+        workId: work.id,
+        directory: root,
+        target: { kind: 'book' }
+      }
+    })
+  );
+  expect(report.failure).toBeNull();
+  expect(await readFile(report.paths[0]!, 'utf8')).toBe(
+    '第二卷\n\n同名\n\n乙  \n\n\n第一卷\n\n第一幕\n\n同名\n\n甲\r\n\n\n尾声\n\n末尾'
+  );
+});
+
+it('并发分文件导出各自保留目录，导出期间的改名和保存留给下一次', async () => {
+  const { root, app, work, directory, document } = await setup();
+  const folder = directory('原卷名');
+  const chapter = document('原章名', '原正文\r\n', folder.id);
+  const command = {
+    method: 'exportFiles' as const,
+    input: {
+      workId: work.id,
+      directory: root,
+      target: { kind: 'manuscript' as const, format: 'txt' as const }
+    }
+  };
+  const first = app.execute(command);
+  const second = app.execute(command);
+  value(
+    app.executeAuthor({
+      method: 'renameDirectory',
+      input: {
+        commandId: randomUUID(),
+        workId: work.id,
+        directoryId: folder.id,
+        expectedRevisionId: folder.revisionId,
+        title: '新卷名'
+      }
+    })
+  );
+  value(
+    app.executeAuthor({
+      method: 'saveDocument',
+      input: {
+        commandId: randomUUID(),
+        workId: work.id,
+        documentId: chapter.id,
+        expectedRevisionId: chapter.revisionId,
+        title: '新章名',
+        format: 'txt',
+        content: '新正文'
+      }
+    })
+  );
+  const reports = (await Promise.all([first, second])).map(value);
+  expect(reports.map(report => report.failure)).toEqual([null, null]);
+  expect(new Set(reports.flatMap(report => report.paths))).toEqual(
+    new Set([join(root, '原卷名', '原章名.txt'), join(root, '原卷名 (2)', '原章名.txt')])
+  );
+  for (const report of reports) expect(await readFile(report.paths[0]!, 'utf8')).toBe('原章名\n\n原正文\r\n');
 });
 
 it('真实文件解码失败报告已完成项，修复源文件后重试不重复创建', async () => {
@@ -276,24 +453,10 @@ it('导出固定开始时的修订；并发导出分别创建文件并保留已�
   expect(await readFile(join(root, '章节.txt'), 'utf8')).toBe('旧导出');
 });
 
-it('后续文稿导出失败时返回已完成文件，原作品和既有文件保留', async () => {
-  const { root, app, work } = await setup();
-  for (const title of ['正常', '...'])
-    value(
-      app.executeAuthor({
-        method: 'createEntry',
-        input: {
-          commandId: randomUUID(),
-          workId: work.id,
-          parentId: null,
-          section: 'manuscript',
-          kind: 'document',
-          title,
-          format: 'txt',
-          content: '正文'
-        }
-      })
-    );
+it.each(['document', 'directory'] as const)('后续%s导出失败时返回已完成文件，原作品和既有文件保留', async kind => {
+  const { root, app, work, document, directory: createDirectory } = await setup();
+  const first = document('正常', '正文');
+  const failing = kind === 'document' ? document('...', '正文') : createDirectory('...');
   const directory = join(root, '输出');
   await mkdir(directory);
   const report = value(
@@ -304,6 +467,10 @@ it('后续文稿导出失败时返回已完成文件，原作品和既有文件�
   );
   expect(report.paths).toEqual([join(directory, '正常.md')]);
   expect(report.failure?.message).toContain('有效文件名');
+  expect(report.failure?.documentId).toBe(kind === 'document' ? failing.id : null);
+  expect(
+    value(app.executeAuthor({ method: 'readDocument', input: { workId: work.id, documentId: first.id } }))
+  ).toMatchObject({ title: '正常', content: '正文' });
   expect(await readdir(directory)).toEqual(['正常.md']);
   expect(await readFile(report.paths[0]!, 'utf8')).toBe('# 正常\n\n正文');
 });

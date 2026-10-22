@@ -1,370 +1,335 @@
+import type { EditorState } from '@codemirror/state';
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 
-import { MAX_DOCUMENT_BYTES, type WorkspaceDocument } from '@chaptale/ipc-contract';
-import { countDocumentWords } from '@chaptale/shared';
+import type { Document, SaveDocumentInput } from '@chaptale/creation/contracts';
+import { countDocumentWords } from '@chaptale/creation/text';
 
+import { CreationRequestError, requestCreation, useCreationStore } from '@/features/creation';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
-import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
 import { DocumentBuffer } from './codemirror/document-buffer';
-import { createExternalChanges } from './state/external-changes';
-import { createDocumentRecovery } from './state/recovery';
-import { NORMAL_PREVIEW_BYTES, type DocumentViewState, type EditorTab } from './types';
+import { writingTiming } from './timing';
+import type { DocumentViewState, EditorTab } from './types';
 
-/** 标签是磁盘快照与在内存中编辑的缓冲投影；保存必须带原始磁盘基线。 */
+function isDirty(tab: EditorTab, buffer: DocumentBuffer) {
+  return buffer.dirty || tab.title !== tab.document!.title || tab.format !== tab.document!.format;
+}
+
+function snapshot(tab: EditorTab, buffer: DocumentBuffer): Omit<SaveDocumentInput, 'commandId'> {
+  return {
+    workId: tab.workId,
+    documentId: tab.id,
+    expectedRevisionId: tab.document!.revisionId,
+    title: tab.title,
+    format: tab.format,
+    content: buffer.content
+  };
+}
+
+/** 每份文档的缓冲、基线修订与在途提交沿用稳定 ID；保存结束保留后续输入。 */
 export const useEditorStore = defineStore('editor', () => {
-  const workspace = useWorkspaceStore();
+  const creation = useCreationStore();
   const settings = useSettingsStore();
   const tabs = shallowRef<EditorTab[]>([]);
   const activeId = ref('');
+  const focusedId = ref('');
   const searchRequest = ref(0);
-  const location = shallowRef<{ path: string; from: number; to: number; sequence: number } | null>(null);
-  const newChapterOpen = ref(false);
   const command = shallowRef<{ name: 'undo' | 'redo'; sequence: number } | null>(null);
-  const unsavedPrompt = shallowRef<{ paths: string[] } | null>(null);
-  const conflictId = ref('');
-  const conflictTab = computed(() => tabs.value.find(tab => tab.id === conflictId.value) ?? null);
-  const buffers = new Map<string, DocumentBuffer>();
-  const saves = new Map<string, Promise<boolean>>();
-  const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const wordCountTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const pending = new Map<string, symbol>();
-  const refreshAfterLoad = new Set<string>();
-  const documentContext = { tabs, buffers, saves, autoSaveTimers, workspace, replaceTab };
-  const recovery = createDocumentRecovery({ ...documentContext, openDocument, confirmClose, updateBuffer });
-  const { recoveries, recoveryError, persistRecovery, loadRecoveries, discardRecovery, restoreRecovery } = recovery;
-  const externalChanges = createExternalChanges({
-    ...documentContext,
-    recovery,
-    conflictId,
-    refreshAfterLoad,
-    reloadDocument
-  });
-  const { handleWorkspaceChanged, refreshDocuments, acceptExternal, keepLocal } = externalChanges;
-  let decision:
-    | { promise: Promise<'save' | 'discard' | 'cancel'>; resolve: (choice: 'save' | 'discard' | 'cancel') => void }
-    | undefined;
-  let nextId = 0;
-
-  const activeTab = computed(() => tabs.value.find(tab => tab.id === activeId.value) ?? null);
+  const unsavedPrompt = shallowRef<{ titles: string[] } | null>(null);
+  const activeTab = computed(() => tabs.value.find(tab => tab.id === (focusedId.value || activeId.value)) ?? null);
   const hasUnsaved = computed(() => tabs.value.some(tab => tab.dirty || tab.saving));
   const autoSave = computed(() => settings.state?.settings.editor?.autoSave ?? false);
-  let windowClosingApproved = false;
-  let closingWindow: Promise<void> | undefined;
+  const buffers = new Map<string, DocumentBuffer>();
+  const queues = new Map<string, Promise<unknown>>();
+  const saves = new Map<string, Promise<boolean>>();
+  const attempts = new Map<string, { input: SaveDocumentInput; state: EditorState }>();
+  const recoveryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  let decision:
+    | { promise: Promise<'save' | 'discard' | 'cancel'>; resolve: (value: 'save' | 'discard' | 'cancel') => void }
+    | undefined;
+  let closing: Promise<void> | undefined;
+  let closingApproved = false;
 
-  function replaceTab(tab: EditorTab) {
-    const index = tabs.value.findIndex(item => item.id === tab.id);
-    if (index < 0) return;
-    const next = tabs.value.slice();
-    next[index] = tab;
-    tabs.value = next;
+  function patch(id: string, fields: Partial<EditorTab>) {
+    tabs.value = tabs.value.map(tab => (tab.id === id ? { ...tab, ...fields } : tab));
   }
-
-  function selectTab(id: string) {
-    if (tabs.value.some(tab => tab.id === id)) activeId.value = id;
+  function find(id: string) {
+    return tabs.value.find(tab => tab.id === id);
   }
-
-  async function openDocument(relativePath: string, reveal = true) {
-    if (!workspace.rootPath) return;
-    if (reveal) useWorkbenchStore().focusEditor();
-    const existing = tabs.value.find(tab => tab.path === relativePath);
-    if (existing) {
-      activeId.value = existing.id;
-      return;
-    }
-
-    const tab: EditorTab = {
-      id: `document-${++nextId}`,
-      path: relativePath,
-      title: relativePath.split('/').at(-1) ?? relativePath,
-      readonly: true,
-      dirty: false,
-      status: 'loading',
-      document: null,
-      error: null,
-      allowLarge: false
-    };
-    tabs.value = [...tabs.value, tab];
-    activeId.value = tab.id;
-    await reloadDocument(tab.id);
-  }
-
-  async function reloadDocument(id: string, allowLarge = false) {
-    const tab = tabs.value.find(item => item.id === id);
-    const rootPath = workspace.rootPath;
-    if (!tab || !rootPath) return;
-    if ((tab.dirty || tab.saving) && !(await confirmClose([id]))) return;
-    const revision = workspace.revision;
-    const token = Symbol();
-    pending.set(id, token);
-    replaceTab({ ...tab, status: 'loading', document: null, error: null, allowLarge: allowLarge || tab.allowLarge });
-    const isCurrent = () =>
-      pending.get(id) === token && workspace.rootPath === rootPath && workspace.revision === revision;
-
-    try {
-      const result = await getDesktopApi().workspace.readDocument({
-        rootPath,
-        relativePath: tab.path,
-        maxBytes: allowLarge || tab.allowLarge ? MAX_DOCUMENT_BYTES : NORMAL_PREVIEW_BYTES
-      });
-      if (!isCurrent()) return;
-      const current = tabs.value.find(item => item.id === id);
-      if (!current) return;
-      if (result.ok) {
-        if (result.document.rootPath !== rootPath || result.document.relativePath !== tab.path) {
-          replaceTab({
-            ...current,
-            status: 'error',
-            error: { ok: false, code: 'workspace-changed', message: '文件读取结果已过期，请重新打开' }
-          });
-          return;
-        }
-        if (result.document.sizeBytes <= NORMAL_PREVIEW_BYTES)
-          buffers.set(id, new DocumentBuffer(result.document.content));
-        else buffers.delete(id);
-        replaceTab({
-          ...current,
-          status: 'ready',
-          document: result.document,
-          error: null,
-          readonly: result.document.sizeBytes > NORMAL_PREVIEW_BYTES,
-          dirty: false,
-          saveError: '',
-          external: undefined,
-          recoveryBaseHash: undefined,
-          generation: (current.generation ?? 0) + 1
-        });
-      } else {
-        replaceTab({ ...current, status: 'error', document: null, error: result });
+  function queue<T>(id: string, operation: () => Promise<T>): Promise<T> {
+    const previous = queues.get(id) ?? Promise.resolve();
+    const next = previous.then(operation, operation);
+    queues.set(id, next);
+    void next.then(
+      () => {
+        if (queues.get(id) === next) queues.delete(id);
+      },
+      () => {
+        if (queues.get(id) === next) queues.delete(id);
       }
-    } catch (error) {
-      if (!isCurrent()) return;
-      const current = tabs.value.find(item => item.id === id);
-      if (current) {
-        replaceTab({
-          ...current,
-          status: 'error',
-          error: { ok: false, code: 'read-failed', message: toErrorMessage(error) }
-        });
-      }
-    } finally {
-      if (pending.get(id) === token) {
-        pending.delete(id);
-        if (refreshAfterLoad.delete(id)) await refreshDocuments([id]);
-      }
-    }
+    );
+    return next;
   }
-
-  async function closeTab(id: string) {
-    const tab = tabs.value.find(item => item.id === id);
-    if ((tab?.dirty || tab?.saving) && !(await confirmClose([id]))) return;
-    removeTab(id);
-  }
-  function removeTab(id: string) {
-    const index = tabs.value.findIndex(item => item.id === id);
-    if (index < 0) return;
-    pending.delete(id);
-    refreshAfterLoad.delete(id);
-    buffers.delete(id);
-    clearTimeout(autoSaveTimers.get(id));
-    autoSaveTimers.delete(id);
-    recovery.cancelScheduled(id);
-    externalChanges.forget(id);
-    clearTimeout(wordCountTimers.get(id));
-    wordCountTimers.delete(id);
-    tabs.value = tabs.value.filter(item => item.id !== id);
-    if (activeId.value === id) activeId.value = tabs.value[Math.min(index, tabs.value.length - 1)]?.id ?? '';
-  }
-  async function closeTabs(ids: string[]) {
-    if (!(await confirmClose(ids))) return false;
-    for (const id of ids) removeTab(id);
-    return true;
-  }
-  function pathTabs(relativePath: string) {
-    return tabs.value.filter(tab => tab.path === relativePath || tab.path.startsWith(`${relativePath}/`));
-  }
-  function acceptPathRemoval(relativePath: string) {
-    for (const tab of pathTabs(relativePath)) removeTab(tab.id);
-  }
-  function acceptPathMove(from: string, to: string) {
-    for (const tab of pathTabs(from)) {
-      pending.delete(tab.id);
-      refreshAfterLoad.delete(tab.id);
-      externalChanges.forget(tab.id);
-      const nextPath = `${to}${tab.path.slice(from.length)}`;
-      if (tab.dirty && tab.document) buffers.set(tab.id, new DocumentBuffer(tab.document.content));
-      replaceTab({
-        ...tab,
-        path: nextPath,
-        title: nextPath.split('/').at(-1) ?? nextPath,
-        document: tab.document ? { ...tab.document, relativePath: nextPath } : null,
-        dirty: false,
-        external: undefined,
-        saveError: '',
-        generation: (tab.generation ?? 0) + 1
-      });
-    }
-  }
-
-  function rememberView(id: string, viewState: DocumentViewState) {
-    const tab = tabs.value.find(item => item.id === id);
-    if (tab) replaceTab({ ...tab, viewState });
-  }
-
-  function requestSearch() {
-    if (activeTab.value?.status === 'ready') searchRequest.value += 1;
-  }
-  async function locate(path: string, from: number, to = from) {
-    await openDocument(path);
-    location.value = { path, from, to, sequence: (location.value?.sequence ?? 0) + 1 };
-  }
-
-  function requestCommand(name: 'undo' | 'redo') {
-    command.value = { name, sequence: (command.value?.sequence ?? 0) + 1 };
-  }
-
   function updateBuffer(id: string, buffer: DocumentBuffer) {
-    const tab = tabs.value.find(item => item.id === id);
-    if (!tab) return;
+    const tab = find(id);
+    if (!tab?.document) return;
     buffers.set(id, buffer);
-    replaceTab({ ...tab, dirty: buffer.dirty });
-    if (buffer.dirty || tab.dirty) recovery.schedule(id);
-    clearTimeout(wordCountTimers.get(id));
-    wordCountTimers.set(
+    patch(id, { dirty: isDirty(tab, buffer), words: countDocumentWords(buffer.content) });
+    schedule(id);
+  }
+  function updateMetadata(id: string, fields: { title?: string; format?: Document['format'] }) {
+    patch(id, fields);
+    const buffer = buffers.get(id);
+    if (buffer) updateBuffer(id, buffer);
+  }
+  function schedule(id: string) {
+    clearTimeout(recoveryTimers.get(id));
+    recoveryTimers.set(
       id,
       setTimeout(() => {
-        wordCountTimers.delete(id);
-        const current = tabs.value.find(item => item.id === id);
-        if (current && buffers.get(id) === buffer) {
-          replaceTab({ ...current, words: countDocumentWords(buffer.state.doc.toString()) });
-        }
-      }, 200)
+        void persistRecovery(id);
+      }, writingTiming.recoveryDelayMs)
     );
-    clearTimeout(autoSaveTimers.get(id));
-    if (autoSave.value && buffer.dirty && !tab.saveError && !tab.external) {
-      autoSaveTimers.set(
+    clearTimeout(saveTimers.get(id));
+    const tab = find(id)!;
+    if (autoSave.value && tab.dirty && !tab.saveError && !tab.conflict)
+      saveTimers.set(
         id,
         setTimeout(() => {
-          if (autoSave.value) void saveDocument(id);
-        }, 1200)
+          void saveDocument(id);
+        }, writingTiming.autoSaveDelayMs)
       );
-    }
   }
 
-  async function saveDocument(id = activeId.value): Promise<boolean> {
-    const underway = saves.get(id);
-    if (underway) {
-      if (!(await underway)) return false;
-      return saveDocument(id);
+  async function openDocument(id: string, reveal = true) {
+    if (reveal) useWorkbenchStore().focusEditor();
+    if (find(id)) {
+      selectTab(id);
+      return;
     }
-    const tab = tabs.value.find(item => item.id === id);
-    const buffer = buffers.get(id);
-    if (!tab?.document || !buffer || tab.readonly || !tab.dirty) return !tab?.dirty;
-    if (tab.external) {
-      replaceTab({ ...tab, saveError: '磁盘文件已更新，请先处理版本冲突' });
-      return false;
-    }
-    const sentState = buffer.state;
-    const content = buffer.content;
-    const document = tab.document;
-    replaceTab({ ...tab, saving: true, saveError: '' });
-    const save = (async () => {
-      try {
-        const result = await getDesktopApi().workspace.writeDocument({
-          rootPath: document.rootPath,
-          relativePath: tab.path,
-          expectedHash: document.contentHash,
-          content
-        });
-        const current = tabs.value.find(item => item.id === id);
-        if (!current || buffers.get(id) !== buffer || workspace.rootPath !== document.rootPath) return false;
-        if (!result.ok) {
-          replaceTab({ ...current, saving: false, saveError: result.message });
-          return false;
-        }
-        buffer.markSaved(sentState);
-        replaceTab({
-          ...current,
-          document: result.document,
-          dirty: buffer.dirty,
-          saving: false,
-          saveError: '',
-          recoveryBaseHash: undefined
-        });
-        await persistRecovery(id);
-        return true;
-      } catch (error) {
-        const current = tabs.value.find(item => item.id === id);
-        if (current) replaceTab({ ...current, saving: false, saveError: toErrorMessage(error) });
-        return false;
-      } finally {
-        saves.delete(id);
+    const workId = creation.workId!;
+    const entry = creation.entries.find(item => item.id === id);
+    if (!entry || entry.kind !== 'document') return;
+    tabs.value = [
+      ...tabs.value,
+      {
+        id,
+        workId,
+        title: entry.title,
+        format: entry.format!,
+        document: null,
+        status: 'loading',
+        error: '',
+        dirty: false,
+        saving: false,
+        saveError: '',
+        recoveryError: '',
+        draftVersion: null,
+        recovery: null,
+        conflict: null,
+        words: entry.wordCount,
+        generation: 0
       }
-    })();
-    saves.set(id, save);
-    return save;
+    ];
+    const state = creation.viewFor(workId);
+    if (!state.tabs.some(tab => tab.documentId === id))
+      state.tabs.push({ documentId: id, anchor: 0, head: 0, scrollTop: 0, scrollLeft: 0 });
+    selectTab(id);
+    await load(id);
   }
-
-  async function saveAll() {
-    for (const tab of tabs.value) {
-      if (!(await saveDocument(tab.id))) return false;
+  async function load(id: string) {
+    const tab = find(id)!;
+    try {
+      const document = await requestCreation('readDocument', { workId: tab.workId, documentId: id });
+      const draft = await requestCreation('readDraftState', { workId: tab.workId, documentId: id });
+      if (creation.workId !== tab.workId || !find(id) || find(id)!.dirty) return;
+      buffers.set(id, new DocumentBuffer(document.content));
+      patch(id, {
+        document,
+        title: document.title,
+        format: document.format,
+        status: 'ready',
+        error: '',
+        draftVersion: draft.version,
+        recovery: draft.draft,
+        words: document.wordCount,
+        generation: (find(id)?.generation ?? 0) + 1,
+        conflict: null,
+        saveError: ''
+      });
+    } catch (cause) {
+      if (find(id)?.workId === tab.workId) patch(id, { status: 'error', error: toErrorMessage(cause) });
     }
-    return !hasUnsaved.value;
+  }
+  function selectTab(id: string) {
+    const tab = find(id);
+    if (!tab) return;
+    const state = creation.viewFor(tab.workId);
+    if (state.secondaryDocumentId === id) state.secondaryDocumentId = activeId.value || null;
+    activeId.value = id;
+    focusedId.value = id;
+    state.activeDocumentId = id;
+  }
+  function rememberView(workId: string, id: string, state: DocumentViewState) {
+    const position = creation.viewFor(workId).tabs.find(tab => tab.documentId === id);
+    if (position) Object.assign(position, state);
+  }
+  function viewState(tab: EditorTab) {
+    return creation.viewFor(tab.workId).tabs.find(item => item.documentId === tab.id);
   }
 
-  /** 候选/版本写入与保存、watch、关闭共用同一队列，磁盘确认后只追加一个撤销事务。 */
-  async function acceptDocumentChange<T extends { document: WorkspaceDocument }>(
-    targetPath: string,
-    expectedHash: string,
-    action: () => Promise<T>
-  ): Promise<T> {
-    await openDocument(targetPath, false);
-    const tab = tabs.value.find(value => value.path === targetPath);
-    if (!tab?.document || tab.readonly || tab.dirty || tab.saving || tab.external)
-      throw new Error('请先保存正文并处理磁盘冲突');
-    if (tab.document.contentHash !== expectedHash) throw new Error('编辑器正文已变化，请重新读取候选');
-    const buffer = buffers.get(tab.id) ?? new DocumentBuffer(tab.document.content);
-    buffers.set(tab.id, buffer);
-    buffer.setLocked(true);
-    replaceTab({ ...tab, saving: true });
-    let result: T | undefined;
-    let failure: unknown;
-    const operation = (async () => {
+  async function writeRecovery(id: string, input: Omit<SaveDocumentInput, 'commandId'>, draftId: string) {
+    const result = await requestCreation('writeDraft', {
+      ...input,
+      draftId,
+      expectedDraftVersion: find(id)!.draftVersion
+    });
+    patch(id, { draftVersion: result.version, recoveryError: '' });
+  }
+  function persistRecovery(id: string): Promise<boolean> {
+    clearTimeout(recoveryTimers.get(id));
+    return queue(id, async () => {
+      const tab = find(id);
+      const buffer = buffers.get(id);
+      if (!tab?.document || !buffer || tab.recovery || attempts.has(id)) return true;
       try {
-        result = await action();
-        const current = tabs.value.find(value => value.id === tab.id);
-        if (!current || workspace.rootPath !== result.document.rootPath)
-          throw new Error('作品已切换，写入结果将在重新打开时载入');
-        buffer.replaceContent(result.document.content, true);
-        buffer.markSaved(buffer.state);
-        replaceTab({ ...current, document: result.document, dirty: false, saving: false, saveError: '' });
-        await persistRecovery(tab.id);
+        if (tab.dirty) await writeRecovery(id, snapshot(tab, buffer), crypto.randomUUID());
+        else if (tab.draftVersion) await discardRecoveryNow(tab);
         return true;
       } catch (cause) {
-        failure = cause;
-        const current = tabs.value.find(value => value.id === tab.id);
-        if (current) replaceTab({ ...current, saving: false, saveError: toErrorMessage(cause) });
+        patch(id, { recoveryError: `恢复草稿保存失败：${toErrorMessage(cause)}` });
         return false;
-      } finally {
-        buffer.setLocked(false);
-        saves.delete(tab.id);
       }
-    })();
-    saves.set(tab.id, operation);
-    await operation;
-    if (failure) throw failure;
-    return result!;
+    });
+  }
+  async function discardRecoveryNow(tab: EditorTab) {
+    if (tab.draftVersion) {
+      const result = await requestCreation('discardDraft', {
+        workId: tab.workId,
+        documentId: tab.id,
+        draftId: tab.draftVersion
+      });
+      patch(tab.id, { draftVersion: result.version, recovery: null, recoveryError: '' });
+    }
+  }
+  async function discardRecovery(id: string) {
+    try {
+      await queue(id, () => discardRecoveryNow(find(id)!));
+    } catch (cause) {
+      patch(id, { recoveryError: toErrorMessage(cause) });
+    }
+  }
+  function restoreRecovery(id: string) {
+    const tab = find(id)!;
+    const draft = tab.recovery!;
+    const buffer = buffers.get(id)!;
+    buffer.replaceContent(draft.content, true);
+    patch(id, {
+      title: draft.title,
+      format: draft.format,
+      recovery: null,
+      document: { ...tab.document!, revisionId: draft.expectedRevisionId }
+    });
+    updateBuffer(id, buffer);
+  }
+
+  function saveDocument(id = focusedId.value || activeId.value): Promise<boolean> {
+    const running = saves.get(id);
+    if (running) return running;
+    clearTimeout(saveTimers.get(id));
+    clearTimeout(recoveryTimers.get(id));
+    const save = queue(id, async () => {
+      const tab = find(id);
+      const buffer = buffers.get(id);
+      if (!tab?.document || !buffer || !tab.dirty) return true;
+      if (tab.recovery) {
+        patch(id, { saveError: '请先恢复或放弃上次未保存的草稿' });
+        return false;
+      }
+      patch(id, { saving: true, saveError: '' });
+      try {
+        let attempt = attempts.get(id);
+        if (!attempt) {
+          const input = { ...snapshot(tab, buffer), commandId: crypto.randomUUID() };
+          attempt = { input, state: buffer.prepareSave() };
+          const { commandId, ...draftInput } = input;
+          await writeRecovery(id, draftInput, commandId);
+          attempts.set(id, attempt);
+        }
+        const saved = await requestCreation('saveDocument', attempt.input);
+        attempts.delete(id);
+        buffer.markSaved(attempt.state);
+        const current = find(id)!;
+        const document = {
+          ...saved,
+          kind: 'document' as const,
+          format: attempt.input.format,
+          content: attempt.input.content
+        };
+        patch(id, {
+          document,
+          dirty: buffer.dirty || current.title !== saved.title || current.format !== saved.format,
+          conflict: null,
+          saving: false,
+          saveError: ''
+        });
+        await creation.refreshEntries();
+        return !find(id)!.dirty;
+      } catch (cause) {
+        patch(id, { saving: false, saveError: toErrorMessage(cause) });
+        if (cause instanceof CreationRequestError && cause.detail.code === 'revision-conflict') {
+          attempts.delete(id);
+          try {
+            patch(id, { conflict: await requestCreation('readDocument', { workId: tab.workId, documentId: id }) });
+          } catch (readError) {
+            patch(id, { saveError: toErrorMessage(readError) });
+          }
+        }
+        return false;
+      }
+    });
+    saves.set(id, save);
+    void save.finally(() => {
+      saves.delete(id);
+      if (find(id)?.dirty && !attempts.has(id)) void persistRecovery(id);
+    });
+    return save;
+  }
+  async function saveAll() {
+    for (const tab of tabs.value) if (!(await saveDocument(tab.id))) return false;
+    return !hasUnsaved.value;
+  }
+  async function keepLocal(id: string) {
+    const tab = find(id)!;
+    if (!tab.conflict) return;
+    patch(id, { document: tab.conflict, conflict: null, saveError: '' });
+    await saveDocument(id);
+  }
+  async function acceptSaved(id: string) {
+    const tab = find(id)!;
+    if (!tab.conflict) return;
+    await queue(id, () => discardRecoveryNow(tab));
+    attempts.delete(id);
+    buffers.set(id, new DocumentBuffer(tab.conflict.content));
+    patch(id, {
+      document: tab.conflict,
+      title: tab.conflict.title,
+      format: tab.conflict.format,
+      dirty: false,
+      conflict: null,
+      saveError: '',
+      words: tab.conflict.wordCount,
+      generation: tab.generation + 1
+    });
   }
 
   async function confirmClose(ids = tabs.value.map(tab => tab.id)): Promise<boolean> {
-    for (const id of ids) {
-      const underway = saves.get(id);
-      if (underway) await underway;
-    }
+    await Promise.all(ids.map(id => saves.get(id)));
     const dirty = tabs.value.filter(tab => ids.includes(tab.id) && tab.dirty);
     if (!dirty.length) return true;
     if (!decision) {
@@ -373,165 +338,166 @@ export const useEditorStore = defineStore('editor', () => {
         resolve = done;
       });
       decision = { promise, resolve };
-      unsavedPrompt.value = { paths: dirty.map(tab => tab.path) };
-    } else if (unsavedPrompt.value) {
-      unsavedPrompt.value = { paths: [...new Set([...unsavedPrompt.value.paths, ...dirty.map(tab => tab.path)])] };
+      unsavedPrompt.value = { titles: dirty.map(tab => tab.title) };
     }
     const choice = await decision.promise;
     if (choice === 'cancel') return false;
-    if (choice === 'discard') {
+    if (choice === 'save') {
+      for (const tab of dirty) if (!(await saveDocument(tab.id))) return false;
+    } else {
       for (const tab of dirty) {
-        clearTimeout(autoSaveTimers.get(tab.id));
-        recovery.cancelScheduled(tab.id);
-        if (tab.document) await discardRecovery(tab.path, tab.id);
+        clearTimeout(recoveryTimers.get(tab.id));
+        clearTimeout(saveTimers.get(tab.id));
+        try {
+          await queue(tab.id, () => discardRecoveryNow(find(tab.id)!));
+        } catch (cause) {
+          patch(tab.id, { recoveryError: toErrorMessage(cause) });
+          return false;
+        }
+        attempts.delete(tab.id);
+        buffers.set(tab.id, new DocumentBuffer(tab.document!.content));
+        patch(tab.id, {
+          title: tab.document!.title,
+          format: tab.document!.format,
+          dirty: false,
+          generation: tab.generation + 1,
+          saveError: '',
+          conflict: null
+        });
       }
-      return true;
-    }
-    for (const tab of dirty) {
-      if (!(await saveDocument(tab.id))) return false;
     }
     return !tabs.value.some(tab => ids.includes(tab.id) && tab.dirty);
   }
-
   function resolveUnsaved(choice: 'save' | 'discard' | 'cancel') {
     decision?.resolve(choice);
     decision = undefined;
     unsavedPrompt.value = null;
   }
-
-  const unregisterGuard = registerWorkspaceTransitionGuard(() => confirmClose());
-
-  async function saveConflictCopy(id: string, relativePath: string) {
-    const tab = tabs.value.find(item => item.id === id);
-    const buffer = buffers.get(id);
-    if (!tab?.document || !buffer) return false;
-    const rootPath = tab.document.rootPath;
-    const created = await getDesktopApi().workspace.createEntry({ relativePath, kind: 'file' });
-    if (!created.ok) throw new Error(created.message);
-    const empty = await getDesktopApi().workspace.readDocument({ rootPath, relativePath });
-    if (!empty.ok) throw new Error(empty.message);
-    const result = await getDesktopApi().workspace.writeDocument({
-      rootPath,
-      relativePath,
-      expectedHash: empty.document.contentHash,
-      content: buffer.content
-    });
-    if (!result.ok) throw new Error(result.message);
-    await openDocument(relativePath);
-    conflictId.value = '';
-    return true;
+  async function closeTab(id: string) {
+    if (!(await confirmClose([id]))) return;
+    await queues.get(id);
+    const tab = find(id)!;
+    const state = creation.viewFor(tab.workId);
+    state.tabs = state.tabs.filter(item => item.documentId !== id);
+    if (state.secondaryDocumentId === id) state.secondaryDocumentId = null;
+    buffers.delete(id);
+    if (focusedId.value === id) focusedId.value = '';
+    clearTimeout(recoveryTimers.get(id));
+    clearTimeout(saveTimers.get(id));
+    tabs.value = tabs.value.filter(item => item.id !== id);
+    if (activeId.value === id) {
+      activeId.value = tabs.value.at(-1)?.id ?? '';
+      state.activeDocumentId = activeId.value || null;
+    }
   }
-
+  function requestCommand(name: 'undo' | 'redo') {
+    command.value = { name, sequence: (command.value?.sequence ?? 0) + 1 };
+  }
+  function requestSearch() {
+    searchRequest.value += 1;
+  }
   async function setAutoSave(value: boolean) {
     await settings.update({ editor: { autoSave: value } });
-    if (autoSave.value) await saveAll();
+    if (value) await saveAll();
   }
-
+  async function prepareSwitch() {
+    if (!(await confirmClose())) return false;
+    await Promise.all(queues.values());
+    return creation.persistState();
+  }
+  const unregister = registerWorkspaceTransitionGuard(prepareSwitch);
   function requestWindowClose(): Promise<void> {
-    // 先确认收到请求，作者可以在保存对话框中停留，不被当成窗口失联。
     void getDesktopApi().windowControl.completeClose(false);
-    if (closingWindow) return closingWindow;
-    closingWindow = (async () => {
-      if (!(await confirmClose())) {
-        await getDesktopApi().windowControl.completeClose(false);
-        return;
-      }
-      windowClosingApproved = true;
+    closing ??= (async () => {
+      if (!(await prepareSwitch())) return;
+      closingApproved = true;
       try {
         await getDesktopApi().windowControl.completeClose(true);
-      } catch (error) {
-        windowClosingApproved = false;
-        throw error;
+      } catch (cause) {
+        closingApproved = false;
+        throw cause;
       }
     })().finally(() => {
-      closingWindow = undefined;
+      closing = undefined;
     });
-    return closingWindow;
+    return closing;
   }
-
   function handleBeforeUnload(event: BeforeUnloadEvent) {
-    if (!hasUnsaved.value || windowClosingApproved) return;
-    event.preventDefault();
-    event.returnValue = '';
-  }
-
-  function reset() {
-    pending.clear();
-    refreshAfterLoad.clear();
-    externalChanges.reset();
-    recovery.reset();
-    buffers.clear();
-    for (const timer of autoSaveTimers.values()) clearTimeout(timer);
-    autoSaveTimers.clear();
-    for (const timer of wordCountTimers.values()) clearTimeout(timer);
-    wordCountTimers.clear();
-    location.value = null;
-    conflictId.value = '';
-    resolveUnsaved('cancel');
-    tabs.value = [];
-    activeId.value = '';
-    newChapterOpen.value = false;
+    if (hasUnsaved.value && !closingApproved) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
   }
 
   watch(
-    () => [workspace.rootPath, workspace.revision],
-    () => {
-      reset();
-      void loadRecoveries();
+    () => creation.workId,
+    async id => {
+      for (const timer of recoveryTimers.values()) clearTimeout(timer);
+      for (const timer of saveTimers.values()) clearTimeout(timer);
+      tabs.value = [];
+      activeId.value = '';
+      focusedId.value = '';
+      buffers.clear();
+      attempts.clear();
+      if (!id) return;
+      const state = creation.viewFor(id);
+      const selected = state.activeDocumentId;
+      const documentIds = state.tabs.map(tab => tab.documentId);
+      for (const documentId of documentIds) {
+        if (creation.workId !== id) return;
+        await openDocument(documentId, false);
+      }
+      if (selected && find(selected)) selectTab(selected);
     },
-    { flush: 'sync' }
+    { flush: 'post' }
+  );
+  watch(
+    () => creation.entries,
+    () => {
+      for (const tab of tabs.value) {
+        const entry = creation.entries.find(item => item.id === tab.id);
+        if (entry && tab.document && entry.revisionId !== tab.document.revisionId && !tab.dirty && !tab.saving)
+          void load(tab.id);
+      }
+    }
   );
   onScopeDispose(() => {
-    unregisterGuard();
-    reset();
+    unregister();
+    for (const timer of recoveryTimers.values()) clearTimeout(timer);
+    for (const timer of saveTimers.values()) clearTimeout(timer);
   });
-
   return {
     tabs,
     activeId,
+    focusedId,
     activeTab,
-    searchRequest,
-    location,
-    locate,
-    newChapterOpen,
-    command,
     hasUnsaved,
-    unsavedPrompt,
-    recoveries,
-    recoveryError,
-    conflictId,
-    conflictTab,
-    loadRecoveries,
-    restoreRecovery,
-    discardRecovery,
-    persistRecovery,
-    handleWorkspaceChanged,
-    refreshDocuments,
-    acceptExternal,
-    keepLocal,
-    saveConflictCopy,
     autoSave,
+    searchRequest,
+    command,
+    unsavedPrompt,
     getBuffer: (id: string) => buffers.get(id),
     updateBuffer,
+    updateMetadata,
+    openDocument,
+    selectTab,
+    reloadDocument: load,
+    rememberView,
+    viewState,
+    persistRecovery,
+    restoreRecovery,
+    discardRecovery,
     saveDocument,
     saveAll,
-    acceptDocumentChange,
+    keepLocal,
+    acceptSaved,
     confirmClose,
     resolveUnsaved,
+    closeTab,
     requestCommand,
+    requestSearch,
     setAutoSave,
     requestWindowClose,
-    handleBeforeUnload,
-    openDocument,
-    reloadDocument,
-    selectTab,
-    closeTab,
-    closeTabs,
-    pathTabs,
-    acceptPathRemoval,
-    acceptPathMove,
-    rememberView,
-    requestSearch,
-    reset
+    handleBeforeUnload
   };
 });

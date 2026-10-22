@@ -22,8 +22,20 @@ export async function openLibrary(rootDir: string): Promise<Database.Database> {
       draft TEXT,
       PRIMARY KEY (workId, documentId)
     ) STRICT;
-    ${receiptSchema}
+    CREATE TABLE IF NOT EXISTS session_assignments (
+      sessionId TEXT PRIMARY KEY,
+      workId TEXT NOT NULL REFERENCES works(id)
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS session_selections (
+      scopeId TEXT PRIMARY KEY,
+      sessionId TEXT
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS workbench_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      state TEXT NOT NULL
+    ) STRICT;
   `);
+  database.exec(receiptSchema);
   return database;
 }
 
@@ -54,7 +66,7 @@ export function openWorkDatabase(rootDir: string, workId: string): Database.Data
       snapshot TEXT NOT NULL,
       createdAt INTEGER NOT NULL
     ) STRICT;
-    ${receiptSchema}
   `);
+  database.exec(receiptSchema);
   return database;
 }

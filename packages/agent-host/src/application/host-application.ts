@@ -104,15 +104,13 @@ export class HostApplication {
       case 'open':
         return this.open(command.input.file, command.input.cwd);
       case 'history':
-        return (await SessionManager.list(command.input?.cwd ?? this.options.cwd, this.options.sessionDir)).map(
-          item => ({
-            id: item.id,
-            file: item.path,
-            cwd: item.cwd,
-            title: item.name || item.firstMessage || '未命名会话',
-            modified: item.modified.toISOString()
-          })
-        );
+        return (await SessionManager.listAll(this.options.sessionDir)).map(item => ({
+          id: item.id,
+          file: item.path,
+          cwd: item.cwd,
+          title: item.name || item.firstMessage || '未命名会话',
+          modified: item.modified.toISOString()
+        }));
       case 'prompt':
         return this.live(command.input.id).prompt(command.input.text);
       case 'cancel':
@@ -123,6 +121,8 @@ export class HostApplication {
         return this.close(command.input.id);
       case 'approve':
         return this.approvals.approve(command.input.id, command.input.allow);
+      case 'rename':
+        return this.live(command.input.id).rename(command.input.name);
       case 'model': {
         const live = this.live(command.input.id);
         const model = this.options.modelRuntime.getModel(command.input.model.provider, command.input.model.id);
@@ -237,7 +237,7 @@ export class HostApplication {
         return this.sessionInput(applied, cwd);
       });
     } catch (error) {
-      // 需迁移、路径错误或不属于当前作品的历史仍然报错。
+      // 需迁移、路径错误或工作目录不匹配的历史仍然报错。
       if (!(error instanceof HostSessionOpenError) || error.code !== 'recovery-required') throw error;
       opened.history = await damagedHistory(file);
     }
@@ -245,9 +245,20 @@ export class HostApplication {
     const history = opened.history!;
     if (history.kind === 'readonly') {
       // 只读视图使用新的随机 id，避免与同一会话 id 的可写副本冲突。
-      const { readonly, messages } = history;
+      const { readonly, messages, sessionId, name } = history;
       return this.attach({
-        view: { id: randomUUID(), file, cwd, running: false, compacting: false, instructions: [], messages, readonly }
+        view: {
+          id: randomUUID(),
+          sessionId,
+          name,
+          file,
+          cwd,
+          running: false,
+          compacting: false,
+          instructions: [],
+          messages,
+          readonly
+        }
       });
     }
     const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change));

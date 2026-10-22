@@ -142,6 +142,14 @@ export class DocumentBuffer {
     else this.update(transaction.state);
   }
 
+  /** 保存请求发出前划分撤销记录，后续输入可单独撤销回这份快照。 */
+  prepareSave(): EditorState {
+    const transaction = this.state.update({ annotations: isolateHistory.of('full') });
+    if (this.dispatchToView) this.dispatchToView(transaction);
+    else this.update(transaction.state);
+    return this.state;
+  }
+
   markSaved(sentState: EditorState) {
     this.baseline = sentState;
   }

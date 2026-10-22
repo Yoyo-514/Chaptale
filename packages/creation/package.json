@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "default": "./src/index.ts"
     },
+    "./text": {
+      "types": "./dist/text.d.ts",
+      "default": "./src/text.ts"
+    },
     "./contracts": {
       "types": "./dist/contracts.d.ts",
       "default": "./src/contracts.ts"

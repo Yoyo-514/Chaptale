@@ -11,6 +11,15 @@ defineProps<{ items: readonly AppContextMenuItem[] }>();
 const emit = defineEmits<{ prepare: [event: MouseEvent]; select: [id: string] }>();
 const layer = useOverlayLayer();
 const style = computed(() => ({ zIndex: `var(--z-${layer})` }));
+let selected: string | undefined;
+function closeMenu(event: Event) {
+  const id = selected;
+  selected = undefined;
+  if (id === undefined) return;
+  event.preventDefault();
+  // 菜单释放焦点后再执行操作，让查找框或重命名表单正常接收输入。
+  emit('select', id);
+}
 function keyboard(event: KeyboardEvent) {
   if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
   if (!(event.target instanceof HTMLElement)) return;
@@ -33,9 +42,9 @@ function keyboard(event: KeyboardEvent) {
         class="app-context-content"
         :style="style"
         :collision-padding="8"
-        @close-auto-focus.prevent
+        @close-auto-focus="closeMenu"
       >
-        <AppContextMenuItems :items="items" @select="emit('select', $event)" />
+        <AppContextMenuItems :items="items" @select="selected = $event" />
       </ContextMenuContent>
     </ContextMenuPortal>
   </ContextMenuRoot>

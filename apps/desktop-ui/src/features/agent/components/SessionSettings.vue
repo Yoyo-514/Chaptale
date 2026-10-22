@@ -4,20 +4,19 @@ import { computed } from 'vue';
 import { AppButton } from '@/components/AppButton';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useSettingsStore } from '@/features/settings';
-import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi } from '@/utils/desktop-api';
 
 import { useAgentStore } from '../store';
 import InstructionsEditor from './InstructionsEditor.vue';
 
 const agent = useAgentStore();
-const workspace = useWorkspaceStore();
 const settings = useSettingsStore();
-const editable = computed(() => agent.connected && !agent.active?.readonly && !agent.active?.running);
-/** 作品显示名字；其他目录只显示最后一段，完整路径放在悬停提示里。 */
+const editable = computed(
+  () => agent.connected && !agent.creating && !agent.active?.readonly && !agent.active?.running
+);
+/** 工作目录只展示执行位置，会话归属由作品 ID 单独记录。 */
 function workName(cwd: string) {
-  if (cwd === agent.state?.cwd) return '独立会话';
-  if (cwd === workspace.rootPath) return workspace.displayName ?? cwd;
+  if (cwd === agent.state?.cwd) return '应用默认目录';
   return cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? cwd;
 }
 </script>
@@ -28,20 +27,15 @@ function workName(cwd: string) {
       <div class="agent-form agent-settings-scroll">
         <p class="agent-field-help">这些设置用于接下来开始的会话。</p>
         <label
-          >所属作品<AppSelect
-            :model-value="agent.composeCwd ?? 'independent'"
-            aria-label="所属作品"
-            @update:model-value="agent.composeCwd = $event === 'independent' ? undefined : $event"
+          >工作目录<AppSelect
+            :model-value="agent.composeCwd ?? 'default'"
+            aria-label="工作目录"
+            @update:model-value="agent.composeCwd = $event === 'default' ? undefined : $event"
           >
-            <AppSelectItem value="independent">独立会话</AppSelectItem>
-            <AppSelectItem v-if="workspace.rootPath" :value="workspace.rootPath">{{
-              workspace.displayName
+            <AppSelectItem value="default">应用默认目录</AppSelectItem>
+            <AppSelectItem v-if="agent.composeCwd" :value="agent.composeCwd">{{
+              workName(agent.composeCwd)
             }}</AppSelectItem>
-            <AppSelectItem
-              v-if="agent.composeCwd && agent.composeCwd !== workspace.rootPath"
-              :value="agent.composeCwd"
-              >{{ workName(agent.composeCwd) }}</AppSelectItem
-            >
           </AppSelect></label
         >
         <label
@@ -65,7 +59,7 @@ function workName(cwd: string) {
     </template>
     <template v-else>
       <dl class="agent-session-facts">
-        <dt>所属</dt>
+        <dt>工作目录</dt>
         <dd :title="agent.active.cwd">{{ workName(agent.active.cwd) }}</dd>
       </dl>
       <p class="agent-field-help agent-session-scope">指令修改只作用于当前会话。</p>

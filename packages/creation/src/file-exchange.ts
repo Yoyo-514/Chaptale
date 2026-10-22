@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, open, readFile, readdir, unlink } from 'node:fs/promises';
+import { lstat, mkdir, open, readFile, readdir, unlink } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import { Type, type TSchema } from 'typebox';
 import { Compile } from 'typebox/compile';
@@ -139,7 +139,7 @@ export async function importFiles(service: CreationService, input: ImportFilesIn
   return report;
 }
 
-/** 只清理导出文件名；标题和正文仍按保存的原字符输出。 */
+/** 只清理导出路径名称；标题和正文仍按保存的原字符输出。 */
 function exportName(title: string): string {
   // Windows 文件名禁止控制字符，需和其他禁用字符一起替换。
   // oxlint-disable-next-line no-control-regex
@@ -178,6 +178,20 @@ async function writeExport(
   }
 }
 
+async function createExportDirectory(directory: string, title: string): Promise<string> {
+  const name = exportName(title);
+  for (let suffix = 1; ; suffix += 1) {
+    const path = join(directory, `${name}${suffix === 1 ? '' : ` (${suffix})`}`);
+    try {
+      // 独占创建；已有目录也另起名称，避免合并两次导出的层级。
+      await mkdir(path);
+      return path;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+  }
+}
+
 function manuscriptOrder(entries: Entry[]): Entry[] {
   const children = new Map<string | null, Entry[]>();
   for (const entry of entries) {
@@ -186,49 +200,58 @@ function manuscriptOrder(entries: Entry[]): Entry[] {
     if (siblings) siblings.push(entry);
     else children.set(entry.parentId, [entry]);
   }
-  const documents: Entry[] = [];
+  const ordered: Entry[] = [];
   function visit(parentId: string | null): void {
     for (const entry of children.get(parentId) ?? []) {
+      ordered.push(entry);
       if (entry.kind === 'directory') visit(entry.id);
-      else documents.push(entry);
     }
   }
   // listEntries 已按同级 position 排序，深度优先展开保留目录顺序。
   visit(null);
-  return documents;
+  return ordered;
 }
 
 export async function exportFiles(service: CreationService, input: ExportFilesInput): Promise<ExportReport> {
   absolutePath(input.directory);
   const entries = service.listEntries(input.workId);
   const target = input.target;
-  const documents =
+  const selected =
     target.kind === 'document'
       ? entries.filter(entry => entry.id === target.documentId && entry.kind === 'document')
       : manuscriptOrder(entries);
-  if (documents.length === 0) throw new Error('没有可导出的文稿或资料');
-  const format = input.target.kind === 'book' ? 'txt' : input.target.format;
+  if (!selected.some(entry => entry.kind === 'document')) throw new Error('没有可导出的文稿或资料');
+  const format = target.kind === 'book' ? 'txt' : target.format;
   // 导出固定所选修订，异步磁盘写入期间的保存不会混入这次输出。
-  function* contents(selected: Entry[]): Generator<string> {
-    for (const [index, entry] of selected.entries()) {
+  function* contents(items: Entry[]): Generator<string> {
+    for (const [index, entry] of items.entries()) {
       if (index > 0) yield '\n\n';
       const revision = service.readRevision(input.workId, entry.revisionId);
-      yield `${format === 'markdown' ? '# ' : ''}${revision.snapshot.title}\n\n`;
-      yield revision.snapshot.content!;
+      yield `${format === 'markdown' ? '# ' : ''}${revision.snapshot.title}`;
+      if (entry.kind === 'document') {
+        yield '\n\n';
+        yield revision.snapshot.content!;
+      }
     }
   }
   const report: ExportReport = { paths: [], failure: null };
   let currentDocument: string | null = null;
   try {
-    if (input.target.kind === 'book') {
+    if (target.kind === 'book') {
       const work = service.listWorks().find(candidate => candidate.id === input.workId)!;
-      report.paths.push(await writeExport(input.directory, work.title, 'txt', contents(documents)));
+      report.paths.push(await writeExport(input.directory, work.title, 'txt', contents(selected)));
     } else {
-      for (const entry of documents) {
-        currentDocument = entry.id;
-        report.paths.push(
-          await writeExport(input.directory, entry.title, format === 'txt' ? 'txt' : 'md', contents([entry]))
-        );
+      const directories = new Map<string | null, string>([[null, input.directory]]);
+      for (const entry of selected) {
+        currentDocument = entry.kind === 'document' ? entry.id : null;
+        const directory = target.kind === 'document' ? input.directory : directories.get(entry.parentId)!;
+        if (entry.kind === 'directory') {
+          directories.set(entry.id, await createExportDirectory(directory, entry.title));
+        } else {
+          report.paths.push(
+            await writeExport(directory, entry.title, format === 'txt' ? 'txt' : 'md', contents([entry]))
+          );
+        }
       }
     }
   } catch (error) {

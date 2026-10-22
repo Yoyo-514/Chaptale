@@ -9,11 +9,6 @@ const cloud = useCloudSyncStore();
 function browse(parentId: string | null) {
   if (cloud.browseProvider) void cloud.openFolder(cloud.browseProvider, parentId);
 }
-function bindHere() {
-  if (cloud.browseProvider && cloud.listing) {
-    void cloud.bind(cloud.browseProvider, cloud.listing.current.id, cloud.listing.current.name);
-  }
-}
 </script>
 
 <template>
@@ -58,11 +53,6 @@ function bindHere() {
           </AppButton>
         </li>
       </ul>
-      <div class="cloud-actions is-end">
-        <AppButton :disabled="cloud.isBackupLoading || cloud.isApplying || cloud.isBackupRunning" @click="bindHere">
-          <span class="i-mingcute-check-line size-4" aria-hidden="true" />用作备份位置
-        </AppButton>
-      </div>
     </template>
     <p v-if="cloud.listingError" class="cloud-error" role="alert">{{ cloud.listingError }}</p>
   </section>

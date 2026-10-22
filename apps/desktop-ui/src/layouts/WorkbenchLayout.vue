@@ -2,170 +2,132 @@
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import { AppPanelHeader } from '@/components/AppPanel';
+import { AppButton } from '@/components/AppButton';
 import { SessionPanel } from '@/features/agent';
-import { EditorGroup, useEditorStore } from '@/features/editor';
-import { useWorkbenchStore } from '@/features/workbench';
 import {
-  NewWorkspaceDialog,
-  WorkspaceActionDialogs,
-  WorkspaceExplorer,
-  useFileTreeStore,
-  useWorkspaceStore
-} from '@/features/workspace';
-import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
+  useCreationStore,
+  CreationExplorer,
+  CreationDialogs,
+  FileExchangeDialog,
+  WorksLibrary
+} from '@/features/creation';
+import { EditorGroup } from '@/features/editor';
+import { useWorkbenchStore } from '@/features/workbench';
+import { hasDesktopApi } from '@/utils/desktop-api';
 
-const editor = useEditorStore();
-const workspace = useWorkspaceStore();
-const tree = useFileTreeStore();
+const creation = useCreationStore();
 const navigation = useWorkbenchStore();
-const sidebarPanel = ref<InstanceType<typeof SplitterPanel>>();
-const auxiliaryPanel = ref<InstanceType<typeof SplitterPanel>>();
-// 初始尺寸必须合计 100%，否则分栏会按比例放大，关闭协作栏时侧栏被撑到三成宽。
-const sidebarDefault = computed(() => (navigation.sidebarOpen ? 22 : 0));
-const auxiliaryDefault = computed(() => (navigation.auxiliaryOpen && !navigation.agentInMain ? 30 : 0));
-function syncPanels() {
-  if (navigation.sidebarOpen && !navigation.focusMode) sidebarPanel.value?.expand();
-  else sidebarPanel.value?.collapse();
-  if (navigation.auxiliaryOpen && !navigation.agentInMain && !navigation.focusMode) auxiliaryPanel.value?.expand();
-  else auxiliaryPanel.value?.collapse();
-}
-watch(
-  () => [navigation.sidebarOpen, navigation.auxiliaryOpen, navigation.agentInMain, navigation.focusMode],
-  syncPanels,
-  { flush: 'post' }
+const sidebar = ref<InstanceType<typeof SplitterPanel>>();
+const auxiliary = ref<InstanceType<typeof SplitterPanel>>();
+const showSidebar = computed(
+  () => Boolean(creation.workId) && !creation.libraryOpen && navigation.sidebarOpen && !navigation.focusMode
 );
-function onWindowKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && navigation.focusMode) navigation.focusMode = false;
+const showAuxiliary = computed(
+  () => !creation.libraryOpen && navigation.auxiliaryOpen && !navigation.agentInMain && !navigation.focusMode
+);
+function syncPanels() {
+  if (showSidebar.value) sidebar.value?.expand();
+  else sidebar.value?.collapse();
+  if (showAuxiliary.value) auxiliary.value?.expand();
+  else auxiliary.value?.collapse();
 }
-let unsubscribe: (() => void) | undefined;
+watch([showSidebar, showAuxiliary], syncPanels, { flush: 'post' });
+function keydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') navigation.focusMode = false;
+}
 onMounted(() => {
   void nextTick(syncPanels);
-  window.addEventListener('keydown', onWindowKeydown);
-  if (!hasDesktopApi()) return;
-  // 启动时恢复上次打开的作品；文件树只在有作品时挂载，不能由它自己读取。
-  void workspace.refreshState();
-  unsubscribe = getDesktopApi().workspace.onChanged(event => {
-    if (event.rootPath !== workspace.rootPath) return;
-    void tree.applyChanges(event.changes);
-    void editor.handleWorkspaceChanged(event);
-  });
+  window.addEventListener('keydown', keydown);
+  if (hasDesktopApi()) void creation.connect();
 });
-onBeforeUnmount(() => {
-  unsubscribe?.();
-  window.removeEventListener('keydown', onWindowKeydown);
-});
+onBeforeUnmount(() => window.removeEventListener('keydown', keydown));
 </script>
 
 <template>
-  <SplitterGroup
-    id="creative-workbench"
-    direction="horizontal"
-    auto-save-id="chaptale-workbench"
-    class="workbench-layout"
-  >
-    <SplitterPanel
-      ref="sidebarPanel"
-      :order="1"
-      :default-size="sidebarDefault"
-      :min-size="16"
-      :max-size="35"
-      :collapsed-size="0"
-      collapsible
-      class="workbench-panel"
-      :inert="!navigation.sidebarOpen || navigation.focusMode"
-      @collapse="!navigation.focusMode && (navigation.sidebarOpen = false)"
-      @expand="!navigation.focusMode && (navigation.sidebarOpen = true)"
+  <div class="workbench-shell">
+    <div v-if="(creation.error || creation.stateError) && !creation.libraryOpen" class="workbench-error" role="alert">
+      {{ creation.error || creation.stateError
+      }}<AppButton size="xs" @click="creation.error ? creation.connect() : creation.persistState()">重试</AppButton>
+    </div>
+    <WorksLibrary v-show="creation.libraryOpen && !navigation.agentInMain" />
+    <SplitterGroup
+      id="creative-workbench"
+      direction="horizontal"
+      class="workbench-layout"
+      v-show="!creation.libraryOpen || navigation.agentInMain"
     >
-      <aside
-        v-show="navigation.sidebarOpen && !navigation.focusMode"
-        class="workbench-primary-sidebar"
-        aria-label="作品导航"
+      <SplitterPanel
+        ref="sidebar"
+        :order="1"
+        :default-size="22"
+        :min-size="16"
+        :max-size="35"
+        :collapsed-size="0"
+        collapsible
+        class="workbench-panel"
+        :inert="!showSidebar"
       >
-        <div class="workbench-explorer">
-          <WorkspaceExplorer v-if="workspace.rootPath" @open-file="editor.openDocument" />
-          <template v-else
-            ><AppPanelHeader title="作品" />
-            <p class="workbench-sidebar-empty">打开作品后，在这里浏览章节和资料。</p></template
-          >
-        </div>
-      </aside>
-    </SplitterPanel>
-    <SplitterResizeHandle
-      v-show="navigation.sidebarOpen && !navigation.focusMode"
-      class="workbench-resize-handle"
-      aria-label="调整作品导航宽度"
-    />
-    <SplitterPanel
-      :order="2"
-      :default-size="100 - sidebarDefault - auxiliaryDefault"
-      :min-size="35"
-      class="workbench-panel"
-    >
-      <main class="workbench-editor" aria-label="主要工作区">
-        <EditorGroup v-show="!navigation.agentInMain" />
-        <div id="main-agent-host" v-show="navigation.agentInMain" class="workbench-agent-host" />
-      </main>
-    </SplitterPanel>
-    <SplitterResizeHandle
-      v-show="navigation.auxiliaryOpen && !navigation.agentInMain && !navigation.focusMode"
-      class="workbench-resize-handle"
-      aria-label="调整协作栏宽度"
-    />
-    <SplitterPanel
-      ref="auxiliaryPanel"
-      :order="3"
-      :default-size="auxiliaryDefault"
-      :min-size="25"
-      :max-size="50"
-      :collapsed-size="0"
-      collapsible
-      class="workbench-panel"
-      :inert="!navigation.auxiliaryOpen || navigation.agentInMain || navigation.focusMode"
-      @collapse="!navigation.focusMode && !navigation.agentInMain && (navigation.auxiliaryOpen = false)"
-      @expand="!navigation.focusMode && !navigation.agentInMain && (navigation.auxiliaryOpen = true)"
-    >
-      <aside
-        id="side-agent-host"
-        v-show="navigation.auxiliaryOpen && !navigation.agentInMain && !navigation.focusMode"
-        class="workbench-agent-host"
-        aria-label="协作栏"
-      />
-    </SplitterPanel>
-  </SplitterGroup>
-  <!-- 同一组件只移动 DOM，草稿、滚动和唯一输入框始终保留。 -->
+        <CreationExplorer v-if="creation.workId" v-show="showSidebar" />
+      </SplitterPanel>
+      <SplitterResizeHandle v-show="showSidebar" class="workbench-resize-handle" aria-label="调整作品导航宽度" />
+      <SplitterPanel :order="2" :default-size="48" :min-size="35" class="workbench-panel">
+        <main class="workbench-editor" aria-label="主要工作区">
+          <EditorGroup v-show="!navigation.agentInMain" />
+          <div id="main-agent-host" v-show="navigation.agentInMain" class="workbench-agent-host" />
+        </main>
+      </SplitterPanel>
+      <SplitterResizeHandle v-show="showAuxiliary" class="workbench-resize-handle" aria-label="调整 Agent 侧栏宽度" />
+      <SplitterPanel
+        ref="auxiliary"
+        :order="3"
+        :default-size="30"
+        :min-size="25"
+        :max-size="50"
+        :collapsed-size="0"
+        collapsible
+        class="workbench-panel"
+        :inert="!showAuxiliary"
+        ><aside id="side-agent-host" v-show="showAuxiliary" class="workbench-agent-host" aria-label="Agent 侧栏"
+      /></SplitterPanel>
+    </SplitterGroup>
+  </div>
   <Teleport defer :to="navigation.agentInMain ? '#main-agent-host' : '#side-agent-host'"><SessionPanel /></Teleport>
-  <NewWorkspaceDialog /><WorkspaceActionDialogs />
+  <CreationDialogs /><FileExchangeDialog />
 </template>
 
-<style scoped lang="scss">
+<style scoped>
+.workbench-shell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
 .workbench-layout {
-  @apply min-w-0 flex-1 overflow-hidden;
-  background: var(--mica-background);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--background);
 }
 .workbench-panel {
-  @apply min-w-0 overflow-hidden;
+  min-width: 0;
+  overflow: hidden;
 }
-.workbench-primary-sidebar,
 .workbench-editor,
 .workbench-agent-host {
-  @apply flex h-full min-w-0 flex-col overflow-hidden;
-}
-.workbench-primary-sidebar {
-  background: var(--sidebar);
-}
-.workbench-explorer {
-  @apply flex min-h-0 min-w-0 flex-1 flex-col;
-}
-.workbench-sidebar-empty {
-  @apply m-0 px-3 py-4 text-xs leading-relaxed;
-  color: var(--muted-foreground);
-}
-.workbench-agent-host {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 .workbench-resize-handle {
-  @apply relative w-px shrink-0;
+  position: relative;
+  width: 1px;
+  flex-shrink: 0;
   background: var(--border-subtle);
 }
 .workbench-resize-handle::after {
@@ -177,5 +139,13 @@ onBeforeUnmount(() => {
 .workbench-resize-handle:hover,
 .workbench-resize-handle[data-state='drag'] {
   background: var(--ring);
+}
+.workbench-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  color: var(--destructive);
+  font-size: 12px;
 }
 </style>

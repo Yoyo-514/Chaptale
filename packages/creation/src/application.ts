@@ -26,7 +26,29 @@ const entryInput = {
   section: Type.Union([Type.Literal('manuscript'), Type.Literal('resource')])
 };
 const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
+const offset = Type.Integer({ minimum: 0 });
+const scroll = Type.Number({ minimum: 0 });
+const treeState = object({ expandedIds: Type.Array(id), selectedId: parentId, scrollTop: scroll });
+const workbenchState = object({
+  activeWorkId: parentId,
+  works: Type.Array(
+    object({
+      workId: id,
+      activeDocumentId: parentId,
+      secondaryDocumentId: parentId,
+      tabs: Type.Array(object({ documentId: id, anchor: offset, head: offset, scrollTop: scroll, scrollLeft: scroll })),
+      section: entryInput.section,
+      manuscript: treeState,
+      resource: treeState
+    })
+  )
+});
 const inputs = {
+  readSessionState: object({}),
+  assignSession: object({ sessionId: id, workId: id }),
+  selectSession: object({ sessionId: parentId, workId: parentId }),
+  readWorkbench: object({}),
+  writeWorkbench: workbenchState,
   createWork: object({
     commandId: id,
     title: Type.String(),
@@ -116,6 +138,16 @@ export class CreationApplication {
 
   private executeBusiness(command: CreationAuthorCommand): AuthorValue {
     switch (command.method) {
+      case 'readSessionState':
+        return this.service.readSessionState();
+      case 'assignSession':
+        return this.service.assignSession(command.input);
+      case 'selectSession':
+        return this.service.selectSession(command.input);
+      case 'readWorkbench':
+        return this.service.readWorkbench();
+      case 'writeWorkbench':
+        return this.service.writeWorkbench(command.input);
       case 'createWork':
         return this.service.createWork(command.input);
       case 'createEntry':

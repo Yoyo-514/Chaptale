@@ -5,17 +5,17 @@ import { isChaptaleTheme, type EditCommand } from '@chaptale/ipc-contract';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useAgentStore } from '@/features/agent';
+import { useCreationStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
-import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { captureEditingTarget } from '@/utils/editing-target';
 
 import { useInterfaceZoom } from './useInterfaceZoom';
 
-const workspace = useWorkspaceStore();
+const creation = useCreationStore();
 const settings = useSettingsStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
@@ -28,19 +28,20 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'file',
     label: '文件',
     items: [
-      { id: 'file.new-workspace', label: '新建作品…', disabled: workspace.isOpening },
-      { id: 'file.open-workspace', label: '打开作品…', disabled: workspace.isOpening },
+      { id: 'file.new-work', label: '新建作品…', disabled: !creation.connected },
+      { id: 'file.library', label: '作品库' },
       {
-        id: 'file.open-recent',
-        label: '打开最近作品…',
-        disabled: !settings.state?.settings.recentWorkspaces?.length,
-        items: (settings.state?.settings.recentWorkspaces ?? []).map(path => ({
-          id: `file.recent.${path}`,
-          label: path
-        }))
+        id: 'file.new-document',
+        label: '新建文档',
+        disabled: creation.libraryOpen || !creation.workId,
+        separatorBefore: true
       },
-      { id: 'file.close-workspace', label: '关闭作品', disabled: !workspace.rootPath },
-      { id: 'file.new-chapter', label: '新建章节', disabled: !workspace.rootPath, separatorBefore: true },
+      {
+        id: 'file.import',
+        label: '导入文稿与资料…',
+        disabled: creation.libraryOpen || !creation.workId || !creation.connected
+      },
+      { id: 'file.export', label: '导出正文…', disabled: creation.libraryOpen || !creation.workId },
       {
         id: 'file.save',
         label: '保存',
@@ -56,7 +57,6 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         shortcut: 'Ctrl+W',
         disabled: !navigation.agentInMain && !editor.activeId
       },
-      { id: 'file.sync', label: '文件与同步…', separatorBefore: true },
       { id: 'file.settings', label: '设置…' }
     ]
   },
@@ -81,7 +81,7 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         id: 'edit.replace',
         label: '替换',
         shortcut: 'Ctrl+H',
-        disabled: !activeDocument.value || activeDocument.value.readonly
+        disabled: activeDocument.value?.status !== 'ready'
       }
     ]
   },
@@ -130,10 +130,6 @@ function handleSelect(id: string) {
     if (isChaptaleTheme(theme)) void settings.setTheme(theme);
     return;
   }
-  if (id.startsWith('file.recent.')) {
-    void workspace.openRecent(id.slice('file.recent.'.length));
-    return;
-  }
   if (['edit.cut', 'edit.copy', 'edit.paste', 'edit.selectAll', 'edit.undo', 'edit.redo'].includes(id)) {
     if ((id === 'edit.undo' || id === 'edit.redo') && editTarget.value?.element?.closest('.cm-editor')) {
       editTarget.value.element.focus();
@@ -145,17 +141,21 @@ function handleSelect(id: string) {
     return;
   }
   switch (id) {
-    case 'file.new-workspace':
-      workspace.newWorkspaceOpen = true;
+    case 'file.new-work':
+      creation.newWorkOpen = true;
       break;
-    case 'file.open-workspace':
-      void workspace.openWorkspace();
+    case 'file.library':
+      navigation.agentInMain = false;
+      void creation.showLibrary();
       break;
-    case 'file.close-workspace':
-      void workspace.closeWorkspace();
+    case 'file.new-document':
+      creation.newEntry = { kind: 'document', parentId: null };
       break;
-    case 'file.new-chapter':
-      editor.newChapterOpen = true;
+    case 'file.import':
+      creation.importOpen = true;
+      break;
+    case 'file.export':
+      creation.exportOpen = true;
       break;
     case 'file.save':
       void editor.saveDocument();
@@ -169,9 +169,6 @@ function handleSelect(id: string) {
     case 'file.close-editor':
       if (navigation.agentInMain) navigation.agentInMain = false;
       else void editor.closeTab(editor.activeId);
-      break;
-    case 'file.sync':
-      workspace.syncOpen = true;
       break;
     case 'file.settings':
       settings.openPanel();
@@ -193,11 +190,13 @@ function handleSelect(id: string) {
       navigation.focusMode = !navigation.focusMode;
       break;
     case 'agent.new':
-      agent.newDraft(workspace.rootPath ?? undefined);
-      navigation.showAgent();
+      agent.newDraft();
+      if (creation.libraryOpen) navigation.agentInMain = true;
+      else navigation.showAgent();
       break;
     case 'agent.history':
-      navigation.showAgent();
+      if (creation.libraryOpen) navigation.agentInMain = true;
+      else navigation.showAgent();
       navigation.agentView = 'history';
       break;
     case 'agent.cancel':

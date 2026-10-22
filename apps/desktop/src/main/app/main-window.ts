@@ -85,7 +85,13 @@ export function createMainWindow(rendererEntryUrl: string, theme: ChaptaleTheme)
   void window.loadURL(rendererEntryUrl);
 
   if (isDev) {
-    window.webContents.openDevTools();
+    window.webContents.on('before-input-event', (event, input) => {
+      if (input.key !== 'F12' || input.type !== 'keyDown') return;
+      event.preventDefault();
+      if (window.webContents.isDevToolsOpened()) window.webContents.closeDevTools();
+      else window.webContents.openDevTools({ mode: 'detach' });
+    });
+    window.webContents.openDevTools({ mode: 'detach' });
   }
 
   return window;

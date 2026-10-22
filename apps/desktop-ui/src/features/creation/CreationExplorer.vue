@@ -1,0 +1,460 @@
+<script setup lang="ts">
+import { computed, nextTick, ref, watch } from 'vue';
+
+import type { Entry } from '@chaptale/creation/contracts';
+
+import { AppButton } from '@/components/AppButton';
+import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
+import { AppDialog } from '@/components/AppDialog';
+import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
+import { AppForm, AppFormActions } from '@/components/AppForm';
+import { AppInput } from '@/components/AppInput';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { useEditorStore } from '@/features/editor';
+import { toErrorMessage } from '@/utils/desktop-api';
+
+import { requestCreation, useCreationStore } from './store';
+
+const creation = useCreationStore();
+const editor = useEditorStore();
+const host = ref<HTMLElement>();
+const error = ref('');
+const target = ref<Entry>();
+const action = ref<'rename' | 'move' | null>(null);
+const title = ref('');
+const parent = ref('root');
+const busy = ref(false);
+const tree = computed(() => creation.view![creation.view!.section]);
+const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
+const rows = computed(() => {
+  const result: { entry: Entry; depth: number }[] = [];
+  const entries = creation.entries.filter(item => item.section === creation.view?.section);
+  function visit(parentId: string | null, depth: number) {
+    for (const entry of entries
+      .filter(item => item.parentId === parentId)
+      .toSorted((a, b) => a.position - b.position)) {
+      result.push({ entry, depth });
+      if (entry.kind === 'directory' && tree.value.expandedIds.includes(entry.id)) visit(entry.id, depth + 1);
+    }
+  }
+  visit(null, 1);
+  return result;
+});
+const directories = computed(() =>
+  creation.entries.filter(
+    item => item.kind === 'directory' && item.section === creation.view?.section && item.id !== target.value?.id
+  )
+);
+const menu = computed<AppContextMenuItem[]>(() => [
+  {
+    id: 'new-document',
+    label: creation.view?.section === 'resource' ? '新建资料' : '新建文稿',
+    disabled: target.value?.kind === 'document'
+  },
+  { id: 'new-directory', label: '新建目录', disabled: target.value?.kind === 'document' },
+  ...(target.value
+    ? [
+        { id: 'rename', label: '重命名', separatorBefore: true },
+        { id: 'move', label: '移动到…' },
+        { id: 'up', label: '上移' },
+        { id: 'down', label: '下移' }
+      ]
+    : [
+        { id: 'import', label: '导入文稿与资料…', separatorBefore: true },
+        { id: 'export', label: '导出正文…' }
+      ])
+]);
+function toggle(entry: Entry) {
+  const ids = tree.value.expandedIds;
+  tree.value.expandedIds = ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id];
+}
+async function open(entry: Entry) {
+  tree.value.selectedId = entry.id;
+  if (entry.kind === 'directory') toggle(entry);
+  else await editor.openDocument(entry.id);
+}
+async function selectAction(id: string) {
+  error.value = '';
+  if (id.startsWith('new-')) {
+    creation.newEntry = { kind: id === 'new-directory' ? 'directory' : 'document', parentId: target.value?.id ?? null };
+    return;
+  }
+  if (id === 'import') {
+    creation.importOpen = true;
+    return;
+  }
+  if (id === 'export') {
+    creation.exportOpen = true;
+    return;
+  }
+  const entry = target.value!;
+  if (id === 'rename' && entry.kind === 'document') {
+    await editor.openDocument(entry.id);
+    const tab = editor.tabs.find(item => item.id === entry.id)!;
+    if (tab.status !== 'ready') {
+      error.value = tab.status === 'loading' ? '文档正在加载，请稍后重试' : tab.error;
+      return;
+    }
+    title.value = tab.title;
+    action.value = 'rename';
+    return;
+  }
+  if (id === 'rename' || id === 'move') {
+    title.value = entry.title;
+    parent.value = entry.parentId ?? 'root';
+    action.value = id;
+    return;
+  }
+  const siblings = creation.entries
+    .filter(item => item.parentId === entry.parentId && item.section === entry.section)
+    .toSorted((a, b) => a.position - b.position);
+  const index = siblings.findIndex(item => item.id === entry.id);
+  if ((id === 'up' && index === 0) || (id === 'down' && index === siblings.length - 1)) return;
+  try {
+    await creation.move(
+      entry,
+      entry.parentId,
+      id === 'up' ? siblings[index - 1]!.id : (siblings[index + 2]?.id ?? null)
+    );
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  }
+}
+async function submit() {
+  busy.value = true;
+  error.value = '';
+  try {
+    const entry = target.value!;
+    if (action.value === 'rename' && entry.kind === 'document') {
+      editor.updateMetadata(entry.id, { title: title.value });
+      action.value = null;
+      return;
+    }
+    if (action.value === 'rename')
+      await requestCreation('renameDirectory', {
+        commandId: crypto.randomUUID(),
+        workId: creation.workId!,
+        directoryId: entry.id,
+        expectedRevisionId: entry.revisionId,
+        title: title.value
+      });
+    else await creation.move(entry, parent.value === 'root' ? null : parent.value, null);
+    await creation.refreshEntries();
+    action.value = null;
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  } finally {
+    busy.value = false;
+  }
+}
+function keydown(event: KeyboardEvent, entry: Entry) {
+  const index = rows.value.findIndex(row => row.entry.id === entry.id);
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const next = rows.value[index + (event.key === 'ArrowDown' ? 1 : -1)];
+    if (next) {
+      tree.value.selectedId = next.entry.id;
+      void nextTick(() => host.value?.querySelector<HTMLElement>(`[data-entry-id="${next.entry.id}"]`)?.focus());
+    }
+  } else if (event.key === 'ArrowRight' && entry.kind === 'directory') {
+    event.preventDefault();
+    if (!tree.value.expandedIds.includes(entry.id)) toggle(entry);
+  } else if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    if (tree.value.expandedIds.includes(entry.id)) toggle(entry);
+    else if (entry.parentId) {
+      tree.value.selectedId = entry.parentId;
+      host.value?.querySelector<HTMLElement>(`[data-entry-id="${entry.parentId}"]`)?.focus();
+    }
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    void open(entry);
+  }
+}
+watch(
+  () => [creation.workId, creation.view?.section],
+  async () => {
+    await nextTick();
+    if (host.value) host.value.scrollTop = tree.value.scrollTop;
+  }
+);
+async function drop(event: DragEvent, parentId: string | null) {
+  const id = event.dataTransfer!.getData('application/chaptale-entry');
+  const entry = creation.entries.find(item => item.id === id);
+  if (!entry) return;
+  try {
+    await creation.move(entry, parentId, null);
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  }
+}
+</script>
+
+<template>
+  <aside class="creation-explorer" aria-label="作品导航">
+    <div class="work-heading">
+      <span class="work-name" :title="creation.work?.title">{{ creation.work?.title }}</span>
+      <AppDropdownMenu align="end" content-size="sm">
+        <template #trigger>
+          <AppButton icon size="xs" variant="ghost" aria-label="作品操作" title="作品操作">
+            <span class="i-mingcute-more-1-line work-menu-icon" aria-hidden="true" />
+          </AppButton>
+        </template>
+        <AppDropdownMenuItem density="sm" @select="creation.newEntry = { kind: 'document', parentId: null }">
+          {{ creation.view?.section === 'resource' ? '新建资料' : '新建文稿' }}
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem density="sm" @select="creation.newEntry = { kind: 'directory', parentId: null }"
+          >新建目录</AppDropdownMenuItem
+        >
+        <AppDropdownMenuItem density="sm" @select="creation.importOpen = true">导入文稿与资料…</AppDropdownMenuItem>
+        <AppDropdownMenuItem density="sm" @select="creation.exportOpen = true">导出正文…</AppDropdownMenuItem>
+      </AppDropdownMenu>
+    </div>
+    <div class="section-tabs" role="tablist" aria-label="内容区域">
+      <button
+        role="tab"
+        :aria-selected="creation.view?.section === 'manuscript'"
+        @click="creation.view!.section = 'manuscript'"
+      >
+        文稿
+      </button>
+      <button
+        role="tab"
+        :aria-selected="creation.view?.section === 'resource'"
+        @click="creation.view!.section = 'resource'"
+      >
+        资料
+      </button>
+    </div>
+    <p v-if="error && !action" class="tree-error" role="alert">{{ error }}</p>
+    <AppContextMenu :items="menu" @prepare="target = undefined" @select="selectAction">
+      <div
+        ref="host"
+        class="tree-scroll"
+        role="tree"
+        :aria-label="creation.view?.section === 'resource' ? '资料目录' : '文稿目录'"
+        :tabindex="rows.length ? -1 : 0"
+        @scroll="tree.scrollTop = host!.scrollTop"
+        @dragover.prevent
+        @drop.self.prevent="drop($event, null)"
+      >
+        <AppContextMenu
+          v-for="({ entry, depth }, index) in rows"
+          :key="entry.id"
+          :items="menu"
+          @prepare="target = entry"
+          @select="selectAction"
+        >
+          <div
+            role="treeitem"
+            :data-entry-id="entry.id"
+            :aria-level="depth"
+            :aria-expanded="entry.kind === 'directory' ? tree.expandedIds.includes(entry.id) : undefined"
+            :aria-selected="tree.selectedId === entry.id"
+            :tabindex="tree.selectedId === entry.id || (!tree.selectedId && index === 0) ? 0 : -1"
+            :aria-label="entry.title"
+            :style="{ paddingLeft: `${8 + (depth - 1) * 16}px` }"
+            class="tree-entry"
+            :class="{ selected: tree.selectedId === entry.id }"
+            draggable="true"
+            @dragstart="$event.dataTransfer!.setData('application/chaptale-entry', entry.id)"
+            @dragover.prevent
+            @drop.stop.prevent="drop($event, entry.kind === 'directory' ? entry.id : entry.parentId)"
+            @click="open(entry)"
+            @keydown="keydown($event, entry)"
+          >
+            <span
+              class="entry-icon"
+              :class="
+                entry.kind === 'document'
+                  ? 'i-mingcute-file-line'
+                  : tree.expandedIds.includes(entry.id)
+                    ? 'i-mingcute-down-line'
+                    : 'i-mingcute-right-line'
+              "
+              aria-hidden="true"
+            />
+            <div class="entry-text">
+              <span class="entry-title" :title="entry.title">{{ entry.title }}</span
+              ><span v-if="entry.kind === 'document'" class="entry-meta" :title="date.format(entry.updatedAt)"
+                >{{ entry.wordCount }} 字
+                <time :datetime="new Date(entry.updatedAt).toISOString()">{{
+                  date.format(entry.updatedAt)
+                }}</time></span
+              >
+            </div>
+          </div>
+        </AppContextMenu>
+        <p v-if="!rows.length" class="tree-empty">
+          {{
+            creation.view?.section === 'resource' ? '在这里整理人物、地点与写作笔记。' : '新建文稿，或导入已有正文。'
+          }}
+        </p>
+      </div>
+    </AppContextMenu>
+    <AppDialog
+      content-size="sm"
+      :open="Boolean(action)"
+      :title="action === 'rename' ? (target?.kind === 'document' ? '重命名文档' : '重命名目录') : '移动条目'"
+      @update:open="
+        value => {
+          if (!value && !busy) action = null;
+        }
+      "
+    >
+      <AppForm class="tree-form" :disabled="busy" @submit="submit">
+        <label v-if="action === 'rename'"
+          >{{ target?.kind === 'document' ? '文档标题' : '目录名称'
+          }}<AppInput v-model="title" :aria-label="target?.kind === 'document' ? '文档标题' : '目录名称'" autofocus
+        /></label>
+        <label v-else
+          >目标目录<AppSelect v-model="parent" aria-label="目标目录"
+            ><AppSelectItem value="root">根目录</AppSelectItem
+            ><AppSelectItem v-for="directory in directories" :key="directory.id" :value="directory.id">{{
+              directory.title
+            }}</AppSelectItem></AppSelect
+          ></label
+        >
+        <p v-if="error" role="alert" class="tree-error">{{ error }}</p>
+        <AppFormActions
+          ><AppButton :disabled="busy" @click="action = null">取消</AppButton
+          ><AppButton type="submit" variant="primary" :disabled="busy || (action === 'rename' && !title.trim())"
+            >确认</AppButton
+          ></AppFormActions
+        >
+      </AppForm>
+    </AppDialog>
+  </aside>
+</template>
+
+<style scoped>
+.creation-explorer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--sidebar);
+}
+.work-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.work-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--foreground);
+}
+.work-menu-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.section-tabs {
+  display: flex;
+  padding: 8px;
+  gap: 4px;
+}
+.section-tabs button {
+  flex: 1;
+  padding: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.section-tabs button[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.section-tabs button:focus-visible,
+.tree-entry:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.tree-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.tree-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  cursor: pointer;
+  color: var(--foreground);
+}
+.tree-entry:hover {
+  background: var(--surface-hover);
+}
+.tree-entry.selected {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.entry-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.entry-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.entry-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.entry-meta {
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.entry-meta time {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-empty {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+.tree-error {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--destructive);
+}
+.tree-form {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0 0;
+}
+.tree-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+</style>

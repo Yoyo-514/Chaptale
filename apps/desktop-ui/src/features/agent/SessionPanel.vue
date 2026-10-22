@@ -3,21 +3,20 @@ import { computed, nextTick, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
+import { AppInput } from '@/components/AppInput';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
-import { useWorkspaceStore } from '@/features/workspace';
 import { getDesktopApi } from '@/utils/desktop-api';
 
 import MessageComposer from './components/MessageComposer.vue';
 import MessageList from './components/MessageList.vue';
 import SessionHistory from './components/SessionHistory.vue';
 import SessionSettings from './components/SessionSettings.vue';
-import { useAgentStore } from './store';
+import { type SessionEntry, useAgentStore } from './store';
 
 const agent = useAgentStore();
 const navigation = useWorkbenchStore();
-const workspace = useWorkspaceStore();
 const settings = useSettingsStore();
 const body = ref<HTMLElement>();
 const positions = new Map<string, { top: number; follow: boolean }>();
@@ -25,8 +24,28 @@ const following = ref(true);
 const approvals = computed(() => agent.state?.approvals.filter(item => item.sessionId === agent.activeId) ?? []);
 const error = computed(() => agent.error || agent.active?.error);
 const title = computed(() => (agent.active ? agent.title(agent.active) : '新会话'));
-/** 标题下拉只列已打开的会话，完整历史在「全部历史」子页。 */
-const opened = computed(() => agent.state?.sessions ?? []);
+/** 标题下拉列出当前范围最近的会话，完整列表在「全部历史」子页。 */
+const renaming = ref(false);
+const nameDraft = ref('');
+const nameInput = ref<{ $el: HTMLElement }>();
+const renamable = computed(() => agent.connected && Boolean(agent.active) && !agent.active?.readonly);
+/** 重命名从更多菜单进入；菜单关闭时由标题输入框接管焦点，取代默认的触发器焦点恢复。 */
+function startRename() {
+  if (!renamable.value) return;
+  nameDraft.value = title.value;
+  renaming.value = true;
+}
+function focusRename(event: Event) {
+  if (!renaming.value) return;
+  event.preventDefault();
+  nameInput.value?.$el.querySelector('input')?.select();
+}
+async function finishRename(save: boolean) {
+  if (!renaming.value) return;
+  renaming.value = false;
+  const name = nameDraft.value.trim();
+  if (save && name && name !== title.value) await agent.rename(agent.activeId!, name);
+}
 watch(
   () => navigation.auxiliaryOpen || navigation.agentInMain,
   visible => {
@@ -62,11 +81,15 @@ watch(
   }
 );
 function create() {
-  agent.newDraft(workspace.rootPath ?? undefined);
+  agent.newDraft();
   navigation.agentView = 'chat';
 }
-function select(id: string) {
-  agent.select(id);
+function createIndependent() {
+  void agent.newDraft(undefined, true);
+  navigation.agentView = 'chat';
+}
+function select(entry: SessionEntry) {
+  void agent.view(entry);
   navigation.agentView = 'chat';
 }
 function closeView() {
@@ -86,46 +109,65 @@ function approve(id: string, allow: boolean) {
   <section class="agent-panel" aria-label="会话视图">
     <header class="agent-header">
       <template v-if="navigation.agentView !== 'chat'">
-        <AppButton size="sm" variant="ghost" class="agent-back" @click="navigation.agentView = 'chat'">
-          <span class="i-mingcute-left-line size-4" aria-hidden="true" />返回会话
+        <AppButton size="xs" variant="ghost" class="agent-back" @click="navigation.agentView = 'chat'">
+          <span class="i-mingcute-left-line size-4" aria-hidden="true" />
         </AppButton>
         <h2 class="agent-header-subtitle">{{ navigation.agentView === 'history' ? '全部历史' : '会话设置' }}</h2>
       </template>
       <template v-else>
-        <AppDropdownMenu align="start" content-size="md" :disabled="!agent.connected">
+        <AppInput
+          v-if="renaming"
+          ref="nameInput"
+          v-model="nameDraft"
+          class="agent-title-input"
+          aria-label="会话名称"
+          maxlength="80"
+          @keydown.enter.prevent="finishRename(true)"
+          @keydown.esc.prevent="finishRename(false)"
+          @blur="finishRename(true)"
+        />
+        <AppDropdownMenu v-else align="start" content-size="md" :disabled="!agent.connected">
           <template #trigger>
             <button type="button" class="agent-title-button" aria-label="切换会话" :disabled="!agent.connected">
               <span class="agent-title-text">{{ title }}</span>
               <span class="i-mingcute-down-line size-3.5 shrink-0" aria-hidden="true" />
             </button>
           </template>
-          <p v-if="opened.length" class="agent-menu-heading">已打开</p>
+          <p v-if="agent.recent.length" class="agent-menu-heading">最近</p>
           <AppDropdownMenuItem
-            v-for="session in opened"
-            :key="session.id"
+            v-for="entry in agent.recent"
+            :key="entry.key"
             density="sm"
             item-class="agent-menu-item"
-            :active="session.id === agent.activeId"
-            :aria-label="`查看${agent.title(session)}`"
-            @select="select(session.id)"
+            :active="Boolean(entry.live) && entry.live?.id === agent.activeId"
+            :aria-label="`查看${entry.title}`"
+            @select="select(entry)"
           >
-            <span class="min-w-0 flex-1 truncate">{{ agent.title(session) }}</span>
-            <span v-if="session.running" class="agent-menu-meta">{{ session.compacting ? '压缩中' : '生成中' }}</span>
-            <span v-else-if="session.readonly" class="agent-menu-meta">只读</span>
+            <span class="min-w-0 flex-1 truncate">{{ entry.title }}</span>
+            <span v-if="entry.live?.running" class="agent-menu-meta">{{
+              entry.live.compacting ? '压缩中' : '生成中'
+            }}</span>
           </AppDropdownMenuItem>
-          <hr v-if="opened.length" class="agent-menu-separator" />
+          <hr v-if="agent.recent.length" class="agent-menu-separator" />
           <AppDropdownMenuItem density="sm" item-class="agent-menu-item" @select="navigation.agentView = 'history'">
             <span class="i-mingcute-history-line size-4 shrink-0" aria-hidden="true" />全部历史
           </AppDropdownMenuItem>
         </AppDropdownMenu>
         <span class="flex-1" />
         <AppTooltip text="新建会话">
-          <AppButton icon size="sm" variant="ghost" aria-label="新建会话" :disabled="!agent.connected" @click="create">
+          <AppButton
+            icon
+            size="sm"
+            variant="ghost"
+            aria-label="新建会话"
+            :disabled="!agent.connected || agent.creating"
+            @click="create"
+          >
             <span class="i-mingcute-add-line size-4" aria-hidden="true" />
           </AppButton>
         </AppTooltip>
       </template>
-      <AppDropdownMenu align="end" content-size="sm">
+      <AppDropdownMenu align="end" content-size="sm" @close-auto-focus="focusRename">
         <template #trigger>
           <AppButton icon size="sm" variant="ghost" aria-label="更多会话操作">
             <span class="i-mingcute-more-1-line size-4" aria-hidden="true" />
@@ -134,7 +176,18 @@ function approve(id: string, allow: boolean) {
         <AppDropdownMenuItem
           density="sm"
           item-class="agent-menu-item"
-          :disabled="!agent.connected"
+          :disabled="!agent.connected || agent.creating"
+          @select="createIndependent"
+        >
+          <span class="i-mingcute-add-line size-4 shrink-0" aria-hidden="true" />新建独立会话
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem density="sm" item-class="agent-menu-item" :disabled="!renamable" @select="startRename">
+          <span class="i-mingcute-edit-line size-4 shrink-0" aria-hidden="true" />重命名
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          density="sm"
+          item-class="agent-menu-item"
+          :disabled="!agent.connected || agent.creating"
           @select="navigation.agentView = 'settings'"
         >
           <span class="i-mingcute-settings-6-line size-4 shrink-0" aria-hidden="true" />会话设置

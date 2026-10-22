@@ -11,7 +11,8 @@ import {
 
 export default defineConfig({
   presets: [
-    presetWind4(),
+    // 开发模式可能先请求 UnoCSS 再提取组件；尺寸变量必须随首轮样式一起加载。
+    presetWind4({ preflights: { theme: true } }),
     presetAttributify(),
     presetIcons({
       extraProperties: {

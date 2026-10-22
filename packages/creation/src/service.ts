@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import { countDocumentWords } from '@chaptale/shared';
-
 import type {
   CreateEntryInput,
   CreateWorkInput,
@@ -16,12 +14,17 @@ import type {
   RenameDirectoryInput,
   Revision,
   SaveDocumentInput,
+  SessionAssignment,
+  SessionSelection,
+  SessionState,
   Work,
+  WorkbenchState,
   WriteDraftInput
 } from './contracts.ts';
 import { discardDraft, writeDraft } from './drafts.ts';
 import { EntryLocationConflictError, RevisionConflictError } from './errors.ts';
 import type { CommitEffect, CreationRepository } from './repository.ts';
+import { countDocumentWords } from './text.ts';
 
 /** 作品规则只依赖持久化契约；具体存储由宿主启动代码注入。 */
 export class CreationService {
@@ -75,6 +78,39 @@ export class CreationService {
       this.repository.insertWork(work);
       return work;
     });
+  }
+
+  readSessionState(): SessionState {
+    return this.repository.readSessionState();
+  }
+
+  assignSession(input: SessionAssignment): SessionState {
+    return this.repository.libraryTransaction(() => {
+      if (!this.repository.hasWork(input.workId)) throw new Error('目标作品不存在');
+      const owner = this.repository.getSessionWork(input.sessionId);
+      if (owner !== null && owner !== input.workId) throw new Error('会话已固定归属其他作品');
+      if (owner === null) this.repository.assignSession(input);
+      return this.repository.readSessionState();
+    });
+  }
+
+  selectSession(input: SessionSelection): SessionState {
+    return this.repository.libraryTransaction(() => {
+      if (input.workId !== null && !this.repository.hasWork(input.workId)) throw new Error('目标作品不存在');
+      if (input.sessionId !== null && this.repository.getSessionWork(input.sessionId) !== input.workId)
+        throw new Error('会话不属于所选作品范围');
+      this.repository.selectSession(input);
+      return this.repository.readSessionState();
+    });
+  }
+
+  readWorkbench(): WorkbenchState {
+    return this.repository.readWorkbench();
+  }
+
+  writeWorkbench(state: WorkbenchState): WorkbenchState {
+    this.repository.writeWorkbench(state);
+    return state;
   }
 
   listWorks(): Work[] {

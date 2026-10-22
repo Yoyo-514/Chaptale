@@ -9,8 +9,12 @@ import type {
   DraftState,
   Entry,
   RecoveryDraft,
+  SessionAssignment,
+  SessionSelection,
+  SessionState,
   Revision,
-  Work
+  Work,
+  WorkbenchState
 } from '@chaptale/creation/contracts';
 
 import { commitCommand, readChanges, readCommandReceipt, readCursor } from './commands.ts';
@@ -64,6 +68,61 @@ class SqliteCreationRepository implements CreationRepository {
     return readCommandReceipt<T>(this.useWork(workId), commandId, parameters);
   }
 
+  hasWork(workId: string): boolean {
+    return Boolean(this.library.prepare('SELECT 1 FROM works WHERE id = ?').get(workId));
+  }
+
+  readSessionState(): SessionState {
+    return this.library.transaction(() => ({
+      assignments: this.library
+        .prepare('SELECT sessionId, workId FROM session_assignments ORDER BY sessionId')
+        .all() as SessionAssignment[],
+      selections: this.library
+        .prepare("SELECT nullif(scopeId, '') AS workId, sessionId FROM session_selections ORDER BY scopeId")
+        .all() as SessionSelection[]
+    }))();
+  }
+
+  getSessionWork(sessionId: string): string | null {
+    const row = this.library.prepare('SELECT workId FROM session_assignments WHERE sessionId = ?').get(sessionId) as
+      | { workId: string }
+      | undefined;
+    return row?.workId ?? null;
+  }
+
+  assignSession(assignment: SessionAssignment): void {
+    this.library
+      .prepare('INSERT INTO session_assignments (sessionId, workId) VALUES (@sessionId, @workId)')
+      .run(assignment);
+    this.library
+      .prepare("UPDATE session_selections SET sessionId = NULL WHERE scopeId = '' AND sessionId = ?")
+      .run(assignment.sessionId);
+  }
+
+  selectSession({ workId, sessionId }: SessionSelection): void {
+    // 空范围键表示独立会话；业务作品 ID 始终非空。
+    this.library
+      .prepare(
+        'INSERT INTO session_selections (scopeId, sessionId) VALUES (?, ?) ON CONFLICT (scopeId) DO UPDATE SET sessionId = excluded.sessionId'
+      )
+      .run(workId ?? '', sessionId);
+  }
+
+  readWorkbench(): WorkbenchState {
+    const row = this.library.prepare('SELECT state FROM workbench_state WHERE id = 1').get() as
+      | { state: string }
+      | undefined;
+    return row ? (JSON.parse(row.state) as WorkbenchState) : { activeWorkId: null, works: [] };
+  }
+
+  writeWorkbench(state: WorkbenchState): void {
+    this.library
+      .prepare(
+        'INSERT INTO workbench_state (id, state) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET state = excluded.state'
+      )
+      .run(JSON.stringify(state));
+  }
+
   insertWork(work: Work): void {
     this.library
       .prepare(
@@ -73,9 +132,16 @@ class SqliteCreationRepository implements CreationRepository {
   }
 
   listWorks(): Work[] {
-    return this.library
-      .prepare('SELECT id, title, kind, createdAt, updatedAt FROM works ORDER BY updatedAt DESC, id')
-      .all() as Work[];
+    const works = this.library.prepare('SELECT id, title, kind, createdAt, updatedAt FROM works').all() as Work[];
+    for (const work of works) {
+      const latest = this.useWork(work.id).prepare('SELECT max(updatedAt) AS updatedAt FROM entries').get() as {
+        updatedAt: number | null;
+      };
+      work.updatedAt = Math.max(work.updatedAt, latest.updatedAt ?? work.createdAt);
+    }
+    // 本次查询独占的数组，按最近编辑排序。
+    // oxlint-disable-next-line unicorn/no-array-sort
+    return works.sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
   }
 
   getEntry(workId: string, entryId: string): Entry | undefined {
