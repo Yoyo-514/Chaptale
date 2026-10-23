@@ -2,7 +2,14 @@ import type Database from 'better-sqlite3';
 import { createHash, randomUUID } from 'node:crypto';
 
 import type { CommandCommit, CommitEffect } from '@chaptale/creation';
-import type { CreationChanges, CreationCursor, CreationEvent, Entry, Work } from '@chaptale/creation/contracts';
+import type {
+  CreationChanges,
+  CreationCursor,
+  CreationEvent,
+  Entry,
+  PendingChange,
+  Work
+} from '@chaptale/creation/contracts';
 
 export const receiptSchema = `
   CREATE TABLE IF NOT EXISTS command_receipts (
@@ -54,17 +61,23 @@ export function readCommandReceipt<T>(
 
 function eventFrom(workId: string | null, row: ReceiptRow): CreationEvent {
   const effect = JSON.parse(row.effect) as CommitEffect;
-  const result = JSON.parse(row.result) as Work | Entry;
+  const result = JSON.parse(row.result) as Work | Entry | PendingChange;
   return {
     cursor: { workId, sequence: row.sequence, token: row.token },
     commandId: row.commandId,
     committedAt: row.committedAt,
-    change: effect.kind === 'work' ? { kind: 'work', work: result as Work } : { ...effect, entry: result as Entry }
+    change: changeFrom(effect, result)
   };
 }
 
+function changeFrom(effect: CommitEffect, result: Work | Entry | PendingChange): CreationEvent['change'] {
+  if (effect.kind === 'work') return { kind: 'work', work: result as Work };
+  if (effect.kind === 'review') return { kind: 'review', change: result as PendingChange };
+  return { ...effect, entry: result as Entry };
+}
+
 /** 修改、提交身份与回执一次提交；结果只存一份，事件复用回执元数据。 */
-export function commitCommand<T extends Work | Entry>(
+export function commitCommand<T extends Work | Entry | PendingChange>(
   database: Database.Database,
   workId: string | null,
   commandId: string,

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import * as content from './content/mutations.ts';
 import type {
   CreateEntryInput,
   CreateWorkInput,
@@ -12,6 +13,7 @@ import type {
   SearchDocumentsInput,
   DraftState,
   Entry,
+  PendingChange,
   MoveEntryInput,
   RenameDirectoryInput,
   Revision,
@@ -23,12 +25,11 @@ import type {
   WorkbenchState,
   WriteDraftInput
 } from './contracts.ts';
-import { discardDraft, writeDraft } from './drafts.ts';
-import { EntryLocationConflictError, RevisionConflictError } from './errors.ts';
+import * as drafts from './drafts.ts';
 import type { CommitEffect, CreationRepository } from './repository.ts';
-import { countDocumentWords } from './text.ts';
+import * as sessions from './session-scopes.ts';
 
-/** 作品规则只依赖持久化契约；具体存储由宿主启动代码注入。 */
+/** 作品用例的应用服务：协调事务、幂等回执和提交后的事件，领域规则归各自模块。 */
 export class CreationService {
   private readonly repository: CreationRepository;
   private readonly listeners = new Set<{ receive: (event: CreationEvent) => void }>();
@@ -40,7 +41,6 @@ export class CreationService {
   snapshot(workId: string | null): CreationSnapshot {
     return this.repository.snapshot(workId);
   }
-
   readChanges(cursor: CreationCursor, limit: number): CreationChanges {
     if (!Number.isSafeInteger(limit) || limit <= 0) throw new Error('事件分页数量必须是正整数');
     return this.repository.readChanges(cursor, limit);
@@ -53,7 +53,7 @@ export class CreationService {
     return () => this.listeners.delete(subscription);
   }
 
-  private commit<T extends Work | Entry>(
+  commit<T extends Work | Entry | PendingChange>(
     workId: string | null,
     commandId: string,
     parameters: readonly unknown[],
@@ -81,249 +81,103 @@ export class CreationService {
       return work;
     });
   }
-
-  readSessionState(): SessionState {
-    return this.repository.readSessionState();
-  }
-
-  assignSession(input: SessionAssignment): SessionState {
-    return this.repository.libraryTransaction(() => {
-      if (!this.repository.hasWork(input.workId)) throw new Error('目标作品不存在');
-      const owner = this.repository.getSessionWork(input.sessionId);
-      if (owner !== null && owner !== input.workId) throw new Error('会话已固定归属其他作品');
-      if (owner === null) this.repository.assignSession(input);
-      return this.repository.readSessionState();
-    });
-  }
-
-  selectSession(input: SessionSelection): SessionState {
-    return this.repository.libraryTransaction(() => {
-      if (input.workId !== null && !this.repository.hasWork(input.workId)) throw new Error('目标作品不存在');
-      if (input.sessionId !== null && this.repository.getSessionWork(input.sessionId) !== input.workId)
-        throw new Error('会话不属于所选作品范围');
-      this.repository.selectSession(input);
-      return this.repository.readSessionState();
-    });
-  }
-
-  readWorkbench(): WorkbenchState {
-    return this.repository.readWorkbench();
-  }
-
-  writeWorkbench(state: WorkbenchState): WorkbenchState {
-    this.repository.writeWorkbench(state);
-    return state;
-  }
-
   listWorks(): Work[] {
     return this.repository.listWorks();
   }
-
-  createEntry(input: CreateEntryInput): Entry {
-    const content = input.kind === 'document' ? input.content : null;
-    const format = input.kind === 'document' ? input.format : null;
-    return this.commit(
-      input.workId,
-      input.commandId,
-      ['createEntry', input.workId, input.parentId, input.section, input.kind, input.title, format, content],
-      { kind: 'entry' },
-      () => {
-        if (input.parentId !== null) {
-          const parent = this.repository.getEntry(input.workId, input.parentId);
-          if (!parent || parent.kind !== 'directory' || parent.section !== input.section) {
-            throw new Error('目标目录不存在或不属于当前内容区域');
-          }
-        }
-        const now = Date.now();
-        const entry: Entry = {
-          id: randomUUID(),
-          parentId: input.parentId,
-          section: input.section,
-          kind: input.kind,
-          title: input.title,
-          position: this.repository.nextPosition(input.workId, input.section, input.parentId),
-          format,
-          wordCount: content === null ? 0 : countDocumentWords(content),
-          revisionId: randomUUID(),
-          createdAt: now,
-          updatedAt: now
-        };
-        const snapshot = { ...entry, content };
-        this.repository.insertEntry(input.workId, snapshot, revisionFor(snapshot, null));
-        return entry;
-      }
-    );
-  }
-
-  renameDirectory(input: RenameDirectoryInput): Entry {
-    const { workId, directoryId, expectedRevisionId, title } = input;
-    return this.commit(
-      workId,
-      input.commandId,
-      ['renameDirectory', workId, directoryId, expectedRevisionId, title],
-      { kind: 'entry' },
-      () => {
-        const current = this.repository.getEntry(workId, directoryId);
-        if (!current || current.kind !== 'directory') throw new Error('目录不存在');
-        if (current.revisionId !== expectedRevisionId) {
-          throw new RevisionConflictError(expectedRevisionId, current.revisionId);
-        }
-        if (current.title === title) return current;
-        const saved = { ...current, title, revisionId: randomUUID(), updatedAt: Date.now() };
-        this.repository.updateDirectory(workId, saved, revisionFor({ ...saved, content: null }, current.revisionId));
-        return saved;
-      }
-    );
-  }
-
-  moveEntry(input: MoveEntryInput): Entry {
-    const { workId, entryId, parentId, beforeEntryId } = input;
-    return this.commit(
-      workId,
-      input.commandId,
-      ['moveEntry', workId, entryId, input.expectedParentId, input.expectedPosition, parentId, beforeEntryId],
-      { kind: 'move', from: { parentId: input.expectedParentId, position: input.expectedPosition } },
-      () => {
-        const entry = this.repository.getEntry(workId, entryId);
-        if (!entry) throw new Error('条目不存在');
-        if (entry.parentId !== input.expectedParentId || entry.position !== input.expectedPosition) {
-          throw new EntryLocationConflictError(entry.parentId, entry.position);
-        }
-        if (parentId !== null) {
-          const parent = this.repository.getEntry(workId, parentId);
-          if (!parent || parent.kind !== 'directory' || parent.section !== entry.section) {
-            throw new Error('目标目录不存在或不属于当前内容区域');
-          }
-          if (entry.kind === 'directory') {
-            let ancestor: Entry | undefined = parent;
-            while (ancestor) {
-              if (ancestor.id === entryId) throw new Error('目录不能移入自身或子目录');
-              ancestor = ancestor.parentId === null ? undefined : this.repository.getEntry(workId, ancestor.parentId);
-            }
-          }
-        }
-        const sameParent = entry.parentId === parentId;
-        let position: number;
-        if (beforeEntryId === null) {
-          position = this.repository.nextPosition(workId, entry.section, parentId) - (sameParent ? 1 : 0);
-        } else {
-          const before = this.repository.getEntry(workId, beforeEntryId);
-          if (!before || before.parentId !== parentId || before.section !== entry.section) {
-            throw new Error('排序目标不存在或不属于目标目录');
-          }
-          position = before.position - (sameParent && entry.position < before.position ? 1 : 0);
-        }
-        if (sameParent && entry.position === position) return entry;
-        this.repository.relocateEntry(workId, entry, parentId, position);
-        return { ...entry, parentId, position };
-      }
-    );
-  }
-
   listEntries(workId: string): Entry[] {
     return this.repository.listEntries(workId);
   }
-
+  readDocument(workId: string, documentId: string): Document {
+    return content.readDocument(this.repository, workId, documentId);
+  }
   searchDocuments(input: SearchDocumentsInput): DocumentSearchPage {
     return this.repository.searchDocuments(input);
   }
 
-  readDocument(workId: string, documentId: string): Document {
-    const document = this.repository.getDocument(workId, documentId);
-    if (!document) throw new Error('文稿或资料不存在');
-    return document;
+  createEntry(input: CreateEntryInput): Entry {
+    return this.commit(
+      input.workId,
+      input.commandId,
+      [
+        'createEntry',
+        input.workId,
+        input.parentId,
+        input.section,
+        input.kind,
+        input.title,
+        input.kind === 'document' ? input.format : null,
+        input.kind === 'document' ? input.content : null
+      ],
+      { kind: 'entry' },
+      () => content.createEntry(this.repository, input)
+    );
   }
-
+  renameDirectory(input: RenameDirectoryInput): Entry {
+    return this.commit(
+      input.workId,
+      input.commandId,
+      ['renameDirectory', input.workId, input.directoryId, input.expectedRevisionId, input.title],
+      { kind: 'entry' },
+      () => content.renameDirectory(this.repository, input)
+    );
+  }
+  moveEntry(input: MoveEntryInput): Entry {
+    return this.commit(
+      input.workId,
+      input.commandId,
+      [
+        'moveEntry',
+        input.workId,
+        input.entryId,
+        input.expectedParentId,
+        input.expectedPosition,
+        input.parentId,
+        input.beforeEntryId
+      ],
+      { kind: 'move', from: { parentId: input.expectedParentId, position: input.expectedPosition } },
+      () => content.moveEntry(this.repository, input)
+    );
+  }
   saveDocument(input: SaveDocumentInput): Entry {
-    const result = this.commit(input.workId, input.commandId, saveParameters(input), { kind: 'entry' }, () => {
-      const current = this.readDocument(input.workId, input.documentId);
-      if (current.revisionId !== input.expectedRevisionId) {
-        throw new RevisionConflictError(input.expectedRevisionId, current.revisionId);
-      }
-      const { content: currentContent, ...metadata } = current;
-      if (metadata.title === input.title && metadata.format === input.format && currentContent === input.content)
-        return metadata;
-      const { content, ...saved } = {
-        ...current,
-        title: input.title,
-        format: input.format,
-        content: input.content,
-        wordCount: countDocumentWords(input.content),
-        revisionId: randomUUID(),
-        updatedAt: Date.now()
-      };
-      const snapshot = { ...saved, content };
-      this.repository.updateDocument(input.workId, snapshot, revisionFor(snapshot, current.revisionId));
-      return saved;
-    });
+    const saved = this.commit(input.workId, input.commandId, content.saveParameters(input), { kind: 'entry' }, () =>
+      content.saveDocument(this.repository, input)
+    );
     this.repository.clearDraft(input.workId, input.documentId, input.commandId);
-    return result;
+    return saved;
   }
-
   readRevision(workId: string, revisionId: string): Revision {
     const revision = this.repository.getRevision(workId, revisionId);
     if (!revision) throw new Error('修订不存在');
     return revision;
   }
 
+  readSessionState(): SessionState {
+    return this.repository.readSessionState();
+  }
+  assignSession(input: SessionAssignment): SessionState {
+    return sessions.assignSession(this.repository, input);
+  }
+  selectSession(input: SessionSelection): SessionState {
+    return sessions.selectSession(this.repository, input);
+  }
+  readWorkbench(): WorkbenchState {
+    return this.repository.readWorkbench();
+  }
+  writeWorkbench(state: WorkbenchState): WorkbenchState {
+    this.repository.writeWorkbench(state);
+    return state;
+  }
   writeDraft(input: WriteDraftInput): DraftState {
-    this.assertDocument(input.workId, input.documentId);
-    const entryId = this.repository.getRevisionEntryId(input.workId, input.expectedRevisionId);
-    if (entryId === undefined) throw new Error('修订不存在');
-    if (entryId !== input.documentId) throw new Error('恢复草稿的基线不属于当前文档');
-    return writeDraft(this.repository, input);
+    return drafts.writeDraft(this.repository, input);
   }
-
   readDraftState(workId: string, documentId: string): DraftState {
-    this.assertDocument(workId, documentId);
-    return this.repository.libraryTransaction(() => {
-      const state = this.repository.getDraftState(workId, documentId);
-      if (
-        !state.draft ||
-        this.repository.readWorkReceipt<Entry>(workId, state.draft.id, saveParameters(state.draft)) === undefined
-      ) {
-        return state;
-      }
-      this.repository.clearDraft(workId, documentId, state.draft.id);
-      return { version: state.version, draft: null };
-    });
+    return drafts.readDraftState(this.repository, workId, documentId);
   }
-
   discardDraft(workId: string, documentId: string, version: string): DraftState {
-    this.assertDocument(workId, documentId);
-    return discardDraft(this.repository, workId, documentId, version);
+    return drafts.discardDraft(this.repository, workId, documentId, version);
   }
-
   close(): void {
     this.listeners.clear();
     this.repository.close();
   }
-
-  private assertDocument(workId: string, documentId: string): void {
-    const entry = this.repository.getEntry(workId, documentId);
-    if (!entry || entry.kind !== 'document') throw new Error('文稿或资料不存在');
-  }
-}
-
-function saveParameters(input: Omit<SaveDocumentInput, 'commandId'>): readonly unknown[] {
-  return [
-    'saveDocument',
-    input.workId,
-    input.documentId,
-    input.expectedRevisionId,
-    input.title,
-    input.format,
-    input.content
-  ];
-}
-
-function revisionFor(snapshot: Revision['snapshot'], parentRevisionId: string | null): Revision {
-  return {
-    id: snapshot.revisionId,
-    entryId: snapshot.id,
-    parentRevisionId,
-    source: 'author',
-    snapshot,
-    createdAt: snapshot.updatedAt
-  };
 }

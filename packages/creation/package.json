@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@chaptale/contracts": "workspace:*",
+    "node-diff3": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {

@@ -1,107 +1,35 @@
-import { Type, type TSchema } from 'typebox';
-import { Compile } from 'typebox/compile';
-
-import type { CreationAuthorCommand, CreationAuthorCommands, CreationCommands, CreationResult } from './contracts.ts';
+import { CreationAgentService } from './agent/service.ts';
+import { authorValidator, agentValidator } from './application/schema.ts';
+import type {
+  CreationAgentCommand,
+  CreationAgentCommands,
+  CreationAgentContext,
+  CreationAuthorCommand,
+  CreationAuthorCommands,
+  CreationCommands,
+  CreationResult
+} from './contracts.ts';
 import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from './errors.ts';
 import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './file-exchange.ts';
 import type { CreationRepository } from './repository.ts';
+import { ReviewService } from './review/service.ts';
 import { CreationService } from './service.ts';
 
-const id = Type.String({ minLength: 1 });
-const parentId = Type.Union([id, Type.Null()]);
-const format = Type.Union([Type.Literal('txt'), Type.Literal('markdown')]);
-const documentTarget = { workId: id, documentId: id };
-const documentInput = {
-  ...documentTarget,
-  expectedRevisionId: id,
-  title: Type.String(),
-  format,
-  content: Type.String()
-};
-const entryInput = {
-  commandId: id,
-  workId: id,
-  parentId,
-  title: Type.String(),
-  section: Type.Union([Type.Literal('manuscript'), Type.Literal('resource')])
-};
-const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
-const offset = Type.Integer({ minimum: 0 });
-const scroll = Type.Number({ minimum: 0 });
-const treeState = object({ expandedIds: Type.Array(id), selectedId: parentId, scrollTop: scroll });
-const workbenchState = object({
-  activeWorkId: parentId,
-  works: Type.Array(
-    object({
-      workId: id,
-      activeDocumentId: parentId,
-      secondaryDocumentId: parentId,
-      tabs: Type.Array(object({ documentId: id, anchor: offset, head: offset, scrollTop: scroll, scrollLeft: scroll })),
-      section: entryInput.section,
-      manuscript: treeState,
-      resource: treeState
-    })
-  )
-});
-const inputs = {
-  listWorks: object({}),
-  listEntries: object({ workId: id }),
-  searchDocuments: object({
-    workId: id,
-    query: Type.String({ minLength: 1, pattern: '\\S' }),
-    section: Type.Optional(entryInput.section),
-    offset,
-    limit: Type.Integer({ minimum: 1 })
-  }),
-  readSessionState: object({}),
-  assignSession: object({ sessionId: id, workId: id }),
-  selectSession: object({ sessionId: parentId, workId: parentId }),
-  readWorkbench: object({}),
-  writeWorkbench: workbenchState,
-  createWork: object({
-    commandId: id,
-    title: Type.String(),
-    kind: Type.Union([Type.Literal('novel'), Type.Literal('script')])
-  }),
-  createEntry: Type.Union([
-    object({ ...entryInput, kind: Type.Literal('directory') }),
-    object({ ...entryInput, kind: Type.Literal('document'), format, content: Type.String() })
-  ]),
-  saveDocument: object({ commandId: id, ...documentInput }),
-  readDocument: object(documentTarget),
-  renameDirectory: object({ commandId: id, workId: id, directoryId: id, expectedRevisionId: id, title: Type.String() }),
-  moveEntry: object({
-    commandId: id,
-    workId: id,
-    entryId: id,
-    expectedParentId: parentId,
-    expectedPosition: Type.Integer({ minimum: 0 }),
-    parentId,
-    beforeEntryId: parentId
-  }),
-  writeDraft: object({ ...documentInput, draftId: id, expectedDraftVersion: parentId }),
-  discardDraft: object({ ...documentTarget, draftId: id }),
-  readDraftState: object(documentTarget),
-  readRevision: object({ workId: id, revisionId: id }),
-  snapshot: object({ workId: parentId }),
-  readChanges: object({
-    cursor: object({ workId: parentId, sequence: Type.Integer({ minimum: 0 }), token: parentId }),
-    limit: Type.Integer({ minimum: 1 })
-  })
-} satisfies Record<keyof CreationAuthorCommands, TSchema>;
-const validator = Compile(
-  Type.Union(Object.entries(inputs).map(([method, input]) => object({ method: Type.Literal(method), input })))
-);
-
+export { agentInputs } from './application/schema.ts';
 type AuthorValue = Extract<CreationAuthorCommands[keyof CreationAuthorCommands]['output'], { ok: true }>['value'];
 type CreationValue = Extract<CreationCommands[keyof CreationCommands]['output'], { ok: true }>['value'];
+type AgentValue = Extract<CreationAgentCommands[keyof CreationAgentCommands]['output'], { ok: true }>['value'];
 
-/** 平台作者通道的应用入口；调用身份由入口固定，命令只携带业务参数。 */
+/** 应用入口固定调用身份，校验请求并协调领域服务。 */
 export class CreationApplication {
   private readonly service: CreationService;
+  private readonly review: ReviewService;
+  private readonly agent: CreationAgentService;
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
+    this.review = new ReviewService(repository, this.service);
+    this.agent = new CreationAgentService(repository, this.service, this.review);
   }
 
   subscribe(listener: Parameters<CreationService['subscribe']>[0]): () => void {
@@ -130,14 +58,27 @@ export class CreationApplication {
     }
   }
 
+  executeAgent<K extends keyof CreationAgentCommands>(
+    context: CreationAgentContext,
+    command: { method: K; input: CreationAgentCommands[K]['input'] }
+  ): CreationAgentCommands[K]['output'];
+  executeAgent(context: CreationAgentContext, command: unknown): CreationResult<AgentValue>;
+  executeAgent(context: CreationAgentContext, command: unknown): CreationResult<AgentValue> {
+    if (!agentValidator.Check(command)) return invalidRequest();
+    try {
+      return { ok: true, value: this.agent.execute(context, command as CreationAgentCommand) };
+    } catch (error) {
+      return creationFailure(error);
+    }
+  }
+
   executeAuthor<K extends keyof CreationAuthorCommands>(command: {
     method: K;
     input: CreationAuthorCommands[K]['input'];
   }): CreationAuthorCommands[K]['output'];
   executeAuthor(command: unknown): CreationResult<AuthorValue>;
   executeAuthor(command: unknown): CreationResult<AuthorValue> {
-    if (!validator.Check(command))
-      return { ok: false, error: { code: 'invalid-request', message: '作品请求参数无效' } };
+    if (!authorValidator.Check(command)) return invalidRequest();
     try {
       return { ok: true, value: this.executeBusiness(command as CreationAuthorCommand) };
     } catch (error) {
@@ -187,6 +128,14 @@ export class CreationApplication {
         return this.service.snapshot(command.input.workId);
       case 'readChanges':
         return this.service.readChanges(command.input.cursor, command.input.limit);
+      case 'listPendingChanges':
+        return this.review.list(command.input.workId, command.input.sessionId);
+      case 'readReview':
+        return this.review.read(command.input.changeId);
+      case 'updateReview':
+        return this.review.update(command.input);
+      case 'decideReview':
+        return this.review.decide(command.input);
     }
   }
 
@@ -194,7 +143,9 @@ export class CreationApplication {
     this.service.close();
   }
 }
-
+function invalidRequest(): CreationResult<never> {
+  return { ok: false, error: { code: 'invalid-request', message: '作品请求参数无效' } };
+}
 function creationFailure(error: unknown): CreationResult<never> {
   return {
     ok: false,

@@ -1,0 +1,124 @@
+import { randomUUID } from 'node:crypto';
+
+import type {
+  CreateEntryInput,
+  Document,
+  Entry,
+  EntrySnapshot,
+  MoveEntryInput,
+  RenameDirectoryInput,
+  SaveDocumentInput
+} from '../contracts/content.ts';
+import { EntryLocationConflictError, RevisionConflictError } from '../errors.ts';
+import type { CreationRepository } from '../repository.ts';
+import { countDocumentWords } from '../text.ts';
+import { revisionFor } from './commit.ts';
+import { assertEntryParent } from './entries.ts';
+
+/** 调用方已进入作品事务；这里集中维护正式内容的领域约束。 */
+export function createEntry(repository: CreationRepository, input: CreateEntryInput): Entry {
+  const now = Date.now();
+  const content = input.kind === 'document' ? input.content : null;
+  const entry: Entry = {
+    id: randomUUID(),
+    parentId: input.parentId,
+    section: input.section,
+    kind: input.kind,
+    title: input.title,
+    position: repository.nextPosition(input.workId, input.section, input.parentId),
+    format: input.kind === 'document' ? input.format : null,
+    wordCount: content === null ? 0 : countDocumentWords(content),
+    revisionId: randomUUID(),
+    createdAt: now,
+    updatedAt: now
+  };
+  assertEntryParent(repository.listEntries(input.workId), entry);
+  const snapshot = { ...entry, content };
+  repository.insertEntry(input.workId, snapshot, revisionFor(snapshot, null));
+  return entry;
+}
+
+export function renameDirectory(repository: CreationRepository, input: RenameDirectoryInput): Entry {
+  const current = repository.getEntry(input.workId, input.directoryId);
+  if (!current || current.kind !== 'directory') throw new Error('目录不存在');
+  if (current.revisionId !== input.expectedRevisionId)
+    throw new RevisionConflictError(input.expectedRevisionId, current.revisionId);
+  if (current.title === input.title) return current;
+  const saved = { ...current, title: input.title, revisionId: randomUUID(), updatedAt: Date.now() };
+  repository.updateDirectory(input.workId, saved, revisionFor({ ...saved, content: null }, current.revisionId));
+  return saved;
+}
+
+export function moveEntry(repository: CreationRepository, input: MoveEntryInput): Entry {
+  const { workId, entryId, parentId, beforeEntryId } = input;
+  const entry = repository.getEntry(workId, entryId);
+  if (!entry) throw new Error('条目不存在');
+  if (entry.parentId !== input.expectedParentId || entry.position !== input.expectedPosition)
+    throw new EntryLocationConflictError(entry.parentId, entry.position);
+  assertEntryParent(repository.listEntries(workId), { ...entry, parentId });
+  const sameParent = entry.parentId === parentId;
+  let position: number;
+  if (beforeEntryId === null)
+    position = repository.nextPosition(workId, entry.section, parentId) - (sameParent ? 1 : 0);
+  else {
+    const before = repository.getEntry(workId, beforeEntryId);
+    if (!before || before.parentId !== parentId || before.section !== entry.section)
+      throw new Error('排序目标不存在或不属于目标目录');
+    position = before.position - (sameParent && entry.position < before.position ? 1 : 0);
+  }
+  if (sameParent && entry.position === position) return entry;
+  repository.relocateEntry(workId, entry, parentId, position);
+  return { ...entry, parentId, position };
+}
+
+export function saveDocument(repository: CreationRepository, input: SaveDocumentInput): Entry {
+  const current = readDocument(repository, input.workId, input.documentId);
+  if (current.revisionId !== input.expectedRevisionId)
+    throw new RevisionConflictError(input.expectedRevisionId, current.revisionId);
+  const { content: currentContent, ...metadata } = current;
+  if (metadata.title === input.title && metadata.format === input.format && currentContent === input.content)
+    return metadata;
+  const { content, ...saved } = {
+    ...current,
+    title: input.title,
+    format: input.format,
+    content: input.content,
+    wordCount: countDocumentWords(input.content),
+    revisionId: randomUUID(),
+    updatedAt: Date.now()
+  };
+  repository.updateDocument(
+    input.workId,
+    { ...saved, content },
+    revisionFor({ ...saved, content }, current.revisionId)
+  );
+  return saved;
+}
+
+export function saveParameters(input: Omit<SaveDocumentInput, 'commandId'>): readonly unknown[] {
+  return [
+    'saveDocument',
+    input.workId,
+    input.documentId,
+    input.expectedRevisionId,
+    input.title,
+    input.format,
+    input.content
+  ];
+}
+
+export function readEntrySnapshot(
+  repository: CreationRepository,
+  workId: string,
+  entryId: string
+): EntrySnapshot | null {
+  const entry = repository.getEntry(workId, entryId);
+  if (!entry) return null;
+  return { ...entry, content: entry.kind === 'document' ? readDocument(repository, workId, entryId).content : null };
+}
+
+export function readDocument(repository: CreationRepository, workId: string, documentId: string): Document {
+  const document = repository.getDocument(workId, documentId);
+  if (!document) throw new Error('文稿或资料不存在');
+  return document;
+}

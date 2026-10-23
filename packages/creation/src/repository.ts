@@ -8,7 +8,10 @@ import type {
   SearchDocumentsInput,
   DraftState,
   Entry,
+  EntrySnapshot,
   RecoveryDraft,
+  PendingChange,
+  DecideReviewInput,
   SessionAssignment,
   SessionSelection,
   SessionState,
@@ -21,6 +24,7 @@ import type {
 export type CommitEffect =
   | { kind: 'work' }
   | { kind: 'entry' }
+  | { kind: 'review' }
   | { kind: 'move'; from: { parentId: string | null; position: number } };
 
 export interface CommandCommit<T> {
@@ -32,7 +36,7 @@ export interface CommandCommit<T> {
 /** 业务所需的持久化操作；事务回调同步执行，修改与回执共用对应数据库事务。 */
 export interface CreationRepository {
   libraryTransaction<T>(apply: () => T): T;
-  command<T extends Work | Entry>(
+  command<T extends Work | Entry | PendingChange>(
     workId: string | null,
     commandId: string,
     parameters: readonly unknown[],
@@ -60,9 +64,16 @@ export interface CreationRepository {
   relocateEntry(workId: string, entry: Entry, parentId: string | null, position: number): void;
   listEntries(workId: string): Entry[];
   getDocument(workId: string, documentId: string): Document | undefined;
-  searchDocuments(input: SearchDocumentsInput): DocumentSearchPage;
+  searchDocuments(input: SearchDocumentsInput, candidates?: readonly EntrySnapshot[]): DocumentSearchPage;
   getRevision(workId: string, revisionId: string): Revision | undefined;
   getRevisionEntryId(workId: string, revisionId: string): string | undefined;
+
+  getPendingChange(id: string): PendingChange | undefined;
+  listPendingChanges(workId: string | null, sessionId: string | null): PendingChange[];
+  putPendingChange(change: PendingChange): void;
+  putReviewIntent(input: DecideReviewInput): void;
+  listReviewIntents(): DecideReviewInput[];
+  clearReviewIntent(commandId: string): void;
 
   getDraftState(workId: string, documentId: string): DraftState;
   putDraft(draft: RecoveryDraft): void;

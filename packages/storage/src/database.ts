@@ -31,6 +31,20 @@ export async function openLibrary(rootDir: string): Promise<Database.Database> {
       scopeId TEXT PRIMARY KEY,
       sessionId TEXT
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS review_intents (
+      commandId TEXT PRIMARY KEY,
+      input TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS pending_changes (
+      id TEXT PRIMARY KEY,
+      workId TEXT NOT NULL REFERENCES works(id),
+      sessionId TEXT NOT NULL,
+      entryId TEXT NOT NULL,
+      status TEXT NOT NULL,
+      value TEXT NOT NULL
+    ) STRICT;
+    CREATE UNIQUE INDEX IF NOT EXISTS pending_changes_target
+      ON pending_changes(workId, sessionId, entryId) WHERE status = 'pending';
     CREATE TABLE IF NOT EXISTS workbench_state (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       state TEXT NOT NULL

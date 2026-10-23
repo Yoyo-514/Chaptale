@@ -1,85 +1,22 @@
 import type { RpcClient, RpcCommand } from '@chaptale/contracts';
 
-/** 作品契约独立于 Node、SQLite、Electron 与 pi，可直接用于界面和传输。 */
-export interface Work {
-  id: string;
-  title: string;
-  kind: 'novel' | 'script';
-  createdAt: number;
-  updatedAt: number;
-}
+import type {
+  CreateEntryInput,
+  CreateWorkInput,
+  CreationReadCommands,
+  CreationResult,
+  Document,
+  Entry,
+  MoveEntryInput,
+  RenameDirectoryInput,
+  Revision,
+  SaveDocumentInput,
+  Work
+} from './contracts/content.ts';
+import type { PendingChange, ReviewCommands } from './contracts/review.ts';
 
-export interface Entry {
-  id: string;
-  parentId: string | null;
-  section: 'manuscript' | 'resource';
-  kind: 'directory' | 'document';
-  title: string;
-  position: number;
-  format: 'txt' | 'markdown' | null;
-  wordCount: number;
-  revisionId: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface Document extends Entry {
-  kind: 'document';
-  format: 'txt' | 'markdown';
-  content: string;
-}
-
-export interface Revision {
-  id: string;
-  entryId: string;
-  parentRevisionId: string | null;
-  source: 'author';
-  snapshot: Entry & { content: string | null };
-  createdAt: number;
-}
-
-export interface CreateWorkInput {
-  commandId: string;
-  title: string;
-  kind: Work['kind'];
-}
-
-export type CreateEntryInput = {
-  commandId: string;
-  workId: string;
-  parentId: string | null;
-  section: Entry['section'];
-  title: string;
-} & ({ kind: 'directory' } | { kind: 'document'; format: Document['format']; content: string });
-
-export interface RenameDirectoryInput {
-  commandId: string;
-  workId: string;
-  directoryId: string;
-  expectedRevisionId: string;
-  title: string;
-}
-
-export interface MoveEntryInput {
-  commandId: string;
-  workId: string;
-  entryId: string;
-  expectedParentId: string | null;
-  expectedPosition: number;
-  parentId: string | null;
-  /** 插到该同级条目前；null 表示移到末尾。 */
-  beforeEntryId: string | null;
-}
-
-export interface SaveDocumentInput {
-  commandId: string;
-  workId: string;
-  documentId: string;
-  expectedRevisionId: string;
-  title: string;
-  format: Document['format'];
-  content: string;
-}
+export type * from './contracts/content.ts';
+export type * from './contracts/review.ts';
 
 export interface RecoveryDraft extends Omit<SaveDocumentInput, 'commandId'> {
   /** 此快照正式保存时沿用该 ID 作为命令 ID。 */
@@ -91,7 +28,6 @@ export interface DraftState {
   version: string | null;
   draft: RecoveryDraft | null;
 }
-
 export type WriteDraftInput = Omit<RecoveryDraft, 'id' | 'updatedAt'> & {
   draftId: string;
   expectedDraftVersion: string | null;
@@ -103,56 +39,45 @@ export interface CreationCursor {
   sequence: number;
   token: string | null;
 }
-
 export type CreationSnapshot =
   | { kind: 'library'; cursor: CreationCursor; works: Work[] }
   | { kind: 'work'; workId: string; cursor: CreationCursor; entries: Entry[] };
-
 export type CreationChange =
   | { kind: 'work'; work: Work }
+  | { kind: 'review'; change: PendingChange }
   | { kind: 'entry'; entry: Entry }
   | { kind: 'move'; entry: Entry; from: { parentId: string | null; position: number } };
-
 export interface CreationEvent {
   cursor: CreationCursor;
   commandId: string;
   committedAt: number;
   change: CreationChange;
 }
-
 export type CreationChanges =
   | { kind: 'changes'; cursor: CreationCursor; events: CreationEvent[]; hasMore: boolean }
   | { kind: 'snapshot-required' };
-
-export type CreationResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: CreationError | { code: 'invalid-request' | 'failed'; message: string } };
 
 export type ImportSource = {
   sourcePath: string;
   parentIndex: number | null;
   title: string;
 } & ({ kind: 'directory'; format: null } | { kind: 'document'; format: Document['format'] });
-
 /** 预览确定本次导入的范围和顺序；重试沿用同一计划及命令身份。 */
 export interface ImportPlan {
   commandId: string;
   entries: ImportSource[];
   skippedPaths: string[];
 }
-
 export interface ImportFilesInput extends ImportPlan {
   workId: string;
   parentId: string | null;
   section: Entry['section'];
 }
-
 /** 按条目提交，失败时明确返回已完成项；原计划可继续重试。 */
 export interface ImportReport {
   entries: Entry[];
   failure: { index: number; message: string } | null;
 }
-
 export interface ExportFilesInput {
   workId: string;
   directory: string;
@@ -161,7 +86,6 @@ export interface ExportFilesInput {
     | { kind: 'manuscript'; format: Document['format'] }
     | { kind: 'book' };
 }
-
 export interface ExportReport {
   paths: string[];
   failure: { documentId: string | null; message: string } | null;
@@ -174,13 +98,11 @@ export interface DocumentPosition {
   scrollTop: number;
   scrollLeft: number;
 }
-
 export interface TreeState {
   expandedIds: string[];
   selectedId: string | null;
   scrollTop: number;
 }
-
 export interface WorkViewState {
   workId: string;
   tabs: (DocumentPosition & { documentId: string })[];
@@ -190,12 +112,10 @@ export interface WorkViewState {
   manuscript: TreeState;
   resource: TreeState;
 }
-
 export interface WorkbenchState {
   activeWorkId: string | null;
   works: WorkViewState[];
 }
-
 /** 会话正文与运行状态由 pi 持有；这里只记录固定归属和本机查看位置。 */
 export interface SessionAssignment {
   sessionId: string;
@@ -210,24 +130,7 @@ export interface SessionState {
   selections: SessionSelection[];
 }
 
-/** 检索只返回正式条目元数据；正文按文档身份和修订另行读取。 */
-export interface SearchDocumentsInput {
-  workId: string;
-  query: string;
-  section?: Entry['section'];
-  offset: number;
-  limit: number;
-}
-
-export interface DocumentSearchPage {
-  entries: Entry[];
-  hasMore: boolean;
-}
-
-export interface CreationAuthorCommands {
-  listWorks: { input: Record<string, never>; output: CreationResult<Work[]> };
-  listEntries: { input: { workId: string }; output: CreationResult<Entry[]> };
-  searchDocuments: { input: SearchDocumentsInput; output: CreationResult<DocumentSearchPage> };
+export interface CreationAuthorCommands extends CreationReadCommands, ReviewCommands {
   readSessionState: { input: Record<string, never>; output: CreationResult<SessionState> };
   assignSession: { input: SessionAssignment; output: CreationResult<SessionState> };
   selectSession: { input: SessionSelection; output: CreationResult<SessionState> };
@@ -236,7 +139,6 @@ export interface CreationAuthorCommands {
   createWork: { input: CreateWorkInput; output: CreationResult<Work> };
   createEntry: { input: CreateEntryInput; output: CreationResult<Entry> };
   saveDocument: { input: SaveDocumentInput; output: CreationResult<Entry> };
-  readDocument: { input: { workId: string; documentId: string }; output: CreationResult<Document> };
   renameDirectory: { input: RenameDirectoryInput; output: CreationResult<Entry> };
   moveEntry: { input: MoveEntryInput; output: CreationResult<Entry> };
   writeDraft: { input: WriteDraftInput; output: CreationResult<DraftState> };
@@ -251,12 +153,6 @@ export interface CreationCommands extends CreationAuthorCommands {
   importFiles: { input: ImportFilesInput; output: CreationResult<ImportReport> };
   exportFiles: { input: ExportFilesInput; output: CreationResult<ExportReport> };
 }
-
 export type CreationAuthorCommand = RpcCommand<CreationAuthorCommands>;
 export type CreationCommand = RpcCommand<CreationCommands>;
 export type CreationClient = RpcClient<CreationCommands, CreationEvent>;
-
-export type CreationError =
-  | { code: 'revision-conflict'; message: string; expectedRevisionId: string; actualRevisionId: string }
-  | { code: 'draft-conflict'; message: string; actualVersion: string | null }
-  | { code: 'entry-location-conflict'; message: string; actualParentId: string | null; actualPosition: number };

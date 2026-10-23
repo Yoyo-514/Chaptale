@@ -10,7 +10,10 @@ import type {
   SearchDocumentsInput,
   DraftState,
   Entry,
+  EntrySnapshot,
   RecoveryDraft,
+  PendingChange,
+  DecideReviewInput,
   SessionAssignment,
   SessionSelection,
   SessionState,
@@ -21,7 +24,9 @@ import type {
 
 import { commitCommand, readChanges, readCommandReceipt, readCursor } from './commands.ts';
 import { openLibrary, openWorkDatabase } from './database.ts';
-import { indexDocument, searchDocuments } from './search.ts';
+import * as entries from './entries.ts';
+import * as reviews from './reviews.ts';
+import { searchDocuments } from './search.ts';
 
 export async function openCreationStorage(options: { rootDir: string }): Promise<CreationRepository> {
   return new SqliteCreationRepository(options.rootDir, await openLibrary(options.rootDir));
@@ -41,7 +46,7 @@ class SqliteCreationRepository implements CreationRepository {
     return this.library.transaction(apply)();
   }
 
-  command<T extends Work | Entry>(
+  command<T extends Work | Entry | PendingChange>(
     workId: string | null,
     commandId: string,
     parameters: readonly unknown[],
@@ -148,98 +153,56 @@ class SqliteCreationRepository implements CreationRepository {
   }
 
   getEntry(workId: string, entryId: string): Entry | undefined {
-    return this.useWork(workId)
-      .prepare(`
-      SELECT id, parentId, section, kind, title, position, format, wordCount, revisionId, createdAt, updatedAt
-      FROM entries WHERE id = ?
-    `)
-      .get(entryId) as Entry | undefined;
+    return entries.getEntry(this.useWork(workId), entryId);
   }
-
   nextPosition(workId: string, section: Entry['section'], parentId: string | null): number {
-    const row = this.useWork(workId)
-      .prepare('SELECT coalesce(max(position) + 1, 0) AS position FROM entries WHERE section = ? AND parentId IS ?')
-      .get(section, parentId) as { position: number };
-    return row.position;
+    return entries.nextPosition(this.useWork(workId), section, parentId);
   }
-
   insertEntry(workId: string, snapshot: Revision['snapshot'], revision: Revision): void {
-    const database = this.useWork(workId);
-    database
-      .prepare(`
-      INSERT INTO entries (id, parentId, section, kind, title, position, format, content, wordCount, revisionId, createdAt, updatedAt)
-      VALUES (@id, @parentId, @section, @kind, @title, @position, @format, @content, @wordCount, @revisionId, @createdAt, @updatedAt)
-    `)
-      .run(snapshot);
-    this.insertRevision(database, revision);
-    indexDocument(database, snapshot);
+    entries.insertEntry(this.useWork(workId), snapshot, revision);
   }
-
   updateDocument(workId: string, document: Document, revision: Revision): void {
-    const database = this.useWork(workId);
-    database
-      .prepare(`
-      UPDATE entries SET title = @title, format = @format, content = @content, wordCount = @wordCount,
-        revisionId = @revisionId, updatedAt = @updatedAt WHERE id = @id
-    `)
-      .run(document);
-    this.insertRevision(database, revision);
-    indexDocument(database, document);
+    entries.updateDocument(this.useWork(workId), document, revision);
   }
-
   updateDirectory(workId: string, entry: Entry, revision: Revision): void {
-    const database = this.useWork(workId);
-    database
-      .prepare('UPDATE entries SET title = @title, revisionId = @revisionId, updatedAt = @updatedAt WHERE id = @id')
-      .run(entry);
-    this.insertRevision(database, revision);
+    entries.updateDirectory(this.useWork(workId), entry, revision);
   }
-
   relocateEntry(workId: string, entry: Entry, parentId: string | null, position: number): void {
-    const database = this.useWork(workId);
-    database
-      .prepare('UPDATE entries SET position = position - 1 WHERE section = ? AND parentId IS ? AND position > ?')
-      .run(entry.section, entry.parentId, entry.position);
-    database
-      .prepare(
-        'UPDATE entries SET position = position + 1 WHERE section = ? AND parentId IS ? AND position >= ? AND id != ?'
-      )
-      .run(entry.section, parentId, position, entry.id);
-    database.prepare('UPDATE entries SET parentId = ?, position = ? WHERE id = ?').run(parentId, position, entry.id);
+    entries.relocateEntry(this.useWork(workId), entry, parentId, position);
   }
-
   listEntries(workId: string): Entry[] {
-    return this.useWork(workId)
-      .prepare(`
-      SELECT id, parentId, section, kind, title, position, format, wordCount, revisionId, createdAt, updatedAt
-      FROM entries ORDER BY section, parentId, position, id
-    `)
-      .all() as Entry[];
+    return entries.listEntries(this.useWork(workId));
   }
-
   getDocument(workId: string, documentId: string): Document | undefined {
-    return this.useWork(workId).prepare("SELECT * FROM entries WHERE id = ? AND kind = 'document'").get(documentId) as
-      | Document
-      | undefined;
+    return entries.getDocument(this.useWork(workId), documentId);
   }
-
-  searchDocuments(input: SearchDocumentsInput): DocumentSearchPage {
-    return searchDocuments(this.useWork(input.workId), input);
+  searchDocuments(input: SearchDocumentsInput, candidates?: readonly EntrySnapshot[]): DocumentSearchPage {
+    return searchDocuments(this.useWork(input.workId), input, candidates);
   }
-
   getRevision(workId: string, revisionId: string): Revision | undefined {
-    const row = this.useWork(workId)
-      .prepare('SELECT id, entryId, parentRevisionId, source, snapshot, createdAt FROM revisions WHERE id = ?')
-      .get(revisionId) as (Omit<Revision, 'snapshot'> & { snapshot: string }) | undefined;
-    if (!row) return undefined;
-    return { ...row, snapshot: JSON.parse(row.snapshot) as Revision['snapshot'] };
+    return entries.getRevision(this.useWork(workId), revisionId);
+  }
+  getRevisionEntryId(workId: string, revisionId: string): string | undefined {
+    return entries.getRevisionEntryId(this.useWork(workId), revisionId);
   }
 
-  getRevisionEntryId(workId: string, revisionId: string): string | undefined {
-    const row = this.useWork(workId).prepare('SELECT entryId FROM revisions WHERE id = ?').get(revisionId) as
-      | { entryId: string }
-      | undefined;
-    return row?.entryId;
+  getPendingChange(id: string): PendingChange | undefined {
+    return reviews.readPendingChange(this.library, id);
+  }
+  listPendingChanges(workId: string | null, sessionId: string | null): PendingChange[] {
+    return reviews.listPendingChanges(this.library, workId, sessionId);
+  }
+  putPendingChange(change: PendingChange): void {
+    reviews.putPendingChange(this.library, change);
+  }
+  putReviewIntent(input: DecideReviewInput): void {
+    reviews.putReviewIntent(this.library, input);
+  }
+  listReviewIntents(): DecideReviewInput[] {
+    return reviews.listReviewIntents(this.library);
+  }
+  clearReviewIntent(commandId: string): void {
+    reviews.clearReviewIntent(this.library, commandId);
   }
 
   getDraftState(workId: string, documentId: string): DraftState {
@@ -269,21 +232,6 @@ class SqliteCreationRepository implements CreationRepository {
   close(): void {
     this.work?.database.close();
     this.library.close();
-  }
-
-  private insertRevision(database: Database.Database, revision: Revision): void {
-    database
-      .prepare(
-        'INSERT INTO revisions (id, entryId, parentRevisionId, source, snapshot, createdAt) VALUES (?, ?, ?, ?, ?, ?)'
-      )
-      .run(
-        revision.id,
-        revision.entryId,
-        revision.parentRevisionId,
-        revision.source,
-        JSON.stringify(revision.snapshot),
-        revision.createdAt
-      );
   }
 
   private useWork(workId: string): Database.Database {

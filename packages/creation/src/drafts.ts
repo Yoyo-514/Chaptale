@@ -1,8 +1,13 @@
-import type { DraftState, RecoveryDraft, WriteDraftInput } from './contracts.ts';
+import { saveParameters } from './content/mutations.ts';
+import type { DraftState, Entry, RecoveryDraft, WriteDraftInput } from './contracts.ts';
 import { DraftConflictError } from './errors.ts';
 import type { CreationRepository } from './repository.ts';
 
 export function writeDraft(repository: CreationRepository, input: WriteDraftInput): DraftState {
+  assertDocument(repository, input.workId, input.documentId);
+  const entryId = repository.getRevisionEntryId(input.workId, input.expectedRevisionId);
+  if (entryId === undefined) throw new Error('修订不存在');
+  if (entryId !== input.documentId) throw new Error('恢复草稿的基线不属于当前文档');
   return repository.libraryTransaction(() => {
     const current = repository.getDraftState(input.workId, input.documentId);
     if (current.version === input.draftId) {
@@ -40,10 +45,29 @@ export function discardDraft(
   documentId: string,
   version: string
 ): DraftState {
+  assertDocument(repository, workId, documentId);
   return repository.libraryTransaction(() => {
     const current = repository.getDraftState(workId, documentId);
     if (current.version !== version) throw new DraftConflictError(current.version);
     repository.clearDraft(workId, documentId, version);
     return { version, draft: null };
   });
+}
+
+export function readDraftState(repository: CreationRepository, workId: string, documentId: string): DraftState {
+  assertDocument(repository, workId, documentId);
+  return repository.libraryTransaction(() => {
+    const state = repository.getDraftState(workId, documentId);
+    if (
+      !state.draft ||
+      repository.readWorkReceipt<Entry>(workId, state.draft.id, saveParameters(state.draft)) === undefined
+    )
+      return state;
+    repository.clearDraft(workId, documentId, state.draft.id);
+    return { version: state.version, draft: null };
+  });
+}
+function assertDocument(repository: CreationRepository, workId: string, documentId: string): void {
+  const entry = repository.getEntry(workId, documentId);
+  if (!entry || entry.kind !== 'document') throw new Error('文稿或资料不存在');
 }
