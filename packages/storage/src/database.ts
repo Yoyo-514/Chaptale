@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { receiptSchema } from './commands';
+import { openSearchIndex } from './search.ts';
 
 export async function openLibrary(rootDir: string): Promise<Database.Database> {
   await mkdir(path.join(rootDir, 'works'), { recursive: true });
@@ -68,5 +69,6 @@ export function openWorkDatabase(rootDir: string, workId: string): Database.Data
     ) STRICT;
   `);
   database.exec(receiptSchema);
+  openSearchIndex(database);
   return database;
 }

@@ -6,6 +6,8 @@ import type {
   CreationCursor,
   CreationSnapshot,
   Document,
+  DocumentSearchPage,
+  SearchDocumentsInput,
   DraftState,
   Entry,
   RecoveryDraft,
@@ -19,6 +21,7 @@ import type {
 
 import { commitCommand, readChanges, readCommandReceipt, readCursor } from './commands.ts';
 import { openLibrary, openWorkDatabase } from './database.ts';
+import { indexDocument, searchDocuments } from './search.ts';
 
 export async function openCreationStorage(options: { rootDir: string }): Promise<CreationRepository> {
   return new SqliteCreationRepository(options.rootDir, await openLibrary(options.rootDir));
@@ -169,6 +172,7 @@ class SqliteCreationRepository implements CreationRepository {
     `)
       .run(snapshot);
     this.insertRevision(database, revision);
+    indexDocument(database, snapshot);
   }
 
   updateDocument(workId: string, document: Document, revision: Revision): void {
@@ -180,6 +184,7 @@ class SqliteCreationRepository implements CreationRepository {
     `)
       .run(document);
     this.insertRevision(database, revision);
+    indexDocument(database, document);
   }
 
   updateDirectory(workId: string, entry: Entry, revision: Revision): void {
@@ -216,6 +221,10 @@ class SqliteCreationRepository implements CreationRepository {
     return this.useWork(workId).prepare("SELECT * FROM entries WHERE id = ? AND kind = 'document'").get(documentId) as
       | Document
       | undefined;
+  }
+
+  searchDocuments(input: SearchDocumentsInput): DocumentSearchPage {
+    return searchDocuments(this.useWork(input.workId), input);
   }
 
   getRevision(workId: string, revisionId: string): Revision | undefined {

@@ -210,7 +210,24 @@ export interface SessionState {
   selections: SessionSelection[];
 }
 
+/** 检索只返回正式条目元数据；正文按文档身份和修订另行读取。 */
+export interface SearchDocumentsInput {
+  workId: string;
+  query: string;
+  section?: Entry['section'];
+  offset: number;
+  limit: number;
+}
+
+export interface DocumentSearchPage {
+  entries: Entry[];
+  hasMore: boolean;
+}
+
 export interface CreationAuthorCommands {
+  listWorks: { input: Record<string, never>; output: CreationResult<Work[]> };
+  listEntries: { input: { workId: string }; output: CreationResult<Entry[]> };
+  searchDocuments: { input: SearchDocumentsInput; output: CreationResult<DocumentSearchPage> };
   readSessionState: { input: Record<string, never>; output: CreationResult<SessionState> };
   assignSession: { input: SessionAssignment; output: CreationResult<SessionState> };
   selectSession: { input: SessionSelection; output: CreationResult<SessionState> };

@@ -31,6 +31,7 @@ catalog:
   '@types/better-sqlite3': ^9.6.0
   atomically: ^2.1.1
   better-sqlite3: ^13.0.3
+  '@node-rs/jieba': ^2.0.1
   '@playwright/test': ^1.64.1
   '@vitest/coverage-v8': ^5.0.5
   '@vue/test-utils': ^2.5.1

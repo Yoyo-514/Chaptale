@@ -4,6 +4,8 @@ import type {
   CreationEvent,
   CreationSnapshot,
   Document,
+  DocumentSearchPage,
+  SearchDocumentsInput,
   DraftState,
   Entry,
   RecoveryDraft,
@@ -58,6 +60,7 @@ export interface CreationRepository {
   relocateEntry(workId: string, entry: Entry, parentId: string | null, position: number): void;
   listEntries(workId: string): Entry[];
   getDocument(workId: string, documentId: string): Document | undefined;
+  searchDocuments(input: SearchDocumentsInput): DocumentSearchPage;
   getRevision(workId: string, revisionId: string): Revision | undefined;
   getRevisionEntryId(workId: string, revisionId: string): string | undefined;
 

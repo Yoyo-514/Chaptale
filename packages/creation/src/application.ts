@@ -44,6 +44,15 @@ const workbenchState = object({
   )
 });
 const inputs = {
+  listWorks: object({}),
+  listEntries: object({ workId: id }),
+  searchDocuments: object({
+    workId: id,
+    query: Type.String({ minLength: 1, pattern: '\\S' }),
+    section: Type.Optional(entryInput.section),
+    offset,
+    limit: Type.Integer({ minimum: 1 })
+  }),
   readSessionState: object({}),
   assignSession: object({ sessionId: id, workId: id }),
   selectSession: object({ sessionId: parentId, workId: parentId }),
@@ -138,6 +147,12 @@ export class CreationApplication {
 
   private executeBusiness(command: CreationAuthorCommand): AuthorValue {
     switch (command.method) {
+      case 'listWorks':
+        return this.service.listWorks();
+      case 'listEntries':
+        return this.service.listEntries(command.input.workId);
+      case 'searchDocuments':
+        return this.service.searchDocuments(command.input);
       case 'readSessionState':
         return this.service.readSessionState();
       case 'assignSession':

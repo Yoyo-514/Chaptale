@@ -8,6 +8,8 @@ import type {
   CreationEvent,
   CreationSnapshot,
   Document,
+  DocumentSearchPage,
+  SearchDocumentsInput,
   DraftState,
   Entry,
   MoveEntryInput,
@@ -220,6 +222,10 @@ export class CreationService {
 
   listEntries(workId: string): Entry[] {
     return this.repository.listEntries(workId);
+  }
+
+  searchDocuments(input: SearchDocumentsInput): DocumentSearchPage {
+    return this.repository.searchDocuments(input);
   }
 
   readDocument(workId: string, documentId: string): Document {
