@@ -9,6 +9,7 @@ import {
   modeEntryType,
   type SessionView
 } from '../protocol.ts';
+import { workWriteToolNames } from './creation-tools.ts';
 import { messageView, transcriptView } from './message-view.ts';
 
 /** 当前请求使用的指令；创建会话前交给 SDK 回调，之后在每次发送前更新。 */
@@ -55,6 +56,7 @@ export class LiveSession {
       messages: transcriptView(session.sessionManager)
     };
     this.view.usage = this.usage();
+    this.syncWorkTools();
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
   }
 
@@ -78,6 +80,8 @@ export class LiveSession {
         if (this.applied.entries !== view.instructions) {
           this.applied.entries = view.instructions;
           await this.session.reload();
+          // SDK 重载会重新激活已注册工具，按重载结束时的模式恢复作品工具集合。
+          this.syncWorkTools();
         }
         if (!this.cancelled) await this.session.prompt(text);
       } catch {
@@ -144,7 +148,21 @@ export class LiveSession {
   setMode(mode: EditMode): void {
     this.session.sessionManager.appendCustomEntry(modeEntryType, { mode });
     this.view.mode = mode;
+    this.syncWorkTools();
     this.emit({ kind: 'session', session: this.view });
+  }
+
+  private syncWorkTools(): void {
+    const names = this.session.getActiveToolNames().filter(name => !workWriteToolNames.has(name));
+    if (this.view.mode !== 'discuss') {
+      names.push(
+        ...this.session
+          .getAllTools()
+          .filter(tool => workWriteToolNames.has(tool.name))
+          .map(tool => tool.name)
+      );
+    }
+    this.session.setActiveToolsByName(names);
   }
 
   async setModel(model: Parameters<AgentSession['setModel']>[0]): Promise<void> {

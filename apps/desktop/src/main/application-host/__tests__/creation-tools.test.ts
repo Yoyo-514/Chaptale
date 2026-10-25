@@ -1,11 +1,14 @@
 import { runToolCall } from '@earendil-works/pi-agent-core';
+import { defineTool, type ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Type } from 'typebox';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
-import { createHostApplication, type HostApplication } from '@chaptale/agent-host/application';
+import { builtinWritingInstructions, createHostModelRuntime, HostModelConfiguration } from '@chaptale/agent-host';
+import { createHostApplication, HostApplication } from '@chaptale/agent-host/application';
 import { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult } from '@chaptale/creation/contracts';
 import { openCreationStorage } from '@chaptale/storage';
@@ -78,7 +81,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-// 固定工具协议输入，经真实 SDK 工具管线执行，不请求模型或伪造回复。
+// 固定工具协议输入写入 SDK 公共消息状态，供嵌套调用定位发起者；不请求模型。
 function call(
   name: string,
   input: Parameters<typeof runToolCall>[0]['arguments'],
@@ -104,6 +107,7 @@ function call(
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
     }
   };
+  session.agent.state.messages = [...session.agent.state.messages, assistant];
   return runToolCall(assistant.content[0], {
     assistantMessage: assistant,
     context: { messages: session.agent.state.messages, tools: session.agent.state.tools },
@@ -112,6 +116,28 @@ function call(
     afterToolCall: session.agent.afterToolCall,
     signal
   });
+}
+
+async function restartWithTools(tools: ToolDefinition[]) {
+  await host.dispose();
+  const configDir = join(root, 'config');
+  const runtime = await createHostModelRuntime({ configDir });
+  host = await HostApplication.create({
+    cwd: join(root, 'work'),
+    agentDir: join(root, 'agent'),
+    sessionDir: join(root, 'sessions'),
+    settingsFile: join(configDir, 'settings.json'),
+    builtinInstructions: builtinWritingInstructions,
+    modelRuntime: runtime,
+    modelConfiguration: new HostModelConfiguration(configDir, runtime),
+    creation,
+    tools: () => tools
+  });
+  id = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' } }
+  })) as string;
+  return runtime;
 }
 
 function read() {
@@ -401,8 +427,217 @@ it('中文全文检索使用本会话候选并保留分页与分区，其他会�
   ).toMatchObject({ ok: true, value: { entries: [{ entryId: documentId, revisionId }] } });
 });
 
-it('讨论模式实际阻止各类作品写入并保留读取，切回审阅后写入候选', async () => {
+it('切到讨论时，已经取得旧工具集合的写调用仍按执行时模式拒绝', async () => {
+  const writing = call('work_write', {
+    workId,
+    entryId: documentId,
+    expectedRevisionId: revisionId,
+    content: '迟到的改稿'
+  });
   await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
+  const result = await writing;
+  expect(result.isError).toBe(true);
+  expect(result.result.structuredContent).toMatchObject({ ok: false });
+  expect(read().revisionId).toBe(revisionId);
+  expect(pending()).toEqual([]);
+});
+
+it('运行中的父工具按切换后的 callable 集合嵌套调用，讨论可读，恢复审阅后可写', async () => {
+  const entered = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  const parent = defineTool({
+    name: 'nested_work',
+    label: '嵌套作品调用',
+    description: '经真实 SDK 上下文调用作品工具。',
+    parameters: Type.Object({ tool: Type.Union([Type.Literal('work_read'), Type.Literal('work_write')]) }),
+    async execute(_callId, input, signal, _onUpdate, ctx) {
+      entered.resolve();
+      await resume.promise;
+      signal?.throwIfAborted();
+      const result = await ctx.executeTool(
+        input.tool,
+        input.tool === 'work_read'
+          ? { workId, entryId: documentId }
+          : { workId, entryId: documentId, expectedRevisionId: revisionId, content: '嵌套改稿' }
+      );
+      return { ...result.result, isError: result.isError };
+    }
+  });
+  await restartWithTools([parent]);
+  async function approve() {
+    await expect.poll(() => host.snapshot().approvals).toHaveLength(1);
+    const request = host.snapshot().approvals[0];
+    expect(request.toolName).toBe('nested_work');
+    await host.execute({ method: 'approve', input: { id: request.id, allow: true } });
+  }
+
+  const writing = call('nested_work', { tool: 'work_write' });
+  await approve();
+  await entered.promise;
+  await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
+  resume.resolve();
+  expect((await writing).isError).toBe(true);
+  const session = host.liveSession(id)!;
+  expect(session.getActiveToolNames()).not.toContain('work_write');
+  expect(session.getCallableToolNames()).not.toContain('work_write');
+  expect(read().revisionId).toBe(revisionId);
+  expect(pending()).toEqual([]);
+
+  const reading = call('nested_work', { tool: 'work_read' });
+  await approve();
+  const readResult = await reading;
+  expect(readResult.isError, JSON.stringify(readResult.result)).toBe(false);
+  expect(readResult.result.structuredContent).toMatchObject({ ok: true, value: { content: read().content } });
+  await host.execute({ method: 'mode', input: { id, mode: 'review' } });
+  const restored = call('nested_work', { tool: 'work_write' });
+  await approve();
+  expect((await restored).isError).toBe(false);
+  expect(pending()).toMatchObject([{ sessionId: id, candidate: { content: '嵌套改稿' } }]);
+  expect(read().revisionId).toBe(revisionId);
+});
+
+it('讨论模式修改指令重载后，模型请求仍只有作品读工具', async () => {
+  const runtime = await restartWithTools([]);
+  let declared: string[] | undefined;
+  runtime.registerProvider('offline-tools', {
+    baseUrl: 'http://127.0.0.1:9',
+    apiKey: 'offline-test-only',
+    api: 'offline-tool-loadout',
+    models: [
+      {
+        id: 'offline',
+        name: '离线工具声明检查',
+        contextWindow: 8192,
+        maxTokens: 128,
+        reasoning: false,
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+      }
+    ],
+    // 只观察 SDK 首次请求中的工具声明并在传输边界结束，不联网或生成模型回复。
+    streamSimple: (_model, context) => {
+      declared = context.messages.flatMap(message =>
+        message.role === 'system' ? (message.toolsAdded ?? []).map(tool => tool.name) : []
+      );
+      throw new Error('离线工具声明检查结束');
+    }
+  });
+  await host.execute({ method: 'model', input: { id, model: { provider: 'offline-tools', id: 'offline' } } });
+  await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
+  await host.execute({
+    method: 'instructions',
+    input: { id, entries: [{ name: '主创', role: 'system', text: '查阅作品并讨论，不改写作品。', enabled: true }] }
+  });
+  await host.execute({ method: 'prompt', input: { id, text: '查阅序章' } });
+  await expect.poll(() => host.snapshot().sessions.find(view => view.id === id)?.running).toBe(false);
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
+  expect(declared?.filter(name => name.startsWith('work_')).sort()).toEqual(reads);
+  const session = host.liveSession(id)!;
+  expect(
+    session
+      .getActiveToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(reads);
+  expect(
+    session
+      .getCallableToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(reads);
+  expect(session.agent.state.messages.at(-1)).toMatchObject({
+    stopReason: 'error',
+    errorMessage: '离线工具声明检查结束'
+  });
+  expect(read().revisionId).toBe(revisionId);
+  expect(pending()).toEqual([]);
+});
+
+it('讨论模式的新会话与历史重开保持只读工具集合，切回直接修改后生成正式修订', async () => {
+  const existing = host.liveSession(id)!;
+  await host.execute({ method: 'defaultMode', input: { mode: 'discuss' } });
+  id = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' } }
+  })) as string;
+  const session = host.liveSession(id)!;
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
+  expect(
+    session
+      .getActiveToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(reads);
+  expect(
+    session
+      .getCallableToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(reads);
+  expect(existing.getActiveToolNames()).toContain('work_write');
+
+  session.sessionManager.appendMessage({ role: 'user', content: '查阅长夜行的序章', timestamp: Date.now() });
+  const file = session.sessionFile!;
+  const cwd = session.sessionManager.getCwd();
+  await host.execute({ method: 'close', input: { id } });
+  await host.execute({ method: 'defaultMode', input: { mode: 'direct' } });
+  id = (await host.execute({ method: 'open', input: { file, cwd } })) as string;
+  const reopened = host.liveSession(id)!;
+  expect(host.snapshot().sessions.find(view => view.id === id)?.mode).toBe('discuss');
+  expect(
+    reopened
+      .getActiveToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(reads);
+  expect(
+    reopened
+      .getCallableToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(reads);
+  expect((await call('work_read', { workId, entryId: documentId })).isError).toBe(false);
+
+  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
+  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv'].sort();
+  expect(
+    reopened
+      .getActiveToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(enabled);
+  expect(
+    reopened
+      .getCallableToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(enabled);
+  expect(
+    (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '正式改稿' }))
+      .isError
+  ).toBe(false);
+  expect(read().content).toBe('正式改稿');
+  expect(pending()).toEqual([]);
+});
+
+it('讨论模式移除可见及可调用的作品写工具，保留读取与文件工具，切回审阅后写入候选', async () => {
+  const session = host.liveSession(id)!;
+  const fileTools = session.getActiveToolNames().filter(name => !name.startsWith('work_'));
+  await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
+  expect(
+    session
+      .getActiveToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(reads);
+  expect(
+    session
+      .getCallableToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(reads);
+  expect(session.getActiveToolNames().filter(name => !name.startsWith('work_'))).toEqual(fileTools);
   const writes: Array<[string, Parameters<typeof runToolCall>[0]['arguments']]> = [
     ['work_edit', { workId, entryId: documentId, expectedRevisionId: revisionId, oldText: '守城', newText: '出城' }],
     ['work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '改稿' }],
@@ -419,6 +654,20 @@ it('讨论模式实际阻止各类作品写入并保留读取，切回审阅后�
   expect(read().revisionId).toBe(revisionId);
   expect(pending()).toEqual([]);
   await host.execute({ method: 'mode', input: { id, mode: 'review' } });
+  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv'].sort();
+  expect(
+    session
+      .getActiveToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(enabled);
+  expect(
+    session
+      .getCallableToolNames()
+      .filter(name => name.startsWith('work_'))
+      .sort()
+  ).toEqual(enabled);
+  expect(session.getActiveToolNames().filter(name => !name.startsWith('work_'))).toEqual(fileTools);
   expect((await call(writes[0][0], writes[0][1])).isError).toBe(false);
   expect(pending()).toHaveLength(1);
 });
