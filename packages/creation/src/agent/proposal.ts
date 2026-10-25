@@ -47,13 +47,13 @@ export function proposeEntry(
     candidate = { ...snapshot };
     if ('expectedRevisionId' in command.input && snapshot.revisionId !== command.input.expectedRevisionId)
       throw new RevisionConflictError(command.input.expectedRevisionId, snapshot.revisionId);
-    if (command.method === 'writeDocument') {
+    if (command.method === 'writeDocument' || command.method === 'writeContent') {
       if (snapshot.kind !== 'document') throw new Error('文稿或资料不存在');
-      Object.assign(candidate, {
-        title: command.input.title,
-        format: command.input.format,
-        content: command.input.content
-      });
+      candidate.content = command.input.content;
+      if (command.method === 'writeDocument') {
+        candidate.title = command.input.title;
+        candidate.format = command.input.format;
+      }
     } else if (command.method === 'editDocument') {
       if (snapshot.content === null) throw new Error('文稿或资料不存在');
       const { oldText, newText } = command.input;

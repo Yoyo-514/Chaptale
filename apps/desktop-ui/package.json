@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b tsconfig.json && vite build",
-    "typecheck": "vue-tsc -b tsconfig.json",
+    "build": "golar tsc -b tsconfig.json && vite build",
+    "typecheck": "golar tsc -b tsconfig.json",
     "preview": "vite preview",
     "test": "cd ../.. && vitest run --config vitest.config.ts --project ui",
     "test:watch": "cd ../.. && vitest --config vitest.config.ts --project ui"
@@ -35,16 +35,16 @@
     "@chaptale/storage": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
+    "@golar/vue": "catalog:",
     "@iconify-json/mingcute": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "@vue/test-utils": "catalog:",
-    "@vue/typescript-plugin": "catalog:",
+    "golar": "catalog:",
     "happy-dom": "catalog:",
     "sass": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:",
-    "vue-tsc": "catalog:"
+    "vitest": "catalog:"
   }
 }

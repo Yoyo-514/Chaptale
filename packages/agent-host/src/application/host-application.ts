@@ -1,6 +1,8 @@
 import { type ModelRuntime, SessionManager, type ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { randomUUID } from 'node:crypto';
 
+import type { CreationApplication } from '@chaptale/creation/application';
+
 import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
 import {
   type AgentInstructions,
@@ -19,6 +21,7 @@ import { HostSessionPool } from '../session/session-pool.ts';
 import { HostSessionOpenError } from '../session/session-storage.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
 import { ToolApprovals } from './approvals.ts';
+import { createWorkTools, workToolNames } from './creation-tools.ts';
 import { damagedHistory, sessionHistory, type SessionHistory } from './history.ts';
 import { type AppliedInstructions, instructionCallbacks, LiveSession } from './live-session.ts';
 
@@ -33,6 +36,8 @@ export interface HostApplicationOptions {
   modelRuntime: ModelRuntime;
   modelConfiguration: HostModelConfiguration;
   tools: (cwd: string) => ToolDefinition[];
+  /** 作品应用与 Agent 共用宿主，直接注入既有应用入口。 */
+  creation?: CreationApplication;
 }
 
 /** 已打开的会话；只读历史只有视图，没有可继续的会话。 */
@@ -90,7 +95,7 @@ export class HostApplication {
       sessions: [...this.sessions.values()].map(({ view }) => view),
       approvals: this.approvals.list(),
       cwd: this.options.cwd,
-      tools: this.options.tools(this.options.cwd).map(tool => tool.name)
+      tools: this.tools(this.options.cwd).map(tool => tool.name)
     });
   }
 
@@ -201,11 +206,23 @@ export class HostApplication {
     return this.attach({ view: live.view, live });
   }
 
+  private tools(cwd: string): ToolDefinition[] {
+    const tools = [...this.options.tools(cwd)];
+    if (this.options.creation) tools.push(...createWorkTools(this.options.creation, id => this.live(id).view.mode!));
+    return tools;
+  }
+
   private sessionInput(applied: AppliedInstructions, cwd: string) {
     return {
       cwd,
       ...instructionCallbacks(applied),
-      toolAccess: { tools: this.options.tools(cwd), authorize: this.approvals.authorize }
+      toolAccess: {
+        tools: this.tools(cwd),
+        authorize: (request: Parameters<ToolApprovals['authorize']>[0], signal: AbortSignal | undefined) =>
+          this.options.creation && workToolNames.has(request.toolName)
+            ? Promise.resolve({ allow: true as const })
+            : this.approvals.authorize(request, signal)
+      }
     };
   }
 

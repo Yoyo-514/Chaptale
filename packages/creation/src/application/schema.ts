@@ -114,6 +114,7 @@ export const agentInputs = {
   searchDocuments: inputs.searchDocuments,
   createEntry: inputs.createEntry,
   writeDocument: inputs.saveDocument,
+  writeContent: object({ commandId: id, ...documentTarget, expectedRevisionId: id, content: Type.String() }),
   moveEntry: inputs.moveEntry,
   renameEntry: object({ commandId: id, workId: id, entryId: id, expectedRevisionId: id, title: Type.String() }),
   editDocument: object({

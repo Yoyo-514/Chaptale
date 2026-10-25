@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@chaptale/contracts": "workspace:*",
+    "@chaptale/creation": "workspace:*",
     "@earendil-works/pi-coding-agent": "catalog:"
   },
   "devDependencies": {

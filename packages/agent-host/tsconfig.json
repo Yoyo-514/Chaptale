@@ -11,5 +11,5 @@
     "types": ["node"]
   },
   "include": ["src"],
-  "references": [{ "path": "../contracts/tsconfig.json" }]
+  "references": [{ "path": "../contracts/tsconfig.json" }, { "path": "../creation/tsconfig.json" }]
 }

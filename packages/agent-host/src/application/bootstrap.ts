@@ -7,6 +7,8 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import { mkdir } from 'node:fs/promises';
 
+import type { CreationApplication } from '@chaptale/creation/application';
+
 import { builtinWritingInstructions } from '../instructions/builtin.ts';
 import { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { createHostModelRuntime } from '../runtime/model-runtime.ts';
@@ -19,6 +21,8 @@ export interface HostBootstrapOptions {
   configDir: string;
   sessionDir: string;
   settingsFile: string;
+  /** 同一宿主持有的作品应用；提供时接入作品工具，生命周期由调用方管理。 */
+  creation?: CreationApplication;
 }
 
 export async function createHostApplication(options: HostBootstrapOptions): Promise<HostApplication> {
@@ -33,7 +37,7 @@ export async function createHostApplication(options: HostBootstrapOptions): Prom
     builtinInstructions: builtinWritingInstructions,
     modelRuntime: runtime,
     modelConfiguration: new HostModelConfiguration(options.configDir, runtime),
-    // 作品写入随创作工具接入。只读工具仍逐次经过 HostApplication 的授权边界。
+    // 文件工具仍逐次请求授权；作品工具由 HostApplication 装配并复核会话模式。
     tools: cwd => [
       defineTool(createReadToolDefinition(cwd)),
       defineTool(createLsToolDefinition(cwd)),

@@ -41,6 +41,7 @@
     "typebox": "catalog:"
   },
   "devDependencies": {
+    "@earendil-works/pi-agent-core": "catalog:",
     "@electron/fuses": "catalog:",
     "@types/node": "catalog:",
     "@vitejs/plugin-vue": "catalog:",

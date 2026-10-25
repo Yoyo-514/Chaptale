@@ -1,0 +1,296 @@
+import type { JsonValue } from '@earendil-works/pi-ai';
+import { defineTool, type ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { posix } from 'node:path';
+import { Type, type TSchema } from 'typebox';
+
+import type { CreationApplication } from '@chaptale/creation/application';
+import type { AgentWriteResult, CreationAgentContext, CreationResult, Entry } from '@chaptale/creation/contracts';
+
+import type { EditMode } from '../protocol.ts';
+
+const id = Type.String({ minLength: 1 });
+const nullableId = Type.Union([id, Type.Null()]);
+const target = { workId: id, entryId: id };
+const revisionTarget = { ...target, expectedRevisionId: id };
+const section = Type.Union([Type.Literal('manuscript'), Type.Literal('resource')]);
+const newEntry = { workId: id, parentId: nullableId, title: Type.String(), section };
+const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
+
+export const workWriteToolNames = new Set(['work_edit', 'work_write', 'work_mkdir', 'work_mv']);
+export const workToolNames = new Set([
+  'work_ls',
+  'work_read',
+  'work_find',
+  'work_grep',
+  'work_search',
+  ...workWriteToolNames
+]);
+
+function located<T extends Entry>(workId: string, entry: T) {
+  const { id: entryId, ...metadata } = entry;
+  return { workId, entryId, ...metadata };
+}
+
+function mapResult<T, U>(result: CreationResult<T>, map: (value: T) => U): CreationResult<U> {
+  return result.ok ? { ok: true, value: map(result.value) } : result;
+}
+
+function written(workId: string, result: CreationResult<AgentWriteResult>) {
+  return mapResult(result, value => ({
+    kind: value.kind,
+    entry: located(workId, value.kind === 'saved' ? value.entry : value.change.candidate)
+  }));
+}
+
+/** 作品工具只转换公共参数；身份、内容与候选规则由宿主和 creation 持有。 */
+export function createWorkTools(
+  application: CreationApplication,
+  mode: (sessionId: string) => EditMode
+): ToolDefinition[] {
+  function tool<S extends TSchema>(
+    name: string,
+    label: string,
+    description: string,
+    parameters: S,
+    execute: (
+      input: Parameters<ToolDefinition<S>['execute']>[1],
+      context: CreationAgentContext,
+      commandId: string
+    ) => CreationResult<JsonValue>
+  ): ToolDefinition {
+    return defineTool({
+      name,
+      label,
+      description,
+      parameters,
+      async execute(toolCallId, input, signal, _onUpdate, ctx) {
+        signal?.throwIfAborted();
+        const sessionId = ctx.sessionManager.getSessionId();
+        const result = execute(input, { sessionId, mode: mode(sessionId) }, JSON.stringify([sessionId, toolCallId]));
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          details: result,
+          structuredContent: result,
+          isError: !result.ok
+        };
+      }
+    });
+  }
+
+  return [
+    tool(
+      'work_ls',
+      '浏览作品',
+      'workId 为 null 时列出作品；提供作品 ID 时列出 entryId 目录的直接子条目，entryId 为 null 表示根目录。返回稳定 ID 与修订、位置元数据。',
+      Type.Union([
+        object({ workId: Type.Null() }),
+        object({ workId: id, entryId: nullableId, section: Type.Optional(section) })
+      ]),
+      (input, context) => {
+        if (input.workId === null)
+          return mapResult(application.executeAgent(context, { method: 'listWorks', input: {} }), works =>
+            works.map(({ id: workId, ...work }) => ({ workId, ...work }))
+          );
+        const result = application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } });
+        if (!result.ok) return result;
+        if (
+          input.entryId !== null &&
+          !result.value.some(entry => entry.id === input.entryId && entry.kind === 'directory')
+        )
+          return { ok: false, error: { code: 'failed', message: '作品目录不存在' } };
+        return {
+          ok: true,
+          value: result.value
+            .filter(entry => entry.parentId === input.entryId && (!input.section || entry.section === input.section))
+            .map(entry => located(input.workId, entry))
+        };
+      }
+    ),
+    tool(
+      'work_read',
+      '读取作品正文',
+      '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。',
+      object({
+        ...target,
+        offset: Type.Optional(Type.Integer({ minimum: 1 })),
+        limit: Type.Optional(Type.Integer({ minimum: 1 }))
+      }),
+      (input, context) =>
+        mapResult(
+          application.executeAgent(context, {
+            method: 'readDocument',
+            input: { workId: input.workId, documentId: input.entryId }
+          }),
+          document => {
+            const start = (input.offset ?? 1) - 1;
+            const content = document.content
+              .split('\n')
+              .slice(start, input.limit === undefined ? undefined : start + input.limit)
+              .join('\n');
+            return { ...located(input.workId, document), content };
+          }
+        )
+    ),
+    tool(
+      'work_find',
+      '查找作品条目',
+      '在指定作品内按 glob 通配符匹配条目名称，包含本会话候选名称，返回稳定 ID、修订与位置。section 可限定文稿或资料分区。',
+      object({ workId: id, pattern: Type.String(), section: Type.Optional(section) }),
+      (input, context) =>
+        mapResult(
+          application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } }),
+          entries =>
+            entries
+              .filter(
+                entry =>
+                  (!input.section || entry.section === input.section) && posix.matchesGlob(entry.title, input.pattern)
+              )
+              .map(entry => located(input.workId, entry))
+        )
+    ),
+    tool(
+      'work_grep',
+      '查找作品正文',
+      '按 JavaScript 正则表达式逐行查找指定作品正文，包含本会话候选。返回稳定 ID、修订、从 1 开始的行号及匹配行；section 可限定分区。',
+      object({ workId: id, pattern: Type.String(), section: Type.Optional(section) }),
+      (input, context) => {
+        let pattern: RegExp;
+        try {
+          pattern = new RegExp(input.pattern);
+        } catch {
+          return { ok: false, error: { code: 'invalid-request', message: '正则表达式无效' } };
+        }
+        const entries = application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } });
+        if (!entries.ok) return entries;
+        const matches = [];
+        for (const entry of entries.value) {
+          if (entry.kind !== 'document' || (input.section && entry.section !== input.section)) continue;
+          const result = application.executeAgent(context, {
+            method: 'readDocument',
+            input: { workId: input.workId, documentId: entry.id }
+          });
+          if (!result.ok) return result;
+          const lines = result.value.content.split('\n');
+          for (const [index, text] of lines.entries()) {
+            if (pattern.test(text))
+              matches.push({
+                workId: input.workId,
+                entryId: entry.id,
+                revisionId: result.value.revisionId,
+                title: entry.title,
+                line: index + 1,
+                text
+              });
+          }
+        }
+        return { ok: true, value: matches };
+      }
+    ),
+    tool(
+      'work_search',
+      '中文全文检索',
+      '使用 FTS5 中文全文检索指定作品，包含本会话候选。offset 从 0 开始，limit 为每页条目数；返回稳定 ID、修订及 hasMore，正文通过 work_read 获取。',
+      object({
+        workId: id,
+        query: Type.String({ minLength: 1, pattern: '\\S' }),
+        offset: Type.Integer({ minimum: 0 }),
+        limit: Type.Integer({ minimum: 1 }),
+        section: Type.Optional(section)
+      }),
+      (input, context) =>
+        mapResult(application.executeAgent(context, { method: 'searchDocuments', input }), page => ({
+          entries: page.entries.map(entry => located(input.workId, entry)),
+          hasMore: page.hasMore
+        }))
+    ),
+    tool(
+      'work_edit',
+      '精确编辑作品正文',
+      '按读取所得修订替换唯一匹配的 oldText。审阅模式写入本会话候选，直接修改模式生成正式修订。',
+      object({ ...revisionTarget, oldText: Type.String({ minLength: 1 }), newText: Type.String() }),
+      (input, context, commandId) =>
+        written(
+          input.workId,
+          application.executeAgent(context, {
+            method: 'editDocument',
+            input: {
+              commandId,
+              workId: input.workId,
+              documentId: input.entryId,
+              expectedRevisionId: input.expectedRevisionId,
+              oldText: input.oldText,
+              newText: input.newText
+            }
+          })
+        )
+    ),
+    tool(
+      'work_write',
+      '写入作品正文',
+      '新建时提供 workId、parentId、title、section、format、content，返回应用生成的 entryId。覆盖时提供 workId、entryId、expectedRevisionId、content，保留标题与格式。',
+      Type.Union([
+        object({
+          ...newEntry,
+          format: Type.Union([Type.Literal('txt'), Type.Literal('markdown')]),
+          content: Type.String()
+        }),
+        object({ ...revisionTarget, content: Type.String() })
+      ]),
+      (input, context, commandId) =>
+        written(
+          input.workId,
+          'entryId' in input
+            ? application.executeAgent(context, {
+                method: 'writeContent',
+                input: {
+                  commandId,
+                  workId: input.workId,
+                  documentId: input.entryId,
+                  expectedRevisionId: input.expectedRevisionId,
+                  content: input.content
+                }
+              })
+            : application.executeAgent(context, {
+                method: 'createEntry',
+                input: { ...input, commandId, kind: 'document' }
+              })
+        )
+    ),
+    tool(
+      'work_mkdir',
+      '创建作品目录',
+      '在指定作品的文稿或资料分区创建目录，parentId 为 null 表示根目录。返回稳定 entryId。',
+      object(newEntry),
+      (input, context, commandId) =>
+        written(
+          input.workId,
+          application.executeAgent(context, {
+            method: 'createEntry',
+            input: { ...input, commandId, kind: 'directory' }
+          })
+        )
+    ),
+    tool(
+      'work_mv',
+      '移动或改名作品条目',
+      '改名提供 expectedRevisionId 和 title；移动提供读取所得 expectedParentId、expectedPosition，以及目标 parentId、beforeEntryId（null 表示末尾）。操作保留稳定 entryId。',
+      Type.Union([
+        object({ ...revisionTarget, title: Type.String() }),
+        object({
+          ...target,
+          expectedParentId: nullableId,
+          expectedPosition: Type.Integer({ minimum: 0 }),
+          parentId: nullableId,
+          beforeEntryId: nullableId
+        })
+      ]),
+      (input, context, commandId) =>
+        written(
+          input.workId,
+          'title' in input
+            ? application.executeAgent(context, { method: 'renameEntry', input: { ...input, commandId } })
+            : application.executeAgent(context, { method: 'moveEntry', input: { ...input, commandId } })
+        )
+    )
+  ];
+}
