@@ -35,18 +35,20 @@ function mapResult<T, U>(result: CreationResult<T>, map: (value: T) => U): Creat
   return result.ok ? { ok: true, value: map(result.value) } : result;
 }
 
-function written(workId: string, result: CreationResult<AgentWriteResult>) {
-  return mapResult(result, value => ({
-    kind: value.kind,
-    entry: located(workId, value.kind === 'saved' ? value.entry : value.change.candidate)
-  }));
-}
-
 /** 作品工具只转换公共参数；身份、内容与候选规则由宿主和 creation 持有。 */
 export function createWorkTools(
   application: CreationApplication,
-  mode: (sessionId: string) => EditMode
+  mode: (sessionId: string) => EditMode,
+  onPendingWrite: (sessionId: string) => void
 ): ToolDefinition[] {
+  function written(context: CreationAgentContext, workId: string, result: CreationResult<AgentWriteResult>) {
+    if (result.ok && result.value.kind === 'pending') onPendingWrite(context.sessionId);
+    return mapResult(result, value => ({
+      kind: value.kind,
+      entry: located(workId, value.kind === 'saved' ? value.entry : value.change.candidate)
+    }));
+  }
+
   function tool<S extends TSchema>(
     name: string,
     label: string,
@@ -210,6 +212,7 @@ export function createWorkTools(
       object({ ...revisionTarget, oldText: Type.String({ minLength: 1 }), newText: Type.String() }),
       (input, context, commandId) =>
         written(
+          context,
           input.workId,
           application.executeAgent(context, {
             method: 'editDocument',
@@ -238,6 +241,7 @@ export function createWorkTools(
       ]),
       (input, context, commandId) =>
         written(
+          context,
           input.workId,
           'entryId' in input
             ? application.executeAgent(context, {
@@ -263,6 +267,7 @@ export function createWorkTools(
       object(newEntry),
       (input, context, commandId) =>
         written(
+          context,
           input.workId,
           application.executeAgent(context, {
             method: 'createEntry',
@@ -286,6 +291,7 @@ export function createWorkTools(
       ]),
       (input, context, commandId) =>
         written(
+          context,
           input.workId,
           'title' in input
             ? application.executeAgent(context, { method: 'renameEntry', input: { ...input, commandId } })

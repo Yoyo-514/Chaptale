@@ -1,7 +1,7 @@
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
 import type { CreationApplication } from '@chaptale/creation/application';
-import type { ContinueDeliveryInput, CreationResult } from '@chaptale/creation/contracts';
+import type { CreationResult } from '@chaptale/creation/contracts';
 
 import { prefixMessages, systemPrompt } from '../instructions/instructions.ts';
 import {
@@ -50,6 +50,8 @@ export class LiveSession {
   private readonly unsubscribeCreation?: () => void;
   private selectedMode: EditMode;
   private directAfterGroupId?: string;
+  private reviewGroupId?: string;
+  private reviewWritePending = false;
 
   constructor(
     session: AgentSession,
@@ -80,6 +82,16 @@ export class LiveSession {
     this.view.usage = this.usage();
     this.refreshCreation();
     this.syncWorkTools();
+    const finishTurn = session.agent.finishTurn;
+    session.agent.finishTurn = async (turn, signal) => {
+      const decision = await finishTurn?.(turn, signal);
+      // 在 SDK 已记录本轮工具结果的原生边界结束运行，保留完整工具调用链。
+      if (this.reviewWritePending) {
+        this.reviewWritePending = false;
+        return { action: 'end' };
+      }
+      return decision ? decision : undefined;
+    };
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
     this.unsubscribeCreation = this.creation?.subscribe(event => {
       const sessionId =
@@ -91,6 +103,7 @@ export class LiveSession {
       if (sessionId !== this.view.sessionId) return;
       try {
         this.refreshCreation();
+        this.resumeReviewed();
       } catch (error) {
         this.view.error = error instanceof Error ? error.message : String(error);
       }
@@ -108,7 +121,22 @@ export class LiveSession {
       await this.session.steer(text);
       return;
     }
-    this.launch(() => this.session.prompt(text));
+    this.refreshCreation();
+    const continuation = this.reviewContinuation();
+    if (continuation) {
+      delete this.reviewGroupId;
+      delete view.waitingForReview;
+      this.reviewWritePending = false;
+    }
+    if (view.delivery && view.delivery.pendingCount > 0) {
+      this.reviewGroupId = view.delivery.group.id;
+      view.waitingForReview = true;
+      this.emit({ kind: 'session', session: view });
+    }
+    this.launch(async () => {
+      if (continuation) await this.session.sendCustomMessage(continuation, { triggerTurn: false });
+      await this.session.prompt(text);
+    });
   }
 
   private launch(send: () => Promise<void>): void {
@@ -133,6 +161,12 @@ export class LiveSession {
         this.refreshUsage();
         view.running = false;
         this.emitRunning();
+        try {
+          this.resumeReviewed();
+        } catch (error) {
+          view.error = error instanceof Error ? error.message : String(error);
+          this.emit({ kind: 'session', session: view });
+        }
       }
     })();
   }
@@ -168,6 +202,10 @@ export class LiveSession {
   /** 取消当前运行并等待它结束；会话仍可继续使用。 */
   async stop(): Promise<void> {
     this.cancelled = true;
+    delete this.reviewGroupId;
+    this.reviewWritePending = false;
+    delete this.view.waitingForReview;
+    this.emit({ kind: 'session', session: this.view });
     await this.session.abort();
     await this.operation;
   }
@@ -187,7 +225,7 @@ export class LiveSession {
     this.emit({ kind: 'session', session: this.view });
   }
 
-  /** 延后切换只记录选择；作者继续对应组后按持久化进度投影生效。 */
+  /** 延后切换只记录选择；待审处理完成并恢复任务时按持久化进度生效。 */
   setMode(mode: EditMode): void {
     this.refreshCreation();
     let directAfterGroupId: string | undefined;
@@ -225,33 +263,55 @@ export class LiveSession {
     if (this.view.mode !== previousMode) this.syncWorkTools();
   }
 
-  continueReview(input: Omit<ContinueDeliveryInput, 'sessionId'>): void {
-    if (!this.creation) throw new Error('当前宿主未接入作品服务');
-    const before = creationValue(
-      this.creation.executeAuthor({ method: 'readDeliveryGroup', input: { groupId: input.groupId } })
+  /** 只有本次工具写入或作者重新发起的任务获得自动续跑资格；打开历史只读取进度。 */
+  reviewWritten(): void {
+    if (this.cancelled) return;
+    this.refreshCreation();
+    const delivery = this.view.delivery!;
+    if (delivery.group.status !== 'pending' || delivery.pendingCount === 0) return;
+    this.reviewGroupId = delivery.group.id;
+    this.reviewWritePending = true;
+    this.view.waitingForReview = true;
+    this.emit({ kind: 'session', session: this.view });
+  }
+
+  /** 复用已有回执提交继续进度，并在发起下一次请求前捕获正式内容。 */
+  private reviewContinuation() {
+    const delivery = this.view.delivery;
+    if (!delivery || delivery.pendingCount > 0 || delivery.group.status !== 'pending') return undefined;
+    const { group } = delivery;
+    const contents = creationValue(
+      this.creation!.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group.id } })
     );
-    if (this.view.running && before.group.status !== 'continued')
-      throw new Error('会话正在运行，请等待当前请求结束后再继续');
-    const group = creationValue(
-      this.creation.executeAuthor({ method: 'continueDelivery', input: { ...input, sessionId: this.view.sessionId! } })
+    creationValue(
+      this.creation!.executeAuthor({
+        method: 'continueDelivery',
+        input: {
+          commandId: JSON.stringify(['review-resolved', group.id, group.version]),
+          sessionId: this.view.sessionId!,
+          groupId: group.id,
+          expectedVersion: group.version
+        }
+      })
     );
     this.refreshCreation();
-    this.emit({ kind: 'session', session: this.view });
-    if (before.group.status === 'continued') return;
-    const contents = creationValue(
-      this.creation.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group.id } })
-    );
-    this.launch(() =>
-      this.session.sendCustomMessage(
-        {
-          customType: reviewContinuationMessageType,
-          content: `作者已处理本组修改。以下是实际接受后的正式内容：\n${JSON.stringify(contents)}\n请根据这些正式修订继续剩余任务。`,
-          display: true,
-          details: { commandId: input.commandId, groupId: group.id }
-        },
-        { triggerTurn: true }
-      )
-    );
+    return {
+      customType: reviewContinuationMessageType,
+      content: `作者已处理本组修改。以下是实际接受后的正式内容：\n${JSON.stringify(contents)}\n请根据这些正式修订继续剩余任务。`,
+      display: true,
+      details: { groupId: group.id }
+    };
+  }
+
+  private resumeReviewed(): void {
+    if (!this.reviewGroupId || this.cancelled || this.view.running) return;
+    const delivery = this.view.delivery!;
+    if (delivery.group.id !== this.reviewGroupId || delivery.pendingCount > 0) return;
+    // 先消耗本轮资格，重复决定、重复事件和请求失败都不会再次自动发起。
+    delete this.reviewGroupId;
+    delete this.view.waitingForReview;
+    const continuation = this.reviewContinuation();
+    if (continuation) this.launch(() => this.session.sendCustomMessage(continuation, { triggerTurn: true }));
   }
 
   private syncWorkTools(): void {

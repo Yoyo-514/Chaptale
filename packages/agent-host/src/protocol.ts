@@ -1,5 +1,5 @@
 import type { RpcClient, RpcCommand, RpcPacket, RpcReply, RpcRequest } from '@chaptale/contracts';
-import type { ContinueDeliveryInput, DeliveryView } from '@chaptale/creation/contracts';
+import type { DeliveryView } from '@chaptale/creation/contracts';
 
 /**
  * 原生 JSONL 中保存会话指令与修改模式的自定义记录类型。
@@ -123,9 +123,11 @@ export interface SessionView {
   /** 只读历史缺少记录时为空列表。 */
   instructions: AgentInstructions;
   mode?: EditMode;
-  /** 请求直接修改后，处理并继续当前组时生效。 */
+  /** 请求直接修改后，当前待审清零并恢复任务时生效。 */
   switchingTo?: 'direct';
   delivery?: DeliveryView | null;
+  /** 仅本次等待审阅的任务在待审清零后自动续跑；停止与重开清除此资格。 */
+  waitingForReview?: boolean;
   messages: ChatMessage[];
   /** 可继续的会话从原生 SDK 读取；只读历史不计算用量。 */
   usage?: SessionUsage;
@@ -163,7 +165,6 @@ export interface HostCommands {
   open: { input: { file: string; cwd: string }; output: string };
   prompt: { input: { id: string; text: string }; output: void };
   cancel: { input: { id: string }; output: void };
-  continueReview: { input: Omit<ContinueDeliveryInput, 'sessionId'> & { id: string }; output: void };
   compact: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
   model: { input: { id: string; model: ModelRef }; output: void };

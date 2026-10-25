@@ -118,10 +118,6 @@ export class HostApplication {
         }));
       case 'prompt':
         return this.live(command.input.id).prompt(command.input.text);
-      case 'continueReview': {
-        const { id, ...input } = command.input;
-        return this.live(id).continueReview(input);
-      }
       case 'cancel':
         return this.live(command.input.id).stop();
       case 'compact':
@@ -214,7 +210,14 @@ export class HostApplication {
 
   private tools(cwd: string): ToolDefinition[] {
     const tools = [...this.options.tools(cwd)];
-    if (this.options.creation) tools.push(...createWorkTools(this.options.creation, id => this.live(id).view.mode!));
+    if (this.options.creation)
+      tools.push(
+        ...createWorkTools(
+          this.options.creation,
+          id => this.live(id).view.mode!,
+          id => this.live(id).reviewWritten()
+        )
+      );
     return tools;
   }
 
