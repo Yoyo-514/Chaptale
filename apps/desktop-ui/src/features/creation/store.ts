@@ -120,8 +120,8 @@ export const useCreationStore = defineStore('creation', () => {
   }
 
   function apply(event: CreationEvent) {
-    // 待接受修改不改变正式作品目录，也不占用作品库内的条目游标。
-    if (event.change.kind === 'review') return;
+    // 待审修改及继续进度保持在本机，正式目录使用作品库内的条目游标。
+    if (event.change.kind === 'review' || event.change.kind === 'delivery') return;
     if (event.change.kind === 'work') {
       const next = event.change.work;
       works.value = [...works.value.filter(item => item.id !== next.id), next];

@@ -1,4 +1,5 @@
 import type { RpcClient, RpcCommand, RpcPacket, RpcReply, RpcRequest } from '@chaptale/contracts';
+import type { ContinueDeliveryInput, DeliveryView } from '@chaptale/creation/contracts';
 
 /**
  * 原生 JSONL 中保存会话指令与修改模式的自定义记录类型。
@@ -6,6 +7,7 @@ import type { RpcClient, RpcCommand, RpcPacket, RpcReply, RpcRequest } from '@ch
  */
 export const instructionsEntryType = 'chaptale-agent-instructions';
 export const modeEntryType = 'chaptale-edit-mode';
+export const reviewContinuationMessageType = 'chaptale-review-continued';
 
 /** 讨论禁止写入作品；审阅生成待接受修改；直接修改保存正式修订。 */
 export const editModes = ['discuss', 'review', 'direct'] as const;
@@ -121,6 +123,9 @@ export interface SessionView {
   /** 只读历史缺少记录时为空列表。 */
   instructions: AgentInstructions;
   mode?: EditMode;
+  /** 请求直接修改后，处理并继续当前组时生效。 */
+  switchingTo?: 'direct';
+  delivery?: DeliveryView | null;
   messages: ChatMessage[];
   /** 可继续的会话从原生 SDK 读取；只读历史不计算用量。 */
   usage?: SessionUsage;
@@ -158,6 +163,7 @@ export interface HostCommands {
   open: { input: { file: string; cwd: string }; output: string };
   prompt: { input: { id: string; text: string }; output: void };
   cancel: { input: { id: string }; output: void };
+  continueReview: { input: Omit<ContinueDeliveryInput, 'sessionId'> & { id: string }; output: void };
   compact: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
   model: { input: { id: string; model: ModelRef }; output: void };

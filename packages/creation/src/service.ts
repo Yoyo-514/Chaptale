@@ -13,7 +13,6 @@ import type {
   SearchDocumentsInput,
   DraftState,
   Entry,
-  PendingChange,
   MoveEntryInput,
   RenameDirectoryInput,
   Revision,
@@ -26,7 +25,7 @@ import type {
   WriteDraftInput
 } from './contracts.ts';
 import * as drafts from './drafts.ts';
-import type { CommitEffect, CreationRepository } from './repository.ts';
+import type { CommitEffect, CommitResult, CreationRepository } from './repository.ts';
 import * as sessions from './session-scopes.ts';
 
 /** 作品用例的应用服务：协调事务、幂等回执和提交后的事件，领域规则归各自模块。 */
@@ -53,7 +52,7 @@ export class CreationService {
     return () => this.listeners.delete(subscription);
   }
 
-  commit<T extends Work | Entry | PendingChange>(
+  commit<T extends CommitResult>(
     workId: string | null,
     commandId: string,
     parameters: readonly unknown[],

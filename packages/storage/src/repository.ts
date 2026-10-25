@@ -1,23 +1,24 @@
 import type Database from 'better-sqlite3';
 
-import type { CommandCommit, CommitEffect, CreationRepository } from '@chaptale/creation';
+import type { CommandCommit, CommitEffect, CommitResult, CreationRepository } from '@chaptale/creation';
 import type {
   CreationChanges,
   CreationCursor,
   CreationSnapshot,
+  DecideReviewInput,
+  DeliveryGroup,
   Document,
   DocumentSearchPage,
-  SearchDocumentsInput,
   DraftState,
   Entry,
   EntrySnapshot,
-  RecoveryDraft,
   PendingChange,
-  DecideReviewInput,
+  RecoveryDraft,
+  Revision,
+  SearchDocumentsInput,
   SessionAssignment,
   SessionSelection,
   SessionState,
-  Revision,
   Work,
   WorkbenchState
 } from '@chaptale/creation/contracts';
@@ -46,7 +47,7 @@ class SqliteCreationRepository implements CreationRepository {
     return this.library.transaction(apply)();
   }
 
-  command<T extends Work | Entry | PendingChange>(
+  command<T extends CommitResult>(
     workId: string | null,
     commandId: string,
     parameters: readonly unknown[],
@@ -184,6 +185,28 @@ class SqliteCreationRepository implements CreationRepository {
   }
   getRevisionEntryId(workId: string, revisionId: string): string | undefined {
     return entries.getRevisionEntryId(this.useWork(workId), revisionId);
+  }
+
+  getCurrentDelivery(sessionId: string): DeliveryGroup | undefined {
+    const row = this.library
+      .prepare('SELECT value FROM delivery_groups WHERE sessionId = ? ORDER BY sequence DESC LIMIT 1')
+      .get(sessionId) as { value: string } | undefined;
+    return row ? (JSON.parse(row.value) as DeliveryGroup) : undefined;
+  }
+
+  getDeliveryGroup(id: string): DeliveryGroup | undefined {
+    const row = this.library.prepare('SELECT value FROM delivery_groups WHERE id = ?').get(id) as
+      | { value: string }
+      | undefined;
+    return row ? (JSON.parse(row.value) as DeliveryGroup) : undefined;
+  }
+
+  putDeliveryGroup(group: DeliveryGroup): void {
+    this.library
+      .prepare(
+        'INSERT INTO delivery_groups (id, sessionId, value) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET value = excluded.value'
+      )
+      .run(group.id, group.sessionId, JSON.stringify(group));
   }
 
   getPendingChange(id: string): PendingChange | undefined {

@@ -1,5 +1,7 @@
 import type { SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent';
 
+import type { CreationApplication } from '@chaptale/creation/application';
+
 import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
 import {
   type AgentInstructions,
@@ -14,7 +16,7 @@ import { messageView, type SdkMessage, transcriptView } from './message-view.ts'
 
 /** 打开历史的结论：完整历史可继续对话；损坏或缺少记录的只能查看。 */
 export type SessionHistory =
-  | { kind: 'live'; instructions: AgentInstructions; mode: EditMode }
+  | { kind: 'live'; instructions: AgentInstructions; mode: EditMode; directAfterGroupId?: string }
   | { kind: 'readonly'; sessionId: string | null; name?: string; readonly: ReadonlyHistory; messages: ChatMessage[] };
 
 const readonlyMessages = {
@@ -24,18 +26,30 @@ const readonlyMessages = {
 };
 
 /** 当前分支上最近一次的指令与模式记录；记录内容无效时抛错。 */
-function sessionRecords(branch: SessionEntry[]): { instructions?: AgentInstructions; mode?: EditMode } {
+function sessionRecords(branch: SessionEntry[]): {
+  instructions?: AgentInstructions;
+  mode?: EditMode;
+  directAfterGroupId?: string;
+} {
   let instructions: AgentInstructions | undefined;
   let mode: EditMode | undefined;
+  let directAfterGroupId: string | undefined;
   for (let index = branch.length - 1; index >= 0 && (!instructions || !mode); index--) {
     const entry = branch[index];
     if (entry.type !== 'custom') continue;
-    const data = entry.data as { entries?: unknown; mode?: unknown } | undefined;
+    const data = entry.data as { entries?: unknown; mode?: unknown; directAfterGroupId?: unknown } | undefined;
     if (!instructions && entry.customType === instructionsEntryType)
       instructions = normalizeInstructions(data?.entries);
-    else if (!mode && entry.customType === modeEntryType) mode = normalizeMode(data?.mode);
+    else if (!mode && entry.customType === modeEntryType) {
+      mode = normalizeMode(data?.mode);
+      if (data?.directAfterGroupId !== undefined) {
+        if (mode !== 'review' || typeof data.directAfterGroupId !== 'string' || !data.directAfterGroupId.trim())
+          throw new Error('延后模式切换记录无效');
+        directAfterGroupId = data.directAfterGroupId;
+      }
+    }
   }
-  return { instructions, mode };
+  return { instructions, mode, directAfterGroupId };
 }
 
 /** 损坏历史按文件顺序显示能识别的消息，其余行计入坏行。 */
@@ -72,16 +86,24 @@ function readonlyFrom(manager: SessionManager, reason: ReadonlyHistory['reason']
 }
 
 /** 根据会话池已读取的历史判定能否继续；不创建 AgentSession，不修复、不写入原文件。 */
-export function sessionHistory(manager: SessionManager): SessionHistory {
+export function sessionHistory(manager: SessionManager, creation: CreationApplication | undefined): SessionHistory {
   let records: ReturnType<typeof sessionRecords>;
   try {
     records = sessionRecords(manager.getBranch());
+    if (records.directAfterGroupId) {
+      const delivery = creation?.executeAuthor({
+        method: 'readDeliveryGroup',
+        input: { groupId: records.directAfterGroupId }
+      });
+      if (!delivery?.ok || delivery.value.group.sessionId !== manager.getSessionId())
+        return readonlyFrom(manager, 'damaged', readonlyMessages.invalid);
+    }
   } catch {
     return readonlyFrom(manager, 'damaged', readonlyMessages.invalid);
   }
-  const { instructions, mode } = records;
+  const { instructions, mode, directAfterGroupId } = records;
   if (!instructions || !mode) return readonlyFrom(manager, 'incomplete', readonlyMessages.incomplete);
-  return { kind: 'live', instructions, mode };
+  return { kind: 'live', instructions, mode, directAfterGroupId };
 }
 
 /** JSONL 损坏时逐行读取能识别的消息，只读打开。 */

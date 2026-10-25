@@ -1,7 +1,7 @@
 import { runToolCall } from '@earendil-works/pi-agent-core';
 import { defineTool, type ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Type } from 'typebox';
@@ -9,6 +9,7 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 
 import { builtinWritingInstructions, createHostModelRuntime, HostModelConfiguration } from '@chaptale/agent-host';
 import { createHostApplication, HostApplication } from '@chaptale/agent-host/application';
+import { modeEntryType } from '@chaptale/agent-host/protocol';
 import { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult } from '@chaptale/creation/contracts';
 import { openCreationStorage } from '@chaptale/storage';
@@ -118,7 +119,7 @@ function call(
   });
 }
 
-async function restartWithTools(tools: ToolDefinition[]) {
+async function restartWithTools(tools: ToolDefinition[], history?: { file: string; cwd: string }) {
   await host.dispose();
   const configDir = join(root, 'config');
   const runtime = await createHostModelRuntime({ configDir });
@@ -133,10 +134,14 @@ async function restartWithTools(tools: ToolDefinition[]) {
     creation,
     tools: () => tools
   });
-  id = (await host.execute({
-    method: 'create',
-    input: { model: { provider: 'offline-tools', id: 'offline' } }
-  })) as string;
+  id = (await host.execute(
+    history
+      ? { method: 'open', input: history }
+      : {
+          method: 'create',
+          input: { model: { provider: 'offline-tools', id: 'offline' } }
+        }
+  )) as string;
   return runtime;
 }
 
@@ -753,3 +758,205 @@ it('新建候选与后续覆盖使用各自回执，重试新建保留同一条�
   expect(pending()).toHaveLength(1);
   expect(pending()[0].candidate).toMatchObject({ id: candidate.entryId, content: '后续内容' });
 });
+
+async function observeContinuation(runtime: Awaited<ReturnType<typeof restartWithTools>>) {
+  const requests: Array<{ messages: string; tools: string[] }> = [];
+  runtime.registerProvider('offline-tools', {
+    baseUrl: 'http://127.0.0.1:9',
+    apiKey: 'offline-test-only',
+    api: 'offline-delivery',
+    models: [
+      {
+        id: 'offline',
+        name: '离线继续检查',
+        contextWindow: 8192,
+        maxTokens: 128,
+        reasoning: false,
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+      }
+    ],
+    // 在传输边界观察请求后结束；不联网、不生成模型回复。
+    streamSimple: (_model, context) => {
+      requests.push({
+        messages: JSON.stringify(context.messages),
+        tools: context.messages.flatMap(message =>
+          message.role === 'system' ? (message.toolsAdded ?? []).map(tool => tool.name) : []
+        )
+      });
+      throw new Error('离线继续请求检查结束');
+    }
+  });
+  await host.execute({ method: 'model', input: { id, model: { provider: 'offline-tools', id: 'offline' } } });
+  return requests;
+}
+
+function decidePending(decision: 'accept' | 'reject') {
+  const review = value(creation.executeAuthor({ method: 'readReview', input: { changeId: pending()[0].id } }));
+  value(
+    creation.executeAuthor({
+      method: 'decideReview',
+      input: {
+        commandId: randomUUID(),
+        changeId: review.change.id,
+        expectedVersion: review.change.version,
+        expectedRevisionId: review.current!.revisionId,
+        expectedLocation: { parentId: review.current!.parentId, position: review.current!.position },
+        decision
+      }
+    })
+  );
+}
+
+it('改稿自动待审，作者处理后直接继续，延后的直接修改生效并发送正式内容', async () => {
+  const runtime = await restartWithTools([]);
+  const requests = await observeContinuation(runtime);
+  expect(
+    (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '待审正文' }))
+      .isError
+  ).toBe(false);
+  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
+  await expect.poll(() => view().delivery?.pendingCount).toBe(1);
+  const group = view().delivery!.group;
+  expect(group.status).toBe('pending');
+  expect(view().running).toBe(false);
+  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
+  expect(view()).toMatchObject({ mode: 'review', switchingTo: 'direct' });
+  const command = {
+    method: 'continueReview' as const,
+    input: {
+      id,
+      commandId: randomUUID(),
+      groupId: group.id,
+      expectedVersion: group.version
+    }
+  };
+  await expect(host.execute(command)).rejects.toThrow('剩余修改');
+  expect(requests).toHaveLength(0);
+  decidePending('reject');
+  expect(view().mode).toBe('review');
+  await host.execute(command);
+  await expect.poll(() => requests.length).toBe(1);
+  await expect.poll(() => view().running).toBe(false);
+  expect(requests[0].messages).toContain('实际接受后的正式内容');
+  expect(requests[0].messages).toContain('将军守城');
+  expect(requests[0].messages).not.toContain('待审正文');
+  expect(view().mode).toBe('direct');
+  expect(view().switchingTo).toBeUndefined();
+  expect(
+    (
+      await call('work_write', {
+        workId,
+        entryId: documentId,
+        expectedRevisionId: read().revisionId,
+        content: '直接保存'
+      })
+    ).isError
+  ).toBe(false);
+  expect(read().content).toBe('直接保存');
+  expect(pending()).toEqual([]);
+});
+
+it('重启恢复待审与切换进度，继续通过原生请求发送正式快照且重复决定不重复发送', async () => {
+  expect(
+    (
+      await call('work_write', {
+        workId,
+        entryId: documentId,
+        expectedRevisionId: revisionId,
+        content: '实际接受的正文'
+      })
+    ).isError
+  ).toBe(false);
+  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
+  const session = host.liveSession(id)!;
+  session.sessionManager.appendMessage({ role: 'user', content: '连续写三章', timestamp: Date.now() });
+  const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+  await host.execute({ method: 'close', input: { id } });
+  creation.close();
+  creation = new CreationApplication(await openCreationStorage({ rootDir: join(root, 'creation') }));
+  const runtime = await restartWithTools([], history);
+  const requests = await observeContinuation(runtime);
+  const view = () => host.snapshot().sessions.find(item => item.id === id)!;
+  expect(view()).toMatchObject({
+    mode: 'review',
+    switchingTo: 'direct',
+    delivery: { pendingCount: 1, group: { status: 'pending' } }
+  });
+  expect(requests).toHaveLength(0);
+  const group = view().delivery!.group;
+  decidePending('accept');
+  const command = {
+    method: 'continueReview' as const,
+    input: { id, commandId: randomUUID(), groupId: group.id, expectedVersion: group.version }
+  };
+  await host.execute(command);
+  await expect.poll(() => requests.length).toBe(1);
+  await expect.poll(() => view().running).toBe(false);
+  expect(requests[0].messages).toContain('实际接受后的正式内容');
+  expect(requests[0].messages).toContain('实际接受的正文');
+  expect(requests[0].tools).toContain('work_write');
+  expect(requests[0].tools.filter(name => name.startsWith('work_'))).toHaveLength(9);
+  expect(view().mode).toBe('direct');
+  expect(view().switchingTo).toBeUndefined();
+  await host.execute(command);
+  expect(requests).toHaveLength(1);
+  await host.execute({ method: 'close', input: { id } });
+  id = (await host.execute({ method: 'open', input: history })) as string;
+  expect(view().mode).toBe('direct');
+  expect(view().switchingTo).toBeUndefined();
+});
+
+it.each(['discuss', 'review'] as const)('撤回延后的直接修改到 %s，重开仍保持所选模式及待审内容', async mode => {
+  expect(
+    (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '待审正文' }))
+      .isError
+  ).toBe(false);
+  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
+  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
+  expect(view().switchingTo).toBe('direct');
+  await host.execute({ method: 'mode', input: { id, mode } });
+  expect(view().mode).toBe(mode);
+  expect(view().switchingTo).toBeUndefined();
+  const session = host.liveSession(id)!;
+  session.sessionManager.appendMessage({ role: 'user', content: '稍后再处理这些修改', timestamp: Date.now() });
+  const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+  await host.execute({ method: 'close', input: { id } });
+  id = (await host.execute({ method: 'open', input: history })) as string;
+  expect(view().mode).toBe(mode);
+  expect(view().switchingTo).toBeUndefined();
+  expect(pending()[0].candidate.content).toBe('待审正文');
+  expect(read().revisionId).toBe(revisionId);
+});
+
+it.each(['空身份', '错误类型', '错误模式', '缺少分组', '其他会话'] as const)(
+  '延后切换历史的%s只读打开并保留原文件',
+  async fault => {
+    expect(
+      (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '待审正文' }))
+        .isError
+    ).toBe(false);
+    const group = value(creation.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: id } }))!.group;
+    if (fault === '其他会话')
+      id = (await host.execute({
+        method: 'create',
+        input: { model: { provider: 'offline-tools', id: 'offline' } }
+      })) as string;
+    const session = host.liveSession(id)!;
+    session.sessionManager.appendCustomEntry(modeEntryType, {
+      mode: fault === '错误模式' ? 'direct' : 'review',
+      directAfterGroupId:
+        fault === '空身份' ? ' ' : fault === '错误类型' ? 17 : fault === '缺少分组' ? randomUUID() : group.id
+    });
+    session.sessionManager.appendMessage({ role: 'user', content: '检查历史记录', timestamp: Date.now() });
+    const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+    await host.execute({ method: 'close', input: { id } });
+    const original = await readFile(history.file, 'utf8');
+    id = (await host.execute({ method: 'open', input: history })) as string;
+    const view = host.snapshot().sessions.find(item => item.id === id)!;
+    expect(view.readonly).toMatchObject({ reason: 'damaged' });
+    expect(host.liveSession(id)).toBeUndefined();
+    await expect(host.execute({ method: 'prompt', input: { id, text: '继续' } })).rejects.toThrow('只读历史');
+    expect(await readFile(history.file, 'utf8')).toBe(original);
+  }
+);

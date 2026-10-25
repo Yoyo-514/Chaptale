@@ -40,6 +40,33 @@ export interface PendingChange {
   updatedAt: number;
 }
 
+/** 分组身份跨问答与重启保留；候选仍按自身版本接受或拒绝。 */
+export interface DeliveryGroup {
+  id: string;
+  sessionId: string;
+  version: string;
+  status: 'pending' | 'continued';
+  changeIds: string[];
+}
+
+export interface DeliveryView {
+  group: DeliveryGroup;
+  pendingCount: number;
+}
+
+export interface DeliveryContent {
+  workId: string;
+  entryId: string;
+  snapshot: EntrySnapshot | null;
+}
+
+export interface ContinueDeliveryInput {
+  commandId: string;
+  sessionId: string;
+  groupId: string;
+  expectedVersion: string;
+}
+
 export interface ReviewView {
   change: PendingChange;
   current: EntrySnapshot | null;
@@ -103,6 +130,10 @@ export type CreationAgentCommand = RpcCommand<CreationAgentCommands>;
 export type AgentWriteCommand = Exclude<CreationAgentCommand, { method: keyof CreationReadCommands }>;
 
 export interface ReviewCommands {
+  readCurrentDelivery: { input: { sessionId: string }; output: CreationResult<DeliveryView | null> };
+  readDeliveryGroup: { input: { groupId: string }; output: CreationResult<DeliveryView> };
+  readDeliveryContents: { input: { groupId: string }; output: CreationResult<DeliveryContent[]> };
+  continueDelivery: { input: ContinueDeliveryInput; output: CreationResult<DeliveryGroup> };
   listPendingChanges: {
     input: { workId: string | null; sessionId: string | null };
     output: CreationResult<PendingChange[]>;

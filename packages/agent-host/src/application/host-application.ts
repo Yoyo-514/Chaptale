@@ -118,6 +118,10 @@ export class HostApplication {
         }));
       case 'prompt':
         return this.live(command.input.id).prompt(command.input.text);
+      case 'continueReview': {
+        const { id, ...input } = command.input;
+        return this.live(id).continueReview(input);
+      }
       case 'cancel':
         return this.live(command.input.id).stop();
       case 'compact':
@@ -202,7 +206,9 @@ export class HostApplication {
     const { session } = await this.pool.createSession({ ...this.sessionInput(applied, cwd), model });
     session.sessionManager.appendCustomEntry(instructionsEntryType, { entries: applied.entries });
     session.sessionManager.appendCustomEntry(modeEntryType, { mode });
-    const live = new LiveSession(session, applied, mode, change => this.emit(change));
+    const live = new LiveSession(session, applied, mode, change => this.emit(change), {
+      creation: this.options.creation
+    });
     return this.attach({ view: live.view, live });
   }
 
@@ -247,7 +253,7 @@ export class HostApplication {
     let result: Awaited<ReturnType<HostSessionPool['openWith']>>;
     try {
       result = await this.pool.openWith({ file, cwd }, manager => {
-        const history = sessionHistory(manager);
+        const history = sessionHistory(manager, this.options.creation);
         opened.history = history;
         if (history.kind === 'readonly') return undefined;
         applied.entries = history.instructions;
@@ -278,7 +284,10 @@ export class HostApplication {
         }
       });
     }
-    const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change));
+    const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change), {
+      creation: this.options.creation,
+      directAfterGroupId: history.directAfterGroupId
+    });
     return this.attach({ view: live.view, live });
   }
 

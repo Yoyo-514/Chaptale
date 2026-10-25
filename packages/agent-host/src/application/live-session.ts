@@ -1,5 +1,8 @@
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
+import type { CreationApplication } from '@chaptale/creation/application';
+import type { ContinueDeliveryInput, CreationResult } from '@chaptale/creation/contracts';
+
 import { prefixMessages, systemPrompt } from '../instructions/instructions.ts';
 import {
   type AgentInstructions,
@@ -7,6 +10,7 @@ import {
   type HostChange,
   instructionsEntryType,
   modeEntryType,
+  reviewContinuationMessageType,
   type SessionView
 } from '../protocol.ts';
 import { workWriteToolNames } from './creation-tools.ts';
@@ -29,6 +33,11 @@ export function instructionCallbacks(applied: AppliedInstructions) {
  * 可继续对话的会话：发送、取消、修改指令/模式/模型，并把 SDK 事件投影到界面视图。
  * 原生 AgentSession 由会话池持有和释放，这里只负责应用层状态。
  */
+function creationValue<T>(result: CreationResult<T>): T {
+  if (!result.ok) throw new Error(result.error.message);
+  return result.value;
+}
+
 export class LiveSession {
   readonly view: SessionView;
   readonly session: AgentSession;
@@ -37,11 +46,24 @@ export class LiveSession {
   private readonly unsubscribe: () => void;
   private cancelled = false;
   private operation?: Promise<void>;
+  private readonly creation?: CreationApplication;
+  private readonly unsubscribeCreation?: () => void;
+  private selectedMode: EditMode;
+  private directAfterGroupId?: string;
 
-  constructor(session: AgentSession, applied: AppliedInstructions, mode: EditMode, emit: (change: HostChange) => void) {
+  constructor(
+    session: AgentSession,
+    applied: AppliedInstructions,
+    mode: EditMode,
+    emit: (change: HostChange) => void,
+    options?: { creation?: CreationApplication; directAfterGroupId?: string }
+  ) {
     this.session = session;
     this.applied = applied;
     this.emit = emit;
+    this.creation = options?.creation;
+    this.selectedMode = mode;
+    this.directAfterGroupId = options?.directAfterGroupId;
     this.view = {
       id: session.sessionId,
       sessionId: session.sessionId,
@@ -56,8 +78,24 @@ export class LiveSession {
       messages: transcriptView(session.sessionManager)
     };
     this.view.usage = this.usage();
+    this.refreshCreation();
     this.syncWorkTools();
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
+    this.unsubscribeCreation = this.creation?.subscribe(event => {
+      const sessionId =
+        event.change.kind === 'review'
+          ? event.change.change.sessionId
+          : event.change.kind === 'delivery'
+            ? event.change.group.sessionId
+            : undefined;
+      if (sessionId !== this.view.sessionId) return;
+      try {
+        this.refreshCreation();
+      } catch (error) {
+        this.view.error = error instanceof Error ? error.message : String(error);
+      }
+      this.emit({ kind: 'session', session: this.view });
+    });
   }
 
   async prompt(text: string): Promise<void> {
@@ -70,6 +108,11 @@ export class LiveSession {
       await this.session.steer(text);
       return;
     }
+    this.launch(() => this.session.prompt(text));
+  }
+
+  private launch(send: () => Promise<void>): void {
+    const { view } = this;
     this.cancelled = false;
     view.running = true;
     delete view.error;
@@ -83,7 +126,7 @@ export class LiveSession {
           // SDK 重载会重新激活已注册工具，按重载结束时的模式恢复作品工具集合。
           this.syncWorkTools();
         }
-        if (!this.cancelled) await this.session.prompt(text);
+        if (!this.cancelled) await send();
       } catch {
         view.error = '本次请求未完成，请检查模型设置或连接后重新发送';
       } finally {
@@ -144,12 +187,71 @@ export class LiveSession {
     this.emit({ kind: 'session', session: this.view });
   }
 
-  /** 运行中切换不停止任务；待接受修改相关的延后生效规则随修改模式写入一起实现。 */
+  /** 延后切换只记录选择；作者继续对应组后按持久化进度投影生效。 */
   setMode(mode: EditMode): void {
-    this.session.sessionManager.appendCustomEntry(modeEntryType, { mode });
-    this.view.mode = mode;
+    this.refreshCreation();
+    let directAfterGroupId: string | undefined;
+    if (mode === 'direct' && this.view.mode === 'review') {
+      if (this.directAfterGroupId) directAfterGroupId = this.directAfterGroupId;
+      else if (this.view.delivery && this.view.delivery.pendingCount > 0)
+        directAfterGroupId = this.view.delivery.group.id;
+    }
+    const selectedMode = directAfterGroupId ? 'review' : mode;
+    this.session.sessionManager.appendCustomEntry(modeEntryType, { mode: selectedMode, directAfterGroupId });
+    this.selectedMode = selectedMode;
+    this.directAfterGroupId = directAfterGroupId;
+    this.refreshCreation();
     this.syncWorkTools();
     this.emit({ kind: 'session', session: this.view });
+  }
+
+  private refreshCreation(): void {
+    const previousMode = this.view.mode;
+    this.view.mode = this.selectedMode;
+    delete this.view.switchingTo;
+    if (this.creation) {
+      this.view.delivery = creationValue(
+        this.creation.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: this.view.sessionId! } })
+      );
+    }
+    if (this.directAfterGroupId) {
+      if (!this.creation) throw new Error('当前宿主未接入作品服务，无法恢复延后切换');
+      const delivery = creationValue(
+        this.creation.executeAuthor({ method: 'readDeliveryGroup', input: { groupId: this.directAfterGroupId } })
+      );
+      if (delivery.group.status === 'continued') this.view.mode = 'direct';
+      else this.view.switchingTo = 'direct';
+    }
+    if (this.view.mode !== previousMode) this.syncWorkTools();
+  }
+
+  continueReview(input: Omit<ContinueDeliveryInput, 'sessionId'>): void {
+    if (!this.creation) throw new Error('当前宿主未接入作品服务');
+    const before = creationValue(
+      this.creation.executeAuthor({ method: 'readDeliveryGroup', input: { groupId: input.groupId } })
+    );
+    if (this.view.running && before.group.status !== 'continued')
+      throw new Error('会话正在运行，请等待当前请求结束后再继续');
+    const group = creationValue(
+      this.creation.executeAuthor({ method: 'continueDelivery', input: { ...input, sessionId: this.view.sessionId! } })
+    );
+    this.refreshCreation();
+    this.emit({ kind: 'session', session: this.view });
+    if (before.group.status === 'continued') return;
+    const contents = creationValue(
+      this.creation.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group.id } })
+    );
+    this.launch(() =>
+      this.session.sendCustomMessage(
+        {
+          customType: reviewContinuationMessageType,
+          content: `作者已处理本组修改。以下是实际接受后的正式内容：\n${JSON.stringify(contents)}\n请根据这些正式修订继续剩余任务。`,
+          display: true,
+          details: { commandId: input.commandId, groupId: group.id }
+        },
+        { triggerTurn: true }
+      )
+    );
   }
 
   private syncWorkTools(): void {
@@ -176,6 +278,7 @@ export class LiveSession {
   /** 停止转发事件；原生会话由会话池释放。 */
   detach(): void {
     this.unsubscribe();
+    this.unsubscribeCreation?.();
   }
 
   private emitRunning(): void {

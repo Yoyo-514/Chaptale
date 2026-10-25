@@ -13,7 +13,7 @@ import type {
   SaveDocumentInput,
   Work
 } from './contracts/content.ts';
-import type { PendingChange, ReviewCommands } from './contracts/review.ts';
+import type { DeliveryGroup, PendingChange, ReviewCommands } from './contracts/review.ts';
 
 export type * from './contracts/content.ts';
 export type * from './contracts/review.ts';
@@ -45,6 +45,7 @@ export type CreationSnapshot =
 export type CreationChange =
   | { kind: 'work'; work: Work }
   | { kind: 'review'; change: PendingChange }
+  | { kind: 'delivery'; group: DeliveryGroup }
   | { kind: 'entry'; entry: Entry }
   | { kind: 'move'; entry: Entry; from: { parentId: string | null; position: number } };
 export interface CreationEvent {

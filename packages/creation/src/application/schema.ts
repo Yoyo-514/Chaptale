@@ -90,6 +90,10 @@ const inputs = {
     cursor: object({ workId: parentId, sequence: offset, token: parentId }),
     limit: Type.Integer({ minimum: 1 })
   }),
+  readCurrentDelivery: object({ sessionId: id }),
+  readDeliveryGroup: object({ groupId: id }),
+  readDeliveryContents: object({ groupId: id }),
+  continueDelivery: object({ commandId: id, sessionId: id, groupId: id, expectedVersion: id }),
   listPendingChanges: object({ workId: parentId, sessionId: parentId }),
   readReview: object({ changeId: id }),
   updateReview: object({

@@ -1,4 +1,5 @@
 import type {
+  DeliveryGroup,
   CreationChanges,
   CreationCursor,
   CreationEvent,
@@ -25,7 +26,10 @@ export type CommitEffect =
   | { kind: 'work' }
   | { kind: 'entry' }
   | { kind: 'review' }
+  | { kind: 'delivery' }
   | { kind: 'move'; from: { parentId: string | null; position: number } };
+
+export type CommitResult = Work | Entry | PendingChange | DeliveryGroup;
 
 export interface CommandCommit<T> {
   result: T;
@@ -36,7 +40,7 @@ export interface CommandCommit<T> {
 /** 业务所需的持久化操作；事务回调同步执行，修改与回执共用对应数据库事务。 */
 export interface CreationRepository {
   libraryTransaction<T>(apply: () => T): T;
-  command<T extends Work | Entry | PendingChange>(
+  command<T extends CommitResult>(
     workId: string | null,
     commandId: string,
     parameters: readonly unknown[],
@@ -67,6 +71,10 @@ export interface CreationRepository {
   searchDocuments(input: SearchDocumentsInput, candidates?: readonly EntrySnapshot[]): DocumentSearchPage;
   getRevision(workId: string, revisionId: string): Revision | undefined;
   getRevisionEntryId(workId: string, revisionId: string): string | undefined;
+
+  getCurrentDelivery(sessionId: string): DeliveryGroup | undefined;
+  getDeliveryGroup(id: string): DeliveryGroup | undefined;
+  putDeliveryGroup(group: DeliveryGroup): void;
 
   getPendingChange(id: string): PendingChange | undefined;
   listPendingChanges(workId: string | null, sessionId: string | null): PendingChange[];

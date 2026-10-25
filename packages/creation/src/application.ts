@@ -12,6 +12,7 @@ import type {
 import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from './errors.ts';
 import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './file-exchange.ts';
 import type { CreationRepository } from './repository.ts';
+import { DeliveryService } from './review/delivery.ts';
 import { ReviewService } from './review/service.ts';
 import { CreationService } from './service.ts';
 
@@ -25,11 +26,13 @@ export class CreationApplication {
   private readonly service: CreationService;
   private readonly review: ReviewService;
   private readonly agent: CreationAgentService;
+  private readonly delivery: DeliveryService;
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
     this.review = new ReviewService(repository, this.service);
-    this.agent = new CreationAgentService(repository, this.service, this.review);
+    this.delivery = new DeliveryService(repository, this.service);
+    this.agent = new CreationAgentService(repository, this.service, this.review, this.delivery);
   }
 
   subscribe(listener: Parameters<CreationService['subscribe']>[0]): () => void {
@@ -128,6 +131,14 @@ export class CreationApplication {
         return this.service.snapshot(command.input.workId);
       case 'readChanges':
         return this.service.readChanges(command.input.cursor, command.input.limit);
+      case 'readCurrentDelivery':
+        return this.delivery.current(command.input.sessionId);
+      case 'readDeliveryGroup':
+        return this.delivery.read(command.input.groupId);
+      case 'readDeliveryContents':
+        return this.delivery.contents(command.input.groupId);
+      case 'continueDelivery':
+        return this.delivery.continue(command.input);
       case 'listPendingChanges':
         return this.review.list(command.input.workId, command.input.sessionId);
       case 'readReview':

@@ -12,6 +12,7 @@ import type {
   PendingChange
 } from '../contracts.ts';
 import type { CreationRepository } from '../repository.ts';
+import type { DeliveryService } from '../review/delivery.ts';
 import { overlayEntries } from '../review/overlay.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
@@ -24,10 +25,17 @@ export class CreationAgentService {
   private readonly repository: CreationRepository;
   private readonly creation: CreationService;
   private readonly review: ReviewService;
-  constructor(repository: CreationRepository, creation: CreationService, review: ReviewService) {
+  private readonly delivery: DeliveryService;
+  constructor(
+    repository: CreationRepository,
+    creation: CreationService,
+    review: ReviewService,
+    delivery: DeliveryService
+  ) {
     this.repository = repository;
     this.creation = creation;
     this.review = review;
+    this.delivery = delivery;
   }
 
   execute(context: CreationAgentContext, command: CreationAgentCommand): AgentValue {
@@ -76,9 +84,9 @@ export class CreationAgentService {
     if (context.mode === 'direct') {
       const receipt = this.repository.readWorkReceipt<Entry>(workId, commandId, parameters);
       if (receipt) return { kind: 'saved', entry: receipt };
-      if (this.review.list(null, context.sessionId).length)
-        throw new Error('请先处理本会话的待接受修改，再切换直接修改');
-      const { base, candidate } = this.propose(context.sessionId, command);
+      if ((this.delivery.current(context.sessionId)?.pendingCount ?? 0) > 0)
+        throw new Error('请先处理当前这组待接受修改，再切换直接修改');
+      const { base, candidate } = this.propose(context, command);
       return {
         kind: 'saved',
         entry: commitSnapshot(this.repository, this.creation.commit.bind(this.creation), {
@@ -91,8 +99,8 @@ export class CreationAgentService {
         })
       };
     }
-    const change = this.creation.commit(null, commandId, parameters, { kind: 'review' }, () => {
-      const { base, candidate, existing } = this.propose(context.sessionId, command);
+    const pending = this.creation.commit(null, commandId, parameters, { kind: 'review' }, () => {
+      const { base, candidate, existing } = this.propose(context, command);
       const order =
         existing && command.method !== 'moveEntry'
           ? existing.order
@@ -112,12 +120,14 @@ export class CreationAgentService {
         updatedAt: Date.now()
       };
       this.repository.putPendingChange(change);
+      this.delivery.attach(change, existing);
       return change;
     });
-    return { kind: 'pending', change };
+    return { kind: 'pending', change: pending };
   }
 
-  private propose(sessionId: string, command: AgentWriteCommand) {
+  private propose(context: CreationAgentContext, command: AgentWriteCommand) {
+    const { sessionId, mode } = context;
     const { workId } = command.input;
     if (!this.repository.hasWork(workId)) throw new Error('作品不存在');
     const entryId =
@@ -127,8 +137,11 @@ export class CreationAgentService {
           ? command.input.documentId
           : command.input.entryId;
     const existing =
-      entryId === null ? undefined : this.review.list(workId, sessionId).find(change => change.entryId === entryId);
+      entryId === null || mode !== 'review'
+        ? undefined
+        : this.review.list(workId, sessionId).find(change => change.entryId === entryId);
     const current = entryId === null ? null : readEntrySnapshot(this.repository, workId, entryId);
-    return { ...proposeEntry(command, this.entries(workId, sessionId), current, existing), existing };
+    const entries = mode === 'review' ? this.entries(workId, sessionId) : this.creation.listEntries(workId);
+    return { ...proposeEntry(command, entries, current, existing), existing };
   }
 }
