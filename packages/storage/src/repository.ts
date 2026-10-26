@@ -118,6 +118,15 @@ class SqliteCreationRepository implements CreationRepository {
       .run(workId ?? '', sessionId);
   }
 
+  forgetSessions(sessionIds: string[]): void {
+    const forget = this.library.prepare('DELETE FROM session_assignments WHERE sessionId = ?');
+    const clear = this.library.prepare('UPDATE session_selections SET sessionId = NULL WHERE sessionId = ?');
+    for (const sessionId of sessionIds) {
+      forget.run(sessionId);
+      clear.run(sessionId);
+    }
+  }
+
   readWorkbench(): WorkbenchState {
     const row = this.library.prepare('SELECT state FROM workbench_state WHERE id = 1').get() as
       | { state: string }

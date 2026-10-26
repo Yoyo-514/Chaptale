@@ -10,6 +10,9 @@ interface Connections {
   agent: RpcConnection<HostCommands, HostEvent>;
   creation: RpcConnection<CreationCommands, CreationEvent>;
 }
+/** 宿主退出时附带的最近错误输出长度（字符）。 */
+const stderrTailLength = 2000;
+
 export interface ApplicationProcessOptions extends ApplicationBootstrapOptions {
   script: string;
 }
@@ -79,6 +82,13 @@ export class DesktopApplicationProcess {
       stdio: 'pipe'
     });
     this.child = child;
+    // 转发宿主输出到主进程终端；保留最近的错误输出，退出时附在错误里，打包后没有终端也能看到原因。
+    let stderrTail = '';
+    child.stdout?.on('data', (chunk: Buffer) => process.stdout.write(`[application-host] ${chunk}`));
+    child.stderr?.on('data', (chunk: Buffer) => {
+      process.stderr.write(`[application-host] ${chunk}`);
+      stderrTail = (stderrTail + chunk.toString()).slice(-stderrTailLength);
+    });
     const send = (request: ApplicationRequest) => {
       // oxlint-disable-next-line unicorn/require-post-message-target-origin
       child.postMessage(request);
@@ -112,7 +122,15 @@ export class DesktopApplicationProcess {
       });
       this.exited = new Promise<void>(finished => {
         child.once('exit', code => {
-          const error = new Error(`应用宿主已退出（${code}），请重新连接；作品重新读取快照，会话重新打开历史`);
+          const detail = stderrTail.trim();
+          const error = new Error(
+            `应用宿主已退出（${code}），请重新连接；作品重新读取快照，会话重新打开历史${
+              detail
+                ? `
+${detail}`
+                : ''
+            }`
+          );
           clients.agent.disconnect(error);
           clients.creation.disconnect(error);
           reject(error);

@@ -159,6 +159,12 @@ export class CreationService {
   selectSession(input: SessionSelection): SessionState {
     return sessions.selectSession(this.repository, input);
   }
+  forgetSessions(sessionIds: string[]): SessionState {
+    return this.repository.libraryTransaction(() => {
+      this.repository.forgetSessions(sessionIds);
+      return this.repository.readSessionState();
+    });
+  }
   readWorkbench(): WorkbenchState {
     return this.repository.readWorkbench();
   }

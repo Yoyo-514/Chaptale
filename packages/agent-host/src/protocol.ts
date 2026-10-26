@@ -170,7 +170,7 @@ export interface HostCommands {
   compact: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
   /**
-   * 删除会话：任一会话在运行则整体拒绝；先拒绝这些会话的全部待审修改，再关闭已打开的会话。
+   * 删除会话：任一会话在运行则整体拒绝；先拒绝这些会话的全部待审修改并清除作品归属，再关闭已打开的会话。
    * 返回待删除的历史文件，由平台移入回收站；尚未写盘的新会话只关闭。
    */
   deleteSessions: { input: { sessionIds: string[] }; output: { files: string[] } };

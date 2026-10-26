@@ -1245,7 +1245,7 @@ it.each(['空身份', '错误类型', '错误模式', '缺少分组', '其他会
   }
 );
 
-it('删除会话时拒绝其全部待审修改、关闭会话，并返回待移入回收站的历史文件', async () => {
+it('删除会话时拒绝其全部待审修改、清除作品归属与查看位置、关闭会话，并返回待移入回收站的历史文件', async () => {
   const runtime = await restartWithTools([]);
   await observeContinuation(runtime);
   const edited = await call('work_edit', {
@@ -1281,9 +1281,15 @@ it('删除会话时拒绝其全部待审修改、关闭会话，并返回待移�
   release.resolve();
   await expect.poll(() => host.snapshot().sessions.find(item => item.id === id)!.running).toBe(false);
 
+  value(creation.executeAuthor({ method: 'assignSession', input: { sessionId, workId } }));
+  value(creation.executeAuthor({ method: 'selectSession', input: { sessionId, workId } }));
+
   const result = await host.execute({ method: 'deleteSessions', input: { sessionIds: [sessionId] } });
 
   expect(result).toEqual({ files: [file] });
+  const state = value(creation.executeAuthor({ method: 'readSessionState', input: {} }));
+  expect(state.assignments.some(item => item.sessionId === sessionId)).toBe(false);
+  expect(state.selections).toContainEqual({ workId, sessionId: null });
   expect(pending()).toEqual([]);
   expect(host.snapshot().sessions.some(item => item.id === id)).toBe(false);
   expect(read().content).toBe('将军守城。\n城外下雪。\n斥候回营。');

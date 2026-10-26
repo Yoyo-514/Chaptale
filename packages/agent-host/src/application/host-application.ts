@@ -341,7 +341,12 @@ export class HostApplication {
     const files = (await SessionManager.listAll(this.options.sessionDir))
       .filter(item => ids.has(item.id))
       .map(item => item.path);
-    if (this.options.creation) for (const id of ids) rejectPendingChanges(this.options.creation, id);
+    const { creation } = this.options;
+    if (creation) {
+      for (const id of ids) rejectPendingChanges(creation, id);
+      const forgotten = creation.executeAuthor({ method: 'forgetSessions', input: { sessionIds: [...ids] } });
+      if (!forgotten.ok) throw new Error(forgotten.error.message);
+    }
     for (const [id] of open) await this.close(id);
     return { files };
   }

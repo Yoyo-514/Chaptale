@@ -103,6 +103,8 @@ export class CreationApplication {
         return this.service.assignSession(command.input);
       case 'selectSession':
         return this.service.selectSession(command.input);
+      case 'forgetSessions':
+        return this.service.forgetSessions(command.input.sessionIds);
       case 'readWorkbench':
         return this.service.readWorkbench();
       case 'writeWorkbench':

@@ -58,6 +58,7 @@ const inputs = {
   readSessionState: object({}),
   assignSession: object({ sessionId: id, workId: id }),
   selectSession: object({ sessionId: parentId, workId: parentId }),
+  forgetSessions: object({ sessionIds: Type.Array(id) }),
   readWorkbench: object({}),
   writeWorkbench: workbenchState,
   createWork: object({

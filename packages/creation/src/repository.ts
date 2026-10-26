@@ -58,6 +58,7 @@ export interface CreationRepository {
   getSessionWork(sessionId: string): string | null;
   assignSession(assignment: SessionAssignment): void;
   selectSession(selection: SessionSelection): void;
+  forgetSessions(sessionIds: string[]): void;
   readWorkbench(): WorkbenchState;
   writeWorkbench(state: WorkbenchState): void;
   insertWork(work: Work): void;

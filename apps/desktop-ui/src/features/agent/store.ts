@@ -332,7 +332,10 @@ export const useAgentStore = defineStore('agent', () => {
 
   /** 宿主拒绝待审修改并关闭会话，历史文件移入回收站后刷新列表。 */
   async function deleteSessions(sessionIds: string[]) {
-    const deleted = await perform(() => getDesktopApi().agentHost.request('deleteSessions', { sessionIds }));
+    const deleted = await perform(async () => {
+      await getDesktopApi().agentHost.request('deleteSessions', { sessionIds });
+      catalog.value = await requestCreation('readSessionState', {});
+    });
     if (deleted) await loadHistory();
     return deleted;
   }

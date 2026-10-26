@@ -137,6 +137,8 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   readSessionState: { input: Record<string, never>; output: CreationResult<SessionState> };
   assignSession: { input: SessionAssignment; output: CreationResult<SessionState> };
   selectSession: { input: SessionSelection; output: CreationResult<SessionState> };
+  /** 会话删除后清除其归属，并清空指向它的查看位置。 */
+  forgetSessions: { input: { sessionIds: string[] }; output: CreationResult<SessionState> };
   readWorkbench: { input: Record<string, never>; output: CreationResult<WorkbenchState> };
   writeWorkbench: { input: WorkbenchState; output: CreationResult<WorkbenchState> };
   createWork: { input: CreateWorkInput; output: CreationResult<Work> };
