@@ -75,6 +75,7 @@ function changeFrom(effect: CommitEffect, result: CommitResult): CreationEvent['
   if (effect.kind === 'work') return { kind: 'work', work: result as Work };
   if (effect.kind === 'review') return { kind: 'review', change: result as PendingChange };
   if (effect.kind === 'delivery') return { kind: 'delivery', group: result as DeliveryGroup };
+  if (effect.kind === 'entries') return { kind: 'entries', entries: result as Entry[] };
   return { ...effect, entry: result as Entry };
 }
 

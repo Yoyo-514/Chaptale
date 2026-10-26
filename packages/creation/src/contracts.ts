@@ -47,6 +47,8 @@ export type CreationChange =
   | { kind: 'review'; change: PendingChange }
   | { kind: 'delivery'; group: DeliveryGroup }
   | { kind: 'entry'; entry: Entry }
+  /** 一次提交改动多个条目，例如整组接受待审修改；目录位置可能变化，客户端重取快照。 */
+  | { kind: 'entries'; entries: Entry[] }
   | { kind: 'move'; entry: Entry; from: { parentId: string | null; position: number } };
 export interface CreationEvent {
   cursor: CreationCursor;

@@ -23,18 +23,24 @@ export function advanceChange(change: PendingChange, fields: Partial<PendingChan
   };
 }
 
-export function assertReviewTarget(view: ReviewView, input: ReviewTarget): void {
+/** 作者看到的版本仍是当前版本时返回 null，否则返回需要刷新的原因。 */
+export function staleReason(view: ReviewView, input: ReviewTarget): string | null {
   if (view.change.status !== 'pending' || view.change.version !== input.expectedVersion)
-    throw new Error('待接受修改已有新版本，请刷新后审阅');
-  if ((view.current?.revisionId ?? null) !== input.expectedRevisionId)
-    throw new Error('正式内容已有变化，请刷新审阅内容');
+    return '待接受修改已有新版本，请刷新后审阅';
+  if ((view.current?.revisionId ?? null) !== input.expectedRevisionId) return '正式内容已有变化，请刷新审阅内容';
   if (
     view.current &&
     (!input.expectedLocation ||
       input.expectedLocation.parentId !== view.current.parentId ||
       input.expectedLocation.position !== view.current.position)
   )
-    throw new Error('正式目录位置已有变化，请刷新审阅内容');
+    return '正式目录位置已有变化，请刷新审阅内容';
+  return null;
+}
+
+export function assertReviewTarget(view: ReviewView, input: ReviewTarget): void {
+  const reason = staleReason(view, input);
+  if (reason) throw new Error(reason);
 }
 
 export function decideBlock(

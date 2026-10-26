@@ -13,6 +13,7 @@ import type {
   RecoveryDraft,
   PendingChange,
   DecideReviewInput,
+  DecideDeliveryInput,
   SessionAssignment,
   SessionSelection,
   SessionState,
@@ -25,11 +26,12 @@ import type {
 export type CommitEffect =
   | { kind: 'work' }
   | { kind: 'entry' }
+  | { kind: 'entries' }
   | { kind: 'review' }
   | { kind: 'delivery' }
   | { kind: 'move'; from: { parentId: string | null; position: number } };
 
-export type CommitResult = Work | Entry | PendingChange | DeliveryGroup;
+export type CommitResult = Work | Entry | Entry[] | PendingChange | DeliveryGroup;
 
 export interface CommandCommit<T> {
   result: T;
@@ -73,6 +75,8 @@ export interface CreationRepository {
   getRevisionEntryId(workId: string, revisionId: string): string | undefined;
 
   getCurrentDelivery(sessionId: string): DeliveryGroup | undefined;
+  /** 按新到旧排列。 */
+  listDeliveryGroups(sessionId: string): DeliveryGroup[];
   getDeliveryGroup(id: string): DeliveryGroup | undefined;
   putDeliveryGroup(group: DeliveryGroup): void;
 
@@ -82,6 +86,9 @@ export interface CreationRepository {
   putReviewIntent(input: DecideReviewInput): void;
   listReviewIntents(): DecideReviewInput[];
   clearReviewIntent(commandId: string): void;
+  putDeliveryIntent(input: DecideDeliveryInput): void;
+  listDeliveryIntents(): DecideDeliveryInput[];
+  clearDeliveryIntent(commandId: string): void;
 
   getDraftState(workId: string, documentId: string): DraftState;
   putDraft(draft: RecoveryDraft): void;

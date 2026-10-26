@@ -86,6 +86,7 @@ export class CreationAgentService {
       if (receipt) return { kind: 'saved', entry: receipt };
       if ((this.delivery.current(context.sessionId)?.pendingCount ?? 0) > 0)
         throw new Error('请先处理当前这组待接受修改，再切换直接修改');
+      this.delivery.assertWritable(context.sessionId, workId, targetId(command));
       const { base, candidate } = this.propose(context, command);
       return {
         kind: 'saved',
@@ -100,6 +101,7 @@ export class CreationAgentService {
       };
     }
     const pending = this.creation.commit(null, commandId, parameters, { kind: 'review' }, () => {
+      this.delivery.assertWritable(context.sessionId, workId, targetId(command));
       const { base, candidate, existing } = this.propose(context, command);
       const order =
         existing && command.method !== 'moveEntry'
@@ -120,7 +122,7 @@ export class CreationAgentService {
         updatedAt: Date.now()
       };
       this.repository.putPendingChange(change);
-      this.delivery.attach(change, existing);
+      this.delivery.attach(change);
       return change;
     });
     return { kind: 'pending', change: pending };
@@ -130,12 +132,7 @@ export class CreationAgentService {
     const { sessionId, mode } = context;
     const { workId } = command.input;
     if (!this.repository.hasWork(workId)) throw new Error('作品不存在');
-    const entryId =
-      command.method === 'createEntry'
-        ? null
-        : 'documentId' in command.input
-          ? command.input.documentId
-          : command.input.entryId;
+    const entryId = targetId(command);
     const existing =
       entryId === null || mode !== 'review'
         ? undefined
@@ -144,4 +141,9 @@ export class CreationAgentService {
     const entries = mode === 'review' ? this.entries(workId, sessionId) : this.creation.listEntries(workId);
     return { ...proposeEntry(command, entries, current, existing), existing };
   }
+}
+
+function targetId(command: AgentWriteCommand): string | null {
+  if (command.method === 'createEntry') return null;
+  return 'documentId' in command.input ? command.input.documentId : command.input.entryId;
 }

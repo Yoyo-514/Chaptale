@@ -134,8 +134,9 @@ export const useCreationStore = defineStore('creation', () => {
       });
       return;
     }
-    const next = event.change.entry;
-    entries.value = [...entries.value.filter(item => item.id !== next.id), next];
+    const changed = event.change.kind === 'entry' ? [event.change.entry] : event.change.entries;
+    const ids = new Set(changed.map(item => item.id));
+    entries.value = [...entries.value.filter(item => !ids.has(item.id)), ...changed];
     cursor = event.cursor.sequence;
   }
 

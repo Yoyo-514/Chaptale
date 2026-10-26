@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 
-import type { DecideReviewInput, PendingChange } from '@chaptale/creation/contracts';
+import type { DecideDeliveryInput, DecideReviewInput, PendingChange } from '@chaptale/creation/contracts';
 
 export function readPendingChange(database: Database.Database, id: string): PendingChange | undefined {
   const row = database.prepare('SELECT value FROM pending_changes WHERE id = ?').get(id) as
@@ -33,24 +33,28 @@ export function putPendingChange(database: Database.Database, change: PendingCha
     .run(change.id, change.workId, change.sessionId, change.entryId, change.status, JSON.stringify(change));
 }
 
+type IntentTable = 'review_intents' | 'delivery_intents';
+
 /** 意图先于跨库提交保存；恢复只读取已有作品回执，不执行尚未提交的修改。 */
-export function putReviewIntent(database: Database.Database, input: DecideReviewInput): void {
-  const row = database.prepare('SELECT input FROM review_intents WHERE commandId = ?').get(input.commandId) as
+export function putIntent(
+  database: Database.Database,
+  table: IntentTable,
+  input: DecideReviewInput | DecideDeliveryInput
+): void {
+  const row = database.prepare(`SELECT input FROM ${table} WHERE commandId = ?`).get(input.commandId) as
     | { input: string }
     | undefined;
   const serialized = JSON.stringify(input);
   if (row && row.input !== serialized) throw new Error('同一命令不能用于不同审阅决定');
-  database
-    .prepare('INSERT OR IGNORE INTO review_intents (commandId, input) VALUES (?, ?)')
-    .run(input.commandId, serialized);
+  database.prepare(`INSERT OR IGNORE INTO ${table} (commandId, input) VALUES (?, ?)`).run(input.commandId, serialized);
 }
 
-export function listReviewIntents(database: Database.Database): DecideReviewInput[] {
-  const rows = database.prepare('SELECT input FROM review_intents ORDER BY commandId').all() as { input: string }[];
-  return rows.map(row => decode<DecideReviewInput>(row.input));
+export function listIntents<T>(database: Database.Database, table: IntentTable): T[] {
+  const rows = database.prepare(`SELECT input FROM ${table} ORDER BY commandId`).all() as { input: string }[];
+  return rows.map(row => decode<T>(row.input));
 }
-export function clearReviewIntent(database: Database.Database, commandId: string): void {
-  database.prepare('DELETE FROM review_intents WHERE commandId = ?').run(commandId);
+export function clearIntent(database: Database.Database, table: IntentTable, commandId: string): void {
+  database.prepare(`DELETE FROM ${table} WHERE commandId = ?`).run(commandId);
 }
 
 function decode<T>(value: string): T {

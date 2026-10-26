@@ -257,7 +257,8 @@ export class LiveSession {
       const delivery = creationValue(
         this.creation.executeAuthor({ method: 'readDeliveryGroup', input: { groupId: this.directAfterGroupId } })
       );
-      if (delivery.group.status === 'continued') this.view.mode = 'direct';
+      // 继续或作者结束该组任务后，延后的直接修改生效。
+      if (delivery.group.status !== 'pending') this.view.mode = 'direct';
       else this.view.switchingTo = 'direct';
     }
     if (this.view.mode !== previousMode) this.syncWorkTools();
@@ -304,9 +305,16 @@ export class LiveSession {
   }
 
   private resumeReviewed(): void {
-    if (!this.reviewGroupId || this.cancelled || this.view.running) return;
-    const delivery = this.view.delivery!;
-    if (delivery.group.id !== this.reviewGroupId || delivery.pendingCount > 0) return;
+    if (!this.reviewGroupId || this.cancelled) return;
+    const delivery = this.view.delivery;
+    if (delivery?.group.id !== this.reviewGroupId) {
+      // 作者结束了等待中的任务：剩余候选转为历史待审，本次任务不再自动续跑。
+      delete this.reviewGroupId;
+      delete this.view.waitingForReview;
+      this.reviewWritePending = false;
+      return;
+    }
+    if (this.view.running || delivery.pendingCount > 0) return;
     // 先消耗本轮资格，重复决定、重复事件和请求失败都不会再次自动发起。
     delete this.reviewGroupId;
     delete this.view.waitingForReview;

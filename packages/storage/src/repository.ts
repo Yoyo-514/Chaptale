@@ -5,6 +5,7 @@ import type {
   CreationChanges,
   CreationCursor,
   CreationSnapshot,
+  DecideDeliveryInput,
   DecideReviewInput,
   DeliveryGroup,
   Document,
@@ -194,6 +195,13 @@ class SqliteCreationRepository implements CreationRepository {
     return row ? (JSON.parse(row.value) as DeliveryGroup) : undefined;
   }
 
+  listDeliveryGroups(sessionId: string): DeliveryGroup[] {
+    const rows = this.library
+      .prepare('SELECT value FROM delivery_groups WHERE sessionId = ? ORDER BY sequence DESC')
+      .all(sessionId) as { value: string }[];
+    return rows.map(row => JSON.parse(row.value) as DeliveryGroup);
+  }
+
   getDeliveryGroup(id: string): DeliveryGroup | undefined {
     const row = this.library.prepare('SELECT value FROM delivery_groups WHERE id = ?').get(id) as
       | { value: string }
@@ -219,13 +227,22 @@ class SqliteCreationRepository implements CreationRepository {
     reviews.putPendingChange(this.library, change);
   }
   putReviewIntent(input: DecideReviewInput): void {
-    reviews.putReviewIntent(this.library, input);
+    reviews.putIntent(this.library, 'review_intents', input);
   }
   listReviewIntents(): DecideReviewInput[] {
-    return reviews.listReviewIntents(this.library);
+    return reviews.listIntents(this.library, 'review_intents');
   }
   clearReviewIntent(commandId: string): void {
-    reviews.clearReviewIntent(this.library, commandId);
+    reviews.clearIntent(this.library, 'review_intents', commandId);
+  }
+  putDeliveryIntent(input: DecideDeliveryInput): void {
+    reviews.putIntent(this.library, 'delivery_intents', input);
+  }
+  listDeliveryIntents(): DecideDeliveryInput[] {
+    return reviews.listIntents(this.library, 'delivery_intents');
+  }
+  clearDeliveryIntent(commandId: string): void {
+    reviews.clearIntent(this.library, 'delivery_intents', commandId);
   }
 
   getDraftState(workId: string, documentId: string): DraftState {

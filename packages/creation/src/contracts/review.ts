@@ -40,12 +40,15 @@ export interface PendingChange {
   updatedAt: number;
 }
 
-/** 分组身份跨问答与重启保留；候选仍按自身版本接受或拒绝。 */
+/**
+ * 分组身份跨问答与重启保留；候选仍按自身版本接受或拒绝。
+ * continued 表示作者处理完后任务已继续；ended 表示作者结束了该任务，剩余候选作为历史待审保留。
+ */
 export interface DeliveryGroup {
   id: string;
   sessionId: string;
   version: string;
-  status: 'pending' | 'continued';
+  status: 'pending' | 'continued' | 'ended';
   changeIds: string[];
 }
 
@@ -60,7 +63,8 @@ export interface DeliveryContent {
   snapshot: EntrySnapshot | null;
 }
 
-export interface ContinueDeliveryInput {
+/** 继续与结束任务都只推进当前组的进度。 */
+export interface DeliveryProgressInput {
   commandId: string;
   sessionId: string;
   groupId: string;
@@ -79,6 +83,33 @@ export interface ReviewTarget {
   expectedVersion: string;
   expectedRevisionId: string | null;
   expectedLocation: { parentId: string | null; position: number } | null;
+}
+
+/** 组内一项待审修改的摘要；target 即作者看到的版本，整组决定按它校验。 */
+export interface DeliveryItem {
+  target: ReviewTarget;
+  workId: string;
+  entryId: string;
+  section: EntrySnapshot['section'];
+  kind: EntrySnapshot['kind'];
+  title: string;
+  created: boolean;
+  conflicted: boolean;
+}
+
+export interface DeliverySummary {
+  group: DeliveryGroup;
+  items: DeliveryItem[];
+}
+
+/** 一次只处理一部作品，正式修订与回执在该作品库的一个事务中提交。 */
+export interface DecideDeliveryInput {
+  commandId: string;
+  groupId: string;
+  workId: string;
+  decision: 'accept' | 'reject';
+  /** 必须覆盖该组在此作品中的全部待审修改。 */
+  targets: ReviewTarget[];
 }
 
 /** 两侧位置是 UTF-16 字符偏移，与编辑器一致。 */
@@ -133,7 +164,12 @@ export interface ReviewCommands {
   readCurrentDelivery: { input: { sessionId: string }; output: CreationResult<DeliveryView | null> };
   readDeliveryGroup: { input: { groupId: string }; output: CreationResult<DeliveryView> };
   readDeliveryContents: { input: { groupId: string }; output: CreationResult<DeliveryContent[]> };
-  continueDelivery: { input: ContinueDeliveryInput; output: CreationResult<DeliveryGroup> };
+  continueDelivery: { input: DeliveryProgressInput; output: CreationResult<DeliveryGroup> };
+  /** 作者结束当前任务；剩余候选保留为历史待审，不再自动继续。 */
+  endDelivery: { input: DeliveryProgressInput; output: CreationResult<DeliveryGroup> };
+  /** 当前组及仍有待审修改的历史组，按新到旧排列。 */
+  listDeliveries: { input: { sessionId: string }; output: CreationResult<DeliverySummary[]> };
+  decideDelivery: { input: DecideDeliveryInput; output: CreationResult<DeliveryGroup> };
   listPendingChanges: {
     input: { workId: string | null; sessionId: string | null };
     output: CreationResult<PendingChange[]>;

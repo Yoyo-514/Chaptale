@@ -30,8 +30,8 @@ export class CreationApplication {
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
-    this.review = new ReviewService(repository, this.service);
     this.delivery = new DeliveryService(repository, this.service);
+    this.review = new ReviewService(repository, this.service, this.delivery);
     this.agent = new CreationAgentService(repository, this.service, this.review, this.delivery);
   }
 
@@ -139,6 +139,12 @@ export class CreationApplication {
         return this.delivery.contents(command.input.groupId);
       case 'continueDelivery':
         return this.delivery.continue(command.input);
+      case 'endDelivery':
+        return this.delivery.end(command.input);
+      case 'listDeliveries':
+        return this.review.deliveries(command.input.sessionId);
+      case 'decideDelivery':
+        return this.review.decideDelivery(command.input);
       case 'listPendingChanges':
         return this.review.list(command.input.workId, command.input.sessionId);
       case 'readReview':

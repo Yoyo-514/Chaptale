@@ -35,6 +35,10 @@ export async function openLibrary(rootDir: string): Promise<Database.Database> {
       commandId TEXT PRIMARY KEY,
       input TEXT NOT NULL
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS delivery_intents (
+      commandId TEXT PRIMARY KEY,
+      input TEXT NOT NULL
+    ) STRICT;
     CREATE TABLE IF NOT EXISTS pending_changes (
       id TEXT PRIMARY KEY,
       workId TEXT NOT NULL REFERENCES works(id),

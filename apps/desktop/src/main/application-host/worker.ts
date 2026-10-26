@@ -17,7 +17,8 @@ async function start() {
     const options = JSON.parse(process.argv[2]) as ApplicationBootstrapOptions;
     creation = new CreationApplication(await openCreationStorage({ rootDir: options.creationDir }));
     const author = creation;
-    const agent = await createHostApplication(options.agent);
+    // 作品工具与作者入口共用同一个作品应用，待审修改和正式修订只有一个写入协调器。
+    const agent = await createHostApplication({ ...options.agent, creation: author });
     const pendingCreation = new Set<Promise<void>>();
     agent.subscribe(event => send({ type: 'agent', packet: { type: 'event', event } }));
     author.subscribe(event => send({ type: 'creation', packet: { type: 'event', event } }));

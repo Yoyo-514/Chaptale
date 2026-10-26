@@ -4,7 +4,8 @@ import type { RpcPacket, RpcRequest } from '@chaptale/contracts';
 import type { CreationCommands, CreationEvent } from '@chaptale/creation/contracts';
 
 export interface ApplicationBootstrapOptions {
-  agent: HostBootstrapOptions;
+  // 作品应用在业务进程内创建后注入，启动参数只含可序列化的目录。
+  agent: Omit<HostBootstrapOptions, 'creation'>;
   creationDir: string;
 }
 

@@ -926,6 +926,35 @@ it('最后一处待审决定保存后自动续跑，延后的直接修改生效�
   expect(pending()).toEqual([]);
 });
 
+it('作者结束等待中的任务后立即应用延后切换，历史待审处理完也不自动续跑', async () => {
+  const runtime = await restartWithTools([]);
+  const requests = await observeContinuation(runtime);
+  expect(
+    (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '待审正文' }))
+      .isError
+  ).toBe(false);
+  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
+  await expect.poll(() => view().waitingForReview).toBe(true);
+  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
+  expect(view()).toMatchObject({ mode: 'review', switchingTo: 'direct' });
+  const group = view().delivery!.group;
+  value(
+    creation.executeAuthor({
+      method: 'endDelivery',
+      input: { commandId: randomUUID(), sessionId: group.sessionId, groupId: group.id, expectedVersion: group.version }
+    })
+  );
+  await expect.poll(() => view().mode).toBe('direct');
+  expect(view()).toMatchObject({ delivery: null });
+  expect(view().waitingForReview).toBeUndefined();
+  expect(view().switchingTo).toBeUndefined();
+  decidePending('accept');
+  await Promise.resolve();
+  expect(requests).toHaveLength(0);
+  expect(view().running).toBe(false);
+  expect(read().content).toBe('待审正文');
+});
+
 it('部分接受与陈旧决定保持待审，最后拒绝剩余修改后只续跑一次', async () => {
   const runtime = await restartWithTools([]);
   const requests = await observeContinuation(runtime);

@@ -94,6 +94,15 @@ const inputs = {
   readDeliveryGroup: object({ groupId: id }),
   readDeliveryContents: object({ groupId: id }),
   continueDelivery: object({ commandId: id, sessionId: id, groupId: id, expectedVersion: id }),
+  endDelivery: object({ commandId: id, sessionId: id, groupId: id, expectedVersion: id }),
+  listDeliveries: object({ sessionId: id }),
+  decideDelivery: object({
+    commandId: id,
+    groupId: id,
+    workId: id,
+    decision: Type.Union([Type.Literal('accept'), Type.Literal('reject')]),
+    targets: Type.Array(object(reviewTarget))
+  }),
   listPendingChanges: object({ workId: parentId, sessionId: parentId }),
   readReview: object({ changeId: id }),
   updateReview: object({
