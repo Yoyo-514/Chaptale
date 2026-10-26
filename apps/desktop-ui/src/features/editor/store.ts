@@ -12,6 +12,7 @@ import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
 import { DocumentBuffer } from './codemirror/document-buffer';
+import { useReviewStore } from './review/store';
 import { writingTiming } from './timing';
 import type { DocumentViewState, EditorTab } from './types';
 
@@ -34,6 +35,7 @@ function snapshot(tab: EditorTab, buffer: DocumentBuffer): Omit<SaveDocumentInpu
 export const useEditorStore = defineStore('editor', () => {
   const creation = useCreationStore();
   const settings = useSettingsStore();
+  const review = useReviewStore();
   const tabs = shallowRef<EditorTab[]>([]);
   const activeId = ref('');
   const focusedId = ref('');
@@ -171,6 +173,7 @@ export const useEditorStore = defineStore('editor', () => {
     if (!tab) return;
     const state = creation.viewFor(tab.workId);
     if (state.secondaryDocumentId === id) state.secondaryDocumentId = activeId.value || null;
+    review.activeId = '';
     activeId.value = id;
     focusedId.value = id;
     state.activeDocumentId = id;
@@ -401,6 +404,7 @@ export const useEditorStore = defineStore('editor', () => {
     if (value) await saveAll();
   }
   async function prepareSwitch() {
+    if (!review.confirmLeave()) return false;
     if (!(await confirmClose())) return false;
     await Promise.all(queues.values());
     return creation.persistState();
@@ -423,7 +427,7 @@ export const useEditorStore = defineStore('editor', () => {
     return closing;
   }
   function handleBeforeUnload(event: BeforeUnloadEvent) {
-    if (hasUnsaved.value && !closingApproved) {
+    if ((hasUnsaved.value || review.hasUnsaved) && !closingApproved) {
       event.preventDefault();
       event.returnValue = '';
     }

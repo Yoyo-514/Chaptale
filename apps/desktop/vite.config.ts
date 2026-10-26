@@ -42,7 +42,12 @@ export default defineConfig(async () => ({
             outDir: path.resolve(desktopRoot, 'dist/main'),
             emptyOutDir: true,
             rolldownOptions: {
-              external: ['@earendil-works/pi-coding-agent', 'better-sqlite3', '@node-rs/jieba', '@node-rs/jieba/dict']
+              external: [
+                '@earendil-works/pi-coding-agent',
+                'better-sqlite3',
+                '@node-rs/jieba',
+                '@node-rs/jieba/dict.js'
+              ]
             }
           }
         }

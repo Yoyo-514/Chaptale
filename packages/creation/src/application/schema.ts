@@ -116,7 +116,8 @@ const inputs = {
     ...reviewTarget,
     commandId: id,
     decision: Type.Union([Type.Literal('accept'), Type.Literal('reject')]),
-    range: Type.Optional(object({ fromA: offset, toA: offset, fromB: offset, toB: offset }))
+    range: Type.Optional(object({ fromA: offset, toA: offset, fromB: offset, toB: offset })),
+    part: Type.Optional(Type.Literal('title'))
   })
 } satisfies Record<keyof CreationAuthorCommands, TSchema>;
 

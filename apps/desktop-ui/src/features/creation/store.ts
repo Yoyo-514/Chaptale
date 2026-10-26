@@ -6,6 +6,7 @@ import type {
   CreationEvent,
   CreationResult,
   Entry,
+  PendingChange,
   Work,
   WorkbenchState,
   WorkViewState
@@ -27,7 +28,9 @@ export async function requestCreation<K extends keyof CreationCommands>(
   method: K,
   input: CreationCommands[K]['input']
 ): Promise<Value<K>> {
-  const result = await getDesktopApi().creation.request(method, input);
+  // 作品契约只含纯 JSON；入队时捕获独立快照，去掉嵌套的响应式代理并隔离后续修改
+  const snapshot = JSON.parse(JSON.stringify(input)) as typeof input;
+  const result = await getDesktopApi().creation.request(method, snapshot);
   if (!result.ok) throw new CreationRequestError(result.error);
   return result.value as Value<K>;
 }
@@ -36,6 +39,11 @@ export async function requestCreation<K extends keyof CreationCommands>(
 export const useCreationStore = defineStore('creation', () => {
   const works = ref<Work[]>([]);
   const entries = ref<Entry[]>([]);
+  /** 当前作品所有会话的待接受修改，供目录标记与显示新建候选；修改本身在审阅标签中处理。 */
+  const pendingChanges = ref<PendingChange[]>([]);
+  const pendingEntryIds = computed<ReadonlySet<string>>(
+    () => new Set(pendingChanges.value.filter(change => change.base !== null).map(change => change.entryId))
+  );
   const state = ref<WorkbenchState>({ activeWorkId: null, works: [] });
   const libraryOpen = ref(true);
   const connected = ref(false);
@@ -119,7 +127,35 @@ export const useCreationStore = defineStore('creation', () => {
     }
   }
 
+  const listeners = new Set<(event: CreationEvent) => void>();
+  /** 待审与交付视图按作品事件刷新；事件先通知订阅者，再推进目录游标。 */
+  function onEvent(listener: (event: CreationEvent) => void): () => void {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }
+
+  let pendingRequest = 0;
+  async function refreshPending() {
+    const id = workId.value;
+    const request = ++pendingRequest;
+    if (!id) {
+      pendingChanges.value = [];
+      return;
+    }
+    const changes = await requestCreation('listPendingChanges', { workId: id, sessionId: null });
+    if (request === pendingRequest) pendingChanges.value = changes;
+  }
+  function reportPending() {
+    void refreshPending().catch(cause => {
+      error.value = toErrorMessage(cause);
+    });
+  }
+  watch(workId, reportPending);
+
   function apply(event: CreationEvent) {
+    for (const listener of listeners) listener(event);
+    if (event.change.kind === 'review' && event.change.change.workId === workId.value) reportPending();
+    if (event.change.kind === 'entries' && event.cursor.workId === workId.value) reportPending();
     // 待审修改及继续进度保持在本机，正式目录使用作品库内的条目游标。
     if (event.change.kind === 'review' || event.change.kind === 'delivery') return;
     if (event.change.kind === 'work') {
@@ -128,15 +164,14 @@ export const useCreationStore = defineStore('creation', () => {
       return;
     }
     if (event.cursor.workId !== workId.value || event.cursor.sequence <= cursor) return;
-    if (event.change.kind === 'move' || event.cursor.sequence !== cursor + 1) {
+    if (event.change.kind !== 'entry' || event.cursor.sequence !== cursor + 1) {
       void refreshEntries().catch(cause => {
         error.value = toErrorMessage(cause);
       });
       return;
     }
-    const changed = event.change.kind === 'entry' ? [event.change.entry] : event.change.entries;
-    const ids = new Set(changed.map(item => item.id));
-    entries.value = [...entries.value.filter(item => !ids.has(item.id)), ...changed];
+    const next = event.change.entry;
+    entries.value = [...entries.value.filter(item => item.id !== next.id), next];
     cursor = event.cursor.sequence;
   }
 
@@ -174,6 +209,7 @@ export const useCreationStore = defineStore('creation', () => {
         for (const event of buffered) apply(event);
         syncing = false;
         connected.value = true;
+        reportPending();
       } catch (cause) {
         error.value = toErrorMessage(cause);
         connected.value = false;
@@ -261,6 +297,8 @@ export const useCreationStore = defineStore('creation', () => {
   return {
     works,
     entries,
+    pendingChanges,
+    pendingEntryIds,
     state,
     workId,
     work,
@@ -275,6 +313,7 @@ export const useCreationStore = defineStore('creation', () => {
     importOpen,
     exportOpen,
     connect,
+    onEvent,
     refreshLibrary,
     refreshEntries,
     viewFor,

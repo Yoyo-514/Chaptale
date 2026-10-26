@@ -88,7 +88,7 @@ export interface DiscoveredModel {
   name: string;
 }
 export interface ChatMessage {
-  /** pi 消息角色；`compactionSummary` 为会话压缩总结，text 是总结内容。 */
+  /** pi 消息角色；`compactionSummary` 为会话压缩总结，`reviewContinued` 为审阅后续跑提示，text 是显示文字。 */
   role: string;
   text: string;
   thinking: string;
@@ -97,6 +97,8 @@ export interface ChatMessage {
   error?: boolean;
   /** 已被压缩总结代替、不再发送给模型的消息，界面仍可查看。 */
   compacted?: boolean;
+  /** reviewContinued 的逐条处理结果，如“《第一章》已拒绝”。 */
+  outcomes?: string[];
 }
 /** pi 记录的累计用量；供应商未报告的项目可能记为 0。 */
 export interface SessionUsage {
@@ -167,6 +169,11 @@ export interface HostCommands {
   cancel: { input: { id: string }; output: void };
   compact: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
+  /**
+   * 删除会话：任一会话在运行则整体拒绝；先拒绝这些会话的全部待审修改，再关闭已打开的会话。
+   * 返回待删除的历史文件，由平台移入回收站；尚未写盘的新会话只关闭。
+   */
+  deleteSessions: { input: { sessionIds: string[] }; output: { files: string[] } };
   model: { input: { id: string; model: ModelRef }; output: void };
   approve: { input: { id: string; allow: boolean }; output: void };
   /** 只读历史不能重命名。 */

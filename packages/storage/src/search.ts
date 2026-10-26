@@ -1,5 +1,6 @@
 import { Jieba } from '@node-rs/jieba';
-import { dict } from '@node-rs/jieba/dict';
+// Node ESM 不补扩展名，而该包没有 exports 映射；带上 .js 才能解析到 dict.js。
+import { dict } from '@node-rs/jieba/dict.js';
 import type Database from 'better-sqlite3';
 
 import type {

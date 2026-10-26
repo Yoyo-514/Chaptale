@@ -43,7 +43,7 @@ export async function application() {
     })
   );
   const context = { sessionId: 'session-a', mode: 'review' as const };
-  function propose(content: string): PendingChange {
+  function propose(content: string, title = document.title): PendingChange {
     const result = value(
       app.executeAgent(context, {
         method: 'writeDocument',
@@ -52,7 +52,7 @@ export async function application() {
           workId: work.id,
           documentId: document.id,
           expectedRevisionId: document.revisionId,
-          title: document.title,
+          title,
           format: 'txt',
           content
         }

@@ -6,13 +6,24 @@ import type { Approval, SessionView } from '@chaptale/agent-host/protocol';
 import { AppButton } from '@/components/AppButton';
 import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } from '@/utils/markdown';
 
+import type { OutgoingMessage } from '../store';
 import { buildTranscript, describeTool } from '../transcript';
 
-const props = defineProps<{ session: SessionView; approvals: Approval[] }>();
-const emit = defineEmits<{ approve: [id: string, allow: boolean] }>();
+const props = defineProps<{ session: SessionView; approvals: Approval[]; outgoing: OutgoingMessage[] }>();
+const emit = defineEmits<{
+  approve: [id: string, allow: boolean];
+  retry: [key: string];
+  discard: [key: string];
+}>();
 
 const items = computed(() => buildTranscript(props.session.messages));
 const lastIndex = computed(() => props.session.messages.length - 1);
+/** 消息已发出但模型还没有输出时显示等待提示。 */
+const waiting = computed(() => {
+  if (props.outgoing.some(item => !item.error)) return true;
+  const last = props.session.messages.at(-1);
+  return props.session.running && (!last || ['user', 'reviewContinued', 'toolResult'].includes(last.role));
+});
 const expanded = ref(new Set<string>());
 const streamKey = (index: number) => `${props.session.id}:${index}`;
 
@@ -50,6 +61,15 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
       >
         <div class="agent-user-text">{{ item.text }}</div>
       </article>
+      <details v-else-if="item.kind === 'notice'" class="agent-notice">
+        <summary>
+          <span class="i-mingcute-check-circle-line size-3.5 shrink-0" aria-hidden="true" />{{ item.text }}
+          <span class="agent-notice-chevron i-mingcute-down-line size-3.5 shrink-0" aria-hidden="true" />
+        </summary>
+        <ul>
+          <li v-for="line in item.outcomes" :key="line">{{ line }}</li>
+        </ul>
+      </details>
       <section v-else-if="item.kind === 'summary'" class="agent-activity agent-summary" aria-label="压缩总结">
         <button
           type="button"
@@ -120,6 +140,24 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
         </div>
       </article>
     </template>
+    <article
+      v-for="item in outgoing"
+      :key="item.key"
+      class="agent-user"
+      :class="item.error ? 'is-failed' : 'is-sending'"
+      aria-label="作者"
+    >
+      <div class="agent-user-text">{{ item.text }}</div>
+      <p v-if="item.error" class="agent-user-failure" role="alert">
+        <span class="i-mingcute-warning-line size-3.5 shrink-0" aria-hidden="true" />
+        <span class="flex-1">发送失败：{{ item.error }}</span>
+        <AppButton size="xs" variant="ghost" @click="emit('discard', item.key)">移除</AppButton>
+        <AppButton size="xs" variant="ghost" @click="emit('retry', item.key)">重试</AppButton>
+      </p>
+    </article>
+    <p v-if="waiting" class="agent-waiting" role="status">
+      <span class="agent-waiting-dots" aria-hidden="true"><i /><i /><i /></span>正在等待回复…
+    </p>
     <section
       v-for="approval in approvals"
       :key="approval.id"

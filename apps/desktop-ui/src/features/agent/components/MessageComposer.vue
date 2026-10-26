@@ -27,6 +27,8 @@ const placeholder = computed(() => {
   if (agent.creating) return '正在创建会话…';
   if (agent.active?.readonly) return '只读历史不能继续对话';
   if (agent.active?.compacting) return '正在压缩，可以先写下下一条消息';
+  if (agent.active?.waitingForReview && !agent.active.running)
+    return '处理完待接受修改后任务会自动继续；现在发送的消息会作为提问或补充修改';
   return agent.active?.running
     ? 'Ctrl + Enter 插话，助手会在当前步骤后读到'
     : '写下想讨论或推进的事，Ctrl + Enter 发送';
@@ -122,6 +124,7 @@ function mode(value: string) {
     </div>
     <div v-if="agent.active" class="agent-composer-meta agent-column">
       <span v-if="agent.active.compacting" role="status">正在压缩…</span>
+      <span v-if="agent.active.switchingTo" role="status">正在切换到直接修改，处理完待接受修改后生效</span>
       <SessionUsage :key="agent.active.id" :usage="agent.active.usage" />
     </div>
   </AppForm>

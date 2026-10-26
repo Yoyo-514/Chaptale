@@ -1,4 +1,4 @@
-import { utilityProcess, type UtilityProcess } from 'electron';
+import { shell, utilityProcess, type UtilityProcess } from 'electron';
 
 import type { AgentClient, HostCommands, HostEvent } from '@chaptale/agent-host/protocol';
 import type { CreationClient, CreationCommands, CreationEvent } from '@chaptale/creation/contracts';
@@ -30,7 +30,13 @@ export class DesktopApplicationProcess {
   }
 
   readonly agent: AgentClient = {
-    request: async (method, input) => (await this.connect()).agent.request(method, input),
+    request: async (method, input) => {
+      const output = await (await this.connect()).agent.request(method, input);
+      // 宿主进程不能使用 shell；删除会话时由主进程把宿主解析出的历史文件移入回收站。
+      if (method === 'deleteSessions')
+        for (const file of (output as { files: string[] }).files) await shell.trashItem(file);
+      return output;
+    },
     subscribe: listener => {
       this.agentListeners.add(listener);
       return () => this.agentListeners.delete(listener);

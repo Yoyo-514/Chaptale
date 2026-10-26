@@ -47,6 +47,8 @@ export class DeliveryService {
       return {
         workId: change.workId,
         entryId: change.entryId,
+        title: change.candidate.title,
+        decision: change.authorEdited ? 'edited' : (change.status as 'accepted' | 'rejected'),
         snapshot: readEntrySnapshot(this.repository, change.workId, change.entryId)
       };
     });

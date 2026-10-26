@@ -60,6 +60,9 @@ export interface DeliveryView {
 export interface DeliveryContent {
   workId: string;
   entryId: string;
+  title: string;
+  /** 整篇接受、整篇拒绝，或作者逐处决定、手改过（以正式内容为准）。 */
+  decision: 'accepted' | 'rejected' | 'edited';
   snapshot: EntrySnapshot | null;
 }
 
@@ -123,7 +126,9 @@ export interface ReviewRange {
 export interface DecideReviewInput extends ReviewTarget {
   commandId: string;
   decision: 'accept' | 'reject';
+  /** 与 part 互斥：range 只决定正文的一处，part=title 只决定改名；都缺省时整体决定。 */
   range?: ReviewRange;
+  part?: 'title';
 }
 
 export interface UpdateReviewInput extends ReviewTarget {

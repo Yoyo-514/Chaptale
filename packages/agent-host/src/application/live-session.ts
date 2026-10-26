@@ -33,6 +33,12 @@ export function instructionCallbacks(applied: AppliedInstructions) {
  * 可继续对话的会话：发送、取消、修改指令/模式/模型，并把 SDK 事件投影到界面视图。
  * 原生 AgentSession 由会话池持有和释放，这里只负责应用层状态。
  */
+const decisionLabels = {
+  accepted: '已接受',
+  rejected: '已拒绝',
+  edited: '作者逐处决定或手改过，以正式内容为准'
+} as const;
+
 function creationValue<T>(result: CreationResult<T>): T {
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
@@ -116,7 +122,7 @@ export class LiveSession {
     if (!text.trim()) throw new Error('消息不能为空');
     if (view.compacting) throw new Error('该会话正在运行压缩，请等待结束或停止后再发送');
     if (view.running) {
-      // 重载与停止尚未进入可插话的生成阶段，失败交由界面保留草稿。
+      // 重载与停止尚未进入可插话的生成阶段，拒收后由界面把该消息标为发送失败。
       if (this.cancelled || !this.session.isStreaming) throw new Error('会话正在启动或停止，请稍后再发送');
       await this.session.steer(text);
       return;
@@ -296,11 +302,17 @@ export class LiveSession {
       })
     );
     this.refreshCreation();
+    const outcomes = contents.map(item => `《${item.title}》${decisionLabels[item.decision]}`);
     return {
       customType: reviewContinuationMessageType,
-      content: `作者已处理本组修改。以下是实际接受后的正式内容：\n${JSON.stringify(contents)}\n请根据这些正式修订继续剩余任务。`,
+      content: [
+        '作者已处理本组修改：',
+        ...outcomes.map(line => `- ${line}`),
+        `处理后的正式内容：${JSON.stringify(contents.map(({ workId, entryId, snapshot }) => ({ workId, entryId, snapshot })))}`,
+        '被拒绝或改写的部分是作者的决定，不要原样重做；确实需要再改时，先说明理由并询问作者。请根据这些正式内容继续剩余任务。'
+      ].join('\n'),
       display: true,
-      details: { groupId: group.id }
+      details: { groupId: group.id, count: contents.length, outcomes }
     };
   }
 

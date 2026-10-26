@@ -5,10 +5,12 @@ import { AppButton } from '@/components/AppButton';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
 import { AppInput } from '@/components/AppInput';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useReviewStore } from '@/features/editor';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi } from '@/utils/desktop-api';
 
+import DeliveryCard from './components/DeliveryCard.vue';
 import MessageComposer from './components/MessageComposer.vue';
 import MessageList from './components/MessageList.vue';
 import SessionHistory from './components/SessionHistory.vue';
@@ -18,6 +20,7 @@ import { type SessionEntry, useAgentStore } from './store';
 const agent = useAgentStore();
 const navigation = useWorkbenchStore();
 const settings = useSettingsStore();
+const review = useReviewStore();
 const body = ref<HTMLElement>();
 const positions = new Map<string, { top: number; follow: boolean }>();
 const following = ref(true);
@@ -53,6 +56,23 @@ watch(
   },
   { immediate: true }
 );
+// 作者正在查看的会话：交付摘要随之刷新，新写入的待审修改可切到前台。
+watch(
+  () =>
+    (navigation.auxiliaryOpen || navigation.agentInMain) && navigation.agentView === 'chat'
+      ? (agent.active?.sessionId ?? null)
+      : null,
+  id => {
+    review.viewingSessionId = id;
+  },
+  { immediate: true }
+);
+watch(
+  () => agent.active?.delivery?.group.version,
+  () => {
+    if (review.viewingSessionId) void review.refreshDeliveries(review.viewingSessionId);
+  }
+);
 function trackScroll() {
   const element = body.value!;
   following.value = element.scrollHeight - element.scrollTop - element.clientHeight < 2;
@@ -76,6 +96,16 @@ watch(
   ],
   async () => {
     if (!following.value) return;
+    await nextTick();
+    body.value?.scrollTo({ top: body.value.scrollHeight });
+  }
+);
+// 作者刚发出消息时总是滚到底部，让乐观显示的消息可见。
+watch(
+  () => agent.activeOutgoing.length,
+  async (count, was) => {
+    if (count <= was) return;
+    following.value = true;
     await nextTick();
     body.value?.scrollTo({ top: body.value.scrollHeight });
   }
@@ -226,7 +256,7 @@ function approve(id: string, allow: boolean) {
             <span class="i-mingcute-lock-line size-4 shrink-0" aria-hidden="true" />
             <span>只读历史：{{ agent.active.readonly.message }}</span>
           </p>
-          <div v-if="!agent.active?.messages.length" class="agent-start">
+          <div v-if="!agent.active?.messages.length && !agent.activeOutgoing.length" class="agent-start">
             <h3>从一个想法开始</h3>
             <p>讨论情节、推敲人物，或继续眼前这一章。</p>
             <AppButton
@@ -237,9 +267,18 @@ function approve(id: string, allow: boolean) {
               >配置模型</AppButton
             >
           </div>
-          <MessageList v-if="agent.active" :session="agent.active" :approvals="approvals" @approve="approve" />
+          <MessageList
+            v-if="agent.active"
+            :session="agent.active"
+            :approvals="approvals"
+            :outgoing="agent.activeOutgoing"
+            @approve="approve"
+            @retry="agent.retryOutgoing"
+            @discard="agent.discardOutgoing"
+          />
         </div>
       </div>
+      <DeliveryCard v-if="agent.active" />
       <MessageComposer />
     </template>
     <p v-if="error" role="alert" class="agent-error agent-panel-error">{{ error }}</p>

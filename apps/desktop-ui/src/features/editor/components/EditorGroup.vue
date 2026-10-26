@@ -7,12 +7,21 @@ import { AppScrollArea } from '@/components/AppScrollArea';
 import { useCreationStore } from '@/features/creation';
 import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
 
+import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 import DocumentView from './DocumentView.vue';
+import ReviewPane from './ReviewPane.vue';
 import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 
 const editor = useEditorStore();
+const review = useReviewStore();
 const creation = useCreationStore();
+/** 文档与审阅标签共用一个标签栏；审阅标签值带前缀，选中时占用主栏。 */
+const selected = computed(() => (review.activeTab ? `review:${review.activeTab.changeId}` : editor.activeId));
+function select(value: string) {
+  if (value.startsWith('review:')) review.select(value.slice('review:'.length));
+  else editor.selectTab(value);
+}
 const primary = computed(() => editor.tabs.find(tab => tab.id === editor.activeId));
 const secondary = computed(() => editor.tabs.find(tab => tab.id === creation.view?.secondaryDocumentId));
 function split() {
@@ -23,15 +32,18 @@ function split() {
 }
 function keydown(event: KeyboardEvent) {
   if (!(event.ctrlKey || event.metaKey)) return;
+  const reviewing = review.activeTab;
   if (event.key.toLowerCase() === 's') {
     event.preventDefault();
     if (event.shiftKey) void editor.saveAll();
+    else if (reviewing) void review.save(reviewing.changeId);
     else void editor.saveDocument();
   }
-  if (event.key.toLowerCase() === 'w' && editor.activeTab) {
+  if (event.key.toLowerCase() === 'w' && (reviewing || editor.activeTab)) {
     event.preventDefault();
     event.stopPropagation();
-    void editor.closeTab(editor.activeTab.id);
+    if (reviewing) review.close(reviewing.changeId);
+    else void editor.closeTab(editor.activeTab!.id);
   }
 }
 let offClose: (() => void) | undefined;
@@ -51,11 +63,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <TabsRoot
-    :model-value="editor.activeId"
-    class="editor-group"
-    @update:model-value="value => editor.selectTab(String(value))"
-  >
+  <TabsRoot :model-value="selected" class="editor-group" @update:model-value="value => select(String(value))">
     <div class="editor-tabbar">
       <AppScrollArea orientation="horizontal" class="editor-tab-scroll">
         <TabsList class="editor-tabs" aria-label="文档标签">
@@ -63,7 +71,7 @@ onBeforeUnmount(() => {
             v-for="tab in editor.tabs"
             :key="tab.id"
             class="editor-tab-shell"
-            :class="{ selected: tab.id === editor.activeId }"
+            :class="{ selected: tab.id === selected }"
           >
             <TabsTrigger
               :id="`document-tab-${tab.id}`"
@@ -89,6 +97,35 @@ onBeforeUnmount(() => {
               ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
             /></AppButton>
           </div>
+          <div
+            v-for="tab in review.tabs"
+            :key="`review:${tab.changeId}`"
+            class="editor-tab-shell"
+            :class="{ selected: `review:${tab.changeId}` === selected }"
+          >
+            <TabsTrigger
+              :id="`review-tab-${tab.changeId}`"
+              :value="`review:${tab.changeId}`"
+              class="editor-tab"
+              :aria-label="`审阅 ${tab.title}${tab.dirty ? '（手改未保存）' : ''}`"
+              :title="`审阅 ${tab.title}${tab.dirty ? '（手改未保存）' : ''}`"
+              @keydown.delete.prevent="review.close(tab.changeId)"
+            >
+              <span class="i-mingcute-git-compare-line tab-kind-icon" aria-hidden="true" />
+              <span class="tab-title">{{ tab.title }}</span>
+            </TabsTrigger>
+            <AppButton
+              icon
+              size="xs"
+              variant="ghost"
+              class="editor-tab-close"
+              :class="{ 'is-dirty': tab.dirty }"
+              :aria-label="`关闭审阅 ${tab.title}`"
+              :title="tab.dirty ? '关闭（手改未保存）' : '关闭'"
+              @click="review.close(tab.changeId)"
+              ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
+            /></AppButton>
+          </div>
         </TabsList>
       </AppScrollArea>
       <AppButton
@@ -102,7 +139,22 @@ onBeforeUnmount(() => {
         ><span class="i-mingcute-layout-right-line" aria-hidden="true"
       /></AppButton>
     </div>
-    <div v-if="!editor.tabs.length" class="editor-empty">
+    <div v-if="review.activeTab" class="editor-panes">
+      <section class="editor-pane" aria-label="审阅">
+        <ReviewPane
+          v-if="review.activeTab.status === 'ready'"
+          :key="`${review.activeTab.changeId}:${review.activeTab.generation}`"
+          :tab="review.activeTab"
+        />
+        <div v-else-if="review.activeTab.status === 'loading'" class="editor-empty" role="status">
+          正在读取待接受修改…
+        </div>
+        <div v-else class="editor-empty" role="alert">
+          <p>{{ review.activeTab.error }}</p>
+        </div>
+      </section>
+    </div>
+    <div v-else-if="!editor.tabs.length" class="editor-empty">
       <h2>{{ creation.work?.title }}</h2>
       <p>选择一份文稿或资料开始编辑。</p>
       <AppButton @click="creation.newEntry = { kind: 'document', parentId: null }">{{
@@ -195,6 +247,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.tab-kind-icon {
+  flex-shrink: 0;
+  color: var(--warning);
 }
 .tab-location {
   font-size: 12px;

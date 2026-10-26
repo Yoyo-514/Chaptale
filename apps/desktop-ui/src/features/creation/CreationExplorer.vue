@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import type { Entry } from '@chaptale/creation/contracts';
+import type { Entry, PendingChange } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
@@ -10,13 +10,14 @@ import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMe
 import { AppForm, AppFormActions } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
-import { useEditorStore } from '@/features/editor';
+import { useEditorStore, useReviewStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { requestCreation, useCreationStore } from './store';
 
 const creation = useCreationStore();
 const editor = useEditorStore();
+const review = useReviewStore();
 const host = ref<HTMLElement>();
 const error = ref('');
 const target = ref<Entry>();
@@ -26,14 +27,21 @@ const parent = ref('root');
 const busy = ref(false);
 const tree = computed(() => creation.view![creation.view!.section]);
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
+/** 新建的待接受条目按候选位置显示在正式目录中，标记为待接受，打开的是审阅标签。 */
 const rows = computed(() => {
-  const result: { entry: Entry; depth: number }[] = [];
-  const entries = creation.entries.filter(item => item.section === creation.view?.section);
+  const result: { entry: Entry; depth: number; pending: PendingChange | null }[] = [];
+  const section = creation.view?.section;
+  const items = [
+    ...creation.entries.filter(item => item.section === section).map(entry => ({ entry, pending: null })),
+    ...creation.pendingChanges
+      .filter(change => change.base === null && change.candidate.section === section)
+      .map(change => ({ entry: change.candidate as Entry, pending: change }))
+  ];
   function visit(parentId: string | null, depth: number) {
-    for (const entry of entries
-      .filter(item => item.parentId === parentId)
-      .toSorted((a, b) => a.position - b.position)) {
-      result.push({ entry, depth });
+    for (const { entry, pending } of items
+      .filter(item => item.entry.parentId === parentId)
+      .toSorted((a, b) => a.entry.position - b.entry.position)) {
+      result.push({ entry, depth, pending });
       if (entry.kind === 'directory' && tree.value.expandedIds.includes(entry.id)) visit(entry.id, depth + 1);
     }
   }
@@ -68,9 +76,36 @@ function toggle(entry: Entry) {
   const ids = tree.value.expandedIds;
   tree.value.expandedIds = ids.includes(entry.id) ? ids.filter(id => id !== entry.id) : [...ids, entry.id];
 }
-async function open(entry: Entry) {
+const pendingMenu: AppContextMenuItem[] = [
+  { id: 'review', label: '查看修改' },
+  { id: 'accept', label: '接受', separatorBefore: true },
+  { id: 'reject', label: '拒绝' }
+];
+function showReview(change: PendingChange) {
+  void review.reveal({
+    id: change.id,
+    sessionId: change.sessionId,
+    workId: change.workId,
+    entryId: change.entryId,
+    title: change.candidate.title
+  });
+}
+async function selectPendingAction(id: string, change: PendingChange) {
+  error.value = '';
+  if (id === 'review') {
+    showReview(change);
+    return;
+  }
+  try {
+    await review.decideChange(change.id, id as 'accept' | 'reject');
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  }
+}
+async function open(entry: Entry, pending: PendingChange | null = null) {
   tree.value.selectedId = entry.id;
   if (entry.kind === 'directory') toggle(entry);
+  else if (pending) showReview(pending);
   else await editor.openDocument(entry.id);
 }
 async function selectAction(id: string) {
@@ -149,6 +184,7 @@ async function submit() {
 }
 function keydown(event: KeyboardEvent, entry: Entry) {
   const index = rows.value.findIndex(row => row.entry.id === entry.id);
+  const pending = rows.value[index]?.pending ?? null;
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault();
     const next = rows.value[index + (event.key === 'ArrowDown' ? 1 : -1)];
@@ -168,7 +204,7 @@ function keydown(event: KeyboardEvent, entry: Entry) {
     }
   } else if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    void open(entry);
+    void open(entry, pending);
   }
 }
 watch(
@@ -239,11 +275,11 @@ async function drop(event: DragEvent, parentId: string | null) {
         @drop.self.prevent="drop($event, null)"
       >
         <AppContextMenu
-          v-for="({ entry, depth }, index) in rows"
+          v-for="({ entry, depth, pending }, index) in rows"
           :key="entry.id"
-          :items="menu"
-          @prepare="target = entry"
-          @select="selectAction"
+          :items="pending ? pendingMenu : menu"
+          @prepare="target = pending ? undefined : entry"
+          @select="id => (pending ? selectPendingAction(id, pending) : selectAction(id))"
         >
           <div
             role="treeitem"
@@ -252,15 +288,21 @@ async function drop(event: DragEvent, parentId: string | null) {
             :aria-expanded="entry.kind === 'directory' ? tree.expandedIds.includes(entry.id) : undefined"
             :aria-selected="tree.selectedId === entry.id"
             :tabindex="tree.selectedId === entry.id || (!tree.selectedId && index === 0) ? 0 : -1"
-            :aria-label="entry.title"
+            :aria-label="
+              pending
+                ? `${entry.title}（新建，待接受）`
+                : creation.pendingEntryIds.has(entry.id)
+                  ? `${entry.title}（有待接受修改）`
+                  : entry.title
+            "
             :style="{ paddingLeft: `${8 + (depth - 1) * 16}px` }"
             class="tree-entry"
-            :class="{ selected: tree.selectedId === entry.id }"
-            draggable="true"
-            @dragstart="$event.dataTransfer!.setData('application/chaptale-entry', entry.id)"
+            :class="{ selected: tree.selectedId === entry.id, pending: pending }"
+            :draggable="!pending"
+            @dragstart="!pending && $event.dataTransfer!.setData('application/chaptale-entry', entry.id)"
             @dragover.prevent
-            @drop.stop.prevent="drop($event, entry.kind === 'directory' ? entry.id : entry.parentId)"
-            @click="open(entry)"
+            @drop.stop.prevent="!pending && drop($event, entry.kind === 'directory' ? entry.id : entry.parentId)"
+            @click="open(entry, pending)"
             @keydown="keydown($event, entry)"
           >
             <span
@@ -275,8 +317,15 @@ async function drop(event: DragEvent, parentId: string | null) {
               aria-hidden="true"
             />
             <div class="entry-text">
-              <span class="entry-title" :title="entry.title">{{ entry.title }}</span
-              ><span v-if="entry.kind === 'document'" class="entry-meta" :title="date.format(entry.updatedAt)"
+              <span class="entry-title" :title="entry.title"
+                >{{ entry.title
+                }}<span
+                  v-if="creation.pendingEntryIds.has(entry.id)"
+                  class="entry-pending"
+                  title="有待接受修改"
+                  aria-hidden="true" /></span
+              ><span v-if="pending" class="entry-meta">待接受</span
+              ><span v-else-if="entry.kind === 'document'" class="entry-meta" :title="date.format(entry.updatedAt)"
                 >{{ entry.wordCount }} 字
                 <time :datetime="new Date(entry.updatedAt).toISOString()">{{
                   date.format(entry.updatedAt)
@@ -421,6 +470,22 @@ async function drop(event: DragEvent, parentId: string | null) {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+}
+.tree-entry.pending .entry-title {
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+.tree-entry.pending .entry-meta {
+  color: var(--warning);
+}
+.entry-pending {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  vertical-align: middle;
 }
 .entry-meta {
   display: flex;

@@ -40,6 +40,27 @@ export interface HostApplicationOptions {
   creation?: CreationApplication;
 }
 
+/** 删除会话前拒绝它留下的全部待审修改，避免候选失去来源。 */
+function rejectPendingChanges(creation: CreationApplication, sessionId: string) {
+  const listed = creation.executeAuthor({ method: 'listDeliveries', input: { sessionId } });
+  if (!listed.ok) throw new Error(listed.error.message);
+  for (const summary of listed.value) {
+    for (const workId of new Set(summary.items.map(item => item.workId))) {
+      const result = creation.executeAuthor({
+        method: 'decideDelivery',
+        input: {
+          commandId: randomUUID(),
+          groupId: summary.group.id,
+          workId,
+          decision: 'reject',
+          targets: summary.items.filter(item => item.workId === workId).map(item => item.target)
+        }
+      });
+      if (!result.ok) throw new Error(result.error.message);
+    }
+  }
+}
+
 /** 已打开的会话；只读历史只有视图，没有可继续的会话。 */
 interface OpenSession {
   view: SessionView;
@@ -124,6 +145,8 @@ export class HostApplication {
         return this.live(command.input.id).compact();
       case 'close':
         return this.close(command.input.id);
+      case 'deleteSessions':
+        return this.deleteSessions(command.input.sessionIds);
       case 'approve':
         return this.approvals.approve(command.input.id, command.input.allow);
       case 'rename':
@@ -309,6 +332,18 @@ export class HostApplication {
       live.detach();
     }
     this.emit({ kind: 'closed', id });
+  }
+
+  private async deleteSessions(sessionIds: string[]): Promise<{ files: string[] }> {
+    const ids = new Set(sessionIds);
+    const open = [...this.sessions].filter(([, { view }]) => view.sessionId !== null && ids.has(view.sessionId));
+    if (open.some(([, { view }]) => view.running || view.compacting)) throw new Error('有会话正在运行，停止后才能删除');
+    const files = (await SessionManager.listAll(this.options.sessionDir))
+      .filter(item => ids.has(item.id))
+      .map(item => item.path);
+    if (this.options.creation) for (const id of ids) rejectPendingChanges(this.options.creation, id);
+    for (const [id] of open) await this.close(id);
+    return { files };
   }
 
   async dispose(): Promise<void> {

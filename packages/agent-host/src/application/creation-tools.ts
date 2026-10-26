@@ -14,6 +14,7 @@ const target = { workId: id, entryId: id };
 const revisionTarget = { ...target, expectedRevisionId: id };
 const section = Type.Union([Type.Literal('manuscript'), Type.Literal('resource')]);
 const newEntry = { workId: id, parentId: nullableId, title: Type.String(), section };
+// OpenAI 兼容接口要求工具参数顶层为 type: object，不能用 Union；分支字段设为可选，组合由 creation 的参数校验判定。
 const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
 
 export const workWriteToolNames = new Set(['work_edit', 'work_write', 'work_mkdir', 'work_mv']);
@@ -83,28 +84,24 @@ export function createWorkTools(
     tool(
       'work_ls',
       '浏览作品',
-      'workId 为 null 时列出作品；提供作品 ID 时列出 entryId 目录的直接子条目，entryId 为 null 表示根目录。返回稳定 ID 与修订、位置元数据。',
-      Type.Union([
-        object({ workId: Type.Null() }),
-        object({ workId: id, entryId: nullableId, section: Type.Optional(section) })
-      ]),
+      'workId 为 null 时列出作品；提供作品 ID 时列出 entryId 目录的直接子条目，entryId 缺省或为 null 表示根目录。返回稳定 ID 与修订、位置元数据。',
+      object({ workId: nullableId, entryId: Type.Optional(nullableId), section: Type.Optional(section) }),
       (input, context) => {
         if (input.workId === null)
           return mapResult(application.executeAgent(context, { method: 'listWorks', input: {} }), works =>
             works.map(({ id: workId, ...work }) => ({ workId, ...work }))
           );
-        const result = application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } });
+        const workId = input.workId;
+        const result = application.executeAgent(context, { method: 'listEntries', input: { workId } });
         if (!result.ok) return result;
-        if (
-          input.entryId !== null &&
-          !result.value.some(entry => entry.id === input.entryId && entry.kind === 'directory')
-        )
+        const parentId = input.entryId ?? null;
+        if (parentId !== null && !result.value.some(entry => entry.id === parentId && entry.kind === 'directory'))
           return { ok: false, error: { code: 'failed', message: '作品目录不存在' } };
         return {
           ok: true,
           value: result.value
-            .filter(entry => entry.parentId === input.entryId && (!input.section || entry.section === input.section))
-            .map(entry => located(input.workId, entry))
+            .filter(entry => entry.parentId === parentId && (!input.section || entry.section === input.section))
+            .map(entry => located(workId, entry))
         };
       }
     ),
@@ -231,34 +228,33 @@ export function createWorkTools(
       'work_write',
       '写入作品正文',
       '新建时提供 workId、parentId、title、section、format、content，返回应用生成的 entryId。覆盖时提供 workId、entryId、expectedRevisionId、content，保留标题与格式。',
-      Type.Union([
-        object({
-          ...newEntry,
-          format: Type.Union([Type.Literal('txt'), Type.Literal('markdown')]),
-          content: Type.String()
-        }),
-        object({ ...revisionTarget, content: Type.String() })
-      ]),
-      (input, context, commandId) =>
-        written(
+      object({
+        workId: id,
+        content: Type.String(),
+        entryId: Type.Optional(id),
+        expectedRevisionId: Type.Optional(id),
+        parentId: Type.Optional(nullableId),
+        title: Type.Optional(Type.String()),
+        section: Type.Optional(section),
+        format: Type.Optional(Type.Union([Type.Literal('txt'), Type.Literal('markdown')]))
+      }),
+      (input, context, commandId) => {
+        const { entryId, ...rest } = input;
+        // 混用新建与覆盖字段时由 creation 的 additionalProperties 拒绝。
+        return written(
           context,
           input.workId,
-          'entryId' in input
+          entryId !== undefined
             ? application.executeAgent(context, {
                 method: 'writeContent',
-                input: {
-                  commandId,
-                  workId: input.workId,
-                  documentId: input.entryId,
-                  expectedRevisionId: input.expectedRevisionId,
-                  content: input.content
-                }
+                input: { ...rest, commandId, documentId: entryId } as never
               })
             : application.executeAgent(context, {
                 method: 'createEntry',
-                input: { ...input, commandId, kind: 'document' }
+                input: { ...rest, commandId, kind: 'document' } as never
               })
-        )
+        );
+      }
     ),
     tool(
       'work_mkdir',
@@ -279,23 +275,22 @@ export function createWorkTools(
       'work_mv',
       '移动或改名作品条目',
       '改名提供 expectedRevisionId 和 title；移动提供读取所得 expectedParentId、expectedPosition，以及目标 parentId、beforeEntryId（null 表示末尾）。操作保留稳定 entryId。',
-      Type.Union([
-        object({ ...revisionTarget, title: Type.String() }),
-        object({
-          ...target,
-          expectedParentId: nullableId,
-          expectedPosition: Type.Integer({ minimum: 0 }),
-          parentId: nullableId,
-          beforeEntryId: nullableId
-        })
-      ]),
+      object({
+        ...target,
+        expectedRevisionId: Type.Optional(id),
+        title: Type.Optional(Type.String()),
+        expectedParentId: Type.Optional(nullableId),
+        expectedPosition: Type.Optional(Type.Integer({ minimum: 0 })),
+        parentId: Type.Optional(nullableId),
+        beforeEntryId: Type.Optional(nullableId)
+      }),
       (input, context, commandId) =>
         written(
           context,
           input.workId,
-          'title' in input
-            ? application.executeAgent(context, { method: 'renameEntry', input: { ...input, commandId } })
-            : application.executeAgent(context, { method: 'moveEntry', input: { ...input, commandId } })
+          input.title !== undefined
+            ? application.executeAgent(context, { method: 'renameEntry', input: { ...input, commandId } as never })
+            : application.executeAgent(context, { method: 'moveEntry', input: { ...input, commandId } as never })
         )
     )
   ];

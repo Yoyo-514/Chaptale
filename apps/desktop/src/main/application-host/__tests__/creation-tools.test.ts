@@ -702,10 +702,11 @@ it('工具拒绝自报模式、会话和命令身份，合法请求使用宿主�
   expect(pending()).toHaveLength(1);
 });
 
-it('缺少定位或修订、无效范围和检索参数经 SDK 校验失败，作品保持原状', async () => {
+it('缺少定位或修订、混用新建与覆盖字段、无效范围和检索参数均被拒绝，作品保持原状', async () => {
   const invalid: Array<[string, Parameters<typeof runToolCall>[0]['arguments']]> = [
     ['work_ls', {}],
-    ['work_ls', { workId }],
+    ['work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, title: '混用', content: '混用' }],
+    ['work_mv', { workId, entryId: documentId, parentId: null }],
     ['work_read', { workId, entryId: documentId, offset: 0 }],
     ['work_read', { workId, entryId: documentId, limit: 0 }],
     ['work_write', { workId, entryId: documentId, content: '缺少修订' }],
@@ -907,9 +908,15 @@ it('最后一处待审决定保存后自动续跑，延后的直接修改生效�
   decidePending('reject');
   await expect.poll(() => requests.length).toBe(1);
   await expect.poll(() => view().running).toBe(false);
-  expect(requests[0].messages).toContain('实际接受后的正式内容');
+  expect(requests[0].messages).toContain('《序章》已拒绝');
+  expect(requests[0].messages).toContain('不要原样重做');
   expect(requests[0].messages).toContain('将军守城');
   expect(requests[0].messages).not.toContain('待审正文');
+  const messages = view().messages;
+  expect(messages.filter(message => message.role === 'reviewContinued')).toMatchObject([
+    { text: '作者已处理 1 处修改，任务继续', outcomes: ['《序章》已拒绝'] }
+  ]);
+  expect(messages.some(message => message.text.includes('处理后的正式内容'))).toBe(false);
   expect(view().mode).toBe('direct');
   expect(view().switchingTo).toBeUndefined();
   expect(
@@ -995,6 +1002,7 @@ it('部分接受与陈旧决定保持待审，最后拒绝剩余修改后只续�
   const final = decidePending('reject');
   await expect.poll(() => requests.length).toBe(1);
   await expect.poll(() => host.snapshot().sessions.find(session => session.id === id)?.running).toBe(false);
+  expect(requests[0].messages).toContain('《序章》作者逐处决定或手改过');
   expect(requests[0].messages).toContain('将军出城');
   expect(requests[0].messages).toContain('城外下雪');
   value(creation.executeAuthor(final));
@@ -1130,7 +1138,7 @@ it('最后决定发生在提问请求期间时，等当前请求收尾后再自�
     await expect.poll(() => requests.length).toBe(2);
     await expect.poll(() => view().running).toBe(false);
     expect(requests[0].messages).toContain('解释这处修改');
-    expect(requests[1].messages).toContain('实际接受后的正式内容');
+    expect(requests[1].messages).toContain('《序章》已接受');
     expect(view().delivery?.group.status).toBe('continued');
   } finally {
     release.resolve();
@@ -1168,7 +1176,7 @@ it('重启后处理完待审保持停止，作者重新发起时携带正式快�
   await host.execute({ method: 'prompt', input: { id, text: '继续写余下章节' } });
   await expect.poll(() => requests.length).toBe(1);
   await expect.poll(() => view().running).toBe(false);
-  expect(requests[0].messages).toContain('实际接受后的正式内容');
+  expect(requests[0].messages).toContain('《序章》已接受');
   expect(requests[0].messages).toContain('实际接受的正文');
   expect(requests[0].messages).toContain('继续写余下章节');
   expect(requests[0].tools).toContain('work_write');
@@ -1236,3 +1244,47 @@ it.each(['空身份', '错误类型', '错误模式', '缺少分组', '其他会
     expect(await readFile(history.file, 'utf8')).toBe(original);
   }
 );
+
+it('删除会话时拒绝其全部待审修改、关闭会话，并返回待移入回收站的历史文件', async () => {
+  const runtime = await restartWithTools([]);
+  await observeContinuation(runtime);
+  const edited = await call('work_edit', {
+    workId,
+    entryId: documentId,
+    expectedRevisionId: revisionId,
+    oldText: '守城',
+    newText: '出城'
+  });
+  expect(edited.isError).toBe(false);
+  const session = host.liveSession(id)!;
+  session.sessionManager.appendMessage({ role: 'user', content: '改一下序章', timestamp: Date.now() });
+  const file = session.sessionFile!;
+  const sessionId = host.snapshot().sessions.find(item => item.id === id)!.sessionId!;
+  expect(pending()).toHaveLength(1);
+
+  // 运行中的会话整体拒绝删除，待审修改保持原状。
+  const live = host.liveSession(id)!;
+  const send = live.agent.streamFunction;
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  live.agent.streamFunction = async (...args) => {
+    entered.resolve();
+    await release.promise;
+    return send(...args);
+  };
+  await host.execute({ method: 'prompt', input: { id, text: '先别删' } });
+  await entered.promise;
+  await expect(host.execute({ method: 'deleteSessions', input: { sessionIds: [sessionId] } })).rejects.toThrow(
+    '有会话正在运行'
+  );
+  expect(pending()).toHaveLength(1);
+  release.resolve();
+  await expect.poll(() => host.snapshot().sessions.find(item => item.id === id)!.running).toBe(false);
+
+  const result = await host.execute({ method: 'deleteSessions', input: { sessionIds: [sessionId] } });
+
+  expect(result).toEqual({ files: [file] });
+  expect(pending()).toEqual([]);
+  expect(host.snapshot().sessions.some(item => item.id === id)).toBe(false);
+  expect(read().content).toBe('将军守城。\n城外下雪。\n斥候回营。');
+});

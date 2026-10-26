@@ -14,6 +14,8 @@ export type TranscriptItem =
   | { kind: 'user'; key: string; text: string; compacted?: boolean }
   /** 会话压缩总结，只读；它之前的对话已由总结代替。 */
   | { kind: 'summary'; key: string; text: string }
+  /** 审阅后自动续跑的提示，只读。 */
+  | { kind: 'notice'; key: string; text: string; outcomes: string[] }
   | {
       kind: 'assistant';
       key: string;
@@ -60,6 +62,10 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
     const key = String(index);
     if (message.role === 'user') {
       items.push({ kind: 'user', key, text: message.text, compacted: message.compacted });
+      return;
+    }
+    if (message.role === 'reviewContinued') {
+      items.push({ kind: 'notice', key, text: message.text, outcomes: message.outcomes! });
       return;
     }
     if (message.role === 'compactionSummary') {

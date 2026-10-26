@@ -27,6 +27,28 @@ describe('buildTranscript', () => {
     ]);
   });
 
+  it('审阅续跑提示单独成条，不并入助手回复', () => {
+    const items = buildTranscript([
+      message({ role: 'assistant', text: '已改好第一章' }),
+      message({
+        role: 'reviewContinued',
+        text: '作者已处理 2 处修改，任务继续',
+        outcomes: ['《第一章》已接受', '《第二章》已拒绝']
+      }),
+      message({ role: 'assistant', text: '继续第二章' })
+    ]);
+    expect(items).toMatchObject([
+      { kind: 'assistant', text: '已改好第一章' },
+      {
+        kind: 'notice',
+        key: '1',
+        text: '作者已处理 2 处修改，任务继续',
+        outcomes: ['《第一章》已接受', '《第二章》已拒绝']
+      },
+      { kind: 'assistant', text: '继续第二章' }
+    ]);
+  });
+
   it('工具结果并回发起它的工具行，不单独成条', () => {
     const items = buildTranscript([
       message({ role: 'user', text: '看看第一章' }),

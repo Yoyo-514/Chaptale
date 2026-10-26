@@ -59,13 +59,41 @@ export class ReviewService {
     const result = this.creation.commit(null, input.commandId, parameters, { kind: 'review' }, () => {
       const receipt = this.repository.readWorkReceipt<Entry>(change.workId, input.commandId, parameters);
       const view = receipt ? this.view(change) : this.checked(input);
+      const partial = input.range !== undefined || input.part !== undefined;
       if (receipt)
         return this.finish(change, {
           base: view.current,
           candidate: view.candidate,
-          status: input.range && !sameContent(view.current, view.candidate) ? 'pending' : 'accepted',
+          status: partial && !sameContent(view.current, view.candidate) ? 'pending' : 'accepted',
           authorEdited: true
         });
+      if (input.range && input.part) throw new Error('一次只能决定一处正文或标题');
+      if (input.part === 'title') {
+        if (!view.current || view.current.title === view.candidate.title) throw new Error('这项修改没有改名可单独处理');
+        let current = view.current;
+        let candidate = view.candidate;
+        if (input.decision === 'accept') {
+          if (view.conflicts.some(conflict => conflict.field === 'title'))
+            throw new Error('标题有冲突，请先处理冲突再接受改名');
+          // 只提交标题；正文与目录位置沿用正式稿，候选其余部分继续待审。
+          commitSnapshot(this.repository, this.creation.commit.bind(this.creation), {
+            workId: change.workId,
+            commandId: input.commandId,
+            parameters,
+            base: current,
+            candidate: { ...current, title: candidate.title },
+            source: 'review'
+          });
+          current = readEntrySnapshot(this.repository, change.workId, change.entryId)!;
+        } else candidate = { ...candidate, title: current.title };
+        return this.finish(change, {
+          base: current,
+          candidate,
+          conflicts: view.conflicts.filter(conflict => conflict.field !== 'title'),
+          authorEdited: true,
+          status: sameContent(current, candidate) ? (input.decision === 'accept' ? 'accepted' : 'rejected') : 'pending'
+        });
+      }
       if (input.range) {
         const block = decideBlock(view, { ...input, range: input.range });
         let current = view.current;

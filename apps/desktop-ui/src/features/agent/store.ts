@@ -18,6 +18,17 @@ export interface SessionEntry {
 }
 
 /** 界面只持有快照、草稿和查看位置；原生会话由宿主持有。 */
+/**
+ * 已发出、宿主尚未写入会话的作者消息。会话里的作者消息数达到 expectUsers 即视为送达；
+ * pi 会展开模板，送达判断不比对文字。
+ */
+export interface OutgoingMessage {
+  key: string;
+  text: string;
+  expectUsers: number;
+  error?: string;
+}
+
 export const useAgentStore = defineStore('agent', () => {
   const creation = useCreationStore();
   const state = ref<HostState>();
@@ -29,12 +40,14 @@ export const useAgentStore = defineStore('agent', () => {
   const error = ref('');
   const activeId = ref<string>();
   const drafts = ref<Record<string, string>>({});
+  const outgoing = ref<Record<string, OutgoingMessage[]>>({});
   const composeCwd = ref<string>();
   const selectedModel = ref<ModelRef>();
   const composeInstructions = ref<string>();
   const composeMode = ref<EditMode>();
   const history = ref<HistoryItem[]>([]);
   const active = computed(() => state.value?.sessions.find(session => session.id === activeId.value));
+  const activeOutgoing = computed(() => (active.value ? unsent(active.value.id) : []));
   const draftKey = computed(() => activeId.value ?? `new:${scope.value ?? ''}`);
   /** 原生历史与尚未写入历史的打开会话合并为一个列表，按最近修改排列。 */
   const entries = computed<SessionEntry[]>(() => {
@@ -282,8 +295,46 @@ export const useAgentStore = defineStore('agent', () => {
       if (!id) return;
     }
     drafts.value[id] = '';
-    const sent = await perform(() => getDesktopApi().agentHost.request('prompt', { id, text }));
-    if (!sent && !drafts.value[id]) drafts.value[id] = text;
+    await dispatch(id, text);
+  }
+
+  function userCount(id: string) {
+    return state.value!.sessions.find(session => session.id === id)!.messages.filter(item => item.role === 'user')
+      .length;
+  }
+  function unsent(id: string) {
+    const users = userCount(id);
+    return (outgoing.value[id] ?? []).filter(item => item.error || users < item.expectUsers);
+  }
+  /** 先显示消息再请求；宿主拒收时保留消息并标记失败，供作者重试或移除。 */
+  async function dispatch(id: string, text: string) {
+    const list = unsent(id);
+    const waiting = list.filter(item => !item.error).length;
+    const key = crypto.randomUUID();
+    outgoing.value[id] = [...list, { key, text, expectUsers: userCount(id) + waiting + 1 }];
+    try {
+      await getDesktopApi().agentHost.request('prompt', { id, text });
+    } catch (cause) {
+      const failed = outgoing.value[id].find(item => item.key === key);
+      if (failed) failed.error = toErrorMessage(cause);
+    }
+  }
+  function discardOutgoing(key: string) {
+    const id = activeId.value!;
+    outgoing.value[id] = outgoing.value[id].filter(item => item.key !== key);
+  }
+  function retryOutgoing(key: string) {
+    const id = activeId.value!;
+    const { text } = outgoing.value[id].find(item => item.key === key)!;
+    discardOutgoing(key);
+    return dispatch(id, text);
+  }
+
+  /** 宿主拒绝待审修改并关闭会话，历史文件移入回收站后刷新列表。 */
+  async function deleteSessions(sessionIds: string[]) {
+    const deleted = await perform(() => getDesktopApi().agentHost.request('deleteSessions', { sessionIds }));
+    if (deleted) await loadHistory();
+    return deleted;
   }
 
   async function loadHistory() {
@@ -375,6 +426,10 @@ export const useAgentStore = defineStore('agent', () => {
     compose,
     create,
     send,
+    deleteSessions,
+    activeOutgoing,
+    retryOutgoing,
+    discardOutgoing,
     loadHistory,
     open,
     title

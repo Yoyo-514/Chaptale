@@ -232,6 +232,16 @@ it('只读历史沿用原生身份归入作品，重启后恢复该作品最后�
   expect(agent.active?.sessionId).toBe(item.id);
   expect(agent.active?.readonly?.reason).toBe('incomplete');
   expect(agent.active?.messages[0]?.text).toBe('独立历史');
+
+  // 宿主拒收的消息留在列表中标为失败，重试仍只保留一条，可移除。
+  agent.draft = '还能继续吗';
+  await agent.send();
+  expect(agent.draft).toBe('');
+  expect(agent.activeOutgoing).toMatchObject([{ text: '还能继续吗', error: expect.stringContaining('只读历史') }]);
+  await agent.retryOutgoing(agent.activeOutgoing[0]!.key);
+  expect(agent.activeOutgoing).toMatchObject([{ text: '还能继续吗', error: expect.stringContaining('只读历史') }]);
+  agent.discardOutgoing(agent.activeOutgoing[0]!.key);
+  expect(agent.activeOutgoing).toEqual([]);
 });
 
 it('切换作品仅改变查看范围，真实 SDK 正在执行的请求继续运行', async () => {
@@ -241,6 +251,11 @@ it('切换作品仅改变查看范围，真实 SDK 正在执行的请求继续�
   expect(agent.error).toBe('');
   expect(agent.activeId).toEqual(expect.any(String));
   await started;
+  // 宿主写入作者消息后，乐观显示的消息让位给真实记录。
+  await expect.poll(() => agent.activeOutgoing).toEqual([]);
+  expect(agent.active?.messages.filter(message => message.role === 'user').map(message => message.text)).toEqual([
+    '检查会话运行归属'
+  ]);
   const id = agent.activeId!;
   const executor = host.liveSession(id);
   expect(host.snapshot().sessions.find(session => session.id === id)?.running).toBe(true);

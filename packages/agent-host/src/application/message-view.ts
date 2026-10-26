@@ -1,6 +1,6 @@
 import { type AgentSession, type SessionManager, sessionEntryToContextMessages } from '@earendil-works/pi-coding-agent';
 
-import type { ChatMessage } from '../protocol.ts';
+import { type ChatMessage, reviewContinuationMessageType } from '../protocol.ts';
 
 export type SdkMessage = AgentSession['messages'][number];
 
@@ -9,6 +9,14 @@ export function messageView(message: SdkMessage): ChatMessage {
   const view: ChatMessage = { role: message.role, text: '', thinking: '', tools: [] };
   if ('toolName' in message) view.toolName = message.toolName;
   if ('isError' in message) view.error = message.isError;
+  // 审阅续跑消息携带正式稿快照给模型；界面只显示一行提示。
+  if (message.role === 'custom' && message.customType === reviewContinuationMessageType) {
+    const { count, outcomes } = message.details as { count: number; outcomes: string[] };
+    view.role = 'reviewContinued';
+    view.text = `作者已处理 ${count} 处修改，任务继续`;
+    view.outcomes = outcomes;
+    return view;
+  }
   // 压缩总结只有 summary，没有 content；界面只读显示。
   if (message.role === 'compactionSummary') {
     view.text = message.summary;
