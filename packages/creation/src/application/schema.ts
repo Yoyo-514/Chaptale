@@ -82,6 +82,12 @@ const inputs = {
     parentId,
     beforeEntryId: parentId
   }),
+  listTrash: object({ workId: id }),
+  previewTrash: object({ workId: id, entryIds: Type.Array(id, { minItems: 1 }) }),
+  trashEntries: object({ commandId: id, workId: id, entryIds: Type.Array(id, { minItems: 1 }) }),
+  restoreTrash: object({ commandId: id, workId: id, batchId: id }),
+  purgeTrash: object({ commandId: id, workId: id, batchId: parentId }),
+  readTrashedDocument: object(documentTarget),
   writeDraft: object({ ...documentInput, draftId: id, expectedDraftVersion: parentId }),
   discardDraft: object({ ...documentTarget, draftId: id }),
   readDraftState: object(documentTarget),

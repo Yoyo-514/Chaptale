@@ -18,6 +18,7 @@ import type {
   SessionSelection,
   SessionState,
   Revision,
+  TrashBatch,
   Work,
   WorkbenchState
 } from './contracts.ts';
@@ -74,6 +75,18 @@ export interface CreationRepository {
   searchDocuments(input: SearchDocumentsInput, candidates?: readonly EntrySnapshot[]): DocumentSearchPage;
   getRevision(workId: string, revisionId: string): Revision | undefined;
   getRevisionEntryId(workId: string, revisionId: string): string | undefined;
+
+  /** 条目及其正常子项记为同一删除批次，返回进入回收站的全部条目 ID。 */
+  trashEntries(workId: string, rootIds: readonly string[], batchId: string, now: number): string[];
+  listTrash(workId: string): TrashBatch[];
+  isTrashed(workId: string, entryId: string): boolean;
+  getTrashedDocument(workId: string, documentId: string): Document | undefined;
+  /** 返回恢复到正常目录的条目 ID。 */
+  restoreTrash(workId: string, batchId: string): string[];
+  /** 返回被永久删除条目的元数据。 */
+  purgeTrash(workId: string, batchId: string): Entry[];
+  listTrashBatchIds(workId: string): string[];
+  clearDrafts(workId: string, documentIds: readonly string[]): void;
 
   getCurrentDelivery(sessionId: string): DeliveryGroup | undefined;
   /** 按新到旧排列。 */

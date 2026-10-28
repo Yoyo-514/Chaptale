@@ -16,6 +16,7 @@ import type {
   PendingChange,
   RecoveryDraft,
   Revision,
+  TrashBatch,
   SearchDocumentsInput,
   SessionAssignment,
   SessionSelection,
@@ -29,6 +30,7 @@ import { openLibrary, openWorkDatabase } from './database.ts';
 import * as entries from './entries.ts';
 import * as reviews from './reviews.ts';
 import { searchDocuments } from './search.ts';
+import * as trash from './trash.ts';
 
 export async function openCreationStorage(options: { rootDir: string }): Promise<CreationRepository> {
   return new SqliteCreationRepository(options.rootDir, await openLibrary(options.rootDir));
@@ -195,6 +197,34 @@ class SqliteCreationRepository implements CreationRepository {
   }
   getRevisionEntryId(workId: string, revisionId: string): string | undefined {
     return entries.getRevisionEntryId(this.useWork(workId), revisionId);
+  }
+
+  trashEntries(workId: string, rootIds: readonly string[], batchId: string, now: number): string[] {
+    return trash.trashEntries(this.useWork(workId), rootIds, batchId, now);
+  }
+  listTrash(workId: string): TrashBatch[] {
+    return trash.listTrash(this.useWork(workId));
+  }
+  isTrashed(workId: string, entryId: string): boolean {
+    return trash.isTrashed(this.useWork(workId), entryId);
+  }
+  getTrashedDocument(workId: string, documentId: string): Document | undefined {
+    return trash.getTrashedDocument(this.useWork(workId), documentId);
+  }
+  restoreTrash(workId: string, batchId: string): string[] {
+    return trash.restoreBatch(this.useWork(workId), batchId);
+  }
+  purgeTrash(workId: string, batchId: string): Entry[] {
+    return trash.purgeBatch(this.useWork(workId), batchId);
+  }
+  listTrashBatchIds(workId: string): string[] {
+    return trash.listTrashBatchIds(this.useWork(workId));
+  }
+  clearDrafts(workId: string, documentIds: readonly string[]): void {
+    const clear = this.library.prepare('DELETE FROM recovery_drafts WHERE workId = ? AND documentId = ?');
+    this.library.transaction(() => {
+      for (const id of documentIds) clear.run(workId, id);
+    })();
   }
 
   getCurrentDelivery(sessionId: string): DeliveryGroup | undefined {

@@ -48,7 +48,11 @@ export class DeliveryService {
         workId: change.workId,
         entryId: change.entryId,
         title: change.candidate.title,
-        decision: change.authorEdited ? 'edited' : (change.status as 'accepted' | 'rejected'),
+        decision: change.authorEdited
+          ? 'edited'
+          : change.status === 'rejected' && this.repository.isTrashed(change.workId, change.entryId)
+            ? 'deleted'
+            : (change.status as 'accepted' | 'rejected'),
         snapshot: readEntrySnapshot(this.repository, change.workId, change.entryId)
       };
     });

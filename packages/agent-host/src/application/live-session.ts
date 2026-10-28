@@ -36,7 +36,8 @@ export function instructionCallbacks(applied: AppliedInstructions) {
 const decisionLabels = {
   accepted: '已接受',
   rejected: '已拒绝',
-  edited: '作者逐处决定或手改过，以正式内容为准'
+  edited: '作者逐处决定或手改过，以正式内容为准',
+  deleted: '作者已删除该条目'
 } as const;
 
 function creationValue<T>(result: CreationResult<T>): T {

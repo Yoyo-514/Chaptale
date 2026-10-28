@@ -62,7 +62,8 @@ export interface DeliveryContent {
   entryId: string;
   title: string;
   /** 整篇接受、整篇拒绝，或作者逐处决定、手改过（以正式内容为准）。 */
-  decision: 'accepted' | 'rejected' | 'edited';
+  /** deleted：作者删除了目标条目，候选随删除一并拒绝。 */
+  decision: 'accepted' | 'rejected' | 'edited' | 'deleted';
   snapshot: EntrySnapshot | null;
 }
 

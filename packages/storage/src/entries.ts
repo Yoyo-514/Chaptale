@@ -8,21 +8,29 @@ const metadataColumns =
   'id, parentId, section, kind, title, position, format, wordCount, revisionId, createdAt, updatedAt';
 
 export function getEntry(database: Database.Database, id: string): Entry | undefined {
-  return database.prepare(`SELECT ${metadataColumns} FROM entries WHERE id = ?`).get(id) as Entry | undefined;
+  return database
+    .prepare(`SELECT ${metadataColumns} FROM entries WHERE id = ? AND id NOT IN (SELECT entryId FROM trash)`)
+    .get(id) as Entry | undefined;
 }
 export function listEntries(database: Database.Database): Entry[] {
   return database
-    .prepare(`SELECT ${metadataColumns} FROM entries ORDER BY section, parentId, position, id`)
+    .prepare(
+      `SELECT ${metadataColumns} FROM entries WHERE id NOT IN (SELECT entryId FROM trash) ORDER BY section, parentId, position, id`
+    )
     .all() as Entry[];
 }
 export function nextPosition(database: Database.Database, section: Entry['section'], parentId: string | null): number {
   const row = database
-    .prepare('SELECT coalesce(max(position) + 1, 0) AS position FROM entries WHERE section = ? AND parentId IS ?')
+    .prepare(
+      'SELECT coalesce(max(position) + 1, 0) AS position FROM entries WHERE section = ? AND parentId IS ? AND id NOT IN (SELECT entryId FROM trash)'
+    )
     .get(section, parentId) as { position: number };
   return row.position;
 }
 export function getDocument(database: Database.Database, id: string): Document | undefined {
-  return database.prepare("SELECT * FROM entries WHERE id = ? AND kind = 'document'").get(id) as Document | undefined;
+  return database
+    .prepare("SELECT * FROM entries WHERE id = ? AND kind = 'document' AND id NOT IN (SELECT entryId FROM trash)")
+    .get(id) as Document | undefined;
 }
 
 export function insertEntry(database: Database.Database, snapshot: Revision['snapshot'], revision: Revision): void {
@@ -58,11 +66,13 @@ export function relocateEntry(
   position: number
 ): void {
   database
-    .prepare('UPDATE entries SET position = position - 1 WHERE section = ? AND parentId IS ? AND position > ?')
+    .prepare(
+      'UPDATE entries SET position = position - 1 WHERE section = ? AND parentId IS ? AND position > ? AND id NOT IN (SELECT entryId FROM trash)'
+    )
     .run(entry.section, entry.parentId, entry.position);
   database
     .prepare(
-      'UPDATE entries SET position = position + 1 WHERE section = ? AND parentId IS ? AND position >= ? AND id != ?'
+      'UPDATE entries SET position = position + 1 WHERE section = ? AND parentId IS ? AND position >= ? AND id != ? AND id NOT IN (SELECT entryId FROM trash)'
     )
     .run(entry.section, parentId, position, entry.id);
   database.prepare('UPDATE entries SET parentId = ?, position = ? WHERE id = ?').run(parentId, position, entry.id);

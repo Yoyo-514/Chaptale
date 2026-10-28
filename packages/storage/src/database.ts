@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { receiptSchema } from './commands';
 import { openSearchIndex } from './search.ts';
+import { trashSchema } from './trash.ts';
 
 export async function openLibrary(rootDir: string): Promise<Database.Database> {
   await mkdir(path.join(rootDir, 'works'), { recursive: true });
@@ -93,6 +94,7 @@ export function openWorkDatabase(rootDir: string, workId: string): Database.Data
       createdAt INTEGER NOT NULL
     ) STRICT;
   `);
+  database.exec(trashSchema);
   database.exec(receiptSchema);
   openSearchIndex(database);
   return database;

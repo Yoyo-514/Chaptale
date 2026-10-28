@@ -206,8 +206,23 @@ export class ReviewService {
     return result;
   }
 
+  /** 删除提交后拒绝指向回收站条目的待审修改，包括挂在其下的新建候选；恢复时再次执行即补齐。 */
+  rejectTrashed(workId: string | null): void {
+    const changes = this.repository.listPendingChanges(workId, null);
+    for (const change of affectedByRemoval(changes, owner => id => this.repository.isTrashed(owner.workId, id)))
+      this.creation.commit(null, `trash:${change.id}`, ['rejectTrashed', change.id], { kind: 'review' }, () =>
+        this.finish(change, { status: 'rejected' })
+      );
+  }
+
+  /** 删除这些条目时会一并拒绝的待审修改数量。 */
+  countAffected(workId: string, removedIds: ReadonlySet<string>): number {
+    return affectedByRemoval(this.repository.listPendingChanges(workId, null), () => id => removedIds.has(id)).length;
+  }
+
   /** 恢复只补齐已有作品回执的进度；未提交的意图清除，不继续执行旧修改。 */
   private recover(): void {
+    this.rejectTrashed(null);
     for (const input of this.repository.listDeliveryIntents()) {
       const parameters = ['decideDelivery', input] as const;
       if (this.repository.readWorkReceipt<Entry[]>(input.workId, input.commandId, parameters)) {
@@ -281,6 +296,30 @@ function item(view: ReviewView): DeliveryItem {
     created: current === null,
     conflicted: view.conflicts.length > 0
   };
+}
+/** 目标条目或候选父目录被删除的修改受影响；挂在受影响新建目录下的候选随之受影响。 */
+function affectedByRemoval(
+  changes: PendingChange[],
+  removedIn: (change: PendingChange) => (entryId: string) => boolean
+): PendingChange[] {
+  const affected: PendingChange[] = [];
+  const removedCreated = new Set<string>();
+  let remaining = changes;
+  let found = true;
+  while (found) {
+    found = false;
+    remaining = remaining.filter(change => {
+      const removed = removedIn(change);
+      const { parentId } = change.candidate;
+      const hit = removed(change.entryId) || (parentId !== null && (removed(parentId) || removedCreated.has(parentId)));
+      if (!hit) return true;
+      affected.push(change);
+      if (change.base === null) removedCreated.add(change.entryId);
+      found = true;
+      return false;
+    });
+  }
+  return affected;
 }
 function titles(views: ReviewView[]): string {
   return views.map(view => `《${view.candidate.title}》`).join('、');

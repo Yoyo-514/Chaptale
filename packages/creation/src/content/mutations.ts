@@ -9,7 +9,7 @@ import type {
   RenameDirectoryInput,
   SaveDocumentInput
 } from '../contracts/content.ts';
-import { EntryLocationConflictError, RevisionConflictError } from '../errors.ts';
+import { assertNotTrashed, EntryLocationConflictError, RevisionConflictError } from '../errors.ts';
 import type { CreationRepository } from '../repository.ts';
 import { countDocumentWords } from '../text.ts';
 import { revisionFor } from './commit.ts';
@@ -40,6 +40,7 @@ export function createEntry(repository: CreationRepository, input: CreateEntryIn
 
 export function renameDirectory(repository: CreationRepository, input: RenameDirectoryInput): Entry {
   const current = repository.getEntry(input.workId, input.directoryId);
+  if (!current) assertNotTrashed(repository, input.workId, input.directoryId);
   if (!current || current.kind !== 'directory') throw new Error('目录不存在');
   if (current.revisionId !== input.expectedRevisionId)
     throw new RevisionConflictError(input.expectedRevisionId, current.revisionId);
@@ -52,6 +53,7 @@ export function renameDirectory(repository: CreationRepository, input: RenameDir
 export function moveEntry(repository: CreationRepository, input: MoveEntryInput): Entry {
   const { workId, entryId, parentId, beforeEntryId } = input;
   const entry = repository.getEntry(workId, entryId);
+  if (!entry) assertNotTrashed(repository, workId, entryId);
   if (!entry) throw new Error('条目不存在');
   if (entry.parentId !== input.expectedParentId || entry.position !== input.expectedPosition)
     throw new EntryLocationConflictError(entry.parentId, entry.position);
@@ -119,6 +121,7 @@ export function readEntrySnapshot(
 
 export function readDocument(repository: CreationRepository, workId: string, documentId: string): Document {
   const document = repository.getDocument(workId, documentId);
+  if (!document) assertNotTrashed(repository, workId, documentId);
   if (!document) throw new Error('文稿或资料不存在');
   return document;
 }

@@ -11,6 +11,7 @@ import type {
   Entry,
   PendingChange
 } from '../contracts.ts';
+import { assertNotTrashed } from '../errors.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { DeliveryService } from '../review/delivery.ts';
 import { overlayEntries } from '../review/overlay.ts';
@@ -137,6 +138,7 @@ export class CreationAgentService {
       entryId === null || mode !== 'review'
         ? undefined
         : this.review.list(workId, sessionId).find(change => change.entryId === entryId);
+    if (entryId !== null) assertNotTrashed(this.repository, workId, entryId);
     const current = entryId === null ? null : readEntrySnapshot(this.repository, workId, entryId);
     const entries = mode === 'review' ? this.entries(workId, sessionId) : this.creation.listEntries(workId);
     return { ...proposeEntry(command, entries, current, existing), existing };

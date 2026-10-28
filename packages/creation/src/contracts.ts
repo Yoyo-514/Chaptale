@@ -11,6 +11,10 @@ import type {
   RenameDirectoryInput,
   Revision,
   SaveDocumentInput,
+  TrashBatch,
+  TrashBatchInput,
+  TrashEntriesInput,
+  TrashImpact,
   Work
 } from './contracts/content.ts';
 import type { DeliveryGroup, PendingChange, ReviewCommands } from './contracts/review.ts';
@@ -146,6 +150,15 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   saveDocument: { input: SaveDocumentInput; output: CreationResult<Entry> };
   renameDirectory: { input: RenameDirectoryInput; output: CreationResult<Entry> };
   moveEntry: { input: MoveEntryInput; output: CreationResult<Entry> };
+  listTrash: { input: { workId: string }; output: CreationResult<TrashBatch[]> };
+  previewTrash: { input: { workId: string; entryIds: string[] }; output: CreationResult<TrashImpact> };
+  /** 移入作品回收站并一并拒绝相关待审修改；返回进入回收站的全部条目。 */
+  trashEntries: { input: TrashEntriesInput; output: CreationResult<Entry[]> };
+  /** 整批恢复，返回恢复后的条目。 */
+  restoreTrash: { input: TrashBatchInput & { batchId: string }; output: CreationResult<Entry[]> };
+  /** 永久删除，返回被删除的条目。 */
+  purgeTrash: { input: TrashBatchInput; output: CreationResult<Entry[]> };
+  readTrashedDocument: { input: { workId: string; documentId: string }; output: CreationResult<Document> };
   writeDraft: { input: WriteDraftInput; output: CreationResult<DraftState> };
   discardDraft: { input: { workId: string; documentId: string; draftId: string }; output: CreationResult<DraftState> };
   readDraftState: { input: { workId: string; documentId: string }; output: CreationResult<DraftState> };

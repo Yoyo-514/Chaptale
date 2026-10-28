@@ -15,6 +15,7 @@ import type { CreationRepository } from './repository.ts';
 import { DeliveryService } from './review/delivery.ts';
 import { ReviewService } from './review/service.ts';
 import { CreationService } from './service.ts';
+import { TrashService } from './trash.ts';
 
 export { agentInputs } from './application/schema.ts';
 type AuthorValue = Extract<CreationAuthorCommands[keyof CreationAuthorCommands]['output'], { ok: true }>['value'];
@@ -27,11 +28,13 @@ export class CreationApplication {
   private readonly review: ReviewService;
   private readonly agent: CreationAgentService;
   private readonly delivery: DeliveryService;
+  private readonly trash: TrashService;
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
     this.delivery = new DeliveryService(repository, this.service);
     this.review = new ReviewService(repository, this.service, this.delivery);
+    this.trash = new TrashService(repository, this.service, this.review);
     this.agent = new CreationAgentService(repository, this.service, this.review, this.delivery);
   }
 
@@ -121,6 +124,18 @@ export class CreationApplication {
         return this.service.renameDirectory(command.input);
       case 'moveEntry':
         return this.service.moveEntry(command.input);
+      case 'listTrash':
+        return this.trash.list(command.input.workId);
+      case 'previewTrash':
+        return this.trash.preview(command.input.workId, command.input.entryIds);
+      case 'trashEntries':
+        return this.trash.trash(command.input);
+      case 'restoreTrash':
+        return this.trash.restore(command.input);
+      case 'purgeTrash':
+        return this.trash.purge(command.input);
+      case 'readTrashedDocument':
+        return this.trash.readDocument(command.input.workId, command.input.documentId);
       case 'writeDraft':
         return this.service.writeDraft(command.input);
       case 'discardDraft':

@@ -1,6 +1,6 @@
 import { saveParameters } from './content/mutations.ts';
 import type { DraftState, Entry, RecoveryDraft, WriteDraftInput } from './contracts.ts';
-import { DraftConflictError } from './errors.ts';
+import { assertNotTrashed, DraftConflictError } from './errors.ts';
 import type { CreationRepository } from './repository.ts';
 
 export function writeDraft(repository: CreationRepository, input: WriteDraftInput): DraftState {
@@ -69,5 +69,6 @@ export function readDraftState(repository: CreationRepository, workId: string, d
 }
 function assertDocument(repository: CreationRepository, workId: string, documentId: string): void {
   const entry = repository.getEntry(workId, documentId);
+  if (!entry) assertNotTrashed(repository, workId, documentId);
   if (!entry || entry.kind !== 'document') throw new Error('文稿或资料不存在');
 }

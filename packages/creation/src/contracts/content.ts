@@ -37,6 +37,30 @@ export interface Revision {
 }
 export type EntrySnapshot = Revision['snapshot'];
 
+/** 一次删除移入作品回收站的条目；roots 为批次中父目录不在同批次的最外层条目，按原位置排序。 */
+export interface TrashBatch {
+  id: string;
+  deletedAt: number;
+  roots: Entry[];
+  entryCount: number;
+}
+export interface TrashEntriesInput {
+  commandId: string;
+  workId: string;
+  entryIds: string[];
+}
+/** batchId 为 null 时清空整个作品回收站。 */
+export interface TrashBatchInput {
+  commandId: string;
+  workId: string;
+  batchId: string | null;
+}
+/** 删除前在确认框中展示的范围。 */
+export interface TrashImpact {
+  entryCount: number;
+  pendingCount: number;
+}
+
 export interface CreateWorkInput {
   commandId: string;
   title: string;
