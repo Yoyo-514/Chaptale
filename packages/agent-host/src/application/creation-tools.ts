@@ -1,10 +1,16 @@
 import type { JsonValue } from '@earendil-works/pi-ai';
-import { defineTool, type ToolDefinition } from '@earendil-works/pi-coding-agent';
-import { posix } from 'node:path';
-import { Type, type TSchema } from 'typebox';
+import { createReadToolDefinition, defineTool, type ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { dirname, posix } from 'node:path';
+import { Type, type Static, type TSchema } from 'typebox';
 
 import type { CreationApplication } from '@chaptale/creation/application';
-import type { AgentWriteResult, CreationAgentContext, CreationResult, Entry } from '@chaptale/creation/contracts';
+import {
+  isImageFile,
+  type AgentWriteResult,
+  type CreationAgentContext,
+  type CreationResult,
+  type Entry
+} from '@chaptale/creation/contracts';
 
 import type { EditMode } from '../protocol.ts';
 
@@ -14,6 +20,14 @@ const target = { workId: id, entryId: id };
 const revisionTarget = { ...target, expectedRevisionId: id };
 const section = Type.Union([Type.Literal('manuscript'), Type.Literal('resource')]);
 const newEntry = { workId: id, parentId: nullableId, title: Type.String(), section };
+const workReadParameters = Type.Object(
+  {
+    ...target,
+    offset: Type.Optional(Type.Integer({ minimum: 1 })),
+    limit: Type.Optional(Type.Integer({ minimum: 1 }))
+  },
+  { additionalProperties: false }
+);
 // OpenAI 兼容接口要求工具参数顶层为 type: object，不能用 Union；分支字段设为可选，组合由 creation 的参数校验判定。
 const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
 
@@ -30,6 +44,15 @@ export const workToolNames = new Set([
 function located<T extends Entry>(workId: string, entry: T) {
   const { id: entryId, ...metadata } = entry;
   return { workId, entryId, ...metadata };
+}
+
+function toolResult(result: CreationResult<JsonValue>) {
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+    details: result,
+    structuredContent: result,
+    isError: !result.ok
+  };
 }
 
 function mapResult<T, U>(result: CreationResult<T>, map: (value: T) => U): CreationResult<U> {
@@ -54,6 +77,51 @@ export function createWorkTools(
     });
   }
 
+  /** 条目元数据；文件条目附带文件名、是否图片、当前大小与路径，供 Agent 用原始工具读取。 */
+  async function describe(workId: string, entries: Entry[]): Promise<JsonValue[]> {
+    const described: JsonValue[] = [];
+    for (const entry of entries) {
+      if (entry.kind !== 'file') {
+        described.push(located(workId, entry));
+        continue;
+      }
+      const file = await application.execute({ method: 'locateFile', input: { workId, entryId: entry.id } });
+      described.push({
+        ...located(workId, entry),
+        file: file.ok
+          ? { image: isImageFile(entry), size: file.value.size, path: file.value.path }
+          : { image: isImageFile(entry), error: file.error.message }
+      });
+    }
+    return described;
+  }
+
+  function readDocument(input: Static<typeof workReadParameters>, context: CreationAgentContext) {
+    return mapResult(
+      application.executeAgent(context, {
+        method: 'readDocument',
+        input: { workId: input.workId, documentId: input.entryId }
+      }),
+      ({ attributes, ...document }): JsonValue => {
+        const start = (input.offset ?? 1) - 1;
+        const lines = document.content.split('\n');
+        const content = lines.slice(start, input.limit === undefined ? undefined : start + input.limit).join('\n');
+        return {
+          ...located(input.workId, document),
+          content,
+          ...(attributes && {
+            attributes: {
+              type: attributes.type,
+              aliases: [...attributes.aliases],
+              tags: [...attributes.tags],
+              cover: attributes.cover
+            }
+          })
+        };
+      }
+    );
+  }
+
   function tool<S extends TSchema>(
     name: string,
     label: string,
@@ -63,7 +131,7 @@ export function createWorkTools(
       input: Parameters<ToolDefinition<S>['execute']>[1],
       context: CreationAgentContext,
       commandId: string
-    ) => CreationResult<JsonValue>
+    ) => CreationResult<JsonValue> | Promise<CreationResult<JsonValue>>
   ): ToolDefinition {
     return defineTool({
       name,
@@ -73,13 +141,9 @@ export function createWorkTools(
       async execute(toolCallId, input, signal, _onUpdate, ctx) {
         signal?.throwIfAborted();
         const sessionId = ctx.sessionManager.getSessionId();
-        const result = execute(input, { sessionId, mode: mode(sessionId) }, JSON.stringify([sessionId, toolCallId]));
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-          details: result,
-          structuredContent: result,
-          isError: !result.ok
-        };
+        return toolResult(
+          await execute(input, { sessionId, mode: mode(sessionId) }, JSON.stringify([sessionId, toolCallId]))
+        );
       }
     });
   }
@@ -88,9 +152,9 @@ export function createWorkTools(
     tool(
       'work_ls',
       '浏览作品',
-      'workId 为 null 时列出作品；提供作品 ID 时列出 entryId 目录的直接子条目，entryId 缺省或为 null 表示根目录。返回稳定 ID 与修订、位置元数据。',
+      'workId 为 null 时列出作品；提供作品 ID 时列出 entryId 目录的直接子条目，entryId 缺省或为 null 表示根目录。返回稳定 ID 与修订、位置元数据；资料中的文件条目（kind 为 file）附带是否图片、大小与文件路径。',
       object({ workId: nullableId, entryId: Type.Optional(nullableId), section: Type.Optional(section) }),
-      (input, context) => {
+      async (input, context) => {
         if (input.workId === null)
           return mapResult(application.executeAgent(context, { method: 'listWorks', input: {} }), works =>
             works.map(({ id: workId, ...work }) => ({ workId, ...work }))
@@ -103,59 +167,61 @@ export function createWorkTools(
           return { ok: false, error: { code: 'failed', message: '作品目录不存在' } };
         return {
           ok: true,
-          value: result.value
-            .filter(entry => entry.parentId === parentId && (!input.section || entry.section === input.section))
-            .map(entry => located(workId, entry))
+          value: await describe(
+            workId,
+            result.value.filter(
+              entry => entry.parentId === parentId && (!input.section || entry.section === input.section)
+            )
+          )
         };
       }
     ),
-    tool(
-      'work_read',
-      '读取作品正文',
-      '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改；资料另附类型、别名与标签。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。',
-      object({
-        ...target,
-        offset: Type.Optional(Type.Integer({ minimum: 1 })),
-        limit: Type.Optional(Type.Integer({ minimum: 1 }))
-      }),
-      (input, context) =>
-        mapResult(
-          application.executeAgent(context, {
-            method: 'readDocument',
-            input: { workId: input.workId, documentId: input.entryId }
-          }),
-          ({ attributes, ...document }) => {
-            const start = (input.offset ?? 1) - 1;
-            const content = document.content
-              .split('\n')
-              .slice(start, input.limit === undefined ? undefined : start + input.limit)
-              .join('\n');
-            return {
-              ...located(input.workId, document),
-              content,
-              ...(attributes && {
-                attributes: { type: attributes.type, aliases: [...attributes.aliases], tags: [...attributes.tags] }
-              })
-            };
-          }
-        )
-    ),
+    defineTool({
+      name: 'work_read',
+      label: '读取作品正文',
+      description:
+        '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改；资料另附类型、别名、标签与封面条目 ID。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。图片文件条目返回图片（模型支持读图时）；其他文件条目返回路径，需用原始工具读取。',
+      parameters: workReadParameters,
+      async execute(toolCallId, input, signal, onUpdate, ctx) {
+        signal?.throwIfAborted();
+        const sessionId = ctx.sessionManager.getSessionId();
+        const context = { sessionId, mode: mode(sessionId) };
+        const entries = application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } });
+        const entry = entries.ok ? entries.value.find(item => item.id === input.entryId) : undefined;
+        if (entry?.kind !== 'file') return toolResult(readDocument(input, context));
+        const file = await application.execute({
+          method: 'locateFile',
+          input: { workId: input.workId, entryId: entry.id }
+        });
+        if (!file.ok) return toolResult(file);
+        if (!isImageFile(entry))
+          return toolResult({
+            ok: false,
+            error: { code: 'failed', message: `这个文件条目不是图片，需要时用原始工具读取：${file.value.path}` }
+          });
+        // 图片读取复用 pi 原生 read 工具：按模型限制缩放，不支持读图的模型得到说明文字。
+        return createReadToolDefinition(dirname(file.value.path)).execute(
+          toolCallId,
+          { path: file.value.path },
+          signal,
+          onUpdate,
+          ctx
+        );
+      }
+    }),
     tool(
       'work_find',
       '查找作品条目',
       '在指定作品内按 glob 通配符匹配条目名称，包含本会话候选名称，返回稳定 ID、修订与位置。section 可限定文稿或资料分区。',
       object({ workId: id, pattern: Type.String(), section: Type.Optional(section) }),
-      (input, context) =>
-        mapResult(
-          application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } }),
-          entries =>
-            entries
-              .filter(
-                entry =>
-                  (!input.section || entry.section === input.section) && posix.matchesGlob(entry.title, input.pattern)
-              )
-              .map(entry => located(input.workId, entry))
-        )
+      async (input, context) => {
+        const result = application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } });
+        if (!result.ok) return result;
+        const matched = result.value.filter(
+          entry => (!input.section || entry.section === input.section) && posix.matchesGlob(entry.title, input.pattern)
+        );
+        return { ok: true, value: await describe(input.workId, matched) };
+      }
     ),
     tool(
       'work_grep',
@@ -206,11 +272,14 @@ export function createWorkTools(
         limit: Type.Integer({ minimum: 1 }),
         section: Type.Optional(section)
       }),
-      (input, context) =>
-        mapResult(application.executeAgent(context, { method: 'searchDocuments', input }), page => ({
-          entries: page.entries.map(entry => located(input.workId, entry)),
-          hasMore: page.hasMore
-        }))
+      async (input, context) => {
+        const result = application.executeAgent(context, { method: 'searchDocuments', input });
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: { entries: await describe(input.workId, result.value.entries), hasMore: result.value.hasMore }
+        };
+      }
     ),
     tool(
       'work_edit',

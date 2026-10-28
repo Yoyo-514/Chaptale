@@ -76,6 +76,11 @@ export function workDir(rootDir: string, workId: string): string {
   return path.join(rootDir, 'works', workId);
 }
 
+/** 文件条目独占一个子目录，文件保留添加时的原文件名。 */
+export function entryFileDir(rootDir: string, workId: string, entryId: string): string {
+  return path.join(workDir(rootDir, workId), 'files', entryId);
+}
+
 export function openWorkDatabase(rootDir: string, workId: string): Database.Database {
   const dir = workDir(rootDir, workId);
   mkdirSync(dir, { recursive: true });
@@ -90,6 +95,7 @@ export function openWorkDatabase(rootDir: string, workId: string): Database.Data
       title TEXT NOT NULL,
       position INTEGER NOT NULL,
       format TEXT,
+      fileName TEXT,
       content TEXT,
       wordCount INTEGER NOT NULL,
       revisionId TEXT NOT NULL,
@@ -109,11 +115,12 @@ export function openWorkDatabase(rootDir: string, workId: string): Database.Data
       entryId TEXT PRIMARY KEY REFERENCES entries(id),
       type TEXT NOT NULL,
       aliases TEXT NOT NULL,
-      tags TEXT NOT NULL
+      tags TEXT NOT NULL,
+      cover TEXT
     ) STRICT;
     -- 属性表建立前的资料文档补一行空属性。
     INSERT OR IGNORE INTO resource_attributes
-      SELECT id, '', '[]', '[]' FROM entries WHERE section = 'resource' AND kind = 'document';
+      SELECT id, '', '[]', '[]', NULL FROM entries WHERE section = 'resource' AND kind = 'document';
   `);
   database.exec(trashSchema);
   database.exec(receiptSchema);

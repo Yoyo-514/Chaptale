@@ -108,10 +108,10 @@ describe('作品提交事件与快照', () => {
       content: '正文'
     });
     const before = service.snapshot(work.id);
-    const renamed = service.renameDirectory({
+    const renamed = service.renameEntry({
       commandId: randomUUID(),
       workId: work.id,
-      directoryId: folder.id,
+      entryId: folder.id,
       expectedRevisionId: folder.revisionId,
       title: '风起'
     });

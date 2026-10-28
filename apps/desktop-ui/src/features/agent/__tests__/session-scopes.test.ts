@@ -146,7 +146,10 @@ beforeEach(async () => {
     subscribe: listener => host.subscribe(listener),
     onDisconnected: () => () => {}
   };
-  const creationClient: Omit<ChaptaleDesktopApi['creation'], 'selectPaths'> = {
+  const creationClient: Omit<
+    ChaptaleDesktopApi['creation'],
+    'selectPaths' | 'fileAction' | 'readFile' | 'pathForFile'
+  > = {
     request: (method, input) => author.execute({ method, input }),
     subscribe: listener => author.subscribe(listener),
     onDisconnected: () => () => {}

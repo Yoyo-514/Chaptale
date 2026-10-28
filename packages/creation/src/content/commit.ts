@@ -63,7 +63,7 @@ export function applySnapshot(
   } else {
     if (moving) repository.relocateEntry(workId, current, saved.parentId, saved.position);
     if (saved.kind === 'document') repository.updateDocument(workId, saved as Document, revision);
-    else repository.updateDirectory(workId, saved, revision);
+    else repository.updateTitle(workId, saved, revision);
   }
   const { content: _content, ...entry } = saved;
   return entry;

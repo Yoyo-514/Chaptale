@@ -26,6 +26,8 @@ const source = {
 };
 const fileInputs = {
   prepareImport: object({ paths: Type.Array(id, { minItems: 1 }) }),
+  addFiles: object({ commandId: id, workId: id, parentId: nullableId, paths: Type.Array(id, { minItems: 1 }) }),
+  locateFile: object({ workId: id, entryId: id }),
   importFiles: object({
     commandId: id,
     workId: id,

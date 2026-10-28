@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
 
 import type { Document, Entry, TrashBatch, TrashBatchInput, TrashEntriesInput, TrashImpact } from './contracts.ts';
 import type { CreationRepository } from './repository.ts';
@@ -82,6 +83,9 @@ export class TrashService {
       input.workId,
       purged.filter(entry => entry.kind === 'document').map(entry => entry.id)
     );
+    for (const entry of purged)
+      if (entry.kind === 'file')
+        rmSync(this.repository.entryFileDir(input.workId, entry.id), { recursive: true, force: true });
     return purged;
   }
 

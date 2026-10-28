@@ -1,7 +1,13 @@
 /** Electron 通道由平台桥接持有，业务契约保持跨端可用。 */
 export const APPLICATION_HOST_CHANNELS = {
   agent: { request: 'agent-host:request', event: 'agent-host:event' },
-  creation: { request: 'creation:request', event: 'creation:event', selectPaths: 'creation:select-paths' },
+  creation: {
+    request: 'creation:request',
+    event: 'creation:event',
+    selectPaths: 'creation:select-paths',
+    fileAction: 'creation:file-action',
+    readFile: 'creation:read-file'
+  },
   disconnected: 'application-host:disconnected'
 } as const;
 

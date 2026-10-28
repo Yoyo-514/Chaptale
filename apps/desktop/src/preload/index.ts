@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import type { HostCommands, HostEvent } from '@chaptale/agent-host/protocol';
 import type { CreationCommands, CreationEvent } from '@chaptale/creation/contracts';
@@ -15,7 +15,10 @@ const desktopApi: ChaptaleDesktopApi = {
   agentHost: createHostApi<HostCommands, HostEvent>(APPLICATION_HOST_CHANNELS.agent),
   creation: {
     ...createHostApi<CreationCommands, CreationEvent>(APPLICATION_HOST_CHANNELS.creation),
-    selectPaths: purpose => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.selectPaths, purpose)
+    selectPaths: purpose => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.selectPaths, purpose),
+    fileAction: (target, action) => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.fileAction, target, action),
+    readFile: target => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.readFile, target),
+    pathForFile: file => webUtils.getPathForFile(file)
   },
   cloudSync: createCloudSyncApi(),
   getPlatform: createGetPlatformApi(),

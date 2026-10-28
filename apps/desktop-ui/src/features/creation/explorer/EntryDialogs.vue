@@ -72,10 +72,10 @@ async function submit() {
     if (action.value === 'rename' && entry.kind === 'document') editor.updateMetadata(entry.id, { title: title.value });
     else {
       if (action.value === 'rename')
-        await requestCreation('renameDirectory', {
+        await requestCreation('renameEntry', {
           commandId: crypto.randomUUID(),
           workId: creation.workId!,
-          directoryId: entry.id,
+          entryId: entry.id,
           expectedRevisionId: entry.revisionId,
           title: title.value
         });

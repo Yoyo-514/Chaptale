@@ -1,14 +1,17 @@
 import type { RpcClient, RpcCommand } from '@chaptale/contracts';
 
 import type {
+  AddFilesInput,
+  AddFilesReport,
   CreateEntryInput,
   CreateWorkInput,
   CreationReadCommands,
   CreationResult,
   Document,
   Entry,
+  FileLocation,
   MoveEntryInput,
-  RenameDirectoryInput,
+  RenameEntryInput,
   Revision,
   RevisionSummary,
   SaveDocumentInput,
@@ -23,6 +26,7 @@ import type {
 import type { DeliveryGroup, PendingChange, ReviewCommands } from './contracts/review.ts';
 
 export type * from './contracts/content.ts';
+export { isImageFile } from './contracts/content.ts';
 export type * from './contracts/review.ts';
 
 export interface RecoveryDraft extends Omit<SaveDocumentInput, 'commandId'> {
@@ -153,7 +157,7 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   createWork: { input: CreateWorkInput; output: CreationResult<Work> };
   createEntry: { input: CreateEntryInput; output: CreationResult<Entry> };
   saveDocument: { input: SaveDocumentInput; output: CreationResult<Entry> };
-  renameDirectory: { input: RenameDirectoryInput; output: CreationResult<Entry> };
+  renameEntry: { input: RenameEntryInput; output: CreationResult<Entry> };
   moveEntry: { input: MoveEntryInput; output: CreationResult<Entry> };
   listTrash: { input: { workId: string }; output: CreationResult<TrashBatch[]> };
   previewTrash: { input: { workId: string; entryIds: string[] }; output: CreationResult<TrashImpact> };
@@ -170,7 +174,7 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   /** 移入作品库回收站并拒绝该作品全部待审修改；运行中会话的检查由宿主完成。 */
   trashWork: { input: WorkCommandInput; output: CreationResult<Work> };
   restoreWork: { input: WorkCommandInput; output: CreationResult<Work> };
-  /** 从作品库移除，会话转为未归属；files 为待平台移入系统回收站的作品数据库文件。 */
+  /** 从作品库移除，会话转为未归属；files 为待平台移入系统回收站的作品目录。 */
   purgeWork: { input: WorkCommandInput; output: CreationResult<{ files: string[] }> };
   writeDraft: { input: WriteDraftInput; output: CreationResult<DraftState> };
   discardDraft: { input: { workId: string; documentId: string; draftId: string }; output: CreationResult<DraftState> };
@@ -185,6 +189,8 @@ export interface CreationCommands extends CreationAuthorCommands {
   prepareImport: { input: { paths: string[] }; output: CreationResult<ImportPlan> };
   importFiles: { input: ImportFilesInput; output: CreationResult<ImportReport> };
   exportFiles: { input: ExportFilesInput; output: CreationResult<ExportReport> };
+  addFiles: { input: AddFilesInput; output: CreationResult<AddFilesReport> };
+  locateFile: { input: { workId: string; entryId: string }; output: CreationResult<FileLocation> };
 }
 export type CreationAuthorCommand = RpcCommand<CreationAuthorCommands>;
 export type CreationCommand = RpcCommand<CreationCommands>;

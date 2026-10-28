@@ -16,8 +16,22 @@ export interface DesktopAgentClient extends AgentClient {
   onDisconnected(listener: (message: string) => void): () => void;
 }
 
+/** 资料文件条目的平台操作；open-with 只在 Windows 可用。 */
+export type FileAction = 'open' | 'open-with' | 'show-in-folder';
+export interface FileTarget {
+  workId: string;
+  entryId: string;
+}
+
 export interface DesktopCreationClient extends CreationClient {
-  selectPaths(purpose: 'import-files' | 'import-directory' | 'export-directory'): Promise<string[] | null>;
+  selectPaths(
+    purpose: 'import-files' | 'import-directory' | 'export-directory' | 'add-files'
+  ): Promise<string[] | null>;
+  fileAction(target: FileTarget, action: FileAction): Promise<void>;
+  /** 读取文件条目当前内容，供应用内预览。 */
+  readFile(target: FileTarget): Promise<Uint8Array>;
+  /** 拖入的系统文件对应的本机路径。 */
+  pathForFile(file: File): string;
   onDisconnected(listener: (message: string) => void): () => void;
 }
 

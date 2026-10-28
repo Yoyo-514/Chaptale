@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { CreationService } from '@chaptale/creation';
-import type { Entry } from '@chaptale/creation/contracts';
 
 import { openCreationStorage } from '../index.ts';
 
@@ -26,7 +25,7 @@ describe('作品目录移动', () => {
     await rm(rootDir, { recursive: true, force: true });
   });
 
-  function entry(title: string, kind: Entry['kind'], parentId: string | null = null) {
+  function entry(title: string, kind: 'directory' | 'document', parentId: string | null = null) {
     const base = { commandId: randomUUID(), workId, parentId, section: 'manuscript' as const, title };
     return service.createEntry(
       kind === 'directory'

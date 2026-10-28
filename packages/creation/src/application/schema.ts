@@ -16,7 +16,12 @@ const documentInput = {
   content: Type.String()
 };
 const text = Type.String();
-const attributes = object({ type: text, aliases: Type.Array(text), tags: Type.Array(text) });
+const attributes = object({
+  type: text,
+  aliases: Type.Array(text),
+  tags: Type.Array(text),
+  cover: Type.Union([Type.String({ minLength: 1 }), Type.Null()])
+});
 /** 作者保存可带资料属性；Agent 写入不接受属性。 */
 const authorDocumentInput = { ...documentInput, attributes: Type.Optional(attributes) };
 const entryInput = {
@@ -76,7 +81,7 @@ const inputs = {
   ]),
   saveDocument: object({ commandId: id, ...authorDocumentInput }),
   readDocument: object(documentTarget),
-  renameDirectory: object({ commandId: id, workId: id, directoryId: id, expectedRevisionId: id, title: Type.String() }),
+  renameEntry: object({ commandId: id, workId: id, entryId: id, expectedRevisionId: id, title: Type.String() }),
   moveEntry: object({
     commandId: id,
     workId: id,

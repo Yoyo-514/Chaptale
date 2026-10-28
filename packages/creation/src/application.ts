@@ -11,6 +11,7 @@ import type {
 } from './contracts.ts';
 import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from './errors.ts';
 import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './file-exchange.ts';
+import { addFiles, locateFile } from './files.ts';
 import type { CreationRepository } from './repository.ts';
 import { DeliveryService } from './review/delivery.ts';
 import { ReviewService } from './review/service.ts';
@@ -61,6 +62,10 @@ export class CreationApplication {
           return { ok: true, value: await importFiles(this.service, file.input) };
         case 'exportFiles':
           return { ok: true, value: await exportFiles(this.service, file.input) };
+        case 'addFiles':
+          return { ok: true, value: await addFiles(this.service, file.input) };
+        case 'locateFile':
+          return { ok: true, value: await locateFile(this.service, file.input.workId, file.input.entryId) };
       }
     } catch (error) {
       return creationFailure(error);
@@ -123,8 +128,8 @@ export class CreationApplication {
         return this.service.saveDocument(command.input);
       case 'readDocument':
         return this.service.readDocument(command.input.workId, command.input.documentId);
-      case 'renameDirectory':
-        return this.service.renameDirectory(command.input);
+      case 'renameEntry':
+        return this.service.renameEntry(command.input);
       case 'moveEntry':
         return this.service.moveEntry(command.input);
       case 'listTrash':

@@ -71,7 +71,10 @@ export interface CreationRepository {
   nextPosition(workId: string, section: Entry['section'], parentId: string | null): number;
   insertEntry(workId: string, snapshot: Revision['snapshot'], revision: Revision): void;
   updateDocument(workId: string, document: Document, revision: Revision): void;
-  updateDirectory(workId: string, entry: Entry, revision: Revision): void;
+  /** 目录与文件条目改名。 */
+  updateTitle(workId: string, snapshot: Revision['snapshot'], revision: Revision): void;
+  /** 文件条目独占的目录，存放添加时复制的文件。 */
+  entryFileDir(workId: string, entryId: string): string;
   relocateEntry(workId: string, entry: Entry, parentId: string | null, position: number): void;
   listEntries(workId: string): Entry[];
   getDocument(workId: string, documentId: string): Document | undefined;
@@ -103,7 +106,7 @@ export interface CreationRepository {
   restoreWork(workId: string): void;
   /** 删除作品库中该作品的记录与会话归属，待审修改移出交付组。 */
   purgeWork(workId: string): void;
-  /** 关闭作品数据库连接，返回仍存在的数据库文件。 */
+  /** 关闭作品数据库连接，返回仍存在的作品目录。 */
   releaseWork(workId: string): string[];
 
   getCurrentDelivery(sessionId: string): DeliveryGroup | undefined;

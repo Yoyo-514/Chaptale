@@ -88,11 +88,11 @@ it('作者入口串接草稿、目录操作和快照，冲突字段与正文均�
   ).toEqual({ version: draft.draftId, draft: null });
   value(
     app.executeAuthor({
-      method: 'renameDirectory',
+      method: 'renameEntry',
       input: {
         commandId: randomUUID(),
         workId: work.id,
-        directoryId: folder.id,
+        entryId: folder.id,
         expectedRevisionId: folder.revisionId,
         title: '风起'
       }

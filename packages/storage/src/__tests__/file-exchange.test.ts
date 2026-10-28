@@ -317,11 +317,11 @@ it('并发分文件导出各自保留目录，导出期间的改名和保存留�
   const second = app.execute(command);
   value(
     app.executeAuthor({
-      method: 'renameDirectory',
+      method: 'renameEntry',
       input: {
         commandId: randomUUID(),
         workId: work.id,
-        directoryId: folder.id,
+        entryId: folder.id,
         expectedRevisionId: folder.revisionId,
         title: '新卷名'
       }

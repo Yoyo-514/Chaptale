@@ -1,7 +1,7 @@
 import { runToolCall } from '@earendil-works/pi-agent-core';
 import { defineTool, type ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Type } from 'typebox';
@@ -187,6 +187,52 @@ it('未归属作品的会话发现作品、列出根目录并按稳定身份读�
     value: { workId, entryId: documentId, revisionId, content: '城外下雪。' }
   });
   expect(host.snapshot().approvals).toEqual([]);
+});
+
+it('资料文件条目在目录中附带大小与路径，图片交给 pi 读取，其他文件提示用原始工具读取', async () => {
+  const outside = join(root, 'outside');
+  await mkdir(outside);
+  // 1×1 透明 PNG。
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  await writeFile(join(outside, '地图.png'), png);
+  await writeFile(join(outside, '设定.pdf'), 'pdf');
+  const report = value(
+    await creation.execute({
+      method: 'addFiles',
+      input: {
+        commandId: randomUUID(),
+        workId,
+        parentId: null,
+        paths: [join(outside, '地图.png'), join(outside, '设定.pdf')]
+      }
+    })
+  );
+  const [image, pdf] = report.entries;
+  const listed = await call('work_ls', { workId, section: 'resource' });
+  expect(listed.result.structuredContent).toMatchObject({
+    ok: true,
+    value: [
+      { entryId: image!.id, kind: 'file', title: '地图.png', file: { image: true, size: png.length } },
+      { entryId: pdf!.id, kind: 'file', title: '设定.pdf', file: { image: false, size: 3 } }
+    ]
+  });
+  const path = (listed.result.structuredContent as { value: { file: { path: string } }[] }).value[1]!.file.path;
+  const imageRead = await call('work_read', { workId, entryId: image!.id });
+  expect(imageRead.isError).toBe(false);
+  expect(imageRead.result.content).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('Read image file') })
+    ])
+  );
+  const other = await call('work_read', { workId, entryId: pdf!.id });
+  expect(other.isError).toBe(true);
+  expect(other.result.structuredContent).toMatchObject({
+    ok: false,
+    error: { message: `这个文件条目不是图片，需要时用原始工具读取：${path}` }
+  });
 });
 
 it('默认读取完整正文，范围可读取至末尾，整篇覆盖允许清空正文', async () => {

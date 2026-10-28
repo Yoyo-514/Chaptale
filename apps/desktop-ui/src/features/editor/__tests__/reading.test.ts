@@ -11,6 +11,7 @@ function entry(fields: Partial<Entry> & Pick<Entry, 'id' | 'position'>): Entry {
     kind: 'document',
     title: fields.id,
     format: 'txt',
+    fileName: null,
     wordCount: 0,
     revisionId: 'r',
     createdAt: 1_700_000_000_000,

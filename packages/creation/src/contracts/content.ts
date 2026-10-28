@@ -11,10 +11,13 @@ export interface Entry {
   id: string;
   parentId: string | null;
   section: 'manuscript' | 'resource';
-  kind: 'directory' | 'document';
+  /** 文件条目只在资料区，保存作者添加的参考文件。 */
+  kind: 'directory' | 'document' | 'file';
   title: string;
   position: number;
   format: 'txt' | 'markdown' | null;
+  /** 文件条目在作品目录中的文件名，添加时取原文件名，改名不变；其他条目为 null。 */
+  fileName: string | null;
   wordCount: number;
   revisionId: string;
   createdAt: number;
@@ -29,11 +32,18 @@ export interface Document extends Entry {
   attributes: ResourceAttributes | null;
 }
 
-/** 类型和标签用于筛选与可视化，空串表示未设置类型；别名进入检索。 */
+/** 类型和标签用于筛选与可视化，空串表示未设置类型；别名进入检索；封面为资料区图片文件条目的 ID。 */
 export interface ResourceAttributes {
   type: string;
   aliases: string[];
   tags: string[];
+  cover: string | null;
+}
+
+/** 应用内可预览、可作封面的图片格式，与 pi 读取工具支持的格式一致。 */
+const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+export function isImageFile(entry: Pick<Entry, 'kind' | 'fileName'>): boolean {
+  return entry.kind === 'file' && imageExtensions.has(entry.fileName!.split('.').pop()!.toLowerCase());
 }
 
 export interface Revision {
@@ -100,10 +110,11 @@ export type CreateEntryInput = {
   title: string;
 } & ({ kind: 'directory' } | { kind: 'document'; format: Document['format']; content: string });
 
-export interface RenameDirectoryInput {
+/** 改名用于目录和文件条目；文稿与资料随正文保存改名。 */
+export interface RenameEntryInput {
   commandId: string;
   workId: string;
-  directoryId: string;
+  entryId: string;
   expectedRevisionId: string;
   title: string;
 }
@@ -129,6 +140,24 @@ export interface SaveDocumentInput {
   content: string;
   /** 只用于资料；省略时保持当前属性。 */
   attributes?: ResourceAttributes;
+}
+
+/** 复制外部文件为资料区文件条目，原文件保持不动；按序提交，失败时返回已完成项。 */
+export interface AddFilesInput {
+  commandId: string;
+  workId: string;
+  parentId: string | null;
+  paths: string[];
+}
+export interface AddFilesReport {
+  entries: Entry[];
+  failure: { path: string; message: string } | null;
+}
+/** 文件条目的当前文件；外部程序可能已修改，大小与修改时间按读取时为准。 */
+export interface FileLocation {
+  path: string;
+  size: number;
+  modifiedAt: number;
 }
 
 /** 检索只返回正式条目元数据；正文按文档身份和修订另行读取。 */

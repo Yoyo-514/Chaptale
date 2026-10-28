@@ -81,7 +81,7 @@ beforeEach(async () => {
     })
   );
   document = value(author.executeAuthor({ method: 'readDocument', input: { workId, documentId: entry.id } }));
-  const client: Omit<ChaptaleDesktopApi['creation'], 'selectPaths'> = {
+  const client: Omit<ChaptaleDesktopApi['creation'], 'selectPaths' | 'fileAction' | 'readFile' | 'pathForFile'> = {
     // 与 IPC 一致：参数先经过结构化克隆
     request: (method, input) => author.execute({ method, input: structuredClone(input) }),
     subscribe: listener => author.subscribe(listener),

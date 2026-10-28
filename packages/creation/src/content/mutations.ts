@@ -6,14 +6,14 @@ import type {
   Entry,
   EntrySnapshot,
   MoveEntryInput,
-  RenameDirectoryInput,
+  RenameEntryInput,
   SaveDocumentInput
 } from '../contracts/content.ts';
 import { assertNotTrashed, EntryLocationConflictError, RevisionConflictError } from '../errors.ts';
 import type { CreationRepository } from '../repository.ts';
 import { countDocumentWords } from '../text.ts';
 import { revisionFor } from './commit.ts';
-import { assertEntryParent, initialAttributes } from './entries.ts';
+import { assertCover, assertEntryParent, initialAttributes } from './entries.ts';
 
 /** 调用方已进入作品事务；这里集中维护正式内容的领域约束。 */
 export function createEntry(repository: CreationRepository, input: CreateEntryInput): Entry {
@@ -27,6 +27,7 @@ export function createEntry(repository: CreationRepository, input: CreateEntryIn
     title: input.title,
     position: repository.nextPosition(input.workId, input.section, input.parentId),
     format: input.kind === 'document' ? input.format : null,
+    fileName: null,
     wordCount: content === null ? 0 : countDocumentWords(content),
     revisionId: randomUUID(),
     createdAt: now,
@@ -38,19 +39,42 @@ export function createEntry(repository: CreationRepository, input: CreateEntryIn
   return entry;
 }
 
-export function renameDirectory(repository: CreationRepository, input: RenameDirectoryInput): Entry {
-  const current = repository.getEntry(input.workId, input.directoryId);
-  if (!current) assertNotTrashed(repository, input.workId, input.directoryId);
-  if (!current || current.kind !== 'directory') throw new Error('目录不存在');
+/** 文件已复制到条目目录后登记文件条目；文件条目只在资料区。 */
+export function insertFileEntry(
+  repository: CreationRepository,
+  input: { workId: string; parentId: string | null; entryId: string; fileName: string }
+): Entry {
+  const now = Date.now();
+  const entry: Entry = {
+    id: input.entryId,
+    parentId: input.parentId,
+    section: 'resource',
+    kind: 'file',
+    title: input.fileName,
+    position: repository.nextPosition(input.workId, 'resource', input.parentId),
+    format: null,
+    fileName: input.fileName,
+    wordCount: 0,
+    revisionId: randomUUID(),
+    createdAt: now,
+    updatedAt: now
+  };
+  assertEntryParent(repository.listEntries(input.workId), entry);
+  const snapshot = { ...entry, content: null, attributes: null };
+  repository.insertEntry(input.workId, snapshot, revisionFor(snapshot, null));
+  return entry;
+}
+
+export function renameEntry(repository: CreationRepository, input: RenameEntryInput): Entry {
+  const current = repository.getEntry(input.workId, input.entryId);
+  if (!current) assertNotTrashed(repository, input.workId, input.entryId);
+  if (!current || current.kind === 'document') throw new Error('目录或文件不存在');
   if (current.revisionId !== input.expectedRevisionId)
     throw new RevisionConflictError(input.expectedRevisionId, current.revisionId);
   if (current.title === input.title) return current;
   const saved = { ...current, title: input.title, revisionId: randomUUID(), updatedAt: Date.now() };
-  repository.updateDirectory(
-    input.workId,
-    saved,
-    revisionFor({ ...saved, content: null, attributes: null }, current.revisionId)
-  );
+  const snapshot = { ...saved, content: null, attributes: null };
+  repository.updateTitle(input.workId, snapshot, revisionFor(snapshot, current.revisionId));
   return saved;
 }
 
@@ -83,6 +107,7 @@ export function saveDocument(repository: CreationRepository, input: SaveDocument
     throw new RevisionConflictError(input.expectedRevisionId, current.revisionId);
   if (current.attributes === null && input.attributes) throw new Error('文稿没有属性');
   const attributes = input.attributes ?? current.attributes;
+  if (attributes) assertCover(repository.listEntries(input.workId), attributes.cover, current.attributes!.cover);
   const { content: currentContent, attributes: currentAttributes, ...metadata } = current;
   if (
     metadata.title === input.title &&
@@ -126,7 +151,7 @@ export function readEntrySnapshot(
 ): EntrySnapshot | null {
   const entry = repository.getEntry(workId, entryId);
   if (!entry) return null;
-  if (entry.kind === 'directory') return { ...entry, content: null, attributes: null };
+  if (entry.kind !== 'document') return { ...entry, content: null, attributes: null };
   const { content, attributes } = readDocument(repository, workId, entryId);
   return { ...entry, content, attributes };
 }

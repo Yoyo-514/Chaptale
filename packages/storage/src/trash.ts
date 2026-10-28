@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 
 import type { Document, Entry, TrashBatch } from '@chaptale/creation/contracts';
 
+import { entryColumns, readSnapshot } from './entries.ts';
 import { indexDocument } from './search.ts';
 
 /** 原父目录被永久清空的条目改挂根层级，恢复时排到末尾。 */
@@ -25,9 +26,7 @@ export function trashEntries(database: Database.Database, rootIds: readonly stri
   const trashed: string[] = [];
   for (const rootId of rootIds) {
     const root = database
-      .prepare(
-        `SELECT id, parentId, section, kind, title, position, format, wordCount, revisionId, createdAt, updatedAt FROM entries WHERE id = ? AND id NOT IN (SELECT entryId FROM trash)`
-      )
+      .prepare(`SELECT ${entryColumns()} FROM entries WHERE id = ? AND id NOT IN (SELECT entryId FROM trash)`)
       .get(rootId) as Entry | undefined;
     if (!root) continue;
     const ids = (
@@ -67,9 +66,9 @@ export function listTrash(database: Database.Database): TrashBatch[] {
 }
 
 export function getTrashedDocument(database: Database.Database, entryId: string): Document | undefined {
-  return database
-    .prepare("SELECT e.* FROM entries e JOIN trash t ON t.entryId = e.id WHERE e.id = ? AND e.kind = 'document'")
-    .get(entryId) as Document | undefined;
+  if (!isTrashed(database, entryId)) return undefined;
+  const snapshot = readSnapshot(database, entryId);
+  return snapshot?.kind === 'document' ? (snapshot as Document) : undefined;
 }
 
 /** 整批恢复；原父目录仍在回收站时只恢复上方各级目录本身。返回恢复后的正常条目。 */
@@ -90,7 +89,7 @@ export function restoreBatch(database: Database.Database, batchId: string): stri
 export function purgeBatch(database: Database.Database, batchId: string): Entry[] {
   const purged = database
     .prepare(`
-    SELECT e.id, e.parentId, e.section, e.kind, e.title, e.position, e.format, e.wordCount, e.revisionId, e.createdAt, e.updatedAt
+    SELECT ${entryColumns('e')}
     FROM trash t JOIN entries e ON e.id = t.entryId WHERE t.batchId = ?
   `)
     .all(batchId) as Entry[];
@@ -121,7 +120,7 @@ export function listTrashBatchIds(database: Database.Database): string[] {
 function batchRoots(database: Database.Database, batchId: string): Entry[] {
   return database
     .prepare(`
-    SELECT e.id, e.parentId, e.section, e.kind, e.title, e.position, e.format, e.wordCount, e.revisionId, e.createdAt, e.updatedAt
+    SELECT ${entryColumns('e')}
     FROM trash t JOIN entries e ON e.id = t.entryId
     WHERE t.batchId = ? AND NOT EXISTS (
       SELECT 1 FROM trash parent WHERE parent.entryId = e.parentId AND parent.batchId = t.batchId
@@ -133,11 +132,7 @@ function batchRoots(database: Database.Database, batchId: string): Entry[] {
 
 function restoreAncestors(database: Database.Database, parentId: string | null, restored: string[]): void {
   if (parentId === null || !isTrashed(database, parentId)) return;
-  const parent = database
-    .prepare(
-      `SELECT id, parentId, section, kind, title, position, format, wordCount, revisionId, createdAt, updatedAt FROM entries WHERE id = ?`
-    )
-    .get(parentId) as Entry;
+  const parent = database.prepare(`SELECT ${entryColumns()} FROM entries WHERE id = ?`).get(parentId) as Entry;
   restoreAncestors(database, parent.parentId, restored);
   placeEntry(database, parent, restored);
 }
@@ -162,8 +157,6 @@ function placeEntry(database: Database.Database, entry: Entry, restored: string[
 }
 
 function reindex(database: Database.Database, entryId: string): void {
-  const document = database.prepare("SELECT * FROM entries WHERE id = ? AND kind = 'document'").get(entryId) as
-    | Document
-    | undefined;
-  if (document) indexDocument(database, { ...document });
+  const snapshot = readSnapshot(database, entryId);
+  if (snapshot) indexDocument(database, snapshot);
 }

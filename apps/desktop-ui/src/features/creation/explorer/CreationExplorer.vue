@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import type { Entry, PendingChange } from '@chaptale/creation/contracts';
+import { isImageFile, type Entry, type PendingChange } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
 import { useEditorStore, useHistoryStore, useReviewStore } from '@/features/editor';
-import { toErrorMessage } from '@/utils/desktop-api';
+import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
+import FilePreview from '../files/FilePreview.vue';
+import { canChooseOpener, runFileAction } from '../files/files';
 import { useCreationStore } from '../store';
 import TrashPanel from '../trash/TrashPanel.vue';
 import EntryDialogs from './EntryDialogs.vue';
@@ -25,6 +27,7 @@ const deletingIds = computed(
 const host = ref<HTMLElement>();
 const error = ref('');
 const target = ref<Entry>();
+const preview = ref<Entry | null>(null);
 const tree = computed(() => creation.view![creation.view!.section]);
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 /** 新建的待接受条目按候选位置显示在正式目录中，标记为待接受，打开的是审阅标签。 */
@@ -48,13 +51,26 @@ const rows = computed(() => {
   visit(null, 1);
   return result;
 });
+const fileMenu = computed<AppContextMenuItem[]>(() => [
+  { id: 'open', label: '打开' },
+  ...(target.value && isImageFile(target.value) ? [{ id: 'open-external', label: '用外部程序打开' }] : []),
+  ...(canChooseOpener ? [{ id: 'open-with', label: '打开方式…' }] : []),
+  { id: 'show-in-folder', label: '在文件夹中显示' }
+]);
 const menu = computed<AppContextMenuItem[]>(() => [
-  {
-    id: 'new-document',
-    label: creation.view?.section === 'resource' ? '新建资料' : '新建文稿',
-    disabled: target.value?.kind === 'document'
-  },
-  { id: 'new-directory', label: '新建目录', disabled: target.value?.kind === 'document' },
+  ...(target.value?.kind === 'file'
+    ? fileMenu.value
+    : [
+        {
+          id: 'new-document',
+          label: creation.view?.section === 'resource' ? '新建资料' : '新建文稿',
+          disabled: target.value?.kind === 'document'
+        },
+        { id: 'new-directory', label: '新建目录', disabled: target.value?.kind === 'document' },
+        ...(creation.view?.section === 'resource'
+          ? [{ id: 'add-files', label: '添加文件…', disabled: target.value?.kind === 'document' }]
+          : [])
+      ]),
   ...(target.value
     ? [
         ...(target.value.kind === 'document' ? [{ id: 'history', label: '查看历史', separatorBefore: true }] : []),
@@ -103,7 +119,36 @@ async function open(entry: Entry, pending: PendingChange | null = null) {
   tree.value.selectedId = entry.id;
   if (entry.kind === 'directory') toggle(entry);
   else if (pending) showReview(pending);
+  else if (entry.kind === 'file') await openFile(entry, 'open');
   else await editor.openDocument(entry.id);
+}
+/** 图片在应用内预览，其他文件交给系统程序。 */
+async function openFile(entry: Entry, action: 'open' | 'open-with' | 'show-in-folder', external = false) {
+  if (action === 'open' && !external && isImageFile(entry)) {
+    preview.value = entry;
+    return;
+  }
+  try {
+    await runFileAction(creation.workId!, entry, action);
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  }
+}
+async function pickFiles(parentId: string | null) {
+  const paths = await getDesktopApi().creation.selectPaths('add-files');
+  if (paths) await addFiles(parentId, paths);
+}
+function fileType(entry: Entry) {
+  if (isImageFile(entry)) return '图片';
+  const dot = entry.fileName!.lastIndexOf('.');
+  return dot > 0 ? entry.fileName!.slice(dot + 1).toUpperCase() : '文件';
+}
+async function addFiles(parentId: string | null, paths: string[]) {
+  try {
+    await creation.addFiles(parentId, paths);
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  }
 }
 async function selectAction(id: string) {
   error.value = '';
@@ -119,7 +164,19 @@ async function selectAction(id: string) {
     creation.exportOpen = true;
     return;
   }
+  if (id === 'add-files') {
+    await pickFiles(target.value?.id ?? null);
+    return;
+  }
   const entry = target.value!;
+  if (id === 'open-external') {
+    await openFile(entry, 'open', true);
+    return;
+  }
+  if (id === 'open' || id === 'open-with' || id === 'show-in-folder') {
+    await openFile(entry, id);
+    return;
+  }
   if (id === 'history') {
     history.open(entry.id);
     return;
@@ -182,6 +239,17 @@ watch(
   }
 );
 async function drop(event: DragEvent, parentId: string | null) {
+  error.value = '';
+  const files = [...event.dataTransfer!.files];
+  if (files.length) {
+    if (creation.view!.section === 'resource')
+      await addFiles(
+        parentId,
+        files.map(file => getDesktopApi().creation.pathForFile(file))
+      );
+    else error.value = '文件只能添加到资料';
+    return;
+  }
   const id = event.dataTransfer!.getData('application/chaptale-entry');
   const entry = creation.entries.find(item => item.id === id);
   if (!entry) return;
@@ -208,6 +276,9 @@ async function drop(event: DragEvent, parentId: string | null) {
         </AppDropdownMenuItem>
         <AppDropdownMenuItem density="sm" @select="creation.newEntry = { kind: 'directory', parentId: null }"
           >新建目录</AppDropdownMenuItem
+        >
+        <AppDropdownMenuItem v-if="creation.view?.section === 'resource'" density="sm" @select="pickFiles(null)"
+          >添加文件…</AppDropdownMenuItem
         >
         <AppDropdownMenuItem density="sm" @select="creation.importOpen = true">导入文稿与资料…</AppDropdownMenuItem>
         <AppDropdownMenuItem density="sm" @select="creation.exportOpen = true">导出正文…</AppDropdownMenuItem>
@@ -279,9 +350,13 @@ async function drop(event: DragEvent, parentId: string | null) {
               :class="
                 entry.kind === 'document'
                   ? 'i-mingcute-file-line'
-                  : tree.expandedIds.includes(entry.id)
-                    ? 'i-mingcute-down-line'
-                    : 'i-mingcute-right-line'
+                  : entry.kind === 'file'
+                    ? isImageFile(entry)
+                      ? 'i-mingcute-pic-line'
+                      : 'i-mingcute-attachment-line'
+                    : tree.expandedIds.includes(entry.id)
+                      ? 'i-mingcute-down-line'
+                      : 'i-mingcute-right-line'
               "
               aria-hidden="true"
             />
@@ -300,6 +375,11 @@ async function drop(event: DragEvent, parentId: string | null) {
                 <time :datetime="new Date(entry.updatedAt).toISOString()">{{
                   date.format(entry.updatedAt)
                 }}</time></span
+              ><span v-else-if="entry.kind === 'file'" class="entry-meta"
+                >{{ fileType(entry) }}
+                <time :datetime="new Date(entry.updatedAt).toISOString()">{{
+                  date.format(entry.updatedAt)
+                }}</time></span
               >
             </div>
           </div>
@@ -313,6 +393,7 @@ async function drop(event: DragEvent, parentId: string | null) {
     </AppContextMenu>
     <TrashPanel />
     <EntryDialogs ref="dialogs" @error="message => (error = message)" />
+    <FilePreview v-model:entry="preview" :work-id="creation.workId" />
   </aside>
 </template>
 

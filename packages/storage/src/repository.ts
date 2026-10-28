@@ -29,7 +29,7 @@ import type {
 } from '@chaptale/creation/contracts';
 
 import { commitCommand, readChanges, readCommandReceipt, readCursor } from './commands.ts';
-import { openLibrary, openWorkDatabase, workDir } from './database.ts';
+import { entryFileDir, openLibrary, openWorkDatabase, workDir } from './database.ts';
 import * as entries from './entries.ts';
 import * as reviews from './reviews.ts';
 import { searchDocuments } from './search.ts';
@@ -243,8 +243,11 @@ class SqliteCreationRepository implements CreationRepository {
   updateDocument(workId: string, document: Document, revision: Revision): void {
     entries.updateDocument(this.useWork(workId), document, revision);
   }
-  updateDirectory(workId: string, entry: Entry, revision: Revision): void {
-    entries.updateDirectory(this.useWork(workId), entry, revision);
+  updateTitle(workId: string, snapshot: Revision['snapshot'], revision: Revision): void {
+    entries.updateTitle(this.useWork(workId), snapshot, revision);
+  }
+  entryFileDir(workId: string, entryId: string): string {
+    return entryFileDir(this.rootDir, workId, entryId);
   }
   relocateEntry(workId: string, entry: Entry, parentId: string | null, position: number): void {
     entries.relocateEntry(this.useWork(workId), entry, parentId, position);

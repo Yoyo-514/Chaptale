@@ -14,7 +14,7 @@ import type {
   DraftState,
   Entry,
   MoveEntryInput,
-  RenameDirectoryInput,
+  RenameEntryInput,
   Revision,
   RevisionSummary,
   SaveDocumentInput,
@@ -26,6 +26,7 @@ import type {
   WriteDraftInput
 } from './contracts.ts';
 import * as drafts from './drafts.ts';
+import { assertNotTrashed } from './errors.ts';
 import type { CommitEffect, CommitResult, CreationRepository } from './repository.ts';
 import * as sessions from './session-scopes.ts';
 
@@ -112,14 +113,40 @@ export class CreationService {
       () => content.createEntry(this.repository, input)
     );
   }
-  renameDirectory(input: RenameDirectoryInput): Entry {
+  renameEntry(input: RenameEntryInput): Entry {
     return this.commit(
       input.workId,
       input.commandId,
-      ['renameDirectory', input.workId, input.directoryId, input.expectedRevisionId, input.title],
+      ['renameEntry', input.workId, input.entryId, input.expectedRevisionId, input.title],
       { kind: 'entry' },
-      () => content.renameDirectory(this.repository, input)
+      () => content.renameEntry(this.repository, input)
     );
+  }
+  /** 文件已复制到 entryFileDir 后登记；同一命令重试返回首次登记的条目。 */
+  addFileEntry(input: {
+    commandId: string;
+    workId: string;
+    parentId: string | null;
+    entryId: string;
+    fileName: string;
+  }): Entry {
+    return this.commit(
+      input.workId,
+      input.commandId,
+      ['addFile', input.workId, input.parentId, input.fileName],
+      { kind: 'entry' },
+      () => content.insertFileEntry(this.repository, input)
+    );
+  }
+  entryFileDir(workId: string, entryId: string): string {
+    return this.repository.entryFileDir(workId, entryId);
+  }
+  /** 正常目录中的文件条目；回收站中的条目返回“条目在回收站中”。 */
+  readFileEntry(workId: string, entryId: string): Entry {
+    const entry = this.repository.getEntry(workId, entryId);
+    if (!entry) assertNotTrashed(this.repository, workId, entryId);
+    if (entry?.kind !== 'file') throw new Error('文件条目不存在');
+    return entry;
   }
   moveEntry(input: MoveEntryInput): Entry {
     return this.commit(

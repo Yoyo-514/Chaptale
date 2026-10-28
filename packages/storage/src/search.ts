@@ -25,7 +25,7 @@ export function openSearchIndex(database: Database.Database): void {
     database.exec(`CREATE VIRTUAL TABLE document_search USING fts5(entryId UNINDEXED, title, content)`);
     const documents = database
       .prepare(
-        "SELECT e.id, e.title, e.content, a.aliases FROM entries e LEFT JOIN resource_attributes a ON a.entryId = e.id WHERE e.kind = 'document'"
+        "SELECT e.id, e.title, coalesce(e.content, '') AS content, a.aliases FROM entries e LEFT JOIN resource_attributes a ON a.entryId = e.id WHERE e.kind != 'directory'"
       )
       .all() as { id: string; title: string; content: string; aliases: string | null }[];
     for (const document of documents)
@@ -39,9 +39,10 @@ export function openSearchIndex(database: Database.Database): void {
   })();
 }
 
+/** 文稿与资料按标题、别名和正文检索；文件条目只按名称检索。 */
 export function indexDocument(database: Database.Database, document: Revision['snapshot']): void {
-  if (document.content === null) return;
-  writeIndex(database, document.id, document.title, document.attributes?.aliases ?? [], document.content);
+  if (document.kind === 'directory') return;
+  writeIndex(database, document.id, document.title, document.attributes?.aliases ?? [], document.content ?? '');
 }
 
 /** 别名并入标题列，搜别名能找到对应资料。 */
@@ -64,7 +65,7 @@ export function searchDocuments(
   if (candidates.length || hidden.length) return searchWithCandidates(database, input, query, candidates, hidden);
   const entries = database
     .prepare(`
-    SELECT e.id, e.parentId, e.section, e.kind, e.title, e.position, e.format,
+    SELECT e.id, e.parentId, e.section, e.kind, e.title, e.position, e.format, e.fileName,
       e.wordCount, e.revisionId, e.createdAt, e.updatedAt
     FROM document_search JOIN entries e ON e.id = document_search.entryId
     WHERE document_search MATCH ? AND (? IS NULL OR e.section = ?)
@@ -92,10 +93,15 @@ function searchWithCandidates(
     );
     const metadata = new Map<string, Entry>();
     for (const candidate of candidates) {
-      if (candidate.content === null) continue;
-      const { content, ...entry } = candidate;
+      if (candidate.kind === 'directory') continue;
+      const { content, attributes, ...entry } = candidate;
       metadata.set(entry.id, entry);
-      insert.run(entry.id, entry.section, terms(entry.title, true).join(' '), terms(content, true).join(' '));
+      insert.run(
+        entry.id,
+        entry.section,
+        terms([entry.title, ...(attributes?.aliases ?? [])].join(' '), true).join(' '),
+        terms(content ?? '', true).join(' ')
+      );
     }
     // 待删除条目以空行占位：屏蔽正式索引中的同一条目，自身不会命中。
     for (const id of hidden) insert.run(id, '', '', '');
@@ -117,7 +123,7 @@ function searchWithCandidates(
       score: number;
     }[];
     const read = database.prepare(
-      'SELECT id, parentId, section, kind, title, position, format, wordCount, revisionId, createdAt, updatedAt FROM entries WHERE id = ?'
+      'SELECT id, parentId, section, kind, title, position, format, fileName, wordCount, revisionId, createdAt, updatedAt FROM entries WHERE id = ?'
     );
     const entries = matches
       .slice(0, input.limit)

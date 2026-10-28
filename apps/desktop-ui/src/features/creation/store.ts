@@ -302,6 +302,23 @@ export const useCreationStore = defineStore('creation', () => {
     return entry;
   }
 
+  /** 按顺序添加到资料目录；中途失败时保留已添加的文件并报告失败项。 */
+  async function addFiles(parentId: string | null, paths: string[]) {
+    const report = await requestCreation('addFiles', {
+      commandId: crypto.randomUUID(),
+      workId: workId.value!,
+      parentId,
+      paths
+    });
+    const tree = view.value!.resource;
+    if (parentId && !tree.expandedIds.includes(parentId)) tree.expandedIds = [...tree.expandedIds, parentId];
+    await refreshEntries();
+    if (report.failure) {
+      const name = report.failure.path.split(/[\\/]/).pop();
+      throw new Error(`${name} 添加失败：${report.failure.message}`);
+    }
+  }
+
   async function move(entry: Entry, parentId: string | null, beforeEntryId: string | null) {
     await requestCreation('moveEntry', {
       commandId: crypto.randomUUID(),
@@ -348,6 +365,7 @@ export const useCreationStore = defineStore('creation', () => {
     trashWork,
     createWork,
     createEntry,
-    move
+    move,
+    addFiles
   };
 });

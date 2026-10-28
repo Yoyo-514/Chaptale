@@ -444,11 +444,11 @@ describe('作品服务', () => {
     const command = {
       commandId: randomUUID(),
       workId: work.id,
-      directoryId: folder.id,
+      entryId: folder.id,
       expectedRevisionId: folder.revisionId,
       title: '风起'
     };
-    const renamed = service.renameDirectory(command);
+    const renamed = service.renameEntry(command);
     expect(renamed).toMatchObject({ id: folder.id, title: '风起', parentId: null, position: folder.position });
     expect(renamed.revisionId).not.toBe(folder.revisionId);
     service.close();
@@ -459,7 +459,7 @@ describe('作品服务', () => {
       parentRevisionId: folder.revisionId,
       snapshot: { title: '风起', content: null }
     });
-    expect(service.renameDirectory(command)).toEqual(renamed);
+    expect(service.renameEntry(command)).toEqual(renamed);
   });
 
   it('目录同名保存保持修订，拒绝过期改名、命令复用和把文稿当目录', () => {
@@ -475,20 +475,20 @@ describe('作品服务', () => {
     const command = {
       commandId: randomUUID(),
       workId: work.id,
-      directoryId: folder.id,
+      entryId: folder.id,
       expectedRevisionId: folder.revisionId,
       title: folder.title
     };
-    expect(service.renameDirectory(command)).toEqual(folder);
-    expect(() => service.renameDirectory({ ...command, title: '角色' })).toThrow('同一命令不能用于不同操作或参数');
-    const saved = service.renameDirectory({ ...command, commandId: randomUUID(), title: '角色' });
-    expect(() => service.renameDirectory({ ...command, commandId: randomUUID(), title: '迟到改名' })).toThrowError(
+    expect(service.renameEntry(command)).toEqual(folder);
+    expect(() => service.renameEntry({ ...command, title: '角色' })).toThrow('同一命令不能用于不同操作或参数');
+    const saved = service.renameEntry({ ...command, commandId: randomUUID(), title: '角色' });
+    expect(() => service.renameEntry({ ...command, commandId: randomUUID(), title: '迟到改名' })).toThrowError(
       expect.objectContaining({ code: 'revision-conflict', actualRevisionId: saved.revisionId })
     );
-    expect(() => service.renameDirectory({ ...command, commandId: randomUUID(), directoryId: document.id })).toThrow(
-      '目录不存在'
+    expect(() => service.renameEntry({ ...command, commandId: randomUUID(), entryId: document.id })).toThrow(
+      '目录或文件不存在'
     );
-    expect(service.renameDirectory(command)).toEqual(folder);
+    expect(service.renameEntry(command)).toEqual(folder);
     expect(service.listEntries(work.id)).toEqual(expect.arrayContaining([saved, document]));
     expect(service.readDocument(work.id, document.id).content).toBe('原文。');
   });

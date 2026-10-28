@@ -71,8 +71,8 @@ async function workspace() {
 it('资料属性随正文保存为修订，重开后保留；文稿不接受属性，省略时保持原属性', async () => {
   const { create, save, reopen, read } = await workspace();
   const resource = create('resource', '林晚');
-  expect(read(resource).attributes).toEqual({ type: '', aliases: [], tags: [] });
-  const attributes = { type: '人物', aliases: ['小林'], tags: ['主角'] };
+  expect(read(resource).attributes).toEqual({ type: '', aliases: [], tags: [], cover: null });
+  const attributes = { type: '人物', aliases: ['小林'], tags: ['主角'], cover: null };
   const saved = value(save(resource, attributes));
   expect(saved.revisionId).not.toBe(resource.revisionId);
   expect(value(save(saved, attributes)).revisionId).toBe(saved.revisionId);
@@ -90,7 +90,7 @@ it('资料属性随正文保存为修订，重开后保留；文稿不接受属�
 it('搜别名能找到资料', async () => {
   const { app, work, create, save } = await workspace();
   const resource = create('resource', '林晚');
-  value(save(resource, { type: '人物', aliases: ['青鸟'], tags: [] }));
+  value(save(resource, { type: '人物', aliases: ['青鸟'], tags: [], cover: null }));
   const page = value(
     app().executeAuthor({
       method: 'searchDocuments',

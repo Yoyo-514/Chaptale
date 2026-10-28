@@ -35,6 +35,7 @@ export function proposeEntry(
             .map(entry => entry.position)
         ) + 1,
       format: input.kind === 'document' ? input.format : null,
+      fileName: null,
       content: input.kind === 'document' ? input.content : null,
       attributes: initialAttributes(input),
       wordCount: 0,

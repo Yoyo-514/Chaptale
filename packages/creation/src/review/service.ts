@@ -42,7 +42,7 @@ export class ReviewService {
     this.recover();
     return this.creation.commit(null, input.commandId, ['updateReview', input], { kind: 'review' }, () => {
       const view = this.checked(input);
-      if ((view.candidate.kind === 'directory') !== (input.content === null)) throw new Error('候选正文与条目类型不符');
+      if ((view.candidate.kind !== 'document') !== (input.content === null)) throw new Error('候选正文与条目类型不符');
       const change = advanceChange(view.change, {
         base: view.current,
         candidate: { ...view.candidate, title: input.title, content: input.content },
