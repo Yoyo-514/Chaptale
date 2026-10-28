@@ -15,14 +15,15 @@ const creation = useCreationStore();
 const editor = useEditorStore();
 const agent = useAgentStore();
 const navigation = useWorkbenchStore();
-const documentTitle = computed(
-  () =>
-    [
-      navigation.agentInMain ? (agent.active ? agent.title(agent.active) : '新建会话') : editor.activeTab?.title,
-      creation.libraryOpen ? '作品库' : creation.work?.title
-    ]
-      .filter(Boolean)
-      .join(' - ') || 'Chaptale'
+const documentTitle = computed(() =>
+  creation.libraryOpen
+    ? '作品库'
+    : [
+        navigation.agentInMain ? (agent.active ? agent.title(agent.active) : '新建会话') : editor.activeTab?.title,
+        creation.work?.title
+      ]
+        .filter(Boolean)
+        .join(' - ') || 'Chaptale'
 );
 
 /**

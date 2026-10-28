@@ -49,12 +49,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keydown));
       {{ creation.error || creation.stateError
       }}<AppButton size="xs" @click="creation.error ? creation.connect() : creation.persistState()">重试</AppButton>
     </div>
-    <WorksLibrary v-show="creation.libraryOpen && !navigation.agentInMain" />
+    <WorksLibrary v-show="creation.libraryOpen" />
     <SplitterGroup
       id="creative-workbench"
       direction="horizontal"
       class="workbench-layout"
-      v-show="!creation.libraryOpen || navigation.agentInMain"
+      v-show="!creation.libraryOpen"
     >
       <SplitterPanel
         ref="sidebar"

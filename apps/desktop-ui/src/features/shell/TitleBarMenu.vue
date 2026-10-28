@@ -22,6 +22,8 @@ const navigation = useWorkbenchStore();
 const agent = useAgentStore();
 const { zoom } = useInterfaceZoom();
 const editTarget = shallowRef<ReturnType<typeof captureEditingTarget>>();
+/** 会话只在作品内打开，作品库不提供会话入口。 */
+const sessionsAvailable = computed(() => Boolean(creation.workId) && !creation.libraryOpen);
 const activeDocument = computed(() => (!navigation.agentInMain ? editor.activeTab : undefined));
 const menus = computed<readonly AppMenubarMenu[]>(() => [
   {
@@ -112,8 +114,8 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
     id: 'agent',
     label: '会话',
     items: [
-      { id: 'agent.new', label: '新建会话', disabled: agent.connecting },
-      { id: 'agent.history', label: '历史会话', disabled: agent.connecting },
+      { id: 'agent.new', label: '新建会话', disabled: agent.connecting || !sessionsAvailable.value },
+      { id: 'agent.history', label: '历史会话', disabled: agent.connecting || !sessionsAvailable.value },
       { id: 'agent.cancel', label: '停止当前会话', disabled: !agent.connected || !agent.active?.running },
       { id: 'agent.models', label: '模型设置…', separatorBefore: true },
       { id: 'agent.instructions', label: '默认指令与模式…' }
@@ -191,12 +193,10 @@ function handleSelect(id: string) {
       break;
     case 'agent.new':
       agent.newDraft();
-      if (creation.libraryOpen) navigation.agentInMain = true;
-      else navigation.showAgent();
+      navigation.showAgent();
       break;
     case 'agent.history':
-      if (creation.libraryOpen) navigation.agentInMain = true;
-      else navigation.showAgent();
+      navigation.showAgent();
       navigation.agentView = 'history';
       break;
     case 'agent.cancel':

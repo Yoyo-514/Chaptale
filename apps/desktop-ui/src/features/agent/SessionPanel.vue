@@ -139,7 +139,13 @@ function approve(id: string, allow: boolean) {
   <section class="agent-panel" aria-label="会话视图">
     <header class="agent-header">
       <template v-if="navigation.agentView !== 'chat'">
-        <AppButton size="xs" variant="ghost" class="agent-back" @click="navigation.agentView = 'chat'">
+        <AppButton
+          size="xs"
+          variant="ghost"
+          class="agent-back"
+          aria-label="返回会话"
+          @click="navigation.agentView = 'chat'"
+        >
           <span class="i-mingcute-left-line size-4" aria-hidden="true" />
         </AppButton>
         <h2 class="agent-header-subtitle">{{ navigation.agentView === 'history' ? '全部历史' : '会话设置' }}</h2>
