@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 
-import type { Document, Entry, Revision } from '@chaptale/creation/contracts';
+import type { Document, Entry, Revision, RevisionSummary } from '@chaptale/creation/contracts';
 
 import { indexDocument } from './search.ts';
 
@@ -83,6 +83,19 @@ export function getRevision(database: Database.Database, id: string): Revision |
     .get(id) as (Omit<Revision, 'snapshot'> & { snapshot: string }) | undefined;
   if (!row) return undefined;
   return { ...row, snapshot: JSON.parse(row.snapshot) as Revision['snapshot'] };
+}
+export function listRevisions(database: Database.Database, entryId: string): RevisionSummary[] {
+  return database
+    .prepare(
+      `SELECT id, source, wordCount, createdAt FROM (
+        SELECT id, source, createdAt, rowid AS seq,
+          snapshot ->> '$.wordCount' AS wordCount,
+          snapshot ->> '$.content' AS content,
+          LAG(snapshot ->> '$.content') OVER (ORDER BY createdAt, rowid) AS previous
+        FROM revisions WHERE entryId = ?
+      ) WHERE previous IS NULL OR content IS NOT previous ORDER BY createdAt DESC, seq DESC`
+    )
+    .all(entryId) as RevisionSummary[];
 }
 export function getRevisionEntryId(database: Database.Database, id: string): string | undefined {
   const row = database.prepare('SELECT entryId FROM revisions WHERE id = ?').get(id) as { entryId: string } | undefined;

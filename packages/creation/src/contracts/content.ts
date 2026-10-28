@@ -36,6 +36,13 @@ export interface Revision {
   createdAt: number;
 }
 export type EntrySnapshot = Revision['snapshot'];
+/** 历史列表中的一个正文版本；只改标题或位置的修订不列出。 */
+export interface RevisionSummary {
+  id: string;
+  source: Revision['source'];
+  wordCount: number;
+  createdAt: number;
+}
 
 /** 一次删除移入作品回收站的条目；roots 为批次中父目录不在同批次的最外层条目，按原位置排序。 */
 export interface TrashBatch {

@@ -15,7 +15,7 @@ import {
 
 import type { ReviewView } from '@chaptale/creation/contracts';
 
-import { theme, writingHighlight } from '../codemirror/theme';
+import { diffTheme, theme, writingHighlight } from '../codemirror/theme';
 
 /** 逐处决定按钮条，记住所属修改块在候选稿中的起点。 */
 class ChunkActions extends WidgetType {
@@ -71,13 +71,6 @@ const chunkActionsField = StateField.define<DecorationSet>({
 });
 
 const reviewTheme = EditorView.theme({
-  '.cm-changedLine': { backgroundColor: 'color-mix(in srgb, var(--success) 10%, transparent)' },
-  '.cm-changedText': { backgroundColor: 'color-mix(in srgb, var(--success) 22%, transparent)' },
-  '.cm-deletedChunk': { backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)' },
-  '.cm-deletedChunk del, .cm-deletedText': {
-    textDecoration: 'line-through',
-    backgroundColor: 'color-mix(in srgb, var(--destructive) 18%, transparent)'
-  },
   '.cm-reviewActions': { display: 'flex', justifyContent: 'flex-end', gap: '4px', padding: '2px 8px 4px' },
   '.cm-reviewActions button': {
     display: 'inline-flex',
@@ -123,6 +116,7 @@ export function createReviewState(review: ReviewView): EditorState {
       EditorView.lineWrapping,
       EditorState.phrases.of({ '$ unchanged lines': '$ 行未改动' }),
       theme,
+      diffTheme,
       reviewTheme,
       review.candidate.format === 'markdown' ? [markdown(), syntaxHighlighting(writingHighlight)] : []
     ]

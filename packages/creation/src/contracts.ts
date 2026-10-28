@@ -10,6 +10,7 @@ import type {
   MoveEntryInput,
   RenameDirectoryInput,
   Revision,
+  RevisionSummary,
   SaveDocumentInput,
   TrashBatch,
   TrashBatchInput,
@@ -175,6 +176,8 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   discardDraft: { input: { workId: string; documentId: string; draftId: string }; output: CreationResult<DraftState> };
   readDraftState: { input: { workId: string; documentId: string }; output: CreationResult<DraftState> };
   readRevision: { input: { workId: string; revisionId: string }; output: CreationResult<Revision> };
+  /** 文稿的正文版本，最新在前。 */
+  listRevisions: { input: { workId: string; documentId: string }; output: CreationResult<RevisionSummary[]> };
   snapshot: { input: { workId: string | null }; output: CreationResult<CreationSnapshot> };
   readChanges: { input: { cursor: CreationCursor; limit: number }; output: CreationResult<CreationChanges> };
 }

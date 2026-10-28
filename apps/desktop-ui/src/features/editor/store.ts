@@ -12,6 +12,7 @@ import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
 import { DocumentBuffer } from './codemirror/document-buffer';
+import { useHistoryStore } from './history/store';
 import { useReviewStore } from './review/store';
 import { writingTiming } from './timing';
 import type { DocumentViewState, EditorTab } from './types';
@@ -175,6 +176,7 @@ export const useEditorStore = defineStore('editor', () => {
     const state = creation.viewFor(tab.workId);
     if (state.secondaryDocumentId === id) state.secondaryDocumentId = activeId.value || null;
     review.activeId = '';
+    useHistoryStore().activeId = '';
     useTrashStore().preview = null;
     activeId.value = id;
     focusedId.value = id;

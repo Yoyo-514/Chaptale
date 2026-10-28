@@ -157,6 +157,8 @@ export class CreationApplication {
         return this.service.readDraftState(command.input.workId, command.input.documentId);
       case 'readRevision':
         return this.service.readRevision(command.input.workId, command.input.revisionId);
+      case 'listRevisions':
+        return this.service.listRevisions(command.input.workId, command.input.documentId);
       case 'snapshot':
         return this.service.snapshot(command.input.workId);
       case 'readChanges':

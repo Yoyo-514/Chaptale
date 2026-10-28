@@ -3,11 +3,14 @@ import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppContextMenu } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTextView } from '@/components/AppTextView';
 import { useCreationStore, useTrashStore } from '@/features/creation';
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
+import HistoryPane from '../history/HistoryPane.vue';
+import { useHistoryStore } from '../history/store';
 import ReadingView from '../reading/ReadingView.vue';
 import { useReadingStore } from '../reading/store';
 import ReviewPane from '../review/ReviewPane.vue';
@@ -19,6 +22,7 @@ import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 const editor = useEditorStore();
 const review = useReviewStore();
 const reading = useReadingStore();
+const history = useHistoryStore();
 const creation = useCreationStore();
 const trash = useTrashStore();
 function restorePreview() {
@@ -32,13 +36,25 @@ watch(
     if (id) trash.preview = null;
   }
 );
-/** 文档与审阅标签共用一个标签栏；审阅标签值带前缀，选中时占用主栏。 */
-const selected = computed(() =>
-  trash.preview ? '' : review.activeTab ? `review:${review.activeTab.changeId}` : editor.activeId
-);
+/** 文档、审阅与历史标签共用一个标签栏；审阅和历史标签值带前缀，选中时占用主栏。 */
+const selected = computed(() => {
+  if (trash.preview) return '';
+  if (review.activeTab) return `review:${review.activeTab.changeId}`;
+  if (history.activeTab) return `history:${history.activeTab.documentId}`;
+  return editor.activeId;
+});
 function select(value: string) {
   if (value.startsWith('review:')) review.select(value.slice('review:'.length));
+  else if (value.startsWith('history:')) history.select(value.slice('history:'.length));
   else editor.selectTab(value);
+}
+const tabMenu = [
+  { id: 'history', label: '查看历史' },
+  { id: 'close', label: '关闭', separatorBefore: true }
+];
+function tabAction(id: string, action: string) {
+  if (action === 'history') history.open(id);
+  else void editor.closeTab(id);
 }
 const primary = computed(() => editor.tabs.find(tab => tab.id === editor.activeId));
 const secondary = computed(() => editor.tabs.find(tab => tab.id === creation.view?.secondaryDocumentId));
@@ -51,16 +67,19 @@ function split() {
 function keydown(event: KeyboardEvent) {
   if (!(event.ctrlKey || event.metaKey)) return;
   const reviewing = review.activeTab;
+  const viewing = history.activeTab;
   if (event.key.toLowerCase() === 's') {
     event.preventDefault();
     if (event.shiftKey) void editor.saveAll();
     else if (reviewing) void review.save(reviewing.changeId);
+    else if (viewing) return;
     else void editor.saveDocument();
   }
-  if (event.key.toLowerCase() === 'w' && (reviewing || editor.activeTab)) {
+  if (event.key.toLowerCase() === 'w' && (reviewing || viewing || editor.activeTab)) {
     event.preventDefault();
     event.stopPropagation();
     if (reviewing) review.close(reviewing.changeId);
+    else if (viewing) history.close(viewing.documentId);
     else void editor.closeTab(editor.activeTab!.id);
   }
 }
@@ -85,36 +104,38 @@ onBeforeUnmount(() => {
     <div class="editor-tabbar">
       <AppScrollArea orientation="horizontal" class="editor-tab-scroll">
         <TabsList class="editor-tabs" aria-label="文档标签">
-          <div
+          <AppContextMenu
             v-for="tab in editor.tabs"
             :key="tab.id"
-            class="editor-tab-shell"
-            :class="{ selected: tab.id === selected }"
+            :items="tabMenu"
+            @select="action => tabAction(tab.id, action)"
           >
-            <TabsTrigger
-              :id="`document-tab-${tab.id}`"
-              :value="tab.id"
-              class="editor-tab"
-              :aria-label="`${tab.title}${tab.dirty ? '（未保存）' : ''}`"
-              :aria-busy="tab.saving || undefined"
-              :title="`${tab.title}${tab.dirty ? '（未保存）' : ''}`"
-              @keydown.delete.prevent="editor.closeTab(tab.id)"
-            >
-              <span class="tab-title">{{ tab.title }}</span>
-              <span v-if="secondary?.id === tab.id" class="tab-location">右侧</span>
-            </TabsTrigger>
-            <AppButton
-              icon
-              size="xs"
-              variant="ghost"
-              class="editor-tab-close"
-              :class="{ 'is-dirty': tab.dirty }"
-              :aria-label="`关闭 ${tab.title}`"
-              :title="tab.dirty ? '关闭（未保存）' : '关闭'"
-              @click="editor.closeTab(tab.id)"
-              ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
-            /></AppButton>
-          </div>
+            <div class="editor-tab-shell" :class="{ selected: tab.id === selected }">
+              <TabsTrigger
+                :id="`document-tab-${tab.id}`"
+                :value="tab.id"
+                class="editor-tab"
+                :aria-label="`${tab.title}${tab.dirty ? '（未保存）' : ''}`"
+                :aria-busy="tab.saving || undefined"
+                :title="`${tab.title}${tab.dirty ? '（未保存）' : ''}`"
+                @keydown.delete.prevent="editor.closeTab(tab.id)"
+              >
+                <span class="tab-title">{{ tab.title }}</span>
+                <span v-if="secondary?.id === tab.id" class="tab-location">右侧</span>
+              </TabsTrigger>
+              <AppButton
+                icon
+                size="xs"
+                variant="ghost"
+                class="editor-tab-close"
+                :class="{ 'is-dirty': tab.dirty }"
+                :aria-label="`关闭 ${tab.title}`"
+                :title="tab.dirty ? '关闭（未保存）' : '关闭'"
+                @click="editor.closeTab(tab.id)"
+                ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
+              /></AppButton>
+            </div>
+          </AppContextMenu>
           <div
             v-for="tab in review.tabs"
             :key="`review:${tab.changeId}`"
@@ -144,6 +165,34 @@ onBeforeUnmount(() => {
               ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
             /></AppButton>
           </div>
+          <div
+            v-for="tab in history.tabs"
+            :key="`history:${tab.documentId}`"
+            class="editor-tab-shell"
+            :class="{ selected: `history:${tab.documentId}` === selected }"
+          >
+            <TabsTrigger
+              :id="`history-tab-${tab.documentId}`"
+              :value="`history:${tab.documentId}`"
+              class="editor-tab"
+              :aria-label="`历史 ${tab.title}`"
+              :title="`历史 ${tab.title}`"
+              @keydown.delete.prevent="history.close(tab.documentId)"
+            >
+              <span class="i-mingcute-history-line tab-kind-icon" aria-hidden="true" />
+              <span class="tab-title">{{ tab.title }}</span>
+            </TabsTrigger>
+            <AppButton
+              icon
+              size="xs"
+              variant="ghost"
+              class="editor-tab-close"
+              :aria-label="`关闭历史 ${tab.title}`"
+              title="关闭"
+              @click="history.close(tab.documentId)"
+              ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
+            /></AppButton>
+          </div>
         </TabsList>
       </AppScrollArea>
       <AppButton
@@ -151,11 +200,24 @@ onBeforeUnmount(() => {
         size="xs"
         variant="ghost"
         :disabled="
-          !primary || primary.status !== 'ready' || Boolean(reading.positions[primary.id]) || Boolean(review.activeTab)
+          !primary ||
+          primary.status !== 'ready' ||
+          Boolean(reading.positions[primary.id]) ||
+          Boolean(review.activeTab || history.activeTab)
         "
         aria-label="阅读"
         @click="reading.start(primary!.id)"
         ><span class="i-mingcute-book-6-line" aria-hidden="true"
+      /></AppButton>
+      <AppButton
+        icon
+        size="xs"
+        variant="ghost"
+        :disabled="!primary || Boolean(review.activeTab || history.activeTab)"
+        aria-label="查看历史"
+        title="查看历史"
+        @click="history.open(primary!.id)"
+        ><span class="i-mingcute-history-line" aria-hidden="true"
       /></AppButton>
       <AppButton
         icon
@@ -199,6 +261,15 @@ onBeforeUnmount(() => {
         </div>
         <div v-else class="editor-empty" role="alert">
           <p>{{ review.activeTab.error }}</p>
+        </div>
+      </section>
+    </div>
+    <div v-else-if="history.activeTab" class="editor-panes">
+      <section class="editor-pane" aria-label="历史">
+        <HistoryPane v-if="history.activeTab.status === 'ready'" :tab="history.activeTab" />
+        <div v-else-if="history.activeTab.status === 'loading'" class="editor-empty" role="status">正在读取历史…</div>
+        <div v-else class="editor-empty" role="alert">
+          <p>{{ history.activeTab.error }}</p>
         </div>
       </section>
     </div>

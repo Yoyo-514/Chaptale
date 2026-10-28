@@ -16,6 +16,7 @@ import type {
   MoveEntryInput,
   RenameDirectoryInput,
   Revision,
+  RevisionSummary,
   SaveDocumentInput,
   SessionAssignment,
   SessionSelection,
@@ -143,6 +144,10 @@ export class CreationService {
     );
     this.repository.clearDraft(input.workId, input.documentId, input.commandId);
     return saved;
+  }
+  listRevisions(workId: string, documentId: string): RevisionSummary[] {
+    content.readDocument(this.repository, workId, documentId);
+    return this.repository.listRevisions(workId, documentId);
   }
   readRevision(workId: string, revisionId: string): Revision {
     const revision = this.repository.getRevision(workId, revisionId);

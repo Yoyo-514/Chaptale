@@ -97,6 +97,7 @@ const inputs = {
   discardDraft: object({ ...documentTarget, draftId: id }),
   readDraftState: object(documentTarget),
   readRevision: object({ workId: id, revisionId: id }),
+  listRevisions: object(documentTarget),
   snapshot: object({ workId: parentId }),
   readChanges: object({
     cursor: object({ workId: parentId, sequence: offset, token: parentId }),

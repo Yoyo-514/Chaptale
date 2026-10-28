@@ -18,6 +18,7 @@ import type {
   SessionSelection,
   SessionState,
   Revision,
+  RevisionSummary,
   TrashBatch,
   TrashedWork,
   Work,
@@ -81,6 +82,8 @@ export interface CreationRepository {
     hidden?: readonly string[]
   ): DocumentSearchPage;
   getRevision(workId: string, revisionId: string): Revision | undefined;
+  /** 正文与前一修订不同的修订，最新在前。 */
+  listRevisions(workId: string, entryId: string): RevisionSummary[];
   getRevisionEntryId(workId: string, revisionId: string): string | undefined;
 
   /** 条目及其正常子项记为同一删除批次，返回进入回收站的全部条目 ID。 */

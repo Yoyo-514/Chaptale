@@ -6,7 +6,7 @@ import type { Entry, PendingChange } from '@chaptale/creation/contracts';
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
-import { useEditorStore, useReviewStore } from '@/features/editor';
+import { useEditorStore, useHistoryStore, useReviewStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { useCreationStore } from '../store';
@@ -16,6 +16,7 @@ import EntryDialogs from './EntryDialogs.vue';
 const creation = useCreationStore();
 const editor = useEditorStore();
 const review = useReviewStore();
+const history = useHistoryStore();
 const dialogs = ref<InstanceType<typeof EntryDialogs>>();
 /** Agent 提出删除、等待作者接受的条目。 */
 const deletingIds = computed(
@@ -56,6 +57,7 @@ const menu = computed<AppContextMenuItem[]>(() => [
   { id: 'new-directory', label: '新建目录', disabled: target.value?.kind === 'document' },
   ...(target.value
     ? [
+        ...(target.value.kind === 'document' ? [{ id: 'history', label: '查看历史', separatorBefore: true }] : []),
         { id: 'rename', label: '重命名', separatorBefore: true },
         { id: 'move', label: '移动到…' },
         { id: 'up', label: '上移' },
@@ -118,6 +120,10 @@ async function selectAction(id: string) {
     return;
   }
   const entry = target.value!;
+  if (id === 'history') {
+    history.open(entry.id);
+    return;
+  }
   if (id === 'delete' || id === 'rename' || id === 'move') {
     await dialogs.value![id === 'delete' ? 'remove' : id](entry);
     return;

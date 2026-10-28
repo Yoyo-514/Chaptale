@@ -18,6 +18,7 @@ import type {
   PendingChange,
   RecoveryDraft,
   Revision,
+  RevisionSummary,
   TrashBatch,
   TrashedWork,
   SearchDocumentsInput,
@@ -264,6 +265,9 @@ class SqliteCreationRepository implements CreationRepository {
   }
   getRevision(workId: string, revisionId: string): Revision | undefined {
     return entries.getRevision(this.useWork(workId), revisionId);
+  }
+  listRevisions(workId: string, entryId: string): RevisionSummary[] {
+    return entries.listRevisions(this.useWork(workId), entryId);
   }
   getRevisionEntryId(workId: string, revisionId: string): string | undefined {
     return entries.getRevisionEntryId(this.useWork(workId), revisionId);
