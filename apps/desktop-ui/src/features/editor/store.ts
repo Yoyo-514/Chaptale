@@ -390,6 +390,7 @@ export const useEditorStore = defineStore('editor', () => {
     clearTimeout(recoveryTimers.get(id));
     clearTimeout(saveTimers.get(id));
     tabs.value = tabs.value.filter(item => item.id !== id);
+    stopReading(id);
     if (activeId.value === id) {
       activeId.value = tabs.value.at(-1)?.id ?? '';
       state.activeDocumentId = activeId.value || null;
@@ -472,7 +473,42 @@ export const useEditorStore = defineStore('editor', () => {
     for (const timer of recoveryTimers.values()) clearTimeout(timer);
     for (const timer of saveTimers.values()) clearTimeout(timer);
   });
+  /** 处于阅读的标签：读到的章节与正文位置。 */
+  const reading = ref<Record<string, { documentId: string; offset: number }>>({});
+  /** 切回编辑后待定位的文稿与正文位置，由文档视图挂载后消费。 */
+  const reveal = shallowRef<{ id: string; offset: number } | null>(null);
+  function startReading(id: string) {
+    const tab = find(id)!;
+    reading.value = { ...reading.value, [id]: { documentId: id, offset: viewState(tab)?.anchor ?? 0 } };
+  }
+  function stopReading(id: string) {
+    if (!(id in reading.value)) return;
+    const next = { ...reading.value };
+    delete next[id];
+    reading.value = next;
+  }
+  /** 已打开的章节读编辑区当前文字，其他章节读已保存正文。 */
+  async function readChapter(documentId: string) {
+    const tab = find(documentId);
+    const buffer = buffers.get(documentId);
+    if (tab?.status === 'ready' && buffer) return { title: tab.title, format: tab.format, content: buffer.content };
+    const document = await requestCreation('readDocument', { workId: creation.workId!, documentId });
+    return { title: document.title, format: document.format, content: document.content };
+  }
+  /** 结束阅读，打开或切到读到的章节并定位正文；原标签保持不变。 */
+  async function editAt(id: string, documentId: string, offset: number) {
+    stopReading(id);
+    reveal.value = { id: documentId, offset };
+    await openDocument(documentId);
+  }
+
   return {
+    reading,
+    reveal,
+    startReading,
+    stopReading,
+    readChapter,
+    editAt,
     tabs,
     activeId,
     focusedId,

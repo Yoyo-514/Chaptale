@@ -11,6 +11,7 @@ import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-ap
 import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 import DocumentView from './DocumentView.vue';
+import ReadingView from './ReadingView.vue';
 import ReviewPane from './ReviewPane.vue';
 import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 
@@ -147,6 +148,17 @@ onBeforeUnmount(() => {
         icon
         size="xs"
         variant="ghost"
+        :disabled="
+          !primary || primary.status !== 'ready' || Boolean(editor.reading[primary.id]) || Boolean(review.activeTab)
+        "
+        aria-label="阅读"
+        @click="editor.startReading(primary!.id)"
+        ><span class="i-mingcute-book-6-line" aria-hidden="true"
+      /></AppButton>
+      <AppButton
+        icon
+        size="xs"
+        variant="ghost"
         :disabled="editor.tabs.length < 2"
         :aria-label="secondary ? '关闭分栏' : '并排查看'"
         :selected="Boolean(secondary)"
@@ -203,8 +215,13 @@ onBeforeUnmount(() => {
         :aria-label="index ? '右侧文档' : '当前文档'"
         @focusin="editor.focusedId = tab!.id"
       >
+        <ReadingView
+          v-if="tab!.status === 'ready' && editor.reading[tab!.id]"
+          :key="`reading:${tab!.id}`"
+          :tab="tab!"
+        />
         <DocumentView
-          v-if="tab!.status === 'ready'"
+          v-else-if="tab!.status === 'ready'"
           :key="`${tab!.id}:${tab!.generation}`"
           :tab="tab!"
           :active="editor.activeTab?.id === tab!.id"

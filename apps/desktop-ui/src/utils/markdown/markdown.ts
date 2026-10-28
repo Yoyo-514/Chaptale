@@ -80,3 +80,16 @@ export function renderMarkdown(content: string) {
 export function renderMarked(content: string) {
   return marked.parse(content) as Exclude<MarkedParseResult, Promise<string>>;
 }
+
+/** 按顶层块渲染，并记录每块在原文中的起点，供分页阅读定位。 */
+export function renderMarkdownBlocks(content: string) {
+  const tokens = marked.lexer(content);
+  const blocks: { offset: number; html: string }[] = [];
+  let offset = 0;
+  for (const token of tokens) {
+    if (token.type !== 'space')
+      blocks.push({ offset, html: marked.parser(Object.assign([token], { links: tokens.links })) });
+    offset += token.raw.length;
+  }
+  return blocks;
+}

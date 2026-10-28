@@ -12,6 +12,7 @@ const editor = useEditorStore();
   <AppDialog
     :open="Boolean(editor.unsavedPrompt)"
     title="保存未保存的修改？"
+    content-size="sm"
     @update:open="
       open => {
         if (!open) editor.resolveUnsaved('cancel');
@@ -33,7 +34,8 @@ const editor = useEditorStore();
 
 <style scoped>
 .unsaved-files {
-  padding: 16px 20px;
+  max-height: 12rem;
+  padding: 12px 0 12px 20px;
   margin: 0;
   overflow: auto;
   font-size: var(--ui-font-size);

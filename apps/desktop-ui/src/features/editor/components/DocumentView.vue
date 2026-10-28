@@ -65,7 +65,18 @@ function render() {
     onPosition: position => editor.rememberView(props.tab.workId, props.tab.id, position)
   });
 }
-onMounted(render);
+/** 从阅读切回编辑：等恢复滚动位置的帧之后再定位到读到的正文。 */
+function consumeReveal() {
+  const target = editor.reveal;
+  if (!target || target.id !== props.tab.id || !view) return;
+  editor.reveal = null;
+  requestAnimationFrame(() => view?.goTo(target.offset));
+}
+onMounted(() => {
+  render();
+  consumeReveal();
+});
+watch(() => editor.reveal, consumeReveal);
 onBeforeUnmount(() => {
   if (view) {
     editor.rememberView(props.tab.workId, props.tab.id, view.getViewState());
