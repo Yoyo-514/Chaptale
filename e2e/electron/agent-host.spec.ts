@@ -108,6 +108,8 @@ test('真实宿主保存模型、创建独立会话，刷新界面后读取同�
     result.initial.settings.defaultInstructions
   );
   await page.reload();
+  // 重载后桥接对象随新页面重新注入，先等它出现再请求。
+  await page.waitForFunction(() => 'chaptaleDesktop' in window);
   const reconnected = await page.evaluate(() => window.chaptaleDesktop.agentHost.request('state', undefined));
   expect(reconnected.sessions.map(session => session.id)).toEqual([result.first, result.second]);
   // SDK 在有历史消息时持久化；用真实 SessionManager 创建历史，不向离线模型发请求。
