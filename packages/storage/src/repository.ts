@@ -1,4 +1,6 @@
 import type Database from 'better-sqlite3';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 
 import type { CommandCommit, CommitEffect, CommitResult, CreationRepository } from '@chaptale/creation';
 import type {
@@ -17,6 +19,7 @@ import type {
   RecoveryDraft,
   Revision,
   TrashBatch,
+  TrashedWork,
   SearchDocumentsInput,
   SessionAssignment,
   SessionSelection,
@@ -81,7 +84,9 @@ class SqliteCreationRepository implements CreationRepository {
   }
 
   hasWork(workId: string): boolean {
-    return Boolean(this.library.prepare('SELECT 1 FROM works WHERE id = ?').get(workId));
+    return Boolean(
+      this.library.prepare('SELECT 1 FROM works WHERE id = ? AND id NOT IN (SELECT workId FROM work_trash)').get(workId)
+    );
   }
 
   readSessionState(): SessionState {
@@ -153,7 +158,11 @@ class SqliteCreationRepository implements CreationRepository {
   }
 
   listWorks(): Work[] {
-    const works = this.library.prepare('SELECT id, title, kind, createdAt, updatedAt FROM works').all() as Work[];
+    const works = this.library
+      .prepare(
+        'SELECT id, title, kind, createdAt, updatedAt FROM works WHERE id NOT IN (SELECT workId FROM work_trash)'
+      )
+      .all() as Work[];
     for (const work of works) {
       const latest = this.useWork(work.id).prepare('SELECT max(updatedAt) AS updatedAt FROM entries').get() as {
         updatedAt: number | null;
@@ -163,6 +172,63 @@ class SqliteCreationRepository implements CreationRepository {
     // 本次查询独占的数组，按最近编辑排序。
     // oxlint-disable-next-line unicorn/no-array-sort
     return works.sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
+  }
+
+  listTrashedWorks(): TrashedWork[] {
+    return this.library
+      .prepare(
+        'SELECT w.id, w.title, w.kind, w.createdAt, w.updatedAt, t.deletedAt FROM works w JOIN work_trash t ON t.workId = w.id ORDER BY t.deletedAt DESC, w.id'
+      )
+      .all() as TrashedWork[];
+  }
+
+  getTrashedWork(workId: string): TrashedWork | undefined {
+    return this.library
+      .prepare(
+        'SELECT w.id, w.title, w.kind, w.createdAt, w.updatedAt, t.deletedAt FROM works w JOIN work_trash t ON t.workId = w.id WHERE w.id = ?'
+      )
+      .get(workId) as TrashedWork | undefined;
+  }
+
+  trashWork(workId: string, now: number): void {
+    this.library.prepare('INSERT INTO work_trash (workId, deletedAt) VALUES (?, ?)').run(workId, now);
+  }
+
+  restoreWork(workId: string): void {
+    this.library.prepare('DELETE FROM work_trash WHERE workId = ?').run(workId);
+  }
+
+  purgeWork(workId: string): void {
+    const changeIds = new Set(
+      (this.library.prepare('SELECT id FROM pending_changes WHERE workId = ?').all(workId) as { id: string }[]).map(
+        row => row.id
+      )
+    );
+    const groups = this.library.prepare('SELECT id, value FROM delivery_groups').all() as {
+      id: string;
+      value: string;
+    }[];
+    const update = this.library.prepare('UPDATE delivery_groups SET value = ? WHERE id = ?');
+    for (const row of groups) {
+      const group = JSON.parse(row.value) as DeliveryGroup;
+      if (!group.changeIds.some(id => changeIds.has(id))) continue;
+      update.run(JSON.stringify({ ...group, changeIds: group.changeIds.filter(id => !changeIds.has(id)) }), row.id);
+    }
+    this.library.prepare('DELETE FROM pending_changes WHERE workId = ?').run(workId);
+    this.library.prepare('DELETE FROM recovery_drafts WHERE workId = ?').run(workId);
+    this.library.prepare('DELETE FROM session_assignments WHERE workId = ?').run(workId);
+    this.library.prepare('DELETE FROM session_selections WHERE scopeId = ?').run(workId);
+    this.library.prepare('DELETE FROM work_trash WHERE workId = ?').run(workId);
+    this.library.prepare('DELETE FROM works WHERE id = ?').run(workId);
+  }
+
+  releaseWork(workId: string): string[] {
+    if (this.work?.id === workId) {
+      this.work.database.close();
+      this.work = undefined;
+    }
+    const file = path.join(this.rootDir, 'works', `${workId}.sqlite`);
+    return [file, `${file}-wal`, `${file}-shm`].filter(item => existsSync(item));
   }
 
   getEntry(workId: string, entryId: string): Entry | undefined {

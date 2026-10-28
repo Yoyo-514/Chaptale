@@ -301,7 +301,7 @@ export const useReviewStore = defineStore('review', () => {
       if (viewingSessionId.value === change.group.sessionId) void refreshDeliveries(change.group.sessionId);
       return;
     }
-    if (change.kind === 'work' || event.cursor.workId !== creation.workId) return;
+    if (change.kind === 'work' || change.kind === 'library' || event.cursor.workId !== creation.workId) return;
     // 正式稿变化会改变冲突与可接受状态。
     const ids = change.kind === 'entries' ? change.entries.map(entry => entry.id) : [change.entry.id];
     for (const tab of tabs.value) if (ids.includes(tab.entryId) && !tab.dirty) void load(tab.changeId);

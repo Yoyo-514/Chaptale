@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { basename } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { CreationResult, Entry } from '@chaptale/creation/contracts';
@@ -271,5 +272,49 @@ describe('Agent 删除', () => {
       sessionId: t.context.sessionId
     });
     expect(group.group.changeIds).not.toContain(created.change.id);
+  });
+});
+
+const command = (t: Fixture, method: string) => t.author(method, { commandId: randomUUID(), workId: t.work.id });
+const ids = (items: { id: string }[]) => items.map(item => item.id);
+
+describe('作品库回收站', () => {
+  it('删除作品时移出作品库并拒绝待审修改，会话归属保留；恢复后待审修改不再恢复', async () => {
+    const t = await setup();
+    t.author('assignSession', { sessionId: t.context.sessionId, workId: t.work.id });
+    const change = t.propose('Agent 改写');
+    expect(t.author('previewTrashWork', { workId: t.work.id })).toEqual({ pendingCount: 1 });
+
+    command(t, 'trashWork');
+
+    expect(ids(t.author('listWorks', {}))).toEqual([]);
+    expect(ids(t.author('listTrashedWorks', {}))).toEqual([t.work.id]);
+    expect(t.author<{ change: { status: string } }>('readReview', { changeId: change.id }).change.status).toBe(
+      'rejected'
+    );
+    const agent = t.app.executeAgent(t.context, { method: 'listEntries', input: { workId: t.work.id } });
+    expect(agent).toMatchObject({ ok: false, error: { message: '作品不存在' } });
+    expect(t.author<{ assignments: unknown[] }>('readSessionState', {}).assignments).toEqual([
+      { sessionId: t.context.sessionId, workId: t.work.id }
+    ]);
+
+    command(t, 'restoreWork');
+    expect(ids(t.author('listWorks', {}))).toEqual([t.work.id]);
+    expect(t.author('listPendingChanges', { workId: t.work.id, sessionId: null })).toEqual([]);
+  });
+
+  it('永久清空作品时返回数据库文件，会话转为未归属，交付组不再引用该作品的修改', async () => {
+    const t = await setup();
+    t.author('assignSession', { sessionId: t.context.sessionId, workId: t.work.id });
+    t.propose('Agent 改写');
+    const group = t.author<{ group: { id: string } }>('readCurrentDelivery', { sessionId: t.context.sessionId }).group;
+    command(t, 'trashWork');
+
+    const { files } = command(t, 'purgeWork') as { files: string[] };
+
+    expect(files.map(file => basename(file))).toEqual([`${t.work.id}.sqlite`]);
+    expect(t.author('listTrashedWorks', {})).toEqual([]);
+    expect(t.author<{ assignments: unknown[] }>('readSessionState', {}).assignments).toEqual([]);
+    expect(t.author('readDeliveryContents', { groupId: group.id })).toEqual([]);
   });
 });

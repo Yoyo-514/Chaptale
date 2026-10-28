@@ -16,6 +16,7 @@ import { DeliveryService } from './review/delivery.ts';
 import { ReviewService } from './review/service.ts';
 import { CreationService } from './service.ts';
 import { TrashService } from './trash.ts';
+import { WorkTrashService } from './work-trash.ts';
 
 export { agentInputs } from './application/schema.ts';
 type AuthorValue = Extract<CreationAuthorCommands[keyof CreationAuthorCommands]['output'], { ok: true }>['value'];
@@ -29,12 +30,14 @@ export class CreationApplication {
   private readonly agent: CreationAgentService;
   private readonly delivery: DeliveryService;
   private readonly trash: TrashService;
+  private readonly workTrash: WorkTrashService;
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
     this.delivery = new DeliveryService(repository, this.service);
     this.review = new ReviewService(repository, this.service, this.delivery);
     this.trash = new TrashService(repository, this.service, this.review);
+    this.workTrash = new WorkTrashService(repository, this.service, this.review);
     this.agent = new CreationAgentService(repository, this.service, this.review, this.delivery, this.trash);
   }
 
@@ -134,6 +137,16 @@ export class CreationApplication {
         return this.trash.restore(command.input);
       case 'purgeTrash':
         return this.trash.purge(command.input);
+      case 'listTrashedWorks':
+        return this.workTrash.list();
+      case 'previewTrashWork':
+        return this.workTrash.preview(command.input.workId);
+      case 'trashWork':
+        return this.workTrash.trash(command.input);
+      case 'restoreWork':
+        return this.workTrash.restore(command.input);
+      case 'purgeWork':
+        return this.workTrash.purge(command.input);
       case 'readTrashedDocument':
         return this.trash.readDocument(command.input.workId, command.input.documentId);
       case 'writeDraft':

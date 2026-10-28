@@ -19,6 +19,7 @@ import type {
   SessionState,
   Revision,
   TrashBatch,
+  TrashedWork,
   Work,
   WorkbenchState
 } from './contracts.ts';
@@ -26,6 +27,7 @@ import type {
 /** 回执中的事件描述复用结果元数据，避免重复保存条目。 */
 export type CommitEffect =
   | { kind: 'work' }
+  | { kind: 'library' }
   | { kind: 'entry' }
   | { kind: 'entries' }
   | { kind: 'review' }
@@ -92,6 +94,14 @@ export interface CreationRepository {
   purgeTrash(workId: string, batchId: string): Entry[];
   listTrashBatchIds(workId: string): string[];
   clearDrafts(workId: string, documentIds: readonly string[]): void;
+  listTrashedWorks(): TrashedWork[];
+  getTrashedWork(workId: string): TrashedWork | undefined;
+  trashWork(workId: string, now: number): void;
+  restoreWork(workId: string): void;
+  /** 删除作品库中该作品的记录与会话归属，待审修改移出交付组。 */
+  purgeWork(workId: string): void;
+  /** 关闭作品数据库连接，返回仍存在的数据库文件。 */
+  releaseWork(workId: string): string[];
 
   getCurrentDelivery(sessionId: string): DeliveryGroup | undefined;
   /** 按新到旧排列。 */

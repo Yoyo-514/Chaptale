@@ -47,7 +47,13 @@ export class DesktopApplicationProcess {
   };
 
   readonly creation: CreationClient = {
-    request: async (method, input) => (await this.connect()).creation.request(method, input),
+    request: async (method, input) => {
+      const output = await (await this.connect()).creation.request(method, input);
+      // 永久清空作品时，宿主已关闭作品数据库连接，由主进程把文件移入系统回收站。
+      if (method === 'purgeWork' && output.ok)
+        for (const file of (output.value as { files: string[] }).files) await shell.trashItem(file);
+      return output;
+    },
     subscribe: listener => {
       this.creationListeners.add(listener);
       return () => this.creationListeners.delete(listener);

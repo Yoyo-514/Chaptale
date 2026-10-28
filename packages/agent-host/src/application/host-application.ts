@@ -147,6 +147,8 @@ export class HostApplication {
         return this.close(command.input.id);
       case 'deleteSessions':
         return this.deleteSessions(command.input.sessionIds);
+      case 'trashWork':
+        return this.trashWork(command.input);
       case 'approve':
         return this.approvals.approve(command.input.id, command.input.allow);
       case 'rename':
@@ -349,6 +351,22 @@ export class HostApplication {
     }
     for (const [id] of open) await this.close(id);
     return { files };
+  }
+
+  private async trashWork(input: { commandId: string; workId: string }) {
+    const creation = this.options.creation!;
+    const state = creation.executeAuthor({ method: 'readSessionState', input: {} });
+    if (!state.ok) throw new Error(state.error.message);
+    const ids = new Set(
+      state.value.assignments.filter(item => item.workId === input.workId).map(item => item.sessionId)
+    );
+    const open = [...this.sessions].filter(([, { view }]) => view.sessionId !== null && ids.has(view.sessionId));
+    if (open.some(([, { view }]) => view.running || view.compacting))
+      throw new Error('有会话正在运行，停止后才能删除作品');
+    const trashed = creation.executeAuthor({ method: 'trashWork', input });
+    if (!trashed.ok) throw new Error(trashed.error.message);
+    for (const [id] of open) await this.close(id);
+    return trashed.value;
   }
 
   async dispose(): Promise<void> {

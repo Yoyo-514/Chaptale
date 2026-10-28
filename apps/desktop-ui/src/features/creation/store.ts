@@ -158,6 +158,12 @@ export const useCreationStore = defineStore('creation', () => {
     if (event.change.kind === 'entries' && event.cursor.workId === workId.value) reportPending();
     // 待审修改及继续进度保持在本机，正式目录使用作品库内的条目游标。
     if (event.change.kind === 'review' || event.change.kind === 'delivery') return;
+    if (event.change.kind === 'library') {
+      void refreshLibrary().then(() => {
+        if (!works.value.some(item => item.id === workId.value)) dropWork(workId.value);
+      });
+      return;
+    }
     if (event.change.kind === 'work') {
       const next = event.change.work;
       works.value = [...works.value.filter(item => item.id !== next.id), next];
@@ -247,6 +253,25 @@ export const useCreationStore = defineStore('creation', () => {
     }
   }
 
+  /** 作品离开作品库后移除其工作区状态；正在打开时回到作品库。 */
+  function dropWork(id: string | null) {
+    if (!id) return;
+    state.value.works = state.value.works.filter(item => item.workId !== id);
+    if (state.value.activeWorkId !== id) return;
+    state.value.activeWorkId = null;
+    entries.value = [];
+    libraryOpen.value = true;
+  }
+
+  /** 由宿主检查运行中的会话并关闭该作品已打开的会话，再移入作品库回收站。 */
+  async function trashWork(id: string): Promise<boolean> {
+    if (id === workId.value && !(await confirmWorkspaceTransition())) return false;
+    await getDesktopApi().agentHost.request('trashWork', { commandId: crypto.randomUUID(), workId: id });
+    dropWork(id);
+    await refreshLibrary();
+    return true;
+  }
+
   async function showLibrary() {
     libraryOpen.value = true;
     try {
@@ -320,6 +345,7 @@ export const useCreationStore = defineStore('creation', () => {
     persistState,
     openWork,
     showLibrary,
+    trashWork,
     createWork,
     createEntry,
     move

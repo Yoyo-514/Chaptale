@@ -46,6 +46,9 @@ export class CreationAgentService {
   }
 
   execute(context: CreationAgentContext, command: CreationAgentCommand): AgentValue {
+    // 作品库回收站中的作品对 Agent 不可见。
+    if ('workId' in command.input && command.input.workId !== null && !this.repository.hasWork(command.input.workId))
+      throw new Error('作品不存在');
     switch (command.method) {
       case 'listWorks':
         return this.creation.listWorks();

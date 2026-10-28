@@ -73,6 +73,7 @@ function eventFrom(workId: string | null, row: ReceiptRow): CreationEvent {
 
 function changeFrom(effect: CommitEffect, result: CommitResult): CreationEvent['change'] {
   if (effect.kind === 'work') return { kind: 'work', work: result as Work };
+  if (effect.kind === 'library') return { kind: 'library', work: result as Work };
   if (effect.kind === 'review') return { kind: 'review', change: result as PendingChange };
   if (effect.kind === 'delivery') return { kind: 'delivery', group: result as DeliveryGroup };
   if (effect.kind === 'entries') return { kind: 'entries', entries: result as Entry[] };

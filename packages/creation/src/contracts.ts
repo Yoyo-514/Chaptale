@@ -15,6 +15,8 @@ import type {
   TrashBatchInput,
   TrashEntriesInput,
   TrashImpact,
+  TrashedWork,
+  WorkCommandInput,
   Work
 } from './contracts/content.ts';
 import type { DeliveryGroup, PendingChange, ReviewCommands } from './contracts/review.ts';
@@ -48,6 +50,8 @@ export type CreationSnapshot =
   | { kind: 'work'; workId: string; cursor: CreationCursor; entries: Entry[] };
 export type CreationChange =
   | { kind: 'work'; work: Work }
+  /** 作品进入、离开作品库回收站或被永久清空；客户端重取作品列表。 */
+  | { kind: 'library'; work: Work }
   | { kind: 'review'; change: PendingChange }
   | { kind: 'delivery'; group: DeliveryGroup }
   | { kind: 'entry'; entry: Entry }
@@ -159,6 +163,14 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   /** 永久删除，返回被删除的条目。 */
   purgeTrash: { input: TrashBatchInput; output: CreationResult<Entry[]> };
   readTrashedDocument: { input: { workId: string; documentId: string }; output: CreationResult<Document> };
+  listTrashedWorks: { input: Record<string, never>; output: CreationResult<TrashedWork[]> };
+  /** 删除整部作品时将一并拒绝的待审修改数。 */
+  previewTrashWork: { input: { workId: string }; output: CreationResult<{ pendingCount: number }> };
+  /** 移入作品库回收站并拒绝该作品全部待审修改；运行中会话的检查由宿主完成。 */
+  trashWork: { input: WorkCommandInput; output: CreationResult<Work> };
+  restoreWork: { input: WorkCommandInput; output: CreationResult<Work> };
+  /** 从作品库移除，会话转为未归属；files 为待平台移入系统回收站的作品数据库文件。 */
+  purgeWork: { input: WorkCommandInput; output: CreationResult<{ files: string[] }> };
   writeDraft: { input: WriteDraftInput; output: CreationResult<DraftState> };
   discardDraft: { input: { workId: string; documentId: string; draftId: string }; output: CreationResult<DraftState> };
   readDraftState: { input: { workId: string; documentId: string }; output: CreationResult<DraftState> };

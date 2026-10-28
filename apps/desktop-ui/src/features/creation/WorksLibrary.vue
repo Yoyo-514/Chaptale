@@ -1,10 +1,53 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+
+import type { TrashedWork, Work } from '@chaptale/creation/contracts';
+
 import { AppButton } from '@/components/AppButton';
+import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
+import { AppAlertDialog } from '@/components/AppDialog';
+import { toErrorMessage } from '@/utils/desktop-api';
 
 import { useCreationStore } from './store';
+import { useWorkTrashStore } from './work-trash';
 
 const creation = useCreationStore();
+const trash = useWorkTrashStore();
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
+const workMenu: AppContextMenuItem[] = [{ id: 'delete', label: '删除作品' }];
+const actionError = ref('');
+// 确认框先关闭再派发 confirm，目标与开关分开保存。
+const removing = ref<{ work: Work; pendingCount: number } | null>(null);
+const removeOpen = ref(false);
+const purging = ref<TrashedWork | null>(null);
+const purgeOpen = ref(false);
+
+async function run(action: () => Promise<unknown>) {
+  actionError.value = '';
+  try {
+    await action();
+  } catch (cause) {
+    actionError.value = toErrorMessage(cause);
+  }
+}
+function askRemove(work: Work) {
+  void run(async () => {
+    removing.value = { work, pendingCount: (await trash.impact(work.id)).pendingCount };
+    removeOpen.value = true;
+  });
+}
+function remove() {
+  const target = removing.value;
+  if (target) void run(() => creation.trashWork(target.work.id));
+}
+function askPurge(work: TrashedWork) {
+  purging.value = work;
+  purgeOpen.value = true;
+}
+function purge() {
+  const target = purging.value;
+  if (target) void run(() => trash.purge(target.id));
+}
 </script>
 
 <template>
@@ -12,6 +55,9 @@ const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 
     <header class="library-header">
       <h1>作品库</h1>
       <div class="library-actions">
+        <AppButton variant="ghost" :aria-pressed="trash.open" @click="trash.open = !trash.open">{{
+          trash.open ? '返回作品库' : `回收站${trash.works.length ? `（${trash.works.length}）` : ''}`
+        }}</AppButton>
         <AppButton variant="primary" :disabled="!creation.connected" @click="creation.newWorkOpen = true"
           >新建作品</AppButton
         >
@@ -21,7 +67,36 @@ const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 
       {{ creation.error }}
       <AppButton size="xs" :disabled="creation.busy" @click="creation.connect()">重新连接</AppButton>
     </div>
-    <p v-if="creation.busy && !creation.works.length" class="library-empty" role="status">正在读取作品库…</p>
+    <p v-if="actionError || trash.error" class="library-error" role="alert">{{ actionError || trash.error }}</p>
+    <section v-if="trash.open" class="library-list" aria-label="作品库回收站">
+      <p v-if="!trash.works.length" class="library-empty">回收站是空的。</p>
+      <table v-else>
+        <thead>
+          <tr>
+            <th scope="col">作品名称</th>
+            <th scope="col">删除时间</th>
+            <th scope="col"><span class="sr-only">操作</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="work in trash.works" :key="work.id" class="trashed-row">
+            <td>
+              <span class="work-title trashed-title">
+                <span class="i-mingcute-book-2-line" aria-hidden="true" />{{ work.title }}
+              </span>
+            </td>
+            <td>
+              <time :datetime="new Date(work.deletedAt).toISOString()">{{ date.format(work.deletedAt) }}</time>
+            </td>
+            <td class="trashed-actions">
+              <AppButton size="xs" variant="ghost" @click="run(() => trash.restore(work.id))">恢复</AppButton>
+              <AppButton size="xs" variant="ghost" @click="askPurge(work)">永久删除</AppButton>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <p v-else-if="creation.busy && !creation.works.length" class="library-empty" role="status">正在读取作品库…</p>
     <div v-else-if="!creation.works.length && creation.connected" class="library-empty">
       <h2>从一部作品开始</h2>
       <p>新建作品，开始整理文稿与资料。</p>
@@ -36,25 +111,48 @@ const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="work in creation.works"
-            :key="work.id"
-            :aria-disabled="creation.busy"
-            @click="!creation.busy && creation.openWork(work.id)"
-          >
-            <td>
-              <button class="work-title" :disabled="creation.busy">
-                <span class="i-mingcute-book-2-line" aria-hidden="true" />{{ work.title }}
-              </button>
-            </td>
-            <td>{{ work.kind === 'novel' ? '小说' : '剧本' }}</td>
-            <td>
-              <time :datetime="new Date(work.updatedAt).toISOString()">{{ date.format(work.updatedAt) }}</time>
-            </td>
-          </tr>
+          <AppContextMenu v-for="work in creation.works" :key="work.id" :items="workMenu" @select="askRemove(work)">
+            <tr
+              :aria-disabled="creation.busy"
+              @click="!creation.busy && creation.openWork(work.id)"
+              @keydown="event => event.key === 'Delete' && askRemove(work)"
+            >
+              <td>
+                <button class="work-title" :disabled="creation.busy">
+                  <span class="i-mingcute-book-2-line" aria-hidden="true" />{{ work.title }}
+                </button>
+              </td>
+              <td>{{ work.kind === 'novel' ? '小说' : '剧本' }}</td>
+              <td>
+                <time :datetime="new Date(work.updatedAt).toISOString()">{{ date.format(work.updatedAt) }}</time>
+              </td>
+            </tr>
+          </AppContextMenu>
         </tbody>
       </table>
     </div>
+    <AppAlertDialog
+      v-model:open="removeOpen"
+      :title="`删除《${removing?.work.title}》？`"
+      confirm-label="删除"
+      @confirm="remove"
+    >
+      <template #description
+        >作品会移入作品库回收站，内容、历史版本和会话归属都保留，可以恢复。<template v-if="removing?.pendingCount"
+          >将一并拒绝 {{ removing.pendingCount }} 处待审修改，恢复后不再恢复。</template
+        ></template
+      >
+    </AppAlertDialog>
+    <AppAlertDialog
+      v-model:open="purgeOpen"
+      :title="`永久删除《${purging?.title}》？`"
+      confirm-label="永久删除"
+      @confirm="purge"
+    >
+      <template #description
+        >作品数据库文件会移入系统回收站，并从作品库移除。属于它的会话保留，转为未归属作品的会话。</template
+      >
+    </AppAlertDialog>
   </main>
 </template>
 
@@ -147,6 +245,15 @@ tbody tr[aria-disabled='true'] {
 .work-title:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+.trashed-title {
+  cursor: default;
+}
+.trashed-row {
+  cursor: default;
+}
+.trashed-actions {
+  text-align: right;
 }
 .library-empty {
   margin: 64px auto;

@@ -394,8 +394,21 @@ export const useAgentStore = defineStore('agent', () => {
       void changeScope(workId);
     }
   );
+  // 永久清空作品后其会话转为未归属，重新读取归属。
+  const offLibrary = creation.onEvent(event => {
+    if (event.change.kind !== 'library') return;
+    void requestCreation('readSessionState', {}).then(
+      next => {
+        catalog.value = next;
+      },
+      cause => {
+        error.value = toErrorMessage(cause);
+      }
+    );
+  });
 
   onScopeDispose(() => {
+    offLibrary();
     offEvents?.();
     offDisconnected?.();
   });

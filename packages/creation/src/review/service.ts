@@ -254,6 +254,18 @@ export class ReviewService {
       );
   }
 
+  /** 删除整部作品时拒绝其全部待审修改；须在作品库事务内调用。 */
+  rejectWork(workId: string): void {
+    const changes = this.repository.listPendingChanges(workId, null);
+    for (const change of changes)
+      for (const id of change.covers ?? []) {
+        const covered = this.repository.getPendingChange(id);
+        if (covered?.status === 'covered')
+          this.repository.putPendingChange(advanceChange(covered, { status: 'rejected' }));
+      }
+    for (const change of changes) this.finish(change, { status: 'rejected' });
+  }
+
   /** 删除这些条目时会一并拒绝的待审修改数量。 */
   countAffected(workId: string, removedIds: ReadonlySet<string>): number {
     return affectedByRemoval(this.repository.listPendingChanges(workId, null), () => id => removedIds.has(id)).length;

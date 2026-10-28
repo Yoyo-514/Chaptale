@@ -24,6 +24,10 @@ export async function openLibrary(rootDir: string): Promise<Database.Database> {
       draft TEXT,
       PRIMARY KEY (workId, documentId)
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS work_trash (
+      workId TEXT PRIMARY KEY REFERENCES works(id),
+      deletedAt INTEGER NOT NULL
+    ) STRICT;
     CREATE TABLE IF NOT EXISTS session_assignments (
       sessionId TEXT PRIMARY KEY,
       workId TEXT NOT NULL REFERENCES works(id)

@@ -1295,3 +1295,47 @@ it('删除会话时拒绝其全部待审修改、清除作品归属与查看位�
   expect(host.snapshot().sessions.some(item => item.id === id)).toBe(false);
   expect(read().content).toBe('将军守城。\n城外下雪。\n斥候回营。');
 });
+
+it('删除作品时属于它的会话在运行则拒绝；停止后移入作品库回收站、关闭会话并保留归属', async () => {
+  const runtime = await restartWithTools([]);
+  await observeContinuation(runtime);
+  const edited = await call('work_edit', {
+    workId,
+    entryId: documentId,
+    expectedRevisionId: revisionId,
+    oldText: '守城',
+    newText: '出城'
+  });
+  expect(edited.isError).toBe(false);
+  const sessionId = host.snapshot().sessions.find(item => item.id === id)!.sessionId!;
+  value(creation.executeAuthor({ method: 'assignSession', input: { sessionId, workId } }));
+
+  const live = host.liveSession(id)!;
+  const send = live.agent.streamFunction;
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  live.agent.streamFunction = async (...args) => {
+    entered.resolve();
+    await release.promise;
+    return send(...args);
+  };
+  await host.execute({ method: 'prompt', input: { id, text: '继续' } });
+  await entered.promise;
+  const input = { commandId: randomUUID(), workId };
+  await expect(host.execute({ method: 'trashWork', input })).rejects.toThrow('有会话正在运行');
+  expect(pending()).toHaveLength(1);
+  release.resolve();
+  await expect.poll(() => host.snapshot().sessions.find(item => item.id === id)!.running).toBe(false);
+
+  await host.execute({ method: 'trashWork', input });
+
+  expect(pending()).toEqual([]);
+  expect(host.snapshot().sessions.some(item => item.id === id)).toBe(false);
+  expect(value(creation.executeAuthor({ method: 'listTrashedWorks', input: {} })).map(work => work.id)).toEqual([
+    workId
+  ]);
+  expect(value(creation.executeAuthor({ method: 'readSessionState', input: {} })).assignments).toContainEqual({
+    sessionId,
+    workId
+  });
+});
