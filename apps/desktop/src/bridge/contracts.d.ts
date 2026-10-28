@@ -1,5 +1,5 @@
 import type { AgentClient } from '@chaptale/agent-host/protocol';
-import type { CreationClient } from '@chaptale/creation/contracts';
+import type { AddFilesReport, CreationClient } from '@chaptale/creation/contracts';
 
 import type { AppPlatformResult, EditCommand } from './app';
 import type {
@@ -23,6 +23,13 @@ export interface FileTarget {
   entryId: string;
 }
 
+export interface AddFileDataInput {
+  workId: string;
+  parentId: string | null;
+  fileName: string;
+  data: Uint8Array;
+}
+
 export interface DesktopCreationClient extends CreationClient {
   selectPaths(
     purpose: 'import-files' | 'import-directory' | 'export-directory' | 'add-files'
@@ -30,8 +37,10 @@ export interface DesktopCreationClient extends CreationClient {
   fileAction(target: FileTarget, action: FileAction): Promise<void>;
   /** 读取文件条目当前内容，供应用内预览。 */
   readFile(target: FileTarget): Promise<Uint8Array>;
-  /** 拖入的系统文件对应的本机路径。 */
+  /** 拖入的系统文件对应的本机路径；剪贴板中的截图等没有路径时为空字符串。 */
   pathForFile(file: File): string;
+  /** 添加没有本机路径的文件（如粘贴的截图），按 addFiles 的规则登记为资料文件条目。 */
+  addFileData(input: AddFileDataInput): Promise<AddFilesReport>;
   onDisconnected(listener: (message: string) => void): () => void;
 }
 

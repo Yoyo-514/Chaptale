@@ -40,6 +40,45 @@ export const theme = EditorView.theme({
     borderRadius: 'var(--radius-control-sm)'
   },
   '.cm-cursor': { borderLeftColor: 'var(--foreground)' },
+  // 插图独占一行：缩略图限高，说明悬停时叠在图片底部；拖放插入线画在目标段落下沿。
+  // figure 自带外边距；块级部件的外边距不计入编辑器测量，会让后续行号错位，间距改用内边距。
+  '.cm-illustration': { margin: '0', padding: '4px 24px 4px 16px', cursor: 'text' },
+  '.cm-illustration-frame': { position: 'relative', display: 'inline-flex', minHeight: '26px', maxWidth: '100%' },
+  '.cm-illustration-frame img': {
+    width: 'auto',
+    height: 'auto',
+    maxWidth: '100%',
+    maxHeight: '240px',
+    borderRadius: '4px',
+    cursor: 'zoom-in'
+  },
+  '.cm-illustration-frame.is-missing': {
+    alignItems: 'center',
+    padding: '8px 12px',
+    fontSize: '12px',
+    color: 'var(--muted-foreground)',
+    border: '1px dashed var(--border)',
+    borderRadius: '4px'
+  },
+  '.cm-illustration-caption': {
+    position: 'absolute',
+    right: '0',
+    bottom: '0',
+    left: '0',
+    padding: '2px 8px',
+    overflow: 'hidden',
+    fontSize: '12px',
+    lineHeight: '20px',
+    color: '#fff',
+    whiteSpace: 'nowrap',
+    textOverflow: 'ellipsis',
+    background: 'rgb(0 0 0 / 55%)',
+    borderRadius: '0 0 4px 4px',
+    opacity: '0',
+    pointerEvents: 'none'
+  },
+  '.cm-illustration-frame:hover .cm-illustration-caption': { opacity: '1' },
+  '.cm-line.cm-drop-after': { boxShadow: 'inset 0 -2px 0 var(--primary)' },
   '.cm-panels-top': {
     position: 'absolute',
     top: '6px',

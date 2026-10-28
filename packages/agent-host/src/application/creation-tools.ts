@@ -11,6 +11,7 @@ import {
   type CreationResult,
   type Entry
 } from '@chaptale/creation/contracts';
+import { fromIllustrationPlaceholders, toIllustrationPlaceholders } from '@chaptale/creation/text';
 
 import type { EditMode } from '../protocol.ts';
 
@@ -44,6 +45,11 @@ export const workToolNames = new Set([
 function located<T extends Entry>(workId: string, entry: T) {
   const { id: entryId, ...metadata } = entry;
   return { workId, entryId, ...metadata };
+}
+
+/** Markdown 插图对 Agent 显示为文字占位，写入时还原。 */
+function agentText(document: { format: 'txt' | 'markdown'; content: string }) {
+  return document.format === 'markdown' ? toIllustrationPlaceholders(document.content) : document.content;
 }
 
 function toolResult(result: CreationResult<JsonValue>) {
@@ -104,7 +110,7 @@ export function createWorkTools(
       }),
       ({ attributes, ...document }): JsonValue => {
         const start = (input.offset ?? 1) - 1;
-        const lines = document.content.split('\n');
+        const lines = agentText(document).split('\n');
         const content = lines.slice(start, input.limit === undefined ? undefined : start + input.limit).join('\n');
         return {
           ...located(input.workId, document),
@@ -180,7 +186,7 @@ export function createWorkTools(
       name: 'work_read',
       label: '读取作品正文',
       description:
-        '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改；资料另附类型、别名、标签与封面条目 ID。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。图片文件条目返回图片（模型支持读图时）；其他文件条目返回路径，需用原始工具读取。',
+        '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改；资料另附类型、别名、标签与封面条目 ID。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。图片文件条目返回图片（模型支持读图时）；其他文件条目返回路径，需用原始工具读取。Markdown 正文中的插图显示为独占一行的 [插图：说明 entry:<图片条目ID>]，以该 ID 调用 work_read 可查看图片；写入时可保留、移动或删除插图占位，不能新建。',
       parameters: workReadParameters,
       async execute(toolCallId, input, signal, onUpdate, ctx) {
         signal?.throwIfAborted();
@@ -245,7 +251,7 @@ export function createWorkTools(
             input: { workId: input.workId, documentId: entry.id }
           });
           if (!result.ok) return result;
-          const lines = result.value.content.split('\n');
+          const lines = agentText(result.value).split('\n');
           for (const [index, text] of lines.entries()) {
             if (pattern.test(text))
               matches.push({
@@ -284,7 +290,7 @@ export function createWorkTools(
     tool(
       'work_edit',
       '精确编辑作品正文',
-      '按读取所得修订替换唯一匹配的 oldText。审阅模式写入本会话候选，直接修改模式生成正式修订。',
+      '按读取所得修订替换唯一匹配的 oldText。审阅模式写入本会话候选，直接修改模式生成正式修订。插图占位规则见 work_read。',
       object({ ...revisionTarget, oldText: Type.String({ minLength: 1 }), newText: Type.String() }),
       (input, context, commandId) =>
         written(
@@ -297,8 +303,8 @@ export function createWorkTools(
               workId: input.workId,
               documentId: input.entryId,
               expectedRevisionId: input.expectedRevisionId,
-              oldText: input.oldText,
-              newText: input.newText
+              oldText: fromIllustrationPlaceholders(input.oldText),
+              newText: fromIllustrationPlaceholders(input.newText)
             }
           })
         )
@@ -318,7 +324,8 @@ export function createWorkTools(
         format: Type.Optional(Type.Union([Type.Literal('txt'), Type.Literal('markdown')]))
       }),
       (input, context, commandId) => {
-        const { entryId, ...rest } = input;
+        const { entryId, ...fields } = input;
+        const rest = { ...fields, content: fromIllustrationPlaceholders(fields.content) };
         // 混用新建与覆盖字段时由 creation 的 additionalProperties 拒绝。
         return written(
           context,

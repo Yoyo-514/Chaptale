@@ -1,6 +1,6 @@
 export { CreationRequestError, requestCreation, useCreationStore } from './store';
 export { useTrashStore } from './trash/store';
-export { canChooseOpener, readFileBlob, runFileAction, useFileImage } from './files/files';
+export { canChooseOpener, readEntryImage, readFileBlob, runFileAction, useFileImage } from './files/files';
 export { default as FilePreview } from './files/FilePreview.vue';
 export { default as CreationExplorer } from './explorer/CreationExplorer.vue';
 export { default as CreationDialogs } from './dialogs/CreationDialogs.vue';

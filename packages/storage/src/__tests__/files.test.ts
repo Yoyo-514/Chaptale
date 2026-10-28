@@ -208,3 +208,49 @@ it('封面只能选资料中的图片文件条目，随属性保存', async () =
       .attributes
   ).toEqual({ type: '人物', aliases: [], tags: [], cover: image!.id });
 });
+
+it('导出 Markdown 时插图图片复制到同名文件夹并改为相对路径，TXT 输出插图说明', async () => {
+  const { rootDir, app, work, source, add } = await workspace();
+  const [image] = (await add([await source('城门 1.png', 'img')])).entries;
+  const chapter = value(
+    app().executeAuthor({
+      method: 'createEntry',
+      input: {
+        commandId: randomUUID(),
+        workId: work.id,
+        parentId: null,
+        section: 'manuscript',
+        kind: 'document',
+        title: '彩页',
+        format: 'markdown',
+        content: ['开头。', `![城门](entry:${image!.id})`, '![失效](entry:missing)', '结尾。'].join('\n')
+      }
+    })
+  );
+  const output = join(rootDir, 'export');
+  await mkdir(output);
+  const markdown = value(
+    await app().execute({
+      method: 'exportFiles',
+      input: {
+        workId: work.id,
+        directory: output,
+        target: { kind: 'document', documentId: chapter.id, format: 'markdown' }
+      }
+    })
+  );
+  expect(markdown.failure).toBeNull();
+  expect(await readFile(markdown.paths[0]!, 'utf8')).toBe(
+    ['# 彩页', '', '开头。', '![城门](<彩页/城门 1.png>)', '[插图：失效]', '结尾。'].join('\n')
+  );
+  expect(await readFile(join(output, '彩页', '城门 1.png'), 'utf8')).toBe('img');
+  const book = value(
+    await app().execute({
+      method: 'exportFiles',
+      input: { workId: work.id, directory: output, target: { kind: 'book' } }
+    })
+  );
+  expect(await readFile(book.paths[0]!, 'utf8')).toBe(
+    ['彩页', '', '开头。', '[插图：城门]', '[插图：失效]', '结尾。'].join('\n')
+  );
+});

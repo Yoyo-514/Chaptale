@@ -5,13 +5,17 @@ import type { EditCommand } from '@chaptale/desktop/bridge';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
+import { AppAlertDialog } from '@/components/AppDialog';
 import { AppDiffView } from '@/components/AppDiffView';
+import { FilePreview } from '@/features/creation';
 import { useNotificationStore } from '@/features/notifications';
 import { toErrorMessage } from '@/utils/desktop-api';
 import { captureEditingTarget } from '@/utils/editing-target';
 
 import AttributesPanel from '../attributes/AttributesPanel.vue';
 import { createDocumentView } from '../codemirror/view';
+import IllustrationPicker from '../illustrations/IllustrationPicker.vue';
+import { useIllustrations } from '../illustrations/use-illustrations';
 import { useReadingStore } from '../reading/store';
 import { useEditorStore } from '../store';
 import type { EditorTab } from '../types';
@@ -31,8 +35,13 @@ const menu: AppContextMenuItem[] = [
   { id: 'paste', label: '粘贴', shortcut: 'Ctrl+V' },
   { id: 'selectAll', label: '全选', shortcut: 'Ctrl+A' },
   { id: 'find', label: '查找', shortcut: 'Ctrl+F', separatorBefore: true },
-  { id: 'replace', label: '替换', shortcut: 'Ctrl+H' }
+  { id: 'replace', label: '替换', shortcut: 'Ctrl+H' },
+  { id: 'illustration', label: '插入插图…', separatorBefore: true }
 ];
+const illustrations = useIllustrations(
+  () => props.tab,
+  () => view
+);
 function prepareMenu(event: MouseEvent) {
   editor.focusedId = props.tab.id;
   if (event.target instanceof HTMLInputElement) event.target.focus();
@@ -43,6 +52,10 @@ async function selectAction(id: string) {
   await nextTick();
   if (id === 'find' || id === 'replace') {
     view![id]();
+    return;
+  }
+  if (id === 'illustration') {
+    illustrations.openPicker();
     return;
   }
   if ((id === 'undo' || id === 'redo') && editingTarget.element?.isContentEditable) {
@@ -65,7 +78,8 @@ function render() {
     buffer: editor.getBuffer(props.tab.id),
     viewState: savedPosition,
     onChange: buffer => editor.updateBuffer(props.tab.id, buffer),
-    onPosition: position => editor.rememberView(props.tab.workId, props.tab.id, position)
+    onPosition: position => editor.rememberView(props.tab.workId, props.tab.id, position),
+    illustrations: { ...illustrations.options, render: props.tab.format === 'markdown' }
   });
 }
 /** 从阅读切回编辑：等恢复滚动位置的帧之后再定位到读到的正文。 */
@@ -136,6 +150,15 @@ watch(
         <div ref="host" class="document-editor-mount" />
       </div>
     </AppContextMenu>
+    <IllustrationPicker v-model:open="illustrations.pickerOpen.value" @select="illustrations.pick" />
+    <AppAlertDialog
+      v-model:open="illustrations.convertOpen.value"
+      title="转为 Markdown 并插入插图？"
+      description="TXT 文稿不能显示插图。转为 Markdown 后，正文中的 #、* 等符号会按 Markdown 格式显示。"
+      confirm-label="转为 Markdown 并插入"
+      @confirm="illustrations.confirmConvert"
+    />
+    <FilePreview v-model:entry="illustrations.previewEntry.value" :work-id="tab.workId" />
   </section>
 </template>
 

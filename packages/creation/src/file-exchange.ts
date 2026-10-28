@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, open, readFile, readdir, unlink } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, open, readFile, readdir, rm, unlink } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import { Type, type TSchema } from 'typebox';
 import { Compile } from 'typebox/compile';
@@ -14,6 +14,7 @@ import type {
   ImportReport
 } from './contracts.ts';
 import type { CreationService } from './service.ts';
+import { parseIllustration } from './text.ts';
 
 const id = Type.String({ minLength: 1 });
 const nullableId = Type.Union([id, Type.Null()]);
@@ -151,11 +152,12 @@ function exportName(title: string): string {
   return name;
 }
 
+/** chunks 收到最终文件路径；Markdown 插图据此把图片复制到同名文件夹，失败时连同文件夹一起清理。 */
 async function writeExport(
   directory: string,
   title: string,
   extension: string,
-  chunks: Iterable<string>
+  chunks: (path: string) => Iterable<string> | AsyncIterable<string>
 ): Promise<string> {
   const name = exportName(title);
   for (let suffix = 1; ; suffix += 1) {
@@ -167,7 +169,7 @@ async function writeExport(
     if (!file) continue;
     let complete = false;
     try {
-      for (const chunk of chunks) await file.writeFile(chunk, 'utf8');
+      for await (const chunk of chunks(path)) await file.writeFile(chunk, 'utf8');
       await file.close();
       complete = true;
       return path;
@@ -175,6 +177,7 @@ async function writeExport(
       if (!complete) {
         await file.close();
         await unlink(path);
+        await rm(assetDirectory(path), { recursive: true, force: true });
       }
     }
   }
@@ -214,6 +217,54 @@ function manuscriptOrder(entries: Entry[]): Entry[] {
   return ordered;
 }
 
+function assetDirectory(path: string): string {
+  return path.slice(0, -extname(path).length);
+}
+
+/**
+ * 插图导出：TXT 输出 `[插图：说明]`；Markdown 把图片复制到与文件同名的文件夹并改为相对路径。
+ * 图片条目已不在正常目录中时按 TXT 写法输出说明。
+ */
+async function* exportLines(
+  service: CreationService,
+  workId: string,
+  content: string,
+  markdown: boolean,
+  path: string,
+  copied: Map<string, string>
+): AsyncGenerator<string> {
+  const lines = content.split('\n');
+  for (const [index, line] of lines.entries()) {
+    if (index > 0) yield '\n';
+    const illustration = parseIllustration(line.replace(/\r$/, ''));
+    if (!illustration) {
+      yield line;
+      continue;
+    }
+    const image = markdown ? service.listEntries(workId).find(entry => entry.id === illustration.entryId) : undefined;
+    if (image?.kind !== 'file') {
+      yield `[插图：${illustration.caption}]`;
+      continue;
+    }
+    let relative = copied.get(image.id);
+    if (!relative) {
+      const folder = assetDirectory(path);
+      await mkdir(folder, { recursive: true });
+      const taken = new Set(copied.values());
+      const name = basename(folder);
+      const extension = extname(image.fileName!);
+      const stem = image.fileName!.slice(0, image.fileName!.length - extension.length);
+      for (let suffix = 1; ; suffix += 1) {
+        relative = `${name}/${stem}${suffix === 1 ? '' : ` (${suffix})`}${extension}`;
+        if (!taken.has(relative)) break;
+      }
+      await copyFile(join(service.entryFileDir(workId, image.id), image.fileName!), join(folder, basename(relative)));
+      copied.set(image.id, relative);
+    }
+    yield `![${illustration.caption}](<${relative}>)`;
+  }
+}
+
 export async function exportFiles(service: CreationService, input: ExportFilesInput): Promise<ExportReport> {
   absolutePath(input.directory);
   const entries = service.listEntries(input.workId);
@@ -225,17 +276,20 @@ export async function exportFiles(service: CreationService, input: ExportFilesIn
   if (!selected.some(entry => entry.kind === 'document')) throw new Error('没有可导出的文稿或资料');
   const format = target.kind === 'book' ? 'txt' : target.format;
   // 导出固定所选修订，异步磁盘写入期间的保存不会混入这次输出。
-  function* contents(items: Entry[]): Generator<string> {
-    for (const [index, entry] of items.entries()) {
-      if (index > 0) yield '\n\n';
-      const revision = service.readRevision(input.workId, entry.revisionId);
-      yield `${format === 'markdown' ? '# ' : ''}${revision.snapshot.title}`;
-      if (entry.kind === 'document') {
+  const contents = (items: Entry[]) =>
+    async function* (path: string): AsyncGenerator<string> {
+      const copied = new Map<string, string>();
+      for (const [index, entry] of items.entries()) {
+        if (index > 0) yield '\n\n';
+        const revision = service.readRevision(input.workId, entry.revisionId);
+        yield `${format === 'markdown' ? '# ' : ''}${revision.snapshot.title}`;
+        if (entry.kind !== 'document') continue;
         yield '\n\n';
-        yield revision.snapshot.content!;
+        if (entry.format === 'markdown')
+          yield* exportLines(service, input.workId, revision.snapshot.content!, format === 'markdown', path, copied);
+        else yield revision.snapshot.content!;
       }
-    }
-  }
+    };
   const report: ExportReport = { paths: [], failure: null };
   let currentDocument: string | null = null;
   try {

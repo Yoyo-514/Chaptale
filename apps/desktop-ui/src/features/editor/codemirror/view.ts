@@ -21,6 +21,7 @@ import {
 
 import type { DocumentViewState } from '../types';
 import { DocumentBuffer } from './document-buffer';
+import { illustrations, insertIllustration, reloadIllustrations, type IllustrationOptions } from './illustrations';
 import { documentHeadings, documentHeadRange } from './markdown-navigation';
 import { createSearchPanel, openReplacePanel } from './search-panel';
 import { theme, writingHighlight } from './theme';
@@ -46,6 +47,7 @@ export function createDocumentView(
     onChange?: (buffer: DocumentBuffer) => void;
     onPosition?: (position: DocumentViewState) => void;
     foldHead?: boolean;
+    illustrations?: IllustrationOptions;
   }
 ) {
   const extensions = [
@@ -95,7 +97,8 @@ export function createDocumentView(
           foldGutter(),
           foldService.of((state, from) => (from === 0 ? documentHeadRange(state) : null))
         ]
-      : []
+      : [],
+    options.illustrations && !options.large ? illustrations(options.illustrations) : []
   ];
   const buffer = options.large ? null : (options.buffer ?? new DocumentBuffer(content, extensions));
   buffer?.configure(extensions);
@@ -171,6 +174,13 @@ export function createDocumentView(
       if (range) view.dispatch({ effects: foldEffect.of(range) });
     },
     getViewState: () => position(view),
+    /** 光标所在行的行尾，作为右键插入插图的位置。 */
+    cursorLineEnd: () => view.state.doc.lineAt(view.state.selection.main.head).to,
+    insertIllustration: (after: number, illustration: { caption: string; entryId: string }) => {
+      view.focus();
+      return insertIllustration(view, after, illustration);
+    },
+    reloadIllustrations: () => reloadIllustrations(view),
     destroy() {
       detachBuffer?.();
       if (restoreFrame !== undefined) cancelAnimationFrame(restoreFrame);

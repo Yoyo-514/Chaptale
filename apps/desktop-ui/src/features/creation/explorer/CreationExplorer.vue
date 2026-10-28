@@ -14,6 +14,7 @@ import { canChooseOpener, runFileAction } from '../files/files';
 import { useCreationStore } from '../store';
 import TrashPanel from '../trash/TrashPanel.vue';
 import EntryDialogs from './EntryDialogs.vue';
+import { useTreeDrop, type TreeRow } from './tree-drop';
 
 const creation = useCreationStore();
 const editor = useEditorStore();
@@ -32,7 +33,7 @@ const tree = computed(() => creation.view![creation.view!.section]);
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 /** 新建的待接受条目按候选位置显示在正式目录中，标记为待接受，打开的是审阅标签。 */
 const rows = computed(() => {
-  const result: { entry: Entry; depth: number; pending: PendingChange | null }[] = [];
+  const result: TreeRow[] = [];
   const section = creation.view?.section;
   const items = [
     ...creation.entries.filter(item => item.section === section).map(entry => ({ entry, pending: null })),
@@ -238,27 +239,29 @@ watch(
     if (host.value) host.value.scrollTop = tree.value.scrollTop;
   }
 );
-async function drop(event: DragEvent, parentId: string | null) {
-  error.value = '';
-  const files = [...event.dataTransfer!.files];
-  if (files.length) {
-    if (creation.view!.section === 'resource')
-      await addFiles(
-        parentId,
-        files.map(file => getDesktopApi().creation.pathForFile(file))
-      );
-    else error.value = '文件只能添加到资料';
-    return;
-  }
-  const id = event.dataTransfer!.getData('application/chaptale-entry');
-  const entry = creation.entries.find(item => item.id === id);
-  if (!entry) return;
-  try {
-    await creation.move(entry, parentId, null);
-  } catch (cause) {
-    error.value = toErrorMessage(cause);
-  }
+function dropLine(entry: Entry, kind: 'before' | 'after') {
+  const current = treeDrop.placement.value;
+  return current?.kind === kind && current.entryId === entry.id;
 }
+const treeDrop = useTreeDrop({
+  rows,
+  entries: () => creation.entries,
+  host,
+  acceptsFiles: () => creation.view!.section === 'resource',
+  move: async (entry, parentId, beforeEntryId) => {
+    error.value = '';
+    try {
+      await creation.move(entry, parentId, beforeEntryId);
+    } catch (cause) {
+      error.value = toErrorMessage(cause);
+    }
+  },
+  addFiles: (parentId, files) =>
+    addFiles(
+      parentId,
+      files.map(file => getDesktopApi().creation.pathForFile(file))
+    )
+});
 </script>
 
 <template>
@@ -308,9 +311,13 @@ async function drop(event: DragEvent, parentId: string | null) {
         role="tree"
         :aria-label="creation.view?.section === 'resource' ? '资料目录' : '文稿目录'"
         :tabindex="rows.length ? -1 : 0"
+        :class="{
+          'drop-root': treeDrop.placement.value?.kind === 'area' && treeDrop.placement.value.parentId === null
+        }"
         @scroll="tree.scrollTop = host!.scrollTop"
-        @dragover.prevent
-        @drop.self.prevent="drop($event, null)"
+        @dragover="treeDrop.listDragOver"
+        @dragleave="treeDrop.dragLeave"
+        @drop.prevent="treeDrop.drop"
       >
         <AppContextMenu
           v-for="({ entry, depth, pending }, index) in rows"
@@ -335,13 +342,20 @@ async function drop(event: DragEvent, parentId: string | null) {
                     ? `${entry.title}（有待接受修改）`
                     : entry.title
             "
-            :style="{ paddingLeft: `${8 + (depth - 1) * 16}px` }"
+            :style="{ '--indent': `${8 + (depth - 1) * 16}px` }"
             class="tree-entry"
-            :class="{ selected: tree.selectedId === entry.id, pending: pending }"
+            :class="{
+              selected: tree.selectedId === entry.id,
+              pending: pending,
+              'drop-into': treeDrop.highlighted.value.has(entry.id),
+              'drop-before': dropLine(entry, 'before'),
+              'drop-after': dropLine(entry, 'after')
+            }"
             :draggable="!pending"
-            @dragstart="!pending && $event.dataTransfer!.setData('application/chaptale-entry', entry.id)"
-            @dragover.prevent
-            @drop.stop.prevent="!pending && drop($event, entry.kind === 'directory' ? entry.id : entry.parentId)"
+            @dragstart="treeDrop.rowDragStart($event, entry)"
+            @dragend="treeDrop.dragEnd"
+            @dragover.stop="treeDrop.rowDragOver($event, { entry, depth, pending })"
+            @drop.stop.prevent="treeDrop.drop"
             @click="open(entry, pending)"
             @keydown="keydown($event, entry)"
           >
@@ -384,6 +398,7 @@ async function drop(event: DragEvent, parentId: string | null) {
             </div>
           </div>
         </AppContextMenu>
+        <div v-if="treeDrop.placement.value?.kind === 'end'" class="drop-end-line" aria-hidden="true" />
         <p v-if="!rows.length" class="tree-empty">
           {{
             creation.view?.section === 'resource' ? '在这里整理人物、地点与写作笔记。' : '新建文稿，或导入已有正文。'
@@ -459,10 +474,11 @@ async function drop(event: DragEvent, parentId: string | null) {
   overflow: auto;
 }
 .tree-entry {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 7px 8px;
+  padding: 7px 8px 7px var(--indent);
   cursor: pointer;
   color: var(--foreground);
 }
@@ -472,6 +488,37 @@ async function drop(event: DragEvent, parentId: string | null) {
 .tree-entry.selected {
   background: var(--accent);
   color: var(--accent-foreground);
+}
+/* 拖放反馈：条目拖动显示插入线或目录着色；系统文件按目录区域着色，放到根目录时整个列表描边。 */
+.tree-entry.drop-into {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.tree-entry.drop-before::before,
+.tree-entry.drop-after::after,
+.drop-end-line {
+  content: '';
+  position: absolute;
+  right: 4px;
+  left: var(--indent, 8px);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--primary);
+  pointer-events: none;
+}
+.tree-entry.drop-before::before {
+  top: -1px;
+}
+.tree-entry.drop-after::after {
+  bottom: -1px;
+}
+.drop-end-line {
+  position: relative;
+  display: block;
+  margin-top: -1px;
+}
+.tree-scroll.drop-root {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ring);
 }
 .entry-icon {
   width: 15px;

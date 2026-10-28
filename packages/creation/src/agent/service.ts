@@ -19,6 +19,7 @@ import { overlayEntries } from '../review/overlay.ts';
 import { advanceChange } from '../review/pending-change.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
+import { illustrationIds } from '../text.ts';
 import type { TrashService } from '../trash.ts';
 import { proposeEntry } from './proposal.ts';
 
@@ -231,7 +232,12 @@ export class CreationAgentService {
     if (entryId !== null) assertNotTrashed(this.repository, workId, entryId);
     const current = entryId === null ? null : readEntrySnapshot(this.repository, workId, entryId);
     const entries = mode === 'review' ? this.entries(workId, sessionId) : this.creation.listEntries(workId);
-    return { ...proposeEntry(command, entries, current, existing), existing };
+    const proposal = proposeEntry(command, entries, current, existing);
+    // Agent 只能保留或移动已有插图，不能新建插图引用。
+    const kept = illustrationIds(existing?.candidate.content ?? current?.content ?? '');
+    for (const id of illustrationIds(proposal.candidate.content ?? ''))
+      if (!kept.has(id)) throw new Error('不能新建插图，只能保留或移动正文中已有的插图');
+    return { ...proposal, existing };
   }
 }
 

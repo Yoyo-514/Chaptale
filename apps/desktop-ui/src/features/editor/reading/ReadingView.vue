@@ -5,6 +5,7 @@ import { AppButton } from '@/components/AppButton';
 import { useCreationStore } from '@/features/creation';
 import { toErrorMessage } from '@/utils/desktop-api';
 
+import { useIllustrationImages } from '../illustrations/images';
 import type { EditorTab } from '../types';
 import { chapterOrder, readingBlocks, type ReadingBlock } from './blocks';
 import { countPages, offsetOf, pageOf, type PageGeometry } from './layout';
@@ -25,6 +26,13 @@ const error = ref('');
 let loadVersion = 0;
 let observer: ResizeObserver | undefined;
 
+const illustrations = useIllustrationImages(() => props.tab.workId);
+/** 插图图片的显示状态：src 为已读取的图片，否则为占位文字。 */
+function illustrationState(entryId: string) {
+  const image = illustrations.images.value[entryId];
+  if (!image) return { text: '正在读取图片…' };
+  return 'src' in image ? { src: image.src } : { text: image.error };
+}
 const position = computed(() => reading.positions[props.tab.id]!);
 const chapters = computed(() => chapterOrder(creation.entries));
 const index = computed(() => chapters.value.findIndex(entry => entry.id === chapter.value?.id));
@@ -45,7 +53,9 @@ async function load(documentId: string, target: number | 'end') {
   try {
     const content = await reading.readChapter(documentId);
     if (version !== loadVersion) return;
-    chapter.value = { id: documentId, ...content, blocks: readingBlocks(content.content, content.format) };
+    const blocks = readingBlocks(content.content, content.format);
+    for (const block of blocks) if (block.illustration) void illustrations.load(block.illustration.entryId);
+    chapter.value = { id: documentId, ...content, blocks };
     await layout(target);
   } catch (cause) {
     if (version === loadVersion) error.value = toErrorMessage(cause);
@@ -116,17 +126,31 @@ watch(
           height: `${size.height}px`,
           columnWidth: `${size.width}px`,
           columnGap: `${GAP}px`,
-          transform: `translateX(-${page * stride}px)`
+          transform: `translateX(-${page * stride}px)`,
+          '--page-height': `${size.height}px`
         }"
         @load.capture="layout()"
       >
-        <div
-          v-for="block in chapter.blocks"
-          :key="block.offset"
-          class="reading-block"
-          :data-offset="block.offset"
-          v-html="block.html"
-        />
+        <template v-for="block in chapter.blocks" :key="block.offset">
+          <figure
+            v-if="block.illustration"
+            class="reading-block reading-illustration"
+            :data-offset="block.offset"
+            :aria-label="`插图 ${block.illustration.caption}`"
+          >
+            <span v-if="illustrationState(block.illustration.entryId).src" class="reading-illustration-frame">
+              <img :src="illustrationState(block.illustration.entryId).src" :alt="block.illustration.caption" />
+              <span v-if="block.illustration.caption" class="reading-illustration-caption">{{
+                block.illustration.caption
+              }}</span>
+            </span>
+            <span v-else class="reading-illustration-missing"
+              >{{ illustrationState(block.illustration.entryId).text
+              }}{{ block.illustration.caption ? `：${block.illustration.caption}` : '' }}</span
+            >
+          </figure>
+          <div v-else class="reading-block" :data-offset="block.offset" v-html="block.html" />
+        </template>
       </div>
     </div>
     <footer class="reading-footer">
@@ -201,6 +225,51 @@ watch(
 }
 .markdown-body .reading-block {
   white-space: normal;
+}
+/* 插图按页宽缩放，整体不跨页；高于一页时缩到一页高，单独占一页。说明悬停时叠在图片底部。 */
+.reading-illustration {
+  margin: 8px 0;
+  text-align: center;
+  break-inside: avoid;
+}
+.reading-illustration-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+.reading-illustration img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(var(--page-height) - 16px);
+  object-fit: contain;
+}
+.reading-illustration-caption {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 2px 8px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 20px;
+  color: #fff;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: rgb(0 0 0 / 55%);
+  opacity: 0;
+  pointer-events: none;
+}
+.reading-illustration-frame:hover .reading-illustration-caption {
+  opacity: 1;
+}
+.reading-illustration-missing {
+  display: block;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  border: 1px dashed var(--border);
+  border-radius: 4px;
 }
 .reading-block :deep(img) {
   max-width: 100%;

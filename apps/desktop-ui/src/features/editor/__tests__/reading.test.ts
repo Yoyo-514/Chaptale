@@ -48,4 +48,13 @@ describe('分页阅读', () => {
     expect(blocks[0]!.html).toContain('<h1');
     expect(blocks[2]!.html).toContain('<li>灯火</li>');
   });
+
+  it('Markdown 插图行单独成块，紧邻的文字仍按段落渲染并保留原文位置', () => {
+    const content = '雨停了。\n![城门](entry:img-1)\n灯火亮了。';
+    const blocks = readingBlocks(content, 'markdown');
+    expect(blocks.map(block => content.slice(block.offset, block.offset + 2))).toEqual(['雨停', '![', '灯火']);
+    expect(blocks[1]!.illustration).toEqual({ caption: '城门', entryId: 'img-1' });
+    expect(blocks[0]!.html).toContain('<p>雨停了。</p>');
+    expect(blocks[2]!.html).not.toContain('img');
+  });
 });

@@ -6,7 +6,8 @@ export const APPLICATION_HOST_CHANNELS = {
     event: 'creation:event',
     selectPaths: 'creation:select-paths',
     fileAction: 'creation:file-action',
-    readFile: 'creation:read-file'
+    readFile: 'creation:read-file',
+    addFileData: 'creation:add-file-data'
   },
   disconnected: 'application-host:disconnected'
 } as const;

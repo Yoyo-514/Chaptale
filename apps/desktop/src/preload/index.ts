@@ -18,7 +18,8 @@ const desktopApi: ChaptaleDesktopApi = {
     selectPaths: purpose => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.selectPaths, purpose),
     fileAction: (target, action) => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.fileAction, target, action),
     readFile: target => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.readFile, target),
-    pathForFile: file => webUtils.getPathForFile(file)
+    pathForFile: file => webUtils.getPathForFile(file),
+    addFileData: input => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.addFileData, input)
   },
   cloudSync: createCloudSyncApi(),
   getPlatform: createGetPlatformApi(),

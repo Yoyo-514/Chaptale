@@ -24,6 +24,11 @@ export async function readFileBlob(workId: string, entry: Entry): Promise<Blob> 
   return new Blob([data as Uint8Array<ArrayBuffer>], { type: imageTypes[extension] ?? '' });
 }
 
+/** 按条目 ID 读取插图图片；条目在回收站或已清空时抛出主进程的错误信息。 */
+export async function readEntryImage(workId: string, entryId: string): Promise<Blob> {
+  return new Blob([(await getDesktopApi().creation.readFile({ workId, entryId })) as Uint8Array<ArrayBuffer>]);
+}
+
 export function runFileAction(workId: string, entry: Entry, action: FileAction) {
   return getDesktopApi().creation.fileAction({ workId, entryId: entry.id }, action);
 }

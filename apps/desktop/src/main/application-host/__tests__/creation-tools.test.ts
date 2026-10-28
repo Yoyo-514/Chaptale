@@ -235,6 +235,50 @@ it('资料文件条目在目录中附带大小与路径，图片交给 pi 读取
   });
 });
 
+it('Markdown 插图对 Agent 显示为占位，编辑时还原，不能新建插图', async () => {
+  const chapter = value(
+    creation.executeAuthor({
+      method: 'createEntry',
+      input: {
+        commandId: randomUUID(),
+        workId,
+        parentId: null,
+        section: 'manuscript',
+        kind: 'document',
+        title: '彩页',
+        format: 'markdown',
+        content: '开头。\n![城门](entry:img-1)\n结尾。'
+      }
+    })
+  );
+  const read = await call('work_read', { workId, entryId: chapter.id });
+  expect(read.result.structuredContent).toMatchObject({
+    ok: true,
+    value: { content: '开头。\n[插图：城门 entry:img-1]\n结尾。' }
+  });
+  const moved = await call('work_edit', {
+    workId,
+    entryId: chapter.id,
+    expectedRevisionId: chapter.revisionId,
+    oldText: '开头。\n[插图：城门 entry:img-1]\n结尾。',
+    newText: '开头。\n结尾。\n[插图：城门 entry:img-1]'
+  });
+  expect(moved.isError).toBe(false);
+  const [change] = pending();
+  expect(change!.candidate.content).toBe('开头。\n结尾。\n![城门](entry:img-1)');
+  const created = await call('work_edit', {
+    workId,
+    entryId: chapter.id,
+    expectedRevisionId: change!.candidate.revisionId,
+    oldText: '开头。',
+    newText: '开头。\n[插图：新图 entry:img-2]'
+  });
+  expect(created.result.structuredContent).toMatchObject({
+    ok: false,
+    error: { message: '不能新建插图，只能保留或移动正文中已有的插图' }
+  });
+});
+
 it('默认读取完整正文，范围可读取至末尾，整篇覆盖允许清空正文', async () => {
   expect((await call('work_read', { workId, entryId: documentId })).result.structuredContent).toMatchObject({
     ok: true,
