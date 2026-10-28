@@ -157,7 +157,7 @@ export type AgentWriteResult =
   | { kind: 'withdrawn'; change: PendingChange };
 export interface CreationAgentCommands extends CreationReadCommands {
   createEntry: { input: CreateEntryInput; output: CreationResult<AgentWriteResult> };
-  writeDocument: { input: SaveDocumentInput; output: CreationResult<AgentWriteResult> };
+  writeDocument: { input: Omit<SaveDocumentInput, 'attributes'>; output: CreationResult<AgentWriteResult> };
   /** 整篇覆盖只改变正文；命令参数保持模型提交的快照，重试不依赖后续标题与格式。 */
   writeContent: { input: Omit<SaveDocumentInput, 'title' | 'format'>; output: CreationResult<AgentWriteResult> };
   editDocument: {

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 
 import { CreationApplication } from '@chaptale/creation/application';
-import type { CreationResult } from '@chaptale/creation/contracts';
+import type { CreationResult, SaveDocumentInput } from '@chaptale/creation/contracts';
 
 import { openCreationStorage } from '../index.ts';
 
@@ -175,7 +175,7 @@ it('作者命令创建并保存文稿，过期修订以可序列化冲突返回'
       }
     })
   );
-  const input = {
+  const input: SaveDocumentInput = {
     commandId: randomUUID(),
     workId: work.id,
     documentId: entry.id,

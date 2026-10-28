@@ -191,7 +191,7 @@ it('回执写入失败时正文与索引一起回滚，同一命令重试只提�
     format: 'txt' as const,
     content: '公主远行。'
   };
-  const fault = new Database(join(rootDir, 'works', `${work.id}.sqlite`));
+  const fault = new Database(join(rootDir, 'works', work.id, 'work.sqlite'));
   try {
     fault.exec(
       "CREATE TRIGGER fail_receipt BEFORE INSERT ON command_receipts BEGIN SELECT RAISE(ABORT, '回执故障'); END"

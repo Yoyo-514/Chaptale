@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { assertEntryParent } from '../content/entries.ts';
+import { assertEntryParent, initialAttributes } from '../content/entries.ts';
 import type { Entry, EntrySnapshot } from '../contracts/content.ts';
 import type { AgentWriteCommand, PendingChange } from '../contracts/review.ts';
 import { EntryLocationConflictError, RevisionConflictError } from '../errors.ts';
@@ -36,6 +36,7 @@ export function proposeEntry(
         ) + 1,
       format: input.kind === 'document' ? input.format : null,
       content: input.kind === 'document' ? input.content : null,
+      attributes: initialAttributes(input),
       wordCount: 0,
       revisionId: randomUUID(),
       createdAt: now,

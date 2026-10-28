@@ -258,7 +258,7 @@ describe('作品目录移动', () => {
       parentId: folder.id,
       beforeEntryId: first.id
     };
-    const fault = new Database(join(rootDir, 'works', `${workId}.sqlite`));
+    const fault = new Database(join(rootDir, 'works', workId, 'work.sqlite'));
     try {
       fault.exec(`CREATE TRIGGER fail_move BEFORE INSERT ON command_receipts BEGIN
         SELECT RAISE(ABORT, '故障注入：移动回执写入失败');
@@ -315,7 +315,7 @@ describe('作品目录移动', () => {
         .filter(item => item.parentId === folder.id)
         .map(item => item.id)
     ).toEqual([source.id, first.id, last.id]);
-    expect(service.readDocument(workId, source.id)).toEqual({ ...moved, content: '序章的正文。' });
+    expect(service.readDocument(workId, source.id)).toEqual({ ...moved, content: '序章的正文。', attributes: null });
     expect(service.readDraftState(workId, source.id)).toEqual(draft);
     const saved = service.saveDocument({
       commandId: draft.version!,

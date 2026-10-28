@@ -13,7 +13,7 @@ import { assertNotTrashed, EntryLocationConflictError, RevisionConflictError } f
 import type { CreationRepository } from '../repository.ts';
 import { countDocumentWords } from '../text.ts';
 import { revisionFor } from './commit.ts';
-import { assertEntryParent } from './entries.ts';
+import { assertEntryParent, initialAttributes } from './entries.ts';
 
 /** 调用方已进入作品事务；这里集中维护正式内容的领域约束。 */
 export function createEntry(repository: CreationRepository, input: CreateEntryInput): Entry {
@@ -33,7 +33,7 @@ export function createEntry(repository: CreationRepository, input: CreateEntryIn
     updatedAt: now
   };
   assertEntryParent(repository.listEntries(input.workId), entry);
-  const snapshot = { ...entry, content };
+  const snapshot = { ...entry, content, attributes: initialAttributes(entry) };
   repository.insertEntry(input.workId, snapshot, revisionFor(snapshot, null));
   return entry;
 }
@@ -46,7 +46,11 @@ export function renameDirectory(repository: CreationRepository, input: RenameDir
     throw new RevisionConflictError(input.expectedRevisionId, current.revisionId);
   if (current.title === input.title) return current;
   const saved = { ...current, title: input.title, revisionId: randomUUID(), updatedAt: Date.now() };
-  repository.updateDirectory(input.workId, saved, revisionFor({ ...saved, content: null }, current.revisionId));
+  repository.updateDirectory(
+    input.workId,
+    saved,
+    revisionFor({ ...saved, content: null, attributes: null }, current.revisionId)
+  );
   return saved;
 }
 
@@ -77,24 +81,29 @@ export function saveDocument(repository: CreationRepository, input: SaveDocument
   const current = readDocument(repository, input.workId, input.documentId);
   if (current.revisionId !== input.expectedRevisionId)
     throw new RevisionConflictError(input.expectedRevisionId, current.revisionId);
-  const { content: currentContent, ...metadata } = current;
-  if (metadata.title === input.title && metadata.format === input.format && currentContent === input.content)
+  if (current.attributes === null && input.attributes) throw new Error('文稿没有属性');
+  const attributes = input.attributes ?? current.attributes;
+  const { content: currentContent, attributes: currentAttributes, ...metadata } = current;
+  if (
+    metadata.title === input.title &&
+    metadata.format === input.format &&
+    currentContent === input.content &&
+    JSON.stringify(currentAttributes) === JSON.stringify(attributes)
+  )
     return metadata;
-  const { content, ...saved } = {
+  const saved: Document = {
     ...current,
     title: input.title,
     format: input.format,
     content: input.content,
+    attributes,
     wordCount: countDocumentWords(input.content),
     revisionId: randomUUID(),
     updatedAt: Date.now()
   };
-  repository.updateDocument(
-    input.workId,
-    { ...saved, content },
-    revisionFor({ ...saved, content }, current.revisionId)
-  );
-  return saved;
+  repository.updateDocument(input.workId, saved, revisionFor(saved, current.revisionId));
+  const { content: _content, attributes: _attributes, ...entry } = saved;
+  return entry;
 }
 
 export function saveParameters(input: Omit<SaveDocumentInput, 'commandId'>): readonly unknown[] {
@@ -105,7 +114,8 @@ export function saveParameters(input: Omit<SaveDocumentInput, 'commandId'>): rea
     input.expectedRevisionId,
     input.title,
     input.format,
-    input.content
+    input.content,
+    JSON.stringify(input.attributes ?? null)
   ];
 }
 
@@ -116,7 +126,9 @@ export function readEntrySnapshot(
 ): EntrySnapshot | null {
   const entry = repository.getEntry(workId, entryId);
   if (!entry) return null;
-  return { ...entry, content: entry.kind === 'document' ? readDocument(repository, workId, entryId).content : null };
+  if (entry.kind === 'directory') return { ...entry, content: null, attributes: null };
+  const { content, attributes } = readDocument(repository, workId, entryId);
+  return { ...entry, content, attributes };
 }
 
 export function readDocument(repository: CreationRepository, workId: string, documentId: string): Document {

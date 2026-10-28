@@ -1,4 +1,9 @@
-import type { Entry } from '../contracts/content.ts';
+import type { Entry, ResourceAttributes } from '../contracts/content.ts';
+
+/** 新建条目的属性：资料文档从空属性开始，文稿与目录没有属性。 */
+export function initialAttributes(entry: Pick<Entry, 'section' | 'kind'>): ResourceAttributes | null {
+  return entry.section === 'resource' && entry.kind === 'document' ? { type: '', aliases: [], tags: [] } : null;
+}
 
 /** 目录身份、内容区域与无环约束对作者和 Agent 一致。 */
 export function assertEntryParent(entries: Entry[], candidate: Pick<Entry, 'id' | 'parentId' | 'section'>): void {

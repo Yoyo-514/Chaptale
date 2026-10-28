@@ -17,7 +17,8 @@ export function writeDraft(repository: CreationRepository, input: WriteDraftInpu
         draft.expectedRevisionId !== input.expectedRevisionId ||
         draft.title !== input.title ||
         draft.format !== input.format ||
-        draft.content !== input.content
+        draft.content !== input.content ||
+        JSON.stringify(draft.attributes) !== JSON.stringify(input.attributes)
       ) {
         throw new Error('同一草稿身份不能用于不同内容');
       }
@@ -32,6 +33,7 @@ export function writeDraft(repository: CreationRepository, input: WriteDraftInpu
       title: input.title,
       format: input.format,
       content: input.content,
+      ...(input.attributes && { attributes: input.attributes }),
       updatedAt: Date.now()
     };
     repository.putDraft(draft);

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { basename } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { CreationResult, Entry } from '@chaptale/creation/contracts';
@@ -303,7 +304,7 @@ describe('作品库回收站', () => {
     expect(t.author('listPendingChanges', { workId: t.work.id, sessionId: null })).toEqual([]);
   });
 
-  it('永久清空作品时返回数据库文件，会话转为未归属，交付组不再引用该作品的修改', async () => {
+  it('永久清空作品时返回作品目录，会话转为未归属，交付组不再引用该作品的修改', async () => {
     const t = await setup();
     t.author('assignSession', { sessionId: t.context.sessionId, workId: t.work.id });
     t.propose('Agent 改写');
@@ -312,7 +313,8 @@ describe('作品库回收站', () => {
 
     const { files } = command(t, 'purgeWork') as { files: string[] };
 
-    expect(files.map(file => basename(file))).toEqual([`${t.work.id}.sqlite`]);
+    expect(files.map(file => basename(file))).toEqual([t.work.id]);
+    expect(existsSync(join(files[0]!, 'work.sqlite'))).toBe(true);
     expect(t.author('listTrashedWorks', {})).toEqual([]);
     expect(t.author<{ assignments: unknown[] }>('readSessionState', {}).assignments).toEqual([]);
     expect(t.author('readDeliveryContents', { groupId: group.id })).toEqual([]);

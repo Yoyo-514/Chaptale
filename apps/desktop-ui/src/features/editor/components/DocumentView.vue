@@ -10,6 +10,7 @@ import { useNotificationStore } from '@/features/notifications';
 import { toErrorMessage } from '@/utils/desktop-api';
 import { captureEditingTarget } from '@/utils/editing-target';
 
+import AttributesPanel from '../attributes/AttributesPanel.vue';
 import { createDocumentView } from '../codemirror/view';
 import { useReadingStore } from '../reading/store';
 import { useEditorStore } from '../store';
@@ -128,6 +129,7 @@ watch(
         modified-label="本地输入"
       />
     </div>
+    <AttributesPanel v-if="tab.attributes" :tab="tab" />
     <AppContextMenu :items="menu" @prepare="prepareMenu" @select="selectAction">
       <div class="document-codemirror-host">
         <!-- as-child 会处理触发节点的 ref；编辑器挂载点由本组件单独持有。 -->

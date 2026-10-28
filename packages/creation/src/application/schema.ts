@@ -5,6 +5,7 @@ import type { CreationAgentCommands, CreationAuthorCommands } from '../contracts
 
 const id = Type.String({ minLength: 1 });
 const parentId = Type.Union([id, Type.Null()]);
+const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
 const format = Type.Union([Type.Literal('txt'), Type.Literal('markdown')]);
 const documentTarget = { workId: id, documentId: id };
 const documentInput = {
@@ -14,6 +15,10 @@ const documentInput = {
   format,
   content: Type.String()
 };
+const text = Type.String();
+const attributes = object({ type: text, aliases: Type.Array(text), tags: Type.Array(text) });
+/** 作者保存可带资料属性；Agent 写入不接受属性。 */
+const authorDocumentInput = { ...documentInput, attributes: Type.Optional(attributes) };
 const entryInput = {
   commandId: id,
   workId: id,
@@ -21,7 +26,6 @@ const entryInput = {
   title: Type.String(),
   section: Type.Union([Type.Literal('manuscript'), Type.Literal('resource')])
 };
-const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
 const offset = Type.Integer({ minimum: 0 });
 const scroll = Type.Number({ minimum: 0 });
 const treeState = object({ expandedIds: Type.Array(id), selectedId: parentId, scrollTop: scroll });
@@ -70,7 +74,7 @@ const inputs = {
     object({ ...entryInput, kind: Type.Literal('directory') }),
     object({ ...entryInput, kind: Type.Literal('document'), format, content: Type.String() })
   ]),
-  saveDocument: object({ commandId: id, ...documentInput }),
+  saveDocument: object({ commandId: id, ...authorDocumentInput }),
   readDocument: object(documentTarget),
   renameDirectory: object({ commandId: id, workId: id, directoryId: id, expectedRevisionId: id, title: Type.String() }),
   moveEntry: object({
@@ -93,7 +97,7 @@ const inputs = {
   restoreWork: object({ commandId: id, workId: id }),
   purgeWork: object({ commandId: id, workId: id }),
   readTrashedDocument: object(documentTarget),
-  writeDraft: object({ ...documentInput, draftId: id, expectedDraftVersion: parentId }),
+  writeDraft: object({ ...authorDocumentInput, draftId: id, expectedDraftVersion: parentId }),
   discardDraft: object({ ...documentTarget, draftId: id }),
   readDraftState: object(documentTarget),
   readRevision: object({ workId: id, revisionId: id }),
@@ -140,7 +144,7 @@ export const agentInputs = {
   readDocument: inputs.readDocument,
   searchDocuments: inputs.searchDocuments,
   createEntry: inputs.createEntry,
-  writeDocument: inputs.saveDocument,
+  writeDocument: object({ commandId: id, ...documentInput }),
   writeContent: object({ commandId: id, ...documentTarget, expectedRevisionId: id, content: Type.String() }),
   moveEntry: inputs.moveEntry,
   deleteEntry: object({ commandId: id, workId: id, entryId: id, expectedRevisionId: id }),

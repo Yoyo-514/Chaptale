@@ -25,6 +25,15 @@ export interface Document extends Entry {
   kind: 'document';
   format: 'txt' | 'markdown';
   content: string;
+  /** 只有资料有属性；文稿为 null。 */
+  attributes: ResourceAttributes | null;
+}
+
+/** 类型和标签用于筛选与可视化，空串表示未设置类型；别名进入检索。 */
+export interface ResourceAttributes {
+  type: string;
+  aliases: string[];
+  tags: string[];
 }
 
 export interface Revision {
@@ -32,7 +41,7 @@ export interface Revision {
   entryId: string;
   parentRevisionId: string | null;
   source: 'author' | 'agent' | 'review';
-  snapshot: Entry & { content: string | null };
+  snapshot: Entry & { content: string | null; attributes: ResourceAttributes | null };
   createdAt: number;
 }
 export type EntrySnapshot = Revision['snapshot'];
@@ -118,6 +127,8 @@ export interface SaveDocumentInput {
   title: string;
   format: Document['format'];
   content: string;
+  /** 只用于资料；省略时保持当前属性。 */
+  attributes?: ResourceAttributes;
 }
 
 /** 检索只返回正式条目元数据；正文按文档身份和修订另行读取。 */

@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { mkdirSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -70,8 +71,15 @@ export async function openLibrary(rootDir: string): Promise<Database.Database> {
   return database;
 }
 
+/** 一个作品一个目录：作品库与资料文件条目都放在这里。 */
+export function workDir(rootDir: string, workId: string): string {
+  return path.join(rootDir, 'works', workId);
+}
+
 export function openWorkDatabase(rootDir: string, workId: string): Database.Database {
-  const database = new Database(path.join(rootDir, 'works', `${workId}.sqlite`));
+  const dir = workDir(rootDir, workId);
+  mkdirSync(dir, { recursive: true });
+  const database = new Database(path.join(dir, 'work.sqlite'));
   database.pragma('foreign_keys = ON');
   database.exec(`
     CREATE TABLE IF NOT EXISTS entries (
@@ -97,6 +105,15 @@ export function openWorkDatabase(rootDir: string, workId: string): Database.Data
       snapshot TEXT NOT NULL,
       createdAt INTEGER NOT NULL
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS resource_attributes (
+      entryId TEXT PRIMARY KEY REFERENCES entries(id),
+      type TEXT NOT NULL,
+      aliases TEXT NOT NULL,
+      tags TEXT NOT NULL
+    ) STRICT;
+    -- 属性表建立前的资料文档补一行空属性。
+    INSERT OR IGNORE INTO resource_attributes
+      SELECT id, '', '[]', '[]' FROM entries WHERE section = 'resource' AND kind = 'document';
   `);
   database.exec(trashSchema);
   database.exec(receiptSchema);

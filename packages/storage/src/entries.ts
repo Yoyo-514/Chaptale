@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 
-import type { Document, Entry, Revision, RevisionSummary } from '@chaptale/creation/contracts';
+import type { Document, Entry, ResourceAttributes, Revision, RevisionSummary } from '@chaptale/creation/contracts';
 
 import { indexDocument } from './search.ts';
 
@@ -27,10 +27,31 @@ export function nextPosition(database: Database.Database, section: Entry['sectio
     .get(section, parentId) as { position: number };
   return row.position;
 }
+interface AttributeRow {
+  type: string | null;
+  aliases: string | null;
+  tags: string | null;
+}
+
 export function getDocument(database: Database.Database, id: string): Document | undefined {
-  return database
-    .prepare("SELECT * FROM entries WHERE id = ? AND kind = 'document' AND id NOT IN (SELECT entryId FROM trash)")
-    .get(id) as Document | undefined;
+  const row = database
+    .prepare(`
+    SELECT e.*, a.type, a.aliases, a.tags FROM entries e LEFT JOIN resource_attributes a ON a.entryId = e.id
+    WHERE e.id = ? AND e.kind = 'document' AND e.id NOT IN (SELECT entryId FROM trash)
+  `)
+    .get(id) as (Omit<Document, 'attributes'> & AttributeRow) | undefined;
+  if (!row) return undefined;
+  const { type, aliases, tags, ...document } = row;
+  const attributes: ResourceAttributes | null =
+    type === null ? null : { type, aliases: JSON.parse(aliases!), tags: JSON.parse(tags!) };
+  return { ...document, attributes };
+}
+
+function writeAttributes(database: Database.Database, entryId: string, attributes: ResourceAttributes | null): void {
+  if (!attributes) return;
+  database
+    .prepare('INSERT OR REPLACE INTO resource_attributes (entryId, type, aliases, tags) VALUES (?, ?, ?, ?)')
+    .run(entryId, attributes.type, JSON.stringify(attributes.aliases), JSON.stringify(attributes.tags));
 }
 
 export function insertEntry(database: Database.Database, snapshot: Revision['snapshot'], revision: Revision): void {
@@ -40,6 +61,7 @@ export function insertEntry(database: Database.Database, snapshot: Revision['sna
     VALUES (@id, @parentId, @section, @kind, @title, @position, @format, @content, @wordCount, @revisionId, @createdAt, @updatedAt)
   `)
     .run(snapshot);
+  writeAttributes(database, snapshot.id, snapshot.attributes);
   insertRevision(database, revision);
   indexDocument(database, snapshot);
 }
@@ -50,6 +72,7 @@ export function updateDocument(database: Database.Database, document: Document, 
       revisionId = @revisionId, updatedAt = @updatedAt WHERE id = @id
   `)
     .run(document);
+  writeAttributes(database, document.id, document.attributes);
   insertRevision(database, revision);
   indexDocument(database, document);
 }

@@ -106,6 +106,7 @@ export function purgeBatch(database: Database.Database, batchId: string): Entry[
   database.prepare('DELETE FROM temp.purge_ids').run();
   database.prepare('INSERT INTO temp.purge_ids SELECT entryId FROM trash WHERE batchId = ?').run(batchId);
   database.prepare('DELETE FROM trash WHERE batchId = ?').run(batchId);
+  database.prepare('DELETE FROM resource_attributes WHERE entryId IN (SELECT id FROM temp.purge_ids)').run();
   database.prepare('DELETE FROM entries WHERE id IN (SELECT id FROM temp.purge_ids)').run();
   database.prepare('DELETE FROM temp.purge_ids').run();
   return purged;

@@ -1,6 +1,5 @@
 import type Database from 'better-sqlite3';
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 
 import type { CommandCommit, CommitEffect, CommitResult, CreationRepository } from '@chaptale/creation';
 import type {
@@ -30,7 +29,7 @@ import type {
 } from '@chaptale/creation/contracts';
 
 import { commitCommand, readChanges, readCommandReceipt, readCursor } from './commands.ts';
-import { openLibrary, openWorkDatabase } from './database.ts';
+import { openLibrary, openWorkDatabase, workDir } from './database.ts';
 import * as entries from './entries.ts';
 import * as reviews from './reviews.ts';
 import { searchDocuments } from './search.ts';
@@ -228,8 +227,8 @@ class SqliteCreationRepository implements CreationRepository {
       this.work.database.close();
       this.work = undefined;
     }
-    const file = path.join(this.rootDir, 'works', `${workId}.sqlite`);
-    return [file, `${file}-wal`, `${file}-shm`].filter(item => existsSync(item));
+    const dir = workDir(this.rootDir, workId);
+    return existsSync(dir) ? [dir] : [];
   }
 
   getEntry(workId: string, entryId: string): Entry | undefined {

@@ -217,7 +217,7 @@ describe('作品提交事件与快照', () => {
     const before = service.snapshot(work.id);
     const events: CreationEvent[] = [];
     service.subscribe(event => events.push(event));
-    const fault = new Database(join(rootDir, 'works', `${work.id}.sqlite`));
+    const fault = new Database(join(rootDir, 'works', work.id, 'work.sqlite'));
     const command = {
       commandId: randomUUID(),
       workId: work.id,

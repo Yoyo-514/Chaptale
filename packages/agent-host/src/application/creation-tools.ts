@@ -112,7 +112,7 @@ export function createWorkTools(
     tool(
       'work_read',
       '读取作品正文',
-      '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。',
+      '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改；资料另附类型、别名与标签。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。',
       object({
         ...target,
         offset: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -124,13 +124,19 @@ export function createWorkTools(
             method: 'readDocument',
             input: { workId: input.workId, documentId: input.entryId }
           }),
-          document => {
+          ({ attributes, ...document }) => {
             const start = (input.offset ?? 1) - 1;
             const content = document.content
               .split('\n')
               .slice(start, input.limit === undefined ? undefined : start + input.limit)
               .join('\n');
-            return { ...located(input.workId, document), content };
+            return {
+              ...located(input.workId, document),
+              content,
+              ...(attributes && {
+                attributes: { type: attributes.type, aliases: [...attributes.aliases], tags: [...attributes.tags] }
+              })
+            };
           }
         )
     ),

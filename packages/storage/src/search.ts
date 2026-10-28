@@ -23,17 +23,33 @@ export function openSearchIndex(database: Database.Database): void {
   if (database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'document_search'").get()) return;
   database.transaction(() => {
     database.exec(`CREATE VIRTUAL TABLE document_search USING fts5(entryId UNINDEXED, title, content)`);
-    const documents = database.prepare("SELECT * FROM entries WHERE kind = 'document'").all() as Revision['snapshot'][];
-    for (const document of documents) indexDocument(database, document);
+    const documents = database
+      .prepare(
+        "SELECT e.id, e.title, e.content, a.aliases FROM entries e LEFT JOIN resource_attributes a ON a.entryId = e.id WHERE e.kind = 'document'"
+      )
+      .all() as { id: string; title: string; content: string; aliases: string | null }[];
+    for (const document of documents)
+      writeIndex(
+        database,
+        document.id,
+        document.title,
+        document.aliases ? JSON.parse(document.aliases) : [],
+        document.content
+      );
   })();
 }
 
 export function indexDocument(database: Database.Database, document: Revision['snapshot']): void {
   if (document.content === null) return;
-  database.prepare('DELETE FROM document_search WHERE entryId = ?').run(document.id);
+  writeIndex(database, document.id, document.title, document.attributes?.aliases ?? [], document.content);
+}
+
+/** 别名并入标题列，搜别名能找到对应资料。 */
+function writeIndex(database: Database.Database, id: string, title: string, aliases: string[], content: string): void {
+  database.prepare('DELETE FROM document_search WHERE entryId = ?').run(id);
   database
     .prepare('INSERT INTO document_search (entryId, title, content) VALUES (?, ?, ?)')
-    .run(document.id, terms(document.title, true).join(' '), terms(document.content, true).join(' '));
+    .run(id, terms([title, ...aliases].join(' '), true).join(' '), terms(content, true).join(' '));
 }
 
 export function searchDocuments(

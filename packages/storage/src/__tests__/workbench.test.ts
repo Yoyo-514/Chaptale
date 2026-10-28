@@ -60,7 +60,7 @@ it('正文保存更新作品列表时间，重试和同内容保存保留该时�
 
 it('正式提交失败时最近编辑时间与正文一起保持原值，修复后可重试', async () => {
   const { rootDir, service, work, entry } = await setup();
-  const fault = new Database(path.join(rootDir, 'works', `${work.id}.sqlite`));
+  const fault = new Database(path.join(rootDir, 'works', work.id, 'work.sqlite'));
   cleanups.unshift(async () => {
     fault.close();
   });

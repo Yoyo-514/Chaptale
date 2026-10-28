@@ -316,7 +316,7 @@ describe('作品服务', () => {
       content: '待保存的新稿。'
     };
     const draft = service.writeDraft({ ...command, draftId: command.commandId, expectedDraftVersion: null });
-    const fault = new Database(path.join(rootDir, 'works', `${work.id}.sqlite`));
+    const fault = new Database(path.join(rootDir, 'works', work.id, 'work.sqlite'));
     try {
       // 延迟外键在 COMMIT 时失败，让正文、修订和回执先执行写入，再验证整体回滚。
       fault.exec(`

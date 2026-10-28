@@ -2,7 +2,7 @@ import type { EditorState } from '@codemirror/state';
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 
-import type { Document, SaveDocumentInput } from '@chaptale/creation/contracts';
+import type { Document, ResourceAttributes, SaveDocumentInput } from '@chaptale/creation/contracts';
 import { countDocumentWords } from '@chaptale/creation/text';
 
 import { CreationRequestError, requestCreation, useCreationStore, useTrashStore } from '@/features/creation';
@@ -17,8 +17,17 @@ import { useReviewStore } from './review/store';
 import { writingTiming } from './timing';
 import type { DocumentViewState, EditorTab } from './types';
 
+function sameAttributes(a: ResourceAttributes | null, b: ResourceAttributes | null) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 function isDirty(tab: EditorTab, buffer: DocumentBuffer) {
-  return buffer.dirty || tab.title !== tab.document!.title || tab.format !== tab.document!.format;
+  return (
+    buffer.dirty ||
+    tab.title !== tab.document!.title ||
+    tab.format !== tab.document!.format ||
+    !sameAttributes(tab.attributes, tab.document!.attributes)
+  );
 }
 
 function snapshot(tab: EditorTab, buffer: DocumentBuffer): Omit<SaveDocumentInput, 'commandId'> {
@@ -28,7 +37,9 @@ function snapshot(tab: EditorTab, buffer: DocumentBuffer): Omit<SaveDocumentInpu
     expectedRevisionId: tab.document!.revisionId,
     title: tab.title,
     format: tab.format,
-    content: buffer.content
+    content: buffer.content,
+    // 属性在入队时捕获为独立的 JSON 快照，后续编辑不影响在途请求。
+    ...(tab.attributes && { attributes: JSON.parse(JSON.stringify(tab.attributes)) as ResourceAttributes })
   };
 }
 
@@ -85,7 +96,10 @@ export const useEditorStore = defineStore('editor', () => {
     patch(id, { dirty: isDirty(tab, buffer), words: countDocumentWords(buffer.content) });
     schedule(id);
   }
-  function updateMetadata(id: string, fields: { title?: string; format?: Document['format'] }) {
+  function updateMetadata(
+    id: string,
+    fields: { title?: string; format?: Document['format']; attributes?: ResourceAttributes }
+  ) {
     patch(id, fields);
     const buffer = buffers.get(id);
     if (buffer) updateBuffer(id, buffer);
@@ -126,6 +140,7 @@ export const useEditorStore = defineStore('editor', () => {
         workId,
         title: entry.title,
         format: entry.format!,
+        attributes: null,
         document: null,
         status: 'loading',
         error: '',
@@ -157,6 +172,7 @@ export const useEditorStore = defineStore('editor', () => {
         document,
         title: document.title,
         format: document.format,
+        attributes: document.attributes,
         status: 'ready',
         error: '',
         draftVersion: draft.version,
@@ -239,6 +255,7 @@ export const useEditorStore = defineStore('editor', () => {
     patch(id, {
       title: draft.title,
       format: draft.format,
+      attributes: draft.attributes ?? tab.attributes,
       recovery: null,
       document: { ...tab.document!, revisionId: draft.expectedRevisionId }
     });
@@ -276,11 +293,16 @@ export const useEditorStore = defineStore('editor', () => {
           ...saved,
           kind: 'document' as const,
           format: attempt.input.format,
-          content: attempt.input.content
+          content: attempt.input.content,
+          attributes: attempt.input.attributes ?? current.document!.attributes
         };
         patch(id, {
           document,
-          dirty: buffer.dirty || current.title !== saved.title || current.format !== saved.format,
+          dirty:
+            buffer.dirty ||
+            current.title !== saved.title ||
+            current.format !== saved.format ||
+            !sameAttributes(current.attributes, document.attributes),
           conflict: null,
           saving: false,
           saveError: ''
@@ -327,6 +349,7 @@ export const useEditorStore = defineStore('editor', () => {
       document: tab.conflict,
       title: tab.conflict.title,
       format: tab.conflict.format,
+      attributes: tab.conflict.attributes,
       dirty: false,
       conflict: null,
       saveError: '',
@@ -366,6 +389,7 @@ export const useEditorStore = defineStore('editor', () => {
         patch(tab.id, {
           title: tab.document!.title,
           format: tab.document!.format,
+          attributes: tab.document!.attributes,
           dirty: false,
           generation: tab.generation + 1,
           saveError: '',

@@ -55,7 +55,7 @@ it('作品提交失败后重启只保留候选，不恢复尚未执行的接受�
   const before = fixture.read();
   const change = propose('将军出征。\n公主远行。');
   const view = value(app.executeAuthor({ method: 'readReview', input: { changeId: change.id } }));
-  const fault = new Database(join(rootDir, 'works', `${work.id}.sqlite`));
+  const fault = new Database(join(rootDir, 'works', work.id, 'work.sqlite'));
   try {
     fault.exec(
       "CREATE TRIGGER fail_receipt BEFORE INSERT ON command_receipts BEGIN SELECT RAISE(ABORT, '作品回执故障'); END"
