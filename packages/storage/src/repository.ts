@@ -189,8 +189,12 @@ class SqliteCreationRepository implements CreationRepository {
   getDocument(workId: string, documentId: string): Document | undefined {
     return entries.getDocument(this.useWork(workId), documentId);
   }
-  searchDocuments(input: SearchDocumentsInput, candidates?: readonly EntrySnapshot[]): DocumentSearchPage {
-    return searchDocuments(this.useWork(input.workId), input, candidates);
+  searchDocuments(
+    input: SearchDocumentsInput,
+    candidates?: readonly EntrySnapshot[],
+    hidden?: readonly string[]
+  ): DocumentSearchPage {
+    return searchDocuments(this.useWork(input.workId), input, candidates, hidden);
   }
   getRevision(workId: string, revisionId: string): Revision | undefined {
     return entries.getRevision(this.useWork(workId), revisionId);

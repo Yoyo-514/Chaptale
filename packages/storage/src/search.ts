@@ -39,12 +39,13 @@ export function indexDocument(database: Database.Database, document: Revision['s
 export function searchDocuments(
   database: Database.Database,
   input: SearchDocumentsInput,
-  candidates: readonly EntrySnapshot[] = []
+  candidates: readonly EntrySnapshot[] = [],
+  hidden: readonly string[] = []
 ): DocumentSearchPage {
   // 用户输入始终作为字面词项，不解释 MATCH 运算符或列选择语法。
   const query = [...new Set(terms(input.query, false))].map(word => `"${word.replaceAll('"', '""')}"`).join(' AND ');
   if (!query) return { entries: [], hasMore: false };
-  if (candidates.length) return searchWithCandidates(database, input, query, candidates);
+  if (candidates.length || hidden.length) return searchWithCandidates(database, input, query, candidates, hidden);
   const entries = database
     .prepare(`
     SELECT e.id, e.parentId, e.section, e.kind, e.title, e.position, e.format,
@@ -62,7 +63,8 @@ function searchWithCandidates(
   database: Database.Database,
   input: SearchDocumentsInput,
   query: string,
-  candidates: readonly EntrySnapshot[]
+  candidates: readonly EntrySnapshot[],
+  hidden: readonly string[]
 ): DocumentSearchPage {
   return database.transaction(() => {
     database.exec(
@@ -79,6 +81,8 @@ function searchWithCandidates(
       metadata.set(entry.id, entry);
       insert.run(entry.id, entry.section, terms(entry.title, true).join(' '), terms(content, true).join(' '));
     }
+    // 待删除条目以空行占位：屏蔽正式索引中的同一条目，自身不会命中。
+    for (const id of hidden) insert.run(id, '', '', '');
     const section = input.section ?? null;
     const matches = database
       .prepare(`

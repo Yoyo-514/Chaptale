@@ -69,10 +69,17 @@ export class CreationAgentService {
       }
       case 'searchDocuments': {
         if (context.mode !== 'review') return this.creation.searchDocuments(command.input);
-        const candidates = this.review
-          .list(command.input.workId, context.sessionId)
+        const { workId } = command.input;
+        const changes = this.review.list(workId, context.sessionId);
+        const candidates = changes
+          .filter(change => !change.deleted)
           .map(change => this.review.read(change.id).candidate);
-        return this.repository.searchDocuments(command.input, candidates);
+        const visible = new Set(this.entries(workId, context.sessionId).map(entry => entry.id));
+        const hidden = this.creation
+          .listEntries(workId)
+          .filter(entry => !visible.has(entry.id))
+          .map(entry => entry.id);
+        return this.repository.searchDocuments(command.input, candidates, hidden);
       }
       case 'deleteEntry':
         return this.remove(context, command);

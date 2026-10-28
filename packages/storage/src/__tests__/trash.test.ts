@@ -196,6 +196,15 @@ describe('Agent 删除', () => {
     expect(t.titles(null)).toEqual(['序章']);
     const session = value(t.app.executeAgent(t.context, { method: 'listEntries', input: { workId: t.work.id } }));
     expect(session).toEqual([]);
+    const search = (mode: 'review' | 'direct') =>
+      value(
+        t.app.executeAgent(
+          { sessionId: t.context.sessionId, mode },
+          { method: 'searchDocuments', input: { workId: t.work.id, query: '序章', offset: 0, limit: 10 } }
+        )
+      ).entries.map(entry => entry.id);
+    expect(search('review')).toEqual([]);
+    expect(search('direct')).toEqual([t.document.id]);
 
     decide(t, result.change.id, 'accept');
     expect(t.titles(null)).toEqual([]);

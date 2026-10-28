@@ -72,7 +72,12 @@ export interface CreationRepository {
   relocateEntry(workId: string, entry: Entry, parentId: string | null, position: number): void;
   listEntries(workId: string): Entry[];
   getDocument(workId: string, documentId: string): Document | undefined;
-  searchDocuments(input: SearchDocumentsInput, candidates?: readonly EntrySnapshot[]): DocumentSearchPage;
+  /** candidates 覆盖正式正文，hidden 为会话中待删除、不参与检索的条目。 */
+  searchDocuments(
+    input: SearchDocumentsInput,
+    candidates?: readonly EntrySnapshot[],
+    hidden?: readonly string[]
+  ): DocumentSearchPage;
   getRevision(workId: string, revisionId: string): Revision | undefined;
   getRevisionEntryId(workId: string, revisionId: string): string | undefined;
 
