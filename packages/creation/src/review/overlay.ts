@@ -7,6 +7,19 @@ export function overlayEntries(formal: Entry[], views: ReviewView[]): Entry[] {
   // oxlint-disable-next-line unicorn/no-array-sort
   const ordered = [...views].sort((a, b) => a.change.order - b.change.order);
   for (const { change, candidate } of ordered) {
+    if (change.deleted) {
+      // 删除候选在会话目录中隐藏目标及其子项。
+      const removed = new Set([candidate.id]);
+      for (let size = 0; size !== removed.size;) {
+        size = removed.size;
+        for (const entry of entries.values())
+          if (entry.parentId !== null && removed.has(entry.parentId)) removed.add(entry.id);
+      }
+      const parentId = entries.get(candidate.id)?.parentId;
+      for (const id of removed) entries.delete(id);
+      if (parentId !== undefined) normalize(entries, candidate.section, parentId);
+      continue;
+    }
     const { content: _content, ...metadata } = candidate;
     const previous = entries.get(candidate.id);
     const moved =

@@ -35,7 +35,7 @@ export class CreationApplication {
     this.delivery = new DeliveryService(repository, this.service);
     this.review = new ReviewService(repository, this.service, this.delivery);
     this.trash = new TrashService(repository, this.service, this.review);
-    this.agent = new CreationAgentService(repository, this.service, this.review, this.delivery);
+    this.agent = new CreationAgentService(repository, this.service, this.review, this.delivery, this.trash);
   }
 
   subscribe(listener: Parameters<CreationService['subscribe']>[0]): () => void {

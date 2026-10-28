@@ -155,7 +155,7 @@ function pending(sessionId = id) {
 
 it('未归属作品的会话发现作品、列出根目录并按稳定身份读取指定行', async () => {
   const tools = host.snapshot().tools;
-  expect(tools.filter(name => name.startsWith('work_'))).toHaveLength(9);
+  expect(tools.filter(name => name.startsWith('work_'))).toHaveLength(10);
   expect(tools).toEqual(
     expect.arrayContaining([
       'work_ls',
@@ -166,7 +166,8 @@ it('未归属作品的会话发现作品、列出根目录并按稳定身份读�
       'work_edit',
       'work_write',
       'work_mkdir',
-      'work_mv'
+      'work_mv',
+      'work_rm'
     ])
   );
   expect(tools.filter(name => name.startsWith('creation_'))).toEqual([]);
@@ -606,7 +607,7 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
   expect((await call('work_read', { workId, entryId: documentId })).isError).toBe(false);
 
   await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
-  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv'].sort();
+  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm'].sort();
   expect(
     reopened
       .getActiveToolNames()
@@ -661,7 +662,7 @@ it('讨论模式移除可见及可调用的作品写工具，保留读取与文�
   expect(read().revisionId).toBe(revisionId);
   expect(pending()).toEqual([]);
   await host.execute({ method: 'mode', input: { id, mode: 'review' } });
-  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv'].sort();
+  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm'].sort();
   expect(
     session
       .getActiveToolNames()

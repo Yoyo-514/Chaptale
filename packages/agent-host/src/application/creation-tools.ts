@@ -17,7 +17,7 @@ const newEntry = { workId: id, parentId: nullableId, title: Type.String(), secti
 // OpenAI 兼容接口要求工具参数顶层为 type: object，不能用 Union；分支字段设为可选，组合由 creation 的参数校验判定。
 const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
 
-export const workWriteToolNames = new Set(['work_edit', 'work_write', 'work_mkdir', 'work_mv']);
+export const workWriteToolNames = new Set(['work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm']);
 export const workToolNames = new Set([
   'work_ls',
   'work_read',
@@ -44,10 +44,14 @@ export function createWorkTools(
 ): ToolDefinition[] {
   function written(context: CreationAgentContext, workId: string, result: CreationResult<AgentWriteResult>) {
     if (result.ok && result.value.kind === 'pending') onPendingWrite(context.sessionId);
-    return mapResult(result, value => ({
-      kind: value.kind,
-      entry: located(workId, value.kind === 'saved' ? value.entry : value.change.candidate)
-    }));
+    return mapResult(result, (value): JsonValue => {
+      if (value.kind === 'trashed')
+        return { kind: value.kind, entries: value.entries.map(entry => located(workId, entry)) };
+      return {
+        kind: value.kind,
+        entry: located(workId, value.kind === 'saved' ? value.entry : value.change.candidate)
+      };
+    });
   }
 
   function tool<S extends TSchema>(
@@ -291,6 +295,18 @@ export function createWorkTools(
           input.title !== undefined
             ? application.executeAgent(context, { method: 'renameEntry', input: { ...input, commandId } as never })
             : application.executeAgent(context, { method: 'moveEntry', input: { ...input, commandId } as never })
+        )
+    ),
+    tool(
+      'work_rm',
+      '删除作品条目',
+      '将文稿、资料或目录（连同其中内容）移入作品回收站，作者可以恢复。提供读取所得 expectedRevisionId。审阅模式下生成待作者接受的删除；删除本会话尚未被接受的新建条目时直接撤回该新建。',
+      object(revisionTarget),
+      (input, context, commandId) =>
+        written(
+          context,
+          input.workId,
+          application.executeAgent(context, { method: 'deleteEntry', input: { ...input, commandId } })
         )
     )
   ];

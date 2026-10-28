@@ -24,6 +24,10 @@ const trash = useTrashStore();
 // 确认框先关闭再派发 confirm，删除目标与打开状态分开保存。
 const removing = ref<{ entry: Entry; entryCount: number; pendingCount: number } | null>(null);
 const removeOpen = ref(false);
+/** Agent 提出删除、等待作者接受的条目。 */
+const deletingIds = computed(
+  () => new Set(creation.pendingChanges.filter(change => change.deleted).map(change => change.entryId))
+);
 const host = ref<HTMLElement>();
 const error = ref('');
 const target = ref<Entry>();
@@ -334,9 +338,11 @@ async function drop(event: DragEvent, parentId: string | null) {
             :aria-label="
               pending
                 ? `${entry.title}（新建，待接受）`
-                : creation.pendingEntryIds.has(entry.id)
-                  ? `${entry.title}（有待接受修改）`
-                  : entry.title
+                : deletingIds.has(entry.id)
+                  ? `${entry.title}（待接受删除）`
+                  : creation.pendingEntryIds.has(entry.id)
+                    ? `${entry.title}（有待接受修改）`
+                    : entry.title
             "
             :style="{ paddingLeft: `${8 + (depth - 1) * 16}px` }"
             class="tree-entry"
@@ -368,6 +374,7 @@ async function drop(event: DragEvent, parentId: string | null) {
                   title="有待接受修改"
                   aria-hidden="true" /></span
               ><span v-if="pending" class="entry-meta">待接受</span
+              ><span v-else-if="deletingIds.has(entry.id)" class="entry-meta entry-deleting">待接受删除</span
               ><span v-else-if="entry.kind === 'document'" class="entry-meta" :title="date.format(entry.updatedAt)"
                 >{{ entry.wordCount }} 字
                 <time :datetime="new Date(entry.updatedAt).toISOString()">{{
@@ -534,6 +541,9 @@ async function drop(event: DragEvent, parentId: string | null) {
 .tree-entry.pending .entry-title {
   font-style: italic;
   color: var(--muted-foreground);
+}
+.entry-deleting {
+  color: var(--destructive);
 }
 .tree-entry.pending .entry-meta {
   color: var(--warning);

@@ -25,6 +25,7 @@ const error = computed(() => (sessionId.value ? review.deliveryErrors[sessionId.
 const earlierCount = computed(() => earlier.value.reduce((sum, summary) => sum + summary.items.length, 0));
 
 function label(item: DeliveryItem) {
+  if (item.deleted) return item.kind === 'directory' ? '删除目录' : '删除';
   if (item.created) return item.kind === 'directory' ? '新建目录' : '新建';
   return item.section === 'resource' ? '资料' : '文稿';
 }

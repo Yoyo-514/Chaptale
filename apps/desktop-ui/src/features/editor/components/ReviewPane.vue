@@ -9,6 +9,7 @@ import { EditorView } from '@codemirror/view';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTextView } from '@/components/AppTextView';
 import { useCreationStore } from '@/features/creation';
 
 import { chunkRange } from '../review/chunk-range';
@@ -25,6 +26,8 @@ let frame: number | undefined;
 const data = computed(() => props.tab.review!);
 const current = computed(() => data.value.current);
 const candidate = computed(() => data.value.candidate);
+/** 删除只能整篇决定，正文只读展示。 */
+const deleted = computed(() => data.value.change.deleted === true);
 const conflicted = computed(() => data.value.conflicts.length > 0);
 const titleConflicted = computed(() => data.value.conflicts.some(item => item.field === 'title'));
 const renamed = computed(() => current.value !== null && current.value.title !== candidate.value.title);
@@ -80,6 +83,7 @@ function blockAction(event: MouseEvent) {
 }
 
 onMounted(() => {
+  if (!host.value) return;
   view = new EditorView({
     parent: host.value!,
     state: review.getState(props.tab.changeId)!,
@@ -110,21 +114,24 @@ onBeforeUnmount(() => {
       <div class="review-heading">
         <span class="review-badge">待接受</span>
         <span class="review-title">{{ candidate.title }}</span>
-        <span v-if="!current" class="review-meta">新建{{ candidate.kind === 'directory' ? '目录' : '' }}</span>
+        <span v-if="deleted" class="review-meta review-deleted"
+          >删除{{ candidate.kind === 'directory' ? '目录及其中内容' : '' }}，接受后移入作品回收站</span
+        >
+        <span v-else-if="!current" class="review-meta">新建{{ candidate.kind === 'directory' ? '目录' : '' }}</span>
       </div>
-      <AppButton size="sm" variant="ghost" :disabled="locked" @click="review.decide(tab.changeId, 'reject')"
-        >全部拒绝</AppButton
-      >
+      <AppButton size="sm" variant="ghost" :disabled="locked" @click="review.decide(tab.changeId, 'reject')">{{
+        deleted ? '拒绝删除' : '全部拒绝'
+      }}</AppButton>
       <AppButton
         size="sm"
         variant="primary"
         :disabled="locked || conflicted"
         :title="conflicted ? '请先处理冲突' : undefined"
         @click="review.decide(tab.changeId, 'accept')"
-        >全部接受</AppButton
+        >{{ deleted ? '接受删除' : '全部接受' }}</AppButton
       >
     </header>
-    <div v-if="renamed" class="review-row">
+    <div v-if="renamed && !deleted" class="review-row">
       <span
         >标题：<del>{{ current!.title }}</del> → {{ candidate.title }}</span
       >
@@ -140,7 +147,7 @@ onBeforeUnmount(() => {
         >接受改名</AppButton
       >
     </div>
-    <div v-if="moved" class="review-row">
+    <div v-if="moved && !deleted" class="review-row">
       <span>位置：移到{{ destination }}，随整篇一起接受或拒绝</span>
     </div>
     <div v-if="conflicted" class="review-row review-conflict" role="status">
@@ -161,11 +168,25 @@ onBeforeUnmount(() => {
       <AppButton size="xs" variant="primary" :disabled="tab.busy" @click="review.save(tab.changeId)">保存</AppButton>
     </div>
     <p v-if="tab.error || blockError" class="review-error" role="alert">{{ tab.error || blockError }}</p>
-    <div ref="host" class="review-editor" @mousedown="blockAction" />
+    <AppTextView
+      v-if="deleted && candidate.content !== null"
+      class="review-editor review-deleted-text"
+      :text="candidate.content"
+      :label="`将删除的《${candidate.title}》，只读`"
+    />
+    <p v-else-if="deleted" class="review-row">目录中的内容会一起移入作品回收站。</p>
+    <div v-else ref="host" class="review-editor" @mousedown="blockAction" />
   </section>
 </template>
 
 <style scoped>
+.review-deleted {
+  color: var(--destructive);
+}
+.review-deleted-text {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--destructive) 60%, transparent);
+}
 .review-pane {
   display: flex;
   flex: 1;

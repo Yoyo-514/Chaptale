@@ -137,6 +137,7 @@ export const agentInputs = {
   writeDocument: inputs.saveDocument,
   writeContent: object({ commandId: id, ...documentTarget, expectedRevisionId: id, content: Type.String() }),
   moveEntry: inputs.moveEntry,
+  deleteEntry: object({ commandId: id, workId: id, entryId: id, expectedRevisionId: id }),
   renameEntry: object({ commandId: id, workId: id, entryId: id, expectedRevisionId: id, title: Type.String() }),
   editDocument: object({
     commandId: id,

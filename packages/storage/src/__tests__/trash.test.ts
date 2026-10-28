@@ -150,3 +150,117 @@ describe('作品回收站', () => {
     expect(t.batches()).toHaveLength(1);
   });
 });
+
+type Fixture = Awaited<ReturnType<typeof setup>>;
+const remove = (t: Fixture, mode: 'review' | 'direct', entryId: string, revisionId: string) =>
+  t.app.executeAgent(
+    { sessionId: t.context.sessionId, mode },
+    {
+      method: 'deleteEntry',
+      input: { commandId: randomUUID(), workId: t.work.id, entryId, expectedRevisionId: revisionId }
+    }
+  );
+const pending = (t: Fixture) =>
+  t.author<{ id: string; entryId: string; status: string }[]>('listPendingChanges', {
+    workId: t.work.id,
+    sessionId: null
+  });
+const decide = (t: Fixture, changeId: string, decision: 'accept' | 'reject') => {
+  const view = t.author<{
+    change: { id: string; version: string };
+    current: { revisionId: string; parentId: string | null; position: number } | null;
+  }>('readReview', { changeId });
+  return t.author('decideReview', {
+    commandId: randomUUID(),
+    changeId,
+    expectedVersion: view.change.version,
+    expectedRevisionId: view.current?.revisionId ?? null,
+    expectedLocation: view.current ? { parentId: view.current.parentId, position: view.current.position } : null,
+    decision
+  });
+};
+
+describe('Agent 删除', () => {
+  it('直接修改模式立即移入回收站', async () => {
+    const t = await setup();
+    const result = value(remove(t, 'direct', t.document.id, t.document.revisionId));
+    expect(result).toMatchObject({ kind: 'trashed', entries: [expect.objectContaining({ id: t.document.id })] });
+    expect(t.batches()).toHaveLength(1);
+  });
+
+  it('审阅模式生成删除候选，会话目录隐藏目标；接受后移入回收站', async () => {
+    const t = await setup();
+    const result = value(remove(t, 'review', t.document.id, t.document.revisionId));
+    if (result.kind !== 'pending') throw new Error('预期删除候选');
+    expect(result.change.deleted).toBe(true);
+    expect(t.titles(null)).toEqual(['序章']);
+    const session = value(t.app.executeAgent(t.context, { method: 'listEntries', input: { workId: t.work.id } }));
+    expect(session).toEqual([]);
+
+    decide(t, result.change.id, 'accept');
+    expect(t.titles(null)).toEqual([]);
+    expect(t.batches()).toHaveLength(1);
+  });
+
+  it('删除目录时并入其中的本会话修改；拒绝删除后恢复待审，接受删除后一并拒绝', async () => {
+    const t = await setup();
+    const volume = t.create('第一卷', null, 'directory');
+    const chapter = t.create('雪夜', volume.id);
+    const edit = value(
+      t.app.executeAgent(t.context, {
+        method: 'writeContent',
+        input: {
+          commandId: randomUUID(),
+          workId: t.work.id,
+          documentId: chapter.id,
+          expectedRevisionId: chapter.revisionId,
+          content: '改写'
+        }
+      })
+    );
+    if (edit.kind !== 'pending') throw new Error('预期待审修改');
+    const removal = value(remove(t, 'review', volume.id, volume.revisionId));
+    if (removal.kind !== 'pending') throw new Error('预期删除候选');
+    expect(pending(t).map(item => item.id)).toEqual([removal.change.id]);
+
+    decide(t, removal.change.id, 'reject');
+    expect(pending(t).map(item => item.id)).toEqual([edit.change.id]);
+
+    const again = value(remove(t, 'review', volume.id, volume.revisionId));
+    if (again.kind !== 'pending') throw new Error('预期删除候选');
+    decide(t, again.change.id, 'accept');
+    expect(pending(t)).toEqual([]);
+    expect(t.author<{ change: { status: string } }>('readReview', { changeId: edit.change.id }).change).toMatchObject({
+      status: 'rejected'
+    });
+  });
+
+  it('删除本会话未接受的新建条目时撤回候选，不计入续跑结果', async () => {
+    const t = await setup();
+    const created = value(
+      t.app.executeAgent(t.context, {
+        method: 'createEntry',
+        input: {
+          commandId: randomUUID(),
+          workId: t.work.id,
+          parentId: null,
+          section: 'manuscript',
+          kind: 'document',
+          title: '新章',
+          format: 'txt',
+          content: '新内容'
+        }
+      })
+    );
+    if (created.kind !== 'pending') throw new Error('预期新建候选');
+    t.propose('Agent 改写的序章');
+    const result = value(remove(t, 'review', created.change.entryId, created.change.candidate.revisionId));
+    expect(result.kind).toBe('withdrawn');
+    expect(pending(t).map(item => item.entryId)).toEqual([t.document.id]);
+    expect(t.batches()).toEqual([]);
+    const group = t.author<{ group: { changeIds: string[] } }>('readCurrentDelivery', {
+      sessionId: t.context.sessionId
+    });
+    expect(group.group.changeIds).not.toContain(created.change.id);
+  });
+});

@@ -83,6 +83,17 @@ export class DeliveryService {
     this.repository.putDeliveryGroup(group);
   }
 
+  /** 撤回的候选从所在组移除，不计入续跑结果。 */
+  detach(change: PendingChange): void {
+    const group = this.repository.getCurrentDelivery(change.sessionId);
+    if (!group?.changeIds.includes(change.id)) return;
+    this.repository.putDeliveryGroup({
+      ...group,
+      version: randomUUID(),
+      changeIds: group.changeIds.filter(id => id !== change.id)
+    });
+  }
+
   continue(input: DeliveryProgressInput): DeliveryGroup {
     return this.advance('continueDelivery', input, 'continued', current => {
       if (current.pendingCount > 0) throw new Error('请先接受或拒绝本组剩余修改，再继续');

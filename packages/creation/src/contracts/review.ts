@@ -36,7 +36,14 @@ export interface PendingChange {
   candidate: EntrySnapshot;
   authorEdited: boolean;
   conflicts: ReviewConflict[];
-  status: 'pending' | 'accepted' | 'rejected';
+  /**
+   * covered：并入同会话删除候选的修改，删除被接受时一并拒绝，被拒绝时恢复为 pending。
+   */
+  status: 'pending' | 'accepted' | 'rejected' | 'covered';
+  /** Agent 提出的删除：候选为删除时的条目快照，只能整篇接受或拒绝，接受后移入作品回收站。 */
+  deleted?: true;
+  /** 删除候选所并入的同会话修改。 */
+  covers?: string[];
   updatedAt: number;
 }
 
@@ -98,6 +105,7 @@ export interface DeliveryItem {
   kind: EntrySnapshot['kind'];
   title: string;
   created: boolean;
+  deleted: boolean;
   conflicted: boolean;
 }
 
@@ -140,7 +148,13 @@ export interface UpdateReviewInput extends ReviewTarget {
   resolveConflicts: boolean;
 }
 
-export type AgentWriteResult = { kind: 'pending'; change: PendingChange } | { kind: 'saved'; entry: Entry };
+export type AgentWriteResult =
+  | { kind: 'pending'; change: PendingChange }
+  | { kind: 'saved'; entry: Entry }
+  /** 直接修改模式下的删除，返回进入回收站的全部条目。 */
+  | { kind: 'trashed'; entries: Entry[] }
+  /** 审阅模式下删除本会话尚未接受的新建条目，撤回这些候选。 */
+  | { kind: 'withdrawn'; change: PendingChange };
 export interface CreationAgentCommands extends CreationReadCommands {
   createEntry: { input: CreateEntryInput; output: CreationResult<AgentWriteResult> };
   writeDocument: { input: SaveDocumentInput; output: CreationResult<AgentWriteResult> };
@@ -162,6 +176,10 @@ export interface CreationAgentCommands extends CreationReadCommands {
     output: CreationResult<AgentWriteResult>;
   };
   moveEntry: { input: MoveEntryInput; output: CreationResult<AgentWriteResult> };
+  deleteEntry: {
+    input: { commandId: string; workId: string; entryId: string; expectedRevisionId: string };
+    output: CreationResult<AgentWriteResult>;
+  };
 }
 export type CreationAgentCommand = RpcCommand<CreationAgentCommands>;
 export type AgentWriteCommand = Exclude<CreationAgentCommand, { method: keyof CreationReadCommands }>;

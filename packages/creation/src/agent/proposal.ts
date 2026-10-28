@@ -9,7 +9,7 @@ import { countDocumentWords } from '../text.ts';
 
 /** 把 Agent 指令转成候选快照；计算仅依赖当前正式稿与本会话视图。 */
 export function proposeEntry(
-  command: AgentWriteCommand,
+  command: Exclude<AgentWriteCommand, { method: 'deleteEntry' }>,
   entries: Entry[],
   current: EntrySnapshot | null,
   existing?: PendingChange

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { applySnapshot, commitSnapshot } from '../content/commit.ts';
 import { readEntrySnapshot } from '../content/mutations.ts';
 import type {
@@ -58,8 +60,18 @@ export class ReviewService {
     const parameters = ['decideReview', input] as const;
     const result = this.creation.commit(null, input.commandId, parameters, { kind: 'review' }, () => {
       const receipt = this.repository.readWorkReceipt<Entry>(change.workId, input.commandId, parameters);
-      const view = receipt ? this.view(change) : this.checked(input);
       const partial = input.range !== undefined || input.part !== undefined;
+      if (change.deleted) {
+        if (partial) throw new Error('删除只能整篇接受或拒绝');
+        if (input.decision === 'accept' && !receipt) {
+          this.checked(input);
+          this.creation.commit(change.workId, input.commandId, parameters, { kind: 'entries' }, () =>
+            this.trashTargets(change.workId, [change])
+          );
+        }
+        return this.finish(change, { status: input.decision === 'accept' ? 'accepted' : 'rejected' });
+      }
+      const view = receipt ? this.view(change) : this.checked(input);
       if (receipt)
         return this.finish(change, {
           base: view.current,
@@ -139,7 +151,29 @@ export class ReviewService {
       return this.finish(change, { status: input.decision === 'accept' ? 'accepted' : 'rejected' });
     });
     this.repository.clearReviewIntent(input.commandId);
+    if (change.deleted) this.rejectTrashed(change.workId);
     return result;
+  }
+
+  /** 撤回本会话尚未接受的新建候选，连同以它为父目录的新建候选。 */
+  withdraw(change: PendingChange): PendingChange {
+    const changes = this.repository.listPendingChanges(change.workId, change.sessionId);
+    const withdrawn = new Set([change.entryId]);
+    for (let size = 0; size !== withdrawn.size;) {
+      size = withdrawn.size;
+      for (const other of changes)
+        if (other.candidate.parentId !== null && withdrawn.has(other.candidate.parentId)) {
+          if (other.base !== null) throw new Error('此目录中还有本会话移入的条目，请先移出');
+          withdrawn.add(other.entryId);
+        }
+    }
+    let root = change;
+    for (const other of changes.filter(candidate => withdrawn.has(candidate.entryId))) {
+      const next = this.finish(other, { status: 'rejected' });
+      this.delivery.detach(next);
+      if (other.id === change.id) root = next;
+    }
+    return root;
   }
 
   deliveries(sessionId: string): DeliverySummary[] {
@@ -178,13 +212,17 @@ export class ReviewService {
         // oxlint-disable-next-line unicorn/no-array-sort
         const ordered = [...views].sort((a, b) => a.change.order - b.change.order);
         this.creation.commit(input.workId, input.commandId, parameters, { kind: 'entries' }, () =>
-          ordered.map(view =>
-            applySnapshot(this.repository, {
-              workId: input.workId,
-              base: view.current,
-              candidate: view.candidate,
-              source: 'review'
-            })
+          ordered.flatMap(view =>
+            view.change.deleted
+              ? this.trashTargets(input.workId, [view.change])
+              : [
+                  applySnapshot(this.repository, {
+                    workId: input.workId,
+                    base: view.current,
+                    candidate: view.candidate,
+                    source: 'review'
+                  })
+                ]
           )
         );
         for (const change of changes) this.finishAccepted(change);
@@ -203,6 +241,7 @@ export class ReviewService {
       return this.delivery.read(group.id).group;
     });
     this.repository.clearDeliveryIntent(input.commandId);
+    this.rejectTrashed(input.workId);
     return result;
   }
 
@@ -259,10 +298,31 @@ export class ReviewService {
     const view = this.view(change);
     this.finish(change, { base: view.current, candidate: view.candidate, status: 'accepted' });
   }
+  /** 删除候选结束时处理并入的修改：接受则一并拒绝，拒绝则恢复待审。 */
   private finish(change: PendingChange, fields: Partial<PendingChange>): PendingChange {
     const next = advanceChange(change, fields);
     this.repository.putPendingChange(next);
+    if (next.deleted && next.status !== 'pending')
+      for (const id of next.covers ?? []) {
+        const covered = this.repository.getPendingChange(id);
+        if (covered?.status === 'covered')
+          this.repository.putPendingChange(
+            advanceChange(covered, { status: next.status === 'accepted' ? 'rejected' : 'pending' })
+          );
+      }
     return next;
+  }
+  private trashTargets(workId: string, changes: PendingChange[]): Entry[] {
+    const entries = this.repository.listEntries(workId);
+    const ids = new Set(
+      this.repository.trashEntries(
+        workId,
+        changes.map(change => change.entryId),
+        randomUUID(),
+        Date.now()
+      )
+    );
+    return entries.filter(entry => ids.has(entry.id));
   }
   private get(id: string): PendingChange {
     const change = this.repository.getPendingChange(id);
@@ -294,6 +354,7 @@ function item(view: ReviewView): DeliveryItem {
     kind: candidate.kind,
     title: candidate.title,
     created: current === null,
+    deleted: change.deleted === true,
     conflicted: view.conflicts.length > 0
   };
 }
