@@ -5,7 +5,7 @@ import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { Document, SaveDocumentInput } from '@chaptale/creation/contracts';
 import { countDocumentWords } from '@chaptale/creation/text';
 
-import { CreationRequestError, requestCreation, useCreationStore } from '@/features/creation';
+import { CreationRequestError, requestCreation, useCreationStore, useTrashStore } from '@/features/creation';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
@@ -110,6 +110,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   async function openDocument(id: string, reveal = true) {
     if (reveal) useWorkbenchStore().focusEditor();
+    useTrashStore().preview = null;
     if (find(id)) {
       selectTab(id);
       return;
@@ -174,6 +175,7 @@ export const useEditorStore = defineStore('editor', () => {
     const state = creation.viewFor(tab.workId);
     if (state.secondaryDocumentId === id) state.secondaryDocumentId = activeId.value || null;
     review.activeId = '';
+    useTrashStore().preview = null;
     activeId.value = id;
     focusedId.value = id;
     state.activeDocumentId = id;

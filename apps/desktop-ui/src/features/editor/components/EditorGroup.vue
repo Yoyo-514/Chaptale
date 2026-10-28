@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppScrollArea } from '@/components/AppScrollArea';
-import { useCreationStore } from '@/features/creation';
-import { getDesktopApi, hasDesktopApi } from '@/utils/desktop-api';
+import { AppTextView } from '@/components/AppTextView';
+import { useCreationStore, useTrashStore } from '@/features/creation';
+import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
@@ -16,8 +17,22 @@ import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 const editor = useEditorStore();
 const review = useReviewStore();
 const creation = useCreationStore();
+const trash = useTrashStore();
+function restorePreview() {
+  trash.restore(trash.preview!.batchId).catch(cause => {
+    trash.error = toErrorMessage(cause);
+  });
+}
+watch(
+  () => review.activeId,
+  id => {
+    if (id) trash.preview = null;
+  }
+);
 /** 文档与审阅标签共用一个标签栏；审阅标签值带前缀，选中时占用主栏。 */
-const selected = computed(() => (review.activeTab ? `review:${review.activeTab.changeId}` : editor.activeId));
+const selected = computed(() =>
+  trash.preview ? '' : review.activeTab ? `review:${review.activeTab.changeId}` : editor.activeId
+);
 function select(value: string) {
   if (value.startsWith('review:')) review.select(value.slice('review:'.length));
   else editor.selectTab(value);
@@ -139,7 +154,26 @@ onBeforeUnmount(() => {
         ><span class="i-mingcute-layout-right-line" aria-hidden="true"
       /></AppButton>
     </div>
-    <div v-if="review.activeTab" class="editor-panes">
+    <div v-if="trash.preview" class="editor-panes">
+      <section class="editor-pane trash-preview" aria-label="回收站预览">
+        <header class="trash-preview-bar">
+          <span class="i-mingcute-delete-2-line trash-preview-icon" aria-hidden="true" />
+          <span class="trash-preview-title">{{ trash.preview.document.title }}</span>
+          <span class="trash-preview-note">在回收站中 · 只读</span>
+          <AppButton size="xs" @click="restorePreview">恢复</AppButton>
+          <AppButton icon size="xs" variant="ghost" aria-label="关闭预览" @click="trash.preview = null"
+            ><span class="i-mingcute-close-line size-3.5" aria-hidden="true"
+          /></AppButton>
+        </header>
+        <AppTextView
+          :key="trash.preview.document.id"
+          class="trash-preview-text"
+          :text="trash.preview.document.content"
+          :label="`${trash.preview.document.title}（回收站，只读）`"
+        />
+      </section>
+    </div>
+    <div v-else-if="review.activeTab" class="editor-panes">
       <section class="editor-pane" aria-label="审阅">
         <ReviewPane
           v-if="review.activeTab.status === 'ready'"
@@ -187,6 +221,40 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.trash-preview {
+  display: flex;
+  flex-direction: column;
+}
+.trash-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+.trash-preview-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.trash-preview-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trash-preview-note {
+  flex: 1;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.trash-preview-text {
+  flex: 1;
+  min-height: 0;
+}
 .editor-group {
   display: flex;
   flex: 1;

@@ -5,7 +5,7 @@ import type { Entry, PendingChange } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
-import { AppDialog } from '@/components/AppDialog';
+import { AppAlertDialog, AppDialog } from '@/components/AppDialog';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
 import { AppForm, AppFormActions } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
@@ -14,10 +14,16 @@ import { useEditorStore, useReviewStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { requestCreation, useCreationStore } from './store';
+import { useTrashStore } from './trash';
+import TrashPanel from './TrashPanel.vue';
 
 const creation = useCreationStore();
 const editor = useEditorStore();
 const review = useReviewStore();
+const trash = useTrashStore();
+// 确认框先关闭再派发 confirm，删除目标与打开状态分开保存。
+const removing = ref<{ entry: Entry; entryCount: number; pendingCount: number } | null>(null);
+const removeOpen = ref(false);
 const host = ref<HTMLElement>();
 const error = ref('');
 const target = ref<Entry>();
@@ -65,7 +71,8 @@ const menu = computed<AppContextMenuItem[]>(() => [
         { id: 'rename', label: '重命名', separatorBefore: true },
         { id: 'move', label: '移动到…' },
         { id: 'up', label: '上移' },
-        { id: 'down', label: '下移' }
+        { id: 'down', label: '下移' },
+        { id: 'delete', label: '删除', separatorBefore: true }
       ]
     : [
         { id: 'import', label: '导入文稿与资料…', separatorBefore: true },
@@ -123,6 +130,10 @@ async function selectAction(id: string) {
     return;
   }
   const entry = target.value!;
+  if (id === 'delete') {
+    await requestRemove(entry);
+    return;
+  }
   if (id === 'rename' && entry.kind === 'document') {
     await editor.openDocument(entry.id);
     const tab = editor.tabs.find(item => item.id === entry.id)!;
@@ -182,9 +193,41 @@ async function submit() {
     busy.value = false;
   }
 }
+/** 删除前读取影响范围，确认框写明一并拒绝的待审修改。 */
+async function requestRemove(entry: Entry) {
+  error.value = '';
+  try {
+    removing.value = { entry, ...(await trash.impact([entry.id])) };
+    removeOpen.value = true;
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  }
+}
+async function remove() {
+  const { entry } = removing.value!;
+  error.value = '';
+  try {
+    // 先关闭其中已打开的文档，未保存的输入由作者在关闭时处理。
+    const ids = new Set([entry.id]);
+    for (let size = 0; size !== ids.size;) {
+      size = ids.size;
+      for (const item of creation.entries) if (item.parentId !== null && ids.has(item.parentId)) ids.add(item.id);
+    }
+    for (const tab of editor.tabs.filter(item => ids.has(item.id))) await editor.closeTab(tab.id);
+    if (editor.tabs.some(item => ids.has(item.id))) return;
+    await trash.trash([entry.id]);
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  }
+}
 function keydown(event: KeyboardEvent, entry: Entry) {
   const index = rows.value.findIndex(row => row.entry.id === entry.id);
   const pending = rows.value[index]?.pending ?? null;
+  if (event.key === 'Delete' && !pending) {
+    event.preventDefault();
+    void requestRemove(entry);
+    return;
+  }
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault();
     const next = rows.value[index + (event.key === 'ArrowDown' ? 1 : -1)];
@@ -341,6 +384,23 @@ async function drop(event: DragEvent, parentId: string | null) {
         </p>
       </div>
     </AppContextMenu>
+    <TrashPanel />
+    <AppAlertDialog
+      v-model:open="removeOpen"
+      :title="`删除“${removing?.entry.title}”？`"
+      confirm-label="删除"
+      @confirm="remove"
+    >
+      <template #description
+        >{{
+          removing && removing.entryCount > 1
+            ? `目录及其中 ${removing.entryCount - 1} 项内容会移入作品回收站，可以恢复。`
+            : '会移入作品回收站，可以恢复。'
+        }}<template v-if="removing?.pendingCount"
+          >将一并拒绝 {{ removing.pendingCount }} 处待审修改。</template
+        ></template
+      >
+    </AppAlertDialog>
     <AppDialog
       content-size="sm"
       :open="Boolean(action)"
