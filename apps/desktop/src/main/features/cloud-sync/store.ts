@@ -48,7 +48,7 @@ export class CloudSyncStore {
     return this.enqueue(async () => {
       const account = (await this.readUnsafe()).accounts.find(item => item.provider === provider);
 
-      return account ? (JSON.parse(this.vault.open(account.sealed)) as CloudCredential) : null;
+      return account ? (JSON.parse(await this.vault.open(account.sealed)) as CloudCredential) : null;
     });
   }
 
@@ -63,7 +63,7 @@ export class CloudSyncStore {
         provider: input.provider,
         displayName: input.displayName,
         connectedAt: new Date().toISOString(),
-        sealed: this.vault.seal(JSON.stringify(input.credential))
+        sealed: await this.vault.seal(JSON.stringify(input.credential))
       };
 
       await this.writeUnsafe({

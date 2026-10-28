@@ -1,34 +1,20 @@
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref, watch } from 'vue';
 
-import type { HistoryItem, HostEvent, HostState, ModelRef, SessionView, EditMode } from '@chaptale/agent-host/protocol';
+import type { HistoryItem, HostEvent, HostState, ModelRef, EditMode } from '@chaptale/agent-host/protocol';
 import type { SessionState } from '@chaptale/creation/contracts';
 
 import { requestCreation, useCreationStore } from '@/features/creation';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
-export interface SessionEntry {
-  key: string;
-  title: string;
-  /** 历史文件的最近修改时间；尚未写入历史的新会话为空。 */
-  modified: string;
-  workId: string | null;
-  live?: SessionView;
-  item?: HistoryItem;
-}
+import { applyHostEvent } from './session/host-events';
+import { type SessionEntry, sessionEntries, sessionTitle } from './session/list';
+import { enqueueMessage, type OutgoingMessage, unsentMessages } from './session/outgoing';
+
+export type { OutgoingMessage } from './session/outgoing';
+export type { SessionEntry } from './session/list';
 
 /** 界面只持有快照、草稿和查看位置；原生会话由宿主持有。 */
-/**
- * 已发出、宿主尚未写入会话的作者消息。会话里的作者消息数达到 expectUsers 即视为送达；
- * pi 会展开模板，送达判断不比对文字。
- */
-export interface OutgoingMessage {
-  key: string;
-  text: string;
-  expectUsers: number;
-  error?: string;
-}
-
 export const useAgentStore = defineStore('agent', () => {
   const creation = useCreationStore();
   const state = ref<HostState>();
@@ -49,27 +35,7 @@ export const useAgentStore = defineStore('agent', () => {
   const active = computed(() => state.value?.sessions.find(session => session.id === activeId.value));
   const activeOutgoing = computed(() => (active.value ? unsent(active.value.id) : []));
   const draftKey = computed(() => activeId.value ?? `new:${scope.value ?? ''}`);
-  /** 原生历史与尚未写入历史的打开会话合并为一个列表，按最近修改排列。 */
-  const entries = computed<SessionEntry[]>(() => {
-    const sessions = state.value?.sessions ?? [];
-    const list: SessionEntry[] = history.value.map(item => {
-      const live = sessions.find(session => session.sessionId === item.id);
-      return {
-        key: item.id,
-        title: live ? title(live) : item.title,
-        modified: item.modified,
-        workId: owner(item.id),
-        live,
-        item
-      };
-    });
-    for (const live of sessions)
-      if (!list.some(entry => entry.live === live))
-        list.push({ key: live.id, title: title(live), modified: '', workId: owner(live.sessionId), live });
-    // 未写入历史的新会话排在最前。
-    // oxlint-disable-next-line unicorn/no-array-sort
-    return list.sort((a, b) => (b.modified || '~').localeCompare(a.modified || '~'));
-  });
+  const entries = computed(() => sessionEntries(history.value, state.value?.sessions ?? [], owner));
   const recent = computed(() => entries.value.filter(entry => entry.workId === scope.value).slice(0, 5));
   const draft = computed({
     get: () => drafts.value[draftKey.value] ?? '',
@@ -122,48 +88,7 @@ export const useAgentStore = defineStore('agent', () => {
   let offDisconnected: (() => void) | undefined;
 
   function apply(event: HostEvent) {
-    const snapshot = state.value!;
-    if (event.cursor <= snapshot.cursor) return;
-    snapshot.cursor = event.cursor;
-    switch (event.kind) {
-      case 'session': {
-        const index = snapshot.sessions.findIndex(session => session.id === event.session.id);
-        if (index === -1) snapshot.sessions.push(event.session);
-        else snapshot.sessions[index] = event.session;
-        break;
-      }
-      case 'message':
-        snapshot.sessions.find(session => session.id === event.id)!.messages[event.index] = event.message;
-        break;
-      case 'delta':
-        snapshot.sessions.find(session => session.id === event.id)!.messages[event.index][event.field] += event.text;
-        break;
-      case 'running': {
-        const session = snapshot.sessions.find(session => session.id === event.id)!;
-        session.running = event.running;
-        session.compacting = event.compacting;
-        session.error = event.error;
-        break;
-      }
-      case 'usage':
-        snapshot.sessions.find(session => session.id === event.id)!.usage = event.usage;
-        break;
-      case 'closed':
-        snapshot.sessions = snapshot.sessions.filter(session => session.id !== event.id);
-        break;
-      case 'approval':
-        snapshot.approvals.push(event.approval);
-        break;
-      case 'approval-closed':
-        snapshot.approvals = snapshot.approvals.filter(approval => approval.id !== event.id);
-        break;
-      case 'models':
-        snapshot.models = event.models;
-        break;
-      case 'settings':
-        snapshot.settings = event.settings;
-        break;
-    }
+    applyHostEvent(state.value!, event);
   }
 
   function connect(): Promise<void> {
@@ -298,24 +223,20 @@ export const useAgentStore = defineStore('agent', () => {
     await dispatch(id, text);
   }
 
-  function userCount(id: string) {
-    return state.value!.sessions.find(session => session.id === id)!.messages.filter(item => item.role === 'user')
-      .length;
+  function liveSession(id: string) {
+    return state.value!.sessions.find(item => item.id === id)!;
   }
   function unsent(id: string) {
-    const users = userCount(id);
-    return (outgoing.value[id] ?? []).filter(item => item.error || users < item.expectUsers);
+    return unsentMessages(liveSession(id), outgoing.value[id]);
   }
   /** 先显示消息再请求；宿主拒收时保留消息并标记失败，供作者重试或移除。 */
   async function dispatch(id: string, text: string) {
-    const list = unsent(id);
-    const waiting = list.filter(item => !item.error).length;
-    const key = crypto.randomUUID();
-    outgoing.value[id] = [...list, { key, text, expectUsers: userCount(id) + waiting + 1 }];
+    const { message, list } = enqueueMessage(liveSession(id), outgoing.value[id] ?? [], text);
+    outgoing.value[id] = list;
     try {
       await getDesktopApi().agentHost.request('prompt', { id, text });
     } catch (cause) {
-      const failed = outgoing.value[id].find(item => item.key === key);
+      const failed = outgoing.value[id].find(item => item.key === message.key);
       if (failed) failed.error = toErrorMessage(cause);
     }
   }
@@ -380,14 +301,6 @@ export const useAgentStore = defineStore('agent', () => {
     return entry.live ? select(entry.live.id) : open(entry.item!);
   }
 
-  function title(session: SessionView): string {
-    return (
-      session.name ||
-      session.messages.find(message => message.role === 'user' && message.text)?.text.slice(0, 32) ||
-      '未命名会话'
-    );
-  }
-
   watch(
     () => creation.workId,
     workId => {
@@ -448,6 +361,6 @@ export const useAgentStore = defineStore('agent', () => {
     discardOutgoing,
     loadHistory,
     open,
-    title
+    title: sessionTitle
   };
 });

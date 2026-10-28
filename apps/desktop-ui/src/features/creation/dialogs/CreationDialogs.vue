@@ -9,7 +9,7 @@ import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useEditorStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { useCreationStore } from './store';
+import { useCreationStore } from '../store';
 
 const creation = useCreationStore();
 const editor = useEditorStore();

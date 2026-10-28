@@ -11,11 +11,13 @@ import { toErrorMessage } from '@/utils/desktop-api';
 import { captureEditingTarget } from '@/utils/editing-target';
 
 import { createDocumentView } from '../codemirror/view';
+import { useReadingStore } from '../reading/store';
 import { useEditorStore } from '../store';
 import type { EditorTab } from '../types';
 
 const props = defineProps<{ tab: EditorTab; active: boolean }>();
 const editor = useEditorStore();
+const reading = useReadingStore();
 const host = ref<HTMLElement>();
 const compare = ref(false);
 let view: ReturnType<typeof createDocumentView> | undefined;
@@ -67,16 +69,14 @@ function render() {
 }
 /** 从阅读切回编辑：等恢复滚动位置的帧之后再定位到读到的正文。 */
 function consumeReveal() {
-  const target = editor.reveal;
-  if (!target || target.id !== props.tab.id || !view) return;
-  editor.reveal = null;
-  requestAnimationFrame(() => view?.goTo(target.offset));
+  const offset = view ? reading.takeReveal(props.tab.id) : null;
+  if (offset !== null) requestAnimationFrame(() => view?.goTo(offset));
 }
 onMounted(() => {
   render();
   consumeReveal();
 });
-watch(() => editor.reveal, consumeReveal);
+watch(() => reading.reveal, consumeReveal);
 onBeforeUnmount(() => {
   if (view) {
     editor.rememberView(props.tab.workId, props.tab.id, view.getViewState());

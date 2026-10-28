@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Entry } from '@chaptale/creation/contracts';
 
-import { chapterOrder, readingBlocks } from '../reading';
+import { chapterOrder, readingBlocks } from '../reading/blocks';
 
 function entry(fields: Partial<Entry> & Pick<Entry, 'id' | 'position'>): Entry {
   return {

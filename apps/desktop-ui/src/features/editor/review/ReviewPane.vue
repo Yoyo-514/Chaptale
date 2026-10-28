@@ -12,8 +12,8 @@ import { AppButton } from '@/components/AppButton';
 import { AppTextView } from '@/components/AppTextView';
 import { useCreationStore } from '@/features/creation';
 
-import { chunkRange } from '../review/chunk-range';
-import { type ReviewTab, useReviewStore } from '../review/store';
+import { chunkRange } from './chunk-range';
+import { type ReviewTab, useReviewStore } from './store';
 
 const props = defineProps<{ tab: ReviewTab }>();
 const review = useReviewStore();

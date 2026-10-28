@@ -5,12 +5,13 @@ import { AppButton } from '@/components/AppButton';
 import { useCreationStore } from '@/features/creation';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { chapterOrder, readingBlocks, type ReadingBlock } from '../reading';
-import { useEditorStore } from '../store';
 import type { EditorTab } from '../types';
+import { chapterOrder, readingBlocks, type ReadingBlock } from './blocks';
+import { countPages, offsetOf, pageOf, type PageGeometry } from './layout';
+import { useReadingStore } from './store';
 
 const props = defineProps<{ tab: EditorTab }>();
-const editor = useEditorStore();
+const reading = useReadingStore();
 const creation = useCreationStore();
 /** 栏间距；一栏即一页，翻页步长为栏宽加栏间距。 */
 const GAP = 48;
@@ -24,13 +25,17 @@ const error = ref('');
 let loadVersion = 0;
 let observer: ResizeObserver | undefined;
 
-const position = computed(() => editor.reading[props.tab.id]!);
+const position = computed(() => reading.positions[props.tab.id]!);
 const chapters = computed(() => chapterOrder(creation.entries));
 const index = computed(() => chapters.value.findIndex(entry => entry.id === chapter.value?.id));
 const stride = computed(() => size.value.width + GAP);
 
-function remember(documentId: string, offset: number) {
-  editor.reading = { ...editor.reading, [props.tab.id]: { documentId, offset } };
+function geometry(): PageGeometry {
+  return { columns: columns.value!, stride: stride.value, charLevel: chapter.value!.format !== 'markdown' };
+}
+function show(target: number) {
+  page.value = target;
+  reading.remember(props.tab.id, { documentId: chapter.value!.id, offset: offsetOf(geometry(), target) });
 }
 
 /** 读取章节并按 offset 或末页定位；迟到的读取结果丢弃。 */
@@ -38,7 +43,7 @@ async function load(documentId: string, target: number | 'end') {
   const version = ++loadVersion;
   error.value = '';
   try {
-    const content = await editor.readChapter(documentId);
+    const content = await reading.readChapter(documentId);
     if (version !== loadVersion) return;
     chapter.value = { id: documentId, ...content, blocks: readingBlocks(content.content, content.format) };
     await layout(target);
@@ -50,72 +55,19 @@ async function load(documentId: string, target: number | 'end') {
 /** 重新测量页数，并把 offset（或末页）换算为页码。 */
 async function layout(target: number | 'end' = position.value.offset) {
   await nextTick();
-  const element = columns.value;
-  if (!element || !size.value.width) return;
-  pages.value = Math.max(1, Math.round((element.scrollWidth + GAP) / stride.value));
-  page.value = target === 'end' ? pages.value - 1 : pageOf(target);
-  remember(chapter.value!.id, offsetOf(page.value));
-}
-
-function blockElements() {
-  return [...columns.value!.querySelectorAll<HTMLElement>('[data-offset]')];
-}
-function columnOf(rect: DOMRect) {
-  return Math.floor((rect.left - columns.value!.getBoundingClientRect().left + 1) / stride.value);
-}
-/** TXT 块内按字符定位，Markdown 停在块开头。 */
-function pageOf(offset: number) {
-  const blocks = blockElements();
-  const block = blocks.findLast(item => Number(item.dataset.offset) <= offset) ?? blocks[0];
-  if (!block) return 0;
-  const text = block.firstChild;
-  const local = offset - Number(block.dataset.offset);
-  if (chapter.value!.format !== 'markdown' && text instanceof Text && local > 0 && local < text.length) {
-    const range = document.createRange();
-    range.setStart(text, local);
-    range.setEnd(text, local + 1);
-    const rect = range.getClientRects()[0];
-    if (rect) return Math.min(columnOf(rect), pages.value - 1);
-  }
-  const rect = block.getClientRects()[0];
-  return rect ? Math.min(columnOf(rect), pages.value - 1) : 0;
-}
-function offsetOf(target: number) {
-  for (const block of blockElements()) {
-    const rects = [...block.getClientRects()];
-    if (!rects.some(rect => columnOf(rect) >= target)) continue;
-    const start = Number(block.dataset.offset);
-    const text = block.firstChild;
-    if (chapter.value!.format === 'markdown' || columnOf(rects[0]!) >= target || !(text instanceof Text)) return start;
-    // 段落从上一页延续过来时，二分找到本页第一个字符。
-    const range = document.createRange();
-    let low = 0;
-    let high = text.length - 1;
-    while (low < high) {
-      const middle = (low + high) >> 1;
-      range.setStart(text, middle);
-      range.setEnd(text, middle + 1);
-      const rect = range.getClientRects()[0];
-      if (rect && columnOf(rect) >= target) high = middle;
-      else low = middle + 1;
-    }
-    return start + low;
-  }
-  return chapter.value?.blocks.at(-1)?.offset ?? 0;
+  if (!columns.value || !size.value.width) return;
+  pages.value = countPages(geometry(), GAP);
+  show(target === 'end' ? pages.value - 1 : pageOf(geometry(), target, pages.value));
 }
 
 function next() {
-  if (page.value < pages.value - 1) {
-    page.value++;
-    remember(chapter.value!.id, offsetOf(page.value));
-  } else if (index.value >= 0 && index.value < chapters.value.length - 1)
+  if (page.value < pages.value - 1) show(page.value + 1);
+  else if (index.value >= 0 && index.value < chapters.value.length - 1)
     void load(chapters.value[index.value + 1]!.id, 0);
 }
 function previous() {
-  if (page.value > 0) {
-    page.value--;
-    remember(chapter.value!.id, offsetOf(page.value));
-  } else if (index.value > 0) void load(chapters.value[index.value - 1]!.id, 'end');
+  if (page.value > 0) show(page.value - 1);
+  else if (index.value > 0) void load(chapters.value[index.value - 1]!.id, 'end');
 }
 function keydown(event: KeyboardEvent) {
   const forward = ['ArrowRight', 'PageDown'].includes(event.key) || (event.key === ' ' && !event.shiftKey);
@@ -124,9 +76,6 @@ function keydown(event: KeyboardEvent) {
   event.preventDefault();
   if (forward) next();
   else previous();
-}
-function edit() {
-  void editor.editAt(props.tab.id, chapter.value!.id, position.value.offset);
 }
 
 onMounted(() => {
@@ -153,7 +102,7 @@ watch(
   <section class="reading-view" :aria-label="`阅读：${chapter?.title ?? tab.title}`">
     <header class="reading-header">
       <h2 class="reading-title">{{ chapter?.title ?? tab.title }}</h2>
-      <AppButton size="xs" :disabled="!chapter" @click="edit">编辑</AppButton>
+      <AppButton size="xs" :disabled="!chapter" @click="reading.edit(tab.id)">编辑</AppButton>
     </header>
     <p v-if="error" class="reading-error" role="alert">{{ error }}</p>
     <div ref="viewport" class="reading-viewport" tabindex="0" aria-label="阅读页" @keydown="keydown">

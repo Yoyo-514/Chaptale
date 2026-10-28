@@ -8,15 +8,17 @@ import { AppTextView } from '@/components/AppTextView';
 import { useCreationStore, useTrashStore } from '@/features/creation';
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
+import ReadingView from '../reading/ReadingView.vue';
+import { useReadingStore } from '../reading/store';
+import ReviewPane from '../review/ReviewPane.vue';
 import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 import DocumentView from './DocumentView.vue';
-import ReadingView from './ReadingView.vue';
-import ReviewPane from './ReviewPane.vue';
 import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 
 const editor = useEditorStore();
 const review = useReviewStore();
+const reading = useReadingStore();
 const creation = useCreationStore();
 const trash = useTrashStore();
 function restorePreview() {
@@ -149,10 +151,10 @@ onBeforeUnmount(() => {
         size="xs"
         variant="ghost"
         :disabled="
-          !primary || primary.status !== 'ready' || Boolean(editor.reading[primary.id]) || Boolean(review.activeTab)
+          !primary || primary.status !== 'ready' || Boolean(reading.positions[primary.id]) || Boolean(review.activeTab)
         "
         aria-label="阅读"
-        @click="editor.startReading(primary!.id)"
+        @click="reading.start(primary!.id)"
         ><span class="i-mingcute-book-6-line" aria-hidden="true"
       /></AppButton>
       <AppButton
@@ -216,7 +218,7 @@ onBeforeUnmount(() => {
         @focusin="editor.focusedId = tab!.id"
       >
         <ReadingView
-          v-if="tab!.status === 'ready' && editor.reading[tab!.id]"
+          v-if="tab!.status === 'ready' && reading.positions[tab!.id]"
           :key="`reading:${tab!.id}`"
           :tab="tab!"
         />

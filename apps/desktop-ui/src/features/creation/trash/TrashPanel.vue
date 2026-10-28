@@ -8,7 +8,7 @@ import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContext
 import { AppAlertDialog } from '@/components/AppDialog';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { useTrashStore } from './trash';
+import { useTrashStore } from './store';
 
 const trash = useTrashStore();
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });

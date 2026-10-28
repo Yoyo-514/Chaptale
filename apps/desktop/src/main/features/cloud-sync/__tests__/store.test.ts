@@ -8,9 +8,9 @@ import { CloudSyncStore } from '../store';
 
 /** 内存实现：与 Electron `safeStorage` 同形，只为验证存储行为而非加密强度。 */
 const storage: SafeStorageLike = {
-  isEncryptionAvailable: () => true,
-  encryptString: value => Buffer.from(`enc:${value}`, 'utf8'),
-  decryptString: encrypted => encrypted.toString('utf8').replace(/^enc:/, '')
+  isAsyncEncryptionAvailable: async () => true,
+  encryptStringAsync: async value => Buffer.from(`enc:${value}`, 'utf8'),
+  decryptStringAsync: async encrypted => ({ result: encrypted.toString('utf8').replace(/^enc:/, '') })
 };
 
 let dir: string;

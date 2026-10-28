@@ -5,25 +5,18 @@ import type { Entry, PendingChange } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
-import { AppAlertDialog, AppDialog } from '@/components/AppDialog';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
-import { AppForm, AppFormActions } from '@/components/AppForm';
-import { AppInput } from '@/components/AppInput';
-import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useEditorStore, useReviewStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { requestCreation, useCreationStore } from './store';
-import { useTrashStore } from './trash';
-import TrashPanel from './TrashPanel.vue';
+import { useCreationStore } from '../store';
+import TrashPanel from '../trash/TrashPanel.vue';
+import EntryDialogs from './EntryDialogs.vue';
 
 const creation = useCreationStore();
 const editor = useEditorStore();
 const review = useReviewStore();
-const trash = useTrashStore();
-// 确认框先关闭再派发 confirm，删除目标与打开状态分开保存。
-const removing = ref<{ entry: Entry; entryCount: number; pendingCount: number } | null>(null);
-const removeOpen = ref(false);
+const dialogs = ref<InstanceType<typeof EntryDialogs>>();
 /** Agent 提出删除、等待作者接受的条目。 */
 const deletingIds = computed(
   () => new Set(creation.pendingChanges.filter(change => change.deleted).map(change => change.entryId))
@@ -31,10 +24,6 @@ const deletingIds = computed(
 const host = ref<HTMLElement>();
 const error = ref('');
 const target = ref<Entry>();
-const action = ref<'rename' | 'move' | null>(null);
-const title = ref('');
-const parent = ref('root');
-const busy = ref(false);
 const tree = computed(() => creation.view![creation.view!.section]);
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 /** 新建的待接受条目按候选位置显示在正式目录中，标记为待接受，打开的是审阅标签。 */
@@ -58,11 +47,6 @@ const rows = computed(() => {
   visit(null, 1);
   return result;
 });
-const directories = computed(() =>
-  creation.entries.filter(
-    item => item.kind === 'directory' && item.section === creation.view?.section && item.id !== target.value?.id
-  )
-);
 const menu = computed<AppContextMenuItem[]>(() => [
   {
     id: 'new-document',
@@ -134,25 +118,8 @@ async function selectAction(id: string) {
     return;
   }
   const entry = target.value!;
-  if (id === 'delete') {
-    await requestRemove(entry);
-    return;
-  }
-  if (id === 'rename' && entry.kind === 'document') {
-    await editor.openDocument(entry.id);
-    const tab = editor.tabs.find(item => item.id === entry.id)!;
-    if (tab.status !== 'ready') {
-      error.value = tab.status === 'loading' ? '文档正在加载，请稍后重试' : tab.error;
-      return;
-    }
-    title.value = tab.title;
-    action.value = 'rename';
-    return;
-  }
-  if (id === 'rename' || id === 'move') {
-    title.value = entry.title;
-    parent.value = entry.parentId ?? 'root';
-    action.value = id;
+  if (id === 'delete' || id === 'rename' || id === 'move') {
+    await dialogs.value![id === 'delete' ? 'remove' : id](entry);
     return;
   }
   const siblings = creation.entries
@@ -170,66 +137,13 @@ async function selectAction(id: string) {
     error.value = toErrorMessage(cause);
   }
 }
-async function submit() {
-  busy.value = true;
-  error.value = '';
-  try {
-    const entry = target.value!;
-    if (action.value === 'rename' && entry.kind === 'document') {
-      editor.updateMetadata(entry.id, { title: title.value });
-      action.value = null;
-      return;
-    }
-    if (action.value === 'rename')
-      await requestCreation('renameDirectory', {
-        commandId: crypto.randomUUID(),
-        workId: creation.workId!,
-        directoryId: entry.id,
-        expectedRevisionId: entry.revisionId,
-        title: title.value
-      });
-    else await creation.move(entry, parent.value === 'root' ? null : parent.value, null);
-    await creation.refreshEntries();
-    action.value = null;
-  } catch (cause) {
-    error.value = toErrorMessage(cause);
-  } finally {
-    busy.value = false;
-  }
-}
-/** 删除前读取影响范围，确认框写明一并拒绝的待审修改。 */
-async function requestRemove(entry: Entry) {
-  error.value = '';
-  try {
-    removing.value = { entry, ...(await trash.impact([entry.id])) };
-    removeOpen.value = true;
-  } catch (cause) {
-    error.value = toErrorMessage(cause);
-  }
-}
-async function remove() {
-  const { entry } = removing.value!;
-  error.value = '';
-  try {
-    // 先关闭其中已打开的文档，未保存的输入由作者在关闭时处理。
-    const ids = new Set([entry.id]);
-    for (let size = 0; size !== ids.size;) {
-      size = ids.size;
-      for (const item of creation.entries) if (item.parentId !== null && ids.has(item.parentId)) ids.add(item.id);
-    }
-    for (const tab of editor.tabs.filter(item => ids.has(item.id))) await editor.closeTab(tab.id);
-    if (editor.tabs.some(item => ids.has(item.id))) return;
-    await trash.trash([entry.id]);
-  } catch (cause) {
-    error.value = toErrorMessage(cause);
-  }
-}
 function keydown(event: KeyboardEvent, entry: Entry) {
   const index = rows.value.findIndex(row => row.entry.id === entry.id);
   const pending = rows.value[index]?.pending ?? null;
   if (event.key === 'Delete' && !pending) {
     event.preventDefault();
-    void requestRemove(entry);
+    error.value = '';
+    void dialogs.value!.remove(entry);
     return;
   }
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -309,7 +223,7 @@ async function drop(event: DragEvent, parentId: string | null) {
         资料
       </button>
     </div>
-    <p v-if="error && !action" class="tree-error" role="alert">{{ error }}</p>
+    <p v-if="error" class="tree-error" role="alert">{{ error }}</p>
     <AppContextMenu :items="menu" @prepare="target = undefined" @select="selectAction">
       <div
         ref="host"
@@ -392,54 +306,7 @@ async function drop(event: DragEvent, parentId: string | null) {
       </div>
     </AppContextMenu>
     <TrashPanel />
-    <AppAlertDialog
-      v-model:open="removeOpen"
-      :title="`删除“${removing?.entry.title}”？`"
-      confirm-label="删除"
-      @confirm="remove"
-    >
-      <template #description
-        >{{
-          removing && removing.entryCount > 1
-            ? `目录及其中 ${removing.entryCount - 1} 项内容会移入作品回收站，可以恢复。`
-            : '会移入作品回收站，可以恢复。'
-        }}<template v-if="removing?.pendingCount"
-          >将一并拒绝 {{ removing.pendingCount }} 处待审修改。</template
-        ></template
-      >
-    </AppAlertDialog>
-    <AppDialog
-      content-size="sm"
-      :open="Boolean(action)"
-      :title="action === 'rename' ? (target?.kind === 'document' ? '重命名文档' : '重命名目录') : '移动条目'"
-      @update:open="
-        value => {
-          if (!value && !busy) action = null;
-        }
-      "
-    >
-      <AppForm class="tree-form" :disabled="busy" @submit="submit">
-        <label v-if="action === 'rename'"
-          >{{ target?.kind === 'document' ? '文档标题' : '目录名称'
-          }}<AppInput v-model="title" :aria-label="target?.kind === 'document' ? '文档标题' : '目录名称'" autofocus
-        /></label>
-        <label v-else
-          >目标目录<AppSelect v-model="parent" aria-label="目标目录"
-            ><AppSelectItem value="root">根目录</AppSelectItem
-            ><AppSelectItem v-for="directory in directories" :key="directory.id" :value="directory.id">{{
-              directory.title
-            }}</AppSelectItem></AppSelect
-          ></label
-        >
-        <p v-if="error" role="alert" class="tree-error">{{ error }}</p>
-        <AppFormActions
-          ><AppButton :disabled="busy" @click="action = null">取消</AppButton
-          ><AppButton type="submit" variant="primary" :disabled="busy || (action === 'rename' && !title.trim())"
-            >确认</AppButton
-          ></AppFormActions
-        >
-      </AppForm>
-    </AppDialog>
+    <EntryDialogs ref="dialogs" @error="message => (error = message)" />
   </aside>
 </template>
 
@@ -581,15 +448,5 @@ async function drop(event: DragEvent, parentId: string | null) {
   padding: 8px 12px;
   font-size: 12px;
   color: var(--destructive);
-}
-.tree-form {
-  display: grid;
-  gap: 12px;
-  padding: 12px 0 0;
-}
-.tree-form label {
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
 }
 </style>

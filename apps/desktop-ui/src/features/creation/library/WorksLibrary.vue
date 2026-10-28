@@ -8,7 +8,7 @@ import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContext
 import { AppAlertDialog } from '@/components/AppDialog';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { useCreationStore } from './store';
+import { useCreationStore } from '../store';
 import { useWorkTrashStore } from './work-trash';
 
 const creation = useCreationStore();

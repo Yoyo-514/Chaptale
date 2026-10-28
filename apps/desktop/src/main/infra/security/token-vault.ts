@@ -13,34 +13,34 @@ export type SealedSecret = {
 
 /** Electron `safeStorage` 的结构子集；测试注入内存实现，避免为框架边界打桩。 */
 export type SafeStorageLike = {
-  isEncryptionAvailable(): boolean;
-  encryptString(plainText: string): Buffer;
-  decryptString(encrypted: Buffer): string;
+  isAsyncEncryptionAvailable(): Promise<boolean>;
+  encryptStringAsync(plainText: string): Promise<Buffer>;
+  decryptStringAsync(encrypted: Buffer): Promise<{ result: string }>;
 };
 
 export class TokenVault {
   constructor(private readonly storage: SafeStorageLike) {}
 
-  seal(value: string): SealedSecret {
-    if (this.storage.isEncryptionAvailable()) {
-      return { encryption: 'encrypted', payload: this.storage.encryptString(value).toString('base64') };
+  async seal(value: string): Promise<SealedSecret> {
+    if (await this.storage.isAsyncEncryptionAvailable()) {
+      return { encryption: 'encrypted', payload: (await this.storage.encryptStringAsync(value)).toString('base64') };
     }
 
     return { encryption: 'plaintext', payload: Buffer.from(value, 'utf8').toString('base64') };
   }
 
   /** 读不出来就抛错：静默返回空串会让上层把“无法解密”当成“没有凭据”继续往下跑。 */
-  open(sealed: SealedSecret): string {
+  async open(sealed: SealedSecret): Promise<string> {
     const raw = Buffer.from(sealed.payload, 'base64');
 
     if (sealed.encryption === 'plaintext') {
       return raw.toString('utf8');
     }
 
-    if (!this.storage.isEncryptionAvailable()) {
+    if (!(await this.storage.isAsyncEncryptionAvailable())) {
       throw new Error('系统密钥环不可用，无法读取已加密的云同步凭据');
     }
 
-    return this.storage.decryptString(raw);
+    return (await this.storage.decryptStringAsync(raw)).result;
   }
 }
