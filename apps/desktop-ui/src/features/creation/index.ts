@@ -1,4 +1,5 @@
-export { CreationRequestError, requestCreation, useCreationStore } from './store';
+export { CreationRequestError, requestCreation } from './request';
+export { useCreationStore } from './store';
 export { useTrashStore } from './trash/store';
 export { canChooseOpener, readEntryImage, readFileBlob, runFileAction, useFileImage } from './files/files';
 export { default as FilePreview } from './files/FilePreview.vue';

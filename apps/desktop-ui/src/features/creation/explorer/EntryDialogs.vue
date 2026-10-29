@@ -11,7 +11,8 @@ import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useEditorStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { requestCreation, useCreationStore } from '../store';
+import { requestCreation } from '../request';
+import { useCreationStore } from '../store';
 import { useTrashStore } from '../trash/store';
 
 const emit = defineEmits<{ error: [message: string] }>();

@@ -5,7 +5,8 @@ import type { TrashedWork } from '@chaptale/creation/contracts';
 
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { requestCreation, useCreationStore } from '../store';
+import { requestCreation } from '../request';
+import { useCreationStore } from '../store';
 
 function impact(workId: string): Promise<{ pendingCount: number }> {
   return requestCreation('previewTrashWork', { workId });

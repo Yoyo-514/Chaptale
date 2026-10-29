@@ -17,7 +17,8 @@ import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { useEditorStore } from '@/features/editor';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
-import { requestCreation, useCreationStore } from '../store';
+import { requestCreation } from '../request';
+import { useCreationStore } from '../store';
 
 const creation = useCreationStore();
 const editor = useEditorStore();

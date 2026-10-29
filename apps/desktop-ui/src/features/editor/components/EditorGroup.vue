@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
+import { TabsList, TabsRoot } from 'reka-ui';
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
@@ -17,6 +17,7 @@ import ReviewPane from '../review/ReviewPane.vue';
 import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 import DocumentView from './DocumentView.vue';
+import EditorTab from './EditorTab.vue';
 import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 
 const editor = useEditorStore();
@@ -110,89 +111,39 @@ onBeforeUnmount(() => {
             :items="tabMenu"
             @select="action => tabAction(tab.id, action)"
           >
-            <div class="editor-tab-shell" :class="{ selected: tab.id === selected }">
-              <TabsTrigger
-                :id="`document-tab-${tab.id}`"
-                :value="tab.id"
-                class="editor-tab"
-                :aria-label="`${tab.title}${tab.dirty ? '（未保存）' : ''}`"
-                :aria-busy="tab.saving || undefined"
-                :title="`${tab.title}${tab.dirty ? '（未保存）' : ''}`"
-                @keydown.delete.prevent="editor.closeTab(tab.id)"
-              >
-                <span class="tab-title">{{ tab.title }}</span>
-                <span v-if="secondary?.id === tab.id" class="tab-location">右侧</span>
-              </TabsTrigger>
-              <AppButton
-                icon
-                size="xs"
-                variant="ghost"
-                class="editor-tab-close"
-                :class="{ 'is-dirty': tab.dirty }"
-                :aria-label="`关闭 ${tab.title}`"
-                :title="tab.dirty ? '关闭（未保存）' : '关闭'"
-                @click="editor.closeTab(tab.id)"
-                ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
-              /></AppButton>
-            </div>
+            <EditorTab
+              kind="document"
+              :value="tab.id"
+              :trigger-id="`document-tab-${tab.id}`"
+              :title="tab.title"
+              :selected="tab.id === selected"
+              :dirty="tab.dirty"
+              :busy="tab.saving"
+              :location="secondary?.id === tab.id ? '右侧' : undefined"
+              @close="editor.closeTab(tab.id)"
+            />
           </AppContextMenu>
-          <div
+          <EditorTab
             v-for="tab in review.tabs"
             :key="`review:${tab.changeId}`"
-            class="editor-tab-shell"
-            :class="{ selected: `review:${tab.changeId}` === selected }"
-          >
-            <TabsTrigger
-              :id="`review-tab-${tab.changeId}`"
-              :value="`review:${tab.changeId}`"
-              class="editor-tab"
-              :aria-label="`审阅 ${tab.title}${tab.dirty ? '（手改未保存）' : ''}`"
-              :title="`审阅 ${tab.title}${tab.dirty ? '（手改未保存）' : ''}`"
-              @keydown.delete.prevent="review.close(tab.changeId)"
-            >
-              <span class="i-mingcute-git-compare-line tab-kind-icon" aria-hidden="true" />
-              <span class="tab-title">{{ tab.title }}</span>
-            </TabsTrigger>
-            <AppButton
-              icon
-              size="xs"
-              variant="ghost"
-              class="editor-tab-close"
-              :class="{ 'is-dirty': tab.dirty }"
-              :aria-label="`关闭审阅 ${tab.title}`"
-              :title="tab.dirty ? '关闭（手改未保存）' : '关闭'"
-              @click="review.close(tab.changeId)"
-              ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
-            /></AppButton>
-          </div>
-          <div
+            kind="review"
+            :value="`review:${tab.changeId}`"
+            :trigger-id="`review-tab-${tab.changeId}`"
+            :title="tab.title"
+            :selected="`review:${tab.changeId}` === selected"
+            :dirty="tab.dirty"
+            @close="review.close(tab.changeId)"
+          />
+          <EditorTab
             v-for="tab in history.tabs"
             :key="`history:${tab.documentId}`"
-            class="editor-tab-shell"
-            :class="{ selected: `history:${tab.documentId}` === selected }"
-          >
-            <TabsTrigger
-              :id="`history-tab-${tab.documentId}`"
-              :value="`history:${tab.documentId}`"
-              class="editor-tab"
-              :aria-label="`历史 ${tab.title}`"
-              :title="`历史 ${tab.title}`"
-              @keydown.delete.prevent="history.close(tab.documentId)"
-            >
-              <span class="i-mingcute-history-line tab-kind-icon" aria-hidden="true" />
-              <span class="tab-title">{{ tab.title }}</span>
-            </TabsTrigger>
-            <AppButton
-              icon
-              size="xs"
-              variant="ghost"
-              class="editor-tab-close"
-              :aria-label="`关闭历史 ${tab.title}`"
-              title="关闭"
-              @click="history.close(tab.documentId)"
-              ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
-            /></AppButton>
-          </div>
+            kind="history"
+            :value="`history:${tab.documentId}`"
+            :trigger-id="`history-tab-${tab.documentId}`"
+            :title="tab.title"
+            :selected="`history:${tab.documentId}` === selected"
+            @close="history.close(tab.documentId)"
+          />
         </TabsList>
       </AppScrollArea>
       <AppButton
@@ -371,80 +322,6 @@ onBeforeUnmount(() => {
   display: flex;
   width: max-content;
   height: 35px;
-}
-.editor-tab-shell {
-  display: flex;
-  align-items: center;
-  padding-inline: 4px;
-  border-right: 1px solid var(--border-subtle);
-  color: var(--muted-foreground);
-}
-.editor-tab-shell.selected {
-  background: var(--background);
-  color: var(--foreground);
-}
-.editor-tab {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  height: 100%;
-  max-width: 240px;
-  background: none;
-  border: 0;
-  color: inherit;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.editor-tab:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-.tab-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tab-kind-icon {
-  flex-shrink: 0;
-  color: var(--warning);
-}
-.tab-location {
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-.editor-tab-close {
-  position: relative;
-  flex-shrink: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-.editor-tab-shell.selected .editor-tab-close,
-.editor-tab-shell:hover .editor-tab-close,
-.editor-tab-shell:focus-within .editor-tab-close,
-.editor-tab-close.is-dirty {
-  opacity: 1;
-  pointer-events: auto;
-}
-.editor-tab-close.is-dirty::before {
-  content: '';
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.editor-tab-close.is-dirty .tab-close-icon {
-  visibility: hidden;
-}
-.editor-tab-shell:hover .editor-tab-close.is-dirty::before,
-.editor-tab-close:focus-visible::before {
-  display: none;
-}
-.editor-tab-shell:hover .editor-tab-close .tab-close-icon,
-.editor-tab-close:focus-visible .tab-close-icon {
-  visibility: visible;
 }
 .editor-tabbar span[aria-hidden='true'] {
   display: block;

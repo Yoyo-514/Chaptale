@@ -1,12 +1,8 @@
 import { computed, ref, type Ref } from 'vue';
 
-import type { Entry, PendingChange } from '@chaptale/creation/contracts';
+import type { Entry } from '@chaptale/creation/contracts';
 
-export interface TreeRow {
-  entry: Entry;
-  depth: number;
-  pending: PendingChange | null;
-}
+import type { TreeRow } from './tree-rows';
 
 /**
  * 拖放位置。条目拖动显示插入线（before / after / end）或放入目录（into）；

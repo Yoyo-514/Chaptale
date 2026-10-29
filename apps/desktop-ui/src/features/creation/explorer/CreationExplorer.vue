@@ -14,44 +14,29 @@ import { canChooseOpener, runFileAction } from '../files/files';
 import { useCreationStore } from '../store';
 import TrashPanel from '../trash/TrashPanel.vue';
 import EntryDialogs from './EntryDialogs.vue';
-import { useTreeDrop, type TreeRow } from './tree-drop';
+import { useTreeDrop } from './tree-drop';
+import { buildRows, entryIcon, fileType, rowLabel } from './tree-rows';
 
 const creation = useCreationStore();
 const editor = useEditorStore();
 const review = useReviewStore();
 const history = useHistoryStore();
 const dialogs = ref<InstanceType<typeof EntryDialogs>>();
-/** Agent 提出删除、等待作者接受的条目。 */
-const deletingIds = computed(
-  () => new Set(creation.pendingChanges.filter(change => change.deleted).map(change => change.entryId))
-);
 const host = ref<HTMLElement>();
 const error = ref('');
 const target = ref<Entry>();
 const preview = ref<Entry | null>(null);
 const tree = computed(() => creation.view![creation.view!.section]);
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
-/** 新建的待接受条目按候选位置显示在正式目录中，标记为待接受，打开的是审阅标签。 */
-const rows = computed(() => {
-  const result: TreeRow[] = [];
-  const section = creation.view?.section;
-  const items = [
-    ...creation.entries.filter(item => item.section === section).map(entry => ({ entry, pending: null })),
-    ...creation.pendingChanges
-      .filter(change => change.base === null && change.candidate.section === section)
-      .map(change => ({ entry: change.candidate as Entry, pending: change }))
-  ];
-  function visit(parentId: string | null, depth: number) {
-    for (const { entry, pending } of items
-      .filter(item => item.entry.parentId === parentId)
-      .toSorted((a, b) => a.entry.position - b.entry.position)) {
-      result.push({ entry, depth, pending });
-      if (entry.kind === 'directory' && tree.value.expandedIds.includes(entry.id)) visit(entry.id, depth + 1);
-    }
-  }
-  visit(null, 1);
-  return result;
-});
+const rows = computed(() =>
+  buildRows({
+    entries: creation.entries,
+    pendingChanges: creation.pendingChanges,
+    modifiedIds: creation.pendingEntryIds,
+    section: creation.view!.section,
+    expandedIds: tree.value.expandedIds
+  })
+);
 const fileMenu = computed<AppContextMenuItem[]>(() => [
   { id: 'open', label: '打开' },
   ...(target.value && isImageFile(target.value) ? [{ id: 'open-external', label: '用外部程序打开' }] : []),
@@ -138,11 +123,6 @@ async function openFile(entry: Entry, action: 'open' | 'open-with' | 'show-in-fo
 async function pickFiles(parentId: string | null) {
   const paths = await getDesktopApi().creation.selectPaths('add-files');
   if (paths) await addFiles(parentId, paths);
-}
-function fileType(entry: Entry) {
-  if (isImageFile(entry)) return '图片';
-  const dot = entry.fileName!.lastIndexOf('.');
-  return dot > 0 ? entry.fileName!.slice(dot + 1).toUpperCase() : '文件';
 }
 async function addFiles(parentId: string | null, paths: string[]) {
   try {
@@ -320,7 +300,7 @@ const treeDrop = useTreeDrop({
         @drop.prevent="treeDrop.drop"
       >
         <AppContextMenu
-          v-for="({ entry, depth, pending }, index) in rows"
+          v-for="({ entry, depth, pending, mark }, index) in rows"
           :key="entry.id"
           :items="pending ? pendingMenu : menu"
           @prepare="target = pending ? undefined : entry"
@@ -333,15 +313,7 @@ const treeDrop = useTreeDrop({
             :aria-expanded="entry.kind === 'directory' ? tree.expandedIds.includes(entry.id) : undefined"
             :aria-selected="tree.selectedId === entry.id"
             :tabindex="tree.selectedId === entry.id || (!tree.selectedId && index === 0) ? 0 : -1"
-            :aria-label="
-              pending
-                ? `${entry.title}（新建，待接受）`
-                : deletingIds.has(entry.id)
-                  ? `${entry.title}（待接受删除）`
-                  : creation.pendingEntryIds.has(entry.id)
-                    ? `${entry.title}（有待接受修改）`
-                    : entry.title
-            "
+            :aria-label="rowLabel(rows[index])"
             :style="{ '--indent': `${8 + (depth - 1) * 16}px` }"
             class="tree-entry"
             :class="{
@@ -354,36 +326,26 @@ const treeDrop = useTreeDrop({
             :draggable="!pending"
             @dragstart="treeDrop.rowDragStart($event, entry)"
             @dragend="treeDrop.dragEnd"
-            @dragover.stop="treeDrop.rowDragOver($event, { entry, depth, pending })"
+            @dragover.stop="treeDrop.rowDragOver($event, rows[index])"
             @drop.stop.prevent="treeDrop.drop"
             @click="open(entry, pending)"
             @keydown="keydown($event, entry)"
           >
             <span
               class="entry-icon"
-              :class="
-                entry.kind === 'document'
-                  ? 'i-mingcute-file-line'
-                  : entry.kind === 'file'
-                    ? isImageFile(entry)
-                      ? 'i-mingcute-pic-line'
-                      : 'i-mingcute-attachment-line'
-                    : tree.expandedIds.includes(entry.id)
-                      ? 'i-mingcute-down-line'
-                      : 'i-mingcute-right-line'
-              "
+              :class="entryIcon(entry, tree.expandedIds.includes(entry.id))"
               aria-hidden="true"
             />
             <div class="entry-text">
               <span class="entry-title" :title="entry.title"
                 >{{ entry.title
                 }}<span
-                  v-if="creation.pendingEntryIds.has(entry.id)"
+                  v-if="mark === 'deleting' || mark === 'modified'"
                   class="entry-pending"
                   title="有待接受修改"
                   aria-hidden="true" /></span
-              ><span v-if="pending" class="entry-meta">待接受</span
-              ><span v-else-if="deletingIds.has(entry.id)" class="entry-meta entry-deleting">待接受删除</span
+              ><span v-if="mark === 'new'" class="entry-meta">待接受</span
+              ><span v-else-if="mark === 'deleting'" class="entry-meta entry-deleting">待接受删除</span
               ><span v-else-if="entry.kind === 'document'" class="entry-meta" :title="date.format(entry.updatedAt)"
                 >{{ entry.wordCount }} 字
                 <time :datetime="new Date(entry.updatedAt).toISOString()">{{

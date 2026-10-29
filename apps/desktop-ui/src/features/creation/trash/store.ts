@@ -5,7 +5,8 @@ import type { Document, Entry, TrashBatch, TrashImpact } from '@chaptale/creatio
 
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { requestCreation, useCreationStore } from '../store';
+import { requestCreation } from '../request';
+import { useCreationStore } from '../store';
 
 /** 当前作品的回收站：列表随作品目录事件刷新，预览只读。 */
 export const useTrashStore = defineStore('creation-trash', () => {

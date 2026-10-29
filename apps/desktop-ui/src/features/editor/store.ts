@@ -17,16 +17,12 @@ import { useReviewStore } from './review/store';
 import { writingTiming } from './timing';
 import type { DocumentViewState, EditorTab } from './types';
 
-function sameAttributes(a: ResourceAttributes | null, b: ResourceAttributes | null) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
 function isDirty(tab: EditorTab, buffer: DocumentBuffer) {
   return (
     buffer.dirty ||
     tab.title !== tab.document!.title ||
     tab.format !== tab.document!.format ||
-    !sameAttributes(tab.attributes, tab.document!.attributes)
+    JSON.stringify(tab.attributes) !== JSON.stringify(tab.document!.attributes)
   );
 }
 
@@ -69,6 +65,31 @@ export const useEditorStore = defineStore('editor', () => {
   let closing: Promise<void> | undefined;
   let closingApproved = false;
 
+  function clearTimers(id: string) {
+    clearTimeout(recoveryTimers.get(id));
+    clearTimeout(saveTimers.get(id));
+  }
+  function clearAllTimers() {
+    for (const timer of recoveryTimers.values()) clearTimeout(timer);
+    for (const timer of saveTimers.values()) clearTimeout(timer);
+  }
+  /** 标签回到给定的正式稿：丢弃本地输入与未完成的保存尝试，编辑器按新代次重建。 */
+  function resetToDocument(id: string, document: Document) {
+    const tab = find(id)!;
+    attempts.delete(id);
+    buffers.set(id, new DocumentBuffer(document.content));
+    patch(id, {
+      document,
+      title: document.title,
+      format: document.format,
+      attributes: document.attributes,
+      dirty: false,
+      conflict: null,
+      saveError: '',
+      words: document.wordCount,
+      generation: tab.generation + 1
+    });
+  }
   function patch(id: string, fields: Partial<EditorTab>) {
     tabs.value = tabs.value.map(tab => (tab.id === id ? { ...tab, ...fields } : tab));
   }
@@ -265,8 +286,7 @@ export const useEditorStore = defineStore('editor', () => {
   function saveDocument(id = focusedId.value || activeId.value): Promise<boolean> {
     const running = saves.get(id);
     if (running) return running;
-    clearTimeout(saveTimers.get(id));
-    clearTimeout(recoveryTimers.get(id));
+    clearTimers(id);
     const save = queue(id, async () => {
       const tab = find(id);
       const buffer = buffers.get(id);
@@ -298,11 +318,7 @@ export const useEditorStore = defineStore('editor', () => {
         };
         patch(id, {
           document,
-          dirty:
-            buffer.dirty ||
-            current.title !== saved.title ||
-            current.format !== saved.format ||
-            !sameAttributes(current.attributes, document.attributes),
+          dirty: isDirty({ ...current, document }, buffer),
           conflict: null,
           saving: false,
           saveError: ''
@@ -343,19 +359,7 @@ export const useEditorStore = defineStore('editor', () => {
     const tab = find(id)!;
     if (!tab.conflict) return;
     await queue(id, () => discardRecoveryNow(tab));
-    attempts.delete(id);
-    buffers.set(id, new DocumentBuffer(tab.conflict.content));
-    patch(id, {
-      document: tab.conflict,
-      title: tab.conflict.title,
-      format: tab.conflict.format,
-      attributes: tab.conflict.attributes,
-      dirty: false,
-      conflict: null,
-      saveError: '',
-      words: tab.conflict.wordCount,
-      generation: tab.generation + 1
-    });
+    resetToDocument(id, tab.conflict);
   }
 
   async function confirmClose(ids = tabs.value.map(tab => tab.id)): Promise<boolean> {
@@ -376,25 +380,14 @@ export const useEditorStore = defineStore('editor', () => {
       for (const tab of dirty) if (!(await saveDocument(tab.id))) return false;
     } else {
       for (const tab of dirty) {
-        clearTimeout(recoveryTimers.get(tab.id));
-        clearTimeout(saveTimers.get(tab.id));
+        clearTimers(tab.id);
         try {
           await queue(tab.id, () => discardRecoveryNow(find(tab.id)!));
         } catch (cause) {
           patch(tab.id, { recoveryError: toErrorMessage(cause) });
           return false;
         }
-        attempts.delete(tab.id);
-        buffers.set(tab.id, new DocumentBuffer(tab.document!.content));
-        patch(tab.id, {
-          title: tab.document!.title,
-          format: tab.document!.format,
-          attributes: tab.document!.attributes,
-          dirty: false,
-          generation: tab.generation + 1,
-          saveError: '',
-          conflict: null
-        });
+        resetToDocument(tab.id, find(tab.id)!.document!);
       }
     }
     return !tabs.value.some(tab => ids.includes(tab.id) && tab.dirty);
@@ -413,8 +406,7 @@ export const useEditorStore = defineStore('editor', () => {
     if (state.secondaryDocumentId === id) state.secondaryDocumentId = null;
     buffers.delete(id);
     if (focusedId.value === id) focusedId.value = '';
-    clearTimeout(recoveryTimers.get(id));
-    clearTimeout(saveTimers.get(id));
+    clearTimers(id);
     tabs.value = tabs.value.filter(item => item.id !== id);
     if (activeId.value === id) {
       activeId.value = tabs.value.at(-1)?.id ?? '';
@@ -463,8 +455,7 @@ export const useEditorStore = defineStore('editor', () => {
   watch(
     () => creation.workId,
     async id => {
-      for (const timer of recoveryTimers.values()) clearTimeout(timer);
-      for (const timer of saveTimers.values()) clearTimeout(timer);
+      clearAllTimers();
       tabs.value = [];
       activeId.value = '';
       focusedId.value = '';
@@ -494,8 +485,7 @@ export const useEditorStore = defineStore('editor', () => {
   );
   onScopeDispose(() => {
     unregister();
-    for (const timer of recoveryTimers.values()) clearTimeout(timer);
-    for (const timer of saveTimers.values()) clearTimeout(timer);
+    clearAllTimers();
   });
 
   return {
