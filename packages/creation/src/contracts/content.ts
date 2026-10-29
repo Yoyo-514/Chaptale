@@ -69,6 +69,14 @@ export interface TrashBatch {
   deletedAt: number;
   roots: Entry[];
   entryCount: number;
+  /** 单独删除的事件；随资料删除的事件不单列。 */
+  records: StoryRecordRef[];
+}
+/** 回收站中事件的摘要。 */
+export interface StoryRecordRef {
+  id: string;
+  text: string;
+  resourceIds: string[];
 }
 export interface TrashEntriesInput {
   commandId: string;

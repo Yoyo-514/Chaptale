@@ -54,6 +54,23 @@ const reviewTarget = {
   expectedRevisionId: parentId,
   expectedLocation: Type.Union([object({ parentId, position: offset }), Type.Null()])
 };
+const recordFields = {
+  resourceIds: Type.Array(id, { minItems: 1 }),
+  text: Type.String(),
+  source: Type.Union([
+    object({ kind: Type.Literal('chapter'), chapterId: id, revisionId: id }),
+    object({ kind: Type.Literal('author') })
+  ]),
+  placement: Type.Union([
+    object({ kind: Type.Literal('chapter'), chapterId: id }),
+    object({ kind: Type.Literal('opening') }),
+    object({ kind: Type.Literal('undetermined') })
+  ]),
+  storyTime: Type.String()
+};
+const createRecord = { commandId: id, workId: id, ...recordFields };
+const updateRecord = { commandId: id, workId: id, recordId: id, expectedRevisionId: id, ...recordFields };
+const removeRecord = { commandId: id, workId: id, recordId: id, expectedRevisionId: id };
 const inputs = {
   listWorks: object({}),
   listEntries: object({ workId: id }),
@@ -91,6 +108,10 @@ const inputs = {
     parentId,
     beforeEntryId: parentId
   }),
+  createRecord: object(createRecord),
+  updateRecord: object(updateRecord),
+  moveRecord: object({ commandId: id, workId: id, recordId: id, beforeId: parentId }),
+  removeRecord: object(removeRecord),
   listTrash: object({ workId: id }),
   previewTrash: object({ workId: id, entryIds: Type.Array(id, { minItems: 1 }) }),
   trashEntries: object({ commandId: id, workId: id, entryIds: Type.Array(id, { minItems: 1 }) }),
@@ -140,7 +161,9 @@ const inputs = {
     decision: Type.Union([Type.Literal('accept'), Type.Literal('reject')]),
     range: Type.Optional(object({ fromA: offset, toA: offset, fromB: offset, toB: offset })),
     part: Type.Optional(Type.Literal('title'))
-  })
+  }),
+  updateRecordReview: object({ ...reviewTarget, ...recordFields, commandId: id, resolveConflicts: Type.Boolean() }),
+  relinkResource: object({ commandId: id, changeId: id, expectedVersion: id, resourceId: id })
 } satisfies Record<keyof CreationAuthorCommands, TSchema>;
 
 export const agentInputs = {
@@ -160,7 +183,11 @@ export const agentInputs = {
     expectedRevisionId: id,
     oldText: Type.String({ minLength: 1 }),
     newText: Type.String()
-  })
+  }),
+  listRecords: object({ workId: id, resourceId: parentId, sourceId: parentId, asOf: parentId }),
+  createRecord: object({ ...createRecord, basis: Type.String() }),
+  updateRecord: object({ ...updateRecord, basis: Type.String() }),
+  removeRecord: object({ ...removeRecord, basis: Type.String() })
 } satisfies Record<keyof CreationAgentCommands, TSchema>;
 
 function commands(schemas: Record<string, TSchema>) {

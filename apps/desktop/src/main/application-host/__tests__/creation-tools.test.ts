@@ -11,7 +11,7 @@ import { builtinWritingInstructions, createHostModelRuntime, HostModelConfigurat
 import { createHostApplication, HostApplication } from '@chaptale/agent-host/application';
 import { modeEntryType } from '@chaptale/agent-host/protocol';
 import { CreationApplication } from '@chaptale/creation/application';
-import type { CreationResult } from '@chaptale/creation/contracts';
+import type { CreationResult, EntrySnapshot } from '@chaptale/creation/contracts';
 import { openCreationStorage } from '@chaptale/storage';
 
 let root: string;
@@ -155,7 +155,7 @@ function pending(sessionId = id) {
 
 it('未归属作品的会话发现作品、列出根目录并按稳定身份读取指定行', async () => {
   const tools = host.snapshot().tools;
-  expect(tools.filter(name => name.startsWith('work_'))).toHaveLength(10);
+  expect(tools.filter(name => name.startsWith('work_'))).toHaveLength(12);
   expect(tools).toEqual(
     expect.arrayContaining([
       'work_ls',
@@ -167,7 +167,9 @@ it('未归属作品的会话发现作品、列出根目录并按稳定身份读�
       'work_write',
       'work_mkdir',
       'work_mv',
-      'work_rm'
+      'work_rm',
+      'work_record_ls',
+      'work_record_write'
     ])
   );
   expect(tools.filter(name => name.startsWith('creation_'))).toEqual([]);
@@ -265,11 +267,11 @@ it('Markdown 插图对 Agent 显示为占位，编辑时还原，不能新建插
   });
   expect(moved.isError).toBe(false);
   const [change] = pending();
-  expect(change!.candidate.content).toBe('开头。\n结尾。\n![城门](entry:img-1)');
+  expect((change!.candidate as EntrySnapshot).content).toBe('开头。\n结尾。\n![城门](entry:img-1)');
   const created = await call('work_edit', {
     workId,
     entryId: chapter.id,
-    expectedRevisionId: change!.candidate.revisionId,
+    expectedRevisionId: (change!.candidate as EntrySnapshot).revisionId,
     oldText: '开头。',
     newText: '开头。\n[插图：新图 entry:img-2]'
   });
@@ -375,7 +377,8 @@ it('整篇写入区分新建和覆盖，保留既有标题格式，重复调用�
 it('创建候选目录并移动、改名文稿，条目身份保持稳定，重复移动校验原位置', async () => {
   const directory = await call('work_mkdir', { workId, parentId: null, title: '第一卷', section: 'manuscript' });
   expect(directory.isError).toBe(false);
-  const folder = pending().find(change => change.candidate.kind === 'directory')!.candidate;
+  const folder = pending().find(change => change.target === 'entry' && change.candidate.kind === 'directory')!
+    .candidate as EntrySnapshot;
   const move = {
     workId,
     entryId: documentId,
@@ -394,7 +397,7 @@ it('创建候选目录并移动、改名文稿，条目身份保持稳定，重�
   const renamed = await call('work_mv', {
     workId,
     entryId: documentId,
-    expectedRevisionId: pending().find(change => change.entryId === documentId)!.version,
+    expectedRevisionId: pending().find(change => change.targetId === documentId)!.version,
     title: '第一章'
   });
   expect(renamed.isError).toBe(false);
@@ -628,7 +631,7 @@ it('讨论模式修改指令重载后，模型请求仍只有作品读工具', a
   });
   await host.execute({ method: 'prompt', input: { id, text: '查阅序章' } });
   await expect.poll(() => host.snapshot().sessions.find(view => view.id === id)?.running).toBe(false);
-  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_record_ls', 'work_search'];
   expect(declared?.filter(name => name.startsWith('work_')).sort()).toEqual(reads);
   const session = host.liveSession(id)!;
   expect(
@@ -659,7 +662,7 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
     input: { model: { provider: 'offline-tools', id: 'offline' } }
   })) as string;
   const session = host.liveSession(id)!;
-  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_record_ls', 'work_search'];
   expect(
     session
       .getActiveToolNames()
@@ -697,7 +700,7 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
   expect((await call('work_read', { workId, entryId: documentId })).isError).toBe(false);
 
   await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
-  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm'].sort();
+  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm', 'work_record_write'].sort();
   expect(
     reopened
       .getActiveToolNames()
@@ -722,7 +725,7 @@ it('讨论模式移除可见及可调用的作品写工具，保留读取与文�
   const session = host.liveSession(id)!;
   const fileTools = session.getActiveToolNames().filter(name => !name.startsWith('work_'));
   await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
-  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_record_ls', 'work_search'];
   expect(
     session
       .getActiveToolNames()
@@ -752,7 +755,7 @@ it('讨论模式移除可见及可调用的作品写工具，保留读取与文�
   expect(read().revisionId).toBe(revisionId);
   expect(pending()).toEqual([]);
   await host.execute({ method: 'mode', input: { id, mode: 'review' } });
-  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm'].sort();
+  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm', 'work_record_write'].sort();
   expect(
     session
       .getActiveToolNames()
@@ -785,7 +788,7 @@ it('工具拒绝自报模式、会话和命令身份，合法请求使用宿主�
   expect(pending()).toEqual([]);
   const first = await call('work_edit', input, callId);
   expect(first.isError).toBe(false);
-  expect(pending()[0]).toMatchObject({ sessionId: id, entryId: documentId });
+  expect(pending()[0]).toMatchObject({ sessionId: id, targetId: documentId });
   expect(pending('forged-session')).toEqual([]);
   const retry = await call('work_edit', input, callId);
   expect(retry.isError).toBe(false);
@@ -840,7 +843,7 @@ it('新建候选与后续覆盖使用各自回执，重试新建保留同一条�
     (
       await call('work_write', {
         workId,
-        entryId: candidate.entryId,
+        entryId: candidate.targetId,
         expectedRevisionId: candidate.version,
         content: '后续内容'
       })
@@ -850,7 +853,7 @@ it('新建候选与后续覆盖使用各自回执，重试新建保留同一条�
   expect(retry.isError).toBe(false);
   expect(retry.result.structuredContent).toEqual(first.result.structuredContent);
   expect(pending()).toHaveLength(1);
-  expect(pending()[0].candidate).toMatchObject({ id: candidate.entryId, content: '后续内容' });
+  expect(pending()[0].candidate).toMatchObject({ id: candidate.targetId, content: '后续内容' });
 });
 
 async function observeContinuation(runtime: Awaited<ReturnType<typeof restartWithTools>>) {
@@ -894,9 +897,13 @@ function decidePending(decision: 'accept' | 'reject', changeId = pending()[0].id
       changeId,
       expectedVersion: review.change.version,
       expectedRevisionId: review.current?.revisionId ?? null,
-      expectedLocation: review.current
-        ? { parentId: review.current.parentId, position: review.current.position }
-        : null,
+      expectedLocation:
+        review.change.target === 'entry' && review.current
+          ? {
+              parentId: (review.current as EntrySnapshot).parentId,
+              position: (review.current as EntrySnapshot).position
+            }
+          : null,
       decision
     }
   };
@@ -1128,8 +1135,8 @@ it.each(['accept', 'reject'] as const)('多篇待审的最后一个决定为 %s�
   ).toBe(false);
   const changes = pending();
   expect(changes).toHaveLength(2);
-  const body = changes.find(change => change.entryId === documentId)!;
-  const note = changes.find(change => change.entryId !== documentId)!;
+  const body = changes.find(change => change.targetId === documentId)!;
+  const note = changes.find(change => change.targetId !== documentId)!;
   const decisions = [decidePending('accept', body.id), decidePending(lastDecision, note.id)];
   await expect.poll(() => requests.length).toBe(1);
   await expect.poll(() => host.snapshot().sessions.find(session => session.id === id)?.running).toBe(false);
@@ -1138,7 +1145,7 @@ it.each(['accept', 'reject'] as const)('多篇待审的最后一个决定为 %s�
   const contents = value(
     creation.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group.group.id } })
   );
-  expect(contents.map(item => item.snapshot?.content ?? null)).toEqual([
+  expect(contents.map(item => (item.snapshot as EntrySnapshot | null)?.content ?? null)).toEqual([
     '第三章正式新稿',
     lastDecision === 'accept' ? '副将随行的资料' : null
   ]);
@@ -1300,7 +1307,7 @@ it.each(['discuss', 'review'] as const)('撤回延后的直接修改到 %s，重
   id = (await host.execute({ method: 'open', input: history })) as string;
   expect(view().mode).toBe(mode);
   expect(view().switchingTo).toBeUndefined();
-  expect(pending()[0].candidate.content).toBe('待审正文');
+  expect((pending()[0].candidate as EntrySnapshot).content).toBe('待审正文');
   expect(read().revisionId).toBe(revisionId);
 });
 
@@ -1428,4 +1435,134 @@ it('删除作品时属于它的会话在运行则拒绝；停止后移入作品�
     sessionId,
     workId
   });
+});
+
+function structured(outcome: Awaited<ReturnType<typeof call>>) {
+  return outcome.result.structuredContent as CreationResult<Record<string, unknown>>;
+}
+
+async function createResource(title: string) {
+  const outcome = await call('work_write', {
+    workId,
+    parentId: null,
+    title,
+    section: 'resource',
+    format: 'markdown',
+    content: ''
+  });
+  return (value(structured(outcome)).entry as { entryId: string }).entryId;
+}
+
+it('审阅模式下事件写入本会话候选：省略发生位置取出处章节，修改只改提供的字段，移除新建事件即撤回', async () => {
+  const resourceId = await createResource('柳七');
+  const created = await call('work_record_write', {
+    workId,
+    resourceIds: [resourceId],
+    text: '柳七夜入城',
+    sourceId: documentId,
+    sourceRevisionId: revisionId,
+    basis: '斥候回营。'
+  });
+  expect(created.isError).toBe(false);
+  const record = value(structured(created)).record as { recordId: string; revisionId?: string };
+  expect(value(structured(created))).toMatchObject({
+    kind: 'pending',
+    record: {
+      resourceIds: [resourceId],
+      source: { kind: 'chapter', chapterId: documentId, revisionId },
+      placement: { kind: 'chapter', chapterId: documentId },
+      storyTime: ''
+    }
+  });
+  const listed = await call('work_record_ls', { workId, resourceId });
+  expect(value(structured(listed))).toMatchObject([{ recordId: record.recordId, text: '柳七夜入城' }]);
+  const other = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' } }
+  })) as string;
+  expect(value(structured(await call('work_record_ls', { workId }, randomUUID(), undefined, other)))).toEqual([]);
+
+  const change = pending().find(item => item.target === 'record')!;
+  const updated = await call('work_record_write', {
+    workId,
+    recordId: record.recordId,
+    expectedRevisionId: change.version,
+    storyTime: '三更',
+    basis: '斥候回营。'
+  });
+  expect(value(structured(updated))).toMatchObject({
+    kind: 'pending',
+    record: { text: '柳七夜入城', storyTime: '三更', placement: { kind: 'chapter', chapterId: documentId } }
+  });
+  const removed = await call('work_record_write', {
+    workId,
+    recordId: record.recordId,
+    expectedRevisionId: pending().find(item => item.target === 'record')!.version,
+    remove: true,
+    basis: ''
+  });
+  expect(value(structured(removed)).kind).toBe('withdrawn');
+  expect(pending().map(item => item.target)).toEqual(['entry']);
+});
+
+it('直接修改模式下事件生成正式修订，未提供出处与发生位置时拒绝新建', async () => {
+  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
+  const resourceId = await createResource('沈霁');
+  const missing = await call('work_record_write', { workId, resourceIds: [resourceId], text: '拜师', basis: '' });
+  expect(missing.isError).toBe(true);
+  expect(structured(missing)).toMatchObject({ ok: false, error: { code: 'invalid-request' } });
+  const saved = await call('work_record_write', {
+    workId,
+    resourceIds: [resourceId],
+    text: '拜师',
+    placement: 'opening',
+    basis: ''
+  });
+  expect(value(structured(saved))).toMatchObject({
+    kind: 'saved',
+    record: { source: { kind: 'author' }, placement: { kind: 'opening' } }
+  });
+  const record = value(structured(saved)).record as { recordId: string; revisionId: string };
+  const snapshot = value(creation.executeAuthor({ method: 'snapshot', input: { workId } }));
+  expect(snapshot.kind === 'work' && snapshot.records.map(item => item.text)).toEqual(['拜师']);
+  const removed = await call('work_record_write', {
+    workId,
+    recordId: record.recordId,
+    expectedRevisionId: record.revisionId,
+    remove: true,
+    basis: ''
+  });
+  expect(value(structured(removed)).kind).toBe('removed');
+  expect(value(structured(await call('work_record_ls', { workId })))).toEqual([]);
+});
+
+it('讨论模式拒绝事件写入，处理完事件候选后续跑消息带上事件结果', async () => {
+  const runtime = await restartWithTools([]);
+  const requests = await observeContinuation(runtime);
+  const resourceId = value(
+    creation.executeAuthor({
+      method: 'createEntry',
+      input: {
+        commandId: randomUUID(),
+        workId,
+        parentId: null,
+        section: 'resource',
+        kind: 'document',
+        title: '沈霁',
+        format: 'markdown',
+        content: ''
+      }
+    })
+  ).id;
+  const input = { workId, resourceIds: [resourceId], text: '沈霁守城', placement: documentId, basis: '将军守城。' };
+  await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
+  expect((await call('work_record_write', input)).isError).toBe(true);
+  await host.execute({ method: 'mode', input: { id, mode: 'review' } });
+  expect((await call('work_record_write', input)).isError).toBe(false);
+  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
+  await expect.poll(() => view().delivery?.pendingCount).toBe(1);
+  decidePending('reject');
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0].messages).toContain('事件“沈霁守城”已拒绝');
+  expect(requests[0].messages).toContain('"recordId"');
 });

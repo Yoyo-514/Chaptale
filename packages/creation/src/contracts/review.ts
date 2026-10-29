@@ -9,6 +9,14 @@ import type {
   MoveEntryInput,
   SaveDocumentInput
 } from './content.ts';
+import type {
+  CreateRecordInput,
+  RecordFields,
+  RecordSnapshot,
+  RemoveRecordInput,
+  StoryRecord,
+  UpdateRecordInput
+} from './records.ts';
 
 export type CreationMode = 'discuss' | 'review' | 'direct';
 /** 身份和当前模式由宿主注入，不接受工具参数自报。 */
@@ -18,34 +26,58 @@ export interface CreationAgentContext {
 }
 
 export interface ReviewConflict {
-  field: 'content' | 'title' | 'format' | 'parentId' | 'position';
+  field:
+    | 'content'
+    | 'title'
+    | 'format'
+    | 'parentId'
+    | 'position'
+    | 'text'
+    | 'resourceIds'
+    | 'source'
+    | 'placement'
+    | 'storyTime';
   base: string | null;
   current: string | null;
   proposed: string | null;
 }
 
-export interface PendingChange {
+interface ChangeFields {
   id: string;
   workId: string;
   sessionId: string;
-  entryId: string;
+  /** 条目或事件的身份。 */
+  targetId: string;
   version: string;
   /** 会话内结构修改的逻辑顺序，与设备时间无关。 */
   order: number;
-  base: EntrySnapshot | null;
-  candidate: EntrySnapshot;
   authorEdited: boolean;
   conflicts: ReviewConflict[];
   /**
    * covered：并入同会话删除候选的修改，删除被接受时一并拒绝，被拒绝时恢复为 pending。
    */
   status: 'pending' | 'accepted' | 'rejected' | 'covered';
+  updatedAt: number;
+}
+export interface EntryChange extends ChangeFields {
+  target: 'entry';
+  base: EntrySnapshot | null;
+  candidate: EntrySnapshot;
   /** Agent 提出的删除：候选为删除时的条目快照，只能整篇接受或拒绝，接受后移入作品回收站。 */
   deleted?: true;
   /** 删除候选所并入的同会话修改。 */
   covers?: string[];
-  updatedAt: number;
 }
+export interface RecordChange extends ChangeFields {
+  target: 'record';
+  base: RecordSnapshot | null;
+  candidate: RecordSnapshot;
+  /** Agent 提出的移除：接受后事件移入作品回收站。 */
+  deleted?: true;
+  /** Agent 给出的原文依据，只供审阅参考，不进入正式数据。 */
+  basis: string;
+}
+export type PendingChange = EntryChange | RecordChange;
 
 /**
  * 分组身份跨问答与重启保留；候选仍按自身版本接受或拒绝。
@@ -64,15 +96,26 @@ export interface DeliveryView {
   pendingCount: number;
 }
 
-export interface DeliveryContent {
-  workId: string;
-  entryId: string;
-  title: string;
-  /** 整篇接受、整篇拒绝，或作者逐处决定、手改过（以正式内容为准）。 */
-  /** deleted：作者删除了目标条目，候选随删除一并拒绝。 */
-  decision: 'accepted' | 'rejected' | 'edited' | 'deleted';
-  snapshot: EntrySnapshot | null;
-}
+/** 整篇接受、整篇拒绝，或作者逐处决定、手改过（以正式内容为准）；deleted：作者删除了目标，候选随删除一并拒绝。 */
+export type DeliveryDecision = 'accepted' | 'rejected' | 'edited' | 'deleted';
+export type DeliveryContent =
+  | {
+      target: 'entry';
+      workId: string;
+      targetId: string;
+      title: string;
+      decision: DeliveryDecision;
+      snapshot: EntrySnapshot | null;
+    }
+  | {
+      target: 'record';
+      workId: string;
+      targetId: string;
+      /** 候选中的事件内容，拒绝新建后仍可辨认是哪一条。 */
+      text: string;
+      decision: DeliveryDecision;
+      snapshot: RecordSnapshot | null;
+    };
 
 /** 继续与结束任务都只推进当前组的进度。 */
 export interface DeliveryProgressInput {
@@ -82,32 +125,44 @@ export interface DeliveryProgressInput {
   expectedVersion: string;
 }
 
-export interface ReviewView {
-  change: PendingChange;
+export interface EntryReviewView {
+  change: EntryChange;
   current: EntrySnapshot | null;
   candidate: EntrySnapshot;
   conflicts: ReviewConflict[];
 }
+export interface RecordReviewView {
+  change: RecordChange;
+  current: StoryRecord | null;
+  candidate: RecordSnapshot;
+  conflicts: ReviewConflict[];
+}
+export type ReviewView = EntryReviewView | RecordReviewView;
 
 export interface ReviewTarget {
   changeId: string;
   expectedVersion: string;
   expectedRevisionId: string | null;
+  /** 事件没有目录位置，为 null。 */
   expectedLocation: { parentId: string | null; position: number } | null;
 }
 
 /** 组内一项待审修改的摘要；target 即作者看到的版本，整组决定按它校验。 */
-export interface DeliveryItem {
+interface DeliveryItemFields {
   target: ReviewTarget;
   workId: string;
-  entryId: string;
-  section: EntrySnapshot['section'];
-  kind: EntrySnapshot['kind'];
-  title: string;
+  targetId: string;
   created: boolean;
   deleted: boolean;
   conflicted: boolean;
 }
+export type DeliveryItem =
+  | (DeliveryItemFields & {
+      kind: EntrySnapshot['kind'];
+      section: EntrySnapshot['section'];
+      title: string;
+    })
+  | (DeliveryItemFields & { kind: 'record'; record: RecordSnapshot });
 
 export interface DeliverySummary {
   group: DeliveryGroup;
@@ -148,9 +203,24 @@ export interface UpdateReviewInput extends ReviewTarget {
   resolveConflicts: boolean;
 }
 
+/** 作者手改事件候选；每次修改生成新的候选版本。 */
+export interface UpdateRecordReviewInput extends ReviewTarget, RecordFields {
+  commandId: string;
+  resolveConflicts: boolean;
+}
+
+/** 把依赖本会话新资料候选的事件候选改为关联已有资料，并拒绝该新资料候选。 */
+export interface RelinkResourceInput {
+  commandId: string;
+  changeId: string;
+  expectedVersion: string;
+  resourceId: string;
+}
+
 export type AgentWriteResult =
   | { kind: 'pending'; change: PendingChange }
   | { kind: 'saved'; entry: Entry }
+  | { kind: 'record'; record: StoryRecord; removed: boolean }
   /** 直接修改模式下的删除，返回进入回收站的全部条目。 */
   | { kind: 'trashed'; entries: Entry[] }
   /** 审阅模式下删除本会话尚未接受的新建条目，撤回这些候选。 */
@@ -180,9 +250,17 @@ export interface CreationAgentCommands extends CreationReadCommands {
     input: { commandId: string; workId: string; entryId: string; expectedRevisionId: string };
     output: CreationResult<AgentWriteResult>;
   };
+  /** 审阅模式包含本会话候选；asOf 为章节 ID 时只返回截至该章发生的事件和待定事件。 */
+  listRecords: {
+    input: { workId: string; resourceId: string | null; sourceId: string | null; asOf: string | null };
+    output: CreationResult<StoryRecord[]>;
+  };
+  createRecord: { input: CreateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
+  updateRecord: { input: UpdateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
+  removeRecord: { input: RemoveRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
 }
 export type CreationAgentCommand = RpcCommand<CreationAgentCommands>;
-export type AgentWriteCommand = Exclude<CreationAgentCommand, { method: keyof CreationReadCommands }>;
+export type AgentWriteCommand = Exclude<CreationAgentCommand, { method: keyof CreationReadCommands | 'listRecords' }>;
 
 export interface ReviewCommands {
   readCurrentDelivery: { input: { sessionId: string }; output: CreationResult<DeliveryView | null> };
@@ -201,4 +279,7 @@ export interface ReviewCommands {
   readReview: { input: { changeId: string }; output: CreationResult<ReviewView> };
   updateReview: { input: UpdateReviewInput; output: CreationResult<PendingChange> };
   decideReview: { input: DecideReviewInput; output: CreationResult<PendingChange> };
+  updateRecordReview: { input: UpdateRecordReviewInput; output: CreationResult<PendingChange> };
+  /** 返回被拒绝的新资料候选。 */
+  relinkResource: { input: RelinkResourceInput; output: CreationResult<PendingChange> };
 }

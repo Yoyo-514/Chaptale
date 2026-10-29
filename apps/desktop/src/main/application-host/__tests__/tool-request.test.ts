@@ -56,7 +56,7 @@ it('发往 OpenAI 兼容接口的工具参数顶层均为 object，作品工具�
     await expect.poll(() => requests.length).toBeGreaterThan(0);
     const tools = requests[0]!.tools.map(tool => tool.function);
     expect(tools.map(tool => tool.name)).toEqual(
-      expect.arrayContaining(['work_ls', 'work_write', 'work_mv', 'work_edit'])
+      expect.arrayContaining(['work_ls', 'work_write', 'work_mv', 'work_edit', 'work_record_ls', 'work_record_write'])
     );
     expect(tools.filter(tool => tool.parameters.type !== 'object').map(tool => tool.name)).toEqual([]);
   } finally {

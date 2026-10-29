@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 
+import type { EntrySnapshot } from '@chaptale/creation/contracts';
 import type { DecideReviewInput } from '@chaptale/creation/contracts';
 
 import { application, target, value } from './fixtures/review.ts';
@@ -35,7 +36,7 @@ it.each([false, true])('正式修订提交后本机进度失败，重启凭回�
       fixture.app.executeAuthor({ method: 'listPendingChanges', input: { workId: work.id, sessionId: null } })
     );
     expect(pending).toHaveLength(partial ? 1 : 0);
-    if (partial) expect(pending[0]!.candidate.content).toBe('公主回城。');
+    if (partial) expect((pending[0]!.candidate as EntrySnapshot).content).toBe('公主回城。');
     const retried = value(fixture.app.executeAuthor<'decideReview'>({ method: 'decideReview', input }));
     expect(retried.status).toBe(partial ? 'pending' : 'accepted');
     expect(fixture.read()).toEqual(saved);

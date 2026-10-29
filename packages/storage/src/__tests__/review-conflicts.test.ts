@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 
+import type { EntrySnapshot } from '@chaptale/creation/contracts';
+
 import { application, target, value } from './fixtures/review.ts';
 
 it('作者改动与 Agent 改动不重叠时三方合并，接受以最新正式修订为父修订', async () => {
@@ -9,7 +11,7 @@ it('作者改动与 Agent 改动不重叠时三方合并，接受以最新正式
   const change = propose('将军出征。\n公主远行。');
   const latest = save('将军守城。\n公主回城。');
   const view = value(app.executeAuthor({ method: 'readReview', input: { changeId: change.id } }));
-  expect(view.candidate.content).toBe('将军出征。\n公主回城。');
+  expect((view.candidate as EntrySnapshot).content).toBe('将军出征。\n公主回城。');
   expect(view.conflicts).toEqual([]);
   expect(fixture.read().content).toBe('将军守城。\n公主回城。');
   value(
@@ -54,7 +56,7 @@ it('重叠改动保留双方，作者解决冲突产生新候选，迟到接受�
     })
   );
   expect(updated.version).not.toBe(view.change.version);
-  expect(updated.candidate.wordCount).toBe(10);
+  expect((updated.candidate as EntrySnapshot).wordCount).toBe(10);
   expect(
     app.executeAuthor({
       method: 'decideReview',
@@ -68,7 +70,7 @@ it('重叠改动保留双方，作者解决冲突产生新候选，迟到接受�
         commandId: randomUUID(),
         workId: work.id,
         documentId: document.id,
-        expectedRevisionId: updated.candidate.revisionId,
+        expectedRevisionId: (updated.candidate as EntrySnapshot).revisionId,
         oldText: '再次',
         newText: '终于'
       }
@@ -105,7 +107,7 @@ it('逐块接受只修改选中部分，剩余候选可拒绝，正式修订和�
   const official = fixture.read();
   expect(official.content).toBe('将军出征。\n公主远行。');
   const rest = value(app.executeAuthor({ method: 'readReview', input: { changeId: change.id } }));
-  expect(rest.candidate.content).toBe('将军出征。\n公主回城。');
+  expect((rest.candidate as EntrySnapshot).content).toBe('将军出征。\n公主回城。');
   expect(rest.conflicts).toEqual([]);
   value(
     app.executeAuthor({

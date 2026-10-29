@@ -14,10 +14,12 @@ import type {
   PendingChange,
   DecideReviewInput,
   DecideDeliveryInput,
+  RecordSnapshot,
   SessionAssignment,
   SessionSelection,
   SessionState,
   Revision,
+  StoryRecord,
   RevisionSummary,
   TrashBatch,
   TrashedWork,
@@ -33,9 +35,21 @@ export type CommitEffect =
   | { kind: 'entries' }
   | { kind: 'review' }
   | { kind: 'delivery' }
+  | { kind: 'record'; removed: boolean }
+  | { kind: 'records' }
   | { kind: 'move'; from: { parentId: string | null; position: number } };
 
-export type CommitResult = Work | Entry | Entry[] | PendingChange | DeliveryGroup;
+export type CommitResult = Work | Entry | Entry[] | PendingChange | DeliveryGroup | StoryRecord;
+
+/** 事件的一次修订；顺序不进入修订。 */
+export interface RecordRevision {
+  id: string;
+  recordId: string;
+  parentRevisionId: string | null;
+  source: Revision['source'];
+  snapshot: RecordSnapshot;
+  createdAt: number;
+}
 
 export interface CommandCommit<T> {
   result: T;
@@ -126,6 +140,19 @@ export interface WorkRepository {
   /** 返回被永久删除条目的元数据。 */
   purgeTrash(batchId: string): Entry[];
   listTrashBatchIds(): string[];
+
+  /** 不在回收站中的事件，按发生位置与顺序排列。 */
+  listRecords(): StoryRecord[];
+  getRecord(recordId: string): StoryRecord | undefined;
+  /**
+   * 写入事件的新修订。新事件或发生位置改变时排到新位置末尾，原位置的后续事件前移；返回写入后的事件。
+   */
+  saveRecord(snapshot: RecordSnapshot, revision: RecordRevision): StoryRecord;
+  /** 插到 beforeId 之前，beforeId 为 null 时排到末尾；两者须在同一发生位置。 */
+  moveRecord(recordId: string, beforeId: string | null): StoryRecord;
+  /** 单个事件移入回收站，自成一个删除批次。 */
+  trashRecord(recordId: string, batchId: string, now: number): void;
+  isRecordTrashed(recordId: string): boolean;
 }
 
 /**

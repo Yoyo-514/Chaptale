@@ -46,12 +46,13 @@ export async function openLibrary(rootDir: string): Promise<Database.Database> {
       id TEXT PRIMARY KEY,
       workId TEXT NOT NULL REFERENCES works(id),
       sessionId TEXT NOT NULL,
-      entryId TEXT NOT NULL,
+      targetType TEXT NOT NULL,
+      targetId TEXT NOT NULL,
       status TEXT NOT NULL,
       value TEXT NOT NULL
     ) STRICT;
     CREATE UNIQUE INDEX IF NOT EXISTS pending_changes_target
-      ON pending_changes(workId, sessionId, entryId) WHERE status = 'pending';
+      ON pending_changes(workId, sessionId, targetType, targetId) WHERE status = 'pending';
     CREATE TABLE IF NOT EXISTS delivery_groups (
       sequence INTEGER PRIMARY KEY,
       id TEXT NOT NULL UNIQUE,

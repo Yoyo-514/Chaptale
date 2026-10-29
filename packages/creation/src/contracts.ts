@@ -23,11 +23,20 @@ import type {
   WorkCommandInput,
   Work
 } from './contracts/content.ts';
+import type {
+  CreateRecordInput,
+  MoveRecordInput,
+  RemoveRecordInput,
+  StoryRecord,
+  UpdateRecordInput
+} from './contracts/records.ts';
 import type { DeliveryGroup, PendingChange, ReviewCommands } from './contracts/review.ts';
 
 export type * from './contracts/content.ts';
 export { isImageFile } from './contracts/content.ts';
 export type * from './contracts/review.ts';
+export type * from './contracts/records.ts';
+export { chapterOrder, groupRecords } from './contracts/records.ts';
 
 export interface RecoveryDraft extends Omit<SaveDocumentInput, 'commandId'> {
   /** 此快照正式保存时沿用该 ID 作为命令 ID。 */
@@ -52,7 +61,7 @@ export interface CreationCursor {
 }
 export type CreationSnapshot =
   | { kind: 'library'; cursor: CreationCursor; works: Work[] }
-  | { kind: 'work'; workId: string; cursor: CreationCursor; entries: Entry[] };
+  | { kind: 'work'; workId: string; cursor: CreationCursor; entries: Entry[]; records: StoryRecord[] };
 export type CreationChange =
   | { kind: 'work'; work: Work }
   /** 作品进入、离开作品库回收站或被永久清空；客户端重取作品列表。 */
@@ -62,7 +71,10 @@ export type CreationChange =
   | { kind: 'entry'; entry: Entry }
   /** 一次提交改动多个条目，例如整组接受待审修改；目录位置可能变化，客户端重取快照。 */
   | { kind: 'entries'; entries: Entry[] }
-  | { kind: 'move'; entry: Entry; from: { parentId: string | null; position: number } };
+  | { kind: 'move'; entry: Entry; from: { parentId: string | null; position: number } }
+  /** removed：事件移入回收站。调整顺序会改变同位置其他事件的序号，客户端重取快照。 */
+  | { kind: 'record'; record: StoryRecord; removed: boolean }
+  | { kind: 'records' };
 export interface CreationEvent {
   cursor: CreationCursor;
   commandId: string;
@@ -159,6 +171,11 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   saveDocument: { input: SaveDocumentInput; output: CreationResult<Entry> };
   renameEntry: { input: RenameEntryInput; output: CreationResult<Entry> };
   moveEntry: { input: MoveEntryInput; output: CreationResult<Entry> };
+  createRecord: { input: CreateRecordInput; output: CreationResult<StoryRecord> };
+  updateRecord: { input: UpdateRecordInput; output: CreationResult<StoryRecord> };
+  moveRecord: { input: MoveRecordInput; output: CreationResult<StoryRecord> };
+  /** 单个事件移入作品回收站。 */
+  removeRecord: { input: RemoveRecordInput; output: CreationResult<StoryRecord> };
   listTrash: { input: { workId: string }; output: CreationResult<TrashBatch[]> };
   previewTrash: { input: { workId: string; entryIds: string[] }; output: CreationResult<TrashImpact> };
   /** 移入作品回收站并一并拒绝相关待审修改；返回进入回收站的全部条目。 */

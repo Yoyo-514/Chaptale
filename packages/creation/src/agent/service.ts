@@ -9,18 +9,20 @@ import type {
   AgentWriteCommand,
   AgentWriteResult,
   Entry,
-  EntrySnapshot,
-  PendingChange
+  EntryChange,
+  EntryReviewView,
+  EntrySnapshot
 } from '../contracts.ts';
 import { assertNotTrashed, RevisionConflictError } from '../errors.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { DeliveryService } from '../review/delivery.ts';
-import { overlayEntries } from '../review/overlay.ts';
+import { overlayEntries } from '../review/entry/overlay.ts';
 import { advanceChange } from '../review/pending-change.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
 import { illustrationIds } from '../text.ts';
 import { proposeEntry } from './proposal.ts';
+import type { AgentRecordService } from './records.ts';
 
 type AgentValue = Extract<CreationAgentCommands[keyof CreationAgentCommands]['output'], { ok: true }>['value'];
 
@@ -31,18 +33,21 @@ export class CreationAgentService {
   private readonly review: ReviewService;
   private readonly delivery: DeliveryService;
   private readonly trash: TrashService;
+  private readonly records: AgentRecordService;
   constructor(
     repository: CreationRepository,
     creation: CreationService,
     review: ReviewService,
     delivery: DeliveryService,
-    trash: TrashService
+    trash: TrashService,
+    records: AgentRecordService
   ) {
     this.repository = repository;
     this.creation = creation;
     this.review = review;
     this.delivery = delivery;
     this.trash = trash;
+    this.records = records;
   }
 
   execute(context: CreationAgentContext, command: CreationAgentCommand): AgentValue {
@@ -63,9 +68,9 @@ export class CreationAgentService {
       case 'readDocument': {
         const { workId, documentId } = command.input;
         if (context.mode !== 'review') return this.creation.readDocument(workId, documentId);
-        const change = this.review.list(workId, context.sessionId).find(item => item.entryId === documentId);
-        if (!change) return this.creation.readDocument(workId, documentId);
-        const snapshot = this.review.read(change.id).candidate;
+        const change = this.review.list(workId, context.sessionId).find(item => item.targetId === documentId);
+        if (!change || change.target !== 'entry') return this.creation.readDocument(workId, documentId);
+        const snapshot = (this.review.read(change.id) as EntryReviewView).candidate;
         if (snapshot.kind !== 'document') throw new Error('文稿或资料不存在');
         return {
           ...snapshot,
@@ -79,8 +84,8 @@ export class CreationAgentService {
         const { workId } = command.input;
         const changes = this.review.list(workId, context.sessionId);
         const candidates = changes
-          .filter(change => !change.deleted)
-          .map(change => this.review.read(change.id).candidate);
+          .filter(change => change.target === 'entry' && !change.deleted)
+          .map(change => (this.review.read(change.id) as EntryReviewView).candidate);
         const visible = new Set(this.entries(workId, context.sessionId).map(entry => entry.id));
         const hidden = this.creation
           .listEntries(workId)
@@ -88,6 +93,12 @@ export class CreationAgentService {
           .map(entry => entry.id);
         return this.repository.work(command.input.workId).searchDocuments(command.input, candidates, hidden);
       }
+      case 'listRecords':
+        return this.records.list(context, command.input);
+      case 'createRecord':
+      case 'updateRecord':
+      case 'removeRecord':
+        return this.records.write(context, command);
       case 'deleteEntry':
         return this.remove(context, command);
       default:
@@ -96,7 +107,10 @@ export class CreationAgentService {
   }
 
   private entries(workId: string, sessionId: string): Entry[] {
-    const views = this.review.list(workId, sessionId).map(change => this.review.read(change.id));
+    const views = this.review
+      .list(workId, sessionId)
+      .filter(change => change.target === 'entry')
+      .map(change => this.review.read(change.id) as EntryReviewView);
     return overlayEntries(this.creation.listEntries(workId), views);
   }
 
@@ -120,7 +134,9 @@ export class CreationAgentService {
     const change = this.creation.commit(null, commandId, parameters, { kind: 'review' }, () => {
       this.delivery.assertWritable(sessionId, workId, entryId);
       const changes = this.review.list(workId, sessionId);
-      const existing = changes.find(item => item.entryId === entryId);
+      const existing = changes.find(
+        (item): item is EntryChange => item.target === 'entry' && item.targetId === entryId
+      );
       if (existing?.authorEdited) throw new Error('作者正在审阅或手改此候选，请等待作者处理后再修改');
       if (existing?.base === null) {
         if (existing.candidate.revisionId !== expectedRevisionId)
@@ -138,14 +154,17 @@ export class CreationAgentService {
         size = removed.size;
         for (const entry of entries) if (entry.parentId !== null && removed.has(entry.parentId)) removed.add(entry.id);
       }
-      const covered = changes.filter(item => item.id !== existing?.id && removed.has(item.entryId));
+      const covered = changes.filter(
+        item => item.target === 'entry' && item.id !== existing?.id && removed.has(item.targetId)
+      );
       for (const item of covered) this.repository.library.putPendingChange(advanceChange(item, { status: 'covered' }));
       const version = randomUUID();
-      const next: PendingChange = {
+      const next: EntryChange = {
+        target: 'entry',
         id: existing?.id ?? randomUUID(),
         workId,
         sessionId,
-        entryId,
+        targetId: entryId,
         version,
         order: existing?.order ?? Math.max(0, ...changes.map(item => item.order)) + 1,
         base: current,
@@ -202,11 +221,12 @@ export class CreationAgentService {
         existing && command.method !== 'moveEntry'
           ? existing.order
           : Math.max(0, ...this.review.list(workId, context.sessionId).map(item => item.order)) + 1;
-      const change: PendingChange = {
+      const change: EntryChange = {
+        target: 'entry',
         id: existing?.id ?? randomUUID(),
         workId,
         sessionId: context.sessionId,
-        entryId: candidate.id,
+        targetId: candidate.id,
         version: candidate.revisionId,
         order,
         base,
@@ -231,7 +251,9 @@ export class CreationAgentService {
     const existing =
       entryId === null || mode !== 'review'
         ? undefined
-        : this.review.list(workId, sessionId).find(change => change.entryId === entryId);
+        : this.review
+            .list(workId, sessionId)
+            .find((change): change is EntryChange => change.target === 'entry' && change.targetId === entryId);
     if (entryId !== null) assertNotTrashed(this.repository.work(workId), entryId);
     const current = entryId === null ? null : readEntrySnapshot(this.repository.work(workId), entryId);
     const entries = mode === 'review' ? this.entries(workId, sessionId) : this.creation.listEntries(workId);
@@ -245,7 +267,10 @@ export class CreationAgentService {
 }
 
 type DeleteCommand = Extract<AgentWriteCommand, { method: 'deleteEntry' }>;
-type WriteCommand = Exclude<AgentWriteCommand, { method: 'deleteEntry' }>;
+type WriteCommand = Exclude<
+  AgentWriteCommand,
+  { method: 'deleteEntry' | 'createRecord' | 'updateRecord' | 'removeRecord' }
+>;
 
 function targetId(command: WriteCommand): string | null {
   if (command.method === 'createEntry') return null;

@@ -27,10 +27,18 @@ export function listPendingChanges(
 export function putPendingChange(database: Database.Database, change: PendingChange): void {
   database
     .prepare(`
-    INSERT INTO pending_changes (id, workId, sessionId, entryId, status, value)
-    VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET status = excluded.status, value = excluded.value
+    INSERT INTO pending_changes (id, workId, sessionId, targetType, targetId, status, value)
+    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET status = excluded.status, value = excluded.value
   `)
-    .run(change.id, change.workId, change.sessionId, change.entryId, change.status, JSON.stringify(change));
+    .run(
+      change.id,
+      change.workId,
+      change.sessionId,
+      change.target,
+      change.targetId,
+      change.status,
+      JSON.stringify(change)
+    );
 }
 
 type IntentTable = 'review_intents' | 'delivery_intents';

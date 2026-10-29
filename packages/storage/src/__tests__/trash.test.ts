@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import type { EntrySnapshot } from '@chaptale/creation/contracts';
 import type { CreationResult, Entry } from '@chaptale/creation/contracts';
 
 import { application, value } from './fixtures/review.ts';
@@ -135,7 +136,7 @@ describe('作品回收站', () => {
     const contents = t.author<{ entryId: string; decision: string }[]>('readDeliveryContents', {
       groupId: group!.group.id
     });
-    expect(contents).toEqual([expect.objectContaining({ entryId: change.entryId, decision: 'deleted' })]);
+    expect(contents).toEqual([expect.objectContaining({ targetId: change.targetId, decision: 'deleted' })]);
 
     t.restore(t.batches()[0]!.id);
     expect(t.author('listPendingChanges', { workId: t.work.id, sessionId: null })).toEqual([]);
@@ -163,7 +164,7 @@ const remove = (t: Fixture, mode: 'review' | 'direct', entryId: string, revision
     }
   );
 const pending = (t: Fixture) =>
-  t.author<{ id: string; entryId: string; status: string }[]>('listPendingChanges', {
+  t.author<{ id: string; targetId: string; status: string }[]>('listPendingChanges', {
     workId: t.work.id,
     sessionId: null
   });
@@ -265,9 +266,11 @@ describe('Agent 删除', () => {
     );
     if (created.kind !== 'pending') throw new Error('预期新建候选');
     t.propose('Agent 改写的序章');
-    const result = value(remove(t, 'review', created.change.entryId, created.change.candidate.revisionId));
+    const result = value(
+      remove(t, 'review', created.change.targetId, (created.change.candidate as EntrySnapshot).revisionId)
+    );
     expect(result.kind).toBe('withdrawn');
-    expect(pending(t).map(item => item.entryId)).toEqual([t.document.id]);
+    expect(pending(t).map(item => item.targetId)).toEqual([t.document.id]);
     expect(t.batches()).toEqual([]);
     const group = t.author<{ group: { changeIds: string[] } }>('readCurrentDelivery', {
       sessionId: t.context.sessionId

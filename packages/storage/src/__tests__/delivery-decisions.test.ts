@@ -50,7 +50,7 @@ it('整组接受在同一事务写入正文与新资料，重复命令沿用回�
   fixture.propose('将军出征。\n公主远行。');
   const note = createNote(fixture, '人物', '将军决定出征。');
   const [summary] = deliveries(fixture.app, fixture.context.sessionId);
-  expect(summary.items.map(item => [item.title, item.created])).toEqual([
+  expect(summary.items.map(item => ['title' in item ? item.title : '', item.created])).toEqual([
     ['序章', false],
     ['人物', true]
   ]);
@@ -58,7 +58,7 @@ it('整组接受在同一事务写入正文与新资料，重复命令沿用回�
   const accepted = value(decideAll(fixture, 'accept', commandId));
   expect(fixture.read().content).toBe('将军出征。\n公主远行。');
   const saved = value(
-    fixture.app.executeAuthor({ method: 'readDocument', input: { workId: fixture.work.id, documentId: note.entryId } })
+    fixture.app.executeAuthor({ method: 'readDocument', input: { workId: fixture.work.id, documentId: note.targetId } })
   );
   expect(saved.content).toBe('将军决定出征。');
   expect(value(fixture.app.executeAuthor({ method: 'readDeliveryGroup', input: { groupId: accepted.id } }))).toEqual({
@@ -87,7 +87,7 @@ it('任一修改冲突或已变化时整组接受整体拒绝，正式稿与其�
   createNote(fixture, '人物', '将军决定出征。');
   fixture.save('将军回城。\n公主远行。');
   const before = deliveries(fixture.app, fixture.context.sessionId)[0];
-  expect(before.items.find(item => item.title === '序章')!.conflicted).toBe(true);
+  expect(before.items.find(item => 'title' in item && item.title === '序章')!.conflicted).toBe(true);
   const conflict = decideAll(fixture, 'accept');
   expect(conflict).toMatchObject({ ok: false, error: { message: expect.stringContaining('《序章》') } });
   expect(fixture.read().content).toBe('将军回城。\n公主远行。');
@@ -143,7 +143,7 @@ it('作品库提交成功、本机进度中断后，重开按回执补齐整组�
     expect(value(fixture.app.executeAuthor({ method: 'decideDelivery', input })).id).toBe(summary.group.id);
     expect(fixture.read()).toEqual(saved);
     const entries = value(fixture.app.executeAuthor({ method: 'listEntries', input: { workId: fixture.work.id } }));
-    expect(entries.filter(entry => entry.id === note.entryId)).toHaveLength(1);
+    expect(entries.filter(entry => entry.id === note.targetId)).toHaveLength(1);
   } finally {
     fault.close();
   }
@@ -179,7 +179,7 @@ it('结束当前任务后剩余候选转为历史待审，新写入另开新组�
       content: '将军回城。'
     }
   });
-  expect(rewrite).toMatchObject({ ok: false, error: { message: '该条目有早前任务的待接受修改，请作者先处理' } });
+  expect(rewrite).toMatchObject({ ok: false, error: { message: '该内容有早前任务的待接受修改，请作者先处理' } });
   const direct = app.executeAgent(
     { ...context, mode: 'direct' },
     {
@@ -193,7 +193,7 @@ it('结束当前任务后剩余候选转为历史待审，新写入另开新组�
       }
     }
   );
-  expect(direct).toMatchObject({ ok: false, error: { message: '该条目有早前任务的待接受修改，请作者先处理' } });
+  expect(direct).toMatchObject({ ok: false, error: { message: '该内容有早前任务的待接受修改，请作者先处理' } });
 
   const note = createNote(fixture, '人物', '将军决定出征。');
   const [current, history] = deliveries(app, context.sessionId);

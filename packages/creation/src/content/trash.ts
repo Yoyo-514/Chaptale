@@ -61,8 +61,8 @@ export class TrashService {
       { kind: 'entries' },
       () => {
         const work = this.repository.work(input.workId);
+        if (!work.listTrashBatchIds().includes(input.batchId)) throw new Error('回收站中没有这批内容');
         const ids = new Set(work.restoreTrash(input.batchId));
-        if (!ids.size) throw new Error('回收站中没有这批内容');
         return work.listEntries().filter(entry => ids.has(entry.id));
       }
     );
@@ -76,10 +76,9 @@ export class TrashService {
       { kind: 'entries' },
       () => {
         const work = this.repository.work(input.workId);
-        const batchIds = input.batchId === null ? work.listTrashBatchIds() : [input.batchId];
-        const entries = batchIds.flatMap(batchId => work.purgeTrash(batchId));
-        if (input.batchId !== null && !entries.length) throw new Error('回收站中没有这批内容');
-        return entries;
+        const batchIds = work.listTrashBatchIds();
+        if (input.batchId !== null && !batchIds.includes(input.batchId)) throw new Error('回收站中没有这批内容');
+        return (input.batchId === null ? batchIds : [input.batchId]).flatMap(batchId => work.purgeTrash(batchId));
       }
     );
     this.repository.library.clearDrafts(

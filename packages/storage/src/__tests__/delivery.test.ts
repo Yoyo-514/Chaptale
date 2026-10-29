@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 
+import type { EntrySnapshot } from '@chaptale/creation/contracts';
+
 import { application, target, value } from './fixtures/review.ts';
 
 it('改稿自动归集，跨重启保留，作者处理全部修改后直接继续，重试沿用回执', async () => {
@@ -97,7 +99,10 @@ it('正文与资料共同待审，部分接受保持等待，继续读取作者�
   }
   value(app.executeAuthor(command));
   const contents = value(app.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group.id } }));
-  expect(contents.map(item => item.snapshot?.content)).toEqual(['将军出征。\n公主远行。', '将军决定出征。']);
+  expect(contents.map(item => (item.snapshot as EntrySnapshot | null)?.content)).toEqual([
+    '将军出征。\n公主远行。',
+    '将军决定出征。'
+  ]);
 });
 
 it('继续前补改沿用当前组并更新版本，迟到的继续请求保留新修改', async () => {
@@ -126,7 +131,7 @@ it('继续前补改沿用当前组并更新版本，迟到的继续请求保留�
   expect(after.group.changeIds).toEqual([first.id]);
   expect(after.pendingCount).toBe(1);
   const review = value(app.executeAuthor({ method: 'readReview', input: { changeId: first.id } }));
-  expect(review.candidate.content).toBe('问答后的补改');
+  expect((review.candidate as EntrySnapshot).content).toBe('问答后的补改');
   value(
     app.executeAuthor({
       method: 'decideReview',

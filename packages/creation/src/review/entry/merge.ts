@@ -1,11 +1,11 @@
 import { diff3Merge } from 'node-diff3';
 
-import type { EntrySnapshot } from '../contracts/content.ts';
-import type { PendingChange, ReviewView } from '../contracts/review.ts';
-import { countDocumentWords } from '../text.ts';
+import type { EntrySnapshot } from '../../contracts/content.ts';
+import type { EntryChange, EntryReviewView } from '../../contracts/review.ts';
+import { countDocumentWords } from '../../text.ts';
 
 /** 合并正式稿的后续修改，冲突区保留双方原文，不改写任何已保存快照。 */
-export function mergeCandidate(change: PendingChange, current: EntrySnapshot | null): ReviewView {
+export function mergeCandidate(change: EntryChange, current: EntrySnapshot | null): EntryReviewView {
   const conflicts = [...change.conflicts];
   const candidate = { ...change.candidate };
   if (change.base && current) {

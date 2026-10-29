@@ -1,3 +1,4 @@
+import { AgentRecordService } from './agent/records.ts';
 import { CreationAgentService } from './agent/service.ts';
 import { authorValidator, agentValidator } from './application/schema.ts';
 import { TrashService } from './content/trash.ts';
@@ -14,6 +15,7 @@ import { DraftConflictError, EntryLocationConflictError, RevisionConflictError }
 import { addFiles, locateFile } from './files/entry-files.ts';
 import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './files/exchange.ts';
 import { WorkTrashService } from './library/work-trash.ts';
+import { RecordService } from './records/service.ts';
 import type { CreationRepository } from './repository.ts';
 import { DeliveryService } from './review/delivery.ts';
 import { ReviewService } from './review/service.ts';
@@ -32,6 +34,7 @@ export class CreationApplication {
   private readonly delivery: DeliveryService;
   private readonly trash: TrashService;
   private readonly workTrash: WorkTrashService;
+  private readonly records: RecordService;
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
@@ -39,7 +42,15 @@ export class CreationApplication {
     this.review = new ReviewService(repository, this.service, this.delivery);
     this.trash = new TrashService(repository, this.service, this.review);
     this.workTrash = new WorkTrashService(repository, this.service, this.review);
-    this.agent = new CreationAgentService(repository, this.service, this.review, this.delivery, this.trash);
+    this.records = new RecordService(repository, this.service, this.review);
+    this.agent = new CreationAgentService(
+      repository,
+      this.service,
+      this.review,
+      this.delivery,
+      this.trash,
+      new AgentRecordService(repository, this.service, this.review, this.delivery)
+    );
   }
 
   subscribe(listener: Parameters<CreationService['subscribe']>[0]): () => void {
@@ -132,6 +143,14 @@ export class CreationApplication {
         return this.service.renameEntry(command.input);
       case 'moveEntry':
         return this.service.moveEntry(command.input);
+      case 'createRecord':
+        return this.records.create(command.input);
+      case 'updateRecord':
+        return this.records.update(command.input);
+      case 'moveRecord':
+        return this.records.move(command.input);
+      case 'removeRecord':
+        return this.records.remove(command.input);
       case 'listTrash':
         return this.trash.list(command.input.workId);
       case 'previewTrash':
@@ -190,6 +209,10 @@ export class CreationApplication {
         return this.review.update(command.input);
       case 'decideReview':
         return this.review.decide(command.input);
+      case 'updateRecordReview':
+        return this.review.updateRecord(command.input);
+      case 'relinkResource':
+        return this.review.relink(command.input);
     }
   }
 

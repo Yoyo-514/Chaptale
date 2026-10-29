@@ -1,8 +1,8 @@
-import type { Entry } from '../contracts/content.ts';
-import type { ReviewView } from '../contracts/review.ts';
+import type { Entry } from '../../contracts/content.ts';
+import type { EntryReviewView } from '../../contracts/review.ts';
 
 /** 按结构修改的先后构造会话目录；正文修改不携带其他候选造成的位置变化。 */
-export function overlayEntries(formal: Entry[], views: ReviewView[]): Entry[] {
+export function overlayEntries(formal: Entry[], views: EntryReviewView[]): Entry[] {
   const entries = new Map(formal.map(entry => [entry.id, { ...entry }]));
   // oxlint-disable-next-line unicorn/no-array-sort
   const ordered = [...views].sort((a, b) => a.change.order - b.change.order);

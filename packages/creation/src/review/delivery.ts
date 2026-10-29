@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readEntrySnapshot } from '../content/mutations.ts';
 import type {
   DeliveryContent,
+  DeliveryDecision,
   DeliveryGroup,
   DeliveryProgressInput,
   DeliveryView,
@@ -10,6 +11,7 @@ import type {
 } from '../contracts.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
+import { recordSnapshot } from './record/merge.ts';
 
 /** 自动归集待审修改；作者处理完成后继续，或结束任务把剩余候选留作历史待审。 */
 export class DeliveryService {
@@ -42,30 +44,42 @@ export class DeliveryService {
   }
 
   contents(groupId: string): DeliveryContent[] {
-    return this.read(groupId).group.changeIds.map(id => {
+    return this.read(groupId).group.changeIds.map((id): DeliveryContent => {
       const change = this.repository.library.getPendingChange(id)!;
+      const work = this.repository.work(change.workId);
+      const trashed =
+        change.target === 'entry' ? work.isTrashed(change.targetId) : work.isRecordTrashed(change.targetId);
+      const decision: DeliveryDecision = change.authorEdited
+        ? 'edited'
+        : change.status === 'rejected' && trashed
+          ? 'deleted'
+          : (change.status as 'accepted' | 'rejected');
+      const fields = { workId: change.workId, targetId: change.targetId, decision };
+      if (change.target === 'entry')
+        return {
+          target: 'entry',
+          ...fields,
+          title: change.candidate.title,
+          snapshot: readEntrySnapshot(work, change.targetId)
+        };
+      const record = work.getRecord(change.targetId);
       return {
-        workId: change.workId,
-        entryId: change.entryId,
-        title: change.candidate.title,
-        decision: change.authorEdited
-          ? 'edited'
-          : change.status === 'rejected' && this.repository.work(change.workId).isTrashed(change.entryId)
-            ? 'deleted'
-            : (change.status as 'accepted' | 'rejected'),
-        snapshot: readEntrySnapshot(this.repository.work(change.workId), change.entryId)
+        target: 'record',
+        ...fields,
+        text: change.candidate.text,
+        snapshot: record ? recordSnapshot(record) : null
       };
     });
   }
 
   /** 早前任务保留的候选由作者先处理，新任务不接管或覆盖它。 */
-  assertWritable(sessionId: string, workId: string, entryId: string | null): void {
-    if (entryId === null) return;
+  assertWritable(sessionId: string, workId: string, targetId: string | null): void {
+    if (targetId === null) return;
     const change = this.repository.library
       .listPendingChanges(workId, sessionId)
-      .find(candidate => candidate.entryId === entryId);
+      .find(candidate => candidate.targetId === targetId);
     if (change && !this.current(sessionId)?.group.changeIds.includes(change.id))
-      throw new Error('该条目有早前任务的待接受修改，请作者先处理');
+      throw new Error('该内容有早前任务的待接受修改，请作者先处理');
   }
 
   /** 与候选在同一事务中登记，中途问答及重启沿用本组。 */

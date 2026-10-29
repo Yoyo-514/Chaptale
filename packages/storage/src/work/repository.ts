@@ -1,11 +1,13 @@
 import type Database from 'better-sqlite3';
 
-import type { WorkRepository } from '@chaptale/creation';
+import type { RecordRevision, WorkRepository } from '@chaptale/creation';
 import type {
   Document,
   DocumentSearchPage,
   Entry,
   EntrySnapshot,
+  RecordSnapshot,
+  StoryRecord,
   Revision,
   RevisionSummary,
   SearchDocumentsInput,
@@ -15,6 +17,7 @@ import type {
 import { readCommandReceipt } from '../commands.ts';
 import { entryFileDir } from './database.ts';
 import * as entries from './entries.ts';
+import * as records from './records.ts';
 import { searchDocuments } from './search.ts';
 import * as trash from './trash.ts';
 
@@ -98,5 +101,24 @@ export class SqliteWorkRepository implements WorkRepository {
   }
   listTrashBatchIds(): string[] {
     return trash.listTrashBatchIds(this.connect());
+  }
+
+  listRecords(): StoryRecord[] {
+    return records.listRecords(this.connect());
+  }
+  getRecord(recordId: string): StoryRecord | undefined {
+    return records.getRecord(this.connect(), recordId);
+  }
+  saveRecord(snapshot: RecordSnapshot, revision: RecordRevision): StoryRecord {
+    return records.saveRecord(this.connect(), snapshot, revision);
+  }
+  moveRecord(recordId: string, beforeId: string | null): StoryRecord {
+    return records.moveRecord(this.connect(), recordId, beforeId);
+  }
+  trashRecord(recordId: string, batchId: string, now: number): void {
+    records.trashRecord(this.connect(), recordId, batchId, now);
+  }
+  isRecordTrashed(recordId: string): boolean {
+    return records.isRecordTrashed(this.connect(), recordId);
   }
 }

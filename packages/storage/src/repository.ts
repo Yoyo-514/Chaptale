@@ -47,7 +47,13 @@ class SqliteCreationRepository implements CreationRepository {
       const cursor = readCursor(database, workId);
       return workId === null
         ? { kind: 'library', cursor, works: this.library.listWorks() }
-        : { kind: 'work', workId, cursor, entries: this.work(workId).listEntries() };
+        : {
+            kind: 'work',
+            workId,
+            cursor,
+            entries: this.work(workId).listEntries(),
+            records: this.work(workId).listRecords()
+          };
     })();
   }
 

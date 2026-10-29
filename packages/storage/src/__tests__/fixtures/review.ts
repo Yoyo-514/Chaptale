@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach } from 'vitest';
 
 import { CreationApplication } from '@chaptale/creation/application';
-import type { CreationResult, PendingChange, ReviewView } from '@chaptale/creation/contracts';
+import type { CreationResult, EntrySnapshot, PendingChange, ReviewView } from '@chaptale/creation/contracts';
 
 import { openCreationStorage } from '../../index.ts';
 
@@ -105,6 +105,9 @@ export function target(view: ReviewView) {
     changeId: view.change.id,
     expectedVersion: view.change.version,
     expectedRevisionId: view.current?.revisionId ?? null,
-    expectedLocation: view.current ? { parentId: view.current.parentId, position: view.current.position } : null
+    expectedLocation:
+      view.change.target === 'entry' && view.current
+        ? { parentId: (view.current as EntrySnapshot).parentId, position: (view.current as EntrySnapshot).position }
+        : null
   };
 }

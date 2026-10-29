@@ -33,7 +33,7 @@ it('新建目录和子稿按会话持久保存，先接受目录再接受子稿�
       input: {
         commandId: randomUUID(),
         workId: work.id,
-        parentId: folder.entryId,
+        parentId: folder.targetId,
         section: 'manuscript',
         kind: 'document',
         title: '风起',
@@ -49,7 +49,7 @@ it('新建目录和子稿按会话持久保存，先接受目录再接受子稿�
     value(
       fixture.app.executeAgent(context, {
         method: 'readDocument',
-        input: { workId: work.id, documentId: chapter.entryId }
+        input: { workId: work.id, documentId: chapter.targetId }
       })
     ).content
   ).toBe('城门初开。');
@@ -70,9 +70,9 @@ it('新建目录和子稿按会话持久保存，先接受目录再接受子稿�
     );
   }
   const official = value(
-    fixture.app.executeAuthor({ method: 'readDocument', input: { workId: work.id, documentId: chapter.entryId } })
+    fixture.app.executeAuthor({ method: 'readDocument', input: { workId: work.id, documentId: chapter.targetId } })
   );
-  expect(official).toMatchObject({ id: chapter.entryId, parentId: folder.entryId, content: '城门初开。' });
+  expect(official).toMatchObject({ id: chapter.targetId, parentId: folder.targetId, content: '城门初开。' });
 });
 
 it('会话内排序重排其他同级位置，正文改名不带入别的候选移动', async () => {

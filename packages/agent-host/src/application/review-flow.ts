@@ -149,13 +149,20 @@ export class ReviewFlow {
       })
     );
     this.refresh();
-    const outcomes = contents.map(item => `《${item.title}》${decisionLabels[item.decision]}`);
+    const outcomes = contents.map(
+      item => `${item.target === 'entry' ? `《${item.title}》` : `事件“${item.text}”`}${decisionLabels[item.decision]}`
+    );
+    const official = contents.map(item =>
+      item.target === 'entry'
+        ? { workId: item.workId, entryId: item.targetId, snapshot: item.snapshot }
+        : { workId: item.workId, recordId: item.targetId, snapshot: item.snapshot }
+    );
     return {
       customType: reviewContinuationMessageType,
       content: [
         '作者已处理本组修改：',
         ...outcomes.map(line => `- ${line}`),
-        `处理后的正式内容：${JSON.stringify(contents.map(({ workId, entryId, snapshot }) => ({ workId, entryId, snapshot })))}`,
+        `处理后的正式内容：${JSON.stringify(official)}`,
         '被拒绝或改写的部分是作者的决定，不要原样重做；确实需要再改时，先说明理由并询问作者。请根据这些正式内容继续剩余任务。'
       ].join('\n'),
       display: true,

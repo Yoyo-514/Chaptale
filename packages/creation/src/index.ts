@@ -6,5 +6,6 @@ export type {
   WorkRepository,
   CommandCommit,
   CommitEffect,
-  CommitResult
+  CommitResult,
+  RecordRevision
 } from './repository.ts';

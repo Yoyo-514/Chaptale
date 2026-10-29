@@ -2,17 +2,17 @@ import { randomUUID } from 'node:crypto';
 
 import { assertEntryParent, initialAttributes } from '../content/entries.ts';
 import type { Entry, EntrySnapshot } from '../contracts/content.ts';
-import type { AgentWriteCommand, PendingChange } from '../contracts/review.ts';
+import type { AgentWriteCommand, EntryChange } from '../contracts/review.ts';
 import { EntryLocationConflictError, RevisionConflictError } from '../errors.ts';
-import { mergeCandidate } from '../review/merge.ts';
+import { mergeCandidate } from '../review/entry/merge.ts';
 import { countDocumentWords } from '../text.ts';
 
 /** 把 Agent 指令转成候选快照；计算仅依赖当前正式稿与本会话视图。 */
 export function proposeEntry(
-  command: Exclude<AgentWriteCommand, { method: 'deleteEntry' }>,
+  command: Exclude<AgentWriteCommand, { method: 'deleteEntry' | 'createRecord' | 'updateRecord' | 'removeRecord' }>,
   entries: Entry[],
   current: EntrySnapshot | null,
-  existing?: PendingChange
+  existing?: EntryChange
 ): { base: EntrySnapshot | null; candidate: EntrySnapshot } {
   if (existing?.authorEdited) throw new Error('作者正在审阅或手改此候选，请等待作者处理后再修改');
   const view = existing ? mergeCandidate(existing, current) : undefined;

@@ -1,7 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
-import { applySnapshot } from '../content/commit.ts';
-import { readEntrySnapshot } from '../content/mutations.ts';
 import type {
   DecideDeliveryInput,
   DecideReviewInput,
@@ -9,174 +5,115 @@ import type {
   DeliveryItem,
   DeliverySummary,
   Entry,
-  EntrySnapshot,
+  EntryChange,
   PendingChange,
+  RelinkResourceInput,
   ReviewTarget,
   ReviewView,
+  UpdateRecordReviewInput,
   UpdateReviewInput
 } from '../contracts.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
 import type { DeliveryService } from './delivery.ts';
-import { mergeCandidate } from './merge.ts';
-import { advanceChange, assertReviewTarget, decideBlock, sameContent, staleReason } from './pending-change.ts';
+import { EntryReview } from './entry/decisions.ts';
+import { ChangeLedger, isRecordView } from './ledger.ts';
+import { advanceChange, staleReason } from './pending-change.ts';
+import { RecordReview } from './record/decisions.ts';
+import { affectedByRemoval, type Removal } from './removal.ts';
 
-/** 审阅用例只协调候选决策、正式提交与中断恢复。 */
+/**
+ * 审阅用例入口：本机库事务与回执、按目标分派到条目或事件规则、整组决定、删除联动与中断恢复。
+ * 接受先记录意图，作品库提交后再凭回执更新本机进度；恢复只补齐已有回执的进度。
+ */
 export class ReviewService {
   private readonly repository: CreationRepository;
   private readonly creation: CreationService;
   private readonly delivery: DeliveryService;
+  private readonly ledger: ChangeLedger;
+  private readonly entries: EntryReview;
+  private readonly records: RecordReview;
+
   constructor(repository: CreationRepository, creation: CreationService, delivery: DeliveryService) {
     this.repository = repository;
     this.creation = creation;
     this.delivery = delivery;
+    this.ledger = new ChangeLedger(repository);
+    this.entries = new EntryReview(repository, creation, this.ledger);
+    this.records = new RecordReview(repository, creation, this.ledger);
   }
+
   list(workId: string | null, sessionId: string | null): PendingChange[] {
     this.recover();
-    return this.repository.library.listPendingChanges(workId, sessionId);
+    return this.ledger.pending(workId, sessionId);
   }
   read(id: string): ReviewView {
     this.recover();
-    return this.view(this.get(id));
+    return this.ledger.view(this.ledger.get(id));
   }
+
   update(input: UpdateReviewInput): PendingChange {
     this.recover();
-    return this.creation.commit(null, input.commandId, ['updateReview', input], { kind: 'review' }, () => {
-      const view = this.checked(input);
-      if ((view.candidate.kind !== 'document') !== (input.content === null)) throw new Error('候选正文与条目类型不符');
-      const change = advanceChange(view.change, {
-        base: view.current,
-        candidate: { ...view.candidate, title: input.title, content: input.content },
-        conflicts: input.resolveConflicts ? [] : view.conflicts,
-        authorEdited: true
-      });
-      this.repository.library.putPendingChange(change);
-      return change;
-    });
+    return this.creation.commit(null, input.commandId, ['updateReview', input], { kind: 'review' }, () =>
+      this.entries.update(input)
+    );
   }
-  /** 整篇、单处正文或单独改名的决定；接受的部分写入正式稿，其余继续待审。 */
+  updateRecord(input: UpdateRecordReviewInput): PendingChange {
+    this.recover();
+    return this.creation.commit(null, input.commandId, ['updateRecordReview', input], { kind: 'review' }, () =>
+      this.records.update(input)
+    );
+  }
+  relink(input: RelinkResourceInput): PendingChange {
+    this.recover();
+    const rejected = this.creation.commit(null, input.commandId, ['relinkResource', input], { kind: 'review' }, () =>
+      this.records.relink(input)
+    );
+    this.rejectTrashed(rejected.workId);
+    return rejected;
+  }
+
+  /** 单项决定；被拒绝的新资料由 rejectTrashed 一并拒绝依赖它的事件。 */
   decide(input: DecideReviewInput): PendingChange {
     this.recover();
-    const change = this.get(input.changeId);
+    const change = this.ledger.get(input.changeId);
     if (input.decision === 'accept') this.repository.library.putReviewIntent(input);
     const parameters = ['decideReview', input] as const;
-    const result = this.creation.commit(null, input.commandId, parameters, { kind: 'review' }, () => {
-      const decision = { input, parameters };
-      if (change.deleted) return this.decideDeletion(change, decision);
-      if (this.repository.work(change.workId).readReceipt<Entry>(input.commandId, parameters)) {
-        // 作品库已提交、本机进度未写入：按正式稿补齐进度。
-        const view = this.view(change);
-        const partial = input.range !== undefined || input.part !== undefined;
-        return this.finish(change, {
-          base: view.current,
-          candidate: view.candidate,
-          status: partial && !sameContent(view.current, view.candidate) ? 'pending' : 'accepted',
-          authorEdited: true
-        });
-      }
-      if (input.range && input.part) throw new Error('一次只能决定一处正文或标题');
-      const view = this.checked(input);
-      if (input.part === 'title') return this.decideTitle(view, decision);
-      if (input.range) return this.decideRange(view, { ...decision, input: { ...input, range: input.range } });
-      return this.decideWhole(view, decision);
-    });
+    const result = this.creation.commit(null, input.commandId, parameters, { kind: 'review' }, () =>
+      change.target === 'record'
+        ? this.records.decide(change, { input, parameters })
+        : this.entries.decide(change, { input, parameters })
+    );
     this.repository.library.clearReviewIntent(input.commandId);
-    if (change.deleted) this.rejectTrashed(change.workId);
+    this.rejectTrashed(change.workId);
     return result;
   }
 
-  private decideDeletion(change: PendingChange, { input, parameters }: ReviewDecision): PendingChange {
-    if (input.range !== undefined || input.part !== undefined) throw new Error('删除只能整篇接受或拒绝');
-    if (input.decision === 'accept' && !this.repository.work(change.workId).readReceipt(input.commandId, parameters)) {
-      this.checked(input);
-      this.creation.commit(change.workId, input.commandId, parameters, { kind: 'entries' }, () =>
-        this.trashTargets(change.workId, [change])
-      );
-    }
-    return this.finish(change, { status: settled(input) });
-  }
-
-  private decideTitle(view: ReviewView, decision: ReviewDecision): PendingChange {
-    const { change, conflicts } = view;
-    if (!view.current || view.current.title === view.candidate.title) throw new Error('这项修改没有改名可单独处理');
-    let current = view.current;
-    let candidate = view.candidate;
-    if (decision.input.decision === 'accept') {
-      if (conflicts.some(conflict => conflict.field === 'title')) throw new Error('标题有冲突，请先处理冲突再接受改名');
-      // 只提交标题；正文与目录位置沿用正式稿，候选其余部分继续待审。
-      current = this.accept(change, decision, current, { ...current, title: candidate.title })!;
-    } else candidate = { ...candidate, title: current.title };
-    return this.finish(change, {
-      base: current,
-      candidate,
-      conflicts: conflicts.filter(conflict => conflict.field !== 'title'),
-      authorEdited: true,
-      status: sameContent(current, candidate) ? settled(decision.input) : 'pending'
-    });
-  }
-
-  private decideRange(
-    view: ReviewView,
-    decision: ReviewDecision & { input: DecideReviewInput & { range: NonNullable<DecideReviewInput['range']> } }
-  ): PendingChange {
-    const block = decideBlock(view, decision.input);
-    const current = block.accepted ? this.accept(view.change, decision, view.current, block.accepted) : view.current;
-    return this.finish(view.change, {
-      base: current,
-      candidate: block.candidate,
-      conflicts: view.conflicts,
-      authorEdited: true,
-      status: sameContent(current, block.candidate) ? settled(decision.input) : 'pending'
-    });
-  }
-
-  private decideWhole(view: ReviewView, decision: ReviewDecision): PendingChange {
-    const { change } = view;
-    if (decision.input.decision === 'accept') {
-      if (view.conflicts.length) throw new Error('请先处理冲突，再接受修改');
-      this.accept(change, decision, view.current, view.candidate);
-    } else if (
-      change.base === null &&
-      this.list(change.workId, change.sessionId).some(other => other.candidate.parentId === change.entryId)
-    ) {
-      throw new Error('请先处理引用此目录的待接受修改');
-    }
-    return this.finish(change, { status: settled(decision.input) });
-  }
-
-  /** 把接受的内容提交为正式修订，返回提交后的正式稿。 */
-  private accept(
-    change: PendingChange,
-    { input, parameters }: ReviewDecision,
-    base: EntrySnapshot | null,
-    candidate: EntrySnapshot
-  ): EntrySnapshot | null {
-    this.creation.commitSnapshot({
-      workId: change.workId,
-      commandId: input.commandId,
-      parameters,
-      base,
-      candidate,
-      source: 'review'
-    });
-    return readEntrySnapshot(this.repository.work(change.workId), change.entryId);
-  }
-
-  /** 撤回本会话尚未接受的新建候选，连同以它为父目录的新建候选。 */
+  /** 撤回本会话尚未接受的候选；新建条目连同以它为父目录的新建候选和依赖这些新资料的事件候选。 */
   withdraw(change: PendingChange): PendingChange {
-    const changes = this.repository.library.listPendingChanges(change.workId, change.sessionId);
-    const withdrawn = new Set([change.entryId]);
-    for (let size = 0; size !== withdrawn.size;) {
-      size = withdrawn.size;
-      for (const other of changes)
-        if (other.candidate.parentId !== null && withdrawn.has(other.candidate.parentId)) {
-          if (other.base !== null) throw new Error('此目录中还有本会话移入的条目，请先移出');
-          withdrawn.add(other.entryId);
-        }
-    }
+    const changes = this.ledger.pending(change.workId, change.sessionId);
+    const withdrawn = new Set([change.targetId]);
+    if (change.target === 'entry')
+      for (let size = 0; size !== withdrawn.size;) {
+        size = withdrawn.size;
+        for (const other of changes)
+          if (
+            other.target === 'entry' &&
+            other.candidate.parentId !== null &&
+            withdrawn.has(other.candidate.parentId)
+          ) {
+            if (other.base !== null) throw new Error('此目录中还有本会话移入的条目，请先移出');
+            withdrawn.add(other.targetId);
+          }
+      }
+    const hit = (other: PendingChange): boolean =>
+      withdrawn.has(other.targetId) ||
+      (change.target === 'entry' &&
+        other.target === 'record' &&
+        other.candidate.resourceIds.some(id => withdrawn.has(id)));
     let root = change;
-    for (const other of changes.filter(candidate => withdrawn.has(candidate.entryId))) {
-      const next = this.finish(other, { status: 'rejected' });
+    for (const other of changes.filter(hit)) {
+      const next = this.ledger.finish(other, { status: 'rejected' });
       this.delivery.detach(next);
       if (other.id === change.id) root = next;
     }
@@ -187,13 +124,13 @@ export class ReviewService {
     this.recover();
     return this.delivery.list(sessionId).map(group => ({
       group,
-      items: this.pendingIn(group).map(change => item(this.view(change)))
+      items: this.pendingIn(group).map(change => item(this.ledger.view(change)))
     }));
   }
 
   /**
    * 整组决定只覆盖一部作品：接受时全部候选与回执在该作品库的一个事务中提交，再凭回执更新本机进度。
-   * 任何一项冲突或已变化都整体拒绝，列出需要先处理的条目。
+   * 任何一项冲突或已变化都整体拒绝，列出需要先处理的内容。
    */
   decideDelivery(input: DecideDeliveryInput): DeliveryGroup {
     this.recover();
@@ -203,46 +140,36 @@ export class ReviewService {
     const result = this.creation.commit(null, input.commandId, parameters, { kind: 'delivery' }, () => {
       const changes = this.pendingIn(group).filter(change => change.workId === input.workId);
       if (this.repository.work(input.workId).readReceipt<Entry[]>(input.commandId, parameters)) {
-        for (const change of changes) this.finishAccepted(change);
+        for (const change of changes) this.ledger.finishAccepted(change);
         return this.delivery.read(group.id).group;
       }
       const targets = new Map(input.targets.map(target => [target.changeId, target]));
       if (targets.size !== changes.length || changes.some(change => !targets.has(change.id)))
         throw new Error('待审修改已变化，请刷新后处理');
-      const views = changes.map(change => this.view(change));
+      const views = changes.map(change => this.ledger.view(change));
       const stale = views.filter(view => staleReason(view, targets.get(view.change.id)!) !== null);
       if (stale.length) throw new Error(`以下修改已变化，请刷新后处理：${titles(stale)}`);
       if (input.decision === 'accept') {
         const conflicted = views.filter(view => view.conflicts.length > 0);
         if (conflicted.length) throw new Error(`以下修改有冲突，请先逐项处理：${titles(conflicted)}`);
-        // 按会话内的逻辑顺序写入，候选目录先于其中的新条目建立。
+        // 按会话内的逻辑顺序写入：候选目录先于其中的新条目，新资料先于引用它的事件。
         // oxlint-disable-next-line unicorn/no-array-sort
         const ordered = [...views].sort((a, b) => a.change.order - b.change.order);
+        const work = this.repository.work(input.workId);
         this.creation.commit(input.workId, input.commandId, parameters, { kind: 'entries' }, () =>
-          ordered.flatMap(view =>
-            view.change.deleted
-              ? this.trashTargets(input.workId, [view.change])
-              : [
-                  applySnapshot(this.repository.work(input.workId), {
-                    base: view.current,
-                    candidate: view.candidate,
-                    source: 'review'
-                  })
-                ]
-          )
+          ordered.flatMap(view => {
+            if (!isRecordView(view)) return this.entries.apply(work, view);
+            this.records.apply(work, view);
+            return [];
+          })
         );
-        for (const change of changes) this.finishAccepted(change);
+        for (const change of changes) this.ledger.finishAccepted(change);
       } else {
-        const rejected = new Set(changes.map(change => change.id));
-        const referenced = this.repository.library
-          .listPendingChanges(input.workId, group.sessionId)
-          .some(
-            other =>
-              !rejected.has(other.id) &&
-              changes.some(change => change.base === null && other.candidate.parentId === change.entryId)
-          );
-        if (referenced) throw new Error('请先处理引用此目录的待接受修改');
-        for (const change of changes) this.finish(change, { status: 'rejected' });
+        this.entries.assertUnreferenced(
+          changes.filter((change): change is EntryChange => change.target === 'entry'),
+          new Set(changes.map(change => change.id))
+        );
+        for (const change of changes) this.ledger.finish(change, { status: 'rejected' });
       }
       return this.delivery.read(group.id).group;
     });
@@ -251,31 +178,53 @@ export class ReviewService {
     return result;
   }
 
-  /** 删除提交后拒绝指向回收站条目的待审修改，包括挂在其下的新建候选；恢复时再次执行即补齐。 */
+  /**
+   * 删除提交后拒绝指向回收站内容的待审修改，包括挂在其下的新建候选，
+   * 以及所引用新资料已被拒绝或撤回的事件候选；恢复时再次执行即补齐。
+   */
   rejectTrashed(workId: string | null): void {
-    const changes = this.repository.library.listPendingChanges(workId, null);
-    for (const change of affectedByRemoval(changes, owner => id => this.repository.work(owner.workId).isTrashed(id)))
+    const changes = this.ledger.pending(workId, null);
+    const removal = (owner: PendingChange): Removal => {
+      const work = this.repository.work(owner.workId);
+      return {
+        entry: id => work.isTrashed(id),
+        record: id => work.isRecordTrashed(id),
+        missing: id =>
+          !work.getEntry(id) &&
+          !changes.some(
+            other =>
+              other.target === 'entry' &&
+              other.sessionId === owner.sessionId &&
+              other.base === null &&
+              other.targetId === id
+          )
+      };
+    };
+    for (const change of affectedByRemoval(changes, removal))
       this.creation.commit(null, `trash:${change.id}`, ['rejectTrashed', change.id], { kind: 'review' }, () =>
-        this.finish(change, { status: 'rejected' })
+        this.ledger.finish(change, { status: 'rejected' })
       );
   }
 
   /** 删除整部作品时拒绝其全部待审修改；须在作品库事务内调用。 */
   rejectWork(workId: string): void {
-    const changes = this.repository.library.listPendingChanges(workId, null);
+    const changes = this.ledger.pending(workId, null);
     for (const change of changes)
-      for (const id of change.covers ?? []) {
+      for (const id of change.target === 'entry' ? (change.covers ?? []) : []) {
         const covered = this.repository.library.getPendingChange(id);
         if (covered?.status === 'covered')
           this.repository.library.putPendingChange(advanceChange(covered, { status: 'rejected' }));
       }
-    for (const change of changes) this.finish(change, { status: 'rejected' });
+    for (const change of changes) this.ledger.finish(change, { status: 'rejected' });
   }
 
   /** 删除这些条目时会一并拒绝的待审修改数量。 */
   countAffected(workId: string, removedIds: ReadonlySet<string>): number {
-    return affectedByRemoval(this.repository.library.listPendingChanges(workId, null), () => id => removedIds.has(id))
-      .length;
+    return affectedByRemoval(this.ledger.pending(workId, null), () => ({
+      entry: id => removedIds.has(id),
+      record: () => false,
+      missing: () => false
+    })).length;
   }
 
   /** 恢复只补齐已有作品回执的进度；未提交的意图清除，不继续执行旧修改。 */
@@ -286,127 +235,53 @@ export class ReviewService {
       if (this.repository.work(input.workId).readReceipt<Entry[]>(input.commandId, parameters)) {
         const group = this.delivery.read(input.groupId).group;
         this.creation.commit(null, input.commandId, parameters, { kind: 'delivery' }, () => {
-          for (const change of this.pendingIn(group).filter(item => item.workId === input.workId))
-            this.finishAccepted(change);
+          for (const change of this.pendingIn(group).filter(change => change.workId === input.workId))
+            this.ledger.finishAccepted(change);
           return this.delivery.read(group.id).group;
         });
       }
       this.repository.library.clearDeliveryIntent(input.commandId);
     }
     for (const input of this.repository.library.listReviewIntents()) {
-      const change = this.get(input.changeId);
+      const change = this.ledger.get(input.changeId);
       const parameters = ['decideReview', input] as const;
-      if (this.repository.work(change.workId).readReceipt<Entry>(input.commandId, parameters)) {
-        this.creation.commit(null, input.commandId, parameters, { kind: 'review' }, () => {
-          const view = this.view(change);
-          return this.finish(change, {
-            base: view.current,
-            candidate: view.candidate,
-            authorEdited: true,
-            status: input.range && !sameContent(view.current, view.candidate) ? 'pending' : 'accepted'
-          });
-        });
-      }
+      if (this.repository.work(change.workId).readReceipt(input.commandId, parameters))
+        this.creation.commit(null, input.commandId, parameters, { kind: 'review' }, () =>
+          change.target === 'record' ? this.records.recover(change) : this.entries.recover(change, input)
+        );
       this.repository.library.clearReviewIntent(input.commandId);
     }
   }
+
   private pendingIn(group: DeliveryGroup): PendingChange[] {
-    return group.changeIds.map(id => this.get(id)).filter(change => change.status === 'pending');
-  }
-  private finishAccepted(change: PendingChange): void {
-    const view = this.view(change);
-    this.finish(change, { base: view.current, candidate: view.candidate, status: 'accepted' });
-  }
-  /** 删除候选结束时处理并入的修改：接受则一并拒绝，拒绝则恢复待审。 */
-  private finish(change: PendingChange, fields: Partial<PendingChange>): PendingChange {
-    const next = advanceChange(change, fields);
-    this.repository.library.putPendingChange(next);
-    if (next.deleted && next.status !== 'pending')
-      for (const id of next.covers ?? []) {
-        const covered = this.repository.library.getPendingChange(id);
-        if (covered?.status === 'covered')
-          this.repository.library.putPendingChange(
-            advanceChange(covered, { status: next.status === 'accepted' ? 'rejected' : 'pending' })
-          );
-      }
-    return next;
-  }
-  private trashTargets(workId: string, changes: PendingChange[]): Entry[] {
-    const entries = this.repository.work(workId).listEntries();
-    const ids = new Set(
-      this.repository.work(workId).trashEntries(
-        changes.map(change => change.entryId),
-        randomUUID(),
-        Date.now()
-      )
-    );
-    return entries.filter(entry => ids.has(entry.id));
-  }
-  private get(id: string): PendingChange {
-    const change = this.repository.library.getPendingChange(id);
-    if (!change) throw new Error('待接受修改不存在');
-    return change;
-  }
-  private checked(input: ReviewTarget): ReviewView {
-    const view = this.view(this.get(input.changeId));
-    assertReviewTarget(view, input);
-    return view;
-  }
-  private view(change: PendingChange): ReviewView {
-    return mergeCandidate(change, readEntrySnapshot(this.repository.work(change.workId), change.entryId));
+    return group.changeIds.map(id => this.ledger.get(id)).filter(change => change.status === 'pending');
   }
 }
 
 function item(view: ReviewView): DeliveryItem {
-  const { change, current, candidate } = view;
-  return {
-    target: {
-      changeId: change.id,
-      expectedVersion: change.version,
-      expectedRevisionId: current?.revisionId ?? null,
-      expectedLocation: current ? { parentId: current.parentId, position: current.position } : null
-    },
-    workId: change.workId,
-    entryId: change.entryId,
-    section: candidate.section,
-    kind: candidate.kind,
-    title: candidate.title,
-    created: current === null,
-    deleted: change.deleted === true,
+  const fields = {
+    target: reviewTarget(view),
+    workId: view.change.workId,
+    targetId: view.change.targetId,
+    created: view.current === null,
+    deleted: view.change.deleted === true,
     conflicted: view.conflicts.length > 0
   };
+  if (isRecordView(view)) return { ...fields, kind: 'record', record: view.candidate };
+  return { ...fields, section: view.candidate.section, kind: view.candidate.kind, title: view.candidate.title };
 }
-/** 目标条目或候选父目录被删除的修改受影响；挂在受影响新建目录下的候选随之受影响。 */
-function affectedByRemoval(
-  changes: PendingChange[],
-  removedIn: (change: PendingChange) => (entryId: string) => boolean
-): PendingChange[] {
-  const affected: PendingChange[] = [];
-  const removedCreated = new Set<string>();
-  let remaining = changes;
-  let found = true;
-  while (found) {
-    found = false;
-    remaining = remaining.filter(change => {
-      const removed = removedIn(change);
-      const { parentId } = change.candidate;
-      const hit = removed(change.entryId) || (parentId !== null && (removed(parentId) || removedCreated.has(parentId)));
-      if (!hit) return true;
-      affected.push(change);
-      if (change.base === null) removedCreated.add(change.entryId);
-      found = true;
-      return false;
-    });
-  }
-  return affected;
-}
-interface ReviewDecision {
-  input: DecideReviewInput;
-  parameters: readonly unknown[];
-}
-function settled(input: DecideReviewInput): 'accepted' | 'rejected' {
-  return input.decision === 'accept' ? 'accepted' : 'rejected';
+/** 作者看到的版本；事件没有目录位置。 */
+function reviewTarget(view: ReviewView): ReviewTarget {
+  const target = {
+    changeId: view.change.id,
+    expectedVersion: view.change.version,
+    expectedRevisionId: view.current?.revisionId ?? null
+  };
+  if (isRecordView(view) || !view.current) return { ...target, expectedLocation: null };
+  return { ...target, expectedLocation: { parentId: view.current.parentId, position: view.current.position } };
 }
 function titles(views: ReviewView[]): string {
-  return views.map(view => `《${view.candidate.title}》`).join('、');
+  return views
+    .map(view => (isRecordView(view) ? `事件“${view.candidate.text}”` : `《${view.candidate.title}》`))
+    .join('、');
 }

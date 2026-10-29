@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 
+import type { EntrySnapshot } from '@chaptale/creation/contracts';
+
 import { application, target, value } from './fixtures/review.ts';
 
 it('审阅改稿按会话隔离，接受后生成正式修订', async () => {
@@ -40,7 +42,7 @@ it('审阅搜索叠加自己的改稿，其他会话和正式检索保留原文�
     input: { workId: work.id, query: '出征', offset: 0, limit: 10 }
   };
   expect(value(app.executeAgent<'searchDocuments'>(context, search)).entries.map(entry => entry.id)).toEqual([
-    change.entryId
+    change.targetId
   ]);
   expect(value(app.executeAuthor<'searchDocuments'>(search)).entries).toEqual([]);
   expect(value(app.executeAgent<'searchDocuments'>({ ...context, sessionId: 'session-b' }, search)).entries).toEqual(
@@ -124,9 +126,10 @@ it('精确替换拒绝缺失、重复和空原文，陈旧候选版本不覆盖�
       }
     })
   ).toMatchObject({ ok: false, error: { code: 'revision-conflict' } });
-  expect(value(app.executeAuthor({ method: 'readReview', input: { changeId: change.id } })).candidate.content).toBe(
-    '将军出征。\n公主远行。'
-  );
+  expect(
+    (value(app.executeAuthor({ method: 'readReview', input: { changeId: change.id } })).candidate as EntrySnapshot)
+      .content
+  ).toBe('将军出征。\n公主远行。');
 });
 
 it('不存在的候选请求不会留下阻塞后续审阅的提交意图', async () => {
