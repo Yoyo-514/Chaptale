@@ -70,6 +70,9 @@ export function chapterOrder(entries: readonly Entry[]): string[] {
   return order;
 }
 
+const placementKey = (placement: RecordPlacement): string =>
+  placement.kind === 'chapter' ? `chapter:${placement.chapterId}` : placement.kind;
+
 export interface RecordGroup {
   placement: RecordPlacement;
   records: StoryRecord[];
@@ -87,10 +90,8 @@ export function groupRecords(
   const chapters = chapterOrder(entries);
   const limit = asOf === null ? chapters.length : chapters.indexOf(asOf) + 1;
   const groups = new Map<string, RecordGroup>();
-  const key = (placement: RecordPlacement): string =>
-    placement.kind === 'chapter' ? `chapter:${placement.chapterId}` : placement.kind;
   for (const record of [...records].sort((a, b) => a.position - b.position)) {
-    const id = key(record.placement);
+    const id = placementKey(record.placement);
     const group = groups.get(id) ?? { placement: record.placement, records: [] };
     group.records.push(record);
     groups.set(id, group);
