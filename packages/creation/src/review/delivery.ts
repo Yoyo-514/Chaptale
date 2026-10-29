@@ -23,12 +23,12 @@ export class DeliveryService {
 
   /** 已结束的组不再是当前任务；它之后的第一处修改另开新组。 */
   current(sessionId: string): DeliveryView | null {
-    const group = this.repository.getCurrentDelivery(sessionId);
+    const group = this.repository.library.getCurrentDelivery(sessionId);
     return group && group.status !== 'ended' ? { group, pendingCount: this.pendingCount(group) } : null;
   }
 
   read(groupId: string): DeliveryView {
-    const group = this.repository.getDeliveryGroup(groupId);
+    const group = this.repository.library.getDeliveryGroup(groupId);
     if (!group) throw new Error('待审修改组不存在');
     return { group, pendingCount: this.pendingCount(group) };
   }
@@ -36,24 +36,24 @@ export class DeliveryService {
   /** 当前组及仍有待审修改的历史组。 */
   list(sessionId: string): DeliveryGroup[] {
     const current = this.current(sessionId)?.group;
-    return this.repository
+    return this.repository.library
       .listDeliveryGroups(sessionId)
       .filter(group => group.id === current?.id || (group.status === 'ended' && this.pendingCount(group) > 0));
   }
 
   contents(groupId: string): DeliveryContent[] {
     return this.read(groupId).group.changeIds.map(id => {
-      const change = this.repository.getPendingChange(id)!;
+      const change = this.repository.library.getPendingChange(id)!;
       return {
         workId: change.workId,
         entryId: change.entryId,
         title: change.candidate.title,
         decision: change.authorEdited
           ? 'edited'
-          : change.status === 'rejected' && this.repository.isTrashed(change.workId, change.entryId)
+          : change.status === 'rejected' && this.repository.work(change.workId).isTrashed(change.entryId)
             ? 'deleted'
             : (change.status as 'accepted' | 'rejected'),
-        snapshot: readEntrySnapshot(this.repository, change.workId, change.entryId)
+        snapshot: readEntrySnapshot(this.repository.work(change.workId), change.entryId)
       };
     });
   }
@@ -61,7 +61,7 @@ export class DeliveryService {
   /** 早前任务保留的候选由作者先处理，新任务不接管或覆盖它。 */
   assertWritable(sessionId: string, workId: string, entryId: string | null): void {
     if (entryId === null) return;
-    const change = this.repository
+    const change = this.repository.library
       .listPendingChanges(workId, sessionId)
       .find(candidate => candidate.entryId === entryId);
     if (change && !this.current(sessionId)?.group.changeIds.includes(change.id))
@@ -70,7 +70,7 @@ export class DeliveryService {
 
   /** 与候选在同一事务中登记，中途问答及重启沿用本组。 */
   attach(change: PendingChange): void {
-    const previous = this.repository.getCurrentDelivery(change.sessionId);
+    const previous = this.repository.library.getCurrentDelivery(change.sessionId);
     const current = previous?.status === 'pending' ? previous : undefined;
     const group: DeliveryGroup = {
       id: current?.id ?? randomUUID(),
@@ -80,14 +80,14 @@ export class DeliveryService {
       changeIds: current ? [...current.changeIds] : []
     };
     if (!group.changeIds.includes(change.id)) group.changeIds.push(change.id);
-    this.repository.putDeliveryGroup(group);
+    this.repository.library.putDeliveryGroup(group);
   }
 
   /** 撤回的候选从所在组移除，不计入续跑结果。 */
   detach(change: PendingChange): void {
-    const group = this.repository.getCurrentDelivery(change.sessionId);
+    const group = this.repository.library.getCurrentDelivery(change.sessionId);
     if (!group?.changeIds.includes(change.id)) return;
-    this.repository.putDeliveryGroup({
+    this.repository.library.putDeliveryGroup({
       ...group,
       version: randomUUID(),
       changeIds: group.changeIds.filter(id => id !== change.id)
@@ -105,7 +105,7 @@ export class DeliveryService {
   }
 
   pendingCount(group: DeliveryGroup): number {
-    return group.changeIds.filter(id => this.repository.getPendingChange(id)!.status === 'pending').length;
+    return group.changeIds.filter(id => this.repository.library.getPendingChange(id)!.status === 'pending').length;
   }
 
   private advance(
@@ -125,7 +125,7 @@ export class DeliveryService {
         throw new Error('待审修改已变化，请刷新后继续');
       check(current);
       const group: DeliveryGroup = { ...current.group, version: randomUUID(), status };
-      this.repository.putDeliveryGroup(group);
+      this.repository.library.putDeliveryGroup(group);
       return group;
     });
   }

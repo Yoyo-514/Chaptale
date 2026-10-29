@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import { commitSnapshot } from '../content/commit.ts';
 import { readEntrySnapshot } from '../content/mutations.ts';
+import type { TrashService } from '../content/trash.ts';
 import type {
   CreationAgentCommand,
   CreationAgentCommands,
@@ -20,7 +20,6 @@ import { advanceChange } from '../review/pending-change.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
 import { illustrationIds } from '../text.ts';
-import type { TrashService } from '../trash.ts';
 import { proposeEntry } from './proposal.ts';
 
 type AgentValue = Extract<CreationAgentCommands[keyof CreationAgentCommands]['output'], { ok: true }>['value'];
@@ -48,7 +47,11 @@ export class CreationAgentService {
 
   execute(context: CreationAgentContext, command: CreationAgentCommand): AgentValue {
     // 作品库回收站中的作品对 Agent 不可见。
-    if ('workId' in command.input && command.input.workId !== null && !this.repository.hasWork(command.input.workId))
+    if (
+      'workId' in command.input &&
+      command.input.workId !== null &&
+      !this.repository.library.hasWork(command.input.workId)
+    )
       throw new Error('作品不存在');
     switch (command.method) {
       case 'listWorks':
@@ -83,7 +86,7 @@ export class CreationAgentService {
           .listEntries(workId)
           .filter(entry => !visible.has(entry.id))
           .map(entry => entry.id);
-        return this.repository.searchDocuments(command.input, candidates, hidden);
+        return this.repository.work(command.input.workId).searchDocuments(command.input, candidates, hidden);
       }
       case 'deleteEntry':
         return this.remove(context, command);
@@ -103,7 +106,7 @@ export class CreationAgentService {
     const { workId, commandId, entryId, expectedRevisionId } = command.input;
     const { sessionId } = context;
     if (context.mode === 'direct') {
-      const receipt = this.repository.readWorkReceipt<Entry[]>(workId, commandId, ['trashEntries', workId, [entryId]]);
+      const receipt = this.repository.work(workId).readReceipt<Entry[]>(commandId, ['trashEntries', workId, [entryId]]);
       if (receipt) return { kind: 'trashed', entries: receipt };
       if ((this.delivery.current(sessionId)?.pendingCount ?? 0) > 0)
         throw new Error('请先处理当前这组待接受修改，再切换直接修改');
@@ -136,7 +139,7 @@ export class CreationAgentService {
         for (const entry of entries) if (entry.parentId !== null && removed.has(entry.parentId)) removed.add(entry.id);
       }
       const covered = changes.filter(item => item.id !== existing?.id && removed.has(item.entryId));
-      for (const item of covered) this.repository.putPendingChange(advanceChange(item, { status: 'covered' }));
+      for (const item of covered) this.repository.library.putPendingChange(advanceChange(item, { status: 'covered' }));
       const version = randomUUID();
       const next: PendingChange = {
         id: existing?.id ?? randomUUID(),
@@ -154,7 +157,7 @@ export class CreationAgentService {
         covers: covered.map(item => item.id),
         updatedAt: Date.now()
       };
-      this.repository.putPendingChange(next);
+      this.repository.library.putPendingChange(next);
       this.delivery.attach(next);
       return next;
     });
@@ -162,9 +165,9 @@ export class CreationAgentService {
   }
 
   private existingEntry(workId: string, entryId: string): EntrySnapshot {
-    if (!this.repository.hasWork(workId)) throw new Error('作品不存在');
-    assertNotTrashed(this.repository, workId, entryId);
-    const current = readEntrySnapshot(this.repository, workId, entryId);
+    if (!this.repository.library.hasWork(workId)) throw new Error('作品不存在');
+    assertNotTrashed(this.repository.work(workId), entryId);
+    const current = readEntrySnapshot(this.repository.work(workId), entryId);
     if (!current) throw new Error('条目不存在');
     return current;
   }
@@ -174,7 +177,7 @@ export class CreationAgentService {
     const { workId, commandId } = command.input;
     const parameters = ['agent', context.sessionId, command] as const;
     if (context.mode === 'direct') {
-      const receipt = this.repository.readWorkReceipt<Entry>(workId, commandId, parameters);
+      const receipt = this.repository.work(workId).readReceipt<Entry>(commandId, parameters);
       if (receipt) return { kind: 'saved', entry: receipt };
       if ((this.delivery.current(context.sessionId)?.pendingCount ?? 0) > 0)
         throw new Error('请先处理当前这组待接受修改，再切换直接修改');
@@ -182,7 +185,7 @@ export class CreationAgentService {
       const { base, candidate } = this.propose(context, command);
       return {
         kind: 'saved',
-        entry: commitSnapshot(this.repository, this.creation.commit.bind(this.creation), {
+        entry: this.creation.commitSnapshot({
           workId,
           commandId,
           parameters,
@@ -213,7 +216,7 @@ export class CreationAgentService {
         status: 'pending',
         updatedAt: Date.now()
       };
-      this.repository.putPendingChange(change);
+      this.repository.library.putPendingChange(change);
       this.delivery.attach(change);
       return change;
     });
@@ -223,14 +226,14 @@ export class CreationAgentService {
   private propose(context: CreationAgentContext, command: WriteCommand) {
     const { sessionId, mode } = context;
     const { workId } = command.input;
-    if (!this.repository.hasWork(workId)) throw new Error('作品不存在');
+    if (!this.repository.library.hasWork(workId)) throw new Error('作品不存在');
     const entryId = targetId(command);
     const existing =
       entryId === null || mode !== 'review'
         ? undefined
         : this.review.list(workId, sessionId).find(change => change.entryId === entryId);
-    if (entryId !== null) assertNotTrashed(this.repository, workId, entryId);
-    const current = entryId === null ? null : readEntrySnapshot(this.repository, workId, entryId);
+    if (entryId !== null) assertNotTrashed(this.repository.work(workId), entryId);
+    const current = entryId === null ? null : readEntrySnapshot(this.repository.work(workId), entryId);
     const entries = mode === 'review' ? this.entries(workId, sessionId) : this.creation.listEntries(workId);
     const proposal = proposeEntry(command, entries, current, existing);
     // Agent 只能保留或移动已有插图，不能新建插图引用。

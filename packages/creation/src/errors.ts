@@ -1,5 +1,5 @@
 import type { CreationError } from './contracts.ts';
-import type { CreationRepository } from './repository.ts';
+import type { WorkRepository } from './repository.ts';
 
 export class RevisionConflictError extends Error {
   readonly code = 'revision-conflict';
@@ -61,6 +61,6 @@ export class DraftConflictError extends Error {
 }
 
 /** 回收站中的条目对读取和修改不可见，报错说明原因。 */
-export function assertNotTrashed(repository: CreationRepository, workId: string, entryId: string): void {
-  if (repository.isTrashed(workId, entryId)) throw new Error('条目在回收站中');
+export function assertNotTrashed(work: WorkRepository, entryId: string): void {
+  if (work.isTrashed(entryId)) throw new Error('条目在回收站中');
 }

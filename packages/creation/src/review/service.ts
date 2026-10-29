@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { applySnapshot, commitSnapshot } from '../content/commit.ts';
+import { applySnapshot } from '../content/commit.ts';
 import { readEntrySnapshot } from '../content/mutations.ts';
 import type {
   DecideDeliveryInput,
@@ -9,6 +9,7 @@ import type {
   DeliveryItem,
   DeliverySummary,
   Entry,
+  EntrySnapshot,
   PendingChange,
   ReviewTarget,
   ReviewView,
@@ -32,7 +33,7 @@ export class ReviewService {
   }
   list(workId: string | null, sessionId: string | null): PendingChange[] {
     this.recover();
-    return this.repository.listPendingChanges(workId, sessionId);
+    return this.repository.library.listPendingChanges(workId, sessionId);
   }
   read(id: string): ReviewView {
     this.recover();
@@ -49,115 +50,121 @@ export class ReviewService {
         conflicts: input.resolveConflicts ? [] : view.conflicts,
         authorEdited: true
       });
-      this.repository.putPendingChange(change);
+      this.repository.library.putPendingChange(change);
       return change;
     });
   }
+  /** 整篇、单处正文或单独改名的决定；接受的部分写入正式稿，其余继续待审。 */
   decide(input: DecideReviewInput): PendingChange {
     this.recover();
     const change = this.get(input.changeId);
-    if (input.decision === 'accept') this.repository.putReviewIntent(input);
+    if (input.decision === 'accept') this.repository.library.putReviewIntent(input);
     const parameters = ['decideReview', input] as const;
     const result = this.creation.commit(null, input.commandId, parameters, { kind: 'review' }, () => {
-      const receipt = this.repository.readWorkReceipt<Entry>(change.workId, input.commandId, parameters);
-      const partial = input.range !== undefined || input.part !== undefined;
-      if (change.deleted) {
-        if (partial) throw new Error('删除只能整篇接受或拒绝');
-        if (input.decision === 'accept' && !receipt) {
-          this.checked(input);
-          this.creation.commit(change.workId, input.commandId, parameters, { kind: 'entries' }, () =>
-            this.trashTargets(change.workId, [change])
-          );
-        }
-        return this.finish(change, { status: input.decision === 'accept' ? 'accepted' : 'rejected' });
-      }
-      const view = receipt ? this.view(change) : this.checked(input);
-      if (receipt)
+      const decision = { input, parameters };
+      if (change.deleted) return this.decideDeletion(change, decision);
+      if (this.repository.work(change.workId).readReceipt<Entry>(input.commandId, parameters)) {
+        // 作品库已提交、本机进度未写入：按正式稿补齐进度。
+        const view = this.view(change);
+        const partial = input.range !== undefined || input.part !== undefined;
         return this.finish(change, {
           base: view.current,
           candidate: view.candidate,
           status: partial && !sameContent(view.current, view.candidate) ? 'pending' : 'accepted',
           authorEdited: true
         });
+      }
       if (input.range && input.part) throw new Error('一次只能决定一处正文或标题');
-      if (input.part === 'title') {
-        if (!view.current || view.current.title === view.candidate.title) throw new Error('这项修改没有改名可单独处理');
-        let current = view.current;
-        let candidate = view.candidate;
-        if (input.decision === 'accept') {
-          if (view.conflicts.some(conflict => conflict.field === 'title'))
-            throw new Error('标题有冲突，请先处理冲突再接受改名');
-          // 只提交标题；正文与目录位置沿用正式稿，候选其余部分继续待审。
-          commitSnapshot(this.repository, this.creation.commit.bind(this.creation), {
-            workId: change.workId,
-            commandId: input.commandId,
-            parameters,
-            base: current,
-            candidate: { ...current, title: candidate.title },
-            source: 'review'
-          });
-          current = readEntrySnapshot(this.repository, change.workId, change.entryId)!;
-        } else candidate = { ...candidate, title: current.title };
-        return this.finish(change, {
-          base: current,
-          candidate,
-          conflicts: view.conflicts.filter(conflict => conflict.field !== 'title'),
-          authorEdited: true,
-          status: sameContent(current, candidate) ? (input.decision === 'accept' ? 'accepted' : 'rejected') : 'pending'
-        });
-      }
-      if (input.range) {
-        const block = decideBlock(view, { ...input, range: input.range });
-        let current = view.current;
-        if (block.accepted) {
-          commitSnapshot(this.repository, this.creation.commit.bind(this.creation), {
-            workId: change.workId,
-            commandId: input.commandId,
-            parameters,
-            base: current,
-            candidate: block.accepted,
-            source: 'review'
-          });
-          current = readEntrySnapshot(this.repository, change.workId, change.entryId);
-        }
-        return this.finish(change, {
-          base: current,
-          candidate: block.candidate,
-          conflicts: view.conflicts,
-          authorEdited: true,
-          status: sameContent(current, block.candidate)
-            ? input.decision === 'accept'
-              ? 'accepted'
-              : 'rejected'
-            : 'pending'
-        });
-      }
-      if (input.decision === 'accept') {
-        if (view.conflicts.length) throw new Error('请先处理冲突，再接受修改');
-        commitSnapshot(this.repository, this.creation.commit.bind(this.creation), {
-          workId: change.workId,
-          commandId: input.commandId,
-          parameters,
-          base: view.current,
-          candidate: view.candidate,
-          source: 'review'
-        });
-      } else if (
-        change.base === null &&
-        this.list(change.workId, change.sessionId).some(other => other.candidate.parentId === change.entryId)
-      ) {
-        throw new Error('请先处理引用此目录的待接受修改');
-      }
-      return this.finish(change, { status: input.decision === 'accept' ? 'accepted' : 'rejected' });
+      const view = this.checked(input);
+      if (input.part === 'title') return this.decideTitle(view, decision);
+      if (input.range) return this.decideRange(view, { ...decision, input: { ...input, range: input.range } });
+      return this.decideWhole(view, decision);
     });
-    this.repository.clearReviewIntent(input.commandId);
+    this.repository.library.clearReviewIntent(input.commandId);
     if (change.deleted) this.rejectTrashed(change.workId);
     return result;
   }
 
+  private decideDeletion(change: PendingChange, { input, parameters }: ReviewDecision): PendingChange {
+    if (input.range !== undefined || input.part !== undefined) throw new Error('删除只能整篇接受或拒绝');
+    if (input.decision === 'accept' && !this.repository.work(change.workId).readReceipt(input.commandId, parameters)) {
+      this.checked(input);
+      this.creation.commit(change.workId, input.commandId, parameters, { kind: 'entries' }, () =>
+        this.trashTargets(change.workId, [change])
+      );
+    }
+    return this.finish(change, { status: settled(input) });
+  }
+
+  private decideTitle(view: ReviewView, decision: ReviewDecision): PendingChange {
+    const { change, conflicts } = view;
+    if (!view.current || view.current.title === view.candidate.title) throw new Error('这项修改没有改名可单独处理');
+    let current = view.current;
+    let candidate = view.candidate;
+    if (decision.input.decision === 'accept') {
+      if (conflicts.some(conflict => conflict.field === 'title')) throw new Error('标题有冲突，请先处理冲突再接受改名');
+      // 只提交标题；正文与目录位置沿用正式稿，候选其余部分继续待审。
+      current = this.accept(change, decision, current, { ...current, title: candidate.title })!;
+    } else candidate = { ...candidate, title: current.title };
+    return this.finish(change, {
+      base: current,
+      candidate,
+      conflicts: conflicts.filter(conflict => conflict.field !== 'title'),
+      authorEdited: true,
+      status: sameContent(current, candidate) ? settled(decision.input) : 'pending'
+    });
+  }
+
+  private decideRange(
+    view: ReviewView,
+    decision: ReviewDecision & { input: DecideReviewInput & { range: NonNullable<DecideReviewInput['range']> } }
+  ): PendingChange {
+    const block = decideBlock(view, decision.input);
+    const current = block.accepted ? this.accept(view.change, decision, view.current, block.accepted) : view.current;
+    return this.finish(view.change, {
+      base: current,
+      candidate: block.candidate,
+      conflicts: view.conflicts,
+      authorEdited: true,
+      status: sameContent(current, block.candidate) ? settled(decision.input) : 'pending'
+    });
+  }
+
+  private decideWhole(view: ReviewView, decision: ReviewDecision): PendingChange {
+    const { change } = view;
+    if (decision.input.decision === 'accept') {
+      if (view.conflicts.length) throw new Error('请先处理冲突，再接受修改');
+      this.accept(change, decision, view.current, view.candidate);
+    } else if (
+      change.base === null &&
+      this.list(change.workId, change.sessionId).some(other => other.candidate.parentId === change.entryId)
+    ) {
+      throw new Error('请先处理引用此目录的待接受修改');
+    }
+    return this.finish(change, { status: settled(decision.input) });
+  }
+
+  /** 把接受的内容提交为正式修订，返回提交后的正式稿。 */
+  private accept(
+    change: PendingChange,
+    { input, parameters }: ReviewDecision,
+    base: EntrySnapshot | null,
+    candidate: EntrySnapshot
+  ): EntrySnapshot | null {
+    this.creation.commitSnapshot({
+      workId: change.workId,
+      commandId: input.commandId,
+      parameters,
+      base,
+      candidate,
+      source: 'review'
+    });
+    return readEntrySnapshot(this.repository.work(change.workId), change.entryId);
+  }
+
   /** 撤回本会话尚未接受的新建候选，连同以它为父目录的新建候选。 */
   withdraw(change: PendingChange): PendingChange {
-    const changes = this.repository.listPendingChanges(change.workId, change.sessionId);
+    const changes = this.repository.library.listPendingChanges(change.workId, change.sessionId);
     const withdrawn = new Set([change.entryId]);
     for (let size = 0; size !== withdrawn.size;) {
       size = withdrawn.size;
@@ -191,11 +198,11 @@ export class ReviewService {
   decideDelivery(input: DecideDeliveryInput): DeliveryGroup {
     this.recover();
     const group = this.delivery.read(input.groupId).group;
-    if (input.decision === 'accept') this.repository.putDeliveryIntent(input);
+    if (input.decision === 'accept') this.repository.library.putDeliveryIntent(input);
     const parameters = ['decideDelivery', input] as const;
     const result = this.creation.commit(null, input.commandId, parameters, { kind: 'delivery' }, () => {
       const changes = this.pendingIn(group).filter(change => change.workId === input.workId);
-      if (this.repository.readWorkReceipt<Entry[]>(input.workId, input.commandId, parameters)) {
+      if (this.repository.work(input.workId).readReceipt<Entry[]>(input.commandId, parameters)) {
         for (const change of changes) this.finishAccepted(change);
         return this.delivery.read(group.id).group;
       }
@@ -216,8 +223,7 @@ export class ReviewService {
             view.change.deleted
               ? this.trashTargets(input.workId, [view.change])
               : [
-                  applySnapshot(this.repository, {
-                    workId: input.workId,
+                  applySnapshot(this.repository.work(input.workId), {
                     base: view.current,
                     candidate: view.candidate,
                     source: 'review'
@@ -228,7 +234,7 @@ export class ReviewService {
         for (const change of changes) this.finishAccepted(change);
       } else {
         const rejected = new Set(changes.map(change => change.id));
-        const referenced = this.repository
+        const referenced = this.repository.library
           .listPendingChanges(input.workId, group.sessionId)
           .some(
             other =>
@@ -240,15 +246,15 @@ export class ReviewService {
       }
       return this.delivery.read(group.id).group;
     });
-    this.repository.clearDeliveryIntent(input.commandId);
+    this.repository.library.clearDeliveryIntent(input.commandId);
     this.rejectTrashed(input.workId);
     return result;
   }
 
   /** 删除提交后拒绝指向回收站条目的待审修改，包括挂在其下的新建候选；恢复时再次执行即补齐。 */
   rejectTrashed(workId: string | null): void {
-    const changes = this.repository.listPendingChanges(workId, null);
-    for (const change of affectedByRemoval(changes, owner => id => this.repository.isTrashed(owner.workId, id)))
+    const changes = this.repository.library.listPendingChanges(workId, null);
+    for (const change of affectedByRemoval(changes, owner => id => this.repository.work(owner.workId).isTrashed(id)))
       this.creation.commit(null, `trash:${change.id}`, ['rejectTrashed', change.id], { kind: 'review' }, () =>
         this.finish(change, { status: 'rejected' })
       );
@@ -256,27 +262,28 @@ export class ReviewService {
 
   /** 删除整部作品时拒绝其全部待审修改；须在作品库事务内调用。 */
   rejectWork(workId: string): void {
-    const changes = this.repository.listPendingChanges(workId, null);
+    const changes = this.repository.library.listPendingChanges(workId, null);
     for (const change of changes)
       for (const id of change.covers ?? []) {
-        const covered = this.repository.getPendingChange(id);
+        const covered = this.repository.library.getPendingChange(id);
         if (covered?.status === 'covered')
-          this.repository.putPendingChange(advanceChange(covered, { status: 'rejected' }));
+          this.repository.library.putPendingChange(advanceChange(covered, { status: 'rejected' }));
       }
     for (const change of changes) this.finish(change, { status: 'rejected' });
   }
 
   /** 删除这些条目时会一并拒绝的待审修改数量。 */
   countAffected(workId: string, removedIds: ReadonlySet<string>): number {
-    return affectedByRemoval(this.repository.listPendingChanges(workId, null), () => id => removedIds.has(id)).length;
+    return affectedByRemoval(this.repository.library.listPendingChanges(workId, null), () => id => removedIds.has(id))
+      .length;
   }
 
   /** 恢复只补齐已有作品回执的进度；未提交的意图清除，不继续执行旧修改。 */
   private recover(): void {
     this.rejectTrashed(null);
-    for (const input of this.repository.listDeliveryIntents()) {
+    for (const input of this.repository.library.listDeliveryIntents()) {
       const parameters = ['decideDelivery', input] as const;
-      if (this.repository.readWorkReceipt<Entry[]>(input.workId, input.commandId, parameters)) {
+      if (this.repository.work(input.workId).readReceipt<Entry[]>(input.commandId, parameters)) {
         const group = this.delivery.read(input.groupId).group;
         this.creation.commit(null, input.commandId, parameters, { kind: 'delivery' }, () => {
           for (const change of this.pendingIn(group).filter(item => item.workId === input.workId))
@@ -284,12 +291,12 @@ export class ReviewService {
           return this.delivery.read(group.id).group;
         });
       }
-      this.repository.clearDeliveryIntent(input.commandId);
+      this.repository.library.clearDeliveryIntent(input.commandId);
     }
-    for (const input of this.repository.listReviewIntents()) {
+    for (const input of this.repository.library.listReviewIntents()) {
       const change = this.get(input.changeId);
       const parameters = ['decideReview', input] as const;
-      if (this.repository.readWorkReceipt<Entry>(change.workId, input.commandId, parameters)) {
+      if (this.repository.work(change.workId).readReceipt<Entry>(input.commandId, parameters)) {
         this.creation.commit(null, input.commandId, parameters, { kind: 'review' }, () => {
           const view = this.view(change);
           return this.finish(change, {
@@ -300,7 +307,7 @@ export class ReviewService {
           });
         });
       }
-      this.repository.clearReviewIntent(input.commandId);
+      this.repository.library.clearReviewIntent(input.commandId);
     }
   }
   private pendingIn(group: DeliveryGroup): PendingChange[] {
@@ -313,22 +320,21 @@ export class ReviewService {
   /** 删除候选结束时处理并入的修改：接受则一并拒绝，拒绝则恢复待审。 */
   private finish(change: PendingChange, fields: Partial<PendingChange>): PendingChange {
     const next = advanceChange(change, fields);
-    this.repository.putPendingChange(next);
+    this.repository.library.putPendingChange(next);
     if (next.deleted && next.status !== 'pending')
       for (const id of next.covers ?? []) {
-        const covered = this.repository.getPendingChange(id);
+        const covered = this.repository.library.getPendingChange(id);
         if (covered?.status === 'covered')
-          this.repository.putPendingChange(
+          this.repository.library.putPendingChange(
             advanceChange(covered, { status: next.status === 'accepted' ? 'rejected' : 'pending' })
           );
       }
     return next;
   }
   private trashTargets(workId: string, changes: PendingChange[]): Entry[] {
-    const entries = this.repository.listEntries(workId);
+    const entries = this.repository.work(workId).listEntries();
     const ids = new Set(
-      this.repository.trashEntries(
-        workId,
+      this.repository.work(workId).trashEntries(
         changes.map(change => change.entryId),
         randomUUID(),
         Date.now()
@@ -337,7 +343,7 @@ export class ReviewService {
     return entries.filter(entry => ids.has(entry.id));
   }
   private get(id: string): PendingChange {
-    const change = this.repository.getPendingChange(id);
+    const change = this.repository.library.getPendingChange(id);
     if (!change) throw new Error('待接受修改不存在');
     return change;
   }
@@ -347,7 +353,7 @@ export class ReviewService {
     return view;
   }
   private view(change: PendingChange): ReviewView {
-    return mergeCandidate(change, readEntrySnapshot(this.repository, change.workId, change.entryId));
+    return mergeCandidate(change, readEntrySnapshot(this.repository.work(change.workId), change.entryId));
   }
 }
 
@@ -393,6 +399,13 @@ function affectedByRemoval(
     });
   }
   return affected;
+}
+interface ReviewDecision {
+  input: DecideReviewInput;
+  parameters: readonly unknown[];
+}
+function settled(input: DecideReviewInput): 'accepted' | 'rejected' {
+  return input.decision === 'accept' ? 'accepted' : 'rejected';
 }
 function titles(views: ReviewView[]): string {
   return views.map(view => `《${view.candidate.title}》`).join('、');

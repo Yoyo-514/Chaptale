@@ -12,9 +12,9 @@ import type {
   ImportFilesInput,
   ImportPlan,
   ImportReport
-} from './contracts.ts';
-import type { CreationService } from './service.ts';
-import { parseIllustration } from './text.ts';
+} from '../contracts.ts';
+import type { CreationService } from '../service.ts';
+import { parseIllustration } from '../text.ts';
 
 const id = Type.String({ minLength: 1 });
 const nullableId = Type.Union([id, Type.Null()]);

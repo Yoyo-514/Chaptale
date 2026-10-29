@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 
-import type { Document, Entry, TrashBatch, TrashBatchInput, TrashEntriesInput, TrashImpact } from './contracts.ts';
-import type { CreationRepository } from './repository.ts';
-import type { ReviewService } from './review/service.ts';
-import type { CreationService } from './service.ts';
+import type { Document, Entry, TrashBatch, TrashBatchInput, TrashEntriesInput, TrashImpact } from '../contracts.ts';
+import type { CreationRepository } from '../repository.ts';
+import type { ReviewService } from '../review/service.ts';
+import type { CreationService } from '../service.ts';
 
 /**
  * 作品回收站：删除状态与回执在作品库一次提交，再凭回执处理本机库中的待审修改和恢复草稿。
@@ -22,11 +22,11 @@ export class TrashService {
   }
 
   list(workId: string): TrashBatch[] {
-    return this.repository.listTrash(workId);
+    return this.repository.work(workId).listTrash();
   }
 
   preview(workId: string, entryIds: string[]): TrashImpact {
-    const removed = subtree(this.repository.listEntries(workId), entryIds);
+    const removed = subtree(this.repository.work(workId).listEntries(), entryIds);
     return { entryCount: removed.size, pendingCount: this.review.countAffected(workId, removed) };
   }
 
@@ -37,14 +37,15 @@ export class TrashService {
       ['trashEntries', input.workId, input.entryIds],
       { kind: 'entries' },
       () => {
-        const entries = this.repository.listEntries(input.workId);
+        const work = this.repository.work(input.workId);
+        const entries = work.listEntries();
         for (const id of input.entryIds) {
           if (!entries.some(entry => entry.id === id)) {
-            if (this.repository.isTrashed(input.workId, id)) throw new Error('条目在回收站中');
+            if (work.isTrashed(id)) throw new Error('条目在回收站中');
             throw new Error('条目不存在');
           }
         }
-        const ids = new Set(this.repository.trashEntries(input.workId, input.entryIds, randomUUID(), Date.now()));
+        const ids = new Set(work.trashEntries(input.entryIds, randomUUID(), Date.now()));
         return entries.filter(entry => ids.has(entry.id));
       }
     );
@@ -59,9 +60,10 @@ export class TrashService {
       ['restoreTrash', input.workId, input.batchId],
       { kind: 'entries' },
       () => {
-        const ids = new Set(this.repository.restoreTrash(input.workId, input.batchId));
+        const work = this.repository.work(input.workId);
+        const ids = new Set(work.restoreTrash(input.batchId));
         if (!ids.size) throw new Error('回收站中没有这批内容');
-        return this.repository.listEntries(input.workId).filter(entry => ids.has(entry.id));
+        return work.listEntries().filter(entry => ids.has(entry.id));
       }
     );
   }
@@ -73,24 +75,25 @@ export class TrashService {
       ['purgeTrash', input.workId, input.batchId],
       { kind: 'entries' },
       () => {
-        const batchIds = input.batchId === null ? this.repository.listTrashBatchIds(input.workId) : [input.batchId];
-        const entries = batchIds.flatMap(batchId => this.repository.purgeTrash(input.workId, batchId));
+        const work = this.repository.work(input.workId);
+        const batchIds = input.batchId === null ? work.listTrashBatchIds() : [input.batchId];
+        const entries = batchIds.flatMap(batchId => work.purgeTrash(batchId));
         if (input.batchId !== null && !entries.length) throw new Error('回收站中没有这批内容');
         return entries;
       }
     );
-    this.repository.clearDrafts(
+    this.repository.library.clearDrafts(
       input.workId,
       purged.filter(entry => entry.kind === 'document').map(entry => entry.id)
     );
     for (const entry of purged)
       if (entry.kind === 'file')
-        rmSync(this.repository.entryFileDir(input.workId, entry.id), { recursive: true, force: true });
+        rmSync(this.repository.work(input.workId).entryFileDir(entry.id), { recursive: true, force: true });
     return purged;
   }
 
   readDocument(workId: string, documentId: string): Document {
-    const document = this.repository.getTrashedDocument(workId, documentId);
+    const document = this.repository.work(workId).getTrashedDocument(documentId);
     if (!document) throw new Error('回收站中没有这篇文稿');
     return document;
   }

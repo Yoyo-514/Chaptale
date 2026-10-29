@@ -43,21 +43,22 @@ export interface CommandCommit<T> {
   fresh: boolean;
 }
 
-/** 业务所需的持久化操作；事务回调同步执行，修改与回执共用对应数据库事务。 */
-export interface CreationRepository {
-  libraryTransaction<T>(apply: () => T): T;
-  command<T extends CommitResult>(
-    workId: string | null,
-    commandId: string,
-    parameters: readonly unknown[],
-    effect: CommitEffect,
-    apply: () => T
-  ): CommandCommit<T>;
-  snapshot(workId: string | null): CreationSnapshot;
-  readChanges(cursor: CreationCursor, limit: number): CreationChanges;
-  readWorkReceipt<T>(workId: string, commandId: string, parameters: readonly unknown[]): T | undefined;
+/** 本机库 library.sqlite：作品列表、会话归属、工作台、待审修改、交付进度、提交意图与恢复草稿。 */
+export interface LibraryRepository {
+  /** 回调同步执行，内部读写共用本机库事务。 */
+  transaction<T>(apply: () => T): T;
 
+  /** 正常作品库中的作品；回收站中的作品不算。 */
   hasWork(workId: string): boolean;
+  insertWork(work: Work): void;
+  listWorks(): Work[];
+  listTrashedWorks(): TrashedWork[];
+  getTrashedWork(workId: string): TrashedWork | undefined;
+  trashWork(workId: string, now: number): void;
+  restoreWork(workId: string): void;
+  /** 删除作品库中该作品的记录与会话归属，待审修改移出交付组。 */
+  purgeWork(workId: string): void;
+
   readSessionState(): SessionState;
   getSessionWork(sessionId: string): string | null;
   assignSession(assignment: SessionAssignment): void;
@@ -65,49 +66,6 @@ export interface CreationRepository {
   forgetSessions(sessionIds: string[]): void;
   readWorkbench(): WorkbenchState;
   writeWorkbench(state: WorkbenchState): void;
-  insertWork(work: Work): void;
-  listWorks(): Work[];
-  getEntry(workId: string, entryId: string): Entry | undefined;
-  nextPosition(workId: string, section: Entry['section'], parentId: string | null): number;
-  insertEntry(workId: string, snapshot: Revision['snapshot'], revision: Revision): void;
-  updateDocument(workId: string, document: Document, revision: Revision): void;
-  /** 目录与文件条目改名。 */
-  updateTitle(workId: string, snapshot: Revision['snapshot'], revision: Revision): void;
-  /** 文件条目独占的目录，存放添加时复制的文件。 */
-  entryFileDir(workId: string, entryId: string): string;
-  relocateEntry(workId: string, entry: Entry, parentId: string | null, position: number): void;
-  listEntries(workId: string): Entry[];
-  getDocument(workId: string, documentId: string): Document | undefined;
-  /** candidates 覆盖正式正文，hidden 为会话中待删除、不参与检索的条目。 */
-  searchDocuments(
-    input: SearchDocumentsInput,
-    candidates?: readonly EntrySnapshot[],
-    hidden?: readonly string[]
-  ): DocumentSearchPage;
-  getRevision(workId: string, revisionId: string): Revision | undefined;
-  /** 正文与前一修订不同的修订，最新在前。 */
-  listRevisions(workId: string, entryId: string): RevisionSummary[];
-  getRevisionEntryId(workId: string, revisionId: string): string | undefined;
-
-  /** 条目及其正常子项记为同一删除批次，返回进入回收站的全部条目 ID。 */
-  trashEntries(workId: string, rootIds: readonly string[], batchId: string, now: number): string[];
-  listTrash(workId: string): TrashBatch[];
-  isTrashed(workId: string, entryId: string): boolean;
-  getTrashedDocument(workId: string, documentId: string): Document | undefined;
-  /** 返回恢复到正常目录的条目 ID。 */
-  restoreTrash(workId: string, batchId: string): string[];
-  /** 返回被永久删除条目的元数据。 */
-  purgeTrash(workId: string, batchId: string): Entry[];
-  listTrashBatchIds(workId: string): string[];
-  clearDrafts(workId: string, documentIds: readonly string[]): void;
-  listTrashedWorks(): TrashedWork[];
-  getTrashedWork(workId: string): TrashedWork | undefined;
-  trashWork(workId: string, now: number): void;
-  restoreWork(workId: string): void;
-  /** 删除作品库中该作品的记录与会话归属，待审修改移出交付组。 */
-  purgeWork(workId: string): void;
-  /** 关闭作品数据库连接，返回仍存在的作品目录。 */
-  releaseWork(workId: string): string[];
 
   getCurrentDelivery(sessionId: string): DeliveryGroup | undefined;
   /** 按新到旧排列。 */
@@ -128,5 +86,65 @@ export interface CreationRepository {
   getDraftState(workId: string, documentId: string): DraftState;
   putDraft(draft: RecoveryDraft): void;
   clearDraft(workId: string, documentId: string, draftId: string): void;
+  clearDrafts(workId: string, documentIds: readonly string[]): void;
+}
+
+/** 一部作品的 work.sqlite：正式条目、修订、检索、回收站与命令回执。 */
+export interface WorkRepository {
+  readonly workId: string;
+  readReceipt<T>(commandId: string, parameters: readonly unknown[]): T | undefined;
+
+  getEntry(entryId: string): Entry | undefined;
+  listEntries(): Entry[];
+  nextPosition(section: Entry['section'], parentId: string | null): number;
+  insertEntry(snapshot: Revision['snapshot'], revision: Revision): void;
+  updateDocument(document: Document, revision: Revision): void;
+  /** 目录与文件条目改名。 */
+  updateTitle(snapshot: Revision['snapshot'], revision: Revision): void;
+  relocateEntry(entry: Entry, parentId: string | null, position: number): void;
+  getDocument(documentId: string): Document | undefined;
+  /** 文件条目独占的目录，存放添加时复制的文件。 */
+  entryFileDir(entryId: string): string;
+  /** candidates 覆盖正式正文，hidden 为会话中待删除、不参与检索的条目。 */
+  searchDocuments(
+    input: SearchDocumentsInput,
+    candidates?: readonly EntrySnapshot[],
+    hidden?: readonly string[]
+  ): DocumentSearchPage;
+  getRevision(revisionId: string): Revision | undefined;
+  /** 正文与前一修订不同的修订，最新在前。 */
+  listRevisions(entryId: string): RevisionSummary[];
+  getRevisionEntryId(revisionId: string): string | undefined;
+
+  /** 条目及其正常子项记为同一删除批次，返回进入回收站的全部条目 ID。 */
+  trashEntries(rootIds: readonly string[], batchId: string, now: number): string[];
+  listTrash(): TrashBatch[];
+  isTrashed(entryId: string): boolean;
+  getTrashedDocument(documentId: string): Document | undefined;
+  /** 返回恢复到正常目录的条目 ID。 */
+  restoreTrash(batchId: string): string[];
+  /** 返回被永久删除条目的元数据。 */
+  purgeTrash(batchId: string): Entry[];
+  listTrashBatchIds(): string[];
+}
+
+/**
+ * 业务所需的持久化操作，按数据库分为本机库与作品库；两库各自提交，跨库顺序由应用服务凭回执协调。
+ * command 的回调同步执行，修改与回执共用对应数据库事务。
+ */
+export interface CreationRepository {
+  readonly library: LibraryRepository;
+  work(workId: string): WorkRepository;
+  command<T extends CommitResult>(
+    workId: string | null,
+    commandId: string,
+    parameters: readonly unknown[],
+    effect: CommitEffect,
+    apply: () => T
+  ): CommandCommit<T>;
+  snapshot(workId: string | null): CreationSnapshot;
+  readChanges(cursor: CreationCursor, limit: number): CreationChanges;
+  /** 关闭作品数据库连接，返回仍存在的作品目录。 */
+  releaseWork(workId: string): string[];
   close(): void;
 }

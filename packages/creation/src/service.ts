@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { applySnapshot, snapshotEffect, type SnapshotCommit } from './content/commit.ts';
+import * as drafts from './content/drafts.ts';
 import * as content from './content/mutations.ts';
 import type {
   CreateEntryInput,
@@ -25,10 +27,9 @@ import type {
   WorkbenchState,
   WriteDraftInput
 } from './contracts.ts';
-import * as drafts from './drafts.ts';
 import { assertNotTrashed } from './errors.ts';
+import * as sessions from './library/sessions.ts';
 import type { CommitEffect, CommitResult, CreationRepository } from './repository.ts';
-import * as sessions from './session-scopes.ts';
 
 /** 作品用例的应用服务：协调事务、幂等回执和提交后的事件，领域规则归各自模块。 */
 export class CreationService {
@@ -74,25 +75,36 @@ export class CreationService {
     return committed.result;
   }
 
+  /** 提交一份正式内容快照；改变目录位置时回执记录原位置。 */
+  commitSnapshot(input: SnapshotCommit): Entry {
+    return this.commit(
+      input.workId,
+      input.commandId,
+      input.parameters,
+      snapshotEffect(input.base, input.candidate),
+      () => applySnapshot(this.repository.work(input.workId), input)
+    );
+  }
+
   createWork(input: CreateWorkInput): Work {
     return this.commit(null, input.commandId, ['createWork', input.title, input.kind], { kind: 'work' }, () => {
       const now = Date.now();
       const work: Work = { id: randomUUID(), title: input.title, kind: input.kind, createdAt: now, updatedAt: now };
-      this.repository.insertWork(work);
+      this.repository.library.insertWork(work);
       return work;
     });
   }
   listWorks(): Work[] {
-    return this.repository.listWorks();
+    return this.repository.library.listWorks();
   }
   listEntries(workId: string): Entry[] {
-    return this.repository.listEntries(workId);
+    return this.repository.work(workId).listEntries();
   }
   readDocument(workId: string, documentId: string): Document {
-    return content.readDocument(this.repository, workId, documentId);
+    return content.readDocument(this.repository.work(workId), documentId);
   }
   searchDocuments(input: SearchDocumentsInput): DocumentSearchPage {
-    return this.repository.searchDocuments(input);
+    return this.repository.work(input.workId).searchDocuments(input);
   }
 
   createEntry(input: CreateEntryInput): Entry {
@@ -110,7 +122,7 @@ export class CreationService {
         input.kind === 'document' ? input.content : null
       ],
       { kind: 'entry' },
-      () => content.createEntry(this.repository, input)
+      () => content.createEntry(this.repository.work(input.workId), input)
     );
   }
   renameEntry(input: RenameEntryInput): Entry {
@@ -119,7 +131,7 @@ export class CreationService {
       input.commandId,
       ['renameEntry', input.workId, input.entryId, input.expectedRevisionId, input.title],
       { kind: 'entry' },
-      () => content.renameEntry(this.repository, input)
+      () => content.renameEntry(this.repository.work(input.workId), input)
     );
   }
   /** 文件已复制到 entryFileDir 后登记；同一命令重试返回首次登记的条目。 */
@@ -135,16 +147,16 @@ export class CreationService {
       input.commandId,
       ['addFile', input.workId, input.parentId, input.fileName],
       { kind: 'entry' },
-      () => content.insertFileEntry(this.repository, input)
+      () => content.insertFileEntry(this.repository.work(input.workId), input)
     );
   }
   entryFileDir(workId: string, entryId: string): string {
-    return this.repository.entryFileDir(workId, entryId);
+    return this.repository.work(workId).entryFileDir(entryId);
   }
   /** 正常目录中的文件条目；回收站中的条目返回“条目在回收站中”。 */
   readFileEntry(workId: string, entryId: string): Entry {
-    const entry = this.repository.getEntry(workId, entryId);
-    if (!entry) assertNotTrashed(this.repository, workId, entryId);
+    const entry = this.repository.work(workId).getEntry(entryId);
+    if (!entry) assertNotTrashed(this.repository.work(workId), entryId);
     if (entry?.kind !== 'file') throw new Error('文件条目不存在');
     return entry;
   }
@@ -162,46 +174,46 @@ export class CreationService {
         input.beforeEntryId
       ],
       { kind: 'move', from: { parentId: input.expectedParentId, position: input.expectedPosition } },
-      () => content.moveEntry(this.repository, input)
+      () => content.moveEntry(this.repository.work(input.workId), input)
     );
   }
   saveDocument(input: SaveDocumentInput): Entry {
     const saved = this.commit(input.workId, input.commandId, content.saveParameters(input), { kind: 'entry' }, () =>
-      content.saveDocument(this.repository, input)
+      content.saveDocument(this.repository.work(input.workId), input)
     );
-    this.repository.clearDraft(input.workId, input.documentId, input.commandId);
+    this.repository.library.clearDraft(input.workId, input.documentId, input.commandId);
     return saved;
   }
   listRevisions(workId: string, documentId: string): RevisionSummary[] {
-    content.readDocument(this.repository, workId, documentId);
-    return this.repository.listRevisions(workId, documentId);
+    content.readDocument(this.repository.work(workId), documentId);
+    return this.repository.work(workId).listRevisions(documentId);
   }
   readRevision(workId: string, revisionId: string): Revision {
-    const revision = this.repository.getRevision(workId, revisionId);
+    const revision = this.repository.work(workId).getRevision(revisionId);
     if (!revision) throw new Error('修订不存在');
     return revision;
   }
 
   readSessionState(): SessionState {
-    return this.repository.readSessionState();
+    return this.repository.library.readSessionState();
   }
   assignSession(input: SessionAssignment): SessionState {
-    return sessions.assignSession(this.repository, input);
+    return sessions.assignSession(this.repository.library, input);
   }
   selectSession(input: SessionSelection): SessionState {
-    return sessions.selectSession(this.repository, input);
+    return sessions.selectSession(this.repository.library, input);
   }
   forgetSessions(sessionIds: string[]): SessionState {
-    return this.repository.libraryTransaction(() => {
-      this.repository.forgetSessions(sessionIds);
-      return this.repository.readSessionState();
+    return this.repository.library.transaction(() => {
+      this.repository.library.forgetSessions(sessionIds);
+      return this.repository.library.readSessionState();
     });
   }
   readWorkbench(): WorkbenchState {
-    return this.repository.readWorkbench();
+    return this.repository.library.readWorkbench();
   }
   writeWorkbench(state: WorkbenchState): WorkbenchState {
-    this.repository.writeWorkbench(state);
+    this.repository.library.writeWorkbench(state);
     return state;
   }
   writeDraft(input: WriteDraftInput): DraftState {

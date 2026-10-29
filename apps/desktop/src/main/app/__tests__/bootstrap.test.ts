@@ -55,8 +55,7 @@ vi.mock('electron', () => ({
 
 vi.mock('../app-context', () => ({
   createAppContext: vi.fn(() => ({
-    settingsService: { rootDir: process.cwd(), readSettings: vi.fn(async () => ({ theme: 'dark' })) },
-    autoBackupScheduler: { start: vi.fn(), stop: vi.fn() }
+    settingsService: { rootDir: process.cwd(), readSettings: vi.fn(async () => ({ theme: 'dark' })) }
   }))
 }));
 

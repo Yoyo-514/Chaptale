@@ -1,5 +1,6 @@
 import { CreationAgentService } from './agent/service.ts';
 import { authorValidator, agentValidator } from './application/schema.ts';
+import { TrashService } from './content/trash.ts';
 import type {
   CreationAgentCommand,
   CreationAgentCommands,
@@ -10,14 +11,13 @@ import type {
   CreationResult
 } from './contracts.ts';
 import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from './errors.ts';
-import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './file-exchange.ts';
-import { addFiles, locateFile } from './files.ts';
+import { addFiles, locateFile } from './files/entry-files.ts';
+import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './files/exchange.ts';
+import { WorkTrashService } from './library/work-trash.ts';
 import type { CreationRepository } from './repository.ts';
 import { DeliveryService } from './review/delivery.ts';
 import { ReviewService } from './review/service.ts';
 import { CreationService } from './service.ts';
-import { TrashService } from './trash.ts';
-import { WorkTrashService } from './work-trash.ts';
 
 export { agentInputs } from './application/schema.ts';
 type AuthorValue = Extract<CreationAuthorCommands[keyof CreationAuthorCommands]['output'], { ok: true }>['value'];
