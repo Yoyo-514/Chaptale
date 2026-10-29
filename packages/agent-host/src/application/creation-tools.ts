@@ -83,6 +83,14 @@ export function createWorkTools(
     });
   }
 
+  /**
+   * 模型的写入参数按字段组合决定命令，由 creation 入口按命令 schema 校验并拒绝混用字段；
+   * 这里只承担写入命令（writeContent、createEntry、renameEntry、moveEntry）的统一输出类型。
+   */
+  function executeWrite(context: CreationAgentContext, command: { method: string; input: unknown }) {
+    return application.executeAgent(context, command) as CreationResult<AgentWriteResult>;
+  }
+
   /** 条目元数据；文件条目附带文件名、是否图片、当前大小与路径，供 Agent 用原始工具读取。 */
   async function describe(workId: string, entries: Entry[]): Promise<JsonValue[]> {
     const described: JsonValue[] = [];
@@ -331,13 +339,13 @@ export function createWorkTools(
           context,
           input.workId,
           entryId !== undefined
-            ? application.executeAgent(context, {
+            ? executeWrite(context, {
                 method: 'writeContent',
-                input: { ...rest, commandId, documentId: entryId } as never
+                input: { ...rest, commandId, documentId: entryId }
               })
-            : application.executeAgent(context, {
+            : executeWrite(context, {
                 method: 'createEntry',
-                input: { ...rest, commandId, kind: 'document' } as never
+                input: { ...rest, commandId, kind: 'document' }
               })
         );
       }
@@ -375,8 +383,8 @@ export function createWorkTools(
           context,
           input.workId,
           input.title !== undefined
-            ? application.executeAgent(context, { method: 'renameEntry', input: { ...input, commandId } as never })
-            : application.executeAgent(context, { method: 'moveEntry', input: { ...input, commandId } as never })
+            ? executeWrite(context, { method: 'renameEntry', input: { ...input, commandId } })
+            : executeWrite(context, { method: 'moveEntry', input: { ...input, commandId } })
         )
     ),
     tool(

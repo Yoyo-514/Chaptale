@@ -1,7 +1,6 @@
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
 
 import type { CreationApplication } from '@chaptale/creation/application';
-import type { CreationResult } from '@chaptale/creation/contracts';
 
 import { prefixMessages, systemPrompt } from '../instructions/instructions.ts';
 import {
@@ -10,11 +9,11 @@ import {
   type HostChange,
   instructionsEntryType,
   modeEntryType,
-  reviewContinuationMessageType,
   type SessionView
 } from '../protocol.ts';
 import { workWriteToolNames } from './creation-tools.ts';
 import { messageView, transcriptView } from './message-view.ts';
+import { ReviewFlow } from './review-flow.ts';
 
 /** 当前请求使用的指令；创建会话前交给 SDK 回调，之后在每次发送前更新。 */
 export interface AppliedInstructions {
@@ -33,18 +32,6 @@ export function instructionCallbacks(applied: AppliedInstructions) {
  * 可继续对话的会话：发送、取消、修改指令/模式/模型，并把 SDK 事件投影到界面视图。
  * 原生 AgentSession 由会话池持有和释放，这里只负责应用层状态。
  */
-const decisionLabels = {
-  accepted: '已接受',
-  rejected: '已拒绝',
-  edited: '作者逐处决定或手改过，以正式内容为准',
-  deleted: '作者已删除该条目'
-} as const;
-
-function creationValue<T>(result: CreationResult<T>): T {
-  if (!result.ok) throw new Error(result.error.message);
-  return result.value;
-}
-
 export class LiveSession {
   readonly view: SessionView;
   readonly session: AgentSession;
@@ -53,12 +40,8 @@ export class LiveSession {
   private readonly unsubscribe: () => void;
   private cancelled = false;
   private operation?: Promise<void>;
-  private readonly creation?: CreationApplication;
   private readonly unsubscribeCreation?: () => void;
-  private selectedMode: EditMode;
-  private directAfterGroupId?: string;
-  private reviewGroupId?: string;
-  private reviewWritePending = false;
+  private readonly review: ReviewFlow;
 
   constructor(
     session: AgentSession,
@@ -70,9 +53,6 @@ export class LiveSession {
     this.session = session;
     this.applied = applied;
     this.emit = emit;
-    this.creation = options?.creation;
-    this.selectedMode = mode;
-    this.directAfterGroupId = options?.directAfterGroupId;
     this.view = {
       id: session.sessionId,
       sessionId: session.sessionId,
@@ -87,20 +67,21 @@ export class LiveSession {
       messages: transcriptView(session.sessionManager)
     };
     this.view.usage = this.usage();
-    this.refreshCreation();
+    this.review = new ReviewFlow(this.view, mode, options ?? {});
+    this.review.refresh();
     this.syncWorkTools();
     const finishTurn = session.agent.finishTurn;
     session.agent.finishTurn = async (turn, signal) => {
       const decision = await finishTurn?.(turn, signal);
       // 在 SDK 已记录本轮工具结果的原生边界结束运行，保留完整工具调用链。
-      if (this.reviewWritePending) {
-        this.reviewWritePending = false;
+      if (this.review.writePending) {
+        this.review.writePending = false;
         return { action: 'end' };
       }
       return decision ? decision : undefined;
     };
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
-    this.unsubscribeCreation = this.creation?.subscribe(event => {
+    this.unsubscribeCreation = options?.creation?.subscribe(event => {
       const sessionId =
         event.change.kind === 'review'
           ? event.change.change.sessionId
@@ -109,7 +90,7 @@ export class LiveSession {
             : undefined;
       if (sessionId !== this.view.sessionId) return;
       try {
-        this.refreshCreation();
+        this.refreshReview();
         this.resumeReviewed();
       } catch (error) {
         this.view.error = error instanceof Error ? error.message : String(error);
@@ -128,18 +109,10 @@ export class LiveSession {
       await this.session.steer(text);
       return;
     }
-    this.refreshCreation();
-    const continuation = this.reviewContinuation();
-    if (continuation) {
-      delete this.reviewGroupId;
-      delete view.waitingForReview;
-      this.reviewWritePending = false;
-    }
-    if (view.delivery && view.delivery.pendingCount > 0) {
-      this.reviewGroupId = view.delivery.group.id;
-      view.waitingForReview = true;
-      this.emit({ kind: 'session', session: view });
-    }
+    const continuation = this.review.beforePrompt();
+    // 继续进度可能让延后的直接修改生效。
+    this.syncWorkTools();
+    if (view.waitingForReview) this.emit({ kind: 'session', session: view });
     this.launch(async () => {
       if (continuation) await this.session.sendCustomMessage(continuation, { triggerTurn: false });
       await this.session.prompt(text);
@@ -209,9 +182,7 @@ export class LiveSession {
   /** 取消当前运行并等待它结束；会话仍可继续使用。 */
   async stop(): Promise<void> {
     this.cancelled = true;
-    delete this.reviewGroupId;
-    this.reviewWritePending = false;
-    delete this.view.waitingForReview;
+    this.review.clearWaiting();
     this.emit({ kind: 'session', session: this.view });
     await this.session.abort();
     await this.operation;
@@ -234,105 +205,30 @@ export class LiveSession {
 
   /** 延后切换只记录选择；待审处理完成并恢复任务时按持久化进度生效。 */
   setMode(mode: EditMode): void {
-    this.refreshCreation();
-    let directAfterGroupId: string | undefined;
-    if (mode === 'direct' && this.view.mode === 'review') {
-      if (this.directAfterGroupId) directAfterGroupId = this.directAfterGroupId;
-      else if (this.view.delivery && this.view.delivery.pendingCount > 0)
-        directAfterGroupId = this.view.delivery.group.id;
-    }
-    const selectedMode = directAfterGroupId ? 'review' : mode;
-    this.session.sessionManager.appendCustomEntry(modeEntryType, { mode: selectedMode, directAfterGroupId });
-    this.selectedMode = selectedMode;
-    this.directAfterGroupId = directAfterGroupId;
-    this.refreshCreation();
+    this.session.sessionManager.appendCustomEntry(modeEntryType, this.review.select(mode));
+    this.review.refresh();
     this.syncWorkTools();
     this.emit({ kind: 'session', session: this.view });
-  }
-
-  private refreshCreation(): void {
-    const previousMode = this.view.mode;
-    this.view.mode = this.selectedMode;
-    delete this.view.switchingTo;
-    if (this.creation) {
-      this.view.delivery = creationValue(
-        this.creation.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: this.view.sessionId! } })
-      );
-    }
-    if (this.directAfterGroupId) {
-      if (!this.creation) throw new Error('当前宿主未接入作品服务，无法恢复延后切换');
-      const delivery = creationValue(
-        this.creation.executeAuthor({ method: 'readDeliveryGroup', input: { groupId: this.directAfterGroupId } })
-      );
-      // 继续或作者结束该组任务后，延后的直接修改生效。
-      if (delivery.group.status !== 'pending') this.view.mode = 'direct';
-      else this.view.switchingTo = 'direct';
-    }
-    if (this.view.mode !== previousMode) this.syncWorkTools();
   }
 
   /** 只有本次工具写入或作者重新发起的任务获得自动续跑资格；打开历史只读取进度。 */
   reviewWritten(): void {
     if (this.cancelled) return;
-    this.refreshCreation();
-    const delivery = this.view.delivery!;
-    if (delivery.group.status !== 'pending' || delivery.pendingCount === 0) return;
-    this.reviewGroupId = delivery.group.id;
-    this.reviewWritePending = true;
-    this.view.waitingForReview = true;
+    this.refreshReview();
+    if (!this.review.written()) return;
     this.emit({ kind: 'session', session: this.view });
   }
 
-  /** 复用已有回执提交继续进度，并在发起下一次请求前捕获正式内容。 */
-  private reviewContinuation() {
-    const delivery = this.view.delivery;
-    if (!delivery || delivery.pendingCount > 0 || delivery.group.status !== 'pending') return undefined;
-    const { group } = delivery;
-    const contents = creationValue(
-      this.creation!.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group.id } })
-    );
-    creationValue(
-      this.creation!.executeAuthor({
-        method: 'continueDelivery',
-        input: {
-          commandId: JSON.stringify(['review-resolved', group.id, group.version]),
-          sessionId: this.view.sessionId!,
-          groupId: group.id,
-          expectedVersion: group.version
-        }
-      })
-    );
-    this.refreshCreation();
-    const outcomes = contents.map(item => `《${item.title}》${decisionLabels[item.decision]}`);
-    return {
-      customType: reviewContinuationMessageType,
-      content: [
-        '作者已处理本组修改：',
-        ...outcomes.map(line => `- ${line}`),
-        `处理后的正式内容：${JSON.stringify(contents.map(({ workId, entryId, snapshot }) => ({ workId, entryId, snapshot })))}`,
-        '被拒绝或改写的部分是作者的决定，不要原样重做；确实需要再改时，先说明理由并询问作者。请根据这些正式内容继续剩余任务。'
-      ].join('\n'),
-      display: true,
-      details: { groupId: group.id, count: contents.length, outcomes }
-    };
+  private refreshReview(): void {
+    if (this.review.refresh()) this.syncWorkTools();
   }
 
   private resumeReviewed(): void {
-    if (!this.reviewGroupId || this.cancelled) return;
-    const delivery = this.view.delivery;
-    if (delivery?.group.id !== this.reviewGroupId) {
-      // 作者结束了等待中的任务：剩余候选转为历史待审，本次任务不再自动续跑。
-      delete this.reviewGroupId;
-      delete this.view.waitingForReview;
-      this.reviewWritePending = false;
-      return;
-    }
-    if (this.view.running || delivery.pendingCount > 0) return;
-    // 先消耗本轮资格，重复决定、重复事件和请求失败都不会再次自动发起。
-    delete this.reviewGroupId;
-    delete this.view.waitingForReview;
-    const continuation = this.reviewContinuation();
-    if (continuation) this.launch(() => this.session.sendCustomMessage(continuation, { triggerTurn: true }));
+    if (this.cancelled) return;
+    const continuation = this.review.resume();
+    if (!continuation) return;
+    this.syncWorkTools();
+    this.launch(() => this.session.sendCustomMessage(continuation, { triggerTurn: true }));
   }
 
   private syncWorkTools(): void {
