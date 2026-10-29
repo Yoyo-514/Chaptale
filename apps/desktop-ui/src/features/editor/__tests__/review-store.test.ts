@@ -49,6 +49,7 @@ function propose(content: string, title = document.title): PendingChange {
   if (result.kind !== 'pending') throw new Error('预期生成待接受修改');
   return result.change;
 }
+const tabKey = () => `${context.sessionId}:${document.id}`;
 function formal() {
   return value(author.executeAuthor({ method: 'readDocument', input: { workId, documentId: document.id } }));
 }
@@ -108,27 +109,29 @@ afterEach(async () => {
 it('Agent 写入后审阅标签在后台打开；作者正在看该会话且焦点不在编辑区时切到前台', async () => {
   const first = propose('将军出征。\n公主远行。\n夜深。');
   await flushPromises();
-  expect(review.tabs.map(tab => [tab.changeId, tab.status])).toEqual([[first.id, 'ready']]);
+  expect(review.tabs.map(tab => [tab.key, tab.review?.change.id, tab.status])).toEqual([[tabKey(), first.id, 'ready']]);
   expect(review.activeId).toBe('');
   expect(creation.pendingEntryIds.has(document.id)).toBe(true);
 
-  review.close(first.id);
+  review.close(tabKey());
   review.viewingSessionId = context.sessionId;
   propose('将军出征。\n公主回宫。\n夜深。');
   await flushPromises();
-  expect(review.activeId).toBe(first.id);
+  expect(review.activeId).toBe(tabKey());
   expect(review.activeTab?.review?.candidate.content).toBe('将军出征。\n公主回宫。\n夜深。');
   await flushPromises();
-  expect(review.summaries[context.sessionId]?.[0]?.items.map(item => item.title)).toEqual(['序章']);
+  expect(review.summaries[context.sessionId]?.[0]?.items.map(item => item.kind !== 'record' && item.title)).toEqual([
+    '序章'
+  ]);
 });
 
 it('逐块接受只写入该处，候选其余部分继续待审；拒绝最后一处后标签关闭', async () => {
-  const change = propose('将军出征。\n公主远行。\n天明。');
+  propose('将军出征。\n公主远行。\n天明。');
   await flushPromises();
-  await review.decide(change.id, 'accept', { fromA: 0, toA: 6, fromB: 0, toB: 6 });
+  await review.decide(tabKey(), 'accept', { fromA: 0, toA: 6, fromB: 0, toB: 6 });
   await flushPromises();
   expect(formal().content).toBe('将军出征。\n公主远行。\n夜深。');
-  const tab = review.tabs.find(item => item.changeId === change.id)!;
+  const tab = review.tabs.find(item => item.key === tabKey())!;
   expect(tab.error).toBe('');
   expect(tab.review?.current?.content).toBe('将军出征。\n公主远行。\n夜深。');
   expect(tab.review?.candidate.content).toBe('将军出征。\n公主远行。\n天明。');
@@ -136,7 +139,7 @@ it('逐块接受只写入该处，候选其余部分继续待审；拒绝最后�
   const content = tab.review!.candidate.content!;
   const from = content.indexOf('天明');
   const at = tab.review!.current!.content!.indexOf('夜深');
-  await review.decide(change.id, 'reject', { fromA: at, toA: at + 3, fromB: from, toB: from + 3 });
+  await review.decide(tabKey(), 'reject', { fromA: at, toA: at + 3, fromB: from, toB: from + 3 });
   await flushPromises();
   expect(review.tabs).toEqual([]);
   expect(pending()).toEqual([]);
@@ -144,15 +147,15 @@ it('逐块接受只写入该处，候选其余部分继续待审；拒绝最后�
 });
 
 it('手改候选保存后成为新候选，未保存时不能关闭标签', async () => {
-  const change = propose('将军出征。\n公主远行。\n夜深。');
+  propose('将军出征。\n公主远行。\n夜深。');
   await flushPromises();
-  const state = review.getState(change.id)!;
-  review.updateState(change.id, state.update({ changes: { from: 0, to: 2, insert: '少帅' } }).state);
+  const state = review.getState(tabKey())!;
+  review.updateState(tabKey(), state.update({ changes: { from: 0, to: 2, insert: '少帅' } }).state);
   expect(review.activeTab).toBeNull();
   expect(review.tabs[0]!.dirty).toBe(true);
-  expect(review.close(change.id)).toBe(false);
+  expect(review.close(tabKey())).toBe(false);
   expect(review.tabs[0]!.error).toContain('未保存的手改');
-  await review.save(change.id);
+  await review.save(tabKey());
   await flushPromises();
   expect(review.tabs[0]!.dirty).toBe(false);
   expect(review.tabs[0]!.review?.candidate.content).toBe('少帅出征。\n公主远行。\n夜深。');
@@ -177,4 +180,80 @@ it('整组接受写入全部修改并关闭标签；结束任务后修改转入�
   expect(formal().content).toBe('将军出征。\n公主远行。\n夜深。');
   expect(review.summaries[context.sessionId]).toEqual([]);
   expect(review.tabs).toEqual([]);
+});
+
+function agent<T>(method: string, input: Record<string, unknown>): T {
+  const input_ = { commandId: crypto.randomUUID(), workId, ...input };
+  return value(author.executeAgent(context, { method, input: input_ } as never) as CreationResult<T>);
+}
+function createResource(title: string, by: 'author' | 'agent') {
+  const input = { parentId: null, section: 'resource', kind: 'document', title, format: 'markdown', content: '' };
+  if (by === 'author')
+    return value(
+      author.executeAuthor({
+        method: 'createEntry',
+        input: { commandId: crypto.randomUUID(), workId, ...input } as never
+      })
+    ).id;
+  return agent<{ change: PendingChange }>('createEntry', input).change.targetId;
+}
+function proposeRecord(resourceId: string, text: string) {
+  return agent<{ change: PendingChange }>('createRecord', {
+    resourceIds: [resourceId],
+    text,
+    source: { kind: 'chapter', chapterId: document.id, revisionId: document.revisionId },
+    placement: { kind: 'chapter', chapterId: document.id },
+    storyTime: '',
+    basis: '将军守城。'
+  }).change;
+}
+
+it('资料审阅标签列出事件候选，同一会话只在后台打开第一份资料；接受事件时一并提交其新资料', async () => {
+  const resourceId = createResource('沈霁', 'agent');
+  const other = createResource('柳七', 'agent');
+  proposeRecord(resourceId, '沈霁守城');
+  proposeRecord(other, '柳七夜入城');
+  await flushPromises();
+  expect(review.tabs.map(tab => [tab.entryId, tab.section])).toEqual([[resourceId, 'resource']]);
+  const key = review.tabs[0]!.key;
+  const tab = () => review.tabs.find(item => item.key === key)!;
+  expect(tab().review?.candidate.title).toBe('沈霁');
+  expect(tab().records.map(change => change.candidate.text)).toEqual(['沈霁守城']);
+
+  await review.decideRecord(key, tab().records[0]!, 'accept');
+  await flushPromises();
+  expect(creation.records.map(record => record.text)).toEqual(['沈霁守城']);
+  expect(creation.entries.some(entry => entry.id === resourceId)).toBe(true);
+  // 资料处理完后保留标签，提示下一份资料。
+  expect(tab()).toMatchObject({ review: null, records: [] });
+  expect(review.nextResource(tab())).toEqual({ entryId: other, title: '柳七' });
+  await review.openNext(key);
+  await flushPromises();
+  expect(review.activeTab?.entryId).toBe(other);
+  expect(review.activeTab?.records.map(change => change.candidate.text)).toEqual(['柳七夜入城']);
+});
+
+it('新资料的事件改为关联已有资料，新资料候选随之拒绝；作者修改事件候选后接受', async () => {
+  const existing = createResource('沈霁', 'author');
+  await flushPromises();
+  const created = createResource('沈将军', 'agent');
+  proposeRecord(created, '沈将军守城');
+  await flushPromises();
+  const key = `${context.sessionId}:${created}`;
+  await review.relink(key, existing);
+  await flushPromises();
+  expect(review.tabs.find(tab => tab.key === key)).toBeUndefined();
+  await review.reveal({ sessionId: context.sessionId, entryId: existing });
+  const tab = () => review.activeTab!;
+  expect(tab().records.map(change => change.candidate.resourceIds)).toEqual([[existing]]);
+
+  const change = tab().records[0]!;
+  await review.updateRecord(tab().key, change, { ...change.candidate, storyTime: '三更' });
+  await flushPromises();
+  expect(tab().error).toBe('');
+  expect(tab().records[0]).toMatchObject({ authorEdited: true, candidate: { storyTime: '三更' } });
+  await review.decideRecord(tab().key, tab().records[0]!, 'accept');
+  await flushPromises();
+  expect(creation.records).toMatchObject([{ text: '沈将军守城', storyTime: '三更', resourceIds: [existing] }]);
+  expect(pending()).toEqual([]);
 });

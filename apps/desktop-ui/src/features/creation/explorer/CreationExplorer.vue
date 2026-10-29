@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import { isImageFile, type Entry, type PendingChange } from '@chaptale/creation/contracts';
+import { isImageFile, type Entry, type EntryChange } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
@@ -31,7 +31,7 @@ const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 
 const rows = computed(() =>
   buildRows({
     entries: creation.entries,
-    pendingChanges: creation.pendingChanges,
+    pendingChanges: creation.pendingEntries,
     modifiedIds: creation.pendingEntryIds,
     section: creation.view!.section,
     expandedIds: tree.value.expandedIds
@@ -60,6 +60,9 @@ const menu = computed<AppContextMenuItem[]>(() => [
   ...(target.value
     ? [
         ...(target.value.kind === 'document' ? [{ id: 'history', label: '查看历史', separatorBefore: true }] : []),
+        ...(target.value.kind === 'document' && target.value.section === 'manuscript'
+          ? [{ id: 'extract', label: '从本章提取' }]
+          : []),
         { id: 'rename', label: '重命名', separatorBefore: true },
         { id: 'move', label: '移动到…' },
         { id: 'up', label: '上移' },
@@ -80,16 +83,10 @@ const pendingMenu: AppContextMenuItem[] = [
   { id: 'accept', label: '接受', separatorBefore: true },
   { id: 'reject', label: '拒绝' }
 ];
-function showReview(change: PendingChange) {
-  void review.reveal({
-    id: change.id,
-    sessionId: change.sessionId,
-    workId: change.workId,
-    entryId: change.entryId,
-    title: change.candidate.title
-  });
+function showReview(change: EntryChange) {
+  void review.reveal({ sessionId: change.sessionId, entryId: change.targetId });
 }
-async function selectPendingAction(id: string, change: PendingChange) {
+async function selectPendingAction(id: string, change: EntryChange) {
   error.value = '';
   if (id === 'review') {
     showReview(change);
@@ -101,7 +98,7 @@ async function selectPendingAction(id: string, change: PendingChange) {
     error.value = toErrorMessage(cause);
   }
 }
-async function open(entry: Entry, pending: PendingChange | null = null) {
+async function open(entry: Entry, pending: EntryChange | null = null) {
   tree.value.selectedId = entry.id;
   if (entry.kind === 'directory') toggle(entry);
   else if (pending) showReview(pending);
@@ -143,6 +140,10 @@ async function selectAction(id: string) {
   }
   if (id === 'export') {
     creation.exportOpen = true;
+    return;
+  }
+  if (id === 'extract') {
+    await editor.extractChapter(target.value!);
     return;
   }
   if (id === 'add-files') {

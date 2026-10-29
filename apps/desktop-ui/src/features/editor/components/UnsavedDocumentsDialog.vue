@@ -24,7 +24,7 @@ const editor = useEditorStore();
     </ul>
     <AppFormActions>
       <AppButton @click="editor.resolveUnsaved('cancel')">取消</AppButton>
-      <AppButton @click="editor.resolveUnsaved('discard')">不保存</AppButton>
+      <AppButton v-if="editor.unsavedPrompt?.discard" @click="editor.resolveUnsaved('discard')">不保存</AppButton>
       <AppButton variant="primary" @click="editor.resolveUnsaved('save')">
         <span class="i-mingcute-save-line size-4" aria-hidden="true" />保存并继续
       </AppButton>

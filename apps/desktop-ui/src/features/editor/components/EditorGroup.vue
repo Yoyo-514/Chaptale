@@ -40,7 +40,7 @@ watch(
 /** 文档、审阅与历史标签共用一个标签栏；审阅和历史标签值带前缀，选中时占用主栏。 */
 const selected = computed(() => {
   if (trash.preview) return '';
-  if (review.activeTab) return `review:${review.activeTab.changeId}`;
+  if (review.activeTab) return `review:${review.activeTab.key}`;
   if (history.activeTab) return `history:${history.activeTab.documentId}`;
   return editor.activeId;
 });
@@ -49,12 +49,17 @@ function select(value: string) {
   else if (value.startsWith('history:')) history.select(value.slice('history:'.length));
   else editor.selectTab(value);
 }
-const tabMenu = [
-  { id: 'history', label: '查看历史' },
-  { id: 'close', label: '关闭', separatorBefore: true }
-];
+function tabMenu(id: string) {
+  const chapter = creation.entries.find(entry => entry.id === id)?.section === 'manuscript';
+  return [
+    { id: 'history', label: '查看历史' },
+    ...(chapter ? [{ id: 'extract', label: '从本章提取' }] : []),
+    { id: 'close', label: '关闭', separatorBefore: true }
+  ];
+}
 function tabAction(id: string, action: string) {
   if (action === 'history') history.open(id);
+  else if (action === 'extract') void editor.extractChapter(editor.tabs.find(tab => tab.id === id)!);
   else void editor.closeTab(id);
 }
 const primary = computed(() => editor.tabs.find(tab => tab.id === editor.activeId));
@@ -72,14 +77,14 @@ function keydown(event: KeyboardEvent) {
   if (event.key.toLowerCase() === 's') {
     event.preventDefault();
     if (event.shiftKey) void editor.saveAll();
-    else if (reviewing) void review.save(reviewing.changeId);
+    else if (reviewing) void review.save(reviewing.key);
     else if (viewing) return;
     else void editor.saveDocument();
   }
   if (event.key.toLowerCase() === 'w' && (reviewing || viewing || editor.activeTab)) {
     event.preventDefault();
     event.stopPropagation();
-    if (reviewing) review.close(reviewing.changeId);
+    if (reviewing) review.close(reviewing.key);
     else if (viewing) history.close(viewing.documentId);
     else void editor.closeTab(editor.activeTab!.id);
   }
@@ -108,7 +113,7 @@ onBeforeUnmount(() => {
           <AppContextMenu
             v-for="tab in editor.tabs"
             :key="tab.id"
-            :items="tabMenu"
+            :items="tabMenu(tab.id)"
             @select="action => tabAction(tab.id, action)"
           >
             <EditorTab
@@ -125,14 +130,14 @@ onBeforeUnmount(() => {
           </AppContextMenu>
           <EditorTab
             v-for="tab in review.tabs"
-            :key="`review:${tab.changeId}`"
+            :key="`review:${tab.key}`"
             kind="review"
-            :value="`review:${tab.changeId}`"
-            :trigger-id="`review-tab-${tab.changeId}`"
+            :value="`review:${tab.key}`"
+            :trigger-id="`review-tab-${tab.key}`"
             :title="tab.title"
-            :selected="`review:${tab.changeId}` === selected"
+            :selected="`review:${tab.key}` === selected"
             :dirty="tab.dirty"
-            @close="review.close(tab.changeId)"
+            @close="review.close(tab.key)"
           />
           <EditorTab
             v-for="tab in history.tabs"
@@ -204,7 +209,7 @@ onBeforeUnmount(() => {
       <section class="editor-pane" aria-label="审阅">
         <ReviewPane
           v-if="review.activeTab.status === 'ready'"
-          :key="`${review.activeTab.changeId}:${review.activeTab.generation}`"
+          :key="`${review.activeTab.key}:${review.activeTab.generation}`"
           :tab="review.activeTab"
         />
         <div v-else-if="review.activeTab.status === 'loading'" class="editor-empty" role="status">

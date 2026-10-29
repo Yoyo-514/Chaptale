@@ -13,7 +13,7 @@ import {
   WidgetType
 } from '@codemirror/view';
 
-import type { ReviewView } from '@chaptale/creation/contracts';
+import type { EntryReviewView } from '@chaptale/creation/contracts';
 
 import { diffTheme, theme, writingHighlight } from '../codemirror/theme';
 
@@ -94,7 +94,7 @@ const reviewTheme = EditorView.theme({
  * 编辑器正文为候选稿，原文为当前正式稿；逐块按钮只派发意图，由审阅面板按块位置提交作者决定。
  * 目录候选没有正文，只读显示。
  */
-export function createReviewState(review: ReviewView): EditorState {
+export function createReviewState(review: EntryReviewView): EditorState {
   const editable = review.candidate.content !== null;
   return EditorState.create({
     doc: review.candidate.content ?? '',

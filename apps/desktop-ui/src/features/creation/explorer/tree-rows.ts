@@ -1,4 +1,4 @@
-import { isImageFile, type Entry, type PendingChange } from '@chaptale/creation/contracts';
+import { isImageFile, type Entry, type EntryChange } from '@chaptale/creation/contracts';
 
 /** 行上的待审标记：新建候选、Agent 提出的删除、正式条目有待接受修改，按此优先级只显示一种。 */
 export type RowMark = 'new' | 'deleting' | 'modified' | null;
@@ -7,7 +7,7 @@ export interface TreeRow {
   entry: Entry;
   depth: number;
   /** 新建的待接受条目对应的修改；打开时进入审阅标签。 */
-  pending: PendingChange | null;
+  pending: EntryChange | null;
   mark: RowMark;
 }
 
@@ -16,13 +16,13 @@ const markLabels = { new: '新建，待接受', deleting: '待接受删除', mod
 /** 新建的待接受条目按候选位置显示在正式目录中；只展开 expandedIds 中的目录。 */
 export function buildRows(input: {
   entries: readonly Entry[];
-  pendingChanges: readonly PendingChange[];
+  pendingChanges: readonly EntryChange[];
   /** 有待接受修改的正式条目，含待接受删除。 */
   modifiedIds: ReadonlySet<string>;
   section: Entry['section'];
   expandedIds: readonly string[];
 }): TreeRow[] {
-  const deleting = new Set(input.pendingChanges.filter(change => change.deleted).map(change => change.entryId));
+  const deleting = new Set(input.pendingChanges.filter(change => change.deleted).map(change => change.targetId));
   const items = [
     ...input.entries.filter(entry => entry.section === input.section).map(entry => ({ entry, pending: null })),
     ...input.pendingChanges

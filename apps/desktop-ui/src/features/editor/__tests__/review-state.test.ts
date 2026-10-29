@@ -2,7 +2,7 @@ import { getChunks } from '@codemirror/merge';
 import { EditorView } from '@codemirror/view';
 import { afterEach, expect, it } from 'vitest';
 
-import type { EntrySnapshot, ReviewView } from '@chaptale/creation/contracts';
+import type { EntryReviewView, EntrySnapshot } from '@chaptale/creation/contracts';
 
 import { createReviewState } from '../review/state';
 
@@ -17,7 +17,7 @@ function mount(current: string | null, candidate: string) {
     current: current === null ? null : snapshot(current),
     candidate: snapshot(candidate),
     conflicts: []
-  } as unknown as ReviewView;
+  } as unknown as EntryReviewView;
   view = new EditorView({ parent: document.body, state: createReviewState(review) });
   return view;
 }

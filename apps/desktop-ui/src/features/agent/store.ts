@@ -223,6 +223,14 @@ export const useAgentStore = defineStore('agent', () => {
     await dispatch(id, text);
   }
 
+  /** 新建归属当前作品的审阅模式会话并发送作者可见的指令。 */
+  async function startReview(prompt: string) {
+    await newDraft();
+    composeMode.value = 'review';
+    draft.value = prompt;
+    await send();
+  }
+
   function liveSession(id: string) {
     return state.value!.sessions.find(item => item.id === id)!;
   }
@@ -355,6 +363,7 @@ export const useAgentStore = defineStore('agent', () => {
     compose,
     create,
     send,
+    startReview,
     deleteSessions,
     activeOutgoing,
     retryOutgoing,

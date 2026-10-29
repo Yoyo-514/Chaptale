@@ -24,22 +24,53 @@ const busy = computed(() => (sessionId.value ? Boolean(review.deliveryBusy[sessi
 const error = computed(() => (sessionId.value ? review.deliveryErrors[sessionId.value] : ''));
 const earlierCount = computed(() => earlier.value.reduce((sum, summary) => sum + summary.items.length, 0));
 
-function label(item: DeliveryItem) {
+/** 卡片中的一行：文稿按条目列出；资料自身的修改与涉及它的事件合为一行，事件计在第一份资料下。 */
+interface DeliveryRow {
+  key: string;
+  workId: string;
+  entryId: string;
+  label: string;
+  title: string;
+  records: number;
+  conflicted: boolean;
+}
+function entryLabel(item: DeliveryItem) {
+  if (item.kind === 'record') return '';
   if (item.deleted) return item.kind === 'directory' ? '删除目录' : '删除';
   if (item.created) return item.kind === 'directory' ? '新建目录' : '新建';
   return item.section === 'resource' ? '资料' : '文稿';
 }
-function workTitle(item: DeliveryItem) {
-  return creation.works.find(work => work.id === item.workId)?.title ?? '其他作品';
+function rows(items: DeliveryItem[]): DeliveryRow[] {
+  const grouped = new Map<string, DeliveryRow>();
+  const titles = new Map(items.flatMap(item => (item.kind === 'record' ? [] : [[item.targetId, item.title] as const])));
+  for (const item of items) {
+    const entryId = item.kind === 'record' ? item.record.resourceIds[0] : item.targetId;
+    const key = `${item.workId}:${entryId}`;
+    const row = grouped.get(key) ?? {
+      key,
+      workId: item.workId,
+      entryId,
+      label: '资料',
+      title:
+        titles.get(entryId) ??
+        creation.entries.find(entry => entry.id === entryId)?.title ??
+        creation.pendingEntries.find(change => change.targetId === entryId)?.candidate.title ??
+        '',
+      records: 0,
+      conflicted: false
+    };
+    if (item.kind === 'record') row.records += 1;
+    else row.label = entryLabel(item);
+    row.conflicted ||= item.conflicted;
+    grouped.set(key, row);
+  }
+  return [...grouped.values()];
 }
-function view(summary: DeliverySummary, item: DeliveryItem) {
-  void review.reveal({
-    id: item.target.changeId,
-    sessionId: summary.group.sessionId,
-    workId: item.workId,
-    entryId: item.entryId,
-    title: item.title
-  });
+function workTitle(row: DeliveryRow) {
+  return creation.works.find(work => work.id === row.workId)?.title ?? '其他作品';
+}
+function view(summary: DeliverySummary, row: DeliveryRow) {
+  void review.reveal({ sessionId: summary.group.sessionId, entryId: row.entryId });
 }
 </script>
 
@@ -75,15 +106,16 @@ function view(summary: DeliverySummary, item: DeliveryItem) {
         </header>
         <template v-if="detailsOpen">
           <ul class="delivery-items">
-            <li v-for="item in current.items" :key="item.target.changeId" class="delivery-item">
-              <span class="delivery-kind">{{ label(item) }}</span>
-              <span class="delivery-title" :title="item.title">{{ item.title }}</span>
-              <span v-if="item.conflicted" class="delivery-flag" title="正式稿在修改期间也有变化">冲突</span>
-              <AppButton v-if="item.workId === creation.workId" size="xs" variant="ghost" @click="view(current, item)"
+            <li v-for="row in rows(current.items)" :key="row.key" class="delivery-item">
+              <span class="delivery-kind">{{ row.label }}</span>
+              <span class="delivery-title" :title="row.title">{{ row.title }}</span>
+              <span v-if="row.records" class="delivery-count">{{ row.records }} 条事件</span>
+              <span v-if="row.conflicted" class="delivery-flag" title="正式稿在修改期间也有变化">冲突</span>
+              <AppButton v-if="row.workId === creation.workId" size="xs" variant="ghost" @click="view(current, row)"
                 >查看</AppButton
               >
-              <span v-else class="delivery-other" :title="`在《${workTitle(item)}》中，打开该作品后查看`">{{
-                workTitle(item)
+              <span v-else class="delivery-other" :title="`在《${workTitle(row)}》中，打开该作品后查看`">{{
+                workTitle(row)
               }}</span>
             </li>
           </ul>
@@ -109,15 +141,16 @@ function view(summary: DeliverySummary, item: DeliveryItem) {
         </button>
         <div v-for="summary in historyOpen ? earlier : []" :key="summary.group.id" class="delivery-group">
           <ul class="delivery-items">
-            <li v-for="item in summary.items" :key="item.target.changeId" class="delivery-item">
-              <span class="delivery-kind">{{ label(item) }}</span>
-              <span class="delivery-title" :title="item.title">{{ item.title }}</span>
-              <span v-if="item.conflicted" class="delivery-flag" title="正式稿在修改期间也有变化">冲突</span>
-              <AppButton v-if="item.workId === creation.workId" size="xs" variant="ghost" @click="view(summary, item)"
+            <li v-for="row in rows(summary.items)" :key="row.key" class="delivery-item">
+              <span class="delivery-kind">{{ row.label }}</span>
+              <span class="delivery-title" :title="row.title">{{ row.title }}</span>
+              <span v-if="row.records" class="delivery-count">{{ row.records }} 条事件</span>
+              <span v-if="row.conflicted" class="delivery-flag" title="正式稿在修改期间也有变化">冲突</span>
+              <AppButton v-if="row.workId === creation.workId" size="xs" variant="ghost" @click="view(summary, row)"
                 >查看</AppButton
               >
-              <span v-else class="delivery-other" :title="`在《${workTitle(item)}》中，打开该作品后查看`">{{
-                workTitle(item)
+              <span v-else class="delivery-other" :title="`在《${workTitle(row)}》中，打开该作品后查看`">{{
+                workTitle(row)
               }}</span>
             </li>
           </ul>
@@ -153,6 +186,11 @@ function view(summary: DeliverySummary, item: DeliveryItem) {
   background: var(--popover);
   box-shadow: var(--shadow-float);
   font-size: 13px;
+}
+.delivery-count {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
 }
 .delivery-header {
   display: flex;

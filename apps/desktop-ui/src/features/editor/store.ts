@@ -49,7 +49,8 @@ export const useEditorStore = defineStore('editor', () => {
   const focusedId = ref('');
   const searchRequest = ref(0);
   const command = shallowRef<{ name: 'undo' | 'redo'; sequence: number } | null>(null);
-  const unsavedPrompt = shallowRef<{ titles: string[] } | null>(null);
+  /** discard 为 false 时只能保存或取消，用于需要正式稿的操作。 */
+  const unsavedPrompt = shallowRef<{ titles: string[]; discard: boolean } | null>(null);
   const activeTab = computed(() => tabs.value.find(tab => tab.id === (focusedId.value || activeId.value)) ?? null);
   const hasUnsaved = computed(() => tabs.value.some(tab => tab.dirty || tab.saving));
   const autoSave = computed(() => settings.state?.settings.editor?.autoSave ?? false);
@@ -362,7 +363,7 @@ export const useEditorStore = defineStore('editor', () => {
     resetToDocument(id, tab.conflict);
   }
 
-  async function confirmClose(ids = tabs.value.map(tab => tab.id)): Promise<boolean> {
+  async function confirmClose(ids = tabs.value.map(tab => tab.id), discard = true): Promise<boolean> {
     await Promise.all(ids.map(id => saves.get(id)));
     const dirty = tabs.value.filter(tab => ids.includes(tab.id) && tab.dirty);
     if (!dirty.length) return true;
@@ -372,7 +373,7 @@ export const useEditorStore = defineStore('editor', () => {
         resolve = done;
       });
       decision = { promise, resolve };
-      unsavedPrompt.value = { titles: dirty.map(tab => tab.title) };
+      unsavedPrompt.value = { titles: dirty.map(tab => tab.title), discard };
     }
     const choice = await decision.promise;
     if (choice === 'cancel') return false;
@@ -396,6 +397,11 @@ export const useEditorStore = defineStore('editor', () => {
     decision?.resolve(choice);
     decision = undefined;
     unsavedPrompt.value = null;
+  }
+  /** 从章节提取事件读取正式稿；打开的章节有未保存修改时先询问保存。 */
+  async function extractChapter(chapter: { id: string; title: string }) {
+    if (find(chapter.id) && !(await confirmClose([chapter.id], false))) return;
+    await useWorkbenchStore().extractChapter(chapter);
   }
   async function closeTab(id: string) {
     if (!(await confirmClose([id]))) return;
@@ -498,6 +504,7 @@ export const useEditorStore = defineStore('editor', () => {
     searchRequest,
     command,
     unsavedPrompt,
+    extractChapter,
     getBuffer: (id: string) => buffers.get(id),
     updateBuffer,
     updateMetadata,

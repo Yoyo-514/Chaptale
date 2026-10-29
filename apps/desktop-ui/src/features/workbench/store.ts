@@ -33,6 +33,14 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     useAgentStore().compose(rootPath, prompt, files);
     showAgent();
   }
+  /** 由 Agent 读取章节，把事件记到涉及的资料下，结果进入审阅。 */
+  function extractChapter(chapter: { id: string; title: string }) {
+    showAgent();
+    return useAgentStore().startReview(
+      `请阅读《${chapter.title}》（条目 ID：${chapter.id}），把本章发生的事件记到涉及的资料下。` +
+        '先查看这些资料已有的事件，不要重复记录；涉及的人物、地点等还没有资料时先在资料区新建。'
+    );
+  }
   return {
     sidebarOpen,
     auxiliaryOpen,
@@ -44,6 +52,7 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     toggleSidebar,
     showAgent,
     toggleAuxiliary,
-    askAgent
+    askAgent,
+    extractChapter
   };
 });

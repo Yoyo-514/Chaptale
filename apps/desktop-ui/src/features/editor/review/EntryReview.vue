@@ -9,6 +9,8 @@ import { EditorView } from '@codemirror/view';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppAlertDialog } from '@/components/AppDialog';
+import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextView } from '@/components/AppTextView';
 import { useCreationStore } from '@/features/creation';
 
@@ -50,6 +52,20 @@ const fields: Record<string, string> = {
 };
 const conflictFields = computed(() => [...new Set(data.value.conflicts.map(item => fields[item.field]))].join('、'));
 const locked = computed(() => props.tab.busy || props.tab.dirty);
+/** 新资料候选：依赖它的事件候选随拒绝一并拒绝，或改为关联已有资料。 */
+const newResource = computed(() => current.value === null && candidate.value.section === 'resource' && !deleted.value);
+const dependents = computed(
+  () => props.tab.records.filter(change => change.candidate.resourceIds.includes(props.tab.entryId)).length
+);
+const resources = computed(() =>
+  creation.entries.filter(entry => entry.section === 'resource' && entry.kind === 'document')
+);
+const relinkTarget = ref('');
+const confirmReject = ref(false);
+function reject() {
+  if (newResource.value && dependents.value) confirmReject.value = true;
+  else void review.decide(props.tab.key, 'reject');
+}
 
 function blockAction(event: MouseEvent) {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-review-action]');
@@ -79,21 +95,21 @@ function blockAction(event: MouseEvent) {
     blockError.value = '这一处位于文稿开头且涉及末行换行，请用「全部接受」或「全部拒绝」处理';
     return;
   }
-  void review.decide(props.tab.changeId, decision, range);
+  void review.decide(props.tab.key, decision, range);
 }
 
 onMounted(() => {
   if (!host.value) return;
   view = new EditorView({
     parent: host.value!,
-    state: review.getState(props.tab.changeId)!,
+    state: review.getState(props.tab.key)!,
     dispatchTransactions(transactions, currentView) {
       currentView.update(transactions);
       if (transactions.some(transaction => transaction.docChanged))
-        review.updateState(props.tab.changeId, currentView.state);
+        review.updateState(props.tab.key, currentView.state);
     }
   });
-  const top = scrollTops.get(props.tab.changeId);
+  const top = scrollTops.get(props.tab.key);
   if (top !== undefined)
     frame = requestAnimationFrame(() => {
       view!.scrollDOM.scrollTop = top;
@@ -102,8 +118,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (frame !== undefined) cancelAnimationFrame(frame);
   if (!view) return;
-  scrollTops.set(props.tab.changeId, view.scrollDOM.scrollTop);
-  review.updateState(props.tab.changeId, view.state);
+  scrollTops.set(props.tab.key, view.scrollDOM.scrollTop);
+  review.updateState(props.tab.key, view.state);
   view.destroy();
 });
 </script>
@@ -119,7 +135,7 @@ onBeforeUnmount(() => {
         >
         <span v-else-if="!current" class="review-meta">新建{{ candidate.kind === 'directory' ? '目录' : '' }}</span>
       </div>
-      <AppButton size="sm" variant="ghost" :disabled="locked" @click="review.decide(tab.changeId, 'reject')">{{
+      <AppButton size="sm" variant="ghost" :disabled="locked" @click="reject">{{
         deleted ? '拒绝删除' : '全部拒绝'
       }}</AppButton>
       <AppButton
@@ -127,7 +143,7 @@ onBeforeUnmount(() => {
         variant="primary"
         :disabled="locked || conflicted"
         :title="conflicted ? '请先处理冲突' : undefined"
-        @click="review.decide(tab.changeId, 'accept')"
+        @click="review.decide(tab.key, 'accept')"
         >{{ deleted ? '接受删除' : '全部接受' }}</AppButton
       >
     </header>
@@ -135,7 +151,7 @@ onBeforeUnmount(() => {
       <span
         >标题：<del>{{ current!.title }}</del> → {{ candidate.title }}</span
       >
-      <AppButton size="xs" variant="ghost" :disabled="locked" @click="review.decide(tab.changeId, 'reject', 'title')"
+      <AppButton size="xs" variant="ghost" :disabled="locked" @click="review.decide(tab.key, 'reject', 'title')"
         >保留原标题</AppButton
       >
       <AppButton
@@ -143,8 +159,21 @@ onBeforeUnmount(() => {
         variant="ghost"
         :disabled="locked || titleConflicted"
         :title="titleConflicted ? '标题有冲突，请先处理冲突' : undefined"
-        @click="review.decide(tab.changeId, 'accept', 'title')"
+        @click="review.decide(tab.key, 'accept', 'title')"
         >接受改名</AppButton
+      >
+    </div>
+    <div v-if="newResource && dependents" class="review-row">
+      <span>{{ dependents }} 条事件依赖这份新资料。已有同一份资料时，可改为关联它。</span>
+      <AppSelect v-model="relinkTarget" class="review-relink" aria-label="改为关联的资料" placeholder="选择已有资料">
+        <AppSelectItem v-for="entry in resources" :key="entry.id" :value="entry.id">{{ entry.title }}</AppSelectItem>
+      </AppSelect>
+      <AppButton
+        size="xs"
+        variant="ghost"
+        :disabled="locked || !relinkTarget"
+        @click="review.relink(tab.key, relinkTarget)"
+        >改为关联</AppButton
       >
     </div>
     <div v-if="moved && !deleted" class="review-row">
@@ -152,20 +181,20 @@ onBeforeUnmount(() => {
     </div>
     <div v-if="conflicted" class="review-row review-conflict" role="status">
       <span>Agent 修改期间，正式稿的{{ conflictFields }}也有变化。可直接在下方修改候选，确认后标记已解决。</span>
-      <AppButton size="xs" variant="ghost" :disabled="tab.busy || tab.outdated" @click="review.save(tab.changeId, true)"
+      <AppButton size="xs" variant="ghost" :disabled="tab.busy || tab.outdated" @click="review.save(tab.key, true)"
         >已检查，标记解决</AppButton
       >
     </div>
     <div v-if="tab.outdated" class="review-row review-conflict" role="alert">
       <span>Agent 已更新这份候选，当前手改无法保存。</span>
-      <AppButton size="xs" variant="ghost" @click="review.discardEdits(tab.changeId)">放弃手改并重新读取</AppButton>
+      <AppButton size="xs" variant="ghost" @click="review.discardEdits(tab.key)">放弃手改并重新读取</AppButton>
     </div>
     <div v-else-if="tab.dirty" class="review-row" role="status">
       <span>有未保存的手改，Ctrl+S 保存；保存前不能逐处或整篇决定。</span>
-      <AppButton size="xs" variant="ghost" :disabled="tab.busy" @click="review.discardEdits(tab.changeId)"
+      <AppButton size="xs" variant="ghost" :disabled="tab.busy" @click="review.discardEdits(tab.key)"
         >撤销手改</AppButton
       >
-      <AppButton size="xs" variant="primary" :disabled="tab.busy" @click="review.save(tab.changeId)">保存</AppButton>
+      <AppButton size="xs" variant="primary" :disabled="tab.busy" @click="review.save(tab.key)">保存</AppButton>
     </div>
     <p v-if="tab.error || blockError" class="review-error" role="alert">{{ tab.error || blockError }}</p>
     <AppTextView
@@ -176,10 +205,20 @@ onBeforeUnmount(() => {
     />
     <p v-else-if="deleted" class="review-row">目录中的内容会一起移入作品回收站。</p>
     <div v-else ref="host" class="review-editor" @mousedown="blockAction" />
+    <AppAlertDialog
+      v-model:open="confirmReject"
+      :title="`拒绝新资料《${candidate.title}》？`"
+      :description="`依赖它的 ${dependents} 条事件候选会一并拒绝。`"
+      confirm-label="一并拒绝"
+      @confirm="review.decide(tab.key, 'reject')"
+    />
   </section>
 </template>
 
 <style scoped>
+.review-relink {
+  width: 180px;
+}
 .review-deleted {
   color: var(--destructive);
 }

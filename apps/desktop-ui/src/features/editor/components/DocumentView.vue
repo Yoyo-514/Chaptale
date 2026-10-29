@@ -9,6 +9,7 @@ import { AppAlertDialog } from '@/components/AppDialog';
 import { AppDiffView } from '@/components/AppDiffView';
 import { FilePreview } from '@/features/creation';
 import { useNotificationStore } from '@/features/notifications';
+import { RecordList } from '@/features/records';
 import { toErrorMessage } from '@/utils/desktop-api';
 import { captureEditingTarget } from '@/utils/editing-target';
 
@@ -144,6 +145,7 @@ watch(
       />
     </div>
     <AttributesPanel v-if="tab.attributes" :tab="tab" />
+    <RecordList v-if="tab.attributes" :work-id="tab.workId" :resource-id="tab.id" />
     <AppContextMenu :items="menu" @prepare="prepareMenu" @select="selectAction">
       <div class="document-codemirror-host">
         <!-- as-child 会处理触发节点的 ref；编辑器挂载点由本组件单独持有。 -->

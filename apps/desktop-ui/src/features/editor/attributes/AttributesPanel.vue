@@ -202,7 +202,8 @@ function update(fields: Partial<ResourceAttributes>) {
   font-size: var(--ui-caption-size);
   color: var(--muted-foreground);
 }
-.attributes-type {
+/* 组件库把 class 落在内部节点上，需穿透 scoped 才能生效。 */
+.attributes-body :deep(.attributes-type) {
   width: 200px;
 }
 </style>

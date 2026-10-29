@@ -4,7 +4,9 @@ import { computed, onScopeDispose, ref, watch } from 'vue';
 import type {
   CreationEvent,
   Entry,
+  EntryChange,
   PendingChange,
+  StoryRecord,
   Work,
   WorkbenchState,
   WorkViewState
@@ -22,9 +24,14 @@ export const useCreationStore = defineStore('creation', () => {
   const entries = ref<Entry[]>([]);
   /** 当前作品所有会话的待接受修改，供目录标记与显示新建候选；修改本身在审阅标签中处理。 */
   const pendingChanges = ref<PendingChange[]>([]);
-  const pendingEntryIds = computed<ReadonlySet<string>>(
-    () => new Set(pendingChanges.value.filter(change => change.base !== null).map(change => change.entryId))
+  const pendingEntries = computed(() =>
+    pendingChanges.value.filter((change): change is EntryChange => change.target === 'entry')
   );
+  const pendingEntryIds = computed<ReadonlySet<string>>(
+    () => new Set(pendingEntries.value.filter(change => change.base !== null).map(change => change.targetId))
+  );
+  /** 当前作品的正式事件，按全作品顺序；资料页按资料筛选与分组。 */
+  const records = ref<StoryRecord[]>([]);
   const state = ref<WorkbenchState>({ activeWorkId: null, works: [] });
   const libraryOpen = ref(true);
   const connected = ref(false);
@@ -104,6 +111,7 @@ export const useCreationStore = defineStore('creation', () => {
     const snapshot = await requestCreation('snapshot', { workId: id });
     if (workId.value === id && snapshot.kind === 'work' && snapshot.cursor.sequence >= cursor) {
       entries.value = snapshot.entries;
+      records.value = snapshot.records;
       cursor = snapshot.cursor.sequence;
     }
   }
@@ -151,14 +159,23 @@ export const useCreationStore = defineStore('creation', () => {
       return;
     }
     if (event.cursor.workId !== workId.value || event.cursor.sequence <= cursor) return;
-    if (event.change.kind !== 'entry' || event.cursor.sequence !== cursor + 1) {
+    const change = event.change;
+    if (change.kind === 'record' && event.cursor.sequence === cursor + 1) {
+      records.value = change.removed
+        ? records.value.filter(item => item.id !== change.record.id)
+        : records.value.some(item => item.id === change.record.id)
+          ? records.value.map(item => (item.id === change.record.id ? change.record : item))
+          : [...records.value, change.record];
+      cursor = event.cursor.sequence;
+      return;
+    }
+    if (change.kind !== 'entry' || event.cursor.sequence !== cursor + 1) {
       void refreshEntries().catch(cause => {
         error.value = toErrorMessage(cause);
       });
       return;
     }
-    const next = event.change.entry;
-    entries.value = [...entries.value.filter(item => item.id !== next.id), next];
+    entries.value = [...entries.value.filter(item => item.id !== change.entry.id), change.entry];
     cursor = event.cursor.sequence;
   }
 
@@ -185,6 +202,7 @@ export const useCreationStore = defineStore('creation', () => {
           const snapshot = await requestCreation('snapshot', { workId: restored.activeWorkId });
           if (snapshot.kind === 'work') {
             entries.value = snapshot.entries;
+            records.value = snapshot.records;
             cursor = snapshot.cursor.sequence;
           }
         }
@@ -222,6 +240,7 @@ export const useCreationStore = defineStore('creation', () => {
       if (snapshot.kind !== 'work') throw new Error('作品快照类型错误');
       viewFor(id);
       entries.value = snapshot.entries;
+      records.value = snapshot.records;
       cursor = snapshot.cursor.sequence;
       state.value.activeWorkId = id;
       libraryOpen.value = false;
@@ -241,6 +260,7 @@ export const useCreationStore = defineStore('creation', () => {
     if (state.value.activeWorkId !== id) return;
     state.value.activeWorkId = null;
     entries.value = [];
+    records.value = [];
     libraryOpen.value = true;
   }
 
@@ -319,7 +339,9 @@ export const useCreationStore = defineStore('creation', () => {
     works,
     entries,
     pendingChanges,
+    pendingEntries,
     pendingEntryIds,
+    records,
     state,
     workId,
     work,
