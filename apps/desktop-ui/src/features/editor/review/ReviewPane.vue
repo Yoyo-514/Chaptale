@@ -2,15 +2,15 @@
 import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { RecordList } from '@/features/records';
+import { StoryPanel } from '@/features/story';
 
 import EntryReview from './EntryReview.vue';
-import { type ReviewTab, useReviewStore } from './store';
+import { type ReviewTab, reviewDone, useReviewStore } from './store';
 
-/** 审阅标签：条目自身的修改在上方，资料涉及的事件候选在下方逐条处理。 */
+/** 审阅标签：条目自身的修改在上方，资料涉及的关系与事件候选在下方逐条处理。 */
 const props = defineProps<{ tab: ReviewTab }>();
 const review = useReviewStore();
-const done = computed(() => !props.tab.review && !props.tab.records.length);
+const done = computed(() => reviewDone(props.tab));
 const next = computed(() => (done.value ? review.nextResource(props.tab) : null));
 </script>
 
@@ -26,14 +26,15 @@ const next = computed(() => (done.value ? review.nextResource(props.tab) : null)
       >
     </header>
     <p v-if="!tab.review && tab.error" class="review-tab-error" role="alert">{{ tab.error }}</p>
-    <RecordList
-      v-if="tab.section === 'resource' && (tab.records.length || !tab.review)"
+    <StoryPanel
+      v-if="tab.section === 'resource' && (tab.records.length || tab.relations.length || !tab.review)"
       :work-id="tab.workId"
       :resource-id="tab.entryId"
-      :candidates="tab.records"
+      :candidates="{ records: tab.records, relations: tab.relations }"
       :busy="tab.busy"
-      @decide="(change, decision) => review.decideRecord(tab.key, change, decision)"
-      @update="(change, fields) => review.updateRecord(tab.key, change, fields)"
+      @decide="(change, decision) => review.decideStory(tab.key, change, decision)"
+      @update-record="(change, fields) => review.updateRecord(tab.key, change, fields)"
+      @update-relation="(change, input) => review.updateRelation(tab.key, change, input)"
     />
   </div>
 </template>
@@ -46,7 +47,7 @@ const next = computed(() => (done.value ? review.nextResource(props.tab) : null)
   min-width: 0;
   min-height: 0;
 }
-.review-records-only :deep(.records-scroll) {
+.review-records-only :deep(.story-scroll) {
   max-height: none;
 }
 .review-tab-header {

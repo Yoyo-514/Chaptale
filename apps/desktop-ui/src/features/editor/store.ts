@@ -13,7 +13,7 @@ import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
 import { DocumentBuffer } from './codemirror/document-buffer';
 import { useHistoryStore } from './history/store';
-import { useReviewStore } from './review/store';
+import { reviewDone, useReviewStore } from './review/store';
 import { writingTiming } from './timing';
 import type { DocumentViewState, EditorTab } from './types';
 
@@ -486,6 +486,21 @@ export const useEditorStore = defineStore('editor', () => {
         const entry = creation.entries.find(item => item.id === tab.id);
         if (entry && tab.document && entry.revisionId !== tab.document.revisionId && !tab.dirty && !tab.saving)
           void load(tab.id);
+      }
+    }
+  );
+  // 处理完的资料标签与同一资料的文稿标签重复，留文稿标签。
+  watch(
+    () =>
+      review.tabs
+        .filter(tab => reviewDone(tab) && tabs.value.some(item => item.id === tab.entryId))
+        .map(tab => tab.key),
+    keys => {
+      for (const key of keys) {
+        const entryId = review.tabs.find(tab => tab.key === key)!.entryId;
+        const active = review.activeId === key;
+        review.close(key);
+        if (active) selectTab(entryId);
       }
     }
   );

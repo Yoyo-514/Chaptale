@@ -12,7 +12,8 @@ import { openCreationStorage } from '@chaptale/storage';
 
 import { useCreationStore } from '@/features/creation';
 
-import { useReviewStore } from '../review/store';
+import { reviewDone, useReviewStore } from '../review/store';
+import { useEditorStore } from '../store';
 
 let root: string;
 let author: CreationApplication;
@@ -120,9 +121,7 @@ it('Agent 写入后审阅标签在后台打开；作者正在看该会话且焦�
   expect(review.activeId).toBe(tabKey());
   expect(review.activeTab?.review?.candidate.content).toBe('将军出征。\n公主回宫。\n夜深。');
   await flushPromises();
-  expect(review.summaries[context.sessionId]?.[0]?.items.map(item => item.kind !== 'record' && item.title)).toEqual([
-    '序章'
-  ]);
+  expect(review.summaries[context.sessionId]?.[0]?.items.map(item => 'title' in item && item.title)).toEqual(['序章']);
 });
 
 it('逐块接受只写入该处，候选其余部分继续待审；拒绝最后一处后标签关闭', async () => {
@@ -220,7 +219,7 @@ it('资料审阅标签列出事件候选，同一会话只在后台打开第一�
   expect(tab().review?.candidate.title).toBe('沈霁');
   expect(tab().records.map(change => change.candidate.text)).toEqual(['沈霁守城']);
 
-  await review.decideRecord(key, tab().records[0]!, 'accept');
+  await review.decideStory(key, tab().records[0]!, 'accept');
   await flushPromises();
   expect(creation.records.map(record => record.text)).toEqual(['沈霁守城']);
   expect(creation.entries.some(entry => entry.id === resourceId)).toBe(true);
@@ -252,8 +251,54 @@ it('新资料的事件改为关联已有资料，新资料候选随之拒绝；�
   await flushPromises();
   expect(tab().error).toBe('');
   expect(tab().records[0]).toMatchObject({ authorEdited: true, candidate: { storyTime: '三更' } });
-  await review.decideRecord(tab().key, tab().records[0]!, 'accept');
+  await review.decideStory(tab().key, tab().records[0]!, 'accept');
   await flushPromises();
   expect(creation.records).toMatchObject([{ text: '沈将军守城', storyTime: '三更', resourceIds: [existing] }]);
   expect(pending()).toEqual([]);
+});
+
+it('关系候选在双方资料的审阅标签中列出，作者修改称呼后接受，两侧同步清除', async () => {
+  const master = createResource('顾长风', 'author');
+  const pupil = createResource('林晚', 'author');
+  await flushPromises();
+  agent('createRelation', {
+    resourceIds: [master, pupil],
+    type: '师徒',
+    directed: true,
+    titles: ['师父', '徒弟'],
+    milestones: [
+      {
+        id: null,
+        kind: 'start',
+        source: { kind: 'chapter', chapterId: document.id, revisionId: document.revisionId },
+        placement: { kind: 'chapter', chapterId: document.id },
+        storyTime: ''
+      }
+    ],
+    basis: '将军守城。'
+  });
+  await flushPromises();
+  const masterKey = `${context.sessionId}:${master}`;
+  await review.open({ sessionId: context.sessionId, entryId: pupil });
+  const tab = (key: string) => review.tabs.find(item => item.key === key)!;
+  const pupilKey = `${context.sessionId}:${pupil}`;
+  expect(tab(masterKey).relations.map(change => change.candidate.type)).toEqual(['师徒']);
+  expect(tab(pupilKey).relations.map(change => change.candidate.type)).toEqual(['师徒']);
+
+  const change = tab(masterKey).relations[0]!;
+  const editor = useEditorStore();
+  await editor.openDocument(master);
+  await review.updateRelation(masterKey, change, { ...change.candidate, titles: ['恩师', '徒弟'] });
+  await flushPromises();
+  expect(tab(pupilKey).relations[0]!.candidate.titles).toEqual(['恩师', '徒弟']);
+  await review.decideStory(pupilKey, tab(pupilKey).relations[0]!, 'accept');
+  await flushPromises();
+  expect(creation.relations.map(relation => relation.titles)).toEqual([['恩师', '徒弟']]);
+  // 处理完的资料标签与已打开的同资料文稿标签重复，只留文稿标签。
+  expect(review.tabs.some(item => item.key === masterKey)).toBe(false);
+  expect(reviewDone(tab(pupilKey))).toBe(true);
+  await editor.openDocument(pupil);
+  await flushPromises();
+  expect(review.tabs).toEqual([]);
+  expect(editor.tabs.map(item => item.id)).toEqual([master, pupil]);
 });

@@ -97,7 +97,6 @@ export interface TrashBatchInput {
   workId: string;
   batchId: string | null;
 }
-/** 删除前在确认框中展示的范围。 */
 /** 作品库回收站中的作品。 */
 export interface TrashedWork extends Work {
   deletedAt: number;
@@ -107,6 +106,7 @@ export interface WorkCommandInput {
   workId: string;
 }
 
+/** 删除前在确认框中展示的范围。 */
 export interface TrashImpact {
   entryCount: number;
   pendingCount: number;

@@ -41,8 +41,11 @@ export const useTrashStore = defineStore('creation-trash', () => {
     },
     { immediate: true }
   );
+  // 条目变化，以及单独删除的事件与关系，都会改变回收站内容。
   const off = creation.onEvent(event => {
-    if (event.change.kind !== 'entries' || event.cursor.workId !== creation.workId) return;
+    const { change } = event;
+    const removed = (change.kind === 'record' || change.kind === 'relation') && change.removed;
+    if ((change.kind !== 'entries' && !removed) || event.cursor.workId !== creation.workId) return;
     void refresh().catch(report);
   });
   onScopeDispose(off);

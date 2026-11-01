@@ -10,6 +10,8 @@ import type {
   EntryReviewView,
   PendingChange,
   RecordChange,
+  RelationChange,
+  RelationInput,
   RecordFields,
   ReviewRange,
   ReviewTarget,
@@ -32,9 +34,10 @@ export interface ReviewTab {
   entryId: string;
   title: string;
   section: Entry['section'];
-  /** 条目自身的待接受修改；只有事件候选时为 null。 */
+  /** 条目自身的待接受修改；只有事件或关系候选时为 null。 */
   review: EntryReviewView | null;
   records: RecordChange[];
+  relations: RelationChange[];
   status: 'loading' | 'ready' | 'error';
   error: string;
   dirty: boolean;
@@ -43,6 +46,11 @@ export interface ReviewTab {
   outdated: boolean;
   /** 服务端候选更新后递增，审阅面板据此重建编辑器。 */
   generation: number;
+}
+
+/** 资料标签上的修改都已处理，只剩正式资料与下一份提示。 */
+export function reviewDone(tab: ReviewTab): boolean {
+  return tab.status === 'ready' && !tab.review && !tab.records.length && !tab.relations.length;
 }
 
 export function reviewTarget(review: EntryReviewView): ReviewTarget {
@@ -66,12 +74,12 @@ function editorFocused() {
 
 const tabKey = (sessionId: string, entryId: string) => `${sessionId}:${entryId}`;
 
-/** 事件候选涉及的资料：候选与修改前的并集，移除关联的资料也要看到这条修改。 */
-export function recordResources(change: RecordChange): string[] {
+/** 事件或关系候选涉及的资料：候选与修改前的并集，移除关联的资料也要看到这条修改。 */
+export function storyResources(change: RecordChange | RelationChange): string[] {
   return [...new Set([...change.candidate.resourceIds, ...(change.base?.resourceIds ?? [])])];
 }
 
-/** 候选所在的审阅标签：条目修改归条目自身，事件归第一份涉及的资料。 */
+/** 候选所在的审阅标签：条目修改归条目自身，事件与关系归第一份涉及的资料。 */
 function changeEntryId(change: PendingChange) {
   return change.target === 'entry' ? change.targetId : change.candidate.resourceIds[0];
 }
@@ -132,20 +140,23 @@ export const useReviewStore = defineStore('review', () => {
           (change): change is EntryChange => change.target === 'entry' && change.targetId === tab.entryId
         );
         const records = changes.filter(
-          (change): change is RecordChange =>
-            change.target === 'record' && recordResources(change).includes(tab.entryId)
+          (change): change is RecordChange => change.target === 'record' && storyResources(change).includes(tab.entryId)
+        );
+        const relations = changes.filter(
+          (change): change is RelationChange =>
+            change.target === 'relation' && storyResources(change).includes(tab.entryId)
         );
         const review = own ? entryReview(await requestCreation('readReview', { changeId: own.id })) : null;
         if (!find(key)) return;
         // 文稿处理完即关闭；资料留在标签上提示下一份，资料的新建或修改被拒绝、删除被接受后关闭。
-        if (!review && !records.length && (tab.section === 'manuscript' || !(await kept(tab)))) {
+        if (!review && !records.length && !relations.length && (tab.section === 'manuscript' || !(await kept(tab)))) {
           if (!tab.dirty) remove(key);
           return;
         }
         if (tab.dirty) {
           if (tab.review && review?.change.version !== tab.review.change.version)
-            patch(key, { outdated: true, records });
-          else patch(key, { records });
+            patch(key, { outdated: true, records, relations });
+          else patch(key, { records, relations });
           return;
         }
         if (review) states.set(key, createReviewState(review));
@@ -153,6 +164,7 @@ export const useReviewStore = defineStore('review', () => {
         patch(key, {
           review,
           records,
+          relations,
           title: review?.candidate.title ?? entryTitle(tab.entryId),
           status: 'ready',
           error: '',
@@ -186,6 +198,7 @@ export const useReviewStore = defineStore('review', () => {
           section,
           review: null,
           records: [],
+          relations: [],
           status: 'loading',
           error: '',
           dirty: false,
@@ -226,8 +239,8 @@ export const useReviewStore = defineStore('review', () => {
     for (const change of creation.pendingChanges) {
       if (change.sessionId !== tab.sessionId) continue;
       const ids =
-        change.target === 'record'
-          ? recordResources(change)
+        change.target !== 'entry'
+          ? storyResources(change)
           : change.candidate.section === 'resource'
             ? [change.targetId]
             : [];
@@ -309,30 +322,52 @@ export const useReviewStore = defineStore('review', () => {
     return load(key);
   }
 
-  /** 事件候选以作者看到的候选版本与正式修订校验；事件没有目录位置。 */
-  function recordTarget(change: RecordChange): ReviewTarget {
+  /** 事件与关系候选以作者看到的候选版本与正式修订校验；二者没有目录位置。 */
+  function storyTarget(change: RecordChange | RelationChange): ReviewTarget {
+    const formal = change.target === 'record' ? creation.records : creation.relations;
     return {
       changeId: change.id,
       expectedVersion: change.version,
-      expectedRevisionId: creation.records.find(record => record.id === change.targetId)?.revisionId ?? null,
+      expectedRevisionId: formal.find(item => item.id === change.targetId)?.revisionId ?? null,
       expectedLocation: null
     };
   }
-  function decideRecord(key: string, change: RecordChange, decision: 'accept' | 'reject') {
-    return act(key, () => requestCreation('decideReview', { commandId: command(), ...recordTarget(change), decision }));
+  function decideStory(key: string, change: RecordChange | RelationChange, decision: 'accept' | 'reject') {
+    return act(key, () => requestCreation('decideReview', { commandId: command(), ...storyTarget(change), decision }));
   }
   /** 作者手改事件候选；有冲突时保存即表示已检查。 */
   function updateRecord(key: string, change: RecordChange, fields: RecordFields) {
     return act(key, () =>
       requestCreation('updateRecordReview', {
         commandId: command(),
-        ...recordTarget(change),
+        ...storyTarget(change),
         // 按传输契约逐项取字段，调用方传入的快照可能带有其他属性。
         resourceIds: [...fields.resourceIds],
         text: fields.text,
         source: { ...fields.source },
         placement: { ...fields.placement },
         storyTime: fields.storyTime,
+        resolveConflicts: change.conflicts.length > 0
+      })
+    );
+  }
+  /** 作者手改关系候选；有冲突时保存即表示已检查。 */
+  function updateRelation(key: string, change: RelationChange, input: RelationInput) {
+    return act(key, () =>
+      requestCreation('updateRelationReview', {
+        commandId: command(),
+        ...storyTarget(change),
+        resourceIds: [...input.resourceIds],
+        type: input.type,
+        directed: input.directed,
+        titles: [...input.titles],
+        milestones: input.milestones.map(milestone => ({
+          id: milestone.id,
+          kind: milestone.kind,
+          source: { ...milestone.source },
+          placement: { ...milestone.placement },
+          storyTime: milestone.storyTime
+        })),
         resolveConflicts: change.conflicts.length > 0
       })
     );
@@ -419,11 +454,11 @@ export const useReviewStore = defineStore('review', () => {
     if (change.kind === 'review') {
       const pending = change.change;
       if (viewingSessionId.value === pending.sessionId) void refreshDeliveries(pending.sessionId);
-      const ids = pending.target === 'entry' ? [pending.targetId] : recordResources(pending);
+      const ids = pending.target === 'entry' ? [pending.targetId] : storyResources(pending);
       const affected = tabs.value.filter(tab => tab.sessionId === pending.sessionId && ids.includes(tab.entryId));
       for (const tab of affected) void load(tab.key);
       if (affected.length || own || pending.status !== 'pending' || pending.workId !== creation.workId) return;
-      const resource = pending.target === 'record' || pending.candidate.section === 'resource';
+      const resource = pending.target !== 'entry' || pending.candidate.section === 'resource';
       if (resource && tabs.value.some(tab => tab.sessionId === pending.sessionId && tab.section === 'resource')) return;
       const target = { sessionId: pending.sessionId, entryId: changeEntryId(pending) };
       void open(target);
@@ -484,8 +519,9 @@ export const useReviewStore = defineStore('review', () => {
     decide,
     save,
     discardEdits,
-    decideRecord,
+    decideStory,
     updateRecord,
+    updateRelation,
     relink,
     decideChange,
     refreshDeliveries,

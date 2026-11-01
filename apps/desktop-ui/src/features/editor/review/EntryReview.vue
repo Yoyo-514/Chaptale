@@ -52,11 +52,19 @@ const fields: Record<string, string> = {
 };
 const conflictFields = computed(() => [...new Set(data.value.conflicts.map(item => fields[item.field]))].join('、'));
 const locked = computed(() => props.tab.busy || props.tab.dirty);
-/** 新资料候选：依赖它的事件候选随拒绝一并拒绝，或改为关联已有资料。 */
+/** 新资料候选：依赖它的事件与关系候选随拒绝一并拒绝，或改为关联已有资料。 */
 const newResource = computed(() => current.value === null && candidate.value.section === 'resource' && !deleted.value);
-const dependents = computed(
-  () => props.tab.records.filter(change => change.candidate.resourceIds.includes(props.tab.entryId)).length
-);
+const dependents = computed(() => {
+  const count = (changes: { candidate: { resourceIds: string[] } }[]) =>
+    changes.filter(change => change.candidate.resourceIds.includes(props.tab.entryId)).length;
+  return [
+    [count(props.tab.records), '事件'],
+    [count(props.tab.relations), '关系']
+  ]
+    .filter(([n]) => n)
+    .map(([n, label]) => `${n} 条${label}`)
+    .join('、');
+});
 const resources = computed(() =>
   creation.entries.filter(entry => entry.section === 'resource' && entry.kind === 'document')
 );
@@ -164,7 +172,7 @@ onBeforeUnmount(() => {
       >
     </div>
     <div v-if="newResource && dependents" class="review-row">
-      <span>{{ dependents }} 条事件依赖这份新资料。已有同一份资料时，可改为关联它。</span>
+      <span>{{ dependents }}依赖这份新资料。已有同一份资料时，可改为关联它。</span>
       <AppSelect v-model="relinkTarget" class="review-relink" aria-label="改为关联的资料" placeholder="选择已有资料">
         <AppSelectItem v-for="entry in resources" :key="entry.id" :value="entry.id">{{ entry.title }}</AppSelectItem>
       </AppSelect>
@@ -208,7 +216,7 @@ onBeforeUnmount(() => {
     <AppAlertDialog
       v-model:open="confirmReject"
       :title="`拒绝新资料《${candidate.title}》？`"
-      :description="`依赖它的 ${dependents} 条事件候选会一并拒绝。`"
+      :description="`依赖它的${dependents}候选会一并拒绝。`"
       confirm-label="一并拒绝"
       @confirm="review.decide(tab.key, 'reject')"
     />

@@ -3,10 +3,12 @@ import { computed, onScopeDispose, ref, watch } from 'vue';
 
 import type {
   CreationEvent,
+  CreationSnapshot,
   Entry,
   EntryChange,
   PendingChange,
   StoryRecord,
+  StoryRelation,
   Work,
   WorkbenchState,
   WorkViewState
@@ -17,6 +19,14 @@ import { confirmWorkspaceTransition } from '@/utils/workspace-transition';
 
 import * as files from './files/add-files';
 import { requestCreation } from './request';
+
+/** 按 ID 替换、追加或移除一项。 */
+function upsert<T extends { id: string }>(items: T[], item: T, removed: boolean): T[] {
+  if (removed) return items.filter(current => current.id !== item.id);
+  return items.some(current => current.id === item.id)
+    ? items.map(current => (current.id === item.id ? item : current))
+    : [...items, item];
+}
 
 /** 作品与目录取服务快照；本机导航只保存稳定身份和位置。 */
 export const useCreationStore = defineStore('creation', () => {
@@ -32,6 +42,8 @@ export const useCreationStore = defineStore('creation', () => {
   );
   /** 当前作品的正式事件，按全作品顺序；资料页按资料筛选与分组。 */
   const records = ref<StoryRecord[]>([]);
+  /** 当前作品的正式关系；资料页按资料筛选。 */
+  const relations = ref<StoryRelation[]>([]);
   const state = ref<WorkbenchState>({ activeWorkId: null, works: [] });
   const libraryOpen = ref(true);
   const connected = ref(false);
@@ -105,14 +117,18 @@ export const useCreationStore = defineStore('creation', () => {
     if (snapshot.kind === 'library') works.value = snapshot.works;
   }
 
+  function applySnapshot(snapshot: Extract<CreationSnapshot, { kind: 'work' }>) {
+    entries.value = snapshot.entries;
+    records.value = snapshot.records;
+    relations.value = snapshot.relations;
+    cursor = snapshot.cursor.sequence;
+  }
   async function refreshEntries() {
     const id = workId.value;
     if (!id) return;
     const snapshot = await requestCreation('snapshot', { workId: id });
     if (workId.value === id && snapshot.kind === 'work' && snapshot.cursor.sequence >= cursor) {
-      entries.value = snapshot.entries;
-      records.value = snapshot.records;
-      cursor = snapshot.cursor.sequence;
+      applySnapshot(snapshot);
     }
   }
 
@@ -161,11 +177,12 @@ export const useCreationStore = defineStore('creation', () => {
     if (event.cursor.workId !== workId.value || event.cursor.sequence <= cursor) return;
     const change = event.change;
     if (change.kind === 'record' && event.cursor.sequence === cursor + 1) {
-      records.value = change.removed
-        ? records.value.filter(item => item.id !== change.record.id)
-        : records.value.some(item => item.id === change.record.id)
-          ? records.value.map(item => (item.id === change.record.id ? change.record : item))
-          : [...records.value, change.record];
+      records.value = upsert(records.value, change.record, change.removed);
+      cursor = event.cursor.sequence;
+      return;
+    }
+    if (change.kind === 'relation' && event.cursor.sequence === cursor + 1) {
+      relations.value = upsert(relations.value, change.relation, change.removed);
       cursor = event.cursor.sequence;
       return;
     }
@@ -200,11 +217,7 @@ export const useCreationStore = defineStore('creation', () => {
         cursor = 0;
         if (restored.activeWorkId) {
           const snapshot = await requestCreation('snapshot', { workId: restored.activeWorkId });
-          if (snapshot.kind === 'work') {
-            entries.value = snapshot.entries;
-            records.value = snapshot.records;
-            cursor = snapshot.cursor.sequence;
-          }
+          if (snapshot.kind === 'work') applySnapshot(snapshot);
         }
         if (!initialized) {
           state.value = restored;
@@ -239,9 +252,7 @@ export const useCreationStore = defineStore('creation', () => {
       const snapshot = await requestCreation('snapshot', { workId: id });
       if (snapshot.kind !== 'work') throw new Error('作品快照类型错误');
       viewFor(id);
-      entries.value = snapshot.entries;
-      records.value = snapshot.records;
-      cursor = snapshot.cursor.sequence;
+      applySnapshot(snapshot);
       state.value.activeWorkId = id;
       libraryOpen.value = false;
       return true;
@@ -261,6 +272,7 @@ export const useCreationStore = defineStore('creation', () => {
     state.value.activeWorkId = null;
     entries.value = [];
     records.value = [];
+    relations.value = [];
     libraryOpen.value = true;
   }
 
@@ -342,6 +354,7 @@ export const useCreationStore = defineStore('creation', () => {
     pendingEntries,
     pendingEntryIds,
     records,
+    relations,
     state,
     workId,
     work,

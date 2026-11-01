@@ -32,19 +32,26 @@ interface DeliveryRow {
   label: string;
   title: string;
   records: number;
+  relations: number;
   conflicted: boolean;
 }
-function entryLabel(item: DeliveryItem) {
-  if (item.kind === 'record') return '';
+function entryLabel(item: Extract<DeliveryItem, { title: string }>) {
   if (item.deleted) return item.kind === 'directory' ? '删除目录' : '删除';
   if (item.created) return item.kind === 'directory' ? '新建目录' : '新建';
   return item.section === 'resource' ? '资料' : '文稿';
 }
 function rows(items: DeliveryItem[]): DeliveryRow[] {
   const grouped = new Map<string, DeliveryRow>();
-  const titles = new Map(items.flatMap(item => (item.kind === 'record' ? [] : [[item.targetId, item.title] as const])));
-  for (const item of items) {
-    const entryId = item.kind === 'record' ? item.record.resourceIds[0] : item.targetId;
+  const titles = new Map(items.flatMap(item => ('title' in item ? [[item.targetId, item.title] as const] : [])));
+  // 事件归第一份涉及的资料；关系在双方资料下各计一条。
+  const placements = items.flatMap((item): { item: DeliveryItem; entryId: string }[] =>
+    item.kind === 'record'
+      ? [{ item, entryId: item.record.resourceIds[0] }]
+      : item.kind === 'relation'
+        ? item.relation.resourceIds.map(entryId => ({ item, entryId }))
+        : [{ item, entryId: item.targetId }]
+  );
+  for (const { item, entryId } of placements) {
     const key = `${item.workId}:${entryId}`;
     const row = grouped.get(key) ?? {
       key,
@@ -57,9 +64,11 @@ function rows(items: DeliveryItem[]): DeliveryRow[] {
         creation.pendingEntries.find(change => change.targetId === entryId)?.candidate.title ??
         '',
       records: 0,
+      relations: 0,
       conflicted: false
     };
     if (item.kind === 'record') row.records += 1;
+    else if (item.kind === 'relation') row.relations += 1;
     else row.label = entryLabel(item);
     row.conflicted ||= item.conflicted;
     grouped.set(key, row);
@@ -110,6 +119,7 @@ function view(summary: DeliverySummary, row: DeliveryRow) {
               <span class="delivery-kind">{{ row.label }}</span>
               <span class="delivery-title" :title="row.title">{{ row.title }}</span>
               <span v-if="row.records" class="delivery-count">{{ row.records }} 条事件</span>
+              <span v-if="row.relations" class="delivery-count">{{ row.relations }} 条关系</span>
               <span v-if="row.conflicted" class="delivery-flag" title="正式稿在修改期间也有变化">冲突</span>
               <AppButton v-if="row.workId === creation.workId" size="xs" variant="ghost" @click="view(current, row)"
                 >查看</AppButton
@@ -145,6 +155,7 @@ function view(summary: DeliverySummary, row: DeliveryRow) {
               <span class="delivery-kind">{{ row.label }}</span>
               <span class="delivery-title" :title="row.title">{{ row.title }}</span>
               <span v-if="row.records" class="delivery-count">{{ row.records }} 条事件</span>
+              <span v-if="row.relations" class="delivery-count">{{ row.relations }} 条关系</span>
               <span v-if="row.conflicted" class="delivery-flag" title="正式稿在修改期间也有变化">冲突</span>
               <AppButton v-if="row.workId === creation.workId" size="xs" variant="ghost" @click="view(summary, row)"
                 >查看</AppButton

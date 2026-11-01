@@ -1,27 +1,59 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import type { Entry, TrashBatch } from '@chaptale/creation/contracts';
+import type { Entry, StoryRelationRef, TrashBatch } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { toErrorMessage } from '@/utils/desktop-api';
 
+import { useCreationStore } from '../store';
 import { useTrashStore } from './store';
 
 const trash = useTrashStore();
+const creation = useCreationStore();
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
-/** 每批按最外层条目与单独删除的事件逐行列出，恢复与永久删除作用于整批。 */
+type TrashRow = { key: string; title: string; label: string; icon: string; entry: Entry | null };
+function relationTitle(relation: StoryRelationRef) {
+  const names = relation.resourceIds.map(
+    id => creation.entries.find(entry => entry.id === id)?.title ?? '已删除的资料'
+  );
+  return `${relation.type}：${names.join('、')}`;
+}
+/** 批次内逐行列出最外层条目、单独删除的事件与关系。 */
+function batchRows(batch: TrashBatch): TrashRow[] {
+  return [
+    ...batch.roots.map(entry => ({
+      key: entry.id,
+      title: entry.title,
+      label: entry.section === 'resource' ? '资料' : '文稿',
+      icon: entry.kind === 'document' ? 'i-mingcute-file-line' : 'i-mingcute-folder-line',
+      entry
+    })),
+    ...batch.records.map(record => ({
+      key: record.id,
+      title: record.text,
+      label: '事件',
+      icon: 'i-mingcute-time-line',
+      entry: null
+    })),
+    ...batch.relations.map(relation => ({
+      key: relation.id,
+      title: relationTitle(relation),
+      label: '关系',
+      icon: 'i-mingcute-link-line',
+      entry: null
+    }))
+  ];
+}
+/** 恢复与永久删除作用于整批，批次首行显示类别与时间。 */
 const rows = computed(() =>
   trash.batches.flatMap(batch =>
-    [
-      ...batch.roots.map(entry => ({ key: entry.id, title: entry.title, entry, batch, first: false })),
-      ...batch.records.map(record => ({ key: record.id, title: record.text, entry: null, batch, first: false }))
-    ].map((row, index) => Object.assign(row, { first: index === 0 }))
+    batchRows(batch).map((row, index) => Object.assign(row, { batch, first: index === 0 }))
   )
 );
-const batchSize = (batch: TrashBatch) => batch.entryCount + batch.records.length;
+const batchSize = (batch: TrashBatch) => batch.entryCount + batch.records.length + batch.relations.length;
 const count = computed(() => trash.batches.reduce((sum, batch) => sum + batchSize(batch), 0));
 // 确认框先关闭再派发 confirm，清空目标与打开状态分开保存。
 const purging = ref<TrashBatch | 'all' | null>(null);
@@ -62,7 +94,7 @@ const purgeTitle = computed(() => {
   const target = purging.value;
   if (target === 'all') return '清空回收站？';
   if (!target) return '';
-  const titles = [...target.roots.map(entry => entry.title), ...target.records.map(record => record.text)];
+  const titles = batchRows(target).map(row => row.title);
   return `永久删除“${titles.join('”“')}”？`;
 });
 const purgeCount = computed(() => {
@@ -97,7 +129,7 @@ const purgeCount = computed(() => {
     <div v-if="trash.open" id="trash-list" class="trash-list">
       <p v-if="trash.error" class="trash-error" role="alert">{{ trash.error }}</p>
       <AppContextMenu
-        v-for="{ batch, entry, key, title, first } in rows"
+        v-for="{ batch, entry, key, title, label, icon, first } in rows"
         :key="key"
         :items="menu"
         @select="id => select(id, batch)"
@@ -110,21 +142,11 @@ const purgeCount = computed(() => {
           @click="open(batch, entry)"
           @keydown.enter.prevent="open(batch, entry)"
         >
-          <span
-            class="trash-entry-icon"
-            :class="
-              !entry
-                ? 'i-mingcute-time-line'
-                : entry.kind === 'document'
-                  ? 'i-mingcute-file-line'
-                  : 'i-mingcute-folder-line'
-            "
-            aria-hidden="true"
-          />
+          <span class="trash-entry-icon" :class="icon" aria-hidden="true" />
           <span class="trash-text">
             <span class="trash-title" :title="title">{{ title }}</span>
             <span v-if="first" class="trash-meta"
-              >{{ !entry ? '事件' : entry.section === 'resource' ? '资料' : '文稿' }} ·
+              >{{ label }} ·
               <time :datetime="new Date(batch.deletedAt).toISOString()">{{ date.format(batch.deletedAt) }}</time
               ><template v-if="batchSize(batch) > 1"> · 共 {{ batchSize(batch) }} 项</template></span
             >
@@ -154,7 +176,7 @@ const purgeCount = computed(() => {
         </div>
       </AppContextMenu>
       <p v-if="!rows.length" class="trash-empty">
-        回收站是空的。删除的文稿、资料、目录和事件会保留在这里，可以随时恢复。
+        回收站是空的。删除的文稿、资料、目录、事件和关系会保留在这里，可以随时恢复。
       </p>
     </div>
     <AppAlertDialog v-model:open="purgeOpen" :title="purgeTitle" confirm-label="永久删除" @confirm="confirmPurge">

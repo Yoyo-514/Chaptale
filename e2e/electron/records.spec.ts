@@ -60,7 +60,7 @@ test('资料页逐条添加事件，按发生章节分组，重启后保留并�
   await expect(reopened.getByText('林晚入京', { exact: true })).toBeVisible();
   await expect(reopened.getByText('三年后 · 作者补充', { exact: true })).toBeVisible();
 
-  await reopened.getByRole('combobox', { name: '查看到', exact: true }).click();
+  await page.getByRole('combobox', { name: '查看到', exact: true }).click();
   await page.getByRole('option', { name: '第一章', exact: true }).click();
   await expect(reopened.getByText('林晚入京', { exact: true })).toBeVisible();
   await expect(reopened.getByText('林晚离京', { exact: true })).toHaveCount(0);

@@ -73,27 +73,31 @@ export function chapterOrder(entries: readonly Entry[]): string[] {
 const placementKey = (placement: RecordPlacement): string =>
   placement.kind === 'chapter' ? `chapter:${placement.chapterId}` : placement.kind;
 
+export interface PlacementGroup<T> {
+  placement: RecordPlacement;
+  items: T[];
+}
 export interface RecordGroup {
   placement: RecordPlacement;
   records: StoryRecord[];
 }
 
 /**
- * 按发生位置分组：开篇之前、各章（章节顺序）、章节已不在文稿区的位置、待定。
- * asOf 为章节 ID 时只保留截至该章发生的事件，待定事件始终列出。
+ * 按发生位置分组：开篇之前、各章（章节顺序）、章节已不在文稿区的位置、待定；组内保持传入顺序。
+ * asOf 为章节 ID 时只保留截至该章发生的项，待定项始终列出。
  */
-export function groupRecords(
-  records: readonly StoryRecord[],
+export function groupByPlacement<T extends { placement: RecordPlacement }>(
+  items: readonly T[],
   entries: readonly Entry[],
   asOf: string | null = null
-): RecordGroup[] {
+): PlacementGroup<T>[] {
   const chapters = chapterOrder(entries);
   const limit = asOf === null ? chapters.length : chapters.indexOf(asOf) + 1;
-  const groups = new Map<string, RecordGroup>();
-  for (const record of [...records].sort((a, b) => a.position - b.position)) {
-    const id = placementKey(record.placement);
-    const group = groups.get(id) ?? { placement: record.placement, records: [] };
-    group.records.push(record);
+  const groups = new Map<string, PlacementGroup<T>>();
+  for (const item of items) {
+    const id = placementKey(item.placement);
+    const group = groups.get(id) ?? { placement: item.placement, items: [] };
+    group.items.push(item);
     groups.set(id, group);
   }
   const rank = (placement: RecordPlacement): number => {
@@ -109,4 +113,14 @@ export function groupRecords(
       return index !== -1 && index < limit;
     })
     .sort((a, b) => rank(a.placement) - rank(b.placement));
+}
+
+/** 事件按全作品顺序分组。 */
+export function groupRecords(
+  records: readonly StoryRecord[],
+  entries: readonly Entry[],
+  asOf: string | null = null
+): RecordGroup[] {
+  const sorted = [...records].sort((a, b) => a.position - b.position);
+  return groupByPlacement(sorted, entries, asOf).map(group => ({ placement: group.placement, records: group.items }));
 }

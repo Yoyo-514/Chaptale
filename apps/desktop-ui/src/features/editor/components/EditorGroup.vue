@@ -14,7 +14,7 @@ import { useHistoryStore } from '../history/store';
 import ReadingView from '../reading/ReadingView.vue';
 import { useReadingStore } from '../reading/store';
 import ReviewPane from '../review/ReviewPane.vue';
-import { useReviewStore } from '../review/store';
+import { reviewDone, useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 import DocumentView from './DocumentView.vue';
 import EditorTab from './EditorTab.vue';
@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
           <EditorTab
             v-for="tab in review.tabs"
             :key="`review:${tab.key}`"
-            kind="review"
+            :kind="reviewDone(tab) ? 'document' : 'review'"
             :value="`review:${tab.key}`"
             :trigger-id="`review-tab-${tab.key}`"
             :title="tab.title"

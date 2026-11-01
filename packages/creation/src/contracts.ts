@@ -42,7 +42,7 @@ export type * from './contracts/content.ts';
 export { isImageFile } from './contracts/content.ts';
 export type * from './contracts/review.ts';
 export type * from './contracts/records.ts';
-export { chapterOrder, groupRecords } from './contracts/records.ts';
+export { chapterOrder, groupByPlacement, groupRecords } from './contracts/records.ts';
 export type * from './contracts/relations.ts';
 export { relationPresets, relationState, relationTypes } from './contracts/relations.ts';
 
