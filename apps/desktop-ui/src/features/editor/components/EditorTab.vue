@@ -6,7 +6,7 @@ import { AppButton } from '@/components/AppButton';
 
 /** 编辑区的一个标签：正式文稿、审阅或历史，关闭按钮在未保存时显示圆点。 */
 const props = defineProps<{
-  kind: 'document' | 'review' | 'history';
+  kind: 'document' | 'review' | 'history' | 'check';
   /** TabsRoot 的选中值，也用于生成触发器 id。 */
   value: string;
   triggerId: string;
@@ -22,7 +22,8 @@ const emit = defineEmits<{ close: [] }>();
 const kinds = {
   document: { name: '', icon: '', dirtyNote: '未保存' },
   review: { name: '审阅', icon: 'i-mingcute-git-compare-line', dirtyNote: '手改未保存' },
-  history: { name: '历史', icon: 'i-mingcute-history-line', dirtyNote: '' }
+  history: { name: '历史', icon: 'i-mingcute-history-line', dirtyNote: '' },
+  check: { name: '核对', icon: 'i-mingcute-check-circle-line', dirtyNote: '' }
 } as const;
 const kind = computed(() => kinds[props.kind]);
 const label = computed(

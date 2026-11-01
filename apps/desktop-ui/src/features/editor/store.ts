@@ -11,6 +11,7 @@ import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
+import { useCheckStore } from './check/store';
 import { DocumentBuffer } from './codemirror/document-buffer';
 import { useHistoryStore } from './history/store';
 import { reviewDone, useReviewStore } from './review/store';
@@ -215,6 +216,7 @@ export const useEditorStore = defineStore('editor', () => {
     if (state.secondaryDocumentId === id) state.secondaryDocumentId = activeId.value || null;
     review.activeId = '';
     useHistoryStore().activeId = '';
+    useCheckStore().activeId = '';
     useTrashStore().preview = null;
     activeId.value = id;
     focusedId.value = id;

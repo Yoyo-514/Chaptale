@@ -16,11 +16,16 @@ function chapterTitle(entries: readonly Entry[], chapterId: string) {
 export function placementLabel(placement: RecordPlacement, entries: readonly Entry[]) {
   if (placement.kind === 'opening') return '开篇之前';
   if (placement.kind === 'undetermined') return '待定';
+  // 发生章节在回收站或已清空：记录保留原位置，章节恢复后回到原处。
+  if (!entries.some(entry => entry.id === placement.chapterId)) return '待重新定位';
   return chapterTitle(entries, placement.chapterId);
 }
 
-export function sourceLabel(source: RecordSource, entries: readonly Entry[]) {
-  return source.kind === 'author' ? '作者补充' : `出自${chapterTitle(entries, source.chapterId)}`;
+/** changed：出处章节正文在核对后改过，等作者核对。 */
+export function sourceLabel(source: RecordSource, entries: readonly Entry[], changed: boolean) {
+  if (source.kind === 'author') return '作者补充';
+  const title = chapterTitle(entries, source.chapterId);
+  return changed ? `${title}已改过` : `出自${title}`;
 }
 
 /** 选择框的值：章节 ID，或 opening、undetermined。 */

@@ -9,6 +9,8 @@ import { AppTextView } from '@/components/AppTextView';
 import { useCreationStore, useTrashStore } from '@/features/creation';
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
+import CheckPane from '../check/CheckPane.vue';
+import { useCheckStore } from '../check/store';
 import HistoryPane from '../history/HistoryPane.vue';
 import { useHistoryStore } from '../history/store';
 import ReadingView from '../reading/ReadingView.vue';
@@ -24,6 +26,7 @@ const editor = useEditorStore();
 const review = useReviewStore();
 const reading = useReadingStore();
 const history = useHistoryStore();
+const check = useCheckStore();
 const creation = useCreationStore();
 const trash = useTrashStore();
 function restorePreview() {
@@ -42,11 +45,13 @@ const selected = computed(() => {
   if (trash.preview) return '';
   if (review.activeTab) return `review:${review.activeTab.key}`;
   if (history.activeTab) return `history:${history.activeTab.documentId}`;
+  if (check.activeTab) return `check:${check.activeTab.chapterId}`;
   return editor.activeId;
 });
 function select(value: string) {
   if (value.startsWith('review:')) review.select(value.slice('review:'.length));
   else if (value.startsWith('history:')) history.select(value.slice('history:'.length));
+  else if (value.startsWith('check:')) check.select(value.slice('check:'.length));
   else editor.selectTab(value);
 }
 function tabMenu(id: string) {
@@ -54,15 +59,21 @@ function tabMenu(id: string) {
   return [
     { id: 'history', label: '查看历史' },
     ...(chapter ? [{ id: 'extract', label: '从本章提取' }] : []),
+    ...(check.countOf(id) ? [{ id: 'check', label: '核对本章记录' }] : []),
     { id: 'close', label: '关闭', separatorBefore: true }
   ];
 }
 function tabAction(id: string, action: string) {
   if (action === 'history') history.open(id);
+  else if (action === 'check') check.open(id);
   else if (action === 'extract') void editor.extractChapter(editor.tabs.find(tab => tab.id === id)!);
   else void editor.closeTab(id);
 }
 const primary = computed(() => editor.tabs.find(tab => tab.id === editor.activeId));
+/** 当前文稿是章节且有待核对记录时，标签栏显示提醒。 */
+const checkCount = computed(() =>
+  primary.value && !review.activeTab && !history.activeTab && !check.activeTab ? check.countOf(primary.value.id) : 0
+);
 const secondary = computed(() => editor.tabs.find(tab => tab.id === creation.view?.secondaryDocumentId));
 function split() {
   if (!creation.view) return;
@@ -74,18 +85,20 @@ function keydown(event: KeyboardEvent) {
   if (!(event.ctrlKey || event.metaKey)) return;
   const reviewing = review.activeTab;
   const viewing = history.activeTab;
+  const checking = check.activeTab;
   if (event.key.toLowerCase() === 's') {
     event.preventDefault();
     if (event.shiftKey) void editor.saveAll();
     else if (reviewing) void review.save(reviewing.key);
-    else if (viewing) return;
+    else if (viewing || checking) return;
     else void editor.saveDocument();
   }
-  if (event.key.toLowerCase() === 'w' && (reviewing || viewing || editor.activeTab)) {
+  if (event.key.toLowerCase() === 'w' && (reviewing || viewing || checking || editor.activeTab)) {
     event.preventDefault();
     event.stopPropagation();
     if (reviewing) review.close(reviewing.key);
     else if (viewing) history.close(viewing.documentId);
+    else if (checking) check.close(checking.chapterId);
     else void editor.closeTab(editor.activeTab!.id);
   }
 }
@@ -149,8 +162,28 @@ onBeforeUnmount(() => {
             :selected="`history:${tab.documentId}` === selected"
             @close="history.close(tab.documentId)"
           />
+          <EditorTab
+            v-for="tab in check.tabs"
+            :key="`check:${tab.chapterId}`"
+            kind="check"
+            :value="`check:${tab.chapterId}`"
+            :trigger-id="`check-tab-${tab.chapterId}`"
+            :title="creation.entries.find(entry => entry.id === tab.chapterId)?.title ?? ''"
+            :selected="`check:${tab.chapterId}` === selected"
+            @close="check.close(tab.chapterId)"
+          />
         </TabsList>
       </AppScrollArea>
+      <AppButton
+        v-if="checkCount"
+        size="xs"
+        variant="ghost"
+        class="check-chip"
+        title="本章正文改过，出自本章的记录需要核对"
+        @click="check.open(primary!.id)"
+        ><span class="i-mingcute-alert-line check-chip-icon" aria-hidden="true" />本章
+        {{ checkCount }} 条记录待核对</AppButton
+      >
       <AppButton
         icon
         size="xs"
@@ -159,7 +192,7 @@ onBeforeUnmount(() => {
           !primary ||
           primary.status !== 'ready' ||
           Boolean(reading.positions[primary.id]) ||
-          Boolean(review.activeTab || history.activeTab)
+          Boolean(review.activeTab || history.activeTab || check.activeTab)
         "
         aria-label="阅读"
         @click="reading.start(primary!.id)"
@@ -169,7 +202,7 @@ onBeforeUnmount(() => {
         icon
         size="xs"
         variant="ghost"
-        :disabled="!primary || Boolean(review.activeTab || history.activeTab)"
+        :disabled="!primary || Boolean(review.activeTab || history.activeTab || check.activeTab)"
         aria-label="查看历史"
         title="查看历史"
         @click="history.open(primary!.id)"
@@ -220,6 +253,11 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </div>
+    <div v-else-if="check.activeTab" class="editor-panes">
+      <section class="editor-pane" aria-label="核对">
+        <CheckPane :key="check.activeTab.chapterId" :tab="check.activeTab" />
+      </section>
+    </div>
     <div v-else-if="history.activeTab" class="editor-panes">
       <section class="editor-pane" aria-label="历史">
         <HistoryPane v-if="history.activeTab.status === 'ready'" :tab="history.activeTab" />
@@ -267,6 +305,15 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.check-chip {
+  gap: 4px;
+  margin-right: 4px;
+  color: var(--warning);
+}
+.check-chip-icon {
+  width: 14px;
+  height: 14px;
+}
 .trash-preview {
   display: flex;
   flex-direction: column;

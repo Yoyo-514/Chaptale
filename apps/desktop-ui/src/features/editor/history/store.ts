@@ -7,6 +7,7 @@ import { requestCreation, useCreationStore, useTrashStore } from '@/features/cre
 import { useWorkbenchStore } from '@/features/workbench';
 import { toErrorMessage } from '@/utils/desktop-api';
 
+import { useCheckStore } from '../check/store';
 import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 
@@ -23,6 +24,12 @@ export interface HistoryTab {
   status: 'loading' | 'ready' | 'error';
   error: string;
   restoring: boolean;
+}
+
+/** 只改标题的修订不在列表中，取它当时的正文版本。 */
+async function listedAt(workId: string, revisionId: string, revisions: RevisionSummary[]) {
+  const { createdAt } = await requestCreation('readRevision', { workId, revisionId });
+  return revisions.find(item => item.createdAt <= createdAt)?.id ?? revisions.at(-1)?.id ?? null;
 }
 
 /** 章节历史标签：按 Timeline 列出正式修订，选中版本与当前正式内容对比并可恢复。 */
@@ -48,9 +55,14 @@ export const useHistoryStore = defineStore('history', () => {
         requestCreation('listRevisions', { workId: tab.workId, documentId: id })
       ]);
       if (!find(id)) return;
-      const selectedId = revisions.some(item => item.id === find(id)!.selectedId)
-        ? find(id)!.selectedId
-        : (revisions[1]?.id ?? revisions[0]?.id ?? null);
+      const preset = find(id)!.selectedId;
+      const selectedId =
+        preset === null
+          ? (revisions[1]?.id ?? revisions[0]?.id ?? null)
+          : revisions.some(item => item.id === preset)
+            ? preset
+            : await listedAt(tab.workId, preset, revisions);
+      if (!find(id)) return;
       patch(id, { current, revisions, title: current.title, status: 'ready', error: '' });
       if (selectedId) await selectRevision(id, selectedId);
     } catch (cause) {
@@ -66,6 +78,17 @@ export const useHistoryStore = defineStore('history', () => {
     } catch (cause) {
       if (find(id)) patch(id, { error: toErrorMessage(cause) });
     }
+  }
+  /** 打开历史并预选某个修订与当前正文对比，供核对标签“查看本章改动”使用。 */
+  function compare(documentId: string, revisionId: string) {
+    const existing = find(documentId);
+    if (existing) {
+      select(documentId);
+      void selectRevision(documentId, revisionId);
+      return;
+    }
+    open(documentId);
+    patch(documentId, { selectedId: revisionId });
   }
   function open(documentId: string) {
     useWorkbenchStore().focusEditor();
@@ -92,6 +115,7 @@ export const useHistoryStore = defineStore('history', () => {
   }
   function select(id: string) {
     review.activeId = '';
+    useCheckStore().activeId = '';
     useTrashStore().preview = null;
     activeId.value = id;
   }
@@ -154,5 +178,5 @@ export const useHistoryStore = defineStore('history', () => {
     }
   );
 
-  return { tabs, activeId, activeTab, open, select, close, selectRevision, restore };
+  return { tabs, activeId, activeTab, open, compare, select, close, selectRevision, restore };
 });

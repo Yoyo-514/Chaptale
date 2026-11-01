@@ -24,12 +24,15 @@ const composing = ref(false);
 const chapters = computed(() =>
   chapterOrder(creation.entries).map(id => ({ id, title: creation.entries.find(entry => entry.id === id)!.title }))
 );
+// 发生章节在回收站时保留原位置，作为“待重新定位”可选项。
+const relocating =
+  props.initial.placement.kind === 'chapter' && !chapters.value.some(chapter => chapter.id === placement.value)
+    ? placement.value
+    : null;
 
 function submit() {
   if (!text.value.trim() || props.busy) return;
-  const initial = props.initial.source;
-  // 出处未改时保留原来核对过的修订；改为某章时绑定该章当前正式修订。
-  const unchanged = initial.kind === 'chapter' && initial.chapterId === source.value;
+  // 作者保存即核对过：章节出处绑定该章当前正式修订。
   // 初始值可能来自响应式状态，提交前构造独立的传输数据。
   emit('submit', {
     resourceIds: [...props.initial.resourceIds],
@@ -39,13 +42,11 @@ function submit() {
     source:
       source.value === 'author'
         ? { kind: 'author' }
-        : unchanged
-          ? { ...initial }
-          : {
-              kind: 'chapter',
-              chapterId: source.value,
-              revisionId: creation.entries.find(entry => entry.id === source.value)!.revisionId
-            }
+        : {
+            kind: 'chapter',
+            chapterId: source.value,
+            revisionId: creation.entries.find(entry => entry.id === source.value)!.revisionId
+          }
   });
 }
 function keydown(event: KeyboardEvent) {
@@ -77,6 +78,7 @@ function keydown(event: KeyboardEvent) {
       <AppSelectItem v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">{{
         chapter.title
       }}</AppSelectItem>
+      <AppSelectItem v-if="relocating" :value="relocating">待重新定位</AppSelectItem>
       <AppSelectItem value="undetermined">待定</AppSelectItem>
     </AppSelect>
     <span class="record-form-label">故事时间</span>

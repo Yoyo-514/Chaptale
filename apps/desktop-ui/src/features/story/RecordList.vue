@@ -24,6 +24,8 @@ const props = defineProps<{
   milestones: MilestoneRow[];
   candidates?: RecordChange[];
   busy?: boolean;
+  /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
+  changedSources: ReadonlySet<string>;
 }>();
 const emit = defineEmits<{
   decide: [change: RecordChange, decision: 'accept' | 'reject'];
@@ -247,7 +249,7 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
                 {{
                   [
                     row.record.storyTime,
-                    sourceLabel(row.record.source, creation.entries),
+                    sourceLabel(row.record.source, creation.entries, changedSources.has(row.record.id)),
                     others(row.record) && `涉及${others(row.record)}`
                   ]
                     .filter(Boolean)
@@ -339,7 +341,7 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
                 {{
                   [
                     row.record.storyTime,
-                    sourceLabel(row.record.source, creation.entries),
+                    sourceLabel(row.record.source, creation.entries, changedSources.has(row.record.id)),
                     others(row.record) && `涉及${others(row.record)}`
                   ]
                     .filter(Boolean)

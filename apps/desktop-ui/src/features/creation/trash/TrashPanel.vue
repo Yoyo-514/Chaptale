@@ -31,6 +31,30 @@ function batchRows(batch: TrashBatch): TrashRow[] {
       icon: entry.kind === 'document' ? 'i-mingcute-file-line' : 'i-mingcute-folder-line',
       entry
     })),
+    ...storyRows(batch)
+  ];
+}
+/** 随条目删除的事件与关系合为一行摘要；单独删除的逐条列出。 */
+function storyRows(batch: TrashBatch): TrashRow[] {
+  if (batch.roots.length) {
+    const parts = [
+      batch.records.length && `${batch.records.length} 条事件`,
+      batch.relations.length && `${batch.relations.length} 条关系`,
+      batch.milestoneCount && `${batch.milestoneCount} 处关系建立／结束`
+    ].filter(Boolean);
+    return parts.length
+      ? [
+          {
+            key: `${batch.id}:story`,
+            title: `随章节：${parts.join('、')}`,
+            label: '记录',
+            icon: 'i-mingcute-time-line',
+            entry: null
+          }
+        ]
+      : [];
+  }
+  return [
     ...batch.records.map(record => ({
       key: record.id,
       title: record.text,
@@ -53,7 +77,8 @@ const rows = computed(() =>
     batchRows(batch).map((row, index) => Object.assign(row, { batch, first: index === 0 }))
   )
 );
-const batchSize = (batch: TrashBatch) => batch.entryCount + batch.records.length + batch.relations.length;
+const batchSize = (batch: TrashBatch) =>
+  batch.entryCount + batch.records.length + batch.relations.length + batch.milestoneCount;
 const count = computed(() => trash.batches.reduce((sum, batch) => sum + batchSize(batch), 0));
 // 确认框先关闭再派发 confirm，清空目标与打开状态分开保存。
 const purging = ref<TrashBatch | 'all' | null>(null);

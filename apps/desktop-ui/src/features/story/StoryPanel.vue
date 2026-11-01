@@ -27,6 +27,8 @@ const props = defineProps<{
   resourceId: string;
   candidates?: { records: RecordChange[]; relations: RelationChange[] };
   busy?: boolean;
+  /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
+  changedSources: ReadonlySet<string>;
 }>();
 const emit = defineEmits<{
   decide: [change: RecordChange | RelationChange, decision: 'accept' | 'reject'];
@@ -74,6 +76,7 @@ const pending = computed(() => (props.candidates?.records.length ?? 0) + (props.
           :items="relations"
           :reviewing="candidates !== undefined"
           :busy="busy"
+          :changed-sources="changedSources"
           @decide="(change, decision) => emit('decide', change, decision)"
           @update="(change, input) => emit('updateRelation', change, input)"
         />
@@ -84,6 +87,7 @@ const pending = computed(() => (props.candidates?.records.length ?? 0) + (props.
           :milestones="milestones"
           :candidates="candidates?.records"
           :busy="busy"
+          :changed-sources="changedSources"
           @decide="(change, decision) => emit('decide', change, decision)"
           @update="(change, fields) => emit('updateRecord', change, fields)"
           @locate="id => relationList?.locate(id)"

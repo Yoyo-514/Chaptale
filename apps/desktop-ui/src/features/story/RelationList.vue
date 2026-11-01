@@ -28,6 +28,8 @@ const props = defineProps<{
   items: RelationItem[];
   reviewing: boolean;
   busy?: boolean;
+  /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
+  changedSources: ReadonlySet<string>;
 }>();
 const emit = defineEmits<{
   decide: [change: RelationChange, decision: 'accept' | 'reject'];
@@ -208,6 +210,9 @@ function remove(item: RelationItem) {
             <p class="relation-meta">
               {{ row.relation.type }}{{ row.relation.directed ? '' : '（无方向）' }} · 本资料是{{ row.ownTitle }}
             </p>
+            <p v-if="!row.relation.milestones.some(milestone => milestone.kind === 'start')" class="relation-meta">
+              建立所在章节已删除，恢复该章节后回到原处
+            </p>
             <ul v-if="!row.change || row.change.base === null" class="relation-milestones">
               <li v-for="milestone in row.relation.milestones" :key="milestone.id">
                 <span class="relation-milestone-place">{{
@@ -215,7 +220,12 @@ function remove(item: RelationItem) {
                 }}</span>
                 {{ milestoneText(row.relation, resourceId, milestone.kind, row.name ?? '已删除的资料') }}
                 <span class="relation-meta">{{
-                  [milestone.storyTime, sourceLabel(milestone.source, creation.entries)].filter(Boolean).join(' · ')
+                  [
+                    milestone.storyTime,
+                    sourceLabel(milestone.source, creation.entries, changedSources.has(milestone.id))
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
                 }}</span>
               </li>
             </ul>

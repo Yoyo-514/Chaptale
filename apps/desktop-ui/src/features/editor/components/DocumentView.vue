@@ -14,6 +14,7 @@ import { toErrorMessage } from '@/utils/desktop-api';
 import { captureEditingTarget } from '@/utils/editing-target';
 
 import AttributesPanel from '../attributes/AttributesPanel.vue';
+import { useCheckStore } from '../check/store';
 import { createDocumentView } from '../codemirror/view';
 import IllustrationPicker from '../illustrations/IllustrationPicker.vue';
 import { useIllustrations } from '../illustrations/use-illustrations';
@@ -24,6 +25,7 @@ import type { EditorTab } from '../types';
 const props = defineProps<{ tab: EditorTab; active: boolean }>();
 const editor = useEditorStore();
 const reading = useReadingStore();
+const check = useCheckStore();
 const host = ref<HTMLElement>();
 const compare = ref(false);
 let view: ReturnType<typeof createDocumentView> | undefined;
@@ -145,7 +147,7 @@ watch(
       />
     </div>
     <AttributesPanel v-if="tab.attributes" :tab="tab" />
-    <StoryPanel v-if="tab.attributes" :work-id="tab.workId" :resource-id="tab.id" />
+    <StoryPanel v-if="tab.attributes" :work-id="tab.workId" :resource-id="tab.id" :changed-sources="check.changedIds" />
     <AppContextMenu :items="menu" @prepare="prepareMenu" @select="selectAction">
       <div class="document-codemirror-host">
         <!-- as-child 会处理触发节点的 ref；编辑器挂载点由本组件单独持有。 -->

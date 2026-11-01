@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import type { Entry } from '@chaptale/creation/contracts';
+import type { Entry, TrashImpact } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog, AppDialog } from '@/components/AppDialog';
@@ -26,7 +26,30 @@ const parent = ref('root');
 const busy = ref(false);
 const error = ref('');
 // 确认框先关闭再派发 confirm，删除目标与打开状态分开保存。
-const removing = ref<{ entry: Entry; entryCount: number; pendingCount: number } | null>(null);
+const removing = ref<({ entry: Entry } & TrashImpact) | null>(null);
+const stateNames = { active: '进行中', ended: '已结束', undetermined: '起止待定' } as const;
+const titleOf = (id: string) => creation.entries.find(item => item.id === id)?.title ?? '已删除的资料';
+/** 删除章节对事件与关系的影响，逐行写明。 */
+const storyImpact = computed(() => {
+  const impact = removing.value;
+  if (!impact) return [];
+  const lines: string[] = [];
+  const moved = [
+    impact.recordCount && `${impact.recordCount} 条事件`,
+    impact.milestoneCount && `${impact.milestoneCount} 处关系建立／结束`
+  ].filter(Boolean);
+  if (moved.length) lines.push(`出自本章的 ${moved.join('、')}随章节移入回收站，恢复章节时一起回来。`);
+  if (impact.relocatedCount) lines.push(`${impact.relocatedCount} 条发生在本章、出自别处的记录将显示为“待重新定位”。`);
+  for (const change of impact.relationChanges) {
+    const name = `${change.resourceIds.map(titleOf).join('与')}的${change.type}关系`;
+    lines.push(
+      change.change.kind === 'removed'
+        ? `${name}整条移入回收站。`
+        : `${name}从《${titleOf(change.change.fromChapterId)}》起变为${stateNames[change.change.state]}。`
+    );
+  }
+  return lines;
+});
 const removeOpen = ref(false);
 const directories = computed(() =>
   creation.entries.filter(
@@ -124,6 +147,9 @@ defineExpose({ rename, move, remove });
           : '会移入作品回收站，可以恢复。'
       }}<template v-if="removing?.pendingCount">将一并拒绝 {{ removing.pendingCount }} 处待审修改。</template></template
     >
+    <ul v-if="storyImpact.length" class="remove-impact">
+      <li v-for="line in storyImpact" :key="line">{{ line }}</li>
+    </ul>
   </AppAlertDialog>
   <AppDialog
     content-size="sm"
@@ -160,6 +186,18 @@ defineExpose({ rename, move, remove });
 </template>
 
 <style scoped>
+.remove-impact {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-control-sm);
+  background: var(--surface-muted);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.6;
+  list-style: none;
+}
 .entry-form {
   display: grid;
   gap: 12px;

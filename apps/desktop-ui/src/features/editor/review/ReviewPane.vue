@@ -4,12 +4,14 @@ import { computed } from 'vue';
 import { AppButton } from '@/components/AppButton';
 import { StoryPanel } from '@/features/story';
 
+import { useCheckStore } from '../check/store';
 import EntryReview from './EntryReview.vue';
 import { type ReviewTab, reviewDone, useReviewStore } from './store';
 
 /** 审阅标签：条目自身的修改在上方，资料涉及的关系与事件候选在下方逐条处理。 */
 const props = defineProps<{ tab: ReviewTab }>();
 const review = useReviewStore();
+const check = useCheckStore();
 const done = computed(() => reviewDone(props.tab));
 const next = computed(() => (done.value ? review.nextResource(props.tab) : null));
 </script>
@@ -30,6 +32,7 @@ const next = computed(() => (done.value ? review.nextResource(props.tab) : null)
       v-if="tab.section === 'resource' && (tab.records.length || tab.relations.length || !tab.review)"
       :work-id="tab.workId"
       :resource-id="tab.entryId"
+      :changed-sources="check.changedIds"
       :candidates="{ records: tab.records, relations: tab.relations }"
       :busy="tab.busy"
       @decide="(change, decision) => review.decideStory(tab.key, change, decision)"

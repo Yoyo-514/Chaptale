@@ -34,7 +34,6 @@ type MilestoneDraft = {
   placement: string;
   storyTime: string;
   source: string;
-  initial: MilestoneInput['source'] | null;
 };
 
 const side = ref<Side>(props.initial.resourceIds[1] === props.resourceId ? 1 : 0);
@@ -49,8 +48,7 @@ const milestones = ref<MilestoneDraft[]>(
     kind: milestone.kind,
     placement: placementValue(milestone.placement),
     storyTime: milestone.storyTime,
-    source: milestone.source.kind === 'author' ? 'author' : milestone.source.chapterId,
-    initial: milestone.source
+    source: milestone.source.kind === 'author' ? 'author' : milestone.source.chapterId
   }))
 );
 const more = ref(props.initial.milestones.some(milestone => milestone.source.kind !== 'author'));
@@ -97,6 +95,12 @@ watch(known, next => {
   titles.value = [...next.titles];
 });
 
+// 发生章节在回收站时保留原位置，作为“待重新定位”可选项。
+const relocating = new Set(
+  milestones.value
+    .map(draft => draft.placement)
+    .filter(value => value !== 'opening' && value !== 'undetermined' && !chapters.value.some(item => item.id === value))
+);
 function add(kind: MilestoneDraft['kind']) {
   const last = milestones.value.at(-1);
   milestones.value.push({
@@ -105,18 +109,16 @@ function add(kind: MilestoneDraft['kind']) {
     kind,
     placement: last?.placement ?? 'undetermined',
     storyTime: '',
-    source: 'author',
-    initial: null
+    source: 'author'
   });
 }
 function move(index: number, step: -1 | 1) {
   const list = milestones.value;
   [list[index], list[index + step]] = [list[index + step]!, list[index]!];
 }
-/** 出处未改时保留原来核对过的修订；改为某章时绑定该章当前正式修订。 */
+/** 作者保存即核对过：章节出处绑定该章当前正式修订。 */
 function sourceOf(draft: MilestoneDraft): MilestoneInput['source'] {
   if (draft.source === 'author') return { kind: 'author' };
-  if (draft.initial?.kind === 'chapter' && draft.initial.chapterId === draft.source) return { ...draft.initial };
   return {
     kind: 'chapter',
     chapterId: draft.source,
@@ -199,6 +201,7 @@ function keydown(event: KeyboardEvent) {
           <AppSelectItem v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">{{
             chapter.title
           }}</AppSelectItem>
+          <AppSelectItem v-if="relocating.has(draft.placement)" :value="draft.placement">待重新定位</AppSelectItem>
           <AppSelectItem value="undetermined">待定</AppSelectItem>
         </AppSelect>
         <AppInput v-model="draft.storyTime" class="relation-form-time" aria-label="故事时间" placeholder="故事时间" />
