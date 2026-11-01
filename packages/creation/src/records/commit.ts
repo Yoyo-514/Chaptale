@@ -46,6 +46,18 @@ export function assertRecord(
   for (const id of fields.resourceIds)
     if (!previous?.resourceIds.includes(id) && !isResource(entries, id))
       throw new Error('涉及的资料不存在或不是资料文档');
+  assertLocation(work, fields, previous, entries);
+}
+
+type Location = Pick<RecordFields, 'source' | 'placement'>;
+
+/** 出处章节与修订、发生章节须存在；沿用 previous 中已失效的引用不再校验。事件与关系的建立／结束共用。 */
+export function assertLocation(
+  work: WorkRepository,
+  fields: Location,
+  previous: Location | null,
+  entries: readonly Entry[]
+): void {
   const { source, placement } = fields;
   if (source.kind === 'chapter' && !sameSource(previous, fields)) {
     if (!isChapter(entries, source.chapterId)) throw new Error('出处章节不存在');
@@ -61,11 +73,11 @@ export function samePlacement(a: RecordPlacement | null, b: RecordPlacement): bo
   return a.kind !== 'chapter' || (b.kind === 'chapter' && a.chapterId === b.chapterId);
 }
 
-function sameSource(previous: RecordFields | null, fields: RecordFields): boolean {
+function sameSource(previous: Location | null, fields: Location): boolean {
   return previous !== null && JSON.stringify(previous.source) === JSON.stringify(fields.source);
 }
 
-function isResource(entries: readonly Entry[], id: string): boolean {
+export function isResource(entries: readonly Entry[], id: string): boolean {
   return entries.some(entry => entry.id === id && entry.section === 'resource' && entry.kind === 'document');
 }
 

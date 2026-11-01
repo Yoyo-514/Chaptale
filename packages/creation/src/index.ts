@@ -7,5 +7,6 @@ export type {
   CommandCommit,
   CommitEffect,
   CommitResult,
-  RecordRevision
+  RecordRevision,
+  RelationRevision
 } from './repository.ts';

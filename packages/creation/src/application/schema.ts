@@ -68,6 +68,24 @@ const recordFields = {
   ]),
   storyTime: Type.String()
 };
+const pair = Type.Tuple([Type.String(), Type.String()]);
+const milestone = object({
+  id: parentId,
+  kind: Type.Union([Type.Literal('start'), Type.Literal('end')]),
+  source: recordFields.source,
+  placement: recordFields.placement,
+  storyTime: Type.String()
+});
+const relationFields = {
+  resourceIds: Type.Tuple([id, id]),
+  type: Type.String(),
+  directed: Type.Boolean(),
+  titles: pair,
+  milestones: Type.Array(milestone)
+};
+const createRelation = { commandId: id, workId: id, ...relationFields };
+const updateRelation = { commandId: id, workId: id, relationId: id, expectedRevisionId: id, ...relationFields };
+const removeRelation = { commandId: id, workId: id, relationId: id, expectedRevisionId: id };
 const createRecord = { commandId: id, workId: id, ...recordFields };
 const updateRecord = { commandId: id, workId: id, recordId: id, expectedRevisionId: id, ...recordFields };
 const removeRecord = { commandId: id, workId: id, recordId: id, expectedRevisionId: id };
@@ -112,6 +130,9 @@ const inputs = {
   updateRecord: object(updateRecord),
   moveRecord: object({ commandId: id, workId: id, recordId: id, beforeId: parentId }),
   removeRecord: object(removeRecord),
+  createRelation: object(createRelation),
+  updateRelation: object(updateRelation),
+  removeRelation: object(removeRelation),
   listTrash: object({ workId: id }),
   previewTrash: object({ workId: id, entryIds: Type.Array(id, { minItems: 1 }) }),
   trashEntries: object({ commandId: id, workId: id, entryIds: Type.Array(id, { minItems: 1 }) }),
@@ -163,6 +184,12 @@ const inputs = {
     part: Type.Optional(Type.Literal('title'))
   }),
   updateRecordReview: object({ ...reviewTarget, ...recordFields, commandId: id, resolveConflicts: Type.Boolean() }),
+  updateRelationReview: object({
+    ...reviewTarget,
+    ...relationFields,
+    commandId: id,
+    resolveConflicts: Type.Boolean()
+  }),
   relinkResource: object({ commandId: id, changeId: id, expectedVersion: id, resourceId: id })
 } satisfies Record<keyof CreationAuthorCommands, TSchema>;
 
@@ -187,7 +214,22 @@ export const agentInputs = {
   listRecords: object({ workId: id, resourceId: parentId, sourceId: parentId, asOf: parentId }),
   createRecord: object({ ...createRecord, basis: Type.String() }),
   updateRecord: object({ ...updateRecord, basis: Type.String() }),
-  removeRecord: object({ ...removeRecord, basis: Type.String() })
+  removeRecord: object({ ...removeRecord, basis: Type.String() }),
+  listRelations: object({ workId: id, resourceId: parentId, asOf: parentId }),
+  createRelation: object({ ...createRelation, basis: Type.String() }),
+  updateRelation: object({
+    commandId: id,
+    workId: id,
+    relationId: id,
+    expectedRevisionId: id,
+    resourceIds: Type.Optional(relationFields.resourceIds),
+    type: Type.Optional(relationFields.type),
+    directed: Type.Optional(relationFields.directed),
+    titles: Type.Optional(pair),
+    milestones: Type.Array(Type.Union([milestone, object({ id, remove: Type.Literal(true) })])),
+    basis: Type.String()
+  }),
+  removeRelation: object({ ...removeRelation, basis: Type.String() })
 } satisfies Record<keyof CreationAgentCommands, TSchema>;
 
 function commands(schemas: Record<string, TSchema>) {

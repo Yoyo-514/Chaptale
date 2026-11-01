@@ -1,4 +1,5 @@
 import { AgentRecordService } from './agent/records.ts';
+import { AgentRelationService } from './agent/relations.ts';
 import { CreationAgentService } from './agent/service.ts';
 import { authorValidator, agentValidator } from './application/schema.ts';
 import { TrashService } from './content/trash.ts';
@@ -16,6 +17,7 @@ import { addFiles, locateFile } from './files/entry-files.ts';
 import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './files/exchange.ts';
 import { WorkTrashService } from './library/work-trash.ts';
 import { RecordService } from './records/service.ts';
+import { RelationService } from './relations/service.ts';
 import type { CreationRepository } from './repository.ts';
 import { DeliveryService } from './review/delivery.ts';
 import { ReviewService } from './review/service.ts';
@@ -35,6 +37,7 @@ export class CreationApplication {
   private readonly trash: TrashService;
   private readonly workTrash: WorkTrashService;
   private readonly records: RecordService;
+  private readonly relations: RelationService;
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
@@ -43,13 +46,15 @@ export class CreationApplication {
     this.trash = new TrashService(repository, this.service, this.review);
     this.workTrash = new WorkTrashService(repository, this.service, this.review);
     this.records = new RecordService(repository, this.service, this.review);
+    this.relations = new RelationService(repository, this.service, this.review);
     this.agent = new CreationAgentService(
       repository,
       this.service,
       this.review,
       this.delivery,
       this.trash,
-      new AgentRecordService(repository, this.service, this.review, this.delivery)
+      new AgentRecordService(repository, this.service, this.review, this.delivery),
+      new AgentRelationService(repository, this.service, this.review, this.delivery)
     );
   }
 
@@ -151,6 +156,12 @@ export class CreationApplication {
         return this.records.move(command.input);
       case 'removeRecord':
         return this.records.remove(command.input);
+      case 'createRelation':
+        return this.relations.create(command.input);
+      case 'updateRelation':
+        return this.relations.update(command.input);
+      case 'removeRelation':
+        return this.relations.remove(command.input);
       case 'listTrash':
         return this.trash.list(command.input.workId);
       case 'previewTrash':
@@ -211,6 +222,8 @@ export class CreationApplication {
         return this.review.decide(command.input);
       case 'updateRecordReview':
         return this.review.updateRecord(command.input);
+      case 'updateRelationReview':
+        return this.review.updateRelation(command.input);
       case 'relinkResource':
         return this.review.relink(command.input);
     }

@@ -52,7 +52,8 @@ class SqliteCreationRepository implements CreationRepository {
             workId,
             cursor,
             entries: this.work(workId).listEntries(),
-            records: this.work(workId).listRecords()
+            records: this.work(workId).listRecords(),
+            relations: this.work(workId).listRelations()
           };
     })();
   }

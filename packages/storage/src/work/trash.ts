@@ -4,6 +4,7 @@ import type { Document, Entry, TrashBatch } from '@chaptale/creation/contracts';
 
 import { entryColumns, readSnapshot } from './entries.ts';
 import * as records from './records.ts';
+import * as relations from './relations.ts';
 import { indexDocument } from './search.ts';
 
 /** 原父目录被永久清空的条目改挂根层级，恢复时排到末尾。 */
@@ -60,15 +61,16 @@ export function trashEntries(database: Database.Database, rootIds: readonly stri
 export function listTrash(database: Database.Database): TrashBatch[] {
   const batches = database
     .prepare('SELECT batchId AS id, max(deletedAt) AS deletedAt, count(*) AS entryCount FROM trash GROUP BY batchId')
-    .all() as Omit<TrashBatch, 'roots' | 'records'>[];
-  for (const batch of records.recordTrashBatches(database))
+    .all() as Omit<TrashBatch, 'roots' | 'records' | 'relations'>[];
+  for (const batch of [...records.recordTrashBatches(database), ...relations.relationTrashBatches(database)])
     if (!batches.some(item => item.id === batch.id)) batches.push({ ...batch, entryCount: 0 });
   // oxlint-disable-next-line unicorn/no-array-sort
   return batches
     .map(batch => ({
       ...batch,
       roots: batchRoots(database, batch.id),
-      records: records.trashedRecords(database, batch.id)
+      records: records.trashedRecords(database, batch.id),
+      relations: relations.trashedRelations(database, batch.id)
     }))
     .sort((a, b) => b.deletedAt - a.deletedAt || a.id.localeCompare(b.id));
 }
@@ -91,12 +93,13 @@ export function restoreBatch(database: Database.Database, batchId: string): stri
   database.prepare('DELETE FROM trash WHERE batchId = ?').run(batchId);
   for (const { entryId } of rest) reindex(database, entryId);
   records.restoreRecords(database, batchId);
+  relations.restoreRelations(database, batchId);
   return restored;
 }
 
 /**
- * 永久删除批次内条目、事件及修订；其他批次中挂在这些目录下的条目改挂根层级。
- * 被删资料与事件的关联一并移除，不再涉及任何资料的事件随之删除。返回被删除条目的元数据。
+ * 永久删除批次内条目、事件、关系及修订；其他批次中挂在这些目录下的条目改挂根层级。
+ * 被删资料与事件的关联一并移除，不再涉及任何资料的事件和涉及被删资料的关系随之删除。返回被删除条目的元数据。
  */
 export function purgeBatch(database: Database.Database, batchId: string): Entry[] {
   const purged = database
@@ -122,6 +125,11 @@ export function purgeBatch(database: Database.Database, batchId: string): Entry[
     database,
     purged.map(entry => entry.id)
   );
+  relations.purgeRelations(database, batchId);
+  relations.deleteResourceRelations(
+    database,
+    purged.map(entry => entry.id)
+  );
   database.prepare('DELETE FROM revisions WHERE entryId IN (SELECT entryId FROM trash WHERE batchId = ?)').run(batchId);
   database.prepare('CREATE TEMP TABLE IF NOT EXISTS purge_ids (id TEXT PRIMARY KEY)').run();
   database.prepare('DELETE FROM temp.purge_ids').run();
@@ -137,7 +145,9 @@ export function listTrashBatchIds(database: Database.Database): string[] {
   const ids = (database.prepare('SELECT DISTINCT batchId FROM trash').all() as { batchId: string }[]).map(
     row => row.batchId
   );
-  return [...new Set([...ids, ...records.listRecordTrashBatchIds(database)])];
+  return [
+    ...new Set([...ids, ...records.listRecordTrashBatchIds(database), ...relations.listRelationTrashBatchIds(database)])
+  ];
 }
 
 function batchRoots(database: Database.Database, batchId: string): Entry[] {

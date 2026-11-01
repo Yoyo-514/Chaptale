@@ -12,6 +12,7 @@ import {
   type Entry,
   type RecordPlacement,
   type RecordSnapshot,
+  type RelationSnapshot,
   type RecordSource
 } from '@chaptale/creation/contracts';
 import { fromIllustrationPlaceholders, toIllustrationPlaceholders } from '@chaptale/creation/text';
@@ -61,6 +62,10 @@ function located<T extends Entry>(workId: string, entry: T) {
 function agentRecord<T extends RecordSnapshot>(record: T) {
   const { id: recordId, ...fields } = record;
   return { recordId, ...fields };
+}
+function agentRelation<T extends RelationSnapshot>(relation: T) {
+  const { id: relationId, ...fields } = relation;
+  return { relationId, ...fields };
 }
 
 /** 发生位置：章节 ID，或 opening（开篇之前）、undetermined（待定）。 */
@@ -114,10 +119,18 @@ export function createWorkTools(
       if (value.kind === 'saved') return { kind: value.kind, entry: located(workId, value.entry) };
       if (value.kind === 'record')
         return { kind: value.removed ? 'removed' : 'saved', record: agentRecord(value.record) };
+      if (value.kind === 'relation')
+        return { kind: value.removed ? 'removed' : 'saved', relation: agentRelation(value.relation) };
       const { change } = value;
-      return change.target === 'record'
-        ? { kind: value.kind, ...(change.deleted && { removed: true }), record: agentRecord(change.candidate) }
-        : { kind: value.kind, entry: located<Entry>(workId, change.candidate) };
+      if (change.target === 'record')
+        return { kind: value.kind, ...(change.deleted && { removed: true }), record: agentRecord(change.candidate) };
+      if (change.target === 'relation')
+        return {
+          kind: value.kind,
+          ...(change.deleted && { removed: true }),
+          relation: agentRelation(change.candidate)
+        };
+      return { kind: value.kind, entry: located<Entry>(workId, change.candidate) };
     });
   }
 

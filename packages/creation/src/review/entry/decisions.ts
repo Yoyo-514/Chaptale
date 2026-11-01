@@ -14,7 +14,7 @@ import type {
 } from '../../contracts.ts';
 import type { CreationRepository, WorkRepository } from '../../repository.ts';
 import type { CreationService } from '../../service.ts';
-import { isRecordView, type ChangeLedger } from '../ledger.ts';
+import { isStoryView, type ChangeLedger } from '../ledger.ts';
 import { advanceChange } from '../pending-change.ts';
 import { decideBlock, sameContent } from './blocks.ts';
 
@@ -181,7 +181,7 @@ export class EntryReview {
 
   private checked(input: ReviewTarget): EntryReviewView {
     const view = this.ledger.checked(input);
-    if (isRecordView(view)) throw new Error('事件只能整条接受或拒绝');
+    if (isStoryView(view)) throw new Error('事件与关系只能整条接受或拒绝');
     return view;
   }
 }

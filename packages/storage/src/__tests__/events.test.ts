@@ -58,7 +58,14 @@ describe('作品提交事件与快照', () => {
       content: '草稿私有片段'
     });
     expect(service.snapshot(work.id)).toEqual(end);
-    expect(end).toEqual({ kind: 'work', workId: work.id, cursor: end.cursor, entries: [first, second], records: [] });
+    expect(end).toEqual({
+      kind: 'work',
+      workId: work.id,
+      cursor: end.cursor,
+      entries: [first, second],
+      records: [],
+      relations: []
+    });
     const page = service.readChanges(empty.cursor, 1);
     expect(page).toEqual({
       kind: 'changes',

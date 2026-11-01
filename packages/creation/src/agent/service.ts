@@ -21,8 +21,9 @@ import { advanceChange } from '../review/pending-change.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
 import { illustrationIds } from '../text.ts';
-import { proposeEntry } from './proposal.ts';
+import { proposeEntry, type EntryWriteCommand } from './proposal.ts';
 import type { AgentRecordService } from './records.ts';
+import type { AgentRelationService } from './relations.ts';
 
 type AgentValue = Extract<CreationAgentCommands[keyof CreationAgentCommands]['output'], { ok: true }>['value'];
 
@@ -34,13 +35,15 @@ export class CreationAgentService {
   private readonly delivery: DeliveryService;
   private readonly trash: TrashService;
   private readonly records: AgentRecordService;
+  private readonly relations: AgentRelationService;
   constructor(
     repository: CreationRepository,
     creation: CreationService,
     review: ReviewService,
     delivery: DeliveryService,
     trash: TrashService,
-    records: AgentRecordService
+    records: AgentRecordService,
+    relations: AgentRelationService
   ) {
     this.repository = repository;
     this.creation = creation;
@@ -48,6 +51,7 @@ export class CreationAgentService {
     this.delivery = delivery;
     this.trash = trash;
     this.records = records;
+    this.relations = relations;
   }
 
   execute(context: CreationAgentContext, command: CreationAgentCommand): AgentValue {
@@ -99,6 +103,12 @@ export class CreationAgentService {
       case 'updateRecord':
       case 'removeRecord':
         return this.records.write(context, command);
+      case 'listRelations':
+        return this.relations.list(context, command.input);
+      case 'createRelation':
+      case 'updateRelation':
+      case 'removeRelation':
+        return this.relations.write(context, command);
       case 'deleteEntry':
         return this.remove(context, command);
       default:
@@ -267,10 +277,7 @@ export class CreationAgentService {
 }
 
 type DeleteCommand = Extract<AgentWriteCommand, { method: 'deleteEntry' }>;
-type WriteCommand = Exclude<
-  AgentWriteCommand,
-  { method: 'deleteEntry' | 'createRecord' | 'updateRecord' | 'removeRecord' }
->;
+type WriteCommand = EntryWriteCommand;
 
 function targetId(command: WriteCommand): string | null {
   if (command.method === 'createEntry') return null;

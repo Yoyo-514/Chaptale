@@ -12,6 +12,7 @@ import type {
 import type { CreationRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
 import { recordSnapshot } from './record/merge.ts';
+import { relationSnapshot } from './relation/merge.ts';
 
 /** 自动归集待审修改；作者处理完成后继续，或结束任务把剩余候选留作历史待审。 */
 export class DeliveryService {
@@ -48,7 +49,11 @@ export class DeliveryService {
       const change = this.repository.library.getPendingChange(id)!;
       const work = this.repository.work(change.workId);
       const trashed =
-        change.target === 'entry' ? work.isTrashed(change.targetId) : work.isRecordTrashed(change.targetId);
+        change.target === 'entry'
+          ? work.isTrashed(change.targetId)
+          : change.target === 'record'
+            ? work.isRecordTrashed(change.targetId)
+            : work.isRelationTrashed(change.targetId);
       const decision: DeliveryDecision = change.authorEdited
         ? 'edited'
         : change.status === 'rejected' && trashed
@@ -62,6 +67,15 @@ export class DeliveryService {
           title: change.candidate.title,
           snapshot: readEntrySnapshot(work, change.targetId)
         };
+      if (change.target === 'relation') {
+        const relation = work.getRelation(change.targetId);
+        return {
+          target: 'relation',
+          ...fields,
+          type: change.candidate.type,
+          snapshot: relation ? relationSnapshot(relation) : null
+        };
+      }
       const record = work.getRecord(change.targetId);
       return {
         target: 'record',

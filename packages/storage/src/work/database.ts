@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { receiptSchema } from '../commands.ts';
 import { recordSchema } from './records.ts';
+import { relationSchema } from './relations.ts';
 import { openSearchIndex } from './search.ts';
 import { trashSchema } from './trash.ts';
 
@@ -62,6 +63,7 @@ export function openWorkDatabase(rootDir: string, workId: string): Database.Data
       SELECT id, '', '[]', '[]', NULL FROM entries WHERE section = 'resource' AND kind = 'document';
   `);
   database.exec(recordSchema);
+  database.exec(relationSchema);
   database.exec(trashSchema);
   database.exec(receiptSchema);
   openSearchIndex(database);

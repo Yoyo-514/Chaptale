@@ -150,12 +150,15 @@ export class ReviewFlow {
     );
     this.refresh();
     const outcomes = contents.map(
-      item => `${item.target === 'entry' ? `《${item.title}》` : `事件“${item.text}”`}${decisionLabels[item.decision]}`
+      item =>
+        `${item.target === 'entry' ? `《${item.title}》` : item.target === 'record' ? `事件“${item.text}”` : `关系“${item.type}”`}${decisionLabels[item.decision]}`
     );
     const official = contents.map(item =>
       item.target === 'entry'
         ? { workId: item.workId, entryId: item.targetId, snapshot: item.snapshot }
-        : { workId: item.workId, recordId: item.targetId, snapshot: item.snapshot }
+        : item.target === 'record'
+          ? { workId: item.workId, recordId: item.targetId, snapshot: item.snapshot }
+          : { workId: item.workId, relationId: item.targetId, snapshot: item.snapshot }
     );
     return {
       customType: reviewContinuationMessageType,

@@ -17,6 +17,16 @@ import type {
   StoryRecord,
   UpdateRecordInput
 } from './records.ts';
+import type {
+  CreateRelationInput,
+  MilestoneInput,
+  RelationInput,
+  RelationSnapshot,
+  RelationState,
+  RelationType,
+  RemoveRelationInput,
+  StoryRelation
+} from './relations.ts';
 
 export type CreationMode = 'discuss' | 'review' | 'direct';
 /** 身份和当前模式由宿主注入，不接受工具参数自报。 */
@@ -36,7 +46,13 @@ export interface ReviewConflict {
     | 'resourceIds'
     | 'source'
     | 'placement'
-    | 'storyTime';
+    | 'storyTime'
+    | 'type'
+    | 'directed'
+    | 'titles'
+    | 'milestone';
+  /** field 为 milestone 时指向冲突的建立或结束。 */
+  milestoneId?: string;
   base: string | null;
   current: string | null;
   proposed: string | null;
@@ -46,7 +62,7 @@ interface ChangeFields {
   id: string;
   workId: string;
   sessionId: string;
-  /** 条目或事件的身份。 */
+  /** 条目、事件或关系的身份。 */
   targetId: string;
   version: string;
   /** 会话内结构修改的逻辑顺序，与设备时间无关。 */
@@ -77,7 +93,16 @@ export interface RecordChange extends ChangeFields {
   /** Agent 给出的原文依据，只供审阅参考，不进入正式数据。 */
   basis: string;
 }
-export type PendingChange = EntryChange | RecordChange;
+export interface RelationChange extends ChangeFields {
+  target: 'relation';
+  base: RelationSnapshot | null;
+  candidate: RelationSnapshot;
+  /** Agent 提出的移除：接受后关系移入作品回收站。 */
+  deleted?: true;
+  /** Agent 给出的原文依据，只供审阅参考，不进入正式数据。 */
+  basis: string;
+}
+export type PendingChange = EntryChange | RecordChange | RelationChange;
 
 /**
  * 分组身份跨问答与重启保留；候选仍按自身版本接受或拒绝。
@@ -115,6 +140,15 @@ export type DeliveryContent =
       text: string;
       decision: DeliveryDecision;
       snapshot: RecordSnapshot | null;
+    }
+  | {
+      target: 'relation';
+      workId: string;
+      targetId: string;
+      /** 候选中的关系类型，拒绝新建后仍可辨认是哪一条。 */
+      type: string;
+      decision: DeliveryDecision;
+      snapshot: RelationSnapshot | null;
     };
 
 /** 继续与结束任务都只推进当前组的进度。 */
@@ -137,13 +171,19 @@ export interface RecordReviewView {
   candidate: RecordSnapshot;
   conflicts: ReviewConflict[];
 }
-export type ReviewView = EntryReviewView | RecordReviewView;
+export interface RelationReviewView {
+  change: RelationChange;
+  current: StoryRelation | null;
+  candidate: RelationSnapshot;
+  conflicts: ReviewConflict[];
+}
+export type ReviewView = EntryReviewView | RecordReviewView | RelationReviewView;
 
 export interface ReviewTarget {
   changeId: string;
   expectedVersion: string;
   expectedRevisionId: string | null;
-  /** 事件没有目录位置，为 null。 */
+  /** 事件与关系没有目录位置，为 null。 */
   expectedLocation: { parentId: string | null; position: number } | null;
 }
 
@@ -162,7 +202,8 @@ export type DeliveryItem =
       section: EntrySnapshot['section'];
       title: string;
     })
-  | (DeliveryItemFields & { kind: 'record'; record: RecordSnapshot });
+  | (DeliveryItemFields & { kind: 'record'; record: RecordSnapshot })
+  | (DeliveryItemFields & { kind: 'relation'; relation: RelationSnapshot });
 
 export interface DeliverySummary {
   group: DeliveryGroup;
@@ -209,7 +250,13 @@ export interface UpdateRecordReviewInput extends ReviewTarget, RecordFields {
   resolveConflicts: boolean;
 }
 
-/** 把依赖本会话新资料候选的事件候选改为关联已有资料，并拒绝该新资料候选。 */
+/** 作者手改关系候选；每次修改生成新的候选版本。 */
+export interface UpdateRelationReviewInput extends ReviewTarget, RelationInput {
+  commandId: string;
+  resolveConflicts: boolean;
+}
+
+/** 把依赖本会话新资料候选的事件与关系候选改为关联已有资料，并拒绝该新资料候选。 */
 export interface RelinkResourceInput {
   commandId: string;
   changeId: string;
@@ -221,6 +268,7 @@ export type AgentWriteResult =
   | { kind: 'pending'; change: PendingChange }
   | { kind: 'saved'; entry: Entry }
   | { kind: 'record'; record: StoryRecord; removed: boolean }
+  | { kind: 'relation'; relation: StoryRelation; removed: boolean }
   /** 直接修改模式下的删除，返回进入回收站的全部条目。 */
   | { kind: 'trashed'; entries: Entry[] }
   /** 审阅模式下删除本会话尚未接受的新建条目，撤回这些候选。 */
@@ -258,9 +306,31 @@ export interface CreationAgentCommands extends CreationReadCommands {
   createRecord: { input: CreateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
   updateRecord: { input: UpdateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
   removeRecord: { input: RemoveRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
+  /** 审阅模式包含本会话候选；state 按 asOf 计算，types 为可选关系类型。 */
+  listRelations: {
+    input: { workId: string; resourceId: string | null; asOf: string | null };
+    output: CreationResult<{ relations: (StoryRelation & { state: RelationState })[]; types: RelationType[] }>;
+  };
+  createRelation: { input: CreateRelationInput & { basis: string }; output: CreationResult<AgentWriteResult> };
+  /** 只提交改动：省略的关系字段保持不变，未列出的建立或结束保持不变。 */
+  updateRelation: { input: AgentRelationUpdate; output: CreationResult<AgentWriteResult> };
+  removeRelation: { input: RemoveRelationInput & { basis: string }; output: CreationResult<AgentWriteResult> };
+}
+/** 建立或结束的改动：新增 id 为 null，修改给出整条内容，移除只需 id。 */
+export type MilestonePatch = MilestoneInput | { id: string; remove: true };
+export interface AgentRelationUpdate extends Partial<Omit<RelationInput, 'milestones'>> {
+  commandId: string;
+  workId: string;
+  relationId: string;
+  expectedRevisionId: string;
+  milestones: MilestonePatch[];
+  basis: string;
 }
 export type CreationAgentCommand = RpcCommand<CreationAgentCommands>;
-export type AgentWriteCommand = Exclude<CreationAgentCommand, { method: keyof CreationReadCommands | 'listRecords' }>;
+export type AgentWriteCommand = Exclude<
+  CreationAgentCommand,
+  { method: keyof CreationReadCommands | 'listRecords' | 'listRelations' }
+>;
 
 export interface ReviewCommands {
   readCurrentDelivery: { input: { sessionId: string }; output: CreationResult<DeliveryView | null> };
@@ -280,6 +350,7 @@ export interface ReviewCommands {
   updateReview: { input: UpdateReviewInput; output: CreationResult<PendingChange> };
   decideReview: { input: DecideReviewInput; output: CreationResult<PendingChange> };
   updateRecordReview: { input: UpdateRecordReviewInput; output: CreationResult<PendingChange> };
+  updateRelationReview: { input: UpdateRelationReviewInput; output: CreationResult<PendingChange> };
   /** 返回被拒绝的新资料候选。 */
   relinkResource: { input: RelinkResourceInput; output: CreationResult<PendingChange> };
 }

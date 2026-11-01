@@ -26,7 +26,7 @@ export function staleReason(view: ReviewView, input: ReviewTarget): string | nul
   if (view.change.status !== 'pending' || view.change.version !== input.expectedVersion)
     return '待接受修改已有新版本，请刷新后审阅';
   if ((view.current?.revisionId ?? null) !== input.expectedRevisionId) return '正式内容已有变化，请刷新审阅内容';
-  if (view.change.target === 'record') return null;
+  if (view.change.target !== 'entry') return null;
   const current = view.current as EntrySnapshot | null;
   if (
     current &&

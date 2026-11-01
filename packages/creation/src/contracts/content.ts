@@ -71,6 +71,14 @@ export interface TrashBatch {
   entryCount: number;
   /** 单独删除的事件；随资料删除的事件不单列。 */
   records: StoryRecordRef[];
+  /** 单独删除的关系。 */
+  relations: StoryRelationRef[];
+}
+/** 回收站中关系的摘要。 */
+export interface StoryRelationRef {
+  id: string;
+  type: string;
+  resourceIds: [string, string];
 }
 /** 回收站中事件的摘要。 */
 export interface StoryRecordRef {

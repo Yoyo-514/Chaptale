@@ -15,6 +15,8 @@ import type {
   DecideReviewInput,
   DecideDeliveryInput,
   RecordSnapshot,
+  RelationSnapshot,
+  StoryRelation,
   SessionAssignment,
   SessionSelection,
   SessionState,
@@ -37,9 +39,10 @@ export type CommitEffect =
   | { kind: 'delivery' }
   | { kind: 'record'; removed: boolean }
   | { kind: 'records' }
+  | { kind: 'relation'; removed: boolean }
   | { kind: 'move'; from: { parentId: string | null; position: number } };
 
-export type CommitResult = Work | Entry | Entry[] | PendingChange | DeliveryGroup | StoryRecord;
+export type CommitResult = Work | Entry | Entry[] | PendingChange | DeliveryGroup | StoryRecord | StoryRelation;
 
 /** 事件的一次修订；顺序不进入修订。 */
 export interface RecordRevision {
@@ -48,6 +51,16 @@ export interface RecordRevision {
   parentRevisionId: string | null;
   source: Revision['source'];
   snapshot: RecordSnapshot;
+  createdAt: number;
+}
+
+/** 关系的一次修订，保存连同建立／结束的整份快照。 */
+export interface RelationRevision {
+  id: string;
+  relationId: string;
+  parentRevisionId: string | null;
+  source: Revision['source'];
+  snapshot: RelationSnapshot;
   createdAt: number;
 }
 
@@ -153,6 +166,15 @@ export interface WorkRepository {
   /** 单个事件移入回收站，自成一个删除批次。 */
   trashRecord(recordId: string, batchId: string, now: number): void;
   isRecordTrashed(recordId: string): boolean;
+
+  /** 不在回收站中的关系。 */
+  listRelations(): StoryRelation[];
+  getRelation(relationId: string): StoryRelation | undefined;
+  /** 写入关系的新修订，建立／结束按快照整体替换；返回写入后的关系。 */
+  saveRelation(snapshot: RelationSnapshot, revision: RelationRevision): StoryRelation;
+  /** 单条关系移入回收站，自成一个删除批次。 */
+  trashRelation(relationId: string, batchId: string, now: number): void;
+  isRelationTrashed(relationId: string): boolean;
 }
 
 /**

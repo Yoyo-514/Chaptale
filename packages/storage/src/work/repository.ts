@@ -1,12 +1,14 @@
 import type Database from 'better-sqlite3';
 
-import type { RecordRevision, WorkRepository } from '@chaptale/creation';
+import type { RecordRevision, RelationRevision, WorkRepository } from '@chaptale/creation';
 import type {
   Document,
   DocumentSearchPage,
   Entry,
   EntrySnapshot,
   RecordSnapshot,
+  RelationSnapshot,
+  StoryRelation,
   StoryRecord,
   Revision,
   RevisionSummary,
@@ -18,6 +20,7 @@ import { readCommandReceipt } from '../commands.ts';
 import { entryFileDir } from './database.ts';
 import * as entries from './entries.ts';
 import * as records from './records.ts';
+import * as relations from './relations.ts';
 import { searchDocuments } from './search.ts';
 import * as trash from './trash.ts';
 
@@ -120,5 +123,21 @@ export class SqliteWorkRepository implements WorkRepository {
   }
   isRecordTrashed(recordId: string): boolean {
     return records.isRecordTrashed(this.connect(), recordId);
+  }
+
+  listRelations(): StoryRelation[] {
+    return relations.listRelations(this.connect());
+  }
+  getRelation(relationId: string): StoryRelation | undefined {
+    return relations.getRelation(this.connect(), relationId);
+  }
+  saveRelation(snapshot: RelationSnapshot, revision: RelationRevision): StoryRelation {
+    return relations.saveRelation(this.connect(), snapshot, revision);
+  }
+  trashRelation(relationId: string, batchId: string, now: number): void {
+    relations.trashRelation(this.connect(), relationId, batchId, now);
+  }
+  isRelationTrashed(relationId: string): boolean {
+    return relations.isRelationTrashed(this.connect(), relationId);
   }
 }

@@ -30,6 +30,12 @@ import type {
   StoryRecord,
   UpdateRecordInput
 } from './contracts/records.ts';
+import type {
+  CreateRelationInput,
+  RemoveRelationInput,
+  StoryRelation,
+  UpdateRelationInput
+} from './contracts/relations.ts';
 import type { DeliveryGroup, PendingChange, ReviewCommands } from './contracts/review.ts';
 
 export type * from './contracts/content.ts';
@@ -37,6 +43,8 @@ export { isImageFile } from './contracts/content.ts';
 export type * from './contracts/review.ts';
 export type * from './contracts/records.ts';
 export { chapterOrder, groupRecords } from './contracts/records.ts';
+export type * from './contracts/relations.ts';
+export { relationPresets, relationState, relationTypes } from './contracts/relations.ts';
 
 export interface RecoveryDraft extends Omit<SaveDocumentInput, 'commandId'> {
   /** 此快照正式保存时沿用该 ID 作为命令 ID。 */
@@ -61,7 +69,14 @@ export interface CreationCursor {
 }
 export type CreationSnapshot =
   | { kind: 'library'; cursor: CreationCursor; works: Work[] }
-  | { kind: 'work'; workId: string; cursor: CreationCursor; entries: Entry[]; records: StoryRecord[] };
+  | {
+      kind: 'work';
+      workId: string;
+      cursor: CreationCursor;
+      entries: Entry[];
+      records: StoryRecord[];
+      relations: StoryRelation[];
+    };
 export type CreationChange =
   | { kind: 'work'; work: Work }
   /** 作品进入、离开作品库回收站或被永久清空；客户端重取作品列表。 */
@@ -74,7 +89,9 @@ export type CreationChange =
   | { kind: 'move'; entry: Entry; from: { parentId: string | null; position: number } }
   /** removed：事件移入回收站。调整顺序会改变同位置其他事件的序号，客户端重取快照。 */
   | { kind: 'record'; record: StoryRecord; removed: boolean }
-  | { kind: 'records' };
+  | { kind: 'records' }
+  /** removed：关系移入回收站。 */
+  | { kind: 'relation'; relation: StoryRelation; removed: boolean };
 export interface CreationEvent {
   cursor: CreationCursor;
   commandId: string;
@@ -176,6 +193,11 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   moveRecord: { input: MoveRecordInput; output: CreationResult<StoryRecord> };
   /** 单个事件移入作品回收站。 */
   removeRecord: { input: RemoveRecordInput; output: CreationResult<StoryRecord> };
+  createRelation: { input: CreateRelationInput; output: CreationResult<StoryRelation> };
+  /** 整条提交；同一发生位置内的顺序按建立或结束的数组顺序。 */
+  updateRelation: { input: UpdateRelationInput; output: CreationResult<StoryRelation> };
+  /** 单条关系移入作品回收站。 */
+  removeRelation: { input: RemoveRelationInput; output: CreationResult<StoryRelation> };
   listTrash: { input: { workId: string }; output: CreationResult<TrashBatch[]> };
   previewTrash: { input: { workId: string; entryIds: string[] }; output: CreationResult<TrashImpact> };
   /** 移入作品回收站并一并拒绝相关待审修改；返回进入回收站的全部条目。 */

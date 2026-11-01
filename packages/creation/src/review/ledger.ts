@@ -5,6 +5,8 @@ import type {
   PendingChange,
   RecordChange,
   RecordReviewView,
+  RelationChange,
+  RelationReviewView,
   ReviewTarget,
   ReviewView
 } from '../contracts.ts';
@@ -12,6 +14,11 @@ import type { CreationRepository } from '../repository.ts';
 import { mergeCandidate } from './entry/merge.ts';
 import { advanceChange, assertReviewTarget } from './pending-change.ts';
 import { mergeRecord, recordSnapshot } from './record/merge.ts';
+import { mergeRelation, relationSnapshot } from './relation/merge.ts';
+
+/** 事件与关系候选：整条审阅，可依赖本会话新资料候选。 */
+export type StoryChange = RecordChange | RelationChange;
+export type StoryView = RecordReviewView | RelationReviewView;
 
 /** 候选台账：读取候选、合并正式稿得到审阅视图、校验作者看到的版本并推进候选状态。 */
 export class ChangeLedger {
@@ -33,13 +40,17 @@ export class ChangeLedger {
   }
 
   view(change: PendingChange): ReviewView {
-    return change.target === 'entry' ? this.entryView(change) : this.recordView(change);
+    if (change.target === 'entry') return this.entryView(change);
+    return change.target === 'record' ? this.recordView(change) : this.relationView(change);
   }
   entryView(change: EntryChange): EntryReviewView {
     return mergeCandidate(change, readEntrySnapshot(this.repository.work(change.workId), change.targetId));
   }
   recordView(change: RecordChange): RecordReviewView {
     return mergeRecord(change, this.repository.work(change.workId).getRecord(change.targetId) ?? null);
+  }
+  relationView(change: RelationChange): RelationReviewView {
+    return mergeRelation(change, this.repository.work(change.workId).getRelation(change.targetId) ?? null);
   }
 
   checked(input: ReviewTarget): ReviewView {
@@ -73,11 +84,24 @@ export class ChangeLedger {
         status: 'accepted'
       });
     }
+    if (change.target === 'relation') {
+      const view = this.relationView(change);
+      return this.finish(change, {
+        base: view.current ? relationSnapshot(view.current) : change.base,
+        candidate: view.candidate,
+        status: 'accepted'
+      });
+    }
     const view = this.entryView(change);
     return this.finish(change, { base: view.current, candidate: view.candidate, status: 'accepted' });
   }
 }
 
-export function isRecordView(view: ReviewView): view is RecordReviewView {
-  return view.change.target === 'record';
+export function isStoryView(view: ReviewView): view is StoryView;
+export function isStoryView<K extends StoryChange['target']>(
+  view: ReviewView,
+  target: K
+): view is Extract<StoryView, { change: { target: K } }>;
+export function isStoryView(view: ReviewView, target?: StoryChange['target']): boolean {
+  return target === undefined ? view.change.target !== 'entry' : view.change.target === target;
 }

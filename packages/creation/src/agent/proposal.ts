@@ -7,9 +7,24 @@ import { EntryLocationConflictError, RevisionConflictError } from '../errors.ts'
 import { mergeCandidate } from '../review/entry/merge.ts';
 import { countDocumentWords } from '../text.ts';
 
+/** 写入条目内容与目录的 Agent 指令。 */
+export type EntryWriteCommand = Exclude<
+  AgentWriteCommand,
+  {
+    method:
+      | 'deleteEntry'
+      | 'createRecord'
+      | 'updateRecord'
+      | 'removeRecord'
+      | 'createRelation'
+      | 'updateRelation'
+      | 'removeRelation';
+  }
+>;
+
 /** 把 Agent 指令转成候选快照；计算仅依赖当前正式稿与本会话视图。 */
 export function proposeEntry(
-  command: Exclude<AgentWriteCommand, { method: 'deleteEntry' | 'createRecord' | 'updateRecord' | 'removeRecord' }>,
+  command: EntryWriteCommand,
   entries: Entry[],
   current: EntrySnapshot | null,
   existing?: EntryChange
