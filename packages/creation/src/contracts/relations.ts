@@ -53,11 +53,11 @@ export interface RemoveRelationInput {
 }
 
 /** 关系类型：名称、方向与默认两端称呼。 */
-export interface RelationType {
+export type RelationType = {
   type: string;
   directed: boolean;
   titles: [string, string];
-}
+};
 
 export const relationPresets: readonly RelationType[] = [
   { type: '师徒', directed: true, titles: ['师父', '徒弟'] },

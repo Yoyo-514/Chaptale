@@ -20,10 +20,11 @@ import type { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
 import { HostSessionOpenError } from '../session/session-storage.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
+import type { HostToolDecision } from '../tools/tool-access.ts';
 import { ToolApprovals } from './approvals.ts';
-import { createWorkTools, workToolNames } from './creation-tools.ts';
 import { damagedHistory, sessionHistory, type SessionHistory } from './history.ts';
 import { type AppliedInstructions, instructionCallbacks, LiveSession } from './live-session.ts';
+import { createWorkTools, deferredWorkToolsPrompt, workToolNames, workWriteToolNames } from './work-tools/index.ts';
 
 export interface HostApplicationOptions {
   cwd: string;
@@ -246,16 +247,28 @@ export class HostApplication {
     return tools;
   }
 
+  /** 作品工具无需逐次确认；讨论模式下写工具即使经 tool_search 加载或嵌套调用也不执行。 */
+  private authorizeWorkTool(request: { sessionId: string; toolName: string }): HostToolDecision {
+    if (workWriteToolNames.has(request.toolName) && this.live(request.sessionId).view.mode === 'discuss')
+      return { allow: false, reason: '当前为讨论模式，作品只读' };
+    return { allow: true };
+  }
+
   private sessionInput(applied: AppliedInstructions, cwd: string) {
+    const callbacks = instructionCallbacks(applied);
     return {
       cwd,
-      ...instructionCallbacks(applied),
+      ...callbacks,
+      ...(this.options.creation && {
+        systemPrompt: () => `${callbacks.systemPrompt()}\n\n${deferredWorkToolsPrompt}`
+      }),
       toolAccess: {
         tools: this.tools(cwd),
         authorize: (request: Parameters<ToolApprovals['authorize']>[0], signal: AbortSignal | undefined) =>
           this.options.creation && workToolNames.has(request.toolName)
-            ? Promise.resolve({ allow: true as const })
-            : this.approvals.authorize(request, signal)
+            ? Promise.resolve(this.authorizeWorkTool(request))
+            : this.approvals.authorize(request, signal),
+        onToolsLoaded: (sessionId: string) => this.live(sessionId).syncWorkTools()
       }
     };
   }

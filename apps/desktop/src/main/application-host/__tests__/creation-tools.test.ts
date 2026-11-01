@@ -145,6 +145,14 @@ async function restartWithTools(tools: ToolDefinition[], history?: { file: strin
   return runtime;
 }
 
+// 事件与关系工具由 tool_search 按需加载；pi 让延迟工具始终可经嵌套调用，讨论模式由宿主授权拒绝写入。
+const deferredTools = ['work_record_ls', 'work_record_write', 'work_relation_ls', 'work_relation_write'];
+
+async function load(query: string, sessionId = id) {
+  const outcome = await call('tool_search', { query }, randomUUID(), undefined, sessionId);
+  expect(outcome.isError, JSON.stringify(outcome.result)).toBe(false);
+}
+
 function read() {
   return value(creation.executeAuthor({ method: 'readDocument', input: { workId, documentId } }));
 }
@@ -155,7 +163,7 @@ function pending(sessionId = id) {
 
 it('未归属作品的会话发现作品、列出根目录并按稳定身份读取指定行', async () => {
   const tools = host.snapshot().tools;
-  expect(tools.filter(name => name.startsWith('work_'))).toHaveLength(12);
+  expect(tools.filter(name => name.startsWith('work_'))).toHaveLength(14);
   expect(tools).toEqual(
     expect.arrayContaining([
       'work_ls',
@@ -169,7 +177,9 @@ it('未归属作品的会话发现作品、列出根目录并按稳定身份读�
       'work_mv',
       'work_rm',
       'work_record_ls',
-      'work_record_write'
+      'work_record_write',
+      'work_relation_ls',
+      'work_relation_write'
     ])
   );
   expect(tools.filter(name => name.startsWith('creation_'))).toEqual([]);
@@ -536,7 +546,7 @@ it('切到讨论时，已经取得旧工具集合的写调用仍按执行时模�
   await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
   const result = await writing;
   expect(result.isError).toBe(true);
-  expect(result.result.structuredContent).toMatchObject({ ok: false });
+  expect(result.result.content).toEqual([{ type: 'text', text: '当前为讨论模式，作品只读' }]);
   expect(read().revisionId).toBe(revisionId);
   expect(pending()).toEqual([]);
 });
@@ -631,7 +641,7 @@ it('讨论模式修改指令重载后，模型请求仍只有作品读工具', a
   });
   await host.execute({ method: 'prompt', input: { id, text: '查阅序章' } });
   await expect.poll(() => host.snapshot().sessions.find(view => view.id === id)?.running).toBe(false);
-  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_record_ls', 'work_search'];
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
   expect(declared?.filter(name => name.startsWith('work_')).sort()).toEqual(reads);
   const session = host.liveSession(id)!;
   expect(
@@ -645,7 +655,7 @@ it('讨论模式修改指令重载后，模型请求仍只有作品读工具', a
       .getCallableToolNames()
       .filter(name => name.startsWith('work_'))
       .sort()
-  ).toEqual(reads);
+  ).toEqual([...reads, ...deferredTools].sort());
   expect(session.agent.state.messages.at(-1)).toMatchObject({
     stopReason: 'error',
     errorMessage: '离线工具声明检查结束'
@@ -662,7 +672,7 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
     input: { model: { provider: 'offline-tools', id: 'offline' } }
   })) as string;
   const session = host.liveSession(id)!;
-  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_record_ls', 'work_search'];
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
   expect(
     session
       .getActiveToolNames()
@@ -674,7 +684,7 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
       .getCallableToolNames()
       .filter(name => name.startsWith('work_'))
       .sort()
-  ).toEqual(reads);
+  ).toEqual([...reads, ...deferredTools].sort());
   expect(existing.getActiveToolNames()).toContain('work_write');
 
   session.sessionManager.appendMessage({ role: 'user', content: '查阅长夜行的序章', timestamp: Date.now() });
@@ -696,11 +706,11 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
       .getCallableToolNames()
       .filter(name => name.startsWith('work_'))
       .sort()
-  ).toEqual(reads);
+  ).toEqual([...reads, ...deferredTools].sort());
   expect((await call('work_read', { workId, entryId: documentId })).isError).toBe(false);
 
   await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
-  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm', 'work_record_write'].sort();
+  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm'].sort();
   expect(
     reopened
       .getActiveToolNames()
@@ -712,7 +722,7 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
       .getCallableToolNames()
       .filter(name => name.startsWith('work_'))
       .sort()
-  ).toEqual(enabled);
+  ).toEqual([...enabled, ...deferredTools].sort());
   expect(
     (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '正式改稿' }))
       .isError
@@ -725,7 +735,7 @@ it('讨论模式移除可见及可调用的作品写工具，保留读取与文�
   const session = host.liveSession(id)!;
   const fileTools = session.getActiveToolNames().filter(name => !name.startsWith('work_'));
   await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
-  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_record_ls', 'work_search'];
+  const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
   expect(
     session
       .getActiveToolNames()
@@ -737,7 +747,7 @@ it('讨论模式移除可见及可调用的作品写工具，保留读取与文�
       .getCallableToolNames()
       .filter(name => name.startsWith('work_'))
       .sort()
-  ).toEqual(reads);
+  ).toEqual([...reads, ...deferredTools].sort());
   expect(session.getActiveToolNames().filter(name => !name.startsWith('work_'))).toEqual(fileTools);
   const writes: Array<[string, Parameters<typeof runToolCall>[0]['arguments']]> = [
     ['work_edit', { workId, entryId: documentId, expectedRevisionId: revisionId, oldText: '守城', newText: '出城' }],
@@ -755,7 +765,7 @@ it('讨论模式移除可见及可调用的作品写工具，保留读取与文�
   expect(read().revisionId).toBe(revisionId);
   expect(pending()).toEqual([]);
   await host.execute({ method: 'mode', input: { id, mode: 'review' } });
-  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm', 'work_record_write'].sort();
+  const enabled = [...reads, 'work_edit', 'work_write', 'work_mkdir', 'work_mv', 'work_rm'].sort();
   expect(
     session
       .getActiveToolNames()
@@ -767,7 +777,7 @@ it('讨论模式移除可见及可调用的作品写工具，保留读取与文�
       .getCallableToolNames()
       .filter(name => name.startsWith('work_'))
       .sort()
-  ).toEqual(enabled);
+  ).toEqual([...enabled, ...deferredTools].sort());
   expect(session.getActiveToolNames().filter(name => !name.startsWith('work_'))).toEqual(fileTools);
   expect((await call(writes[0][0], writes[0][1])).isError).toBe(false);
   expect(pending()).toHaveLength(1);
@@ -1454,6 +1464,7 @@ async function createResource(title: string) {
 }
 
 it('审阅模式下事件写入本会话候选：省略发生位置取出处章节，修改只改提供的字段，移除新建事件即撤回', async () => {
+  await load('work_record');
   const resourceId = await createResource('柳七');
   const created = await call('work_record_write', {
     workId,
@@ -1480,6 +1491,7 @@ it('审阅模式下事件写入本会话候选：省略发生位置取出处章�
     method: 'create',
     input: { model: { provider: 'offline-tools', id: 'offline' } }
   })) as string;
+  await load('work_record_ls', other);
   expect(value(structured(await call('work_record_ls', { workId }, randomUUID(), undefined, other)))).toEqual([]);
 
   const change = pending().find(item => item.target === 'record')!;
@@ -1505,8 +1517,96 @@ it('审阅模式下事件写入本会话候选：省略发生位置取出处章�
   expect(pending().map(item => item.target)).toEqual(['entry']);
 });
 
+it('关系写入本会话候选，修改只提交改动的建立或结束，列出时给出状态与已用类型', async () => {
+  await load('work_relation');
+  const master = await createResource('顾长风');
+  const pupil = await createResource('沈霁');
+  const created = await call('work_relation_write', {
+    workId,
+    resourceIds: [master, pupil],
+    type: '师徒',
+    directed: true,
+    titles: ['师父', '徒弟'],
+    milestones: [{ kind: 'start', sourceId: documentId, sourceRevisionId: revisionId }],
+    basis: '收沈霁为徒。'
+  });
+  expect(created.isError).toBe(false);
+  const relation = value(structured(created)).relation as {
+    relationId: string;
+    milestones: { id: string }[];
+  };
+  expect(value(structured(created))).toMatchObject({
+    kind: 'pending',
+    relation: {
+      resourceIds: [master, pupil],
+      milestones: [
+        {
+          kind: 'start',
+          source: { kind: 'chapter', chapterId: documentId, revisionId },
+          placement: { kind: 'chapter', chapterId: documentId },
+          storyTime: ''
+        }
+      ]
+    }
+  });
+  const startId = relation.milestones[0]!.id;
+
+  const change = () => pending().find(item => item.target === 'relation')!;
+  const updated = await call('work_relation_write', {
+    workId,
+    relationId: relation.relationId,
+    expectedRevisionId: change().version,
+    milestones: [
+      { milestoneId: startId, storyTime: '景和三年' },
+      { kind: 'end', placement: 'undetermined' }
+    ],
+    basis: ''
+  });
+  expect(value(structured(updated))).toMatchObject({
+    kind: 'pending',
+    relation: {
+      titles: ['师父', '徒弟'],
+      milestones: [
+        { id: startId, kind: 'start', placement: { kind: 'chapter', chapterId: documentId }, storyTime: '景和三年' },
+        { kind: 'end', source: { kind: 'author' }, placement: { kind: 'undetermined' } }
+      ]
+    }
+  });
+  const listed = value(structured(await call('work_relation_ls', { workId, resourceId: pupil, asOf: documentId })));
+  expect(listed).toMatchObject({
+    relations: [{ relationId: relation.relationId, state: 'active' }],
+    types: expect.arrayContaining([{ type: '师徒', directed: true, titles: ['师父', '徒弟'] }])
+  });
+  const missing = await call('work_relation_write', {
+    workId,
+    relationId: relation.relationId,
+    expectedRevisionId: change().version,
+    milestones: [{ milestoneId: randomUUID(), storyTime: '' }],
+    basis: ''
+  });
+  expect(structured(missing)).toMatchObject({ ok: false, error: { message: '要修改的建立或结束不存在' } });
+  const unplaced = await call('work_relation_write', {
+    workId,
+    relationId: relation.relationId,
+    expectedRevisionId: change().version,
+    milestones: [{ kind: 'end' }],
+    basis: ''
+  });
+  expect(structured(unplaced)).toMatchObject({ ok: false, error: { code: 'invalid-request' } });
+  const removed = await call('work_relation_write', {
+    workId,
+    relationId: relation.relationId,
+    expectedRevisionId: change().version,
+    remove: true,
+    basis: ''
+  });
+  expect(value(structured(removed)).kind).toBe('withdrawn');
+  expect(pending().some(item => item.target === 'relation')).toBe(false);
+});
+
 it('直接修改模式下事件生成正式修订，未提供出处与发生位置时拒绝新建', async () => {
   await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
+  await load('work_record');
   const resourceId = await createResource('沈霁');
   const missing = await call('work_record_write', { workId, resourceIds: [resourceId], text: '拜师', basis: '' });
   expect(missing.isError).toBe(true);
@@ -1537,7 +1637,17 @@ it('直接修改模式下事件生成正式修订，未提供出处与发生位�
 });
 
 it('讨论模式拒绝事件写入，处理完事件候选后续跑消息带上事件结果', async () => {
-  const runtime = await restartWithTools([]);
+  const nestedRecord = defineTool({
+    name: 'nested_record',
+    label: '嵌套事件写入',
+    description: '经真实 SDK 上下文写入事件。',
+    parameters: Type.Object({ input: Type.Record(Type.String(), Type.Unknown()) }),
+    async execute(_callId, { input }, _signal, _onUpdate, ctx) {
+      const outcome = await ctx.executeTool('work_record_write', input);
+      return { ...outcome.result, isError: outcome.isError };
+    }
+  });
+  const runtime = await restartWithTools([nestedRecord]);
   const requests = await observeContinuation(runtime);
   const resourceId = value(
     creation.executeAuthor({
@@ -1556,8 +1666,18 @@ it('讨论模式拒绝事件写入，处理完事件候选后续跑消息带上�
   ).id;
   const input = { workId, resourceIds: [resourceId], text: '沈霁守城', placement: documentId, basis: '将军守城。' };
   await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
-  expect((await call('work_record_write', input)).isError).toBe(true);
+  // 讨论模式下 tool_search 只留下读工具；延迟写工具仍可经嵌套调用触达，由宿主授权拒绝。
+  await load('work_record');
+  const session = host.liveSession(id)!;
+  expect(session.getActiveToolNames()).toContain('work_record_ls');
+  expect(session.getActiveToolNames()).not.toContain('work_record_write');
+  const nested = call('nested_record', { input });
+  await expect.poll(() => host.snapshot().approvals).toHaveLength(1);
+  await host.execute({ method: 'approve', input: { id: host.snapshot().approvals[0].id, allow: true } });
+  expect((await nested).result.content).toEqual([{ type: 'text', text: '当前为讨论模式，作品只读' }]);
+  expect(pending()).toEqual([]);
   await host.execute({ method: 'mode', input: { id, mode: 'review' } });
+  await load('work_record_write');
   expect((await call('work_record_write', input)).isError).toBe(false);
   const view = () => host.snapshot().sessions.find(session => session.id === id)!;
   await expect.poll(() => view().delivery?.pendingCount).toBe(1);

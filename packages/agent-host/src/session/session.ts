@@ -96,7 +96,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     throw new Error('宿主扩展加载失败');
   }
 
-  return createAgentSession({
+  const created = await createAgentSession({
     cwd,
     agentDir,
     modelRuntime,
@@ -107,4 +107,10 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     tools: bindings?.names ?? [],
     customTools: bindings?.tools
   });
+  // pi 会激活工具名单中列出的全部工具；延迟工具只登记，留给 tool_search 加载。
+  if (bindings && bindings.deferred.size > 0)
+    created.session.setActiveToolsByName(
+      created.session.getActiveToolNames().filter(name => !bindings.deferred.has(name))
+    );
+  return created;
 }

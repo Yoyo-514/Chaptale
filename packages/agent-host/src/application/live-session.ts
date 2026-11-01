@@ -11,9 +11,9 @@ import {
   modeEntryType,
   type SessionView
 } from '../protocol.ts';
-import { workWriteToolNames } from './creation-tools.ts';
 import { messageView, transcriptView } from './message-view.ts';
 import { ReviewFlow } from './review-flow.ts';
+import { workWriteToolNames } from './work-tools/index.ts';
 
 /** 当前请求使用的指令；创建会话前交给 SDK 回调，之后在每次发送前更新。 */
 export interface AppliedInstructions {
@@ -231,17 +231,18 @@ export class LiveSession {
     this.launch(() => this.session.sendCustomMessage(continuation, { triggerTurn: true }));
   }
 
-  private syncWorkTools(): void {
-    const names = this.session.getActiveToolNames().filter(name => !workWriteToolNames.has(name));
-    if (this.view.mode !== 'discuss') {
-      names.push(
-        ...this.session
-          .getAllTools()
-          .filter(tool => workWriteToolNames.has(tool.name))
-          .map(tool => tool.name)
-      );
+  /** 讨论模式撤下全部作品写工具（包括 tool_search 加载的）；其他模式补回常驻写工具，保留已加载的工具。 */
+  syncWorkTools(): void {
+    const active = this.session.getActiveToolNames();
+    if (this.view.mode === 'discuss') {
+      this.session.setActiveToolsByName(active.filter(name => !workWriteToolNames.has(name)));
+      return;
     }
-    this.session.setActiveToolsByName(names);
+    const direct = this.session
+      .getAllTools()
+      .filter(tool => workWriteToolNames.has(tool.name) && tool.exposure !== 'deferred')
+      .map(tool => tool.name);
+    this.session.setActiveToolsByName([...new Set([...active, ...direct])]);
   }
 
   async setModel(model: Parameters<AgentSession['setModel']>[0]): Promise<void> {

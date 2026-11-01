@@ -1,26 +1,13 @@
 import type { JsonValue } from '@earendil-works/pi-ai';
 import { createReadToolDefinition, defineTool, type ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { dirname, posix } from 'node:path';
-import { Type, type Static, type TSchema } from 'typebox';
+import { Type, type Static } from 'typebox';
 
-import type { CreationApplication } from '@chaptale/creation/application';
-import {
-  isImageFile,
-  type AgentWriteResult,
-  type CreationAgentContext,
-  type CreationResult,
-  type Entry,
-  type RecordPlacement,
-  type RecordSnapshot,
-  type RelationSnapshot,
-  type RecordSource
-} from '@chaptale/creation/contracts';
+import { isImageFile, type CreationAgentContext, type Entry } from '@chaptale/creation/contracts';
 import { fromIllustrationPlaceholders, toIllustrationPlaceholders } from '@chaptale/creation/text';
 
-import type { EditMode } from '../protocol.ts';
+import { id, located, mapResult, nullableId, object, toolResult, type WorkToolKit } from './shared.ts';
 
-const id = Type.String({ minLength: 1 });
-const nullableId = Type.Union([id, Type.Null()]);
 const target = { workId: id, entryId: id };
 const revisionTarget = { ...target, expectedRevisionId: id };
 const section = Type.Union([Type.Literal('manuscript'), Type.Literal('resource')]);
@@ -33,115 +20,14 @@ const workReadParameters = Type.Object(
   },
   { additionalProperties: false }
 );
-// OpenAI 兼容接口要求工具参数顶层为 type: object，不能用 Union；分支字段设为可选，组合由 creation 的参数校验判定。
-const object = <T extends Record<string, TSchema>>(fields: T) => Type.Object(fields, { additionalProperties: false });
-
-export const workWriteToolNames = new Set([
-  'work_edit',
-  'work_write',
-  'work_mkdir',
-  'work_mv',
-  'work_rm',
-  'work_record_write'
-]);
-export const workToolNames = new Set([
-  'work_ls',
-  'work_read',
-  'work_find',
-  'work_grep',
-  'work_search',
-  'work_record_ls',
-  ...workWriteToolNames
-]);
-
-function located<T extends Entry>(workId: string, entry: T) {
-  const { id: entryId, ...metadata } = entry;
-  return { workId, entryId, ...metadata };
-}
-
-function agentRecord<T extends RecordSnapshot>(record: T) {
-  const { id: recordId, ...fields } = record;
-  return { recordId, ...fields };
-}
-function agentRelation<T extends RelationSnapshot>(relation: T) {
-  const { id: relationId, ...fields } = relation;
-  return { relationId, ...fields };
-}
-
-/** 发生位置：章节 ID，或 opening（开篇之前）、undetermined（待定）。 */
-function placementOf(value: string): RecordPlacement {
-  return value === 'opening' || value === 'undetermined' ? { kind: value } : { kind: 'chapter', chapterId: value };
-}
-
-const recordWriteParameters = object({
-  workId: id,
-  basis: Type.String(),
-  recordId: Type.Optional(id),
-  expectedRevisionId: Type.Optional(id),
-  remove: Type.Optional(Type.Literal(true)),
-  resourceIds: Type.Optional(Type.Array(id, { minItems: 1 })),
-  text: Type.Optional(Type.String({ minLength: 1 })),
-  sourceId: Type.Optional(nullableId),
-  sourceRevisionId: Type.Optional(id),
-  placement: Type.Optional(id),
-  storyTime: Type.Optional(Type.String())
-});
 
 /** Markdown 插图对 Agent 显示为文字占位，写入时还原。 */
 function agentText(document: { format: 'txt' | 'markdown'; content: string }) {
   return document.format === 'markdown' ? toIllustrationPlaceholders(document.content) : document.content;
 }
 
-function toolResult(result: CreationResult<JsonValue>) {
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-    details: result,
-    structuredContent: result,
-    isError: !result.ok
-  };
-}
-
-function mapResult<T, U>(result: CreationResult<T>, map: (value: T) => U): CreationResult<U> {
-  return result.ok ? { ok: true, value: map(result.value) } : result;
-}
-
-/** 作品工具只转换公共参数；身份、内容与候选规则由宿主和 creation 持有。 */
-export function createWorkTools(
-  application: CreationApplication,
-  mode: (sessionId: string) => EditMode,
-  onPendingWrite: (sessionId: string) => void
-): ToolDefinition[] {
-  function written(context: CreationAgentContext, workId: string, result: CreationResult<AgentWriteResult>) {
-    if (result.ok && result.value.kind === 'pending') onPendingWrite(context.sessionId);
-    return mapResult(result, (value): JsonValue => {
-      if (value.kind === 'trashed')
-        return { kind: value.kind, entries: value.entries.map(entry => located(workId, entry)) };
-      if (value.kind === 'saved') return { kind: value.kind, entry: located(workId, value.entry) };
-      if (value.kind === 'record')
-        return { kind: value.removed ? 'removed' : 'saved', record: agentRecord(value.record) };
-      if (value.kind === 'relation')
-        return { kind: value.removed ? 'removed' : 'saved', relation: agentRelation(value.relation) };
-      const { change } = value;
-      if (change.target === 'record')
-        return { kind: value.kind, ...(change.deleted && { removed: true }), record: agentRecord(change.candidate) };
-      if (change.target === 'relation')
-        return {
-          kind: value.kind,
-          ...(change.deleted && { removed: true }),
-          relation: agentRelation(change.candidate)
-        };
-      return { kind: value.kind, entry: located<Entry>(workId, change.candidate) };
-    });
-  }
-
-  /**
-   * 模型的写入参数按字段组合决定命令，由 creation 入口按命令 schema 校验并拒绝混用字段；
-   * 这里只承担写入命令（writeContent、createEntry、renameEntry、moveEntry）的统一输出类型。
-   */
-  function executeWrite(context: CreationAgentContext, command: { method: string; input: unknown }) {
-    return application.executeAgent(context, command) as CreationResult<AgentWriteResult>;
-  }
-
+/** 作品、目录与正文条目的浏览、读取、检索与写入。 */
+export function entryTools({ application, mode, written, executeWrite, tool }: WorkToolKit): ToolDefinition[] {
   /** 条目元数据；文件条目附带文件名、是否图片、当前大小与路径，供 Agent 用原始工具读取。 */
   async function describe(workId: string, entries: Entry[]): Promise<JsonValue[]> {
     const described: JsonValue[] = [];
@@ -185,32 +71,6 @@ export function createWorkTools(
         };
       }
     );
-  }
-
-  function tool<S extends TSchema>(
-    name: string,
-    label: string,
-    description: string,
-    parameters: S,
-    execute: (
-      input: Parameters<ToolDefinition<S>['execute']>[1],
-      context: CreationAgentContext,
-      commandId: string
-    ) => CreationResult<JsonValue> | Promise<CreationResult<JsonValue>>
-  ): ToolDefinition {
-    return defineTool({
-      name,
-      label,
-      description,
-      parameters,
-      async execute(toolCallId, input, signal, _onUpdate, ctx) {
-        signal?.throwIfAborted();
-        const sessionId = ctx.sessionManager.getSessionId();
-        return toolResult(
-          await execute(input, { sessionId, mode: mode(sessionId) }, JSON.stringify([sessionId, toolCallId]))
-        );
-      }
-    });
   }
 
   return [
@@ -449,106 +309,6 @@ export function createWorkTools(
           input.workId,
           application.executeAgent(context, { method: 'deleteEntry', input: { ...input, commandId } })
         )
-    ),
-    tool(
-      'work_record_ls',
-      '列出作品事件',
-      '列出作品中的事件，按发生位置排序；审阅模式包含本会话待接受修改。resourceId 只列涉及该资料的事件；sourceId 只列出自该章的事件；asOf 为章节 ID 时只列截至该章发生的事件与待定事件。placement 为 chapter（附 chapterId）、opening（开篇之前）或 undetermined（待定）。',
-      object({
-        workId: id,
-        resourceId: Type.Optional(nullableId),
-        sourceId: Type.Optional(nullableId),
-        asOf: Type.Optional(nullableId)
-      }),
-      (input, context) =>
-        mapResult(
-          application.executeAgent(context, {
-            method: 'listRecords',
-            input: {
-              workId: input.workId,
-              resourceId: input.resourceId ?? null,
-              sourceId: input.sourceId ?? null,
-              asOf: input.asOf ?? null
-            }
-          }),
-          (records): JsonValue => records.map(agentRecord)
-        )
-    ),
-    tool(
-      'work_record_write',
-      '写入作品事件',
-      [
-        '新建、修改或移除一条事件。basis 填写所依据的章节原文片段，供作者核对。',
-        '新建提供 resourceIds（涉及的资料条目 ID，新资料先用 work_write 在资料区新建）与 text；出自章节时提供 sourceId 与读取所得 sourceRevisionId，省略 sourceId 表示作者在对话中补充。',
-        'placement 为发生章节 ID、opening（开篇之前）或 undetermined（待定），新建时省略则取 sourceId 章节。',
-        '修改提供 recordId、expectedRevisionId 与要改的字段，未提供的字段保持不变；sourceId 为 null 表示改为作者补充。移除提供 recordId、expectedRevisionId 与 remove: true。',
-        '审阅模式写入本会话候选；移除本会话尚未接受的新建事件时直接撤回。'
-      ].join(''),
-      recordWriteParameters,
-      (input, context, commandId) => {
-        const { workId, basis, recordId, expectedRevisionId } = input;
-        if (input.remove)
-          return written(
-            context,
-            workId,
-            executeWrite(context, {
-              method: 'removeRecord',
-              input: { commandId, workId, recordId, expectedRevisionId, basis }
-            })
-          );
-        const source = (sourceId: string | null): RecordSource =>
-          sourceId === null
-            ? { kind: 'author' }
-            : { kind: 'chapter', chapterId: sourceId, revisionId: input.sourceRevisionId! };
-        if (recordId === undefined) {
-          const placement = input.placement ?? input.sourceId;
-          if (!placement)
-            return { ok: false, error: { code: 'invalid-request', message: '未提供 sourceId 时需指定 placement' } };
-          return written(
-            context,
-            workId,
-            executeWrite(context, {
-              method: 'createRecord',
-              input: {
-                commandId,
-                workId,
-                resourceIds: input.resourceIds,
-                text: input.text,
-                source: source(input.sourceId ?? null),
-                placement: placementOf(placement),
-                storyTime: input.storyTime ?? '',
-                basis
-              }
-            })
-          );
-        }
-        const listed = application.executeAgent(context, {
-          method: 'listRecords',
-          input: { workId, resourceId: null, sourceId: null, asOf: null }
-        });
-        if (!listed.ok) return listed;
-        const current = listed.value.find(record => record.id === recordId);
-        if (!current) return { ok: false, error: { code: 'invalid-request', message: '事件不存在' } };
-        return written(
-          context,
-          workId,
-          executeWrite(context, {
-            method: 'updateRecord',
-            input: {
-              commandId,
-              workId,
-              recordId,
-              expectedRevisionId,
-              resourceIds: input.resourceIds ?? current.resourceIds,
-              text: input.text ?? current.text,
-              source: input.sourceId === undefined ? current.source : source(input.sourceId),
-              placement: input.placement === undefined ? current.placement : placementOf(input.placement),
-              storyTime: input.storyTime ?? current.storyTime,
-              basis
-            }
-          })
-        );
-      }
     )
   ];
 }

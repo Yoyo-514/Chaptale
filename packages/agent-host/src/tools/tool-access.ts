@@ -1,4 +1,6 @@
-import type { ExtensionFactory, ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { createToolSearchExtension, type ExtensionFactory, type ToolDefinition } from '@earendil-works/pi-coding-agent';
+
+const toolSearchName = 'tool_search';
 
 /** 只传递本次授权所需的数据，不把带模型与凭据的 SDK context 交给界面。 */
 export interface HostToolRequest {
@@ -20,6 +22,8 @@ export interface HostToolAccess {
   tools: ToolDefinition[];
   /** 每次实际执行重新求值；父工具获准不代表嵌套调用获准。 */
   authorize: HostToolAuthorizer;
+  /** tool_search 加载工具后调用，宿主据此按会话状态校正声明的工具。 */
+  onToolsLoaded?: (sessionId: string) => void;
 }
 
 function aborted(): Error {
@@ -58,6 +62,7 @@ function authorizeCall(
 export function bindHostTools(access: HostToolAccess): {
   tools: ToolDefinition[];
   names: string[];
+  deferred: Set<string>;
   guard: ExtensionFactory;
 } {
   const names = access.tools.map(tool => tool.name);
@@ -67,9 +72,13 @@ export function bindHostTools(access: HostToolAccess): {
   ) {
     throw new Error('工具名必须唯一且不能包含 SDK 选择器通配符或修饰前缀');
   }
+  // 延迟加载的工具由 pi 原生 tool_search 按需声明；加载后的调用仍经过下方授权。
+  const deferred = new Set(access.tools.filter(tool => tool.exposure === 'deferred').map(tool => tool.name));
+  if (deferred.size > 0) names.push(toolSearchName);
   const registered = new Set(names);
   return {
     names,
+    deferred,
     tools: access.tools.map(tool => ({
       ...tool,
       async execute(toolCallId, params, signal, onUpdate, ctx) {
@@ -95,6 +104,12 @@ export function bindHostTools(access: HostToolAccess): {
     })),
     // 激活原生内置工具不等于应用授予了执行权；未显式注册的工具一律阻断。
     guard: pi => {
+      if (deferred.size > 0) {
+        createToolSearchExtension()(pi);
+        pi.on('tool_result', (event, ctx) => {
+          if (event.toolName === toolSearchName) access.onToolsLoaded?.(ctx.sessionManager.getSessionId());
+        });
+      }
       pi.on('tool_call', event => {
         if (!registered.has(event.toolName)) return { block: true, reason: '工具未在应用宿主中授权注册' };
       });
