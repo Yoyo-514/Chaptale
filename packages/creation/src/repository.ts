@@ -42,7 +42,15 @@ export type CommitEffect =
   | { kind: 'relation'; removed: boolean }
   | { kind: 'move'; from: { parentId: string | null; position: number } };
 
-export type CommitResult = Work | Entry | Entry[] | PendingChange | DeliveryGroup | StoryRecord | StoryRelation;
+export type CommitResult =
+  | Work
+  | Entry
+  | Entry[]
+  | PendingChange
+  | DeliveryGroup
+  | StoryRecord
+  | StoryRelation
+  | { count: number };
 
 /** 事件的一次修订；顺序不进入修订。 */
 export interface RecordRevision {
@@ -175,6 +183,9 @@ export interface WorkRepository {
   /** 单条关系移入回收站，自成一个删除批次。 */
   trashRelation(relationId: string, batchId: string, now: number): void;
   isRelationTrashed(relationId: string): boolean;
+  /** 建立／结束随出处章节进入回收站；关系保存时不再列出它们。 */
+  trashMilestones(milestoneIds: readonly string[], batchId: string, now: number): void;
+  hasTrashedStart(relationId: string): boolean;
 }
 
 /**

@@ -137,6 +137,12 @@ export class SqliteWorkRepository implements WorkRepository {
   trashRelation(relationId: string, batchId: string, now: number): void {
     relations.trashRelation(this.connect(), relationId, batchId, now);
   }
+  trashMilestones(milestoneIds: readonly string[], batchId: string, now: number): void {
+    relations.trashMilestones(this.connect(), milestoneIds, batchId, now);
+  }
+  hasTrashedStart(relationId: string): boolean {
+    return relations.hasTrashedStart(this.connect(), relationId);
+  }
   isRelationTrashed(relationId: string): boolean {
     return relations.isRelationTrashed(this.connect(), relationId);
   }

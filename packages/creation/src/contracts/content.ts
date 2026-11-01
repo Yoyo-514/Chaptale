@@ -69,10 +69,12 @@ export interface TrashBatch {
   deletedAt: number;
   roots: Entry[];
   entryCount: number;
-  /** 单独删除的事件；随资料删除的事件不单列。 */
+  /** 单独删除或随出处章节删除的事件。 */
   records: StoryRecordRef[];
-  /** 单独删除的关系。 */
+  /** 单独删除的关系，以及建立／结束全部随出处章节删除的关系。 */
   relations: StoryRelationRef[];
+  /** 随出处章节删除、所属关系仍在的建立／结束数量。 */
+  milestoneCount: number;
 }
 /** 回收站中关系的摘要。 */
 export interface StoryRelationRef {
@@ -110,6 +112,19 @@ export interface WorkCommandInput {
 export interface TrashImpact {
   entryCount: number;
   pendingCount: number;
+  /** 随出处章节移入回收站的事件。 */
+  recordCount: number;
+  /** 随出处章节移入回收站的关系建立／结束，含整条移走的关系中的。 */
+  milestoneCount: number;
+  /** 发生位置在被删章节、出处在别处的记录，删除后待重新定位。 */
+  relocatedCount: number;
+  /** 状态会改变的关系：从 fromChapterId 起显示为 state，removed 表示整条随章节移走。 */
+  relationChanges: {
+    relationId: string;
+    type: string;
+    resourceIds: [string, string];
+    change: { kind: 'removed' } | { kind: 'state'; fromChapterId: string; state: 'active' | 'ended' | 'undetermined' };
+  }[];
 }
 
 export interface CreateWorkInput {

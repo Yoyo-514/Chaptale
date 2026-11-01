@@ -13,6 +13,7 @@ import type { CreationRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
 import { recordSnapshot } from './record/merge.ts';
 import { relationSnapshot } from './relation/merge.ts';
+import { storySources } from './removal.ts';
 
 /** 自动归集待审修改；作者处理完成后继续，或结束任务把剩余候选留作历史待审。 */
 export class DeliveryService {
@@ -54,11 +55,16 @@ export class DeliveryService {
           : change.target === 'record'
             ? work.isRecordTrashed(change.targetId)
             : work.isRelationTrashed(change.targetId);
+      const sourceTrashed =
+        change.target !== 'entry' &&
+        storySources(change).some(source => source.kind === 'chapter' && work.isTrashed(source.chapterId));
       const decision: DeliveryDecision = change.authorEdited
         ? 'edited'
         : change.status === 'rejected' && trashed
           ? 'deleted'
-          : (change.status as 'accepted' | 'rejected');
+          : change.status === 'rejected' && sourceTrashed
+            ? 'sourceDeleted'
+            : (change.status as 'accepted' | 'rejected');
       const fields = { workId: change.workId, targetId: change.targetId, decision };
       if (change.target === 'entry')
         return {

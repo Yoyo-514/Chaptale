@@ -27,6 +27,8 @@ import type {
   CreateRecordInput,
   MoveRecordInput,
   RemoveRecordInput,
+  ConfirmChapterInput,
+  SourceReview,
   StoryRecord,
   UpdateRecordInput
 } from './contracts/records.ts';
@@ -191,6 +193,10 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   createRecord: { input: CreateRecordInput; output: CreationResult<StoryRecord> };
   updateRecord: { input: UpdateRecordInput; output: CreationResult<StoryRecord> };
   moveRecord: { input: MoveRecordInput; output: CreationResult<StoryRecord> };
+  /** 各章待复核的事件与关系建立／结束。 */
+  listSourceReviews: { input: { workId: string }; output: CreationResult<SourceReview[]> };
+  /** 本章出处的事件与关系建立／结束绑定所给修订，返回实际改动的数量。 */
+  confirmChapter: { input: ConfirmChapterInput; output: CreationResult<{ count: number }> };
   /** 单个事件移入作品回收站。 */
   removeRecord: { input: RemoveRecordInput; output: CreationResult<StoryRecord> };
   createRelation: { input: CreateRelationInput; output: CreationResult<StoryRelation> };

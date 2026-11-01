@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 
 import type { Document, Entry, TrashBatch, TrashBatchInput, TrashEntriesInput, TrashImpact } from '../contracts.ts';
+import type { StoryRelation } from '../contracts/relations.ts';
+import { chapterRemoval, trashChapterStory } from '../records/chapter-removal.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
@@ -26,8 +28,31 @@ export class TrashService {
   }
 
   preview(workId: string, entryIds: string[]): TrashImpact {
-    const removed = subtree(this.repository.work(workId).listEntries(), entryIds);
-    return { entryCount: removed.size, pendingCount: this.review.countAffected(workId, removed) };
+    const work = this.repository.work(workId);
+    const entries = work.listEntries();
+    const removed = subtree(entries, entryIds);
+    const story = chapterRemoval(work, entries, removed);
+    const ref = (relation: StoryRelation) => ({
+      relationId: relation.id,
+      type: relation.type,
+      resourceIds: relation.resourceIds
+    });
+    return {
+      entryCount: removed.size,
+      pendingCount: this.review.countAffected(workId, removed),
+      recordCount: story.records.length,
+      milestoneCount:
+        story.milestones.reduce((sum, item) => sum + item.ids.length, 0) +
+        story.relations.reduce((sum, relation) => sum + relation.milestones.length, 0),
+      relocatedCount: story.relocated,
+      relationChanges: [
+        ...story.relations.map(relation => ({ ...ref(relation), change: { kind: 'removed' as const } })),
+        ...story.changes.map(({ relation, fromChapterId, state }) => ({
+          ...ref(relation),
+          change: { kind: 'state' as const, fromChapterId, state }
+        }))
+      ]
+    };
   }
 
   trash(input: TrashEntriesInput): Entry[] {
@@ -45,7 +70,11 @@ export class TrashService {
             throw new Error('条目不存在');
           }
         }
-        const ids = new Set(work.trashEntries(input.entryIds, randomUUID(), Date.now()));
+        const batchId = randomUUID();
+        const now = Date.now();
+        const story = chapterRemoval(work, entries, subtree(entries, input.entryIds));
+        const ids = new Set(work.trashEntries(input.entryIds, batchId, now));
+        trashChapterStory(work, story, batchId, now);
         return entries.filter(entry => ids.has(entry.id));
       }
     );

@@ -88,9 +88,9 @@ export function relationState(
     const { placement } = milestone;
     if (placement.kind === 'undetermined') continue;
     const rank = placement.kind === 'opening' ? -1 : chapters.indexOf(placement.chapterId);
-    if (placement.kind === 'chapter' && (rank === -1 ? asOf !== null : rank >= limit)) continue;
-    const effective = placement.kind === 'chapter' && rank === -1 ? chapters.length : rank;
-    if (latest === null || effective >= latest.rank) latest = { rank: effective, kind: milestone.kind };
+    // 发生章节已不在文稿区的待重新定位，与待定一样不参与。
+    if (placement.kind === 'chapter' && (rank === -1 || rank >= limit)) continue;
+    if (latest === null || rank >= latest.rank) latest = { rank, kind: milestone.kind };
   }
   if (latest === null) return 'undetermined';
   return latest.kind === 'start' ? 'active' : 'ended';

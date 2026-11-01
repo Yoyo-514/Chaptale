@@ -14,6 +14,7 @@ import type {
 import { groupRecords } from '../contracts.ts';
 import { RevisionConflictError } from '../errors.ts';
 import { applyRecordSnapshot, assertRecord, normalizeRecord } from '../records/commit.ts';
+import { sourceChecker } from '../records/sources.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { DeliveryService } from '../review/delivery.ts';
 import { overlayEntries } from '../review/entry/overlay.ts';
@@ -43,7 +44,10 @@ export class AgentRecordService {
   }
 
   /** 审阅模式下候选覆盖正式事件，待移除的事件隐藏；候选的 revisionId 为候选版本。 */
-  list(context: CreationAgentContext, input: CreationAgentCommands['listRecords']['input']): StoryRecord[] {
+  list(
+    context: CreationAgentContext,
+    input: CreationAgentCommands['listRecords']['input']
+  ): (StoryRecord & { sourceChanged: boolean })[] {
     const { workId, resourceId, sourceId, asOf } = input;
     const work = this.repository.work(workId);
     let records = work.listRecords();
@@ -70,12 +74,12 @@ export class AgentRecordService {
     }
     if (asOf !== null && !entries.some(entry => entry.id === asOf && entry.section === 'manuscript'))
       throw new Error('查看进度的章节不存在');
+    const changed = sourceChecker(work);
     return groupRecords(records, entries, asOf)
       .flatMap(group => group.records)
       .filter(record => resourceId === null || record.resourceIds.includes(resourceId))
-      .filter(
-        record => sourceId === null || (record.source.kind === 'chapter' && record.source.chapterId === sourceId)
-      );
+      .filter(record => sourceId === null || (record.source.kind === 'chapter' && record.source.chapterId === sourceId))
+      .map(record => ({ ...record, sourceChanged: changed(record.source) }));
   }
 
   write(context: CreationAgentContext, command: RecordCommand): AgentWriteResult {

@@ -14,6 +14,7 @@ import type {
 } from '../contracts.ts';
 import { relationState, relationTypes } from '../contracts.ts';
 import { RevisionConflictError } from '../errors.ts';
+import { sourceChecker } from '../records/sources.ts';
 import { applyRelationSnapshot, assertRelation, normalizeRelation, relationSnapshot } from '../relations/commit.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { DeliveryService } from '../review/delivery.ts';
@@ -46,13 +47,21 @@ export class AgentRelationService {
 
   list(context: CreationAgentContext, input: CreationAgentCommands['listRelations']['input']): Listed {
     const { workId, resourceId, asOf } = input;
-    const { entries, relations } = this.visible(context, workId);
+    const { work, entries, relations } = this.visible(context, workId);
+    const changed = sourceChecker(work);
     if (asOf !== null && !entries.some(entry => entry.id === asOf && entry.section === 'manuscript'))
       throw new Error('查看进度的章节不存在');
     return {
       relations: relations
         .filter(relation => resourceId === null || relation.resourceIds.includes(resourceId))
-        .map(relation => ({ ...relation, state: relationState(relation, entries, asOf) })),
+        .map(relation => ({
+          ...relation,
+          milestones: relation.milestones.map(milestone => ({
+            ...milestone,
+            sourceChanged: changed(milestone.source)
+          })),
+          state: relationState(relation, entries, asOf)
+        })),
       types: relationTypes(relations)
     };
   }

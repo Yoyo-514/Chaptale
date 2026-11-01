@@ -61,7 +61,7 @@ export function relationSnapshot(
 }
 
 /**
- * 双方须为两份不同的资料，至少一条建立；同名类型的方向与预设及本作品其他关系一致。
+ * 双方须为两份不同的资料，至少一条建立（含回收站中的）；同名类型的方向与预设及本作品其他关系一致。
  * 修改时沿用已失效的资料与章节引用不再校验。entries 为可见目录，审阅模式含本会话候选。
  */
 export function assertRelation(
@@ -71,7 +71,7 @@ export function assertRelation(
   entries: readonly Entry[],
   others: readonly RelationSnapshot[]
 ): void {
-  assertRelationShape(fields);
+  assertRelationShape(fields, work.hasTrashedStart(fields.id));
   for (const id of fields.resourceIds)
     if (!previous?.resourceIds.includes(id) && !isResource(entries, id))
       throw new Error('关系涉及的资料不存在或不是资料文档');
@@ -84,12 +84,13 @@ export function assertRelation(
     throw new Error(`关系类型“${fields.type}”在本作品中${used.directed ? '有方向' : '无方向'}，请保持一致`);
 }
 
-/** 不涉及引用的规则；作者手改候选时先行检查，引用在接受时校验。 */
-export function assertRelationShape(fields: RelationSnapshot): void {
+/** 不涉及引用的规则；作者手改候选时先行检查，引用在接受时校验。随出处章节进入回收站的建立仍算作已有建立。 */
+export function assertRelationShape(fields: RelationSnapshot, trashedStart: boolean): void {
   if (fields.resourceIds[0] === fields.resourceIds[1]) throw new Error('关系双方不能是同一份资料');
   if (!fields.type) throw new Error('关系类型不能为空');
   if (!fields.titles[0] || !fields.titles[1]) throw new Error('两端称呼不能为空');
-  if (!fields.milestones.some(milestone => milestone.kind === 'start')) throw new Error('关系至少要有一条建立');
+  if (!trashedStart && !fields.milestones.some(milestone => milestone.kind === 'start'))
+    throw new Error('关系至少要有一条建立');
   if (new Set(fields.milestones.map(milestone => milestone.id)).size !== fields.milestones.length)
     throw new Error('建立或结束不能重复');
 }

@@ -130,6 +130,8 @@ const inputs = {
   updateRecord: object(updateRecord),
   moveRecord: object({ commandId: id, workId: id, recordId: id, beforeId: parentId }),
   removeRecord: object(removeRecord),
+  listSourceReviews: object({ workId: id }),
+  confirmChapter: object({ commandId: id, workId: id, chapterId: id, revisionId: id }),
   createRelation: object(createRelation),
   updateRelation: object(updateRelation),
   removeRelation: object(removeRelation),

@@ -46,6 +46,12 @@ export const relationSchema = `
     batchId TEXT NOT NULL,
     deletedAt INTEGER NOT NULL
   ) STRICT;
+  CREATE TABLE IF NOT EXISTS milestone_trash (
+    milestoneId TEXT PRIMARY KEY REFERENCES story_relation_milestones(id),
+    batchId TEXT NOT NULL,
+    deletedAt INTEGER NOT NULL
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS milestone_trash_batch ON milestone_trash(batchId);
 `;
 
 interface RelationRow {
@@ -69,10 +75,12 @@ interface MilestoneRow {
 }
 
 const visible = 'id NOT IN (SELECT relationId FROM relation_trash)';
+/** 随出处章节进入回收站的建立／结束不出现在关系上，保存关系时保留原行。 */
+const visibleMilestone = 'id NOT IN (SELECT milestoneId FROM milestone_trash)';
 
 function toRelation(database: Database.Database, row: RelationRow): StoryRelation {
   const milestones = database
-    .prepare('SELECT * FROM story_relation_milestones WHERE relationId = ? ORDER BY position')
+    .prepare(`SELECT * FROM story_relation_milestones WHERE relationId = ? AND ${visibleMilestone} ORDER BY position`)
     .all(row.id) as MilestoneRow[];
   return {
     id: row.id,
@@ -135,7 +143,9 @@ export function saveRelation(
       revisionId: revision.id,
       createdAt: revision.createdAt
     });
-  database.prepare('DELETE FROM story_relation_milestones WHERE relationId = ?').run(snapshot.id);
+  database
+    .prepare(`DELETE FROM story_relation_milestones WHERE relationId = ? AND ${visibleMilestone}`)
+    .run(snapshot.id);
   const insert = database.prepare(`
     INSERT INTO story_relation_milestones (id, relationId, kind, source, placement, storyTime, position)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -173,6 +183,40 @@ export function trashRelation(database: Database.Database, relationId: string, b
     .run(relationId, batchId, now);
 }
 
+/** 建立／结束随出处章节移入回收站。 */
+export function trashMilestones(
+  database: Database.Database,
+  milestoneIds: readonly string[],
+  batchId: string,
+  now: number
+): void {
+  const insert = database.prepare('INSERT INTO milestone_trash (milestoneId, batchId, deletedAt) VALUES (?, ?, ?)');
+  for (const id of milestoneIds) insert.run(id, batchId, now);
+}
+
+/** 关系有建立在回收站中；保存时计入“至少一条建立”。 */
+export function hasTrashedStart(database: Database.Database, relationId: string): boolean {
+  return (
+    database
+      .prepare(
+        "SELECT 1 FROM milestone_trash t JOIN story_relation_milestones m ON m.id = t.milestoneId WHERE m.relationId = ? AND m.kind = 'start'"
+      )
+      .get(relationId) !== undefined
+  );
+}
+
+/** 批次中随章节移走、所属关系仍在的建立／结束数量。 */
+export function trashedMilestoneCount(database: Database.Database, batchId: string): number {
+  return (
+    database
+      .prepare(
+        `SELECT count(*) AS count FROM milestone_trash t JOIN story_relation_milestones m ON m.id = t.milestoneId
+         WHERE t.batchId = ? AND m.relationId NOT IN (SELECT relationId FROM relation_trash WHERE batchId = t.batchId)`
+      )
+      .get(batchId) as { count: number }
+  ).count;
+}
+
 /** 回收站批次中的关系摘要。 */
 export function trashedRelations(database: Database.Database, batchId: string): StoryRelationRef[] {
   return (
@@ -186,12 +230,18 @@ export function trashedRelations(database: Database.Database, batchId: string): 
 
 export function restoreRelations(database: Database.Database, batchId: string): void {
   database.prepare('DELETE FROM relation_trash WHERE batchId = ?').run(batchId);
+  database.prepare('DELETE FROM milestone_trash WHERE batchId = ?').run(batchId);
 }
 
 /** 永久删除关系及其建立／结束、修订与回收站记录。 */
 function deleteRelations(database: Database.Database, relationIds: readonly string[]): void {
   for (const id of relationIds) {
     database.prepare('DELETE FROM relation_trash WHERE relationId = ?').run(id);
+    database
+      .prepare(
+        'DELETE FROM milestone_trash WHERE milestoneId IN (SELECT id FROM story_relation_milestones WHERE relationId = ?)'
+      )
+      .run(id);
     database.prepare('DELETE FROM story_relation_milestones WHERE relationId = ?').run(id);
     database.prepare('DELETE FROM story_relation_revisions WHERE relationId = ?').run(id);
     database.prepare('DELETE FROM story_relations WHERE id = ?').run(id);
@@ -199,6 +249,14 @@ function deleteRelations(database: Database.Database, relationIds: readonly stri
 }
 
 export function purgeRelations(database: Database.Database, batchId: string): void {
+  database.prepare('CREATE TEMP TABLE IF NOT EXISTS purge_milestones (id TEXT PRIMARY KEY)').run();
+  database.prepare('DELETE FROM temp.purge_milestones').run();
+  database
+    .prepare('INSERT INTO temp.purge_milestones SELECT milestoneId FROM milestone_trash WHERE batchId = ?')
+    .run(batchId);
+  database.prepare('DELETE FROM milestone_trash WHERE batchId = ?').run(batchId);
+  database.prepare('DELETE FROM story_relation_milestones WHERE id IN (SELECT id FROM temp.purge_milestones)').run();
+  database.prepare('DELETE FROM temp.purge_milestones').run();
   deleteRelations(
     database,
     (

@@ -54,7 +54,7 @@ export class StoryReview {
   updateRelation(input: UpdateRelationReviewInput): PendingChange {
     const view = this.checked(input, 'relation');
     const candidate = relationSnapshot(view.change.targetId, input, view.candidate);
-    assertRelationShape(candidate);
+    assertRelationShape(candidate, this.repository.work(view.change.workId).hasTrashedStart(candidate.id));
     return this.edited(view.change, {
       base: view.current ? snapshotOf(view.current) : null,
       candidate,

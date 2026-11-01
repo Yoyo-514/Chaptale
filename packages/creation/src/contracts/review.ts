@@ -21,6 +21,7 @@ import type {
   CreateRelationInput,
   MilestoneInput,
   RelationInput,
+  RelationMilestone,
   RelationSnapshot,
   RelationState,
   RelationType,
@@ -122,7 +123,7 @@ export interface DeliveryView {
 }
 
 /** 整篇接受、整篇拒绝，或作者逐处决定、手改过（以正式内容为准）；deleted：作者删除了目标，候选随删除一并拒绝。 */
-export type DeliveryDecision = 'accepted' | 'rejected' | 'edited' | 'deleted';
+export type DeliveryDecision = 'accepted' | 'rejected' | 'edited' | 'deleted' | 'sourceDeleted';
 export type DeliveryContent =
   | {
       target: 'entry';
@@ -298,10 +299,10 @@ export interface CreationAgentCommands extends CreationReadCommands {
     input: { commandId: string; workId: string; entryId: string; expectedRevisionId: string };
     output: CreationResult<AgentWriteResult>;
   };
-  /** 审阅模式包含本会话候选；asOf 为章节 ID 时只返回截至该章发生的事件和待定事件。 */
+  /** 审阅模式包含本会话候选；asOf 为章节 ID 时只返回截至该章发生的事件和待定事件；sourceChanged 表示出处章节正文在核对后改过。 */
   listRecords: {
     input: { workId: string; resourceId: string | null; sourceId: string | null; asOf: string | null };
-    output: CreationResult<StoryRecord[]>;
+    output: CreationResult<(StoryRecord & { sourceChanged: boolean })[]>;
   };
   createRecord: { input: CreateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
   updateRecord: { input: UpdateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
@@ -309,7 +310,13 @@ export interface CreationAgentCommands extends CreationReadCommands {
   /** 审阅模式包含本会话候选；state 按 asOf 计算，types 为可选关系类型。 */
   listRelations: {
     input: { workId: string; resourceId: string | null; asOf: string | null };
-    output: CreationResult<{ relations: (StoryRelation & { state: RelationState })[]; types: RelationType[] }>;
+    output: CreationResult<{
+      relations: (Omit<StoryRelation, 'milestones'> & {
+        milestones: (RelationMilestone & { sourceChanged: boolean })[];
+        state: RelationState;
+      })[];
+      types: RelationType[];
+    }>;
   };
   createRelation: { input: CreateRelationInput & { basis: string }; output: CreationResult<AgentWriteResult> };
   /** 只提交改动：省略的关系字段保持不变，未列出的建立或结束保持不变。 */

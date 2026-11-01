@@ -61,7 +61,7 @@ export function trashEntries(database: Database.Database, rootIds: readonly stri
 export function listTrash(database: Database.Database): TrashBatch[] {
   const batches = database
     .prepare('SELECT batchId AS id, max(deletedAt) AS deletedAt, count(*) AS entryCount FROM trash GROUP BY batchId')
-    .all() as Omit<TrashBatch, 'roots' | 'records' | 'relations'>[];
+    .all() as Omit<TrashBatch, 'roots' | 'records' | 'relations' | 'milestoneCount'>[];
   for (const batch of [...records.recordTrashBatches(database), ...relations.relationTrashBatches(database)])
     if (!batches.some(item => item.id === batch.id)) batches.push({ ...batch, entryCount: 0 });
   // oxlint-disable-next-line unicorn/no-array-sort
@@ -70,7 +70,8 @@ export function listTrash(database: Database.Database): TrashBatch[] {
       ...batch,
       roots: batchRoots(database, batch.id),
       records: records.trashedRecords(database, batch.id),
-      relations: relations.trashedRelations(database, batch.id)
+      relations: relations.trashedRelations(database, batch.id),
+      milestoneCount: relations.trashedMilestoneCount(database, batch.id)
     }))
     .sort((a, b) => b.deletedAt - a.deletedAt || a.id.localeCompare(b.id));
 }

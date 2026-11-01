@@ -124,7 +124,7 @@ describe('作品回收站', () => {
   it('删除时一并拒绝指向这些条目的待审修改，续跑结果标为作者已删除', async () => {
     const t = await setup();
     const change = t.propose('Agent 改写的序章');
-    expect(t.author('previewTrash', { workId: t.work.id, entryIds: [t.document.id] })).toEqual({
+    expect(t.author('previewTrash', { workId: t.work.id, entryIds: [t.document.id] })).toMatchObject({
       entryCount: 1,
       pendingCount: 1
     });

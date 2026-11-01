@@ -43,6 +43,20 @@ export interface MoveRecordInput {
   recordId: string;
   beforeId: string | null;
 }
+/** 作者确认某章的事件与关系建立／结束仍适用，绑定打开核对时看到的正文修订。 */
+export interface ConfirmChapterInput {
+  commandId: string;
+  workId: string;
+  chapterId: string;
+  revisionId: string;
+}
+/** 一章待复核的事件与关系建立／结束：核对过的修订与当前正文不同；earliestRevisionId 为其中最早核对的修订。 */
+export interface SourceReview {
+  chapterId: string;
+  recordIds: string[];
+  milestoneIds: string[];
+  earliestRevisionId: string;
+}
 export interface RemoveRecordInput {
   commandId: string;
   workId: string;
@@ -70,9 +84,6 @@ export function chapterOrder(entries: readonly Entry[]): string[] {
   return order;
 }
 
-const placementKey = (placement: RecordPlacement): string =>
-  placement.kind === 'chapter' ? `chapter:${placement.chapterId}` : placement.kind;
-
 export interface PlacementGroup<T> {
   placement: RecordPlacement;
   items: T[];
@@ -83,8 +94,8 @@ export interface RecordGroup {
 }
 
 /**
- * 按发生位置分组：开篇之前、各章（章节顺序）、章节已不在文稿区的位置、待定；组内保持传入顺序。
- * asOf 为章节 ID 时只保留截至该章发生的项，待定项始终列出。
+ * 按发生位置分组：开篇之前、各章（章节顺序）、待重新定位（发生章节已不在文稿区，合为一组）、待定；组内保持传入顺序。
+ * asOf 为章节 ID 时只保留截至该章发生的项，待重新定位与待定项始终列出。
  */
 export function groupByPlacement<T extends { placement: RecordPlacement }>(
   items: readonly T[],
@@ -94,8 +105,12 @@ export function groupByPlacement<T extends { placement: RecordPlacement }>(
   const chapters = chapterOrder(entries);
   const limit = asOf === null ? chapters.length : chapters.indexOf(asOf) + 1;
   const groups = new Map<string, PlacementGroup<T>>();
+  const key = (placement: RecordPlacement): string => {
+    if (placement.kind !== 'chapter') return placement.kind;
+    return chapters.includes(placement.chapterId) ? `chapter:${placement.chapterId}` : 'relocate';
+  };
   for (const item of items) {
-    const id = placementKey(item.placement);
+    const id = key(item.placement);
     const group = groups.get(id) ?? { placement: item.placement, items: [] };
     group.items.push(item);
     groups.set(id, group);
@@ -110,7 +125,7 @@ export function groupByPlacement<T extends { placement: RecordPlacement }>(
     .filter(group => {
       if (asOf === null || group.placement.kind !== 'chapter') return true;
       const index = chapters.indexOf(group.placement.chapterId);
-      return index !== -1 && index < limit;
+      return index === -1 || index < limit;
     })
     .sort((a, b) => rank(a.placement) - rank(b.placement));
 }

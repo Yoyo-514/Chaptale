@@ -156,6 +156,10 @@ export class CreationApplication {
         return this.records.move(command.input);
       case 'removeRecord':
         return this.records.remove(command.input);
+      case 'listSourceReviews':
+        return this.records.sourceReviews(command.input.workId);
+      case 'confirmChapter':
+        return this.records.confirmChapter(command.input);
       case 'createRelation':
         return this.relations.create(command.input);
       case 'updateRelation':
