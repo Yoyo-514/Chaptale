@@ -1,7 +1,7 @@
 import { isImageFile, type Entry, type EntryChange } from '@chaptale/creation/contracts';
 
-/** 行上的待审标记：新建候选、Agent 提出的删除、正式条目有待接受修改，按此优先级只显示一种。 */
-export type RowMark = 'new' | 'deleting' | 'modified' | null;
+/** 行上的待审标记：新建候选、Agent 提出的删除、正式条目有待接受修改、资料有待接受的事件或关系，按此优先级只显示一种。 */
+export type RowMark = 'new' | 'deleting' | 'modified' | 'story' | null;
 
 export interface TreeRow {
   entry: Entry;
@@ -11,7 +11,12 @@ export interface TreeRow {
   mark: RowMark;
 }
 
-const markLabels = { new: '新建，待接受', deleting: '待接受删除', modified: '有待接受修改' } as const;
+const markLabels = {
+  new: '新建，待接受',
+  deleting: '待接受删除',
+  modified: '有待接受修改',
+  story: '有待接受的事件或关系'
+} as const;
 
 /** 新建的待接受条目按候选位置显示在正式目录中；只展开 expandedIds 中的目录。 */
 export function buildRows(input: {
@@ -19,6 +24,8 @@ export function buildRows(input: {
   pendingChanges: readonly EntryChange[];
   /** 有待接受修改的正式条目，含待接受删除。 */
   modifiedIds: ReadonlySet<string>;
+  /** 有待接受事件或关系的资料。 */
+  storyIds: ReadonlySet<string>;
   section: Entry['section'];
   expandedIds: readonly string[];
 }): TreeRow[] {
@@ -40,7 +47,9 @@ export function buildRows(input: {
           ? 'deleting'
           : input.modifiedIds.has(entry.id)
             ? 'modified'
-            : null;
+            : input.storyIds.has(entry.id)
+              ? 'story'
+              : null;
       rows.push({ entry, depth, pending, mark });
       if (entry.kind === 'directory' && input.expandedIds.includes(entry.id)) visit(entry.id, depth + 1);
     }

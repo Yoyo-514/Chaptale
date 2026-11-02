@@ -232,6 +232,19 @@ it('资料审阅标签列出事件候选，同一会话只在后台打开第一�
   expect(review.activeTab?.records.map(change => change.candidate.text)).toEqual(['柳七夜入城']);
 });
 
+it('已有资料的事件候选计入该资料的待审入口，从资料页可打开其审阅标签', async () => {
+  const resourceId = createResource('顾长风', 'author');
+  await flushPromises();
+  expect(creation.pendingStories.has(resourceId)).toBe(false);
+  const change = proposeRecord(resourceId, '顾长风守城');
+  await flushPromises();
+  expect(creation.pendingStories.get(resourceId)?.map(item => item.id)).toEqual([change.id]);
+  await review.reveal({ sessionId: change.sessionId, entryId: resourceId });
+  await flushPromises();
+  expect(review.activeTab).toMatchObject({ entryId: resourceId, review: null });
+  expect(review.activeTab?.records.map(item => item.candidate.text)).toEqual(['顾长风守城']);
+});
+
 it('新资料的事件改为关联已有资料，新资料候选随之拒绝；作者修改事件候选后接受', async () => {
   const existing = createResource('沈霁', 'author');
   await flushPromises();

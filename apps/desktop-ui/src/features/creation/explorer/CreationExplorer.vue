@@ -34,6 +34,7 @@ const rows = computed(() =>
     entries: creation.entries,
     pendingChanges: creation.pendingEntries,
     modifiedIds: creation.pendingEntryIds,
+    storyIds: new Set(creation.pendingStories.keys()),
     section: creation.view!.section,
     expandedIds: tree.value.expandedIds
   })
@@ -344,9 +345,9 @@ const treeDrop = useTreeDrop({
               <span class="entry-title" :title="entry.title"
                 >{{ entry.title
                 }}<span
-                  v-if="mark === 'deleting' || mark === 'modified'"
+                  v-if="mark === 'deleting' || mark === 'modified' || mark === 'story'"
                   class="entry-pending"
-                  title="有待接受修改"
+                  :title="mark === 'story' ? '有待接受的事件或关系' : '有待接受修改'"
                   aria-hidden="true" /></span
               ><span v-if="mark === 'new'" class="entry-meta">待接受</span
               ><span v-else-if="mark === 'deleting'" class="entry-meta entry-deleting">待接受删除</span

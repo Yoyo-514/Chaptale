@@ -7,6 +7,8 @@ import type {
   Entry,
   EntryChange,
   PendingChange,
+  RecordChange,
+  RelationChange,
   StoryRecord,
   StoryRelation,
   Work,
@@ -28,6 +30,11 @@ function upsert<T extends { id: string }>(items: T[], item: T, removed: boolean)
     : [...items, item];
 }
 
+/** 事件或关系候选涉及的资料：候选与修改前的并集，移除关联的资料也要看到这条修改。 */
+export function storyResources(change: RecordChange | RelationChange): string[] {
+  return [...new Set([...change.candidate.resourceIds, ...(change.base?.resourceIds ?? [])])];
+}
+
 /** 作品与目录取服务快照；本机导航只保存稳定身份和位置。 */
 export const useCreationStore = defineStore('creation', () => {
   const works = ref<Work[]>([]);
@@ -40,6 +47,14 @@ export const useCreationStore = defineStore('creation', () => {
   const pendingEntryIds = computed<ReadonlySet<string>>(
     () => new Set(pendingEntries.value.filter(change => change.base !== null).map(change => change.targetId))
   );
+  /** 各资料涉及的事件与关系候选（所有会话），供目录标记与资料页的审阅入口。 */
+  const pendingStories = computed(() => {
+    const byResource = new Map<string, (RecordChange | RelationChange)[]>();
+    for (const change of pendingChanges.value)
+      if (change.target !== 'entry')
+        for (const id of storyResources(change)) byResource.set(id, [...(byResource.get(id) ?? []), change]);
+    return byResource;
+  });
   /** 当前作品的正式事件，按全作品顺序；资料页按资料筛选与分组。 */
   const records = ref<StoryRecord[]>([]);
   /** 当前作品的正式关系；资料页按资料筛选。 */
@@ -353,6 +368,7 @@ export const useCreationStore = defineStore('creation', () => {
     pendingChanges,
     pendingEntries,
     pendingEntryIds,
+    pendingStories,
     records,
     relations,
     state,

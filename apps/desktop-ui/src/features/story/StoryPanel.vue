@@ -9,6 +9,7 @@ import {
   type RelationInput
 } from '@chaptale/creation/contracts';
 
+import { AppButton } from '@/components/AppButton';
 import { AppCollapsible } from '@/components/AppCollapsible';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
@@ -34,6 +35,8 @@ const emit = defineEmits<{
   decide: [change: RecordChange | RelationChange, decision: 'accept' | 'reject'];
   updateRecord: [change: RecordChange, fields: RecordFields];
   updateRelation: [change: RelationChange, input: RelationInput];
+  /** 资料页上打开本资料的审阅标签，sessionId 为候选所在会话。 */
+  review: [sessionId: string];
 }>();
 const creation = useCreationStore();
 const asOf = ref('all');
@@ -49,7 +52,11 @@ const relations = computed(() =>
 const milestones = computed(() =>
   milestoneRows(relations.value, props.resourceId, creation.entries, creation.pendingEntries)
 );
-const pending = computed(() => (props.candidates?.records.length ?? 0) + (props.candidates?.relations.length ?? 0));
+/** 资料页（非审阅视图）上，本资料涉及的待接受事件与关系，审阅在审阅标签中进行。 */
+const elsewhere = computed(() => (props.candidates ? [] : (creation.pendingStories.get(props.resourceId) ?? [])));
+const pending = computed(
+  () => (props.candidates?.records.length ?? 0) + (props.candidates?.relations.length ?? 0) + elsewhere.value.length
+);
 /** 默认折叠；有待接受的候选时展开。 */
 const open = ref(pending.value > 0);
 watch(pending, (count, previous) => {
@@ -88,6 +95,10 @@ const summary = computed(() =>
           <span v-if="!open && summary" class="story-summary">{{ summary }}</span>
         </button>
       </template>
+      <p v-if="elsewhere.length" class="story-review" role="status">
+        有 {{ elsewhere.length }} 条待接受的事件或关系
+        <AppButton size="xs" variant="primary" @click="emit('review', elsewhere[0]!.sessionId)">去审阅</AppButton>
+      </p>
       <AppScrollArea class="story-scroll">
         <RelationList
           ref="relationList"
@@ -158,6 +169,18 @@ const summary = computed(() =>
 .story-title {
   flex-shrink: 0;
   color: var(--foreground);
+}
+.story-review {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  margin: 0 12px 6px 32px;
+  padding: 4px 4px 4px 10px;
+  border-radius: var(--radius-control-sm);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--foreground);
+  font-size: var(--ui-caption-size);
 }
 .story-pending {
   flex-shrink: 0;

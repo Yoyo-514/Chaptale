@@ -18,7 +18,7 @@ import type {
   ReviewView
 } from '@chaptale/creation/contracts';
 
-import { requestCreation, useCreationStore } from '@/features/creation';
+import { requestCreation, storyResources, useCreationStore } from '@/features/creation';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { serializeLike } from './chunk-range';
@@ -74,11 +74,6 @@ function editorFocused() {
 }
 
 const tabKey = (sessionId: string, entryId: string) => `${sessionId}:${entryId}`;
-
-/** 事件或关系候选涉及的资料：候选与修改前的并集，移除关联的资料也要看到这条修改。 */
-export function storyResources(change: RecordChange | RelationChange): string[] {
-  return [...new Set([...change.candidate.resourceIds, ...(change.base?.resourceIds ?? [])])];
-}
 
 /** 候选所在的审阅标签：条目修改归条目自身，事件与关系归第一份涉及的资料。 */
 /** 须先处理本章正文的事件与关系候选：出处修订不是该章待审前的正式修订，即指向本会话待审正文。 */
