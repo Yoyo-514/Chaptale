@@ -32,6 +32,7 @@ async function prepare() {
   await page.getByRole('textbox', { name: '文档标题', exact: true }).fill('顾长风');
   await page.getByRole('button', { name: '创建文档', exact: true }).click();
 
+  await workbench.expandStory();
   const events = page.getByRole('region', { name: '事件', exact: true });
   await events.getByRole('button', { name: '添加事件', exact: true }).click();
   await events.getByRole('textbox', { name: '事件内容', exact: true }).fill('顾长风守城');
@@ -79,6 +80,8 @@ test('章节正文改过后提示核对，核对标签里确认后提醒消失�
   await expect(chip).toBeVisible();
   await page.getByRole('tablist', { name: '内容区域' }).getByRole('tab', { name: '资料', exact: true }).click();
   await page.getByRole('treeitem', { name: '顾长风' }).click();
+  await expect(page.getByRole('region', { name: '关系与事件', exact: true })).toContainText('1 条待核对');
+  await workbench.expandStory();
   await expect(page.getByRole('region', { name: '事件', exact: true }).getByText('《第一章》已改过')).toBeVisible();
 });
 
@@ -99,5 +102,6 @@ test('删除来源章节时确认框写明影响，事件随章节进回收站�
 
   await page.getByRole('tablist', { name: '内容区域' }).getByRole('tab', { name: '资料', exact: true }).click();
   await page.getByRole('treeitem', { name: '顾长风' }).click();
+  await workbench.expandStory();
   await expect(page.getByRole('region', { name: '事件', exact: true }).getByText('顾长风守城')).toBeVisible();
 });

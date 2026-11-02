@@ -112,6 +112,7 @@ test('TXT 文稿右键插入插图先转为 Markdown；粘贴截图放进“插�
   // 添加后自动展开“插图”目录。
   await expect(page.getByRole('treeitem', { name: '插图', exact: true })).toBeVisible();
   await expect(page.getByRole('treeitem', { name: /^粘贴的图片.*\.png$/ })).toBeVisible();
+  await expect(page.getByRole('treeitem', { name: /^粘贴的图片.*\.png$/ }).locator('img')).toBeVisible();
 
   await body.click();
   await body.press('Control+Home');

@@ -51,6 +51,14 @@ export class Workbench {
     await rm(this.home, { recursive: true, force: true });
   }
 
+  /** 资料页的关系与事件默认折叠。 */
+  async expandStory() {
+    await this.page
+      .getByRole('region', { name: '关系与事件', exact: true })
+      .getByRole('button', { name: /^关系与事件/ })
+      .click();
+  }
+
   async createWork(title: string) {
     await this.page.getByRole('button', { name: '新建作品', exact: true }).click();
     await this.page.getByRole('textbox', { name: '作品名称', exact: true }).fill(title);

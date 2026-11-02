@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import {
   chapterOrder,
@@ -36,7 +36,6 @@ const emit = defineEmits<{
   updateRelation: [change: RelationChange, input: RelationInput];
 }>();
 const creation = useCreationStore();
-const open = ref(true);
 const asOf = ref('all');
 const progress = computed(() => (asOf.value === 'all' ? null : asOf.value));
 const relationList = ref<InstanceType<typeof RelationList> | null>(null);
@@ -51,6 +50,26 @@ const milestones = computed(() =>
   milestoneRows(relations.value, props.resourceId, creation.entries, creation.pendingEntries)
 );
 const pending = computed(() => (props.candidates?.records.length ?? 0) + (props.candidates?.relations.length ?? 0));
+/** 默认折叠；有待接受的候选时展开。 */
+const open = ref(pending.value > 0);
+watch(pending, (count, previous) => {
+  if (count > previous) open.value = true;
+});
+const ownRecords = computed(() => creation.records.filter(record => record.resourceIds.includes(props.resourceId)));
+const toCheck = computed(
+  () =>
+    ownRecords.value.filter(record => props.changedSources.has(record.id)).length +
+    relations.value.flatMap(item => item.relation.milestones).filter(item => props.changedSources.has(item.id)).length
+);
+/** 折叠时的摘要：关系、事件数量，无内容时省略。 */
+const summary = computed(() =>
+  [
+    relations.value.length && `${relations.value.length} 条关系`,
+    ownRecords.value.length && `${ownRecords.value.length} 条事件`
+  ]
+    .filter(Boolean)
+    .join(' · ')
+);
 </script>
 
 <template>
@@ -65,6 +84,8 @@ const pending = computed(() => (props.candidates?.records.length ?? 0) + (props.
           />
           <span class="story-title">关系与事件</span>
           <span v-if="pending" class="story-pending">{{ pending }} 条待接受</span>
+          <span v-if="toCheck" class="story-pending">{{ toCheck }} 条待核对</span>
+          <span v-if="!open && summary" class="story-summary">{{ summary }}</span>
         </button>
       </template>
       <AppScrollArea class="story-scroll">
@@ -95,7 +116,7 @@ const pending = computed(() => (props.candidates?.records.length ?? 0) + (props.
       </AppScrollArea>
     </AppCollapsible>
     <!-- 进度与折叠触发器并列，避免控件嵌套在按钮里。 -->
-    <div class="story-progress">
+    <div v-if="open" class="story-progress">
       <span class="story-label">截至</span>
       <AppSelect v-model="asOf" class="story-asof" variant="ghost" size="sm" aria-label="查看到">
         <AppSelectItem value="all">全部章节</AppSelectItem>
@@ -144,6 +165,10 @@ const pending = computed(() => (props.candidates?.records.length ?? 0) + (props.
   color: var(--foreground);
   font-size: var(--ui-caption-size);
   line-height: 20px;
+}
+.story-summary {
+  flex-shrink: 0;
+  font-size: var(--ui-caption-size);
 }
 .story-progress {
   position: absolute;

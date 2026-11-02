@@ -44,6 +44,7 @@ test('资料页逐条添加事件，按发生章节分组，重启后保留并�
   await page.getByRole('textbox', { name: '文档标题', exact: true }).fill('林晚');
   await page.getByRole('button', { name: '创建文档', exact: true }).click();
 
+  await workbench.expandStory();
   await addRecord('林晚入京', '第一章');
   await addRecord('林晚离京', '第二章', '三年后');
   const events = page.getByRole('region', { name: '事件', exact: true });
@@ -56,6 +57,7 @@ test('资料页逐条添加事件，按发生章节分组，重启后保留并�
   page = workbench.page;
   await openResources();
   await page.getByRole('treeitem', { name: '林晚' }).click();
+  await workbench.expandStory();
   const reopened = page.getByRole('region', { name: '事件', exact: true });
   await expect(reopened.getByText('林晚入京', { exact: true })).toBeVisible();
   await expect(reopened.getByText('三年后 · 作者补充', { exact: true })).toBeVisible();

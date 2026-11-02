@@ -8,6 +8,7 @@ import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContext
 import { AppAlertDialog } from '@/components/AppDialog';
 import { toErrorMessage } from '@/utils/desktop-api';
 
+import { entryIcon } from '../explorer/tree-rows';
 import { useCreationStore } from '../store';
 import { useTrashStore } from './store';
 
@@ -28,7 +29,7 @@ function batchRows(batch: TrashBatch): TrashRow[] {
       key: entry.id,
       title: entry.title,
       label: entry.section === 'resource' ? '资料' : '文稿',
-      icon: entry.kind === 'document' ? 'i-mingcute-file-line' : 'i-mingcute-folder-line',
+      icon: entry.kind === 'directory' ? 'i-mingcute-folder-line' : entryIcon(entry, false),
       entry
     })),
     ...storyRows(batch)

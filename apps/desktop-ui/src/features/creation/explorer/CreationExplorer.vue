@@ -14,6 +14,7 @@ import { canChooseOpener, runFileAction } from '../files/files';
 import { useCreationStore } from '../store';
 import TrashPanel from '../trash/TrashPanel.vue';
 import EntryDialogs from './EntryDialogs.vue';
+import EntryThumbnail from './EntryThumbnail.vue';
 import { useTreeDrop } from './tree-drop';
 import { buildRows, entryIcon, fileType, rowLabel } from './tree-rows';
 
@@ -332,7 +333,9 @@ const treeDrop = useTreeDrop({
             @click="open(entry, pending)"
             @keydown="keydown($event, entry)"
           >
+            <EntryThumbnail v-if="isImageFile(entry)" :work-id="creation.workId!" :entry="entry" />
             <span
+              v-else
               class="entry-icon"
               :class="entryIcon(entry, tree.expandedIds.includes(entry.id))"
               aria-hidden="true"

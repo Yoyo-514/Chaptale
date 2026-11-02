@@ -27,6 +27,11 @@ const busy = ref(false);
 const error = ref('');
 // 确认框先关闭再派发 confirm，删除目标与打开状态分开保存。
 const removing = ref<({ entry: Entry } & TrashImpact) | null>(null);
+const nameLabels = {
+  document: { noun: '文档', field: '文档标题' },
+  directory: { noun: '目录', field: '目录名称' },
+  file: { noun: '文件', field: '文件名称' }
+} as const;
 const stateNames = { active: '进行中', ended: '已结束', undetermined: '起止待定' } as const;
 const titleOf = (id: string) => creation.entries.find(item => item.id === id)?.title ?? '已删除的资料';
 /** 删除章节对事件与关系的影响，逐行写明。 */
@@ -154,7 +159,7 @@ defineExpose({ rename, move, remove });
   <AppDialog
     content-size="sm"
     :open="Boolean(action)"
-    :title="action === 'rename' ? (target?.kind === 'document' ? '重命名文档' : '重命名目录') : '移动条目'"
+    :title="action === 'rename' ? `重命名${nameLabels[target?.kind ?? 'directory'].noun}` : '移动条目'"
     @update:open="
       value => {
         if (!value && !busy) action = null;
@@ -163,8 +168,8 @@ defineExpose({ rename, move, remove });
   >
     <AppForm class="entry-form" :disabled="busy" @submit="submit">
       <label v-if="action === 'rename'"
-        >{{ target?.kind === 'document' ? '文档标题' : '目录名称'
-        }}<AppInput v-model="title" :aria-label="target?.kind === 'document' ? '文档标题' : '目录名称'" autofocus
+        >{{ nameLabels[target?.kind ?? 'directory'].field
+        }}<AppInput v-model="title" :aria-label="nameLabels[target?.kind ?? 'directory'].field" autofocus
       /></label>
       <label v-else
         >目标目录<AppSelect v-model="parent" aria-label="目标目录"

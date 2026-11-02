@@ -42,6 +42,7 @@ test('资料页新建关系，事件列表穿插关系变化，重启后保留�
   await createResource('顾长风');
   await createResource('林晚');
 
+  await workbench.expandStory();
   const relations = page.getByRole('region', { name: '关系', exact: true });
   await relations.getByRole('button', { name: '添加关系', exact: true }).click();
   await choose(relations.getByRole('combobox', { name: '对方', exact: true }), '顾长风');
@@ -65,6 +66,7 @@ test('资料页新建关系，事件列表穿插关系变化，重启后保留�
   page = workbench.page;
   await openResources();
   await page.getByRole('treeitem', { name: '林晚' }).click();
+  await workbench.expandStory();
   await choose(page.getByRole('combobox', { name: '查看到', exact: true }), '第一章');
   const reopened = page.getByRole('region', { name: '关系', exact: true });
   const reopenedRow = reopened.getByRole('button', { name: /^师父\s*顾长风/ });
@@ -76,6 +78,7 @@ test('资料页新建关系，事件列表穿插关系变化，重启后保留�
 
   // 另一方资料页从自己的视角显示同一条关系。
   await page.getByRole('treeitem', { name: '顾长风' }).click();
+  await workbench.expandStory();
   const masterRelations = page.getByRole('region', { name: '关系', exact: true });
   const masterRow = masterRelations.getByRole('button', { name: /^徒弟\s*林晚/ });
   await expect(masterRow).toBeVisible();
