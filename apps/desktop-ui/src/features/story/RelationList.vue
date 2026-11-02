@@ -27,6 +27,8 @@ const props = defineProps<{
   asOf: string | null;
   items: RelationItem[];
   reviewing: boolean;
+  /** 须先处理本章正文的候选 ID。 */
+  waiting?: ReadonlySet<string>;
   busy?: boolean;
   /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
   changedSources: ReadonlySet<string>;
@@ -249,6 +251,9 @@ function remove(item: RelationItem) {
           </div>
           <template v-if="row.change">
             <p v-if="row.change.basis" class="relation-basis">依据：{{ row.change.basis }}</p>
+            <p v-if="waiting?.has(row.change.id)" class="relation-conflict" role="status">
+              出处是本章待接受的新正文，先处理本章正文。
+            </p>
             <p v-if="row.change.conflicts.length" class="relation-conflict" role="status">
               Agent 修改期间正式关系也有变化，展开检查后修改并保存即视为已解决。
             </p>
@@ -267,8 +272,14 @@ function remove(item: RelationItem) {
               <AppButton
                 size="xs"
                 variant="primary"
-                :disabled="locked || row.change.conflicts.length > 0"
-                :title="row.change.conflicts.length ? '请先处理冲突' : undefined"
+                :disabled="locked || row.change.conflicts.length > 0 || waiting?.has(row.change.id)"
+                :title="
+                  row.change.conflicts.length
+                    ? '请先处理冲突'
+                    : waiting?.has(row.change.id)
+                      ? '先处理本章正文'
+                      : undefined
+                "
                 @click="emit('decide', row.change, 'accept')"
                 >接受</AppButton
               >

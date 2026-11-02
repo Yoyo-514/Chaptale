@@ -38,6 +38,7 @@ export interface ReviewTab {
   review: EntryReviewView | null;
   records: RecordChange[];
   relations: RelationChange[];
+  waiting: ReadonlySet<string>;
   status: 'loading' | 'ready' | 'error';
   error: string;
   dirty: boolean;
@@ -80,6 +81,32 @@ export function storyResources(change: RecordChange | RelationChange): string[] 
 }
 
 /** 候选所在的审阅标签：条目修改归条目自身，事件与关系归第一份涉及的资料。 */
+/** 须先处理本章正文的事件与关系候选：出处修订不是该章待审前的正式修订，即指向本会话待审正文。 */
+function waitingChanges(changes: PendingChange[]): Set<string> {
+  const drafts = new Map(
+    changes
+      .filter((change): change is EntryChange => change.target === 'entry')
+      .map(change => [change.targetId, change.base?.revisionId ?? null])
+  );
+  return new Set(
+    changes
+      .filter(
+        change =>
+          change.target !== 'entry' &&
+          (change.target === 'record'
+            ? [change.candidate.source]
+            : change.candidate.milestones.map(milestone => milestone.source)
+          ).some(
+            source =>
+              source.kind === 'chapter' &&
+              drafts.has(source.chapterId) &&
+              drafts.get(source.chapterId) !== source.revisionId
+          )
+      )
+      .map(change => change.id)
+  );
+}
+
 function changeEntryId(change: PendingChange) {
   return change.target === 'entry' ? change.targetId : change.candidate.resourceIds[0];
 }
@@ -146,6 +173,7 @@ export const useReviewStore = defineStore('review', () => {
           (change): change is RelationChange =>
             change.target === 'relation' && storyResources(change).includes(tab.entryId)
         );
+        const waiting = waitingChanges(changes);
         const review = own ? entryReview(await requestCreation('readReview', { changeId: own.id })) : null;
         if (!find(key)) return;
         // 文稿处理完即关闭；资料留在标签上提示下一份，资料的新建或修改被拒绝、删除被接受后关闭。
@@ -155,8 +183,8 @@ export const useReviewStore = defineStore('review', () => {
         }
         if (tab.dirty) {
           if (tab.review && review?.change.version !== tab.review.change.version)
-            patch(key, { outdated: true, records, relations });
-          else patch(key, { records, relations });
+            patch(key, { outdated: true, records, relations, waiting });
+          else patch(key, { records, relations, waiting });
           return;
         }
         if (review) states.set(key, createReviewState(review));
@@ -165,6 +193,7 @@ export const useReviewStore = defineStore('review', () => {
           review,
           records,
           relations,
+          waiting,
           title: review?.candidate.title ?? entryTitle(tab.entryId),
           status: 'ready',
           error: '',
@@ -199,6 +228,7 @@ export const useReviewStore = defineStore('review', () => {
           review: null,
           records: [],
           relations: [],
+          waiting: new Set(),
           status: 'loading',
           error: '',
           dirty: false,

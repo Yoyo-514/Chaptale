@@ -25,7 +25,7 @@ import { milestoneRows, relationItems } from './relations';
 const props = defineProps<{
   workId: string;
   resourceId: string;
-  candidates?: { records: RecordChange[]; relations: RelationChange[] };
+  candidates?: { records: RecordChange[]; relations: RelationChange[]; waiting: ReadonlySet<string> };
   busy?: boolean;
   /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
   changedSources: ReadonlySet<string>;
@@ -96,6 +96,7 @@ const summary = computed(() =>
           :as-of="progress"
           :items="relations"
           :reviewing="candidates !== undefined"
+          :waiting="candidates?.waiting"
           :busy="busy"
           :changed-sources="changedSources"
           @decide="(change, decision) => emit('decide', change, decision)"
@@ -107,6 +108,7 @@ const summary = computed(() =>
           :as-of="progress"
           :milestones="milestones"
           :candidates="candidates?.records"
+          :waiting="candidates?.waiting"
           :busy="busy"
           :changed-sources="changedSources"
           @decide="(change, decision) => emit('decide', change, decision)"

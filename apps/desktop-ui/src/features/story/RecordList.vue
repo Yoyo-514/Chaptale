@@ -23,6 +23,8 @@ const props = defineProps<{
   asOf: string | null;
   milestones: MilestoneRow[];
   candidates?: RecordChange[];
+  /** 须先处理本章正文的候选 ID。 */
+  waiting?: ReadonlySet<string>;
   busy?: boolean;
   /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
   changedSources: ReadonlySet<string>;
@@ -262,6 +264,9 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
               <p v-if="changes.get(row.record.id)!.basis" class="record-basis">
                 依据：{{ changes.get(row.record.id)!.basis }}
               </p>
+              <p v-if="waiting?.has(changes.get(row.record.id)!.id)" class="record-conflict" role="status">
+                出处是本章待接受的新正文，先处理本章正文。
+              </p>
               <p v-if="changes.get(row.record.id)!.conflicts.length" class="record-conflict" role="status">
                 Agent 修改期间正式事件也有变化，检查后修改并保存即视为已解决。
               </p>
@@ -284,8 +289,18 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
                 <AppButton
                   size="xs"
                   variant="primary"
-                  :disabled="locked || changes.get(row.record.id)!.conflicts.length > 0"
-                  :title="changes.get(row.record.id)!.conflicts.length ? '请先处理冲突' : undefined"
+                  :disabled="
+                    locked ||
+                    changes.get(row.record.id)!.conflicts.length > 0 ||
+                    waiting?.has(changes.get(row.record.id)!.id)
+                  "
+                  :title="
+                    changes.get(row.record.id)!.conflicts.length
+                      ? '请先处理冲突'
+                      : waiting?.has(changes.get(row.record.id)!.id)
+                        ? '先处理本章正文'
+                        : undefined
+                  "
                   @click="emit('decide', changes.get(row.record.id)!, 'accept')"
                   >接受</AppButton
                 >

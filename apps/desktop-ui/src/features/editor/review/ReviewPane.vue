@@ -33,7 +33,7 @@ const next = computed(() => (done.value ? review.nextResource(props.tab) : null)
       :work-id="tab.workId"
       :resource-id="tab.entryId"
       :changed-sources="check.changedIds"
-      :candidates="{ records: tab.records, relations: tab.relations }"
+      :candidates="{ records: tab.records, relations: tab.relations, waiting: tab.waiting }"
       :busy="tab.busy"
       @decide="(change, decision) => review.decideStory(tab.key, change, decision)"
       @update-record="(change, fields) => review.updateRecord(tab.key, change, fields)"
