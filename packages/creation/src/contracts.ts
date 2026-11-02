@@ -130,6 +130,16 @@ export interface WorkPackageInfo {
   work: Work;
   exists: boolean;
 }
+/** 覆盖导入前保留的作品内容；每部作品只保留最新一份。 */
+export interface WorkSnapshot {
+  workId: string;
+  createdAt: number;
+}
+/** files 为被替换下来、待平台移入系统回收站的作品目录。 */
+export interface WorkReplacement {
+  work: Work;
+  files: string[];
+}
 export interface ImportWorkPackageInput {
   commandId: string;
   path: string;
@@ -247,7 +257,11 @@ export interface CreationCommands extends CreationAuthorCommands {
   exportFiles: { input: ExportFilesInput; output: CreationResult<ExportReport> };
   inspectWorkPackage: { input: { path: string }; output: CreationResult<WorkPackageInfo> };
   exportWorkPackage: { input: { workId: string; path: string }; output: CreationResult<null> };
-  importWorkPackage: { input: ImportWorkPackageInput; output: CreationResult<Work> };
+  /** 覆盖已有作品时拒绝该作品全部待审修改，原内容留作导入前快照；运行中会话的检查由宿主完成。 */
+  importWorkPackage: { input: ImportWorkPackageInput; output: CreationResult<WorkReplacement> };
+  listWorkSnapshots: { input: Record<string, never>; output: CreationResult<WorkSnapshot[]> };
+  /** 换回导入前快照并拒绝该作品全部待审修改；运行中会话的检查由宿主完成。 */
+  restoreWorkSnapshot: { input: WorkCommandInput; output: CreationResult<WorkReplacement> };
   addFiles: { input: AddFilesInput; output: CreationResult<AddFilesReport> };
   /** trashed 为 true 时定位回收站中的文件，只用于只读预览。 */
   locateFile: { input: { workId: string; entryId: string; trashed: boolean }; output: CreationResult<FileLocation> };

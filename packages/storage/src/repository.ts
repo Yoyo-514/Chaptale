@@ -2,13 +2,29 @@ import Database from 'better-sqlite3';
 import { existsSync } from 'node:fs';
 
 import type { CommandCommit, CommitEffect, CommitResult, CreationRepository } from '@chaptale/creation';
-import type { CreationChanges, CreationCursor, CreationSnapshot, Work } from '@chaptale/creation/contracts';
+import type {
+  CreationChanges,
+  CreationCursor,
+  CreationSnapshot,
+  Work,
+  WorkSnapshot
+} from '@chaptale/creation/contracts';
 
 import { commitCommand, readChanges, readCursor } from './commands.ts';
 import { openLibrary } from './library/database.ts';
 import { SqliteLibraryRepository } from './library/repository.ts';
 import { openWorkDatabase, workDatabaseFile, workDir } from './work/database.ts';
-import { exportWorkPackage, installWorkPackage, readWorkPackage } from './work/package.ts';
+import {
+  discardStagedWork,
+  exportWorkPackage,
+  installStagedWork,
+  listWorkSnapshots,
+  readWorkPackage,
+  readWorkSnapshot,
+  restoreWorkSnapshot,
+  stageWorkPackage,
+  workSnapshotDirs
+} from './work/package.ts';
 import { SqliteWorkRepository } from './work/repository.ts';
 
 export async function openCreationStorage(options: { rootDir: string }): Promise<CreationRepository> {
@@ -69,7 +85,7 @@ class SqliteCreationRepository implements CreationRepository {
       this.current = undefined;
     }
     const dir = workDir(this.rootDir, workId);
-    return existsSync(dir) ? [dir] : [];
+    return [...(existsSync(dir) ? [dir] : []), ...workSnapshotDirs(this.rootDir, workId)];
   }
 
   exportWorkPackage(workId: string, file: string): void {
@@ -82,9 +98,34 @@ class SqliteCreationRepository implements CreationRepository {
     return readWorkPackage(file);
   }
 
-  installWorkPackage(file: string, workId: string, replace: boolean): string | null {
-    if (replace) this.releaseWork(workId);
-    return installWorkPackage(this.rootDir, file, workId, replace);
+  stageWorkPackage(file: string, workId: string): void {
+    stageWorkPackage(this.rootDir, file, workId);
+  }
+
+  discardStagedWork(workId: string): void {
+    discardStagedWork(this.rootDir, workId);
+  }
+
+  installStagedWork(workId: string, previous: Work | null): () => void {
+    this.releaseWork(workId);
+    return installStagedWork(this.rootDir, workId, previous);
+  }
+
+  pruneWorkSnapshots(workId: string): string[] {
+    return workSnapshotDirs(this.rootDir, workId).slice(1);
+  }
+
+  listWorkSnapshots(): WorkSnapshot[] {
+    return listWorkSnapshots(this.rootDir);
+  }
+
+  readWorkSnapshot(workId: string): Work {
+    return readWorkSnapshot(this.rootDir, workId);
+  }
+
+  restoreWorkSnapshot(workId: string): { replaced: string; undo: () => void } {
+    this.releaseWork(workId);
+    return restoreWorkSnapshot(this.rootDir, workId);
   }
 
   close(): void {

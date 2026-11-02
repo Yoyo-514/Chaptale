@@ -10,6 +10,7 @@ import { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult, Entry, Work } from '@chaptale/creation/contracts';
 
 import { openCreationStorage } from '../index.ts';
+import { application, value } from './fixtures/review.ts';
 
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -61,21 +62,24 @@ async function exportPackage(app: CreationApplication, workId: string) {
   ok(await app.execute({ method: 'exportWorkPackage', input: { workId, path } }));
   return path;
 }
+function importPackage(app: CreationApplication, path: string, asCopy = false) {
+  return app.execute({ method: 'importWorkPackage', input: { commandId: randomUUID(), path, asCopy } });
+}
 async function contents(app: CreationApplication, workId: string) {
   const entries = ok(app.executeAuthor({ method: 'listEntries', input: { workId } }));
   const file = entries.find(entry => entry.kind === 'file')!;
   const located = ok(await app.execute({ method: 'locateFile', input: { workId, entryId: file.id, trashed: false } }));
+  const document = entries.find(entry => entry.kind === 'document')!;
   return {
     titles: entries.map(entry => entry.title).sort(),
-    text: ok(
-      app.executeAuthor({
-        method: 'readDocument',
-        input: { workId, documentId: entries.find(e => e.kind === 'document')!.id }
-      })
-    ).content,
+    text: ok(app.executeAuthor({ method: 'readDocument', input: { workId, documentId: document.id } })).content,
     image: [...(await readFile(located.path))]
   };
 }
+const workDirs = (rootDir: string, workId: string) =>
+  readdirSync(join(rootDir, 'works'))
+    .filter(name => name.startsWith(workId))
+    .sort();
 
 it('导出的作品包导入到另一作品库时按原 ID 加入，正文与资料文件一致', async () => {
   const { app, work } = await source();
@@ -85,10 +89,10 @@ it('导出的作品包导入到另一作品库时按原 ID 加入，正文与资
     work: { id: work.id, title: '长夜行', kind: 'novel' },
     exists: false
   });
-  const imported = ok(
-    await target.execute({ method: 'importWorkPackage', input: { commandId: randomUUID(), path, asCopy: false } })
-  );
-  expect(imported).toMatchObject({ id: work.id, title: '长夜行', kind: 'novel' });
+  expect(ok(await importPackage(target, path))).toMatchObject({
+    work: { id: work.id, title: '长夜行', kind: 'novel' },
+    files: []
+  });
   expect(await contents(target, work.id)).toEqual(await contents(app, work.id));
   expect(await contents(target, work.id)).toMatchObject({
     titles: ['城门.png', '第一章'],
@@ -97,34 +101,156 @@ it('导出的作品包导入到另一作品库时按原 ID 加入，正文与资
   });
 });
 
-it('同一作品库导入为副本得到新作品；覆盖时换成包内内容，原目录留作恢复快照', async () => {
+it('导入为副本得到新作品；覆盖时换成包内内容，只保留最新一份导入前快照', async () => {
   const { rootDir, app, work, chapter, author } = await source();
   const path = await exportPackage(app, work.id);
-  author('saveDocument', {
-    workId: work.id,
-    documentId: chapter.id,
-    expectedRevisionId: chapter.revisionId,
-    title: '第一章',
-    format: 'txt',
-    content: '导出后又改过。'
-  });
+  const save = (content: string) => {
+    const current = ok(
+      app.executeAuthor({ method: 'readDocument', input: { workId: work.id, documentId: chapter.id } })
+    );
+    author('saveDocument', {
+      workId: work.id,
+      documentId: chapter.id,
+      expectedRevisionId: current.revisionId,
+      title: '第一章',
+      format: 'txt',
+      content
+    });
+  };
+  save('导出后又改过。');
   expect(ok(await app.execute({ method: 'inspectWorkPackage', input: { path } })).exists).toBe(true);
 
-  const copy = ok(
-    await app.execute({ method: 'importWorkPackage', input: { commandId: randomUUID(), path, asCopy: true } })
-  );
+  const copy = ok(await importPackage(app, path, true)).work;
   expect(copy.id).not.toBe(work.id);
   expect(copy.title).toBe('长夜行（副本）');
   expect((await contents(app, copy.id)).text).toBe('夜里下着雨。');
   expect((await contents(app, work.id)).text).toBe('导出后又改过。');
 
-  ok(await app.execute({ method: 'importWorkPackage', input: { commandId: randomUUID(), path, asCopy: false } }));
+  expect(ok(await importPackage(app, path)).files).toEqual([]);
   expect((await contents(app, work.id)).text).toBe('夜里下着雨。');
-  const snapshots = readdirSync(join(rootDir, 'works')).filter(name => name.startsWith(`${work.id}.before-import-`));
-  expect(snapshots).toHaveLength(1);
-  const snapshot = new Database(join(rootDir, 'works', snapshots[0]!, 'work.sqlite'), { readonly: true });
+  const [first] = ok(await app.execute({ method: 'listWorkSnapshots', input: {} }));
+  expect(first).toMatchObject({ workId: work.id });
+  const snapshot = new Database(join(rootDir, 'works', `${work.id}.before-import-${first!.createdAt}`, 'work.sqlite'), {
+    readonly: true
+  });
   expect(snapshot.prepare('SELECT content FROM entries WHERE id = ?').pluck().get(chapter.id)).toBe('导出后又改过。');
   snapshot.close();
+
+  save('再改一次。');
+  await new Promise(resolve => setTimeout(resolve, 2));
+  const second = ok(await importPackage(app, path));
+  expect(second.files).toEqual([join(rootDir, 'works', `${work.id}.before-import-${first!.createdAt}`)]);
+  const snapshots = ok(await app.execute({ method: 'listWorkSnapshots', input: {} }));
+  expect(snapshots).toHaveLength(1);
+  expect(snapshots[0]!.createdAt).toBeGreaterThan(first!.createdAt);
+});
+
+it('覆盖导入拒绝该作品全部待审修改；本机草稿保留，按原基线保存时报修订冲突', async () => {
+  const fixture = await application();
+  const { work, document } = fixture;
+  const path = await exportPackage(fixture.app, work.id);
+  fixture.propose('Agent 的修改。');
+  fixture.save('导出后又改过。');
+  const edited = fixture.read();
+  const draft = {
+    workId: work.id,
+    documentId: document.id,
+    expectedRevisionId: edited.revisionId,
+    draftId: randomUUID(),
+    expectedDraftVersion: null,
+    title: document.title,
+    format: 'txt' as const,
+    content: '未保存的草稿'
+  };
+  value(fixture.app.executeAuthor({ method: 'writeDraft', input: draft }));
+
+  ok(await importPackage(fixture.app, path));
+  expect(
+    value(fixture.app.executeAuthor({ method: 'listPendingChanges', input: { workId: work.id, sessionId: null } }))
+  ).toEqual([]);
+  expect(fixture.read().content).toBe('将军守城。\n公主远行。');
+  expect(
+    value(fixture.app.executeAuthor({ method: 'readDraftState', input: { workId: work.id, documentId: document.id } }))
+  ).toMatchObject({ draft: { content: '未保存的草稿', expectedRevisionId: edited.revisionId } });
+  expect(
+    fixture.app.executeAuthor({
+      method: 'saveDocument',
+      input: {
+        commandId: randomUUID(),
+        workId: work.id,
+        documentId: document.id,
+        expectedRevisionId: edited.revisionId,
+        title: document.title,
+        format: 'txt',
+        content: '未保存的草稿'
+      }
+    })
+  ).toMatchObject({ ok: false, error: { code: 'revision-conflict' } });
+});
+
+it('换回导入前快照：恢复内容与作品信息，换下的目录交给平台，快照不再列出', async () => {
+  const { rootDir, app, work, chapter, author } = await source();
+  const path = await exportPackage(app, work.id);
+  const packaged = new Database(path);
+  packaged.prepare('UPDATE package_meta SET work = ?').run(JSON.stringify({ ...work, title: '包里的名字' }));
+  packaged.close();
+  const current = ok(app.executeAuthor({ method: 'readDocument', input: { workId: work.id, documentId: chapter.id } }));
+  author('saveDocument', {
+    workId: work.id,
+    documentId: chapter.id,
+    expectedRevisionId: current.revisionId,
+    title: '第一章',
+    format: 'txt',
+    content: '覆盖前的内容。'
+  });
+  ok(await importPackage(app, path));
+  expect(ok(app.executeAuthor({ method: 'listWorks', input: {} }))[0]!.title).toBe('包里的名字');
+
+  const restored = ok(
+    await app.execute({ method: 'restoreWorkSnapshot', input: { commandId: randomUUID(), workId: work.id } })
+  );
+  expect(restored.work.title).toBe('长夜行');
+  expect(restored.files).toHaveLength(1);
+  expect(restored.files[0]).toMatch(new RegExp(`${work.id}\\.replaced-\\d+$`));
+  expect(existsSync(restored.files[0]!)).toBe(true);
+  expect(ok(app.executeAuthor({ method: 'listWorks', input: {} }))[0]!.title).toBe('长夜行');
+  expect(await contents(app, work.id)).toMatchObject({ text: '覆盖前的内容。', image: [137, 80, 78, 71, 1, 2, 3] });
+  expect(ok(await app.execute({ method: 'listWorkSnapshots', input: {} }))).toEqual([]);
+  expect(existsSync(join(rootDir, 'works', work.id, 'work.json'))).toBe(false);
+  expect(
+    await app.execute({ method: 'restoreWorkSnapshot', input: { commandId: randomUUID(), workId: work.id } })
+  ).toMatchObject({ ok: false, error: { message: '这部作品没有导入前的内容' } });
+});
+
+it('覆盖导入在作品库提交失败时换回原目录，不留快照与展开目录', async () => {
+  const { rootDir, app, work } = await source();
+  const path = await exportPackage(app, work.id);
+  const before = await contents(app, work.id);
+  const library = new Database(join(rootDir, 'library.sqlite'));
+  library.exec(
+    "CREATE TRIGGER fail_receipt BEFORE INSERT ON command_receipts BEGIN SELECT RAISE(ABORT, '注入的提交失败'); END"
+  );
+  library.close();
+
+  expect(await importPackage(app, path)).toMatchObject({ ok: false, error: { message: '注入的提交失败' } });
+  expect(workDirs(rootDir, work.id)).toEqual([work.id]);
+  expect(await contents(app, work.id)).toEqual(before);
+
+  expect(await importPackage(app, path, true)).toMatchObject({ ok: false, error: { message: '注入的提交失败' } });
+  expect(readdirSync(join(rootDir, 'works'))).toEqual([work.id]);
+  expect(ok(app.executeAuthor({ method: 'listWorks', input: {} })).map(item => item.id)).toEqual([work.id]);
+});
+
+it('永久删除作品时导入前快照一并交给平台', async () => {
+  const { rootDir, app, work } = await source();
+  const path = await exportPackage(app, work.id);
+  ok(await importPackage(app, path));
+  ok(app.executeAuthor({ method: 'trashWork', input: { commandId: randomUUID(), workId: work.id } }));
+  const purged = ok(app.executeAuthor({ method: 'purgeWork', input: { commandId: randomUUID(), workId: work.id } }));
+  expect(purged.files.map(file => file.slice(join(rootDir, 'works').length + 1)).sort()).toEqual(
+    workDirs(rootDir, work.id)
+  );
+  expect(purged.files).toHaveLength(2);
 });
 
 it('非作品包与版本更新的作品包拒绝导入，作品库不变', async () => {
@@ -141,11 +267,11 @@ it('非作品包与版本更新的作品包拒绝导入，作品库不变', asyn
   database.pragma('user_version = 9');
   database.close();
   const target = await open(await temp());
-  expect(
-    await target.execute({ method: 'importWorkPackage', input: { commandId: randomUUID(), path, asCopy: false } })
-  ).toMatchObject({ ok: false, error: { message: '作品包由更新版本的 Chaptale 导出，请升级应用后导入' } });
+  expect(await importPackage(target, path)).toMatchObject({
+    ok: false,
+    error: { message: '作品包由更新版本的 Chaptale 导出，请升级应用后导入' }
+  });
   expect(ok(target.executeAuthor({ method: 'listWorks', input: {} }))).toEqual([]);
-  expect(existsSync(join(path, '..', `${work.id}.importing`))).toBe(false);
 });
 
 it('作品包里的文件路径指向条目目录之外时拒绝导入，不写出任何文件', async () => {
@@ -156,9 +282,10 @@ it('作品包里的文件路径指向条目目录之外时拒绝导入，不写�
   database.close();
   const rootDir = await temp();
   const target = await open(rootDir);
-  expect(
-    await target.execute({ method: 'importWorkPackage', input: { commandId: randomUUID(), path, asCopy: false } })
-  ).toMatchObject({ ok: false, error: { message: '作品包内容无效：文件路径不合法' } });
+  expect(await importPackage(target, path)).toMatchObject({
+    ok: false,
+    error: { message: '作品包内容无效：文件路径不合法' }
+  });
   expect(readdirSync(join(rootDir, 'works'))).toEqual([]);
   expect(existsSync(join(rootDir, '逃逸.txt'))).toBe(false);
   expect(ok(target.executeAuthor({ method: 'listWorks', input: {} }))).toEqual([]);

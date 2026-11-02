@@ -1,5 +1,5 @@
 import type { RpcClient, RpcCommand, RpcPacket, RpcReply, RpcRequest } from '@chaptale/contracts';
-import type { DeliveryView, Work } from '@chaptale/creation/contracts';
+import type { DeliveryView, ImportWorkPackageInput, Work, WorkReplacement } from '@chaptale/creation/contracts';
 
 /**
  * 原生 JSONL 中保存会话指令与修改模式的自定义记录类型。
@@ -176,6 +176,10 @@ export interface HostCommands {
   deleteSessions: { input: { sessionIds: string[] }; output: { files: string[] } };
   /** 把作品移入作品库回收站：属于它的会话在运行则拒绝，已打开的会话先关闭；会话归属保留。 */
   trashWork: { input: { commandId: string; workId: string }; output: Work };
+  /** 导入作品包；覆盖已有作品时属于它的会话在运行则拒绝，已打开的会话随后关闭。files 由平台移入回收站。 */
+  importWorkPackage: { input: ImportWorkPackageInput; output: WorkReplacement };
+  /** 换回导入前快照，会话规则同覆盖导入。files 由平台移入回收站。 */
+  restoreWorkSnapshot: { input: { commandId: string; workId: string }; output: WorkReplacement };
   model: { input: { id: string; model: ModelRef }; output: void };
   approve: { input: { id: string; allow: boolean }; output: void };
   /** 只读历史不能重命名。 */

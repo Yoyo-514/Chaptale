@@ -47,7 +47,7 @@ export class CreationApplication {
     this.review = new ReviewService(repository, this.service, this.delivery);
     this.trash = new TrashService(repository, this.service, this.review);
     this.workTrash = new WorkTrashService(repository, this.service, this.review);
-    this.workPackages = new WorkPackageService(repository, this.service);
+    this.workPackages = new WorkPackageService(repository, this.service, this.review);
     this.records = new RecordService(repository, this.service, this.review);
     this.relations = new RelationService(repository, this.service, this.review);
     this.agent = new CreationAgentService(
@@ -90,6 +90,10 @@ export class CreationApplication {
           return { ok: true, value: null };
         case 'importWorkPackage':
           return { ok: true, value: this.workPackages.import(file.input) };
+        case 'listWorkSnapshots':
+          return { ok: true, value: this.workPackages.listSnapshots() };
+        case 'restoreWorkSnapshot':
+          return { ok: true, value: this.workPackages.restore(file.input) };
         case 'locateFile':
           return {
             ok: true,

@@ -64,6 +64,8 @@ export const useCreationStore = defineStore('creation', () => {
   const connected = ref(false);
   const busy = ref(false);
   const error = ref('');
+  /** 单部作品打不开的原因（如结构版本过新）；只影响这部作品，作品库照常使用。 */
+  const workError = ref('');
   const stateError = ref('');
   const newWorkOpen = ref(false);
   const newEntry = ref<{ kind: Entry['kind']; parentId: string | null } | null>(null);
@@ -230,13 +232,19 @@ export const useCreationStore = defineStore('creation', () => {
         const restored = initialized ? state.value : await requestCreation('readWorkbench', {});
         await refreshLibrary();
         cursor = 0;
+        let reopened = Boolean(restored.activeWorkId);
         if (restored.activeWorkId) {
-          const snapshot = await requestCreation('snapshot', { workId: restored.activeWorkId });
-          if (snapshot.kind === 'work') applySnapshot(snapshot);
+          try {
+            const snapshot = await requestCreation('snapshot', { workId: restored.activeWorkId });
+            if (snapshot.kind === 'work') applySnapshot(snapshot);
+          } catch (cause) {
+            workError.value = `无法打开上次的作品：${toErrorMessage(cause)}`;
+            reopened = false;
+          }
         }
         if (!initialized) {
-          state.value = restored;
-          libraryOpen.value = !restored.activeWorkId;
+          state.value = reopened ? restored : { ...restored, activeWorkId: null };
+          libraryOpen.value = !reopened;
         }
         initialized = true;
         for (const event of buffered) apply(event);
@@ -261,7 +269,7 @@ export const useCreationStore = defineStore('creation', () => {
     }
     if (!(await confirmWorkspaceTransition())) return false;
     busy.value = true;
-    error.value = '';
+    workError.value = '';
     try {
       // 先完成目标读取，失败时原作品和输入继续留在界面。
       const snapshot = await requestCreation('snapshot', { workId: id });
@@ -272,7 +280,7 @@ export const useCreationStore = defineStore('creation', () => {
       libraryOpen.value = false;
       return true;
     } catch (cause) {
-      error.value = toErrorMessage(cause);
+      workError.value = toErrorMessage(cause);
       return false;
     } finally {
       busy.value = false;
@@ -295,6 +303,15 @@ export const useCreationStore = defineStore('creation', () => {
   async function trashWork(id: string): Promise<boolean> {
     if (id === workId.value && !(await confirmWorkspaceTransition())) return false;
     await getDesktopApi().agentHost.request('trashWork', { commandId: crypto.randomUUID(), workId: id });
+    dropWork(id);
+    await refreshLibrary();
+    return true;
+  }
+
+  /** 覆盖导入与恢复：先处理当前作品未保存的内容，换上后关闭该作品；作者取消时返回 false。 */
+  async function replaceWork(id: string, replace: () => Promise<unknown>): Promise<boolean> {
+    if (id === workId.value && !(await confirmWorkspaceTransition())) return false;
+    await replace();
     dropWork(id);
     await refreshLibrary();
     return true;
@@ -379,6 +396,7 @@ export const useCreationStore = defineStore('creation', () => {
     connected,
     busy,
     error,
+    workError,
     stateError,
     newWorkOpen,
     newEntry,
@@ -393,6 +411,7 @@ export const useCreationStore = defineStore('creation', () => {
     openWork,
     showLibrary,
     trashWork,
+    replaceWork,
     createWork,
     createEntry,
     move,

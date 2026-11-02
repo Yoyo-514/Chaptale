@@ -38,6 +38,9 @@ export class DesktopApplicationProcess {
       // 宿主进程不能使用 shell；删除会话时由主进程把宿主解析出的历史文件移入回收站。
       if (method === 'deleteSessions')
         for (const file of (output as { files: string[] }).files) await shell.trashItem(file);
+      // 覆盖导入与恢复换下的作品目录同样由主进程移入回收站。
+      if (method === 'importWorkPackage' || method === 'restoreWorkSnapshot')
+        for (const file of (output as { files: string[] }).files) await shell.trashItem(file);
       return output;
     },
     subscribe: listener => {

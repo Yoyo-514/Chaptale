@@ -16,10 +16,16 @@ const creation = useCreationStore();
 const trash = useWorkTrashStore();
 const packages = useWorkPackageStore();
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
-const workMenu: AppContextMenuItem[] = [
-  { id: 'export', label: '导出作品包' },
-  { id: 'delete', label: '删除作品', separatorBefore: true }
-];
+function workMenu(work: Work): AppContextMenuItem[] {
+  return [
+    { id: 'export', label: '导出作品包' },
+    ...(packages.snapshots.some(item => item.workId === work.id) ? [{ id: 'restore', label: '恢复导入前的版本' }] : []),
+    { id: 'delete', label: '删除作品', separatorBefore: true }
+  ];
+}
+// 确认框先关闭再派发 confirm，目标与开关分开保存。
+const restoring = ref<Work | null>(null);
+const restoreOpen = ref(false);
 const actionError = ref('');
 // 确认框先关闭再派发 confirm，目标与开关分开保存。
 const removing = ref<{ work: Work; pendingCount: number } | null>(null);
@@ -37,7 +43,11 @@ async function run(action: () => Promise<unknown>) {
 }
 function selectWorkAction(id: string, work: Work) {
   if (id === 'delete') askRemove(work);
-  else void packages.exportFromLibrary(work);
+  else if (id === 'export') void packages.exportFromLibrary(work);
+  else {
+    restoring.value = work;
+    restoreOpen.value = true;
+  }
 }
 function askRemove(work: Work) {
   void run(async () => {
@@ -79,10 +89,9 @@ function purge() {
       {{ creation.error }}
       <AppButton size="xs" :disabled="creation.busy" @click="creation.connect()">重新连接</AppButton>
     </div>
-    <p v-if="actionError || trash.error || packages.error" class="library-error" role="alert">
-      {{ actionError || trash.error || packages.error }}
+    <p v-if="actionError || trash.error || packages.error || creation.workError" class="library-error" role="alert">
+      {{ actionError || trash.error || packages.error || creation.workError }}
     </p>
-    <p v-else-if="packages.notice" class="library-notice" role="status">{{ packages.notice }}</p>
     <section v-if="trash.open" class="library-list" aria-label="作品库回收站">
       <p v-if="!trash.works.length" class="library-empty">回收站是空的。</p>
       <table v-else>
@@ -129,7 +138,7 @@ function purge() {
           <AppContextMenu
             v-for="work in creation.works"
             :key="work.id"
-            :items="workMenu"
+            :items="workMenu(work)"
             @select="id => selectWorkAction(id, work)"
           >
             <tr
@@ -152,9 +161,16 @@ function purge() {
       </table>
     </div>
     <AppAlertDialog
+      v-model:open="restoreOpen"
+      :title="`恢复《${restoring?.title}》导入前的版本？`"
+      description="作品会换回最近一次覆盖导入之前的内容，当前内容移入系统回收站，这部作品的待接受修改会被拒绝。"
+      confirm-label="恢复"
+      @confirm="restoring && packages.restoreSnapshot(restoring.id)"
+    />
+    <AppAlertDialog
       v-model:open="packages.conflictOpen"
       :title="`作品库中已有《${packages.conflict?.info.work.title}》`"
-      description="另存副本会新建一部作品。覆盖会把这部作品换成作品包里的内容，当前内容在作品目录旁留作恢复快照。"
+      description="另存副本会新建一部作品。覆盖会把这部作品换成作品包里的内容并拒绝它的待接受修改，之后可以在作品库右键菜单恢复导入前的版本。"
       confirm-label="另存为副本"
       @confirm="packages.resolveConflict(true)"
     >
@@ -296,11 +312,6 @@ tbody tr[aria-disabled='true'] {
   color: var(--foreground);
   font-size: 16px;
   font-weight: 500;
-}
-.library-notice {
-  margin: 0 0 12px;
-  color: var(--muted-foreground);
-  font-size: var(--ui-caption-size);
 }
 .import-overwrite {
   display: flex;

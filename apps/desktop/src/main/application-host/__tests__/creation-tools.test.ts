@@ -11,7 +11,7 @@ import { builtinWritingInstructions, createHostModelRuntime, HostModelConfigurat
 import { createHostApplication, HostApplication } from '@chaptale/agent-host/application';
 import { modeEntryType } from '@chaptale/agent-host/protocol';
 import { CreationApplication } from '@chaptale/creation/application';
-import type { CreationResult, EntrySnapshot } from '@chaptale/creation/contracts';
+import type { CreationResult, EntrySnapshot, WorkReplacement } from '@chaptale/creation/contracts';
 import { openCreationStorage } from '@chaptale/storage';
 
 let root: string;
@@ -1486,6 +1486,51 @@ it('删除作品时属于它的会话在运行则拒绝；停止后移入作品�
     sessionId,
     workId
   });
+});
+
+it('覆盖导入与恢复导入前版本：属于作品的会话在运行则拒绝；停止后替换内容并关闭会话', async () => {
+  const runtime = await restartWithTools([]);
+  await observeContinuation(runtime);
+  const sessionId = host.snapshot().sessions.find(item => item.id === id)!.sessionId!;
+  value(creation.executeAuthor({ method: 'assignSession', input: { sessionId, workId } }));
+  const path = join(await mkdtemp(join(tmpdir(), 'chaptale-package-')), '作品.chaptale');
+  value(await creation.execute({ method: 'exportWorkPackage', input: { workId, path } }));
+
+  const live = host.liveSession(id)!;
+  const send = live.agent.streamFunction;
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  live.agent.streamFunction = async (...args) => {
+    entered.resolve();
+    await release.promise;
+    return send(...args);
+  };
+  await host.execute({ method: 'prompt', input: { id, text: '继续' } });
+  await entered.promise;
+  const input = { commandId: randomUUID(), path, asCopy: false };
+  await expect(host.execute({ method: 'importWorkPackage', input })).rejects.toThrow(
+    '有会话正在运行，停止后才能覆盖作品'
+  );
+  expect(value(await creation.execute({ method: 'listWorkSnapshots', input: {} }))).toEqual([]);
+  const copy = (await host.execute({
+    method: 'importWorkPackage',
+    input: { ...input, commandId: randomUUID(), asCopy: true }
+  })) as WorkReplacement;
+  expect(copy.work.id).not.toBe(workId);
+  release.resolve();
+  await expect.poll(() => host.snapshot().sessions.find(item => item.id === id)!.running).toBe(false);
+
+  await host.execute({ method: 'importWorkPackage', input });
+  expect(host.snapshot().sessions.some(item => item.id === id)).toBe(false);
+  expect(value(await creation.execute({ method: 'listWorkSnapshots', input: {} })).map(item => item.workId)).toEqual([
+    workId
+  ]);
+  const restored = (await host.execute({
+    method: 'restoreWorkSnapshot',
+    input: { commandId: randomUUID(), workId }
+  })) as WorkReplacement;
+  expect(restored.files).toHaveLength(1);
+  expect(value(await creation.execute({ method: 'listWorkSnapshots', input: {} }))).toEqual([]);
 });
 
 function structured(outcome: Awaited<ReturnType<typeof call>>) {

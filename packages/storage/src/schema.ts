@@ -1,4 +1,6 @@
 import Database from 'better-sqlite3';
+import { readdirSync, rmSync } from 'node:fs';
+import path from 'node:path';
 
 /** 库的结构版本无法打开或升级；消息写明哪个库与原因，可直接展示给作者。 */
 export class SchemaVersionError extends Error {}
@@ -12,7 +14,7 @@ export interface SchemaPlan {
 }
 
 /**
- * 按 user_version 准备结构：空库建到当前版本；旧版本先把库复制为 `<file>.v<旧版本>.bak` 再逐版迁移，失败时回滚；
+ * 按 user_version 准备结构：空库建到当前版本；旧版本先把库复制为 `<file>.v<旧版本>.bak` 再逐版迁移，失败时回滚，成功后只保留这一份备份；
  * 版本更新的库拒绝打开。本机制之前创建的库没有版本记录，结构与第 1 版一致时认作第 1 版，否则拒绝。
  */
 export function prepareSchema(database: Database.Database, file: string, plan: SchemaPlan): void {
@@ -36,6 +38,8 @@ export function prepareSchema(database: Database.Database, file: string, plan: S
     database.pragma('user_version = 1');
     if (version === current) return;
   }
+  // 同版本的旧备份来自此前失败的升级，与当前库内容相同。
+  rmSync(`${file}.v${version}.bak`, { force: true });
   database.prepare('VACUUM INTO ?').run(`${file}.v${version}.bak`);
   try {
     database.transaction(() => {
@@ -47,6 +51,11 @@ export function prepareSchema(database: Database.Database, file: string, plan: S
       `${plan.label}从第 ${version} 版升级失败，原库未改动：${error instanceof Error ? error.message : String(error)}`
     );
   }
+  // 只保留最新一份迁移前备份。
+  const backup = path.basename(`${file}.v${version}.bak`);
+  for (const name of readdirSync(path.dirname(file)))
+    if (name !== backup && name.startsWith(`${path.basename(file)}.v`) && name.endsWith('.bak'))
+      rmSync(path.join(path.dirname(file), name));
 }
 
 /** 库中的表、索引、触发器与建立语句，空白统一后比较。 */

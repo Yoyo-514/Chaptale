@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import type { Work } from '@chaptale/creation/contracts';
+import type { Work, WorkSnapshot } from '@chaptale/creation/contracts';
 
 import { prepareSchema, SchemaVersionError } from '../schema.ts';
 import { workDatabaseFile, workDir, workSchema } from './database.ts';
@@ -13,6 +13,9 @@ const packageTables = `
   CREATE TABLE package_meta (format INTEGER NOT NULL, work TEXT NOT NULL) STRICT;
   CREATE TABLE package_files (entryId TEXT NOT NULL, fileName TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY (entryId, fileName)) STRICT;
 `;
+/** 覆盖导入前的作品目录：`<workId>.before-import-<时间>`，目录内 work.json 记录当时的作品信息。 */
+const snapshotMarker = '.before-import-';
+const snapshotWorkFile = 'work.json';
 
 /** 作品包是一个 SQLite 文件：作品库的一致快照，加上包信息与资料文件条目。先写临时文件，完成后再换上目标路径。 */
 export function exportWorkPackage(rootDir: string, database: Database.Database, work: Work, file: string): void {
@@ -65,13 +68,13 @@ export function readWorkPackage(file: string): Work {
   }
 }
 
-/**
- * 把作品包展开为 workId 的作品目录：先在旁边的临时目录展开并升级结构，再换上。
- * 覆盖时原作品目录改名为 `<workId>.before-import-<时间>` 留作恢复快照，换上失败时改回。返回快照目录。
- */
-export function installWorkPackage(rootDir: string, file: string, workId: string, replace: boolean): string | null {
-  const target = workDir(rootDir, workId);
-  const staging = `${target}.importing`;
+function stagingDir(rootDir: string, workId: string): string {
+  return `${workDir(rootDir, workId)}.importing`;
+}
+
+/** 在作品目录旁展开作品包并升级结构；换上目录由 installStagedWork 完成。 */
+export function stageWorkPackage(rootDir: string, file: string, workId: string): void {
+  const staging = stagingDir(rootDir, workId);
   rmSync(staging, { recursive: true, force: true });
   try {
     mkdirSync(staging, { recursive: true });
@@ -107,18 +110,91 @@ export function installWorkPackage(rootDir: string, file: string, workId: string
     rmSync(staging, { recursive: true, force: true });
     throw error;
   }
-  if (!replace || !existsSync(target)) {
+}
+
+export function discardStagedWork(rootDir: string, workId: string): void {
+  rmSync(stagingDir(rootDir, workId), { recursive: true, force: true });
+}
+
+/**
+ * 换上已展开的作品包。previous 不为空时原作品目录改名为导入前快照并记下当时的作品信息。
+ * 返回撤销函数：作品库提交失败时换回原目录，展开的内容随之丢弃（作品包文件仍在）。
+ */
+export function installStagedWork(rootDir: string, workId: string, previous: Work | null): () => void {
+  const target = workDir(rootDir, workId);
+  const staging = stagingDir(rootDir, workId);
+  if (!previous || !existsSync(target)) {
     renameSync(staging, target);
-    return null;
+    return () => rmSync(target, { recursive: true, force: true });
   }
-  const snapshot = `${target}.before-import-${Date.now()}`;
+  const snapshot = `${target}${snapshotMarker}${Date.now()}`;
   renameSync(target, snapshot);
   try {
+    writeFileSync(path.join(snapshot, snapshotWorkFile), JSON.stringify(previous));
     renameSync(staging, target);
   } catch (error) {
+    rmSync(path.join(snapshot, snapshotWorkFile), { force: true });
     renameSync(snapshot, target);
-    rmSync(staging, { recursive: true, force: true });
     throw error;
   }
-  return snapshot;
+  return () => {
+    rmSync(target, { recursive: true, force: true });
+    rmSync(path.join(snapshot, snapshotWorkFile), { force: true });
+    renameSync(snapshot, target);
+  };
+}
+
+/** 作品的导入前快照，最新在前。 */
+export function workSnapshotDirs(rootDir: string, workId: string): string[] {
+  const works = path.join(rootDir, 'works');
+  const prefix = `${workId}${snapshotMarker}`;
+  return readdirSync(works)
+    .filter(name => name.startsWith(prefix))
+    .sort((a, b) => Number(b.slice(prefix.length)) - Number(a.slice(prefix.length)))
+    .map(name => path.join(works, name));
+}
+
+/** 每部作品最新一份导入前快照。 */
+export function listWorkSnapshots(rootDir: string): WorkSnapshot[] {
+  const latest = new Map<string, number>();
+  for (const name of readdirSync(path.join(rootDir, 'works'))) {
+    const at = name.indexOf(snapshotMarker);
+    if (at < 0) continue;
+    const workId = name.slice(0, at);
+    const createdAt = Number(name.slice(at + snapshotMarker.length));
+    if (createdAt > (latest.get(workId) ?? 0)) latest.set(workId, createdAt);
+  }
+  return [...latest].map(([workId, createdAt]) => ({ workId, createdAt }));
+}
+
+export function readWorkSnapshot(rootDir: string, workId: string): Work {
+  const snapshot = workSnapshotDirs(rootDir, workId)[0];
+  if (!snapshot) throw new Error('这部作品没有导入前的内容');
+  return JSON.parse(readFileSync(path.join(snapshot, snapshotWorkFile), 'utf8')) as Work;
+}
+
+/** 换回最新的导入前快照；当前目录改名后返回，由平台移入系统回收站。返回撤销函数供作品库提交失败时换回。 */
+export function restoreWorkSnapshot(rootDir: string, workId: string): { replaced: string; undo: () => void } {
+  const snapshot = workSnapshotDirs(rootDir, workId)[0];
+  if (!snapshot) throw new Error('这部作品没有导入前的内容');
+  const target = workDir(rootDir, workId);
+  const replaced = `${target}.replaced-${Date.now()}`;
+  const work = readFileSync(path.join(snapshot, snapshotWorkFile));
+  renameSync(target, replaced);
+  try {
+    renameSync(snapshot, target);
+    rmSync(path.join(target, snapshotWorkFile));
+  } catch (error) {
+    if (existsSync(target) && !existsSync(snapshot)) renameSync(target, snapshot);
+    renameSync(replaced, target);
+    throw error;
+  }
+  return {
+    replaced,
+    undo: () => {
+      writeFileSync(path.join(target, snapshotWorkFile), work);
+      renameSync(target, snapshot);
+      renameSync(replaced, target);
+    }
+  };
 }

@@ -12,7 +12,7 @@ export class Workbench {
   application!: ElectronApplication;
   page!: Page;
 
-  private constructor(private readonly home: string) {}
+  private constructor(readonly home: string) {}
 
   static async start(prefix: string): Promise<Workbench> {
     const home = await mkdtemp(path.join(tmpdir(), `chaptale-${prefix}-`));

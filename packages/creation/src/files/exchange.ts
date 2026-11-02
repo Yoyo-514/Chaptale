@@ -46,6 +46,8 @@ const fileInputs = {
   inspectWorkPackage: object({ path: id }),
   exportWorkPackage: object({ workId: id, path: id }),
   importWorkPackage: object({ commandId: id, path: id, asCopy: Type.Boolean() }),
+  listWorkSnapshots: object({}),
+  restoreWorkSnapshot: object({ commandId: id, workId: id }),
   exportFiles: object({
     workId: id,
     directory: id,

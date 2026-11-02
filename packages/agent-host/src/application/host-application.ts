@@ -2,6 +2,7 @@ import { type ModelRuntime, SessionManager, type ToolDefinition } from '@earendi
 import { randomUUID } from 'node:crypto';
 
 import type { CreationApplication } from '@chaptale/creation/application';
+import type { ImportWorkPackageInput } from '@chaptale/creation/contracts';
 
 import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
 import {
@@ -150,6 +151,10 @@ export class HostApplication {
         return this.deleteSessions(command.input.sessionIds);
       case 'trashWork':
         return this.trashWork(command.input);
+      case 'importWorkPackage':
+        return this.importWorkPackage(command.input);
+      case 'restoreWorkSnapshot':
+        return this.restoreWorkSnapshot(command.input);
       case 'approve':
         return this.approvals.approve(command.input.id, command.input.allow);
       case 'rename':
@@ -366,19 +371,45 @@ export class HostApplication {
     return { files };
   }
 
-  private async trashWork(input: { commandId: string; workId: string }) {
-    const creation = this.options.creation!;
-    const state = creation.executeAuthor({ method: 'readSessionState', input: {} });
+  /** 属于作品的已打开会话；任一在运行时用 action 说明被拒绝的操作。 */
+  private idleWorkSessions(workId: string, action: string): string[] {
+    const state = this.options.creation!.executeAuthor({ method: 'readSessionState', input: {} });
     if (!state.ok) throw new Error(state.error.message);
-    const ids = new Set(
-      state.value.assignments.filter(item => item.workId === input.workId).map(item => item.sessionId)
-    );
+    const ids = new Set(state.value.assignments.filter(item => item.workId === workId).map(item => item.sessionId));
     const open = [...this.sessions].filter(([, { view }]) => view.sessionId !== null && ids.has(view.sessionId));
     if (open.some(([, { view }]) => view.running || view.compacting))
-      throw new Error('有会话正在运行，停止后才能删除作品');
+      throw new Error(`有会话正在运行，停止后才能${action}`);
+    return open.map(([id]) => id);
+  }
+
+  private async importWorkPackage(input: ImportWorkPackageInput) {
+    const creation = this.options.creation!;
+    let open: string[] = [];
+    if (!input.asCopy) {
+      const info = await creation.execute({ method: 'inspectWorkPackage', input: { path: input.path } });
+      if (!info.ok) throw new Error(info.error.message);
+      if (info.value.exists) open = this.idleWorkSessions(info.value.work.id, '覆盖作品');
+    }
+    const imported = await creation.execute({ method: 'importWorkPackage', input });
+    if (!imported.ok) throw new Error(imported.error.message);
+    for (const id of open) await this.close(id);
+    return imported.value;
+  }
+
+  private async restoreWorkSnapshot(input: { commandId: string; workId: string }) {
+    const open = this.idleWorkSessions(input.workId, '恢复作品');
+    const restored = await this.options.creation!.execute({ method: 'restoreWorkSnapshot', input });
+    if (!restored.ok) throw new Error(restored.error.message);
+    for (const id of open) await this.close(id);
+    return restored.value;
+  }
+
+  private async trashWork(input: { commandId: string; workId: string }) {
+    const creation = this.options.creation!;
+    const open = this.idleWorkSessions(input.workId, '删除作品');
     const trashed = creation.executeAuthor({ method: 'trashWork', input });
     if (!trashed.ok) throw new Error(trashed.error.message);
-    for (const [id] of open) await this.close(id);
+    for (const id of open) await this.close(id);
     return trashed.value;
   }
 

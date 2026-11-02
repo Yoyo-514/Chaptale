@@ -26,7 +26,8 @@ import type {
   TrashBatch,
   TrashedWork,
   Work,
-  WorkbenchState
+  WorkbenchState,
+  WorkSnapshot
 } from './contracts.ts';
 
 /** 回执中的事件描述复用结果元数据，避免重复保存条目。 */
@@ -207,13 +208,23 @@ export interface CreationRepository {
   ): CommandCommit<T>;
   snapshot(workId: string | null): CreationSnapshot;
   readChanges(cursor: CreationCursor, limit: number): CreationChanges;
-  /** 关闭作品数据库连接，返回仍存在的作品目录。 */
+  /** 关闭作品数据库连接，返回仍存在的作品目录及其导入前快照。 */
   releaseWork(workId: string): string[];
   /** 把作品库快照与资料文件写成作品包。 */
   exportWorkPackage(workId: string, file: string): void;
   /** 读取作品包里的作品信息；不是作品包或版本过新时报错。 */
   readWorkPackage(file: string): Work;
-  /** 展开作品包为 workId 的作品目录；replace 时原目录留作恢复快照并返回其路径。 */
-  installWorkPackage(file: string, workId: string, replace: boolean): string | null;
+  /** 在作品目录旁展开作品包并升级结构。 */
+  stageWorkPackage(file: string, workId: string): void;
+  discardStagedWork(workId: string): void;
+  /** 换上已展开的作品包；previous 不为空时原目录留作导入前快照。返回撤销函数。 */
+  installStagedWork(workId: string, previous: Work | null): () => void;
+  /** 只保留最新一份导入前快照，返回较早的快照目录。 */
+  pruneWorkSnapshots(workId: string): string[];
+  listWorkSnapshots(): WorkSnapshot[];
+  /** 最新导入前快照记录的作品信息。 */
+  readWorkSnapshot(workId: string): Work;
+  /** 换回最新导入前快照；replaced 为换下的目录。 */
+  restoreWorkSnapshot(workId: string): { replaced: string; undo: () => void };
   close(): void;
 }
