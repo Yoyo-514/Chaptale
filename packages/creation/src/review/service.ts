@@ -18,6 +18,7 @@ import type {
 import type { CreationRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
 import type { DeliveryService } from './delivery.ts';
+import { draftChapters } from './draft-sources.ts';
 import { EntryReview } from './entry/decisions.ts';
 import { ChangeLedger, isStoryView } from './ledger.ts';
 import { advanceChange, staleReason } from './pending-change.ts';
@@ -94,7 +95,18 @@ export class ReviewService {
     );
     this.repository.library.clearReviewIntent(input.commandId);
     this.rejectTrashed(change.workId);
+    if (result.target === 'entry' && result.status === 'rejected' && !result.authorEdited) this.rejectDrafts(result);
     return result;
+  }
+
+  /** 正文修改整篇被拒绝后，本会话出处仍指向它的事件与关系候选随之拒绝。 */
+  private rejectDrafts(change: EntryChange): void {
+    const work = this.repository.work(change.workId);
+    for (const other of this.ledger.pending(change.workId, change.sessionId))
+      if (other.target !== 'entry' && draftChapters(work, other).includes(change.targetId))
+        this.creation.commit(null, `draft:${other.id}`, ['rejectDraft', other.id], { kind: 'review' }, () =>
+          this.ledger.finish(other, { status: 'rejected' })
+        );
   }
 
   /** 撤回本会话尚未接受的候选；新建条目连同以它为父目录的新建候选和依赖这些新资料的事件与关系候选。 */

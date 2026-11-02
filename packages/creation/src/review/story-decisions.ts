@@ -14,6 +14,7 @@ import { applyRecordSnapshot, normalizeRecord } from '../records/commit.ts';
 import { applyRelationSnapshot, assertRelationShape, relationSnapshot } from '../relations/commit.ts';
 import type { CreationRepository, WorkRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
+import { bindDraftSources, draftChapters } from './draft-sources.ts';
 import type { ReviewDecision } from './entry/decisions.ts';
 import { isStoryView, type ChangeLedger, type StoryChange, type StoryView } from './ledger.ts';
 import { advanceChange } from './pending-change.ts';
@@ -102,6 +103,13 @@ export class StoryReview {
     const view = this.checked(input, change.target);
     if (input.decision === 'reject') return this.ledger.finish(change, { status: 'rejected' });
     if (view.conflicts.length) throw new Error('请先处理冲突，再接受修改');
+    const drafts = draftChapters(work, change);
+    if (
+      this.ledger
+        .pending(change.workId, change.sessionId)
+        .some(other => other.target === 'entry' && drafts.includes(other.targetId))
+    )
+      throw new Error('请先处理本章正文');
     const dependencies = this.dependencies(change);
     if (dependencies.length && !change.deleted)
       this.creation.commit(change.workId, input.commandId, parameters, { kind: 'entries' }, () => {
@@ -139,9 +147,17 @@ export class StoryReview {
       return view.current!;
     }
     if (isStoryView(view, 'record'))
-      return applyRecordSnapshot(work, { base: view.current, candidate: view.candidate, source: 'review' });
+      return applyRecordSnapshot(work, {
+        base: view.current,
+        candidate: bindDraftSources(work, view.candidate),
+        source: 'review'
+      });
     if (isStoryView(view, 'relation'))
-      return applyRelationSnapshot(work, { base: view.current, candidate: view.candidate, source: 'review' });
+      return applyRelationSnapshot(work, {
+        base: view.current,
+        candidate: bindDraftSources(work, view.candidate),
+        source: 'review'
+      });
     throw new Error('这项修改不是事件或关系');
   }
 

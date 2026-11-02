@@ -123,7 +123,7 @@ export interface DeliveryView {
 }
 
 /** 整篇接受、整篇拒绝，或作者逐处决定、手改过（以正式内容为准）；deleted：作者删除了目标，候选随删除一并拒绝。 */
-export type DeliveryDecision = 'accepted' | 'rejected' | 'edited' | 'deleted' | 'sourceDeleted';
+export type DeliveryDecision = 'accepted' | 'rejected' | 'edited' | 'deleted' | 'sourceDeleted' | 'sourceRejected';
 export type DeliveryContent =
   | {
       target: 'entry';

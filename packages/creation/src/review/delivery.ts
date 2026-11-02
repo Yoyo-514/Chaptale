@@ -9,8 +9,9 @@ import type {
   DeliveryView,
   PendingChange
 } from '../contracts.ts';
-import type { CreationRepository } from '../repository.ts';
+import type { CreationRepository, WorkRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
+import { draftChapters } from './draft-sources.ts';
 import { recordSnapshot } from './record/merge.ts';
 import { relationSnapshot } from './relation/merge.ts';
 import { storySources } from './removal.ts';
@@ -23,6 +24,23 @@ export class DeliveryService {
   constructor(repository: CreationRepository, creation: CreationService) {
     this.repository = repository;
     this.creation = creation;
+  }
+
+  /** 事件或关系的出处仍指向本会话待审正文，而该正文修改被作者整篇拒绝。 */
+  private draftRejected(change: PendingChange, work: WorkRepository): boolean {
+    if (change.target === 'entry') return false;
+    const chapters = draftChapters(work, change);
+    return this.repository.library
+      .listDeliveryGroups(change.sessionId)
+      .flatMap(group => group.changeIds)
+      .map(id => this.repository.library.getPendingChange(id)!)
+      .some(
+        other =>
+          other.target === 'entry' &&
+          chapters.includes(other.targetId) &&
+          other.status === 'rejected' &&
+          !other.authorEdited
+      );
   }
 
   /** 已结束的组不再是当前任务；它之后的第一处修改另开新组。 */
@@ -64,7 +82,9 @@ export class DeliveryService {
           ? 'deleted'
           : change.status === 'rejected' && sourceTrashed
             ? 'sourceDeleted'
-            : (change.status as 'accepted' | 'rejected');
+            : change.status === 'rejected' && this.draftRejected(change, work)
+              ? 'sourceRejected'
+              : (change.status as 'accepted' | 'rejected');
       const fields = { workId: change.workId, targetId: change.targetId, decision };
       if (change.target === 'entry')
         return {

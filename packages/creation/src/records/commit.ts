@@ -51,7 +51,7 @@ export function assertRecord(
 
 type Location = Pick<RecordFields, 'source' | 'placement'>;
 
-/** 出处章节与修订、发生章节须存在；沿用 previous 中已失效的引用不再校验。事件与关系的建立／结束共用。 */
+/** 出处章节与修订（或本会话待审正文的候选版本）、发生章节须存在；沿用 previous 中已失效的引用不再校验。事件与关系的建立／结束共用。 */
 export function assertLocation(
   work: WorkRepository,
   fields: Location,
@@ -61,7 +61,10 @@ export function assertLocation(
   const { source, placement } = fields;
   if (source.kind === 'chapter' && !sameSource(previous, fields)) {
     if (!isChapter(entries, source.chapterId)) throw new Error('出处章节不存在');
-    if (work.getRevisionEntryId(source.revisionId) !== source.chapterId) throw new Error('出处修订不属于该章节');
+    // 审阅模式的可见目录含本会话待审正文，出处可指向其候选版本，接受记录时再绑定正式修订。
+    const draft = entries.some(entry => entry.id === source.chapterId && entry.revisionId === source.revisionId);
+    if (!draft && work.getRevisionEntryId(source.revisionId) !== source.chapterId)
+      throw new Error('出处修订不属于该章节');
   }
   if (placement.kind === 'chapter' && !samePlacement(previous?.placement ?? null, placement)) {
     if (!isChapter(entries, placement.chapterId)) throw new Error('发生章节不存在');

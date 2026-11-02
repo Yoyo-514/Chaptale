@@ -8,7 +8,8 @@ const decisionLabels = {
   rejected: '已拒绝',
   edited: '作者逐处决定或手改过，以正式内容为准',
   deleted: '作者已删除该条目',
-  sourceDeleted: '作者已删除来源章节'
+  sourceDeleted: '作者已删除来源章节',
+  sourceRejected: '作者拒绝了来源正文'
 } as const;
 
 function creationValue<T>(result: CreationResult<T>): T {
