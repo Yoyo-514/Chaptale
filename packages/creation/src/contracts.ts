@@ -125,6 +125,17 @@ export interface ImportReport {
   entries: Entry[];
   failure: { index: number; message: string } | null;
 }
+/** 作品包里的作品；exists 为作品库中已有同一部作品。 */
+export interface WorkPackageInfo {
+  work: Work;
+  exists: boolean;
+}
+export interface ImportWorkPackageInput {
+  commandId: string;
+  path: string;
+  /** 另存为新作品；否则作品已存在时覆盖。 */
+  asCopy: boolean;
+}
 export interface ExportFilesInput {
   workId: string;
   directory: string;
@@ -234,6 +245,9 @@ export interface CreationCommands extends CreationAuthorCommands {
   prepareImport: { input: { paths: string[] }; output: CreationResult<ImportPlan> };
   importFiles: { input: ImportFilesInput; output: CreationResult<ImportReport> };
   exportFiles: { input: ExportFilesInput; output: CreationResult<ExportReport> };
+  inspectWorkPackage: { input: { path: string }; output: CreationResult<WorkPackageInfo> };
+  exportWorkPackage: { input: { workId: string; path: string }; output: CreationResult<null> };
+  importWorkPackage: { input: ImportWorkPackageInput; output: CreationResult<Work> };
   addFiles: { input: AddFilesInput; output: CreationResult<AddFilesReport> };
   /** trashed 为 true 时定位回收站中的文件，只用于只读预览。 */
   locateFile: { input: { workId: string; entryId: string; trashed: boolean }; output: CreationResult<FileLocation> };

@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, type OpenDialogOptions } from 'electron';
+import { BrowserWindow, dialog, shell, type OpenDialogOptions } from 'electron';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -48,6 +48,13 @@ export function registerApplicationHostIpc(host: DesktopApplicationProcess): voi
         case 'export-directory':
           options = { title: '选择导出目录', properties: ['openDirectory', 'createDirectory'] };
           break;
+        case 'import-package':
+          options = {
+            title: '导入作品包',
+            properties: ['openFile'],
+            filters: [{ name: 'Chaptale 作品包', extensions: ['chaptale'] }]
+          };
+          break;
         case 'add-files':
           options = { title: '添加文件', properties: ['openFile', 'multiSelections'] };
           break;
@@ -58,6 +65,16 @@ export function registerApplicationHostIpc(host: DesktopApplicationProcess): voi
       return result.canceled ? null : result.filePaths;
     }
   );
+  handleTrustedIpc(APPLICATION_HOST_CHANNELS.creation.selectPackageSavePath, async (event, title: string) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const options = {
+      title: '导出作品包',
+      defaultPath: `${String(title).replace(/[\\/:*?"<>|]/g, '_')}.chaptale`,
+      filters: [{ name: 'Chaptale 作品包', extensions: ['chaptale'] }]
+    };
+    const result = owner ? await dialog.showSaveDialog(owner, options) : await dialog.showSaveDialog(options);
+    return result.canceled || !result.filePath ? null : result.filePath;
+  });
   async function locate(target: FileTarget, trashed = false): Promise<string> {
     const result = await host.creation.request('locateFile', {
       workId: target.workId,

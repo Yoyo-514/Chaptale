@@ -86,6 +86,8 @@ export interface LibraryRepository {
   /** 正常作品库中的作品；回收站中的作品不算。 */
   hasWork(workId: string): boolean;
   insertWork(work: Work): void;
+  /** 覆盖导入时换上作品包里的标题与类型。 */
+  updateWork(work: Work): void;
   listWorks(): Work[];
   listTrashedWorks(): TrashedWork[];
   getTrashedWork(workId: string): TrashedWork | undefined;
@@ -207,5 +209,11 @@ export interface CreationRepository {
   readChanges(cursor: CreationCursor, limit: number): CreationChanges;
   /** 关闭作品数据库连接，返回仍存在的作品目录。 */
   releaseWork(workId: string): string[];
+  /** 把作品库快照与资料文件写成作品包。 */
+  exportWorkPackage(workId: string, file: string): void;
+  /** 读取作品包里的作品信息；不是作品包或版本过新时报错。 */
+  readWorkPackage(file: string): Work;
+  /** 展开作品包为 workId 的作品目录；replace 时原目录留作恢复快照并返回其路径。 */
+  installWorkPackage(file: string, workId: string, replace: boolean): string | null;
   close(): void;
 }

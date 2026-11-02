@@ -36,8 +36,10 @@ export interface AddFileDataInput {
 
 export interface DesktopCreationClient extends CreationClient {
   selectPaths(
-    purpose: 'import-files' | 'import-directory' | 'export-directory' | 'add-files'
+    purpose: 'import-files' | 'import-directory' | 'export-directory' | 'add-files' | 'import-package'
   ): Promise<string[] | null>;
+  /** 选择作品包的保存位置；取消时为 null。 */
+  selectPackageSavePath(title: string): Promise<string | null>;
   fileAction(target: FileTarget, action: FileAction): Promise<void>;
   /** 读取文件条目当前内容，供应用内预览。 */
   readFile(target: FileReadTarget): Promise<Uint8Array>;

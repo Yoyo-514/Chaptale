@@ -148,7 +148,7 @@ beforeEach(async () => {
   };
   const creationClient: Omit<
     ChaptaleDesktopApi['creation'],
-    'selectPaths' | 'fileAction' | 'readFile' | 'pathForFile' | 'addFileData'
+    'selectPaths' | 'selectPackageSavePath' | 'fileAction' | 'readFile' | 'pathForFile' | 'addFileData'
   > = {
     request: (method, input) => author.execute({ method, input }),
     subscribe: listener => author.subscribe(listener),

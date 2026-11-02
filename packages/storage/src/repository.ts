@@ -2,12 +2,13 @@ import Database from 'better-sqlite3';
 import { existsSync } from 'node:fs';
 
 import type { CommandCommit, CommitEffect, CommitResult, CreationRepository } from '@chaptale/creation';
-import type { CreationChanges, CreationCursor, CreationSnapshot } from '@chaptale/creation/contracts';
+import type { CreationChanges, CreationCursor, CreationSnapshot, Work } from '@chaptale/creation/contracts';
 
 import { commitCommand, readChanges, readCursor } from './commands.ts';
 import { openLibrary } from './library/database.ts';
 import { SqliteLibraryRepository } from './library/repository.ts';
 import { openWorkDatabase, workDatabaseFile, workDir } from './work/database.ts';
+import { exportWorkPackage, installWorkPackage, readWorkPackage } from './work/package.ts';
 import { SqliteWorkRepository } from './work/repository.ts';
 
 export async function openCreationStorage(options: { rootDir: string }): Promise<CreationRepository> {
@@ -69,6 +70,21 @@ class SqliteCreationRepository implements CreationRepository {
     }
     const dir = workDir(this.rootDir, workId);
     return existsSync(dir) ? [dir] : [];
+  }
+
+  exportWorkPackage(workId: string, file: string): void {
+    const work = this.library.listWorks().find(item => item.id === workId);
+    if (!work) throw new Error('作品不存在');
+    exportWorkPackage(this.rootDir, this.useWork(workId), work, file);
+  }
+
+  readWorkPackage(file: string): Work {
+    return readWorkPackage(file);
+  }
+
+  installWorkPackage(file: string, workId: string, replace: boolean): string | null {
+    if (replace) this.releaseWork(workId);
+    return installWorkPackage(this.rootDir, file, workId, replace);
   }
 
   close(): void {

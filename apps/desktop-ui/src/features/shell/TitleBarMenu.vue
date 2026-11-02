@@ -5,7 +5,7 @@ import { isChaptaleTheme, type EditCommand } from '@chaptale/desktop/bridge';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useAgentStore } from '@/features/agent';
-import { useCreationStore } from '@/features/creation';
+import { useCreationStore, useWorkPackageStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/features/settings';
@@ -20,6 +20,18 @@ const settings = useSettingsStore();
 const editor = useEditorStore();
 const navigation = useWorkbenchStore();
 const agent = useAgentStore();
+const packages = useWorkPackageStore();
+
+async function exportPackage() {
+  const work = creation.works.find(item => item.id === creation.workId);
+  if (!work) return;
+  try {
+    const path = await packages.exportWork(work);
+    if (path) useNotificationStore().success(`已导出《${work.title}》`, path);
+  } catch (cause) {
+    useNotificationStore().error('导出作品包失败', toErrorMessage(cause));
+  }
+}
 const { zoom } = useInterfaceZoom();
 const editTarget = shallowRef<ReturnType<typeof captureEditingTarget>>();
 /** 会话只在作品内打开，作品库不提供会话入口。 */
@@ -44,6 +56,12 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         disabled: creation.libraryOpen || !creation.workId || !creation.connected
       },
       { id: 'file.export', label: '导出正文…', disabled: creation.libraryOpen || !creation.workId },
+      { id: 'file.import-package', label: '导入作品包…', disabled: !creation.connected, separatorBefore: true },
+      {
+        id: 'file.export-package',
+        label: '导出作品包…',
+        disabled: creation.libraryOpen || !creation.workId || !creation.connected
+      },
       {
         id: 'file.save',
         label: '保存',
@@ -158,6 +176,14 @@ function handleSelect(id: string) {
       break;
     case 'file.export':
       creation.exportOpen = true;
+      break;
+    case 'file.import-package':
+      // 导入结果与同作品的选择框显示在作品库。
+      navigation.agentInMain = false;
+      void creation.showLibrary().then(() => packages.chooseImport());
+      break;
+    case 'file.export-package':
+      void exportPackage();
       break;
     case 'file.save':
       void editor.saveDocument();

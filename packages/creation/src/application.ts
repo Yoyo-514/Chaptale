@@ -15,6 +15,7 @@ import type {
 import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from './errors.ts';
 import { addFiles, locateFile } from './files/entry-files.ts';
 import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './files/exchange.ts';
+import { WorkPackageService } from './library/work-package.ts';
 import { WorkTrashService } from './library/work-trash.ts';
 import { RecordService } from './records/service.ts';
 import { RelationService } from './relations/service.ts';
@@ -36,6 +37,7 @@ export class CreationApplication {
   private readonly delivery: DeliveryService;
   private readonly trash: TrashService;
   private readonly workTrash: WorkTrashService;
+  private readonly workPackages: WorkPackageService;
   private readonly records: RecordService;
   private readonly relations: RelationService;
 
@@ -45,6 +47,7 @@ export class CreationApplication {
     this.review = new ReviewService(repository, this.service, this.delivery);
     this.trash = new TrashService(repository, this.service, this.review);
     this.workTrash = new WorkTrashService(repository, this.service, this.review);
+    this.workPackages = new WorkPackageService(repository, this.service);
     this.records = new RecordService(repository, this.service, this.review);
     this.relations = new RelationService(repository, this.service, this.review);
     this.agent = new CreationAgentService(
@@ -80,6 +83,13 @@ export class CreationApplication {
           return { ok: true, value: await exportFiles(this.service, file.input) };
         case 'addFiles':
           return { ok: true, value: await addFiles(this.service, file.input) };
+        case 'inspectWorkPackage':
+          return { ok: true, value: this.workPackages.inspect(file.input.path) };
+        case 'exportWorkPackage':
+          this.workPackages.export(file.input.workId, file.input.path);
+          return { ok: true, value: null };
+        case 'importWorkPackage':
+          return { ok: true, value: this.workPackages.import(file.input) };
         case 'locateFile':
           return {
             ok: true,

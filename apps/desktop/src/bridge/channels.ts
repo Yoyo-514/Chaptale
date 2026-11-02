@@ -5,6 +5,7 @@ export const APPLICATION_HOST_CHANNELS = {
     request: 'creation:request',
     event: 'creation:event',
     selectPaths: 'creation:select-paths',
+    selectPackageSavePath: 'creation:select-package-save-path',
     fileAction: 'creation:file-action',
     readFile: 'creation:read-file',
     addFileData: 'creation:add-file-data'

@@ -1,6 +1,7 @@
 export { CreationRequestError, requestCreation } from './request';
 export { storyResources, useCreationStore } from './store';
 export { useTrashStore } from './trash/store';
+export { useWorkPackageStore } from './library/work-package';
 export { canChooseOpener, readEntryImage, readFileBlob, runFileAction, useFileImage } from './files/files';
 export { default as FilePreview } from './files/FilePreview.vue';
 export { default as CreationExplorer } from './explorer/CreationExplorer.vue';

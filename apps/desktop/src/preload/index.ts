@@ -16,6 +16,7 @@ const desktopApi: ChaptaleDesktopApi = {
   creation: {
     ...createHostApi<CreationCommands, CreationEvent>(APPLICATION_HOST_CHANNELS.creation),
     selectPaths: purpose => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.selectPaths, purpose),
+    selectPackageSavePath: title => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.selectPackageSavePath, title),
     fileAction: (target, action) => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.fileAction, target, action),
     readFile: target => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.readFile, target),
     pathForFile: file => webUtils.getPathForFile(file),

@@ -9,12 +9,17 @@ import { AppAlertDialog } from '@/components/AppDialog';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { useCreationStore } from '../store';
+import { useWorkPackageStore } from './work-package';
 import { useWorkTrashStore } from './work-trash';
 
 const creation = useCreationStore();
 const trash = useWorkTrashStore();
+const packages = useWorkPackageStore();
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
-const workMenu: AppContextMenuItem[] = [{ id: 'delete', label: '删除作品' }];
+const workMenu: AppContextMenuItem[] = [
+  { id: 'export', label: '导出作品包' },
+  { id: 'delete', label: '删除作品', separatorBefore: true }
+];
 const actionError = ref('');
 // 确认框先关闭再派发 confirm，目标与开关分开保存。
 const removing = ref<{ work: Work; pendingCount: number } | null>(null);
@@ -29,6 +34,10 @@ async function run(action: () => Promise<unknown>) {
   } catch (cause) {
     actionError.value = toErrorMessage(cause);
   }
+}
+function selectWorkAction(id: string, work: Work) {
+  if (id === 'delete') askRemove(work);
+  else void packages.exportFromLibrary(work);
 }
 function askRemove(work: Work) {
   void run(async () => {
@@ -58,6 +67,9 @@ function purge() {
         <AppButton variant="ghost" :aria-pressed="trash.open" @click="trash.open = !trash.open">{{
           trash.open ? '返回作品库' : `回收站${trash.works.length ? `（${trash.works.length}）` : ''}`
         }}</AppButton>
+        <AppButton variant="ghost" :disabled="!creation.connected" @click="packages.chooseImport()"
+          >导入作品包</AppButton
+        >
         <AppButton variant="primary" :disabled="!creation.connected" @click="creation.newWorkOpen = true"
           >新建作品</AppButton
         >
@@ -67,7 +79,10 @@ function purge() {
       {{ creation.error }}
       <AppButton size="xs" :disabled="creation.busy" @click="creation.connect()">重新连接</AppButton>
     </div>
-    <p v-if="actionError || trash.error" class="library-error" role="alert">{{ actionError || trash.error }}</p>
+    <p v-if="actionError || trash.error || packages.error" class="library-error" role="alert">
+      {{ actionError || trash.error || packages.error }}
+    </p>
+    <p v-else-if="packages.notice" class="library-notice" role="status">{{ packages.notice }}</p>
     <section v-if="trash.open" class="library-list" aria-label="作品库回收站">
       <p v-if="!trash.works.length" class="library-empty">回收站是空的。</p>
       <table v-else>
@@ -111,7 +126,12 @@ function purge() {
           </tr>
         </thead>
         <tbody>
-          <AppContextMenu v-for="work in creation.works" :key="work.id" :items="workMenu" @select="askRemove(work)">
+          <AppContextMenu
+            v-for="work in creation.works"
+            :key="work.id"
+            :items="workMenu"
+            @select="id => selectWorkAction(id, work)"
+          >
             <tr
               :aria-disabled="creation.busy"
               @click="!creation.busy && creation.openWork(work.id)"
@@ -131,6 +151,17 @@ function purge() {
         </tbody>
       </table>
     </div>
+    <AppAlertDialog
+      v-model:open="packages.conflictOpen"
+      :title="`作品库中已有《${packages.conflict?.info.work.title}》`"
+      description="另存副本会新建一部作品。覆盖会把这部作品换成作品包里的内容，当前内容在作品目录旁留作恢复快照。"
+      confirm-label="另存为副本"
+      @confirm="packages.resolveConflict(true)"
+    >
+      <div class="import-overwrite">
+        <AppButton size="sm" variant="ghost" @click="packages.resolveConflict(false)">覆盖原作品</AppButton>
+      </div>
+    </AppAlertDialog>
     <AppAlertDialog
       v-model:open="removeOpen"
       :title="`删除《${removing?.work.title}》？`"
@@ -265,6 +296,15 @@ tbody tr[aria-disabled='true'] {
   color: var(--foreground);
   font-size: 16px;
   font-weight: 500;
+}
+.library-notice {
+  margin: 0 0 12px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.import-overwrite {
+  display: flex;
+  justify-content: flex-end;
 }
 .library-error {
   padding: 12px 32px;

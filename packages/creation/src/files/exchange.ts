@@ -43,6 +43,9 @@ const fileInputs = {
     ),
     skippedPaths: Type.Array(Type.String())
   }),
+  inspectWorkPackage: object({ path: id }),
+  exportWorkPackage: object({ workId: id, path: id }),
+  importWorkPackage: object({ commandId: id, path: id, asCopy: Type.Boolean() }),
   exportFiles: object({
     workId: id,
     directory: id,

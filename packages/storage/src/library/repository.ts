@@ -40,6 +40,12 @@ export class SqliteLibraryRepository implements LibraryRepository {
     );
   }
 
+  updateWork(work: Work): void {
+    this.database
+      .prepare('UPDATE works SET title = @title, kind = @kind, updatedAt = @updatedAt WHERE id = @id')
+      .run(work);
+  }
+
   insertWork(work: Work): void {
     this.database
       .prepare(
