@@ -50,7 +50,7 @@ export function recordTools({ application, written, executeWrite, tool }: WorkTo
       '写入作品事件',
       [
         '新建、修改或移除一条事件。basis 填写所依据的章节原文片段，供作者核对。',
-        '新建提供 resourceIds（涉及的资料条目 ID，新资料先用 work_write 在资料区新建）与 text；出自章节时提供 sourceId 与读取所得 sourceRevisionId，省略 sourceId 表示作者在对话中补充。',
+        '新建提供 resourceIds（涉及的资料条目 ID，新资料先用 work_write 在资料区新建）与 text；出自章节时提供 sourceId 与读取所得 sourceRevisionId（审阅模式下本会话改写过的章节用读到的待接受版本），省略 sourceId 表示作者在对话中补充。',
         'placement 为发生章节 ID、opening（开篇之前）或 undetermined（待定），新建时省略则取 sourceId 章节。',
         '修改提供 recordId、expectedRevisionId 与要改的字段，未提供的字段保持不变；sourceId 为 null 表示改为作者补充。移除提供 recordId、expectedRevisionId 与 remove: true。',
         '审阅模式写入本会话候选；移除本会话尚未接受的新建事件时直接撤回。'

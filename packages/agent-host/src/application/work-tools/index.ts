@@ -30,7 +30,8 @@ export const workToolNames = new Set([
 
 /** 事件与关系工具默认不声明，由 tool_search 按名称加载；宿主在系统提示词末尾说明。 */
 export const deferredWorkToolsPrompt =
-  '作品事件工具 work_record_ls、work_record_write 与关系工具 work_relation_ls、work_relation_write 默认未加载；需要时先用 tool_search 以工具名查询加载。';
+  '作品事件工具 work_record_ls、work_record_write 与关系工具 work_relation_ls、work_relation_write 默认未加载；需要时先用 tool_search 以工具名查询加载。' +
+  '写完或改写章节后，本章新发生的事件和关系变化用这些工具一并记下，出处取读取本章所得的修订；审阅模式下作者会先处理正文，再处理这些记录。';
 
 /** 作品工具只转换公共参数；身份、内容与候选规则由宿主和 creation 持有。 */
 export function createWorkTools(

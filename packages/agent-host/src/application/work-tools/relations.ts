@@ -78,7 +78,7 @@ export function relationTools({ application, written, executeWrite, tool }: Work
       [
         '新建、修改或移除两份资料之间的一条关系。basis 填写所依据的章节原文片段，供作者核对。',
         '新建提供 resourceIds（两份不同资料，新资料先用 work_write 在资料区新建）、type、directed、titles 与至少一条 kind 为 start 的 milestones；同名类型的 directed 须与 work_relation_ls 返回的 types 一致。',
-        'milestones 每条：出自章节时提供 sourceId 与读取所得 sourceRevisionId，省略 sourceId 表示作者在对话中补充；placement 为发生章节 ID、opening 或 undetermined，省略则取 sourceId 章节。',
+        'milestones 每条：出自章节时提供 sourceId 与读取所得 sourceRevisionId（审阅模式下本会话改写过的章节用读到的待接受版本），省略 sourceId 表示作者在对话中补充；placement 为发生章节 ID、opening 或 undetermined，省略则取 sourceId 章节。',
         '修改提供 relationId、expectedRevisionId 与要改的字段，未提供的字段保持不变；milestones 只列出改动：新增省略 milestoneId，修改提供 milestoneId 与要改的字段，移除提供 milestoneId 与 remove: true，未列出的保持不变。',
         '移除整条关系提供 relationId、expectedRevisionId 与 remove: true。审阅模式写入本会话候选；移除本会话尚未接受的新建关系时直接撤回。'
       ].join(''),

@@ -50,6 +50,16 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
     return described;
   }
 
+  /** 资料文档的类型，按 Agent 可见内容读取（审阅模式含本会话候选）。 */
+  function resourceType(context: CreationAgentContext, workId: string, entry: Entry): string | null {
+    if (entry.section !== 'resource' || entry.kind !== 'document') return null;
+    const document = application.executeAgent(context, {
+      method: 'readDocument',
+      input: { workId, documentId: entry.id }
+    });
+    return document.ok ? (document.value.attributes?.type ?? null) : null;
+  }
+
   function readDocument(input: Static<typeof workReadParameters>, context: CreationAgentContext) {
     return mapResult(
       application.executeAgent(context, {
@@ -140,13 +150,21 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
     tool(
       'work_find',
       '查找作品条目',
-      '在指定作品内按 glob 通配符匹配条目名称，包含本会话候选名称，返回稳定 ID、修订与位置。section 可限定文稿或资料分区。',
-      object({ workId: id, pattern: Type.String(), section: Type.Optional(section) }),
+      '在指定作品内按 glob 通配符匹配条目名称，包含本会话候选名称，返回稳定 ID、修订与位置。section 可限定文稿或资料分区；type 只返回该类型的资料文档（如“规划”“人物”）。',
+      object({
+        workId: id,
+        pattern: Type.String(),
+        section: Type.Optional(section),
+        type: Type.Optional(Type.String({ minLength: 1 }))
+      }),
       async (input, context) => {
         const result = application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } });
         if (!result.ok) return result;
         const matched = result.value.filter(
-          entry => (!input.section || entry.section === input.section) && posix.matchesGlob(entry.title, input.pattern)
+          entry =>
+            (!input.section || entry.section === input.section) &&
+            posix.matchesGlob(entry.title, input.pattern) &&
+            (input.type === undefined || resourceType(context, input.workId, entry) === input.type)
         );
         return { ok: true, value: await describe(input.workId, matched) };
       }

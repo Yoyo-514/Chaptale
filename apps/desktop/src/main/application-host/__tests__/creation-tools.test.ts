@@ -456,6 +456,47 @@ it('按 glob 查找条目名称，包含候选改名及同名资料，并可限�
   expect(absent.result.structuredContent).toEqual({ ok: true, value: [] });
 });
 
+it('按资料类型查找规划资料', async () => {
+  for (const [title, type] of [
+    ['长夜大纲', '规划'],
+    ['顾长风', '人物']
+  ]) {
+    const entry = value(
+      creation.executeAuthor({
+        method: 'createEntry',
+        input: {
+          commandId: randomUUID(),
+          workId,
+          parentId: null,
+          section: 'resource',
+          kind: 'document',
+          title: title!,
+          format: 'txt',
+          content: ''
+        }
+      })
+    );
+    value(
+      creation.executeAuthor({
+        method: 'saveDocument',
+        input: {
+          commandId: randomUUID(),
+          workId,
+          documentId: entry.id,
+          expectedRevisionId: entry.revisionId,
+          title: title!,
+          format: 'txt',
+          content: '',
+          attributes: { type: type!, aliases: [], tags: [], cover: null }
+        }
+      })
+    );
+  }
+  const found = await call('work_find', { workId, pattern: '*', type: '规划' });
+  expect(found.result.structuredContent).toMatchObject({ ok: true, value: [{ title: '长夜大纲' }] });
+  expect((found.result.structuredContent as { value: unknown[] }).value).toHaveLength(1);
+});
+
 it('按正则逐行查找本会话正文，返回行号和稳定身份，报告无效正则', async () => {
   expect(
     (
@@ -1685,4 +1726,31 @@ it('讨论模式拒绝事件写入，处理完事件候选后续跑消息带上�
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0].messages).toContain('事件“沈霁守城”已拒绝');
   expect(requests[0].messages).toContain('"recordId"');
+});
+
+it('审阅模式改写章节后，事件出处可用读到的待接受版本；拒绝正文后事件随之拒绝，续跑消息说明原因', async () => {
+  const runtime = await restartWithTools([]);
+  const requests = await observeContinuation(runtime);
+  await load('work_record');
+  const resourceId = await createResource('沈霁');
+  expect(
+    (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '城破。' }))
+      .isError
+  ).toBe(false);
+  const draft = value(structured(await call('work_read', { workId, entryId: documentId }))) as { revisionId: string };
+  expect(draft.revisionId).not.toBe(revisionId);
+  const written = await call('work_record_write', {
+    workId,
+    resourceIds: [resourceId],
+    text: '城破',
+    sourceId: documentId,
+    sourceRevisionId: draft.revisionId,
+    basis: '城破。'
+  });
+  expect(written.isError).toBe(false);
+  decidePending('reject', pending().find(change => change.targetId === documentId)!.id);
+  expect(pending()).toMatchObject([{ targetId: resourceId }]);
+  decidePending('reject');
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0].messages).toContain('作者拒绝了来源正文');
 });
