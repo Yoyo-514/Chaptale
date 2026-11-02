@@ -30,8 +30,6 @@ export interface ReviewContinuation {
  * 进度全部读自作品服务；这里只改写会话视图中的模式与交付字段，推送由会话负责。
  */
 export class ReviewFlow {
-  /** 本轮工具写入了待审修改，SDK 在本轮边界结束运行。 */
-  writePending = false;
   private readonly view: SessionView;
   private readonly creation?: CreationApplication;
   private selectedMode: EditMode;
@@ -86,12 +84,11 @@ export class ReviewFlow {
     return { mode: this.selectedMode, directAfterGroupId };
   }
 
-  /** 调用方已刷新进度；本次工具写入待审修改后等待作者处理，返回是否进入等待。 */
+  /** 调用方已刷新进度；本次工具写入待审修改后，Agent 继续完成任务，任务结束后等待作者处理。返回是否进入等待。 */
   written(): boolean {
     const delivery = this.view.delivery!;
     if (delivery.group.status !== 'pending' || delivery.pendingCount === 0) return false;
     this.waitingGroupId = delivery.group.id;
-    this.writePending = true;
     this.view.waitingForReview = true;
     return true;
   }
@@ -128,7 +125,6 @@ export class ReviewFlow {
   clearWaiting(): void {
     delete this.waitingGroupId;
     delete this.view.waitingForReview;
-    this.writePending = false;
   }
 
   /** 复用已有回执提交继续进度，并在发起下一次请求前捕获正式内容。 */

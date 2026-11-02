@@ -643,7 +643,7 @@ it('运行中的父工具按切换后的 callable 集合嵌套调用，讨论可
   await approve();
   const restoredResult = await restored;
   expect(restoredResult.isError).toBe(false);
-  expect(await finishToolTurn(restoredResult)).toEqual({ action: 'end' });
+  expect(await finishToolTurn(restoredResult)).toBeUndefined();
   expect(pending()).toMatchObject([{ sessionId: id, candidate: { content: '嵌套改稿' } }]);
   expect(read().revisionId).toBe(revisionId);
 });
@@ -988,7 +988,7 @@ async function finishToolTurn(outcome: Awaited<ReturnType<typeof call>>) {
   });
 }
 
-it('重载后写工具仍在 SDK 原生回合边界暂停，待审期间的只读回合沿用 SDK 调度', async () => {
+it('重载后审阅模式写入不打断本轮，Agent 继续完成任务，结束后等待作者处理', async () => {
   await host.liveSession(id)!.reload();
   const writing = await call('work_write', {
     workId,
@@ -997,7 +997,7 @@ it('重载后写工具仍在 SDK 原生回合边界暂停，待审期间的只�
     content: '待审正文'
   });
   expect(writing.isError).toBe(false);
-  expect(await finishToolTurn(writing)).toEqual({ action: 'end' });
+  expect(await finishToolTurn(writing)).toBeUndefined();
   expect(host.snapshot().sessions.find(session => session.id === id)?.waitingForReview).toBe(true);
   expect(pending()).toHaveLength(1);
   expect(read().revisionId).toBe(revisionId);
@@ -1233,7 +1233,7 @@ it('待审期间提问保留候选，补改更新同一组，最终接受后自�
     content: '将军带副将一同出城。'
   });
   expect(writing.isError).toBe(false);
-  expect(await finishToolTurn(writing)).toEqual({ action: 'end' });
+  expect(await finishToolTurn(writing)).toBeUndefined();
   const after = value(creation.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: id } }))!;
   expect(after.group.id).toBe(before.id);
   expect(after.pendingCount).toBe(1);

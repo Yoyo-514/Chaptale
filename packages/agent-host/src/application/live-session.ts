@@ -70,16 +70,6 @@ export class LiveSession {
     this.review = new ReviewFlow(this.view, mode, options ?? {});
     this.review.refresh();
     this.syncWorkTools();
-    const finishTurn = session.agent.finishTurn;
-    session.agent.finishTurn = async (turn, signal) => {
-      const decision = await finishTurn?.(turn, signal);
-      // 在 SDK 已记录本轮工具结果的原生边界结束运行，保留完整工具调用链。
-      if (this.review.writePending) {
-        this.review.writePending = false;
-        return { action: 'end' };
-      }
-      return decision ? decision : undefined;
-    };
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
     this.unsubscribeCreation = options?.creation?.subscribe(event => {
       const sessionId =
