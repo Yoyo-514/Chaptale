@@ -1,6 +1,6 @@
 import { createHostApplication } from '@chaptale/agent-host/application';
 import { CreationApplication } from '@chaptale/creation/application';
-import { openCreationStorage } from '@chaptale/storage';
+import { openCreationStorage, SchemaVersionError } from '@chaptale/storage';
 
 import type { ApplicationBootstrapOptions, ApplicationPacket, ApplicationRequest } from './protocol.ts';
 
@@ -63,9 +63,15 @@ async function start() {
       }
     });
     send({ type: 'ready' });
-  } catch {
+  } catch (error) {
     creation?.close();
-    send({ type: 'failed', error: '应用宿主启动失败，请检查本机配置、作品库与目录权限' });
+    send({
+      type: 'failed',
+      error:
+        error instanceof SchemaVersionError
+          ? `应用宿主启动失败：${error.message}`
+          : '应用宿主启动失败，请检查本机配置、作品库与目录权限'
+    });
     process.exit(1);
   }
 }

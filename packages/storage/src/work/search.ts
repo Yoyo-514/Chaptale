@@ -18,27 +18,6 @@ function terms(text: string, search: boolean): string[] {
   return words.filter(word => /[\p{L}\p{N}]/u.test(word));
 }
 
-/** 只在索引首次建立时读入已有正式稿；派生索引与正文保存在同一作品库。 */
-export function openSearchIndex(database: Database.Database): void {
-  if (database.prepare("SELECT 1 FROM sqlite_master WHERE name = 'document_search'").get()) return;
-  database.transaction(() => {
-    database.exec(`CREATE VIRTUAL TABLE document_search USING fts5(entryId UNINDEXED, title, content)`);
-    const documents = database
-      .prepare(
-        "SELECT e.id, e.title, coalesce(e.content, '') AS content, a.aliases FROM entries e LEFT JOIN resource_attributes a ON a.entryId = e.id WHERE e.kind != 'directory'"
-      )
-      .all() as { id: string; title: string; content: string; aliases: string | null }[];
-    for (const document of documents)
-      writeIndex(
-        database,
-        document.id,
-        document.title,
-        document.aliases ? JSON.parse(document.aliases) : [],
-        document.content
-      );
-  })();
-}
-
 /** 文稿与资料按标题、别名和正文检索；文件条目只按名称检索。 */
 export function indexDocument(database: Database.Database, document: Revision['snapshot']): void {
   if (document.kind === 'directory') return;

@@ -3,9 +3,9 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { receiptSchema } from '../commands.ts';
+import { prepareSchema, type SchemaPlan } from '../schema.ts';
 import { recordSchema } from './records.ts';
 import { relationSchema } from './relations.ts';
-import { openSearchIndex } from './search.ts';
 import { trashSchema } from './trash.ts';
 
 /** 一个作品一个目录：作品库与资料文件条目都放在这里。 */
@@ -24,9 +24,23 @@ export function workDatabaseFile(rootDir: string, workId: string): string {
 
 export function openWorkDatabase(rootDir: string, workId: string): Database.Database {
   mkdirSync(workDir(rootDir, workId), { recursive: true });
-  const database = new Database(workDatabaseFile(rootDir, workId));
-  database.pragma('foreign_keys = ON');
-  database.exec(`
+  const file = workDatabaseFile(rootDir, workId);
+  const database = new Database(file);
+  try {
+    database.pragma('foreign_keys = ON');
+    prepareSchema(database, file, workSchema);
+  } catch (error) {
+    database.close();
+    throw error;
+  }
+  return database;
+}
+
+/** 作品库结构；作品包与本机作品目录共用。 */
+export const workSchema: SchemaPlan = {
+  label: '作品库',
+  create(database) {
+    database.exec(`
     CREATE TABLE IF NOT EXISTS entries (
       id TEXT PRIMARY KEY,
       parentId TEXT REFERENCES entries(id),
@@ -58,14 +72,12 @@ export function openWorkDatabase(rootDir: string, workId: string): Database.Data
       tags TEXT NOT NULL,
       cover TEXT
     ) STRICT;
-    -- 属性表建立前的资料文档补一行空属性。
-    INSERT OR IGNORE INTO resource_attributes
-      SELECT id, '', '[]', '[]', NULL FROM entries WHERE section = 'resource' AND kind = 'document';
+    CREATE VIRTUAL TABLE document_search USING fts5(entryId UNINDEXED, title, content);
   `);
-  database.exec(recordSchema);
-  database.exec(relationSchema);
-  database.exec(trashSchema);
-  database.exec(receiptSchema);
-  openSearchIndex(database);
-  return database;
-}
+    database.exec(recordSchema);
+    database.exec(relationSchema);
+    database.exec(trashSchema);
+    database.exec(receiptSchema);
+  },
+  migrations: []
+};

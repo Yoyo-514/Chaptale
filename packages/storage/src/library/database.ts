@@ -3,11 +3,25 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { receiptSchema } from '../commands.ts';
+import { prepareSchema, type SchemaPlan } from '../schema.ts';
 
 export async function openLibrary(rootDir: string): Promise<Database.Database> {
   await mkdir(path.join(rootDir, 'works'), { recursive: true });
-  const database = new Database(path.join(rootDir, 'library.sqlite'));
-  database.exec(`
+  const file = path.join(rootDir, 'library.sqlite');
+  const database = new Database(file);
+  try {
+    prepareSchema(database, file, librarySchema);
+  } catch (error) {
+    database.close();
+    throw error;
+  }
+  return database;
+}
+
+const librarySchema: SchemaPlan = {
+  label: '本机库',
+  create(database) {
+    database.exec(`
     CREATE TABLE IF NOT EXISTS works (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -65,6 +79,7 @@ export async function openLibrary(rootDir: string): Promise<Database.Database> {
       state TEXT NOT NULL
     ) STRICT;
   `);
-  database.exec(receiptSchema);
-  return database;
-}
+    database.exec(receiptSchema);
+  },
+  migrations: []
+};
