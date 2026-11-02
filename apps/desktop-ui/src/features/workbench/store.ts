@@ -38,7 +38,8 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     showAgent();
     return useAgentStore().startReview(
       `请阅读《${chapter.title}》（条目 ID：${chapter.id}），把本章发生的事件记到涉及的资料下。` +
-        '先查看这些资料已有的事件，不要重复记录；涉及的人物、地点等还没有资料时先在资料区新建。'
+        '先查看这些资料已有的事件，不要重复记录；涉及的人物、地点等还没有资料时先在资料区新建。' +
+        '再用 work_find 的 type 参数查找类型为“规划”的资料，规划中已在本章写成的内容也记为事件，依据写成“规划《资料名》：原句”。'
     );
   }
   return {

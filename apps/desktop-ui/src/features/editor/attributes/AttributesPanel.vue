@@ -12,7 +12,7 @@ import { FilePreview, useCreationStore, useFileImage } from '@/features/creation
 import { useEditorStore } from '../store';
 import type { EditorTab } from '../types';
 
-const typeOptions = ['人物', '地点', '组织', '物品', '设定', '笔记'].map(value => ({ value, label: value }));
+const typeOptions = ['人物', '地点', '组织', '物品', '设定', '规划', '笔记'].map(value => ({ value, label: value }));
 
 const props = defineProps<{ tab: EditorTab }>();
 const editor = useEditorStore();
