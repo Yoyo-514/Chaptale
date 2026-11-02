@@ -35,8 +35,13 @@ export async function addFiles(service: CreationService, input: AddFilesInput): 
   return report;
 }
 
-export async function locateFile(service: CreationService, workId: string, entryId: string): Promise<FileLocation> {
-  const entry = service.readFileEntry(workId, entryId);
+export async function locateFile(
+  service: CreationService,
+  workId: string,
+  entryId: string,
+  trashed: boolean
+): Promise<FileLocation> {
+  const entry = service.readFileEntry(workId, entryId, trashed);
   const path = join(service.entryFileDir(workId, entryId), entry.fileName!);
   const info = await stat(path).catch(() => {
     throw new Error(`文件已不存在：${path}`);

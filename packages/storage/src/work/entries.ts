@@ -36,6 +36,12 @@ export function getEntry(database: Database.Database, id: string): Entry | undef
     .prepare(`SELECT ${metadataColumns} FROM entries WHERE id = ? AND id NOT IN (SELECT entryId FROM trash)`)
     .get(id) as Entry | undefined;
 }
+/** 回收站中的条目元数据。 */
+export function getTrashedEntry(database: Database.Database, id: string): Entry | undefined {
+  return database
+    .prepare(`SELECT ${metadataColumns} FROM entries WHERE id = ? AND id IN (SELECT entryId FROM trash)`)
+    .get(id) as Entry | undefined;
+}
 export function listEntries(database: Database.Database): Entry[] {
   return database
     .prepare(

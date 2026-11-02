@@ -8,7 +8,13 @@ import { basename, join } from 'node:path';
 import type { CommandDefinitions, RpcClient, RpcCommand } from '@chaptale/contracts';
 
 import { APPLICATION_HOST_CHANNELS, type HostChannels } from '../../bridge/channels';
-import type { AddFileDataInput, DesktopCreationClient, FileAction, FileTarget } from '../../bridge/contracts';
+import type {
+  AddFileDataInput,
+  DesktopCreationClient,
+  FileAction,
+  FileReadTarget,
+  FileTarget
+} from '../../bridge/contracts';
 import { showOpenDialog } from '../infra/electron/dialog';
 import { openPathOrThrow } from '../infra/electron/shell';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
@@ -52,8 +58,12 @@ export function registerApplicationHostIpc(host: DesktopApplicationProcess): voi
       return result.canceled ? null : result.filePaths;
     }
   );
-  async function locate(target: FileTarget): Promise<string> {
-    const result = await host.creation.request('locateFile', { workId: target.workId, entryId: target.entryId });
+  async function locate(target: FileTarget, trashed = false): Promise<string> {
+    const result = await host.creation.request('locateFile', {
+      workId: target.workId,
+      entryId: target.entryId,
+      trashed
+    });
     if (!result.ok) throw new Error(result.error.message);
     return result.value.path;
   }
@@ -77,8 +87,8 @@ export function registerApplicationHostIpc(host: DesktopApplicationProcess): voi
       }
     }
   );
-  handleTrustedIpc(APPLICATION_HOST_CHANNELS.creation.readFile, async (_event, target: FileTarget) =>
-    readFile(await locate(target))
+  handleTrustedIpc(APPLICATION_HOST_CHANNELS.creation.readFile, async (_event, target: FileReadTarget) =>
+    readFile(await locate(target, target.trashed))
   );
   // 先写入临时目录再按路径添加，复制、登记与失败清理沿用 addFiles。
   handleTrustedIpc(APPLICATION_HOST_CHANNELS.creation.addFileData, async (_event, input: AddFileDataInput) => {

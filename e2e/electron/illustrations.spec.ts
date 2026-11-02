@@ -124,4 +124,7 @@ test('TXT 文稿右键插入插图先转为 Markdown；粘贴截图放进“插�
   await page.getByRole('treeitem', { name: '城门.png', exact: true }).press('Delete');
   await page.getByRole('alertdialog').getByRole('button', { name: '删除', exact: true }).click();
   await expect(page.getByRole('figure', { name: '插图 城门', exact: true })).toContainText('图片在回收站中');
+  const trash = page.getByRole('region', { name: '回收站', exact: true });
+  await trash.getByRole('button', { name: /^回收站/ }).click();
+  await expect(trash.locator('img')).toBeVisible();
 });

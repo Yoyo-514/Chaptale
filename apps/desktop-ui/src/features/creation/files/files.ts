@@ -17,16 +17,18 @@ const imageTypes: Record<string, string> = {
 /** “打开方式”对话框只有 Windows 提供。 */
 export const canChooseOpener = /Windows/.test(navigator.userAgent);
 
-/** 每次读取磁盘上的当前文件，外部修改后再次打开即显示新内容。 */
-export async function readFileBlob(workId: string, entry: Entry): Promise<Blob> {
-  const data = await getDesktopApi().creation.readFile({ workId, entryId: entry.id });
+/** 每次读取磁盘上的当前文件，外部修改后再次打开即显示新内容；trashed 读取回收站中的文件。 */
+export async function readFileBlob(workId: string, entry: Entry, trashed = false): Promise<Blob> {
+  const data = await getDesktopApi().creation.readFile({ workId, entryId: entry.id, trashed });
   const extension = entry.fileName!.split('.').pop()!.toLowerCase();
   return new Blob([data as Uint8Array<ArrayBuffer>], { type: imageTypes[extension] ?? '' });
 }
 
 /** 按条目 ID 读取插图图片；条目在回收站或已清空时抛出主进程的错误信息。 */
 export async function readEntryImage(workId: string, entryId: string): Promise<Blob> {
-  return new Blob([(await getDesktopApi().creation.readFile({ workId, entryId })) as Uint8Array<ArrayBuffer>]);
+  return new Blob([
+    (await getDesktopApi().creation.readFile({ workId, entryId, trashed: false })) as Uint8Array<ArrayBuffer>
+  ]);
 }
 
 export function runFileAction(workId: string, entry: Entry, action: FileAction) {
@@ -34,7 +36,7 @@ export function runFileAction(workId: string, entry: Entry, action: FileAction) 
 }
 
 /** 图片条目的 Object URL；目标变化或作用域结束时释放。读取失败返回 null，由调用方显示占位。 */
-export function useFileImage(target: Ref<{ workId: string; entry: Entry } | null>) {
+export function useFileImage(target: Ref<{ workId: string; entry: Entry; trashed?: boolean } | null>) {
   const src = ref<string | null>(null);
   let sequence = 0;
   function release() {
@@ -47,7 +49,9 @@ export function useFileImage(target: Ref<{ workId: string; entry: Entry } | null
       const current = ++sequence;
       release();
       if (!key) return;
-      const blob = await readFileBlob(target.value!.workId, target.value!.entry).catch(() => null);
+      const blob = await readFileBlob(target.value!.workId, target.value!.entry, target.value!.trashed).catch(
+        () => null
+      );
       if (current === sequence && blob) src.value = URL.createObjectURL(blob);
     },
     { immediate: true }

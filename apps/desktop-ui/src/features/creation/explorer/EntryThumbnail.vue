@@ -5,11 +5,13 @@ import type { Entry } from '@chaptale/creation/contracts';
 
 import { useFileImage } from '../files/files';
 
-/** 目录树的图片缩略图：滚动到可见时才读取文件，读取失败时显示图标。 */
-const props = defineProps<{ workId: string; entry: Entry }>();
+/** 图片缩略图：滚动到可见时才读取文件，读取失败时显示图标；trashed 读取回收站中的文件。 */
+const props = defineProps<{ workId: string; entry: Entry; trashed?: boolean }>();
 const root = ref<HTMLElement>();
 const visible = ref(false);
-const src = useFileImage(computed(() => (visible.value ? { workId: props.workId, entry: props.entry } : null)));
+const src = useFileImage(
+  computed(() => (visible.value ? { workId: props.workId, entry: props.entry, trashed: props.trashed } : null))
+);
 
 let observer: IntersectionObserver | undefined;
 onMounted(() => {

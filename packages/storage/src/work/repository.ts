@@ -93,6 +93,9 @@ export class SqliteWorkRepository implements WorkRepository {
   isTrashed(entryId: string): boolean {
     return trash.isTrashed(this.connect(), entryId);
   }
+  getTrashedEntry(entryId: string): Entry | undefined {
+    return entries.getTrashedEntry(this.connect(), entryId);
+  }
   getTrashedDocument(documentId: string): Document | undefined {
     return trash.getTrashedDocument(this.connect(), documentId);
   }

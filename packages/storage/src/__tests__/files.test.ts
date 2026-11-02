@@ -39,7 +39,8 @@ async function workspace() {
   };
   const add = async (paths: string[], commandId: string = randomUUID(), parentId: string | null = null) =>
     value(await app.execute({ method: 'addFiles', input: { commandId, workId: work.id, parentId, paths } }));
-  const locate = (entry: Entry) => app.execute({ method: 'locateFile', input: { workId: work.id, entryId: entry.id } });
+  const locate = (entry: Entry, trashed = false) =>
+    app.execute({ method: 'locateFile', input: { workId: work.id, entryId: entry.id, trashed } });
   const list = () => value(app.executeAuthor({ method: 'listEntries', input: { workId: work.id } }));
   const reopen = async () => {
     app.close();
@@ -147,6 +148,8 @@ it('移入回收站时保留文件，恢复后可用，永久清空时删除文�
   );
   expect(trashed.map(item => item.id)).toEqual([entry!.id]);
   expect(await locate(entry!)).toMatchObject({ ok: false, error: { message: '条目在回收站中' } });
+  // 回收站预览只读回收站中的文件。
+  expect(value(await locate(entry!, true)).path).toBe(path);
   expect(existsSync(path)).toBe(true);
   const [batch] = value(app().executeAuthor({ method: 'listTrash', input: { workId: work.id } }));
   value(

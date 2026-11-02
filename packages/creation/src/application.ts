@@ -81,7 +81,10 @@ export class CreationApplication {
         case 'addFiles':
           return { ok: true, value: await addFiles(this.service, file.input) };
         case 'locateFile':
-          return { ok: true, value: await locateFile(this.service, file.input.workId, file.input.entryId) };
+          return {
+            ok: true,
+            value: await locateFile(this.service, file.input.workId, file.input.entryId, file.input.trashed)
+          };
       }
     } catch (error) {
       return creationFailure(error);

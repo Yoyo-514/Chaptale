@@ -22,6 +22,10 @@ export interface FileTarget {
   workId: string;
   entryId: string;
 }
+/** 读取目标；trashed 为 true 时读取回收站中的文件，供回收站缩略图。 */
+export interface FileReadTarget extends FileTarget {
+  trashed: boolean;
+}
 
 export interface AddFileDataInput {
   workId: string;
@@ -36,7 +40,7 @@ export interface DesktopCreationClient extends CreationClient {
   ): Promise<string[] | null>;
   fileAction(target: FileTarget, action: FileAction): Promise<void>;
   /** 读取文件条目当前内容，供应用内预览。 */
-  readFile(target: FileTarget): Promise<Uint8Array>;
+  readFile(target: FileReadTarget): Promise<Uint8Array>;
   /** 拖入的系统文件对应的本机路径；剪贴板中的截图等没有路径时为空字符串。 */
   pathForFile(file: File): string;
   /** 添加没有本机路径的文件（如粘贴的截图），按 addFiles 的规则登记为资料文件条目。 */

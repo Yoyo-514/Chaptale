@@ -156,6 +156,7 @@ export interface WorkRepository {
   listTrash(): TrashBatch[];
   isTrashed(entryId: string): boolean;
   getTrashedDocument(documentId: string): Document | undefined;
+  getTrashedEntry(entryId: string): Entry | undefined;
   /** 返回恢复到正常目录的条目 ID。 */
   restoreTrash(batchId: string): string[];
   /** 返回被永久删除条目的元数据。 */

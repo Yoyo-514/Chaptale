@@ -36,7 +36,10 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
         described.push(located(workId, entry));
         continue;
       }
-      const file = await application.execute({ method: 'locateFile', input: { workId, entryId: entry.id } });
+      const file = await application.execute({
+        method: 'locateFile',
+        input: { workId, entryId: entry.id, trashed: false }
+      });
       described.push({
         ...located(workId, entry),
         file: file.ok
@@ -116,7 +119,7 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
         if (entry?.kind !== 'file') return toolResult(readDocument(input, context));
         const file = await application.execute({
           method: 'locateFile',
-          input: { workId: input.workId, entryId: entry.id }
+          input: { workId: input.workId, entryId: entry.id, trashed: false }
         });
         if (!file.ok) return toolResult(file);
         if (!isImageFile(entry))

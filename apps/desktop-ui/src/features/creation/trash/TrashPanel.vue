@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import type { Entry, StoryRelationRef, TrashBatch } from '@chaptale/creation/contracts';
+import { isImageFile, type Entry, type StoryRelationRef, type TrashBatch } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { toErrorMessage } from '@/utils/desktop-api';
 
+import EntryThumbnail from '../explorer/EntryThumbnail.vue';
 import { entryIcon } from '../explorer/tree-rows';
 import { useCreationStore } from '../store';
 import { useTrashStore } from './store';
@@ -168,7 +169,8 @@ const purgeCount = computed(() => {
           @click="open(batch, entry)"
           @keydown.enter.prevent="open(batch, entry)"
         >
-          <span class="trash-entry-icon" :class="icon" aria-hidden="true" />
+          <EntryThumbnail v-if="entry && isImageFile(entry)" :work-id="creation.workId!" :entry="entry" trashed />
+          <span v-else class="trash-entry-icon" :class="icon" aria-hidden="true" />
           <span class="trash-text">
             <span class="trash-title" :title="title">{{ title }}</span>
             <span v-if="first" class="trash-meta"

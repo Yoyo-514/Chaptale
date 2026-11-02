@@ -235,7 +235,8 @@ export interface CreationCommands extends CreationAuthorCommands {
   importFiles: { input: ImportFilesInput; output: CreationResult<ImportReport> };
   exportFiles: { input: ExportFilesInput; output: CreationResult<ExportReport> };
   addFiles: { input: AddFilesInput; output: CreationResult<AddFilesReport> };
-  locateFile: { input: { workId: string; entryId: string }; output: CreationResult<FileLocation> };
+  /** trashed 为 true 时定位回收站中的文件，只用于只读预览。 */
+  locateFile: { input: { workId: string; entryId: string; trashed: boolean }; output: CreationResult<FileLocation> };
 }
 export type CreationAuthorCommand = RpcCommand<CreationAuthorCommands>;
 export type CreationCommand = RpcCommand<CreationCommands>;

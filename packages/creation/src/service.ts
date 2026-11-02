@@ -153,10 +153,11 @@ export class CreationService {
   entryFileDir(workId: string, entryId: string): string {
     return this.repository.work(workId).entryFileDir(entryId);
   }
-  /** 正常目录中的文件条目；回收站中的条目返回“条目在回收站中”。 */
-  readFileEntry(workId: string, entryId: string): Entry {
-    const entry = this.repository.work(workId).getEntry(entryId);
-    if (!entry) assertNotTrashed(this.repository.work(workId), entryId);
+  /** 文件条目；trashed 为 true 时只读回收站中的条目（供回收站预览），否则回收站中的条目返回“条目在回收站中”。 */
+  readFileEntry(workId: string, entryId: string, trashed: boolean): Entry {
+    const work = this.repository.work(workId);
+    const entry = trashed ? work.getTrashedEntry(entryId) : work.getEntry(entryId);
+    if (!entry && !trashed) assertNotTrashed(work, entryId);
     if (entry?.kind !== 'file') throw new Error('文件条目不存在');
     return entry;
   }
