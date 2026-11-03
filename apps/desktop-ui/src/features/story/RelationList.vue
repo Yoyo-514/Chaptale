@@ -23,7 +23,7 @@ import {
   sourceLabel
 } from './labels';
 import RelationForm from './RelationForm.vue';
-import { relationDiff, relationVisibility, type RelationItem } from './relations';
+import { relationDiff, relationOverlaps, relationVisibility, type RelationItem } from './relations';
 import StorySection from './StorySection.vue';
 
 /**
@@ -73,7 +73,16 @@ const rows = computed(() =>
         name,
         state,
         span: relationSpan(item.relation, creation.entries, props.asOf),
-        undetermined: item.relation.milestones.some(milestone => milestone.placement.kind === 'undetermined')
+        undetermined: item.relation.milestones.some(milestone => milestone.placement.kind === 'undetermined'),
+        overlaps: item.change
+          ? relationOverlaps(
+              item.change,
+              creation.relations,
+              creation.pendingChanges,
+              creation.entries,
+              creation.pendingEntries
+            )
+          : []
       }
     ];
   })
@@ -267,6 +276,7 @@ function remove(item: RelationItem) {
               :chapter-ids="waiting.get(row.change.id)!"
               @open="id => emit('source', id)"
             />
+            <p v-for="overlap in row.overlaps" :key="overlap" class="relation-overlap" role="status">{{ overlap }}</p>
             <p v-if="row.change.conflicts.length" class="relation-conflict" role="status">
               Agent 修改期间正式关系也有变化，展开检查后修改并保存即视为已解决。
             </p>
@@ -421,9 +431,13 @@ function remove(item: RelationItem) {
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, var(--destructive) 60%, transparent);
 }
-.relation-conflict {
+.relation-conflict,
+.relation-overlap {
   margin: 4px 0 0;
   font-size: var(--ui-caption-size);
+}
+.relation-overlap {
+  color: var(--muted-foreground);
 }
 .relation-actions {
   display: flex;

@@ -2,6 +2,7 @@ import {
   relationState,
   type Entry,
   type EntryChange,
+  type PendingChange,
   type RelationChange,
   type RelationMilestone,
   type RelationSnapshot,
@@ -9,7 +10,14 @@ import {
   type StoryRelation
 } from '@chaptale/creation/contracts';
 
-import { milestoneText, placementLabel, placementValue, resourceTitle, type MilestoneRow } from './labels';
+import {
+  milestoneText,
+  placementLabel,
+  placementValue,
+  relationSpan,
+  resourceTitle,
+  type MilestoneRow
+} from './labels';
 
 /** 资料页的一条关系：正式关系，或叠加本会话候选后的内容。 */
 export interface RelationItem {
@@ -102,4 +110,38 @@ export function relationDiff(
     if (!candidate.milestones.some(item => item.id === milestone.id))
       lines.push({ kind: 'removed', text: describe(milestone) });
   return lines;
+}
+
+/**
+ * 新增关系候选与同一对资料、同一类型的正式关系或其他会话候选重合时的提示；同类关系允许多段，只提示不拦截。
+ */
+export function relationOverlaps(
+  change: RelationChange,
+  relations: readonly StoryRelation[],
+  pending: readonly PendingChange[],
+  entries: readonly Entry[],
+  pendingEntries: readonly EntryChange[]
+): string[] {
+  if (change.base !== null || change.deleted) return [];
+  const { resourceIds, type } = change.candidate;
+  const same = (relation: RelationSnapshot) =>
+    relation.type === type &&
+    relation.resourceIds.includes(resourceIds[0]) &&
+    relation.resourceIds.includes(resourceIds[1]);
+  const names = resourceIds.map(id => resourceTitle(id, entries, pendingEntries) ?? '已删除的资料').join('与');
+  const formal = relations.filter(same).map(relation => `${names}已有${type}关系${spanNote(relation, entries)}`);
+  const proposed = pending.some(
+    item =>
+      item.target === 'relation' &&
+      item.sessionId !== change.sessionId &&
+      item.base === null &&
+      !item.deleted &&
+      same(item.candidate)
+  );
+  return proposed ? [...formal, `另一个会话也提出了${names}的${type}关系`] : formal;
+}
+
+function spanNote(relation: RelationSnapshot, entries: readonly Entry[]) {
+  const span = relationSpan(relation, entries);
+  return span ? `（${span}）` : '';
 }
