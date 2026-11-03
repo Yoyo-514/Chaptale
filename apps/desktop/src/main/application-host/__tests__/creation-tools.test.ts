@@ -1799,3 +1799,23 @@ it('审阅模式改写章节后，事件出处可用读到的待接受版本；�
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0].messages).toContain('作者拒绝了来源正文');
 });
+
+it('tool_search 加载的工具随历史重开保留，下一次请求不撤下', async () => {
+  const runtime = await restartWithTools([]);
+  const requests = await observeContinuation(runtime);
+  await load('work_record');
+  await host.execute({ method: 'prompt', input: { id, text: '列出事件' } });
+  await expect.poll(() => requests.length).toBe(1);
+  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
+  await expect.poll(() => view().running).toBe(false);
+  const session = host.liveSession(id)!;
+  const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+  await host.execute({ method: 'close', input: { id } });
+  id = (await host.execute({ method: 'open', input: history })) as string;
+  expect(host.liveSession(id)!.getActiveToolNames()).toEqual(
+    expect.arrayContaining(['work_record_ls', 'work_record_write'])
+  );
+  await host.execute({ method: 'prompt', input: { id, text: '再列一次' } });
+  await expect.poll(() => requests.length).toBe(2);
+  expect(requests[1].messages).not.toContain('toolsRemoved');
+});

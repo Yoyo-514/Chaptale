@@ -1,3 +1,4 @@
+import { getCurrentTools } from '@earendil-works/pi-ai';
 import {
   type ContextEvent,
   createAgentSession,
@@ -107,10 +108,12 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     tools: bindings?.names ?? [],
     customTools: bindings?.tools
   });
-  // pi 会激活工具名单中列出的全部工具；延迟工具只登记，留给 tool_search 加载。
-  if (bindings && bindings.deferred.size > 0)
+  // pi 会激活工具名单中列出的全部工具；延迟工具只登记，留给 tool_search 加载。重开历史时保留记录中已加载的延迟工具。
+  if (bindings && bindings.deferred.size > 0) {
+    const loaded = new Set(getCurrentTools(sessionManager.buildSessionContext().messages).map(tool => tool.name));
     created.session.setActiveToolsByName(
-      created.session.getActiveToolNames().filter(name => !bindings.deferred.has(name))
+      created.session.getActiveToolNames().filter(name => !bindings.deferred.has(name) || loaded.has(name))
     );
+  }
   return created;
 }
