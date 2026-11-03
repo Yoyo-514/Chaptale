@@ -71,16 +71,20 @@ export class CreationAgentService {
           : this.creation.listEntries(command.input.workId);
       case 'readDocument': {
         const { workId, documentId } = command.input;
-        if (context.mode !== 'review') return this.creation.readDocument(workId, documentId);
-        const change = this.review.list(workId, context.sessionId).find(item => item.targetId === documentId);
-        if (!change || change.target !== 'entry') return this.creation.readDocument(workId, documentId);
+        const change =
+          context.mode === 'review'
+            ? this.review.list(workId, context.sessionId).find(item => item.targetId === documentId)
+            : undefined;
+        if (!change || change.target !== 'entry')
+          return { ...this.creation.readDocument(workId, documentId), pending: false };
         const snapshot = (this.review.read(change.id) as EntryReviewView).candidate;
         if (snapshot.kind !== 'document') throw new Error('文稿或资料不存在');
         return {
           ...snapshot,
           kind: 'document' as const,
           format: snapshot.format as 'txt' | 'markdown',
-          content: snapshot.content!
+          content: snapshot.content!,
+          pending: true
         };
       }
       case 'searchDocuments': {

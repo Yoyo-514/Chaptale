@@ -47,11 +47,12 @@ export class AgentRecordService {
   list(
     context: CreationAgentContext,
     input: CreationAgentCommands['listRecords']['input']
-  ): (StoryRecord & { sourceChanged: boolean })[] {
+  ): (StoryRecord & { sourceChanged: boolean; pending: boolean })[] {
     const { workId, resourceId, sourceId, asOf } = input;
     const work = this.repository.work(workId);
     let records = work.listRecords();
     let entries = work.listEntries();
+    const pending = new Set<string>();
     if (context.mode === 'review') {
       const changes = this.review.list(workId, context.sessionId);
       entries = overlayEntries(
@@ -68,18 +69,19 @@ export class AgentRecordService {
           continue;
         }
         const current = byId.get(change.targetId);
+        pending.add(change.targetId);
         byId.set(change.targetId, candidateRecord(change, current, [...byId.values()]));
       }
       records = [...byId.values()];
     }
     if (asOf !== null && !entries.some(entry => entry.id === asOf && entry.section === 'manuscript'))
       throw new Error('查看进度的章节不存在');
-    const changed = sourceChecker(work);
+    const changed = sourceChecker(work, new Map(entries.map(entry => [entry.id, entry.revisionId])));
     return groupRecords(records, entries, asOf)
       .flatMap(group => group.records)
       .filter(record => resourceId === null || record.resourceIds.includes(resourceId))
       .filter(record => sourceId === null || (record.source.kind === 'chapter' && record.source.chapterId === sourceId))
-      .map(record => ({ ...record, sourceChanged: changed(record.source) }));
+      .map(record => ({ ...record, sourceChanged: changed(record.source), pending: pending.has(record.id) }));
   }
 
   write(context: CreationAgentContext, command: RecordCommand): AgentWriteResult {

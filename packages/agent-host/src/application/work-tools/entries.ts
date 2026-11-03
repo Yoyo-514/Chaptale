@@ -66,12 +66,13 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
         method: 'readDocument',
         input: { workId: input.workId, documentId: input.entryId }
       }),
-      ({ attributes, ...document }): JsonValue => {
+      ({ attributes, pending, ...document }): JsonValue => {
         const start = (input.offset ?? 1) - 1;
         const lines = agentText(document).split('\n');
         const content = lines.slice(start, input.limit === undefined ? undefined : start + input.limit).join('\n');
         return {
           ...located(input.workId, document),
+          pending,
           content,
           ...(attributes && {
             attributes: {
@@ -118,7 +119,7 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       name: 'work_read',
       label: '读取作品正文',
       description:
-        '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改；资料另附类型、别名、标签与封面条目 ID。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。图片文件条目返回图片（模型支持读图时）；其他文件条目返回路径，需用原始工具读取。Markdown 正文中的插图显示为独占一行的 [插图：说明 entry:<图片条目ID>]，以该 ID 调用 work_read 可查看图片；写入时可保留、移动或删除插图占位，不能新建。',
+        '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改；pending 为 true 表示读到的是本会话待作者接受的修改，正式稿尚未改变。资料另附类型、别名、标签与封面条目 ID。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。图片文件条目返回图片（模型支持读图时）；其他文件条目返回路径，需用原始工具读取。Markdown 正文中的插图显示为独占一行的 [插图：说明 entry:<图片条目ID>]，以该 ID 调用 work_read 可查看图片；写入时可保留、移动或删除插图占位，不能新建。',
       parameters: workReadParameters,
       async execute(toolCallId, input, signal, onUpdate, ctx) {
         signal?.throwIfAborted();

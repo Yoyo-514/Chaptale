@@ -4,6 +4,7 @@ import type {
   CreateEntryInput,
   CreationReadCommands,
   CreationResult,
+  Document,
   Entry,
   EntrySnapshot,
   MoveEntryInput,
@@ -299,21 +300,27 @@ export interface CreationAgentCommands extends CreationReadCommands {
     input: { commandId: string; workId: string; entryId: string; expectedRevisionId: string };
     output: CreationResult<AgentWriteResult>;
   };
-  /** 审阅模式包含本会话候选；asOf 为章节 ID 时只返回截至该章发生的事件和待定事件；sourceChanged 表示出处章节正文在核对后改过。 */
+  /** 审阅模式下读到本会话候选时 pending 为 true。 */
+  readDocument: {
+    input: { workId: string; documentId: string };
+    output: CreationResult<Document & { pending: boolean }>;
+  };
+  /** 审阅模式包含本会话候选（pending 为 true）；asOf 为章节 ID 时只返回截至该章发生的事件和待定事件；sourceChanged 表示出处章节正文在核对后改过。 */
   listRecords: {
     input: { workId: string; resourceId: string | null; sourceId: string | null; asOf: string | null };
-    output: CreationResult<(StoryRecord & { sourceChanged: boolean })[]>;
+    output: CreationResult<(StoryRecord & { sourceChanged: boolean; pending: boolean })[]>;
   };
   createRecord: { input: CreateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
   updateRecord: { input: UpdateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
   removeRecord: { input: RemoveRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
-  /** 审阅模式包含本会话候选；state 按 asOf 计算，types 为可选关系类型。 */
+  /** 审阅模式包含本会话候选（pending 为 true）；state 按 asOf 计算，types 为可选关系类型。 */
   listRelations: {
     input: { workId: string; resourceId: string | null; asOf: string | null };
     output: CreationResult<{
       relations: (Omit<StoryRelation, 'milestones'> & {
         milestones: (RelationMilestone & { sourceChanged: boolean })[];
         state: RelationState;
+        pending: boolean;
       })[];
       types: RelationType[];
     }>;

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 
-import type { PendingChange } from '@chaptale/creation/contracts';
+import type { CreationAgentContext, PendingChange } from '@chaptale/creation/contracts';
 
 import { application, target, value } from './fixtures/review.ts';
 
@@ -121,4 +121,21 @@ it('正文整篇被拒绝时，出处指向它的事件候选一并拒绝，续�
   expect(contents).toEqual(
     expect.arrayContaining([expect.objectContaining({ targetId: record.targetId, decision: 'sourceRejected' })])
   );
+});
+
+it('审阅模式下 Agent 读到的待审正文与事件标为 pending，出处是待审正文的事件不算待复核', async () => {
+  const { fixture, workId } = await drafted();
+  const read = (context: CreationAgentContext) =>
+    value(
+      fixture.app.executeAgent(context, { method: 'readDocument', input: { workId, documentId: fixture.document.id } })
+    );
+  expect(read(fixture.context)).toMatchObject({ pending: true, content: '将军守城。\n公主远行。\n城破。' });
+  expect(read({ ...fixture.context, mode: 'discuss' })).toMatchObject({ pending: false });
+  const listed = value(
+    fixture.app.executeAgent(fixture.context, {
+      method: 'listRecords',
+      input: { workId, resourceId: null, sourceId: null, asOf: null }
+    })
+  );
+  expect(listed).toMatchObject([{ text: '城破', pending: true, sourceChanged: false }]);
 });

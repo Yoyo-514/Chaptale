@@ -24,7 +24,7 @@ export function recordTools({ application, written, executeWrite, tool }: WorkTo
     tool(
       'work_record_ls',
       '列出作品事件',
-      '列出作品中的事件，按发生位置排序；审阅模式包含本会话待接受修改。resourceId 只列涉及该资料的事件；sourceId 只列出自该章的事件；asOf 为章节 ID 时只列截至该章发生的事件与待定事件。placement 为 chapter（附 chapterId）、opening（开篇之前）或 undetermined（待定）。sourceChanged 为 true 表示出处章节在核对后又改过正文，source.revisionId 是此前核对的版本；只有作者能确认整章记录仍适用。',
+      '列出作品中的事件，按发生位置排序；审阅模式包含本会话待接受修改，pending 为 true 表示该事件尚待作者接受。resourceId 只列涉及该资料的事件；sourceId 只列出自该章的事件；asOf 为章节 ID 时只列截至该章发生的事件与待定事件。placement 为 chapter（附 chapterId）、opening（开篇之前）或 undetermined（待定）。sourceChanged 为 true 表示出处章节在核对后又改过正文，source.revisionId 是此前核对的版本；只有作者能确认整章记录仍适用。',
       object({
         workId: id,
         resourceId: Type.Optional(nullableId),

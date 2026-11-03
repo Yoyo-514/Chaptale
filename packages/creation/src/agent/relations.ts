@@ -47,8 +47,9 @@ export class AgentRelationService {
 
   list(context: CreationAgentContext, input: CreationAgentCommands['listRelations']['input']): Listed {
     const { workId, resourceId, asOf } = input;
-    const { work, entries, relations } = this.visible(context, workId);
-    const changed = sourceChecker(work);
+    const { work, entries, relations, changes } = this.visible(context, workId);
+    const changed = sourceChecker(work, new Map(entries.map(entry => [entry.id, entry.revisionId])));
+    const pending = new Set(changes.filter(change => change.target === 'relation').map(change => change.targetId));
     if (asOf !== null && !entries.some(entry => entry.id === asOf && entry.section === 'manuscript'))
       throw new Error('查看进度的章节不存在');
     return {
@@ -60,7 +61,8 @@ export class AgentRelationService {
             ...milestone,
             sourceChanged: changed(milestone.source)
           })),
-          state: relationState(relation, entries, asOf)
+          state: relationState(relation, entries, asOf),
+          pending: pending.has(relation.id)
         })),
       types: relationTypes(relations)
     };

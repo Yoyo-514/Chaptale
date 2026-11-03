@@ -58,7 +58,7 @@ export function relationTools({ application, written, executeWrite, tool }: Work
       'work_relation_ls',
       '列出作品关系',
       [
-        '列出资料之间的关系及作品中已用的关系类型；审阅模式包含本会话待接受修改。resourceId 只列涉及该资料的关系。',
+        '列出资料之间的关系及作品中已用的关系类型；审阅模式包含本会话待接受修改，pending 为 true 表示该关系尚待作者接受。resourceId 只列涉及该资料的关系。',
         'state 为截至 asOf 章节（省略则为全书）最近一条建立或结束得出的状态：active（存续）、ended（已结束）、undetermined（建立与结束都待定）。',
         'milestones 按发生位置排列，kind 为 start（建立）或 end（结束）；directed 为 true 时 titles 依次是 resourceIds 双方的称谓。建立／结束的 sourceChanged 为 true 表示出处章节在核对后又改过正文，source.revisionId 是此前核对的版本；只有作者能确认整章记录仍适用。'
       ].join(''),
