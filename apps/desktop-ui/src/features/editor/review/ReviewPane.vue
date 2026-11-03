@@ -38,6 +38,7 @@ const next = computed(() => (done.value ? review.nextResource(props.tab) : null)
       @decide="(change, decision) => review.decideStory(tab.key, change, decision)"
       @update-record="(change, fields) => review.updateRecord(tab.key, change, fields)"
       @update-relation="(change, input) => review.updateRelation(tab.key, change, input)"
+      @source="entryId => review.reveal({ sessionId: tab.sessionId, entryId })"
     />
   </div>
 </template>

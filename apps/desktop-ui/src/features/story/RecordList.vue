@@ -7,7 +7,8 @@ import { AppButton } from '@/components/AppButton';
 import { requestCreation, useCreationStore } from '@/features/creation';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { placementLabel, placementValue, resourceTitle, sourceLabel, type MilestoneRow } from './labels';
+import DraftSourceHint from './DraftSourceHint.vue';
+import { chapterTitles, placementLabel, placementValue, resourceTitle, sourceLabel, type MilestoneRow } from './labels';
 import RecordForm from './RecordForm.vue';
 import StorySection from './StorySection.vue';
 
@@ -23,8 +24,8 @@ const props = defineProps<{
   asOf: string | null;
   milestones: MilestoneRow[];
   candidates?: RecordChange[];
-  /** 须先处理本章正文的候选 ID。 */
-  waiting?: ReadonlySet<string>;
+  /** 须先处理本章正文的候选 ID 到待审正文所在章节。 */
+  waiting?: ReadonlyMap<string, string[]>;
   busy?: boolean;
   /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
   changedSources: ReadonlySet<string>;
@@ -33,6 +34,8 @@ const emit = defineEmits<{
   decide: [change: RecordChange, decision: 'accept' | 'reject'];
   update: [change: RecordChange, fields: RecordFields];
   locate: [relationId: string];
+  /** 打开出处章节的审阅。 */
+  source: [chapterId: string];
 }>();
 const creation = useCreationStore();
 const adding = ref(false);
@@ -264,9 +267,11 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
               <p v-if="changes.get(row.record.id)!.basis" class="record-basis">
                 依据：{{ changes.get(row.record.id)!.basis }}
               </p>
-              <p v-if="waiting?.has(changes.get(row.record.id)!.id)" class="record-conflict" role="status">
-                出处是本章待接受的新正文，先处理本章正文。
-              </p>
+              <DraftSourceHint
+                v-if="waiting?.has(changes.get(row.record.id)!.id)"
+                :chapter-ids="waiting.get(changes.get(row.record.id)!.id)!"
+                @open="id => emit('source', id)"
+              />
               <p v-if="changes.get(row.record.id)!.conflicts.length" class="record-conflict" role="status">
                 Agent 修改期间正式事件也有变化，检查后修改并保存即视为已解决。
               </p>
@@ -298,7 +303,7 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
                     changes.get(row.record.id)!.conflicts.length
                       ? '请先处理冲突'
                       : waiting?.has(changes.get(row.record.id)!.id)
-                        ? '先处理本章正文'
+                        ? `先处理${chapterTitles(waiting.get(changes.get(row.record.id)!.id)!, creation.entries, creation.pendingEntries)}`
                         : undefined
                   "
                   @click="emit('decide', changes.get(row.record.id)!, 'accept')"

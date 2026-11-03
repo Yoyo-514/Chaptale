@@ -70,8 +70,25 @@ const resources = computed(() =>
 );
 const relinkTarget = ref('');
 const confirmReject = ref(false);
+/** 整篇拒绝正文时，出处是这份新正文的事件与关系候选随之拒绝。 */
+const draftDependents = computed(() =>
+  candidate.value.section === 'manuscript' && !deleted.value ? review.draftDependents(data.value.change) : 0
+);
+const rejectNotice = computed(() =>
+  draftDependents.value
+    ? {
+        title: `拒绝《${candidate.value.title}》的修改？`,
+        description: `出处是这份新正文的 ${draftDependents.value} 条事件或关系会一并拒绝。`
+      }
+    : newResource.value && dependents.value
+      ? {
+          title: `拒绝新资料《${candidate.value.title}》？`,
+          description: `依赖它的${dependents.value}候选会一并拒绝。`
+        }
+      : null
+);
 function reject() {
-  if (newResource.value && dependents.value) confirmReject.value = true;
+  if (rejectNotice.value) confirmReject.value = true;
   else void review.decide(props.tab.key, 'reject');
 }
 
@@ -215,8 +232,8 @@ onBeforeUnmount(() => {
     <div v-else ref="host" class="review-editor" @mousedown="blockAction" />
     <AppAlertDialog
       v-model:open="confirmReject"
-      :title="`拒绝新资料《${candidate.title}》？`"
-      :description="`依赖它的${dependents}候选会一并拒绝。`"
+      :title="rejectNotice?.title ?? ''"
+      :description="rejectNotice?.description"
       confirm-label="一并拒绝"
       @confirm="review.decide(tab.key, 'reject')"
     />

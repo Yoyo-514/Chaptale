@@ -315,3 +315,43 @@ it('关系候选在双方资料的审阅标签中列出，作者修改称呼后�
   expect(review.tabs).toEqual([]);
   expect(editor.tabs.map(item => item.id)).toEqual([master, pupil]);
 });
+
+it('出处是本会话待审正文的事件候选标明章节；整篇拒绝该章时计入一并拒绝的数量', async () => {
+  const resourceId = createResource('顾长风', 'author');
+  const chapter = propose('将军守城。\n城破。');
+  const seen = value(
+    author.executeAgent(context, { method: 'readDocument', input: { workId, documentId: document.id } })
+  );
+  const record = agent<{ change: PendingChange }>('createRecord', {
+    resourceIds: [resourceId],
+    text: '城破',
+    source: { kind: 'chapter', chapterId: document.id, revisionId: seen.revisionId },
+    placement: { kind: 'chapter', chapterId: document.id },
+    storyTime: '',
+    basis: '城破。'
+  }).change;
+  proposeRecord(resourceId, '顾长风守城');
+  await flushPromises();
+  await review.open({ sessionId: context.sessionId, entryId: resourceId });
+  const tab = review.tabs.find(item => item.entryId === resourceId)!;
+  expect([...tab.waiting]).toEqual([[record.id, [document.id]]]);
+  const pendingChapter = creation.pendingEntries.find(change => change.id === chapter.id)!;
+  expect(review.rejectDependents(pendingChapter)).toBe(1);
+
+  await review.decide(tabKey(), 'reject');
+  await flushPromises();
+  expect(pending().map(change => change.id)).not.toContain(record.id);
+  expect(review.tabs.find(item => item.entryId === resourceId)!.waiting.size).toBe(0);
+});
+
+it('关闭当前审阅标签后切到相邻的审阅标签', async () => {
+  const resourceId = createResource('顾长风', 'author');
+  propose('将军出征。\n公主远行。\n夜深。');
+  proposeRecord(resourceId, '顾长风守城');
+  await flushPromises();
+  await review.open({ sessionId: context.sessionId, entryId: resourceId });
+  await review.reveal({ sessionId: context.sessionId, entryId: document.id });
+  await review.decide(tabKey(), 'accept');
+  await flushPromises();
+  expect(review.activeTab?.entryId).toBe(resourceId);
+});

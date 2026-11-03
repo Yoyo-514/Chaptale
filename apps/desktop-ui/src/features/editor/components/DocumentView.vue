@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type { EditCommand } from '@chaptale/desktop/bridge';
 
@@ -7,7 +7,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppDiffView } from '@/components/AppDiffView';
-import { FilePreview } from '@/features/creation';
+import { FilePreview, useCreationStore } from '@/features/creation';
 import { useNotificationStore } from '@/features/notifications';
 import { StoryPanel } from '@/features/story';
 import { toErrorMessage } from '@/utils/desktop-api';
@@ -28,6 +28,11 @@ const editor = useEditorStore();
 const reading = useReadingStore();
 const check = useCheckStore();
 const review = useReviewStore();
+const creation = useCreationStore();
+/** Agent 对这份正式文稿的待接受修改；正式稿照常编辑，修改在审阅标签中处理。 */
+const pendingChange = computed(() =>
+  creation.pendingEntries.find(change => change.targetId === props.tab.id && change.base !== null)
+);
 const host = ref<HTMLElement>();
 const compare = ref(false);
 let view: ReturnType<typeof createDocumentView> | undefined;
@@ -120,6 +125,12 @@ watch(
 
 <template>
   <section class="document-view" :aria-label="tab.title">
+    <div v-if="pendingChange" class="document-message" role="status">
+      <span>Agent 对这份{{ tab.attributes ? '资料' : '文稿' }}有待接受的修改。</span>
+      <AppButton size="xs" @click="review.reveal({ sessionId: pendingChange.sessionId, entryId: tab.id })"
+        >查看修改</AppButton
+      >
+    </div>
     <div v-if="tab.recovery" class="document-message" role="status">
       <span>此文档有上次未保存的草稿。</span>
       <AppButton size="xs" @click="editor.restoreRecovery(tab.id)">恢复草稿</AppButton>

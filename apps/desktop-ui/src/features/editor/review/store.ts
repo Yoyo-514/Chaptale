@@ -38,7 +38,8 @@ export interface ReviewTab {
   review: EntryReviewView | null;
   records: RecordChange[];
   relations: RelationChange[];
-  waiting: ReadonlySet<string>;
+  /** 须先处理本章正文的候选 ID 到待审正文所在章节。 */
+  waiting: ReadonlyMap<string, string[]>;
   status: 'loading' | 'ready' | 'error';
   error: string;
   dirty: boolean;
@@ -75,31 +76,36 @@ function editorFocused() {
 
 const tabKey = (sessionId: string, entryId: string) => `${sessionId}:${entryId}`;
 
-/** 候选所在的审阅标签：条目修改归条目自身，事件与关系归第一份涉及的资料。 */
-/** 须先处理本章正文的事件与关系候选：出处修订不是该章待审前的正式修订，即指向本会话待审正文。 */
-function waitingChanges(changes: PendingChange[]): Set<string> {
+/**
+ * 须先处理本章正文的事件与关系候选及其章节：出处修订不是该章待审前的正式修订，即指向同一会话的待审正文。
+ * changes 为同一会话的待审修改。
+ */
+export function draftSources(changes: readonly PendingChange[]): Map<string, string[]> {
   const drafts = new Map(
     changes
       .filter((change): change is EntryChange => change.target === 'entry')
       .map(change => [change.targetId, change.base?.revisionId ?? null])
   );
-  return new Set(
-    changes
-      .filter(
-        change =>
-          change.target !== 'entry' &&
-          (change.target === 'record'
-            ? [change.candidate.source]
-            : change.candidate.milestones.map(milestone => milestone.source)
-          ).some(
+  const waiting = new Map<string, string[]>();
+  for (const change of changes) {
+    if (change.target === 'entry') continue;
+    const sources =
+      change.target === 'record' ? [change.candidate.source] : change.candidate.milestones.map(item => item.source);
+    const chapters = [
+      ...new Set(
+        sources
+          .filter(
             source =>
               source.kind === 'chapter' &&
               drafts.has(source.chapterId) &&
               drafts.get(source.chapterId) !== source.revisionId
           )
+          .map(source => (source as { chapterId: string }).chapterId)
       )
-      .map(change => change.id)
-  );
+    ];
+    if (chapters.length) waiting.set(change.id, chapters);
+  }
+  return waiting;
 }
 
 function changeEntryId(change: PendingChange) {
@@ -168,7 +174,7 @@ export const useReviewStore = defineStore('review', () => {
           (change): change is RelationChange =>
             change.target === 'relation' && storyResources(change).includes(tab.entryId)
         );
-        const waiting = waitingChanges(changes);
+        const waiting = draftSources(changes);
         const review = own ? entryReview(await requestCreation('readReview', { changeId: own.id })) : null;
         if (!find(key)) return;
         // 文稿处理完即关闭；资料留在标签上提示下一份，资料的新建或修改被拒绝、删除被接受后关闭。
@@ -223,7 +229,7 @@ export const useReviewStore = defineStore('review', () => {
           review: null,
           records: [],
           relations: [],
-          waiting: new Set(),
+          waiting: new Map(),
           status: 'loading',
           error: '',
           dirty: false,
@@ -243,10 +249,12 @@ export const useReviewStore = defineStore('review', () => {
   function select(key: string) {
     if (find(key)) activeId.value = key;
   }
+  /** 关闭当前标签时切到相邻的审阅标签，没有则交还文稿标签。 */
   function remove(key: string) {
     states.delete(key);
+    const index = tabs.value.findIndex(tab => tab.key === key);
     tabs.value = tabs.value.filter(tab => tab.key !== key);
-    if (activeId.value === key) activeId.value = '';
+    if (activeId.value === key) activeId.value = (tabs.value[index] ?? tabs.value[index - 1])?.key ?? '';
   }
   function close(key: string): boolean {
     const tab = find(key);
@@ -257,6 +265,20 @@ export const useReviewStore = defineStore('review', () => {
     }
     remove(key);
     return true;
+  }
+
+  /** 整篇拒绝该正文修改时随之拒绝的事件与关系候选数。 */
+  function draftDependents(change: EntryChange): number {
+    const session = creation.pendingChanges.filter(item => item.sessionId === change.sessionId);
+    return [...draftSources(session).values()].filter(chapters => chapters.includes(change.targetId)).length;
+  }
+  /** 整篇拒绝条目修改时一并拒绝的事件与关系候选数：出处是这份新正文，或依赖这份新资料。 */
+  function rejectDependents(change: EntryChange): number {
+    if (change.deleted) return 0;
+    if (change.candidate.section === 'manuscript') return draftDependents(change);
+    if (change.base) return 0;
+    return (creation.pendingStories.get(change.targetId) ?? []).filter(item => item.sessionId === change.sessionId)
+      .length;
   }
 
   /** 本会话还有待处理修改的下一份资料，供处理完的资料标签提示。 */
@@ -537,6 +559,8 @@ export const useReviewStore = defineStore('review', () => {
     reveal,
     select,
     close,
+    draftDependents,
+    rejectDependents,
     nextResource,
     openNext,
     getState,

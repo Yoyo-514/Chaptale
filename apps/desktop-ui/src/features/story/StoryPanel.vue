@@ -26,7 +26,7 @@ import { milestoneRows, relationItems } from './relations';
 const props = defineProps<{
   workId: string;
   resourceId: string;
-  candidates?: { records: RecordChange[]; relations: RelationChange[]; waiting: ReadonlySet<string> };
+  candidates?: { records: RecordChange[]; relations: RelationChange[]; waiting: ReadonlyMap<string, string[]> };
   busy?: boolean;
   /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
   changedSources: ReadonlySet<string>;
@@ -37,6 +37,8 @@ const emit = defineEmits<{
   updateRelation: [change: RelationChange, input: RelationInput];
   /** 资料页上打开本资料的审阅标签，sessionId 为候选所在会话。 */
   review: [sessionId: string];
+  /** 审阅视图中打开候选出处章节的审阅。 */
+  source: [chapterId: string];
 }>();
 const creation = useCreationStore();
 const asOf = ref('all');
@@ -112,6 +114,7 @@ const summary = computed(() =>
           :changed-sources="changedSources"
           @decide="(change, decision) => emit('decide', change, decision)"
           @update="(change, input) => emit('updateRelation', change, input)"
+          @source="id => emit('source', id)"
         />
         <RecordList
           :work-id="workId"
@@ -125,6 +128,7 @@ const summary = computed(() =>
           @decide="(change, decision) => emit('decide', change, decision)"
           @update="(change, fields) => emit('updateRecord', change, fields)"
           @locate="id => relationList?.locate(id)"
+          @source="id => emit('source', id)"
         />
       </AppScrollArea>
     </AppCollapsible>

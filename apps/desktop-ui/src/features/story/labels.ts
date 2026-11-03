@@ -98,6 +98,15 @@ export function resourceTitle(id: string, entries: readonly Entry[], pendingEntr
   );
 }
 
+/** 出处章节的书名号标题，新建章节取候选标题。 */
+export function chapterTitles(
+  ids: readonly string[],
+  entries: readonly Entry[],
+  pendingEntries: readonly EntryChange[]
+) {
+  return ids.map(id => `《${resourceTitle(id, entries, pendingEntries) ?? ''}》`).join('、');
+}
+
 /** 事件列表中的一条关系变化，点击定位到关系块对应行。 */
 export interface MilestoneRow {
   key: string;

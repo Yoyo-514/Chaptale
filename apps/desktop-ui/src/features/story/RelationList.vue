@@ -12,7 +12,16 @@ import { AppButton } from '@/components/AppButton';
 import { requestCreation, useCreationStore } from '@/features/creation';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import { milestoneText, placementLabel, relationSide, relationSpan, resourceTitle, sourceLabel } from './labels';
+import DraftSourceHint from './DraftSourceHint.vue';
+import {
+  chapterTitles,
+  milestoneText,
+  placementLabel,
+  relationSide,
+  relationSpan,
+  resourceTitle,
+  sourceLabel
+} from './labels';
 import RelationForm from './RelationForm.vue';
 import { relationDiff, relationVisibility, type RelationItem } from './relations';
 import StorySection from './StorySection.vue';
@@ -27,8 +36,8 @@ const props = defineProps<{
   asOf: string | null;
   items: RelationItem[];
   reviewing: boolean;
-  /** 须先处理本章正文的候选 ID。 */
-  waiting?: ReadonlySet<string>;
+  /** 须先处理本章正文的候选 ID 到待审正文所在章节。 */
+  waiting?: ReadonlyMap<string, string[]>;
   busy?: boolean;
   /** 出处章节正文核对后改过的事件与建立／结束 ID。 */
   changedSources: ReadonlySet<string>;
@@ -36,6 +45,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   decide: [change: RelationChange, decision: 'accept' | 'reject'];
   update: [change: RelationChange, input: RelationInput];
+  /** 打开出处章节的审阅。 */
+  source: [chapterId: string];
 }>();
 const creation = useCreationStore();
 const adding = ref(false);
@@ -251,9 +262,11 @@ function remove(item: RelationItem) {
           </div>
           <template v-if="row.change">
             <p v-if="row.change.basis" class="relation-basis">依据：{{ row.change.basis }}</p>
-            <p v-if="waiting?.has(row.change.id)" class="relation-conflict" role="status">
-              出处是本章待接受的新正文，先处理本章正文。
-            </p>
+            <DraftSourceHint
+              v-if="waiting?.has(row.change.id)"
+              :chapter-ids="waiting.get(row.change.id)!"
+              @open="id => emit('source', id)"
+            />
             <p v-if="row.change.conflicts.length" class="relation-conflict" role="status">
               Agent 修改期间正式关系也有变化，展开检查后修改并保存即视为已解决。
             </p>
@@ -277,7 +290,7 @@ function remove(item: RelationItem) {
                   row.change.conflicts.length
                     ? '请先处理冲突'
                     : waiting?.has(row.change.id)
-                      ? '先处理本章正文'
+                      ? `先处理${chapterTitles(waiting.get(row.change.id)!, creation.entries, creation.pendingEntries)}`
                       : undefined
                 "
                 @click="emit('decide', row.change, 'accept')"

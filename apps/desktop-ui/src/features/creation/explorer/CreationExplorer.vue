@@ -5,6 +5,7 @@ import { isImageFile, type Entry, type EntryChange } from '@chaptale/creation/co
 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
+import { AppAlertDialog } from '@/components/AppDialog';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
 import { useEditorStore, useHistoryStore, useReviewStore } from '@/features/editor';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
@@ -88,17 +89,29 @@ const pendingMenu: AppContextMenuItem[] = [
 function showReview(change: EntryChange) {
   void review.reveal({ sessionId: change.sessionId, entryId: change.targetId });
 }
+async function decidePending(change: EntryChange, decision: 'accept' | 'reject') {
+  try {
+    await review.decideChange(change.id, decision);
+  } catch (cause) {
+    error.value = toErrorMessage(cause);
+  }
+}
+/** 拒绝会连带拒绝事件或关系候选的新建条目；确认目标与弹窗开关分开保存。 */
+const rejecting = ref<{ change: EntryChange; count: number } | null>(null);
+const confirmReject = ref(false);
 async function selectPendingAction(id: string, change: EntryChange) {
   error.value = '';
   if (id === 'review') {
     showReview(change);
     return;
   }
-  try {
-    await review.decideChange(change.id, id as 'accept' | 'reject');
-  } catch (cause) {
-    error.value = toErrorMessage(cause);
+  const count = id === 'reject' ? review.rejectDependents(change) : 0;
+  if (count) {
+    rejecting.value = { change, count };
+    confirmReject.value = true;
+    return;
   }
+  await decidePending(change, id as 'accept' | 'reject');
 }
 async function open(entry: Entry, pending: EntryChange | null = null) {
   tree.value.selectedId = entry.id;
@@ -375,6 +388,13 @@ const treeDrop = useTreeDrop({
     </AppContextMenu>
     <TrashPanel />
     <EntryDialogs ref="dialogs" @error="message => (error = message)" />
+    <AppAlertDialog
+      v-model:open="confirmReject"
+      :title="`拒绝《${rejecting?.change.candidate.title ?? ''}》？`"
+      :description="`${rejecting?.count ?? 0} 条事件或关系依赖它，会一并拒绝。`"
+      confirm-label="一并拒绝"
+      @confirm="decidePending(rejecting!.change, 'reject')"
+    />
     <FilePreview v-model:entry="preview" :work-id="creation.workId" />
   </aside>
 </template>
