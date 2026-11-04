@@ -1,4 +1,4 @@
-import { flushPromises } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,6 +12,7 @@ import { openCreationStorage } from '@chaptale/storage';
 
 import { useCreationStore } from '@/features/creation';
 
+import EntryReview from '../review/EntryReview.vue';
 import { reviewDone, useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 
@@ -354,4 +355,17 @@ it('关闭当前审阅标签后切到相邻的审阅标签', async () => {
   await review.decide(tabKey(), 'accept');
   await flushPromises();
   expect(review.activeTab?.entryId).toBe(resourceId);
+});
+
+it('作者打开的审阅标签在 Agent 补改后显示新候选，不当作手改', async () => {
+  propose('将军出征。\n公主远行。\n夜深。');
+  await flushPromises();
+  await review.reveal({ sessionId: context.sessionId, entryId: document.id });
+  const view = mount(EntryReview, { props: { tab: review.activeTab! }, global: { plugins: [pinia] } });
+  propose('将军出征。\n公主回宫。\n夜深。');
+  await flushPromises();
+  // 新候选到达后标签按代次重建，旧编辑器卸载。
+  view.unmount();
+  expect(review.activeTab?.dirty).toBe(false);
+  expect(review.getState(tabKey())!.doc.toString()).toBe('将军出征。\n公主回宫。\n夜深。');
 });

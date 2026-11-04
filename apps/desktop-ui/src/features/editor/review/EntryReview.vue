@@ -5,6 +5,7 @@ const scrollTops = new Map<string, number>();
 
 <script setup lang="ts">
 import { getChunks, getOriginalDoc } from '@codemirror/merge';
+import type { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
@@ -23,6 +24,8 @@ const creation = useCreationStore();
 const host = ref<HTMLElement>();
 const blockError = ref('');
 let view: EditorView | undefined;
+/** 本编辑器最近一次同步给标签的状态。 */
+let synced: EditorState | undefined;
 let frame: number | undefined;
 
 const data = computed(() => props.tab.review!);
@@ -125,13 +128,16 @@ function blockAction(event: MouseEvent) {
 
 onMounted(() => {
   if (!host.value) return;
+  synced = review.getState(props.tab.key)!;
   view = new EditorView({
     parent: host.value!,
-    state: review.getState(props.tab.key)!,
+    state: synced,
     dispatchTransactions(transactions, currentView) {
       currentView.update(transactions);
-      if (transactions.some(transaction => transaction.docChanged))
-        review.updateState(props.tab.key, currentView.state);
+      if (transactions.some(transaction => transaction.docChanged)) {
+        synced = currentView.state;
+        review.updateState(props.tab.key, synced);
+      }
     }
   });
   const top = scrollTops.get(props.tab.key);
@@ -144,7 +150,8 @@ onBeforeUnmount(() => {
   if (frame !== undefined) cancelAnimationFrame(frame);
   if (!view) return;
   scrollTops.set(props.tab.key, view.scrollDOM.scrollTop);
-  review.updateState(props.tab.key, view.state);
+  // 新候选已替换标签状态时，旧编辑器不再写回，否则旧正文会被当作手改。
+  if (review.getState(props.tab.key) === synced) review.updateState(props.tab.key, view.state);
   view.destroy();
 });
 </script>
@@ -241,7 +248,9 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.review-relink {
+/* AppSelect 根节点不带本组件的作用域属性，需用 :deep 才能限宽，否则说明文字被挤成一列。 */
+.review-row :deep(.review-relink) {
+  flex: none;
   width: 180px;
 }
 .review-deleted {
