@@ -17,10 +17,14 @@ export async function openApplication(rootDir: string): Promise<CreationApplicat
 
 ```text
 rootDir/
-  library.sqlite       作品列表、恢复草稿与作品创建回执
+  library.sqlite            作品列表、回收站、恢复草稿、会话归属、待接受修改与回执
   works/
-    <workId>.sqlite    条目、正文、修订与命令回执
+    <workId>/
+      work.sqlite           条目、正文、修订、事件、关系、回收站、回执与全文索引
+      files/<entryId>/      文件条目的原文件
 ```
+
+两种库都用 `user_version` 记录结构版本，升级时在 `SchemaPlan.migrations` 追加迁移，第 1 版的 `create` 保持不变（`src/schema.ts`）。迁移前把库复制为 `*.v<旧版本>.bak`，版本更新的库拒绝打开。
 
 作品数据库按需打开，只缓存当前访问作品的连接，切换时关闭前一个。正文与元数据分别查询。正文、修订和回执共用作品事务；快照内容与游标共用读取事务。提交回执提供分页事件数据，作品服务在提交返回后发布通知。
 

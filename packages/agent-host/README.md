@@ -23,7 +23,7 @@
 
 ## 应用会话入口
 
-平台启动代码使用 `@chaptale/agent-host/application` 的 `createHostApplication(options)`。`HostBootstrapOptions` 包含 `cwd`、`agentDir`、`configDir`、`sessionDir`、`settingsFile`，由平台解析为应用私有位置的绝对路径。工厂准备目录，装配模型运行时、模型配置、内置创作指令、本机设置，以及 `read`、`ls`、`find`、`grep` 四个工具。工具调用逐次经过授权边界。
+平台启动代码使用 `@chaptale/agent-host/application` 的 `createHostApplication(options)`。`HostBootstrapOptions` 包含 `cwd`、`agentDir`、`configDir`、`sessionDir`、`settingsFile`，由平台解析为应用私有位置的绝对路径。工厂准备目录，装配模型运行时、模型配置、内置创作指令、本机设置，以及 `read`、`ls`、`find`、`grep` 四个原生工具，这些工具逐次弹授权卡片。提供 `creation` 时再注册 `work_*` 作品工具：作品工具经授权入口自动允许，讨论模式拒绝写工具；事件与关系工具声明为 deferred，由 `tool_search` 按需加载。
 
 需要显式提供运行时和工具的 Node 调用方可使用 `HostApplication.create(options)`。会话管理、指令、模型配置、快照和事件均由 `HostApplication` 提供。平台负责传输与进程生命周期；桌面共用业务进程位于 `apps/desktop/src/main/application-host/`，Agent 与作品的 renderer IPC 桥接共用其中的 `ipc.ts`。桌面 API 类型从 `@chaptale/desktop/bridge` 导入，Electron 通道位于桌面的 `src/bridge/channels.ts`。
 
@@ -42,7 +42,7 @@
 - 默认没有工具。`toolAccess` 提供原生 `ToolDefinition[]` 和 `authorize(request, signal)`，每次直接或嵌套执行都重新授权。授权方只接收会话信息和参数快照；授权被拒绝、失败或在等待期间取消时，都不会启动工具；迟到的批准也无效。未登记工具被阻断。
 - `openHostSessionManager()` 在恢复前检查普通文件、当前 SDK 版本、UTF-8/JSON 行、工作目录和基本历史链。文件缺失、损坏、缺少末尾换行或需要迁移时抛出带 `code` 的 `HostSessionOpenError`，不让 SDK 自动修复原件。空会话在首条 user/assistant 消息前不落盘。
 
-工具实现是受信任的宿主代码，授权回调控制工具执行，OS 级隔离由平台负责。单写者保护覆盖本进程通过池操作的文件；直接管理会话的调用方须自行持有写入权。附件存储、持久任务及 MCP、Code Mode 等扩展接入按后续需求推进。
+工具实现是受信任的宿主代码，授权回调控制工具执行，OS 级隔离由平台负责。单写者保护覆盖本进程通过池操作的文件；直接管理会话的调用方须自行持有写入权。附件存储、持久任务及 MCP、Code Mode 接入按后续阶段推进。
 
 ## 验证
 

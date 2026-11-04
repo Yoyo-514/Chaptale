@@ -1,6 +1,6 @@
 # @chaptale/creation
 
-供 Node 宿主使用的作品业务包，负责作品、文稿与资料条目、修订和恢复草稿。当前通过真实 SQLite 的公共接口测试及 Electron renderer API 验收；新工作台继续按 A 批推进。
+供 Node 宿主使用的作品业务包，负责作品、文稿与资料条目、修订、恢复草稿、回收站、文件条目、事件与关系、待接受修改的审阅，以及作品包。通过真实 SQLite 的公共接口测试和 Electron 行为测试验收。
 
 ## 模块与入口
 
@@ -31,7 +31,9 @@ export async function openCreationService(rootDir: string): Promise<CreationServ
 
 桌面桥接类型从 `@chaptale/desktop/bridge` 导入；该入口只有类型声明。完整链路测试位于 `e2e/electron/creation-bridge.spec.ts`，覆盖保存与重启、冲突、取消订阅、拒绝无效输入及非可信页面、断线后继续订阅。
 
-## 当前接口与保存规则
+## 基础接口与保存规则
+
+以下是条目与保存的基础接口，完整方法表见 `src/application/schema.ts`。
 
 - `createWork` / `listWorks`：创建作品、读取作品列表。
 - `createEntry` / `listEntries`：创建文稿或资料目录及文档，读取条目元数据；`readDocument` 按需读取正文。
@@ -62,7 +64,7 @@ export async function openCreationService(rootDir: string): Promise<CreationServ
 
 桌面通过作品栏“作品操作 → 导出正文…”选择范围、格式与目标目录。导出前确认未保存修改；取消确认时保持当前选择，保存后继续使用已提交内容。失败时展示具体原因和已完成路径，保留范围、格式与目标位置，用户可调整后再次导出。
 
-宿主正常关闭等待文件交换完成。进程被强制终止时，调用方按结果未知处理：导入可用原计划核对回执，导出先核对目标目录。新工作台的导入预览、结果展示和系统选择器人工验收随界面交付。
+宿主正常关闭等待文件交换完成。进程被强制终止时，调用方按结果未知处理：导入可用原计划核对回执，导出先核对目标目录。
 
 ## 目录移动与并发
 
@@ -95,4 +97,4 @@ pnpm --filter @chaptale/creation typecheck
 pnpm --filter @chaptale/storage test
 ```
 
-跨包集成测试位于 `packages/storage/src/__tests__`，通过公开作品接口和真实 SQLite 验证行为，覆盖重开、幂等命令、修订冲突、草稿版本、目录改名与移动、快照及事件分页。故障用例覆盖正式 COMMIT 失败、移动回执写入失败时的事务回滚，以及正式提交后草稿清理失败的恢复；事件测试还覆盖旧备份恢复、订阅取消和监听器重入。升级 better-sqlite3 或 Electron 后，重新验证目标运行时中的驱动加载、事务及关闭重开；完整写作流程与安装包验收随工作台交付进行。
+跨包集成测试位于 `packages/storage/src/__tests__`，通过公开作品接口和真实 SQLite 验证行为，覆盖重开、幂等命令、修订冲突、草稿版本、目录改名与移动、快照及事件分页。故障用例覆盖正式 COMMIT 失败、移动回执写入失败时的事务回滚，以及正式提交后草稿清理失败的恢复；事件测试还覆盖旧备份恢复、订阅取消和监听器重入。升级 better-sqlite3 或 Electron 后，重新验证目标运行时中的驱动加载、事务及关闭重开。
