@@ -356,8 +356,8 @@ const treeDrop = useTreeDrop({
             />
             <div class="entry-text">
               <span class="entry-title" :title="entry.title"
-                >{{ entry.title
-                }}<span
+                ><span class="entry-name">{{ entry.title }}</span
+                ><span
                   v-if="mark === 'deleting' || mark === 'modified' || mark === 'story'"
                   class="entry-pending"
                   :title="mark === 'story' ? '有待接受的事件或关系' : '有待接受修改'"
@@ -520,11 +520,17 @@ const treeDrop = useTreeDrop({
   gap: 3px;
   min-width: 0;
 }
+/* 标题过长时省略号只截断名称，待审圆点始终可见。 */
 .entry-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 13px;
+}
+.entry-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
 }
 .tree-entry.pending .entry-title {
   font-style: italic;
@@ -537,13 +543,12 @@ const treeDrop = useTreeDrop({
   color: var(--warning);
 }
 .entry-pending {
-  display: inline-block;
+  flex-shrink: 0;
   width: 6px;
   height: 6px;
   margin-left: 6px;
   border-radius: 50%;
   background: var(--warning);
-  vertical-align: middle;
 }
 .entry-meta {
   display: flex;
