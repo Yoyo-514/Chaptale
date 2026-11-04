@@ -85,7 +85,7 @@ describe('buildTranscript', () => {
     ]);
     expect(assistant!.kind === 'assistant' && assistant!.tools.map(tool => [tool.summary, tool.result])).toEqual([
       ['搜索了 林晚 · 正文', { text: '第一处', error: false }],
-      ['搜索了 沈舟', { text: '没有权限', error: true }]
+      ['未能搜索 沈舟', { text: '没有权限', error: true }]
     ]);
   });
 

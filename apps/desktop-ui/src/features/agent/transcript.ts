@@ -45,8 +45,10 @@ function target(input: unknown): string {
   return value ? `${value as string}${where}` : '';
 }
 
-export function describeTool(name: string, input: unknown, done: boolean): string {
-  const verb = verbs[name]?.[done ? 0 : 1] ?? (done ? `调用了 ${name}` : `调用 ${name}`);
+/** failed：被拒绝或执行出错，不能写成“读取了”这样的完成说法。 */
+export function describeTool(name: string, input: unknown, done: boolean, failed = false): string {
+  const pending = verbs[name]?.[1] ?? `调用 ${name}`;
+  const verb = failed ? `未能${pending}` : done ? (verbs[name]?.[0] ?? `调用了 ${name}`) : pending;
   const object = target(input);
   return object ? `${verb} ${object}` : verb;
 }
@@ -77,14 +79,14 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
       const tool = at === -1 ? undefined : pending.splice(at, 1)[0];
       if (tool) {
         tool.result = { text: message.text, error: message.error === true };
-        tool.summary = describeTool(tool.name, tool.input, true);
+        tool.summary = describeTool(tool.name, tool.input, true, message.error === true);
         return;
       }
       const orphan: ToolActivity = {
         kind: 'tool',
         key,
         name: message.toolName ?? '工具',
-        summary: describeTool(message.toolName ?? '工具', undefined, true),
+        summary: describeTool(message.toolName ?? '工具', undefined, true, message.error === true),
         input: undefined,
         result: { text: message.text, error: message.error === true }
       };
