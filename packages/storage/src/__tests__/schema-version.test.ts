@@ -58,23 +58,57 @@ async function withWork(rootDir: string) {
   return { workId: work.value.id, file: join(rootDir, 'works', work.value.id, 'work.sqlite') };
 }
 
-it('新建的本机库与作品库记为结构第 1 版', async () => {
+it('新建的本机库记为结构第 2 版，作品库记为第 1 版', async () => {
   const dir = await root();
   const { file } = await withWork(dir);
-  expect(version(join(dir, 'library.sqlite'))).toBe(1);
+  expect(version(join(dir, 'library.sqlite'))).toBe(2);
   expect(version(file)).toBe(1);
+});
+
+it('第 1 版本机库升级时删除会话归属表，保留作品与查看位置并留下备份', async () => {
+  const dir = await root();
+  const { workId } = await withWork(dir);
+  const library = join(dir, 'library.sqlite');
+  const sessionId = randomUUID();
+  setVersion(
+    library,
+    `PRAGMA user_version = 1; CREATE TABLE session_assignments (
+      sessionId TEXT PRIMARY KEY,
+      workId TEXT NOT NULL REFERENCES works(id)
+    ) STRICT; INSERT INTO session_assignments VALUES ('${sessionId}', '${workId}');
+    INSERT INTO session_selections VALUES ('${workId}', '${sessionId}')`
+  );
+  const app = new CreationApplication(await openCreationStorage({ rootDir: dir }));
+  expect(app.executeAuthor({ method: 'listWorks', input: {} })).toMatchObject({ ok: true, value: [{ id: workId }] });
+  expect(app.executeAuthor({ method: 'readSessionState', input: {} })).toEqual({
+    ok: true,
+    value: { selections: [{ workId, sessionId }] }
+  });
+  app.close();
+  expect(version(library)).toBe(2);
+  expect(existsSync(`${library}.v1.bak`)).toBe(true);
+  const database = new Database(library, { readonly: true });
+  expect(database.prepare("SELECT name FROM sqlite_master WHERE name = 'session_assignments'").all()).toEqual([]);
+  database.close();
 });
 
 it('没有版本记录的已有库结构一致时认作第 1 版并保留内容；结构不一致时拒绝打开', async () => {
   const dir = await root();
   const { workId, file } = await withWork(dir);
-  setVersion(join(dir, 'library.sqlite'), 'PRAGMA user_version = 0');
+  // 版本机制之前的本机库是第 1 版结构，含会话归属表。
+  setVersion(
+    join(dir, 'library.sqlite'),
+    `PRAGMA user_version = 0; CREATE TABLE session_assignments (
+      sessionId TEXT PRIMARY KEY,
+      workId TEXT NOT NULL REFERENCES works(id)
+    ) STRICT`
+  );
   setVersion(file, 'PRAGMA user_version = 0');
   const app = new CreationApplication(await openCreationStorage({ rootDir: dir }));
   const listed = app.executeAuthor({ method: 'listEntries', input: { workId } });
   expect(listed).toMatchObject({ ok: true, value: [{ title: '第一章' }] });
   app.close();
-  expect(version(join(dir, 'library.sqlite'))).toBe(1);
+  expect(version(join(dir, 'library.sqlite'))).toBe(2);
   expect(version(file)).toBe(1);
 
   setVersion(file, 'PRAGMA user_version = 0; ALTER TABLE entries ADD COLUMN extra TEXT');

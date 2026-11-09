@@ -16,8 +16,12 @@ export class Workbench {
 
   static async start(prefix: string): Promise<Workbench> {
     const home = await mkdtemp(path.join(tmpdir(), `chaptale-${prefix}-`));
-    await mkdir(path.join(home, '.chaptale'));
-    await writeFile(path.join(home, '.chaptale/settings.json'), JSON.stringify({ version: 1, workspace: {} }));
+    await mkdir(path.join(home, '.chaptale/creation'), { recursive: true });
+    await writeFile(
+      path.join(home, '.chaptale/settings.json'),
+      // 预先选定数据目录，跳过首次启动的位置选择页。
+      JSON.stringify({ version: 1, workspace: {}, dataDir: path.join(home, '.chaptale/creation') })
+    );
     const workbench = new Workbench(home);
     await workbench.launch();
     return workbench;

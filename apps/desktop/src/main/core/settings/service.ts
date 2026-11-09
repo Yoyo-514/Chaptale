@@ -39,13 +39,22 @@ export class SettingsService {
       const next: ChaptaleSettings = {
         version: current.version,
         editor: { autoSave: payload.editor?.autoSave ?? current.editor?.autoSave ?? false },
-        theme: payload.theme ?? current.theme
+        theme: payload.theme ?? current.theme,
+        ...(current.dataDir && { dataDir: current.dataDir })
       };
 
       await writeJsonFile(this.settingsPath, next);
     });
 
     return this.getState();
+  }
+
+  /** 数据目录只经数据目录流程写入，不随普通设置更新。 */
+  async setDataDir(dataDir: string): Promise<void> {
+    await this.enqueue(async () => {
+      await fs.mkdir(this.rootDir, { recursive: true });
+      await writeJsonFile(this.settingsPath, { ...(await this.readSettingsUnsafe()), dataDir });
+    });
   }
 
   async readSettings(): Promise<ChaptaleSettings> {

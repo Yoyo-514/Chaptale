@@ -35,8 +35,12 @@ test.beforeEach(async () => {
   env.NODE_ENV = 'production';
   env.HOME = testHome;
   env.USERPROFILE = testHome;
-  await fs.mkdir(path.join(testHome, '.chaptale'));
-  await fs.writeFile(path.join(testHome, '.chaptale/settings.json'), JSON.stringify({ version: 1, workspace: {} }));
+  await fs.mkdir(path.join(testHome, '.chaptale/creation'), { recursive: true });
+  await fs.writeFile(
+    path.join(testHome, '.chaptale/settings.json'),
+    // 预先选定数据目录，跳过首次启动的位置选择页。
+    JSON.stringify({ version: 1, workspace: {}, dataDir: path.join(testHome, '.chaptale/creation') })
+  );
 
   electronApp = await electron.launch({
     executablePath: electronExecutable,

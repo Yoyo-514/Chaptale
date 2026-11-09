@@ -1,5 +1,7 @@
 import { type ModelRuntime, SessionManager, type ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { randomUUID } from 'node:crypto';
+import { mkdir, readdir, rename, stat } from 'node:fs/promises';
+import { basename, dirname, join, relative } from 'node:path';
 
 import type { CreationApplication } from '@chaptale/creation/application';
 import type { ImportWorkPackageInput } from '@chaptale/creation/contracts';
@@ -10,6 +12,7 @@ import {
   type HostChange,
   type HostCommand,
   type HostEvent,
+  type HistoryItem,
   type HostState,
   instructionsEntryType,
   type ModelChoice,
@@ -32,6 +35,7 @@ export interface HostApplicationOptions {
   /** 未归属作品的会话使用的空工作目录。 */
   cwd: string;
   agentDir: string;
+  /** 会话历史根目录：归属作品的会话在 `<作品 ID>/` 子目录，未归属的在 `unassigned/`。 */
   sessionDir: string;
   /** 应用数据目录下的设置文件绝对路径，不进作品备份。 */
   settingsFile: string;
@@ -67,6 +71,9 @@ function rejectPendingChanges(creation: CreationApplication, sessionId: string) 
 
 /** 会话归属的作品；未归属或作品已在回收站时为 null。 */
 type SessionWork = { id: string; title: string } | null;
+
+/** 未归属会话所在的子目录；作品 ID 不会与它重名。 */
+const unassignedFolder = 'unassigned';
 
 /** 已打开的会话；只读历史只有视图，没有可继续的会话。 */
 interface OpenSession {
@@ -136,12 +143,9 @@ export class HostApplication {
       case 'open':
         return this.open(command.input.file);
       case 'history':
-        return (await SessionManager.listAll(this.options.sessionDir)).map(item => ({
-          id: item.id,
-          file: item.path,
-          title: item.name || item.firstMessage || '未命名会话',
-          modified: item.modified.toISOString()
-        }));
+        return this.history();
+      case 'assignSession':
+        return this.assignSession(command.input.sessionId, command.input.workId);
       case 'prompt':
         return this.live(command.input.id).prompt(command.input.text);
       case 'cancel':
@@ -154,6 +158,8 @@ export class HostApplication {
         return this.deleteSessions(command.input.sessionIds);
       case 'trashWork':
         return this.trashWork(command.input);
+      case 'purgeWork':
+        return this.purgeWork(command.input);
       case 'importWorkPackage':
         return this.importWorkPackage(command.input);
       case 'restoreWorkSnapshot':
@@ -251,13 +257,29 @@ export class HostApplication {
     return work ? { id: work.id, title: work.title } : null;
   }
 
-  /** 会话当前归属的作品，打开历史时据此确定工作目录与系统提示词。 */
-  private sessionWork(sessionId: string): SessionWork {
-    const creation = this.options.creation;
-    if (!creation) return null;
-    const state = creation.executeAuthor({ method: 'readSessionState', input: {} });
-    if (!state.ok) throw new Error(state.error.message);
-    return this.findWork(state.value.assignments.find(item => item.sessionId === sessionId)?.workId ?? null);
+  /** 历史文件所在子目录对应的作品 ID；未归属为 null。 */
+  private workIdOf(file: string): string | null {
+    const folder = relative(this.options.sessionDir, dirname(file));
+    return folder === unassignedFolder ? null : folder;
+  }
+
+  /** 按子目录汇总全部历史；排列顺序由界面决定。 */
+  private async history(): Promise<HistoryItem[]> {
+    const folders = (await readdir(this.options.sessionDir, { withFileTypes: true })).filter(item =>
+      item.isDirectory()
+    );
+    const lists = await Promise.all(
+      folders.map(async folder =>
+        (await SessionManager.listAll(join(this.options.sessionDir, folder.name))).map(item => ({
+          id: item.id,
+          file: item.path,
+          workId: folder.name === unassignedFolder ? null : folder.name,
+          title: item.name || item.firstMessage || '未命名会话',
+          modified: item.modified.toISOString()
+        }))
+      )
+    );
+    return lists.flat();
   }
 
   /** 新会话复制一份指令与默认模式，之后与设置各自独立；指定作品时先归入作品再交给界面。 */
@@ -269,20 +291,14 @@ export class HostApplication {
     const mode = this.settings.defaultMode;
     // 先记下作者的选择，设置写入失败时不创建会话。
     await this.rememberModel(model);
-    const { session } = await this.pool.createSession({ ...this.sessionInput(applied, cwd, work), model });
-    if (work) {
-      const assigned = this.options.creation!.executeAuthor({
-        method: 'assignSession',
-        input: { sessionId: session.sessionId, workId: work.id }
-      });
-      if (!assigned.ok) {
-        await this.pool.close(session.sessionId);
-        throw new Error(assigned.error.message);
-      }
-    }
+    const { session } = await this.pool.createSession(
+      { ...this.sessionInput(applied, cwd, work), model },
+      work?.id ?? unassignedFolder
+    );
     session.sessionManager.appendCustomEntry(instructionsEntryType, { entries: applied.entries });
     session.sessionManager.appendCustomEntry(modeEntryType, { mode });
     const live = new LiveSession(session, applied, mode, change => this.emit(change), {
+      workId: work?.id ?? null,
       creation: this.options.creation
     });
     return this.attach({ view: live.view, live });
@@ -348,8 +364,9 @@ export class HostApplication {
   private async openFile(file: string): Promise<string> {
     const applied: AppliedInstructions = { entries: [] };
     const opened: { history?: SessionHistory; work?: SessionWork; cwd?: string } = {};
-    const cwd = async (sessionId: string) => {
-      opened.work = this.sessionWork(sessionId);
+    const workId = this.workIdOf(file);
+    const cwd = async () => {
+      opened.work = this.findWork(workId);
       opened.cwd = await this.workingDirectory(opened.work);
       return opened.cwd;
     };
@@ -379,6 +396,7 @@ export class HostApplication {
           sessionId,
           name,
           file,
+          workId,
           running: false,
           compacting: false,
           instructions: [],
@@ -388,6 +406,7 @@ export class HostApplication {
       });
     }
     const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change), {
+      workId,
       creation: this.options.creation,
       directAfterGroupId: history.directAfterGroupId
     });
@@ -415,9 +434,7 @@ export class HostApplication {
     const ids = new Set(sessionIds);
     const open = [...this.sessions].filter(([, { view }]) => view.sessionId !== null && ids.has(view.sessionId));
     if (open.some(([, { view }]) => view.running || view.compacting)) throw new Error('有会话正在运行，停止后才能删除');
-    const files = (await SessionManager.listAll(this.options.sessionDir))
-      .filter(item => ids.has(item.id))
-      .map(item => item.path);
+    const files = (await this.history()).filter(item => ids.has(item.id)).map(item => item.file);
     const { creation } = this.options;
     if (creation) {
       for (const id of ids) rejectPendingChanges(creation, id);
@@ -428,12 +445,30 @@ export class HostApplication {
     return { files };
   }
 
+  /** 未归属会话的历史文件移入作品目录；已打开的先关闭，移动后重新打开。 */
+  private async assignSession(sessionId: string, workId: string): Promise<string | null> {
+    if (!this.findWork(workId)) throw new Error('目标作品不存在');
+    const item = (await this.history()).find(candidate => candidate.id === sessionId);
+    if (!item) throw new Error('会话还没有内容，发送消息后再归入作品');
+    if (item.workId !== null) throw new Error('会话已归属作品');
+    const open = [...this.sessions].filter(([, { view }]) => view.sessionId === sessionId);
+    if (open.some(([, { view }]) => view.running || view.compacting))
+      throw new Error('会话正在运行，停止后才能归入作品');
+    for (const [id] of open) await this.close(id);
+    const target = join(this.options.sessionDir, workId, basename(item.file));
+    await mkdir(dirname(target), { recursive: true });
+    await rename(item.file, target);
+    const forgotten = this.options.creation!.executeAuthor({
+      method: 'forgetSessions',
+      input: { sessionIds: [sessionId] }
+    });
+    if (!forgotten.ok) throw new Error(forgotten.error.message);
+    return open.length > 0 ? this.open(target) : null;
+  }
+
   /** 属于作品的已打开会话；任一在运行时用 action 说明被拒绝的操作。 */
   private idleWorkSessions(workId: string, action: string): string[] {
-    const state = this.options.creation!.executeAuthor({ method: 'readSessionState', input: {} });
-    if (!state.ok) throw new Error(state.error.message);
-    const ids = new Set(state.value.assignments.filter(item => item.workId === workId).map(item => item.sessionId));
-    const open = [...this.sessions].filter(([, { view }]) => view.sessionId !== null && ids.has(view.sessionId));
+    const open = [...this.sessions].filter(([, { view }]) => view.workId === workId);
     if (open.some(([, { view }]) => view.running || view.compacting))
       throw new Error(`有会话正在运行，停止后才能${action}`);
     return open.map(([id]) => id);
@@ -468,6 +503,20 @@ export class HostApplication {
     if (!trashed.ok) throw new Error(trashed.error.message);
     for (const id of open) await this.close(id);
     return trashed.value;
+  }
+
+  /** 永久删除作品；其会话目录随作品目录交给平台移入回收站。 */
+  private async purgeWork(input: { commandId: string; workId: string }): Promise<{ files: string[] }> {
+    const open = this.idleWorkSessions(input.workId, '永久删除作品');
+    const purged = this.options.creation!.executeAuthor({ method: 'purgeWork', input });
+    if (!purged.ok) throw new Error(purged.error.message);
+    for (const id of open) await this.close(id);
+    const sessions = join(this.options.sessionDir, input.workId);
+    const exists = await stat(sessions).then(
+      () => true,
+      () => false
+    );
+    return { files: exists ? [...purged.value.files, sessions] : purged.value.files };
   }
 
   async dispose(): Promise<void> {

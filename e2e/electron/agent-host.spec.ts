@@ -16,8 +16,12 @@ let home: string;
 
 test.beforeEach(async () => {
   home = await mkdtemp(path.join(tmpdir(), 'chaptale-host-e2e-'));
-  await mkdir(path.join(home, '.chaptale'));
-  await writeFile(path.join(home, '.chaptale/settings.json'), JSON.stringify({ version: 1, workspace: {} }));
+  await mkdir(path.join(home, '.chaptale/creation'), { recursive: true });
+  await writeFile(
+    path.join(home, '.chaptale/settings.json'),
+    // 预先选定数据目录，跳过首次启动的位置选择页。
+    JSON.stringify({ version: 1, workspace: {}, dataDir: path.join(home, '.chaptale/creation') })
+  );
   const env = { ...process.env, HOME: home, USERPROFILE: home, NODE_ENV: 'production' };
   delete (env as Record<string, string | undefined>).VITE_DEV_SERVER_URL;
   application = await electron.launch({
@@ -37,22 +41,17 @@ async function createWork() {
   await expect(page.getByRole('complementary', { name: '作品导航' })).toBeVisible();
 }
 
-/** 把宿主里已打开的会话归入唯一的作品，刷新后界面按新归属列出。 */
-async function assignOpenSessions() {
-  await page.evaluate(async () => {
-    const { agentHost, creation } = window.chaptaleDesktop;
-    const works = await creation.request('listWorks', {});
+/** 唯一作品的 ID；用例把会话直接建在作品里。 */
+async function onlyWork(): Promise<string> {
+  return page.evaluate(async () => {
+    const works = await window.chaptaleDesktop.creation.request('listWorks', {});
     if (!works.ok) throw new Error(works.error.message);
-    const state = await agentHost.request('state', undefined);
-    for (const session of state.sessions) {
-      if (!session.sessionId) continue;
-      const result = await creation.request('assignSession', {
-        sessionId: session.sessionId,
-        workId: works.value[0]!.id
-      });
-      if (!result.ok) throw new Error(result.error.message);
-    }
+    return works.value[0]!.id;
   });
+}
+
+/** 刷新后界面按归属列出宿主里的会话。 */
+async function reloadSessions() {
   await page.reload();
   await openSessions();
 }
@@ -138,7 +137,7 @@ test('真实宿主保存模型、创建独立会话，刷新界面后读取同�
     await writeFile(output, JSON.stringify({ file: manager.getSessionFile(), id: manager.getSessionId() }));
   `,
       home,
-      path.join(home, '.chaptale/pi/sessions'),
+      path.join(home, '.chaptale/creation/sessions/unassigned'),
       fixtureFile,
       JSON.stringify(result.initial.settings.defaultInstructions)
     ],
@@ -199,18 +198,21 @@ test('界面管理多个模型、直接聊天与切换会话，移动视图保�
   expect(JSON.stringify(providers)).not.toContain('ui-offline-key');
   await settings.getByRole('button', { name: '关闭设置', exact: true }).click();
   // 用真实宿主建立空会话，避免在离线测试里向模型发请求。
-  const ids = await page.evaluate(async () => {
-    const client = window.chaptaleDesktop.agentHost;
-    const model = { provider: 'ui-offline', id: 'ui-model' };
-    const created = [
-      await client.request('create', { model, workId: null }),
-      await client.request('create', { model, workId: null })
-    ];
-    await client.request('rename', { id: created[0]!, name: '会话 1' });
-    await client.request('rename', { id: created[1]!, name: '会话 2' });
-    return created;
-  });
-  await assignOpenSessions();
+  const ids = await page.evaluate(
+    async workId => {
+      const client = window.chaptaleDesktop.agentHost;
+      const model = { provider: 'ui-offline', id: 'ui-model' };
+      const created = [
+        await client.request('create', { model, workId }),
+        await client.request('create', { model, workId })
+      ];
+      await client.request('rename', { id: created[0]!, name: '会话 1' });
+      await client.request('rename', { id: created[1]!, name: '会话 2' });
+      return created;
+    },
+    await onlyWork()
+  );
+  await reloadSessions();
   await switchSession('会话 1');
   await page.getByLabel('消息', { exact: true }).fill('保留这份草稿');
   await page.getByRole('combobox', { name: '修改模式', exact: true }).click();
@@ -301,7 +303,7 @@ test('会话用量可用键盘查看，手动压缩走真实宿主且保留草�
     await writeFile(output, JSON.stringify({ file: manager.getSessionFile() }));
   `,
       home,
-      path.join(home, '.chaptale/pi/sessions'),
+      path.join(home, '.chaptale/creation/sessions', await onlyWork()),
       output,
       JSON.stringify(state.settings.defaultInstructions)
     ],
@@ -309,7 +311,7 @@ test('会话用量可用键盘查看，手动压缩走真实宿主且保留草�
   );
   const fixture = JSON.parse(await readFile(output, 'utf8')) as { file: string };
   await page.evaluate(input => window.chaptaleDesktop.agentHost.request('open', input), fixture);
-  await assignOpenSessions();
+  await reloadSessions();
   await page.getByRole('button', { name: '切换会话', exact: true }).click();
   await page.getByRole('menuitem', { name: '查看用量验收历史', exact: true }).click();
   const usage = page.getByRole('button', { name: '会话用量', exact: true });
@@ -366,20 +368,23 @@ test('生成时停止原位替换发送，快捷键插话不另起请求且停�
   const address = server.address() as { port: number };
   try {
     await createWork();
-    await page.evaluate(async port => {
-      const host = window.chaptaleDesktop.agentHost;
-      await host.request('saveProvider', {
-        id: 'pending-local',
-        apiKey: 'offline-test',
-        config: {
-          baseUrl: `http://127.0.0.1:${port}/v1`,
-          api: 'openai-completions',
-          models: [{ id: 'pending', name: '本地挂起请求', contextWindow: 8192, maxTokens: 512 }]
-        }
-      });
-      await host.request('create', { model: { provider: 'pending-local', id: 'pending' }, workId: null });
-    }, address.port);
-    await assignOpenSessions();
+    await page.evaluate(
+      async ({ port, workId }) => {
+        const host = window.chaptaleDesktop.agentHost;
+        await host.request('saveProvider', {
+          id: 'pending-local',
+          apiKey: 'offline-test',
+          config: {
+            baseUrl: `http://127.0.0.1:${port}/v1`,
+            api: 'openai-completions',
+            models: [{ id: 'pending', name: '本地挂起请求', contextWindow: 8192, maxTokens: 512 }]
+          }
+        });
+        await host.request('create', { model: { provider: 'pending-local', id: 'pending' }, workId });
+      },
+      { port: address.port, workId: await onlyWork() }
+    );
+    await reloadSessions();
     await page.getByRole('button', { name: '切换会话', exact: true }).click();
     await page.getByRole('menuitem', { name: '查看未命名会话', exact: true }).click();
     const input = page.getByLabel('消息', { exact: true });

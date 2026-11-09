@@ -25,6 +25,7 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
     editor: { autoSave: value?.editor?.autoSave === true },
     // 认不出的主题回落默认，而不是原样透传：这个值最终会变成 <html> 上的类名，
     // 落一个没有对应样式的类，界面会退化成没有任何语义色的裸样式。
-    theme: value && isChaptaleTheme(value.theme) ? value.theme : DEFAULT_SETTINGS.theme
+    theme: value && isChaptaleTheme(value.theme) ? value.theme : DEFAULT_SETTINGS.theme,
+    ...(typeof value?.dataDir === 'string' && { dataDir: value.dataDir })
   };
 }

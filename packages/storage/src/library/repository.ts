@@ -8,7 +8,6 @@ import type {
   DraftState,
   PendingChange,
   RecoveryDraft,
-  SessionAssignment,
   SessionSelection,
   SessionState,
   TrashedWork,
@@ -109,7 +108,6 @@ export class SqliteLibraryRepository implements LibraryRepository {
     }
     this.database.prepare('DELETE FROM pending_changes WHERE workId = ?').run(workId);
     this.database.prepare('DELETE FROM recovery_drafts WHERE workId = ?').run(workId);
-    this.database.prepare('DELETE FROM session_assignments WHERE workId = ?').run(workId);
     this.database.prepare('DELETE FROM session_selections WHERE scopeId = ?').run(workId);
     this.database.prepare('DELETE FROM work_trash WHERE workId = ?').run(workId);
     this.database.prepare('DELETE FROM works WHERE id = ?').run(workId);
@@ -117,29 +115,10 @@ export class SqliteLibraryRepository implements LibraryRepository {
 
   readSessionState(): SessionState {
     return this.transaction(() => ({
-      assignments: this.database
-        .prepare('SELECT sessionId, workId FROM session_assignments ORDER BY sessionId')
-        .all() as SessionAssignment[],
       selections: this.database
         .prepare("SELECT nullif(scopeId, '') AS workId, sessionId FROM session_selections ORDER BY scopeId")
         .all() as SessionSelection[]
     }));
-  }
-
-  getSessionWork(sessionId: string): string | null {
-    const row = this.database.prepare('SELECT workId FROM session_assignments WHERE sessionId = ?').get(sessionId) as
-      | { workId: string }
-      | undefined;
-    return row?.workId ?? null;
-  }
-
-  assignSession(assignment: SessionAssignment): void {
-    this.database
-      .prepare('INSERT INTO session_assignments (sessionId, workId) VALUES (@sessionId, @workId)')
-      .run(assignment);
-    this.database
-      .prepare("UPDATE session_selections SET sessionId = NULL WHERE scopeId = '' AND sessionId = ?")
-      .run(assignment.sessionId);
   }
 
   selectSession({ workId, sessionId }: SessionSelection): void {
@@ -152,10 +131,8 @@ export class SqliteLibraryRepository implements LibraryRepository {
   }
 
   forgetSessions(sessionIds: string[]): void {
-    const forget = this.database.prepare('DELETE FROM session_assignments WHERE sessionId = ?');
     const clear = this.database.prepare('UPDATE session_selections SET sessionId = NULL WHERE sessionId = ?');
     for (const sessionId of sessionIds) {
-      forget.run(sessionId);
       clear.run(sessionId);
     }
   }

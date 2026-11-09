@@ -21,6 +21,7 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
     id: 'session',
     sessionId: 'session',
     file: 'history.jsonl',
+    workId: null,
     running: true,
     compacting: true,
     instructions: [],

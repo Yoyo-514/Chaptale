@@ -17,7 +17,6 @@ import type {
   RecordSnapshot,
   RelationSnapshot,
   StoryRelation,
-  SessionAssignment,
   SessionSelection,
   SessionState,
   Revision,
@@ -94,12 +93,10 @@ export interface LibraryRepository {
   getTrashedWork(workId: string): TrashedWork | undefined;
   trashWork(workId: string, now: number): void;
   restoreWork(workId: string): void;
-  /** 删除作品库中该作品的记录与会话归属，待审修改移出交付组。 */
+  /** 删除作品库中该作品的记录与查看位置，待审修改移出交付组。 */
   purgeWork(workId: string): void;
 
   readSessionState(): SessionState;
-  getSessionWork(sessionId: string): string | null;
-  assignSession(assignment: SessionAssignment): void;
   selectSession(selection: SessionSelection): void;
   forgetSessions(sessionIds: string[]): void;
   readWorkbench(): WorkbenchState;

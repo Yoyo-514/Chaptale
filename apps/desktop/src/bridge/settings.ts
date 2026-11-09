@@ -28,6 +28,8 @@ export type ChaptaleSettings = {
   editor?: { autoSave: boolean };
   /** 界面主题；缺省由主进程补齐，Renderer 拿到的一定是确定值。 */
   theme: ChaptaleTheme;
+  /** 作品与会话历史所在的数据目录；未选择时为空，由启动流程询问作者。 */
+  dataDir?: string;
 };
 
 export type ChaptaleSettingsPaths = {

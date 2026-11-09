@@ -81,5 +81,8 @@ const librarySchema: SchemaPlan = {
   `);
     database.exec(receiptSchema);
   },
-  migrations: []
+  migrations: [
+    // 会话归属改由会话文件所在目录决定。
+    database => database.exec('DROP TABLE session_assignments')
+  ]
 };

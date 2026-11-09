@@ -7,6 +7,7 @@ import { APPLICATION_HOST_CHANNELS } from '../bridge/channels';
 import type { ChaptaleDesktopApi } from '../bridge/contracts';
 import { createEditCommandApi, createGetPlatformApi } from './api/app';
 import { createCloudSyncApi } from './api/cloud-sync';
+import { createDataDirectoryApi } from './api/data-directory';
 import { createHostApi } from './api/host';
 import { createSettingsApi } from './api/settings';
 import { createWindowControlApi } from './api/window';
@@ -26,6 +27,7 @@ const desktopApi: ChaptaleDesktopApi = {
   getPlatform: createGetPlatformApi(),
   editCommand: createEditCommandApi(),
   windowControl: createWindowControlApi(),
+  dataDirectory: createDataDirectoryApi(),
   settings: createSettingsApi()
 };
 

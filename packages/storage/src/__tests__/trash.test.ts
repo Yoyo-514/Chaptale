@@ -283,9 +283,9 @@ const command = (t: Fixture, method: string) => t.author(method, { commandId: ra
 const ids = (items: { id: string }[]) => items.map(item => item.id);
 
 describe('作品库回收站', () => {
-  it('删除作品时移出作品库并拒绝待审修改，会话归属保留；恢复后待审修改不再恢复', async () => {
+  it('删除作品时移出作品库并拒绝待审修改，查看位置保留；恢复后待审修改不再恢复', async () => {
     const t = await setup();
-    t.author('assignSession', { sessionId: t.context.sessionId, workId: t.work.id });
+    t.author('selectSession', { sessionId: t.context.sessionId, workId: t.work.id });
     const change = t.propose('Agent 改写');
     expect(t.author('previewTrashWork', { workId: t.work.id })).toEqual({ pendingCount: 1 });
 
@@ -298,7 +298,7 @@ describe('作品库回收站', () => {
     );
     const agent = t.app.executeAgent(t.context, { method: 'listEntries', input: { workId: t.work.id } });
     expect(agent).toMatchObject({ ok: false, error: { message: '作品不存在' } });
-    expect(t.author<{ assignments: unknown[] }>('readSessionState', {}).assignments).toEqual([
+    expect(t.author<{ selections: unknown[] }>('readSessionState', {}).selections).toEqual([
       { sessionId: t.context.sessionId, workId: t.work.id }
     ]);
 
@@ -307,9 +307,9 @@ describe('作品库回收站', () => {
     expect(t.author('listPendingChanges', { workId: t.work.id, sessionId: null })).toEqual([]);
   });
 
-  it('永久清空作品时返回作品目录，会话转为未归属，交付组不再引用该作品的修改', async () => {
+  it('永久清空作品时返回作品目录，清除查看位置，交付组不再引用该作品的修改', async () => {
     const t = await setup();
-    t.author('assignSession', { sessionId: t.context.sessionId, workId: t.work.id });
+    t.author('selectSession', { sessionId: t.context.sessionId, workId: t.work.id });
     t.propose('Agent 改写');
     const group = t.author<{ group: { id: string } }>('readCurrentDelivery', { sessionId: t.context.sessionId }).group;
     command(t, 'trashWork');
@@ -319,7 +319,7 @@ describe('作品库回收站', () => {
     expect(files.map(file => basename(file))).toEqual([t.work.id]);
     expect(existsSync(join(files[0]!, 'work.sqlite'))).toBe(true);
     expect(t.author('listTrashedWorks', {})).toEqual([]);
-    expect(t.author<{ assignments: unknown[] }>('readSessionState', {}).assignments).toEqual([]);
+    expect(t.author<{ selections: unknown[] }>('readSessionState', {}).selections).toEqual([]);
     expect(t.author('readDeliveryContents', { groupId: group.id })).toEqual([]);
   });
 });

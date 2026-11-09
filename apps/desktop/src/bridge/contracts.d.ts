@@ -9,6 +9,7 @@ import type {
   CloudProviderArgs,
   CloudSyncState
 } from './cloud-sync';
+import type { DataDirectoryStatus } from './data-directory';
 import type { ChaptaleSettingsState, UpdateChaptaleSettingsPayload } from './settings';
 import type { WindowStateResult, WindowZoomCommand } from './window';
 
@@ -76,6 +77,13 @@ export type ChaptaleDesktopApi = {
     completeClose: (close: boolean) => Promise<void>;
     onCloseRequested: (listener: () => void) => () => void;
     isMaximized: () => Promise<WindowStateResult>;
+  };
+  dataDirectory: {
+    status: () => Promise<DataDirectoryStatus>;
+    /** 打开系统文件夹选择框；取消时为 null，不保存。 */
+    select: () => Promise<string | null>;
+    /** 校验并保存数据目录；文件夹不符合要求时报错。 */
+    choose: (path: string) => Promise<DataDirectoryStatus>;
   };
   settings: {
     getState: () => Promise<ChaptaleSettingsState>;

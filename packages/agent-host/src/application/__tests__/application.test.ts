@@ -131,7 +131,7 @@ function history(
     mode: 'review'
   }
 ) {
-  const manager = SessionManager.create(options.cwd, options.sessionDir);
+  const manager = SessionManager.create(options.cwd, join(options.sessionDir, 'unassigned'));
   if (records.entries) manager.appendCustomEntry(instructionsEntryType, { entries: records.entries });
   if (records.mode) manager.appendCustomEntry(modeEntryType, { mode: records.mode });
   for (const text of texts) manager.appendMessage({ role: 'user', content: text, timestamp: Date.now() });
@@ -150,7 +150,7 @@ it('重连读取快照不会创建新执行者，返回值不能修改宿主状�
   snapshot.sessions[0].instructions[0].text = '修改界面副本';
   expect(app.snapshot().sessions.map(value => value.id)).toEqual([first, second]);
   expect(view(first).instructions).toEqual(builtin);
-  expect(await readdir(options.sessionDir)).toEqual([]);
+  expect(await readdir(join(options.sessionDir, 'unassigned'))).toEqual([]);
 });
 
 it('未归属作品的会话共用宿主的空工作目录，各自保留原生执行者', async () => {
@@ -162,11 +162,11 @@ it('未归属作品的会话共用宿主的空工作目录，各自保留原生�
   expect(app.snapshot().sessions.map(session => session.id)).toEqual([first, second]);
 });
 
-it('枚举宿主管理目录中的历史，打开时按当前归属改用工作目录', async () => {
+it('枚举宿主管理目录中的历史，打开时按所在目录的归属确定工作目录', async () => {
   const work = join(root, 'first-work');
   await mkdir(work);
   const own = history(['独立会话历史']);
-  const manager = SessionManager.create(work, options.sessionDir);
+  const manager = SessionManager.create(work, join(options.sessionDir, 'unassigned'));
   manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
   manager.appendCustomEntry(modeEntryType, { mode: 'review' });
   manager.appendMessage({ role: 'user', content: '作品会话历史', timestamp: Date.now() });
@@ -306,7 +306,7 @@ it('严格重开保留原消息与会话指令，并发打开不重复占用', a
 });
 
 it('会话用量汇总压缩前后的原生记录，重开保持一致且会话之间隔离', async () => {
-  const manager = SessionManager.create(options.cwd, options.sessionDir);
+  const manager = SessionManager.create(options.cwd, join(options.sessionDir, 'unassigned'));
   manager.appendModelChange(model.provider, model.id);
   manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
   manager.appendCustomEntry(modeEntryType, { mode: 'review' });
@@ -341,7 +341,7 @@ it('会话用量汇总压缩前后的原生记录，重开保持一致且会话�
 });
 
 it('压缩后的历史收到有效用量后恢复上下文估算，切换模型更新窗口', async () => {
-  const manager = SessionManager.create(options.cwd, options.sessionDir);
+  const manager = SessionManager.create(options.cwd, join(options.sessionDir, 'unassigned'));
   manager.appendModelChange(model.provider, model.id);
   manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
   manager.appendCustomEntry(modeEntryType, { mode: 'review' });
@@ -376,7 +376,7 @@ it('压缩后的历史收到有效用量后恢复上下文估算，切换模型�
 });
 
 it('压缩过的历史重开时保留压缩前的对话并标记，总结按记录位置显示', async () => {
-  const manager = SessionManager.create(options.cwd, options.sessionDir);
+  const manager = SessionManager.create(options.cwd, join(options.sessionDir, 'unassigned'));
   manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
   manager.appendCustomEntry(modeEntryType, { mode: 'review' });
   manager.appendMessage({ role: 'user', content: '早先的讨论', timestamp: Date.now() });
@@ -503,7 +503,7 @@ it('缺少指令或模式记录的历史只读打开，不套用当前默认值�
 });
 
 it('旧格式提示词记录不被识别为指令，历史只读打开', async () => {
-  const manager = SessionManager.create(options.cwd, options.sessionDir);
+  const manager = SessionManager.create(options.cwd, join(options.sessionDir, 'unassigned'));
   manager.appendCustomEntry('chaptale-system-prompt', { text: '旧提示词' });
   manager.appendMessage({ role: 'user', content: '旧历史', timestamp: Date.now() });
   const id = await open({ file: manager.getSessionFile()! });
@@ -613,7 +613,7 @@ it.each(['取消', '失败'] as const)('手动压缩%s后恢复空闲，压缩�
       return stream;
     }
   });
-  const manager = SessionManager.create(options.cwd, options.sessionDir);
+  const manager = SessionManager.create(options.cwd, join(options.sessionDir, 'unassigned'));
   manager.appendModelChange(capture.provider, capture.id);
   manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
   manager.appendCustomEntry(modeEntryType, { mode: 'review' });

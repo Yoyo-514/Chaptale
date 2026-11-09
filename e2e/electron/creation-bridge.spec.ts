@@ -29,8 +29,12 @@ async function launch() {
 
 test.beforeEach(async () => {
   home = await mkdtemp(path.join(tmpdir(), 'chaptale-creation-bridge-'));
-  await mkdir(path.join(home, '.chaptale'));
-  await writeFile(path.join(home, '.chaptale/settings.json'), JSON.stringify({ version: 1, workspace: {} }));
+  await mkdir(path.join(home, '.chaptale/creation'), { recursive: true });
+  await writeFile(
+    path.join(home, '.chaptale/settings.json'),
+    // 预先选定数据目录，跳过首次启动的位置选择页。
+    JSON.stringify({ version: 1, workspace: {}, dataDir: path.join(home, '.chaptale/creation') })
+  );
   await launch();
 });
 

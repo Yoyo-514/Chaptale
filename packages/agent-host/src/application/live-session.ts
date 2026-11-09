@@ -48,7 +48,7 @@ export class LiveSession {
     applied: AppliedInstructions,
     mode: EditMode,
     emit: (change: HostChange) => void,
-    options?: { creation?: CreationApplication; directAfterGroupId?: string }
+    options: { workId: string | null; creation?: CreationApplication; directAfterGroupId?: string }
   ) {
     this.session = session;
     this.applied = applied;
@@ -58,6 +58,7 @@ export class LiveSession {
       sessionId: session.sessionId,
       name: session.sessionName,
       file: session.sessionFile!,
+      workId: options.workId,
       model: session.model && { provider: session.model.provider, id: session.model.id },
       running: false,
       compacting: false,
@@ -66,11 +67,11 @@ export class LiveSession {
       messages: transcriptView(session.sessionManager)
     };
     this.view.usage = this.usage();
-    this.review = new ReviewFlow(this.view, mode, options ?? {});
+    this.review = new ReviewFlow(this.view, mode, options);
     this.review.refresh();
     this.syncWorkTools();
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
-    this.unsubscribeCreation = options?.creation?.subscribe(event => {
+    this.unsubscribeCreation = options.creation?.subscribe(event => {
       const sessionId =
         event.change.kind === 'review'
           ? event.change.change.sessionId

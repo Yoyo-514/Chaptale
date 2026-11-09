@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { DataDirectory } from '../core/data-directory';
 import { SettingsService } from '../core/settings/service';
 import { createCloudProviderAdapters } from '../features/cloud-sync/providers/registry';
 import { CloudSyncService } from '../features/cloud-sync/service';
@@ -10,6 +11,7 @@ import { TokenVault } from '../infra/security/token-vault';
 
 export type AppContext = {
   settingsService: SettingsService;
+  dataDirectory: DataDirectory;
   cloudSyncService: CloudSyncService;
 };
 
@@ -24,5 +26,5 @@ export function createAppContext(): AppContext {
     ),
     openExternal: openExternalUrl
   });
-  return { settingsService, cloudSyncService };
+  return { settingsService, dataDirectory: new DataDirectory(settingsService), cloudSyncService };
 }

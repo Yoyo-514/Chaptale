@@ -40,6 +40,11 @@ export const IPC_CHANNELS = {
     closeRequested: 'window:close-requested',
     isMaximized: 'window:is-maximized'
   },
+  dataDirectory: {
+    status: 'data-directory:status',
+    select: 'data-directory:select',
+    choose: 'data-directory:choose'
+  },
   settings: {
     getState: 'settings:get-state',
     update: 'settings:update',

@@ -7,6 +7,7 @@ import { useDraggablePanel, type ResizeDirection } from '@/composables';
 import { CloudSyncSettings } from '@/features/cloud-sync';
 
 import SettingsSidebar from './components/SettingsSidebar.vue';
+import DataDirectorySettings from './sections/DataDirectorySettings.vue';
 import InstructionSettings from './sections/InstructionSettings.vue';
 import ModelSettings from './sections/ModelSettings.vue';
 import { useSettingsStore } from './store';
@@ -105,11 +106,7 @@ onMounted(() => {
                 <ModelSettings v-else-if="settingsStore.activeSection === 'llm'" />
                 <InstructionSettings v-else-if="settingsStore.activeSection === 'prompt'" />
                 <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
-                <section v-else class="agent-settings">
-                  <h2>应用数据</h2>
-                  <p>打开应用配置与会话历史所在的目录。</p>
-                  <AppButton @click="settingsStore.openConfigDir">打开应用配置目录</AppButton>
-                </section>
+                <DataDirectorySettings v-else />
               </main>
             </div>
 

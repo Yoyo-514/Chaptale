@@ -31,16 +31,19 @@ export function bootstrapDesktopApp(): void {
 
     const context = createAppContext();
     const hostRoot = path.join(context.settingsService.rootDir, 'pi');
-    const host = new DesktopApplicationProcess({
-      script: path.join(currentDir, 'application-host.js'),
-      creationDir: path.join(context.settingsService.rootDir, 'creation'),
-      agent: {
-        cwd: path.join(hostRoot, 'work'),
-        configDir: path.join(hostRoot, 'config'),
-        agentDir: path.join(hostRoot, 'agent'),
-        sessionDir: path.join(hostRoot, 'sessions'),
-        settingsFile: path.join(hostRoot, 'settings.json')
-      }
+    // 作品与会话历史在作者选择的数据目录；模型配置、凭据与应用设置留在应用配置目录。
+    const host = new DesktopApplicationProcess(path.join(currentDir, 'application-host.js'), async () => {
+      const dataDir = await context.dataDirectory.resolve();
+      return {
+        creationDir: dataDir,
+        agent: {
+          cwd: path.join(hostRoot, 'work'),
+          configDir: path.join(hostRoot, 'config'),
+          agentDir: path.join(hostRoot, 'agent'),
+          sessionDir: path.join(dataDir, 'sessions'),
+          settingsFile: path.join(hostRoot, 'settings.json')
+        }
+      };
     });
     registerApplicationHostIpc(host);
     let stopping = false;

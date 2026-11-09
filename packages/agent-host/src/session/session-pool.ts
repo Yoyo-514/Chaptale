@@ -4,15 +4,15 @@ import {
   type ModelRuntime,
   SessionManager
 } from '@earendil-works/pi-coding-agent';
-import { realpath, stat } from 'node:fs/promises';
-import { isAbsolute, relative, sep } from 'node:path';
+import { mkdir, realpath, stat } from 'node:fs/promises';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 
 import { openHostSessionManager } from './session-storage.ts';
 import { createHostSession, type CreateHostSessionOptions } from './session.ts';
 
 export interface CreateHostSessionPoolOptions {
   agentDir: string;
-  /** 应用私有的已有目录；所有会话文件只在此目录创建或打开。 */
+  /** 应用私有的已有目录；所有会话文件只在此目录（含子目录）创建或打开。 */
   sessionDir: string;
   modelRuntime: ModelRuntime;
 }
@@ -64,9 +64,13 @@ export class HostSessionPool {
     });
   }
 
-  createSession(input: HostSessionInput): Promise<CreateAgentSessionResult> {
+  /** folder 为会话池目录下的单层子目录名，不存在时创建。 */
+  createSession(input: HostSessionInput, folder: string): Promise<CreateAgentSessionResult> {
     return this.start(async () => {
-      const manager = SessionManager.create(input.cwd, this.options.sessionDir);
+      if (!folder || basename(folder) !== folder) throw new Error('会话子目录必须是单层目录名');
+      const dir = join(this.options.sessionDir, folder);
+      await mkdir(dir, { recursive: true });
+      const manager = SessionManager.create(input.cwd, dir);
       const file = manager.getSessionFile();
       if (!file) throw new Error('原生持久会话未分配文件');
       this.claimFile(file);

@@ -184,25 +184,19 @@ export interface WorkbenchState {
   activeWorkId: string | null;
   works: WorkViewState[];
 }
-/** 会话正文与运行状态由 pi 持有；这里只记录固定归属和本机查看位置。 */
-export interface SessionAssignment {
-  sessionId: string;
-  workId: string;
-}
+/** 会话正文、运行状态与作品归属（所在目录）由宿主持有；这里只记录本机查看位置。 */
 export interface SessionSelection {
   workId: string | null;
   sessionId: string | null;
 }
 export interface SessionState {
-  assignments: SessionAssignment[];
   selections: SessionSelection[];
 }
 
 export interface CreationAuthorCommands extends CreationReadCommands, ReviewCommands {
   readSessionState: { input: Record<string, never>; output: CreationResult<SessionState> };
-  assignSession: { input: SessionAssignment; output: CreationResult<SessionState> };
   selectSession: { input: SessionSelection; output: CreationResult<SessionState> };
-  /** 会话删除后清除其归属，并清空指向它的查看位置。 */
+  /** 会话删除或改变归属后，清空指向它的查看位置。 */
   forgetSessions: { input: { sessionIds: string[] }; output: CreationResult<SessionState> };
   readWorkbench: { input: Record<string, never>; output: CreationResult<WorkbenchState> };
   writeWorkbench: { input: WorkbenchState; output: CreationResult<WorkbenchState> };
@@ -240,7 +234,7 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   /** 移入作品库回收站并拒绝该作品全部待审修改；运行中会话的检查由宿主完成。 */
   trashWork: { input: WorkCommandInput; output: CreationResult<Work> };
   restoreWork: { input: WorkCommandInput; output: CreationResult<Work> };
-  /** 从作品库移除，会话转为未归属；files 为待平台移入系统回收站的作品目录。 */
+  /** 从作品库移除并清除其查看位置；files 为待平台移入系统回收站的作品目录。 */
   purgeWork: { input: WorkCommandInput; output: CreationResult<{ files: string[] }> };
   writeDraft: { input: WriteDraftInput; output: CreationResult<DraftState> };
   discardDraft: { input: { workId: string; documentId: string; draftId: string }; output: CreationResult<DraftState> };

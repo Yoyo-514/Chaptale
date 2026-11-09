@@ -41,7 +41,7 @@ function saveUser(session: SessionManager, text = '已有会话') {
 
 describe('会话所有权', () => {
   it('多个 Agent 拥有独立原生会话，重连取得同一对象', async () => {
-    const [first, second] = await Promise.all([pool.createSession(input), pool.createSession(input)]);
+    const [first, second] = await Promise.all([pool.createSession(input, 'scope'), pool.createSession(input, 'scope')]);
     expect(pool.get(first.session.sessionId)).toBe(first.session);
     expect(pool.get(second.session.sessionId)).toBe(second.session);
     saveUser(first.session.sessionManager, '第一位 Agent 的输入');
@@ -56,18 +56,18 @@ describe('会话所有权', () => {
   });
 
   it('空会话只在内存登记，不伪造消息强制落盘', async () => {
-    const { session } = await pool.createSession(input);
+    const { session } = await pool.createSession(input, 'scope');
     expect(pool.list()).toHaveLength(1);
     expect(session.messages.some(message => message.role === 'user')).toBe(false);
-    expect(await readdir(options.sessionDir)).toEqual([]);
+    expect(await readdir(join(options.sessionDir, 'scope'))).toEqual([]);
     await pool.close(session.sessionId);
     expect(pool.list()).toEqual([]);
-    expect(await readdir(options.sessionDir)).toEqual([]);
+    expect(await readdir(join(options.sessionDir, 'scope'))).toEqual([]);
   });
 
   it('关闭单个会话不释放其他 Agent，也不删除历史', async () => {
-    const first = (await pool.createSession(input)).session;
-    const second = (await pool.createSession(input)).session;
+    const first = (await pool.createSession(input, 'scope')).session;
+    const second = (await pool.createSession(input, 'scope')).session;
     const file = saveUser(first.sessionManager);
     const original = await readFile(file, 'utf8');
     await pool.close(first.sessionId);
@@ -78,7 +78,7 @@ describe('会话所有权', () => {
   });
 
   it('严格重开已关闭会话并继续原生历史', async () => {
-    const first = (await pool.createSession(input)).session;
+    const first = (await pool.createSession(input, 'scope')).session;
     const file = saveUser(first.sessionManager, '继续讨论的依据');
     await pool.close(first.sessionId);
     const restored = (await pool.openSession({ ...input, file })).session;
@@ -120,7 +120,7 @@ describe('会话所有权', () => {
   });
 
   it('同进程的另一个池也不能接管尚未关闭的文件', async () => {
-    const { session } = await pool.createSession(input);
+    const { session } = await pool.createSession(input, 'scope');
     const file = saveUser(session.sessionManager);
     const another = await HostSessionPool.create(options);
     try {
@@ -143,7 +143,7 @@ describe('会话所有权', () => {
   });
 
   it('恢复失败释放占位，不污染已有会话', async () => {
-    const good = (await pool.createSession(input)).session;
+    const good = (await pool.createSession(input, 'scope')).session;
     const file = saveUser(SessionManager.create(input.cwd, options.sessionDir));
     const original = await readFile(file, 'utf8');
     await writeFile(file, original + '{invalid}\n');
@@ -183,7 +183,7 @@ describe('会话所有权', () => {
   });
 
   it('关闭幂等，关闭中的会话不能被重新取得', async () => {
-    const { session } = await pool.createSession(input);
+    const { session } = await pool.createSession(input, 'scope');
     const first = pool.close(session.sessionId);
     expect(pool.get(session.sessionId)).toBeUndefined();
     expect(pool.list()[0].status).toBe('closing');
@@ -193,13 +193,13 @@ describe('会话所有权', () => {
   });
 
   it('宿主关闭等待正在装配的会话并拒绝新的会话', async () => {
-    const creation = pool.createSession(input);
+    const creation = pool.createSession(input, 'scope');
     const disposal = pool.dispose();
     const { session } = await creation;
     await disposal;
     expect(pool.get(session.sessionId)).toBeUndefined();
     expect(pool.list()).toEqual([]);
-    await expect(pool.createSession(input)).rejects.toThrow('已经关闭');
+    await expect(pool.createSession(input, 'scope')).rejects.toThrow('已经关闭');
     await expect(pool.openSession({ ...input, file: join(options.sessionDir, 'missing.jsonl') })).rejects.toThrow(
       '已经关闭'
     );
@@ -207,8 +207,8 @@ describe('会话所有权', () => {
   });
 
   it('宿主关闭不会被一个失败的装配阻止', async () => {
-    const good = pool.createSession(input);
-    const failed = pool.createSession({ ...input, systemPrompt: '' });
+    const good = pool.createSession(input, 'scope');
+    const failed = pool.createSession({ ...input, systemPrompt: '' }, 'scope');
     const expectedFailure = expect(failed).rejects.toThrow('非空系统提示词');
     await pool.dispose();
     await good;

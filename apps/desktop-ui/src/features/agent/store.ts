@@ -18,7 +18,7 @@ export type { SessionEntry } from './session/list';
 export const useAgentStore = defineStore('agent', () => {
   const creation = useCreationStore();
   const state = ref<HostState>();
-  const catalog = ref<SessionState>({ assignments: [], selections: [] });
+  const catalog = ref<SessionState>({ selections: [] });
   const scope = ref<string | null>(creation.workId);
   const creating = ref(false);
   const connected = ref(false);
@@ -50,7 +50,13 @@ export const useAgentStore = defineStore('agent', () => {
     choices.set(workId, version);
     return version;
   }
-  const owners = computed(() => new Map(catalog.value.assignments.map(item => [item.sessionId, item.workId])));
+  // 归属由宿主按历史文件所在目录给出；打开的会话以视图为准。
+  const owners = computed(() => {
+    const map = new Map<string, string | null>(history.value.map(item => [item.id, item.workId]));
+    for (const session of state.value?.sessions ?? [])
+      if (session.sessionId) map.set(session.sessionId, session.workId);
+    return map;
+  });
   function owner(sessionId: string | null): string | null {
     return sessionId === null ? null : (owners.value.get(sessionId) ?? null);
   }
@@ -275,14 +281,21 @@ export const useAgentStore = defineStore('agent', () => {
     });
   }
 
+  /** 宿主移动历史文件；已打开的会话关闭后以新句柄重新打开。 */
   async function assign(sessionId: string) {
     const workId = creation.workId!;
     const version = viewVersion;
     return perform(async () => {
-      catalog.value = await requestCreation('assignSession', { sessionId, workId });
+      const client = getDesktopApi().agentHost;
+      const reopened = await client.request('assignSession', { sessionId, workId });
+      const [next, items] = await Promise.all([
+        requestCreation('readSessionState', {}),
+        client.request('history', undefined)
+      ]);
+      catalog.value = next;
+      history.value = items;
       if (version !== viewVersion) return;
-      const live = state.value!.sessions.find(session => session.sessionId === sessionId);
-      if (live) await select(live.id);
+      if (reopened) await select(reopened);
       else await changeScope(workId);
     });
   }
@@ -301,12 +314,16 @@ export const useAgentStore = defineStore('agent', () => {
       void changeScope(workId);
     }
   );
-  // 永久清空作品后其会话转为未归属，重新读取归属。
+  // 永久删除作品会清除查看位置并移走其会话历史，重新读取两者。
   const offLibrary = creation.onEvent(event => {
     if (event.change.kind !== 'library') return;
-    void requestCreation('readSessionState', {}).then(
-      next => {
+    void Promise.all([
+      requestCreation('readSessionState', {}),
+      getDesktopApi().agentHost.request('history', undefined)
+    ]).then(
+      ([next, items]) => {
         catalog.value = next;
+        history.value = items;
       },
       cause => {
         error.value = toErrorMessage(cause);

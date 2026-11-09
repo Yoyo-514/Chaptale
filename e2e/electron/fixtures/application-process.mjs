@@ -4,7 +4,6 @@ import path from 'node:path';
 
 const [root, script, report] = process.argv.slice(2);
 const options = {
-  script,
   creationDir: path.join(root, 'creation'),
   agent: {
     cwd: path.join(root, 'work'),
@@ -22,7 +21,7 @@ const value = result => {
 app.whenReady().then(async () => {
   try {
     const { DesktopApplicationProcess } = await import('../../../apps/desktop/src/main/application-host/process.ts');
-    let host = new DesktopApplicationProcess(options);
+    let host = new DesktopApplicationProcess(script, async () => options);
     const events = [];
     host.creation.subscribe(event => events.push(event));
     const work = value(
@@ -54,7 +53,7 @@ app.whenReady().then(async () => {
     const agent = await host.agent.request('state', undefined);
     const processCount = app.getAppMetrics().filter(item => item.name === 'Chaptale Application').length;
     await host.dispose();
-    host = new DesktopApplicationProcess(options);
+    host = new DesktopApplicationProcess(script, async () => options);
     const reopened = value(await host.creation.request('readDocument', { workId: work.id, documentId: document.id }));
     const snapshot = value(await host.creation.request('snapshot', { workId: work.id }));
     const disconnected = new Promise(resolve => host.onExit(resolve));
@@ -74,7 +73,7 @@ app.whenReady().then(async () => {
     });
     await host.dispose();
     const shutdownImport = value(await importing);
-    host = new DesktopApplicationProcess(options);
+    host = new DesktopApplicationProcess(script, async () => options);
     const afterShutdownImport = value(await host.creation.request('snapshot', { workId: work.id }));
     await host.dispose();
     await writeFile(

@@ -46,11 +46,11 @@ export async function openCreationService(rootDir: string): Promise<CreationServ
 
 草稿快照的 `id` 作为该快照正式保存时的 `commandId`。正式保存按 ID 清理对应草稿；读取草稿时按作品库回执核对已提交快照，处理正式提交成功、草稿清理失败后的恢复。修订冲突与草稿冲突分别使用 `RevisionConflictError`、`DraftConflictError`，纯数据错误类型见 `/contracts`。
 
-## 会话归属与查看位置
+## 会话查看位置
 
-`readSessionState` 返回会话归属及各范围最后选中的原生会话 ID；`assignSession` 将独立会话固定归入作品，重复归入同一作品返回原状态；`selectSession` 分别记录每部作品及独立范围的选择，`sessionId: null` 表示新会话草稿。归属和选择保存在本机作品库，正文、指令与运行状态仍由 pi 原生会话持有。
+`readSessionState` 返回各范围最后选中的原生会话 ID；`selectSession` 分别记录每部作品及独立范围的选择，`sessionId: null` 表示新会话草稿；`forgetSessions` 清空指向已删除会话的选择。选择保存在本机库。会话归属由 agent-host 按历史文件所在目录 `<数据目录>/sessions/<workId>/` 决定，归入作品由宿主的 `assignSession` 移动历史文件完成。
 
-桌面新建会话默认归属当前作品，“更多会话操作 → 新建独立会话”创建独立会话。“全部历史”按当前作品与独立会话分组，独立历史可确认归入当前作品。作品归属使用稳定作品 ID；工作目录只决定工具执行位置。切换作品恢复该作品最后查看的会话，其他会话继续运行。只读历史使用原生会话 ID 记录归属，当前打开实例的操作句柄单独生成。
+桌面新建会话默认归属当前作品，“更多会话操作 → 新建独立会话”创建独立会话。“全部历史”按当前作品与独立会话分组，独立历史可确认归入当前作品。作品归属使用稳定作品 ID，体现为会话目录名；工作目录只决定工具执行位置。切换作品恢复该作品最后查看的会话，其他会话继续运行。只读历史使用原生会话 ID 记录归属，当前打开实例的操作句柄单独生成。
 
 ## TXT / Markdown 文件交换
 

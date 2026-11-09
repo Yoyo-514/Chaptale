@@ -3,7 +3,7 @@ import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
 import { flushPromises } from '@vue/test-utils';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { createPinia, disposePinia, setActivePinia, type Pinia } from 'pinia';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
@@ -169,8 +169,9 @@ afterEach(async () => {
   Reflect.deleteProperty(window, 'chaptaleDesktop');
   await rm(root, { recursive: true, force: true });
 });
-function history(text: string, complete = true) {
-  const manager = SessionManager.create(options.cwd, options.sessionDir);
+/** 在归属目录中写入历史；workId 为 null 时写入未归属目录。 */
+function history(text: string, complete = true, workId: string | null = null) {
+  const manager = SessionManager.create(options.cwd, join(options.sessionDir, workId ?? 'unassigned'));
   if (complete) {
     manager.appendCustomEntry(instructionsEntryType, { entries: instructions });
     manager.appendCustomEntry(modeEntryType, { mode: 'review' });
@@ -179,6 +180,7 @@ function history(text: string, complete = true) {
   return {
     id: manager.getSessionId(),
     file: manager.getSessionFile()!,
+    workId,
     title: text,
     modified: new Date().toISOString()
   };
@@ -194,14 +196,8 @@ it('同名作品各自归属并使用各自的文件目录，新建独立会话�
   const b = (await agent.create())!;
   await agent.newDraft(true);
   const independent = (await agent.create())!;
-  const state = value(author.executeAuthor({ method: 'readSessionState', input: {} }));
-  expect(state.assignments).toEqual(
-    expect.arrayContaining([
-      { sessionId: a, workId: works[0]!.id },
-      { sessionId: b, workId: works[1]!.id }
-    ])
-  );
-  expect(state.assignments).toHaveLength(2);
+  const owners = Object.fromEntries(host.snapshot().sessions.map(session => [session.sessionId, session.workId]));
+  expect(owners).toEqual({ [a]: works[0]!.id, [b]: works[1]!.id, [independent]: null });
   const cwds = [a, b, independent].map(id => host.liveSession(id)!.sessionManager.getCwd());
   expect(new Set(cwds).size).toBe(3);
   expect(cwds[2]).toBe(options.cwd);
@@ -238,7 +234,11 @@ it('只读历史沿用原生身份归入作品，重启后恢复该作品最后�
   expect(agent.active?.id).not.toBe(item.id);
   expect(agent.active?.sessionId).toBe(item.id);
   expect(await agent.assign(item.id)).toBe(true);
+  expect(agent.error).toBe('');
   expect(agent.scope).toBe(works[0]!.id);
+  // 归入即移动历史文件，原件内容不变。
+  expect(agent.active?.file).toBe(join(options.sessionDir, works[0]!.id, basename(item.file)));
+  expect(agent.entries.find(entry => entry.key === item.id)?.workId).toBe(works[0]!.id);
   await creation.persistState();
   disposePinia(pinia);
   await host.dispose();
@@ -289,8 +289,7 @@ it('切换作品仅改变查看范围，真实 SDK 正在执行的请求继续�
 });
 
 it('创建期间切换作品，迟到的新会话仍归原作品且保持当前查看位置', async () => {
-  const current = history('作品乙的会话');
-  value(author.executeAuthor({ method: 'assignSession', input: { workId: works[1]!.id, sessionId: current.id } }));
+  const current = history('作品乙的会话', true, works[1]!.id);
   value(author.executeAuthor({ method: 'selectSession', input: { workId: works[1]!.id, sessionId: current.id } }));
   await agent.connect();
   let release!: () => void;
@@ -310,10 +309,9 @@ it('创建期间切换作品，迟到的新会话仍归原作品且保持当前�
   expect(created).toEqual(expect.any(String));
   expect(agent.scope).toBe(works[1]!.id);
   expect(agent.active?.sessionId).toBe(current.id);
-  expect(value(author.executeAuthor({ method: 'readSessionState', input: {} })).assignments).toContainEqual({
-    sessionId: created,
-    workId: works[0]!.id
-  });
+  const view = host.snapshot().sessions.find(session => session.sessionId === created)!;
+  expect(view.workId).toBe(works[0]!.id);
+  expect(dirname(view.file)).toBe(join(options.sessionDir, works[0]!.id));
   await creation.openWork(works[0]!.id);
   await flushPromises();
   expect(agent.active?.sessionId).toBe(created);

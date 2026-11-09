@@ -7,6 +7,7 @@ import {
   CloudNoArgsValidator,
   CloudProviderArgsValidator
 } from '../../../bridge/schemas/cloud-sync';
+import { ChooseDataDirectoryArgsValidator } from '../../../bridge/schemas/data-directory';
 import { UpdateChaptaleSettingsArgsValidator } from '../../../bridge/schemas/settings';
 import { WindowCompleteCloseArgsValidator, WindowZoomArgsValidator } from '../../../bridge/window';
 import type { AppContext } from '../app-context';
@@ -53,6 +54,9 @@ const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.settings.getState),
   validated(IPC_CHANNELS.settings.update, UpdateChaptaleSettingsArgsValidator),
   trusted(IPC_CHANNELS.settings.openConfigDir),
+  trusted(IPC_CHANNELS.dataDirectory.status),
+  trusted(IPC_CHANNELS.dataDirectory.select),
+  validated(IPC_CHANNELS.dataDirectory.choose, ChooseDataDirectoryArgsValidator),
   validated(IPC_CHANNELS.cloudSync.getState, CloudNoArgsValidator),
   validated(IPC_CHANNELS.cloudSync.beginAuth, CloudProviderArgsValidator),
   validated(IPC_CHANNELS.cloudSync.cancelAuth, CloudNoArgsValidator),
@@ -70,6 +74,7 @@ const mainToRendererEvents = new Set<string>([IPC_CHANNELS.window.closeRequested
 function createContext(): AppContext {
   return {
     settingsService: {},
+    dataDirectory: {},
     cloudSyncService: {}
   } as unknown as AppContext;
 }

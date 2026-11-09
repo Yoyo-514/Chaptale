@@ -100,7 +100,6 @@ const inputs = {
     limit: Type.Integer({ minimum: 1 })
   }),
   readSessionState: object({}),
-  assignSession: object({ sessionId: id, workId: id }),
   selectSession: object({ sessionId: parentId, workId: parentId }),
   forgetSessions: object({ sessionIds: Type.Array(id) }),
   readWorkbench: object({}),

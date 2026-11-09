@@ -3,7 +3,7 @@ import { onScopeDispose, ref, watch } from 'vue';
 
 import type { TrashedWork } from '@chaptale/creation/contracts';
 
-import { toErrorMessage } from '@/utils/desktop-api';
+import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import { requestCreation } from '../request';
 import { useCreationStore } from '../store';
@@ -42,7 +42,8 @@ export const useWorkTrashStore = defineStore('creation-work-trash', () => {
     await Promise.all([creation.refreshLibrary(), refresh()]);
   }
   async function purge(workId: string) {
-    await requestCreation('purgeWork', { commandId: crypto.randomUUID(), workId });
+    // 宿主关闭并移走该作品的会话历史，平台把作品与会话目录移入回收站。
+    await getDesktopApi().agentHost.request('purgeWork', { commandId: crypto.randomUUID(), workId });
     await refresh();
   }
 

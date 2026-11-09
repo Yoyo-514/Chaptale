@@ -20,7 +20,6 @@ import type {
   Revision,
   RevisionSummary,
   SaveDocumentInput,
-  SessionAssignment,
   SessionSelection,
   SessionState,
   Work,
@@ -201,9 +200,6 @@ export class CreationService {
 
   readSessionState(): SessionState {
     return this.repository.library.readSessionState();
-  }
-  assignSession(input: SessionAssignment): SessionState {
-    return sessions.assignSession(this.repository.library, input);
   }
   selectSession(input: SessionSelection): SessionState {
     return sessions.selectSession(this.repository.library, input);

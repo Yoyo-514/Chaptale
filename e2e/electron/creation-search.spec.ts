@@ -9,8 +9,12 @@ import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
 test('查找替换按大小写和正则匹配，替换后可撤销', async () => {
   const home = await mkdtemp(path.join(tmpdir(), 'chaptale-search-'));
   const desktop = path.resolve('apps/desktop');
-  await mkdir(path.join(home, '.chaptale'));
-  await writeFile(path.join(home, '.chaptale/settings.json'), JSON.stringify({ version: 1, workspace: {} }));
+  await mkdir(path.join(home, '.chaptale/creation'), { recursive: true });
+  await writeFile(
+    path.join(home, '.chaptale/settings.json'),
+    // 预先选定数据目录，跳过首次启动的位置选择页。
+    JSON.stringify({ version: 1, workspace: {}, dataDir: path.join(home, '.chaptale/creation') })
+  );
   const env = { ...process.env, HOME: home, USERPROFILE: home, NODE_ENV: 'production' };
   delete (env as Record<string, string | undefined>).VITE_DEV_SERVER_URL;
   delete (env as Record<string, string | undefined>).ELECTRON_RUN_AS_NODE;

@@ -197,7 +197,7 @@ async function assign(entry: SessionEntry) {
             </span>
           </button>
           <PopoverRoot
-            v-if="creation.work && entry.workId === null && sessionId(entry)"
+            v-if="creation.work && entry.workId === null && entry.item"
             :open="confirming === entry.key"
             @update:open="open => (confirming = open ? entry.key : assigning ? confirming : undefined)"
           >

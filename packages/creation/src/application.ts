@@ -145,8 +145,6 @@ export class CreationApplication {
         return this.service.searchDocuments(command.input);
       case 'readSessionState':
         return this.service.readSessionState();
-      case 'assignSession':
-        return this.service.assignSession(command.input);
       case 'selectSession':
         return this.service.selectSession(command.input);
       case 'forgetSessions':

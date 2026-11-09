@@ -119,6 +119,8 @@ export interface SessionView {
   /** 用户设置的会话名称，保存在 pi 原生 session_info 记录中。 */
   name?: string;
   file: string;
+  /** 会话归属的作品，由历史文件所在目录确定；未归属为 null。 */
+  workId: string | null;
   model?: ModelRef;
   running: boolean;
   /** 手动或自动压缩期间为 true；running 包含压缩占用。 */
@@ -156,6 +158,8 @@ export interface HostState {
 export interface HistoryItem {
   id: string;
   file: string;
+  /** 历史文件所在目录对应的作品；未归属为 null。 */
+  workId: string | null;
   title: string;
   modified: string;
 }
@@ -166,19 +170,26 @@ export interface HostCommands {
    * 为 null 时使用应用的空工作目录。
    */
   create: { input: { model: ModelRef; instructions?: string; workId: string | null }; output: string };
-  /** 工作目录按会话当前的作品归属确定。 */
+  /** 工作目录按历史文件所在目录对应的作品确定。 */
   open: { input: { file: string }; output: string };
+  /**
+   * 把未归属会话的历史文件移入作品目录：会话在运行则拒绝；已打开的会话先关闭，移动后重新打开并返回其句柄，
+   * 未打开时返回 null。尚未写盘的新会话不能归入。
+   */
+  assignSession: { input: { sessionId: string; workId: string }; output: string | null };
   prompt: { input: { id: string; text: string }; output: void };
   cancel: { input: { id: string }; output: void };
   compact: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
   /**
-   * 删除会话：任一会话在运行则整体拒绝；先拒绝这些会话的全部待审修改并清除作品归属，再关闭已打开的会话。
+   * 删除会话：任一会话在运行则整体拒绝；先拒绝这些会话的全部待审修改并清除查看位置，再关闭已打开的会话。
    * 返回待删除的历史文件，由平台移入回收站；尚未写盘的新会话只关闭。
    */
   deleteSessions: { input: { sessionIds: string[] }; output: { files: string[] } };
   /** 把作品移入作品库回收站：属于它的会话在运行则拒绝，已打开的会话先关闭；会话归属保留。 */
   trashWork: { input: { commandId: string; workId: string }; output: Work };
+  /** 永久删除回收站中的作品；files 含作品目录与其会话目录，由平台移入回收站。 */
+  purgeWork: { input: { commandId: string; workId: string }; output: { files: string[] } };
   /** 导入作品包；覆盖已有作品时属于它的会话在运行则拒绝，已打开的会话随后关闭。files 由平台移入回收站。 */
   importWorkPackage: { input: ImportWorkPackageInput; output: WorkReplacement };
   /** 换回导入前快照，会话规则同覆盖导入。files 由平台移入回收站。 */
