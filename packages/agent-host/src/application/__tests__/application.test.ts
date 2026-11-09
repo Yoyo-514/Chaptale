@@ -102,10 +102,10 @@ afterEach(async () => {
 });
 
 async function create(instructions?: string, target = model) {
-  return (await app.execute({ method: 'create', input: { model: target, instructions } })) as string;
+  return (await app.execute({ method: 'create', input: { model: target, instructions, workId: null } })) as string;
 }
 
-async function open(input: { file: string; cwd: string }) {
+async function open(input: { file: string }) {
   return (await app.execute({ method: 'open', input })) as string;
 }
 
@@ -135,7 +135,7 @@ function history(
   if (records.entries) manager.appendCustomEntry(instructionsEntryType, { entries: records.entries });
   if (records.mode) manager.appendCustomEntry(modeEntryType, { mode: records.mode });
   for (const text of texts) manager.appendMessage({ role: 'user', content: text, timestamp: Date.now() });
-  return { file: manager.getSessionFile()!, cwd: options.cwd };
+  return { file: manager.getSessionFile()! };
 }
 
 async function restart(overrides: Partial<HostApplicationOptions> = {}) {
@@ -153,22 +153,16 @@ it('重连读取快照不会创建新执行者，返回值不能修改宿主状�
   expect(await readdir(options.sessionDir)).toEqual([]);
 });
 
-it('不同作品与独立会话共用宿主，各自保留创建时的目录和原生执行者', async () => {
-  const firstWork = join(root, 'first-work');
-  const secondWork = join(root, 'second-work');
-  await Promise.all([mkdir(firstWork), mkdir(secondWork)]);
-  const first = (await app.execute({ method: 'create', input: { model, cwd: firstWork } })) as string;
+it('未归属作品的会话共用宿主的空工作目录，各自保留原生执行者', async () => {
+  const first = await create();
   const executor = app.liveSession(first);
-  const second = (await app.execute({ method: 'create', input: { model, cwd: secondWork } })) as string;
-  const independent = await create();
-  expect(view(first).cwd).toBe(firstWork);
-  expect(view(second).cwd).toBe(secondWork);
-  expect(view(independent).cwd).toBe(options.cwd);
+  const second = await create();
+  for (const id of [first, second]) expect(app.liveSession(id)!.sessionManager.getCwd()).toBe(options.cwd);
   expect(app.liveSession(first)).toBe(executor);
-  expect(app.snapshot().sessions.map(session => session.id)).toEqual([first, second, independent]);
+  expect(app.snapshot().sessions.map(session => session.id)).toEqual([first, second]);
 });
 
-it('枚举宿主管理目录中的历史，保留各自工作目录与原生身份', async () => {
+it('枚举宿主管理目录中的历史，打开时按当前归属改用工作目录', async () => {
   const work = join(root, 'first-work');
   await mkdir(work);
   const own = history(['独立会话历史']);
@@ -179,21 +173,14 @@ it('枚举宿主管理目录中的历史，保留各自工作目录与原生身�
   const items = await app.execute({ method: 'history', input: undefined });
   expect(items).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({
-        id: manager.getSessionId(),
-        cwd: work,
-        file: manager.getSessionFile(),
-        title: '作品会话历史'
-      }),
-      expect.objectContaining({ cwd: options.cwd, file: own.file, title: '独立会话历史' })
+      expect.objectContaining({ id: manager.getSessionId(), file: manager.getSessionFile(), title: '作品会话历史' }),
+      expect.objectContaining({ file: own.file, title: '独立会话历史' })
     ])
   );
   expect(items).toHaveLength(2);
-  const opened = (await app.execute({
-    method: 'open',
-    input: { file: manager.getSessionFile()!, cwd: work }
-  })) as string;
+  const opened = await open({ file: manager.getSessionFile()! });
   expect(view(opened).sessionId).toBe(manager.getSessionId());
+  expect(app.liveSession(opened)!.sessionManager.getCwd()).toBe(options.cwd);
 });
 
 it('重命名写入原生记录，历史与重开均使用新名称，只读历史不能重命名', async () => {
@@ -210,14 +197,6 @@ it('重命名写入原生记录，历史与重开均使用新名称，只读历�
   expect(view(await open(item)).name).toBe('人物小传');
   const readonly = await open(history(['旧历史'], {}));
   await expect(app.execute({ method: 'rename', input: { id: readonly, name: '新名' } })).rejects.toThrow('只读');
-});
-
-it('不存在的作品目录不能创建会话，既有会话保持可用', async () => {
-  const existing = await create();
-  const executor = app.liveSession(existing);
-  await expect(app.execute({ method: 'create', input: { model, cwd: join(root, 'missing') } })).rejects.toThrow();
-  expect(app.snapshot().sessions.map(session => session.id)).toEqual([existing]);
-  expect(app.liveSession(existing)).toBe(executor);
 });
 
 it('全局默认指令只影响之后创建的会话并写入设置文件，会话指令互不串用', async () => {
@@ -292,7 +271,7 @@ it('新会话使用全局默认模式，会话模式随历史重开且不跟随�
   const file = view(first).file;
   await restart();
   expect(app.snapshot().settings.defaultMode).toBe('direct');
-  const reopened = await open({ file, cwd: options.cwd });
+  const reopened = await open({ file });
   expect(view(reopened).mode).toBe('discuss');
   await expect(app.execute({ method: 'mode', input: { id: reopened, mode: 'auto' as EditMode } })).rejects.toThrow(
     '修改模式无效'
@@ -343,7 +322,7 @@ it('会话用量汇总压缩前后的原生记录，重开保持一致且会话�
   const kept = manager.appendMessage({ role: 'user', content: '最近的要求', timestamp: Date.now() });
   manager.appendCompaction('历史总结', kept, 1200);
   manager.appendUsage('history', model.provider, model.id, { ...zeroUsage, input: 50, totalTokens: 50 });
-  const input = { file: manager.getSessionFile()!, cwd: options.cwd };
+  const input = { file: manager.getSessionFile()! };
   const id = await open(input);
   const expected = {
     input: 150,
@@ -379,7 +358,7 @@ it('压缩后的历史收到有效用量后恢复上下文估算，切换模型�
     stopReason: 'stop',
     timestamp: Date.now()
   });
-  const id = await open({ file: manager.getSessionFile()!, cwd: options.cwd });
+  const id = await open({ file: manager.getSessionFile()! });
   expect(view(id).usage).toMatchObject({
     input: 90,
     output: 10,
@@ -404,7 +383,7 @@ it('压缩过的历史重开时保留压缩前的对话并标记，总结按记�
   const kept = manager.appendMessage({ role: 'user', content: '最近的要求', timestamp: Date.now() });
   manager.appendCompaction('## 进度：写完第三章', kept, 1200);
   manager.appendMessage({ role: 'user', content: '压缩后的新消息', timestamp: Date.now() });
-  const id = await open({ file: manager.getSessionFile()!, cwd: options.cwd });
+  const id = await open({ file: manager.getSessionFile()! });
 
   expect(view(id).readonly).toBeUndefined();
   expect(view(id).messages).toEqual([
@@ -527,7 +506,7 @@ it('旧格式提示词记录不被识别为指令，历史只读打开', async (
   const manager = SessionManager.create(options.cwd, options.sessionDir);
   manager.appendCustomEntry('chaptale-system-prompt', { text: '旧提示词' });
   manager.appendMessage({ role: 'user', content: '旧历史', timestamp: Date.now() });
-  const id = await open({ file: manager.getSessionFile()!, cwd: options.cwd });
+  const id = await open({ file: manager.getSessionFile()! });
   expect(view(id).readonly?.reason).toBe('incomplete');
 });
 
@@ -640,7 +619,7 @@ it.each(['取消', '失败'] as const)('手动压缩%s后恢复空闲，压缩�
   manager.appendCustomEntry(modeEntryType, { mode: 'review' });
   for (let i = 0; i < 10; i++)
     manager.appendMessage({ role: 'user', content: `章节${i}：${'雾'.repeat(4000)}`, timestamp: Date.now() });
-  const id = await open({ file: manager.getSessionFile()!, cwd: options.cwd });
+  const id = await open({ file: manager.getSessionFile()! });
   const other = await create();
   app.liveSession(id)!.settingsManager.setRetryEnabled(false);
   const original = view(id).messages;

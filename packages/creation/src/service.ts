@@ -150,6 +150,10 @@ export class CreationService {
       () => content.insertFileEntry(this.repository.work(input.workId), input)
     );
   }
+  workFilesDir(workId: string): string {
+    if (!this.repository.library.hasWork(workId)) throw new Error('作品不存在');
+    return this.repository.work(workId).filesDir();
+  }
   entryFileDir(workId: string, entryId: string): string {
     return this.repository.work(workId).entryFileDir(entryId);
   }

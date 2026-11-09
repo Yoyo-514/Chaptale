@@ -58,7 +58,6 @@ export class LiveSession {
       sessionId: session.sessionId,
       name: session.sessionName,
       file: session.sessionFile!,
-      cwd: session.sessionManager.getCwd(),
       model: session.model && { provider: session.model.provider, id: session.model.id },
       running: false,
       compacting: false,

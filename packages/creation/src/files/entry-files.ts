@@ -35,6 +35,13 @@ export async function addFiles(service: CreationService, input: AddFilesInput): 
   return report;
 }
 
+/** 创建并返回作品文件目录，供 Agent 会话作为工作目录。 */
+export async function prepareWorkFiles(service: CreationService, workId: string): Promise<string> {
+  const dir = service.workFilesDir(workId);
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
 export async function locateFile(
   service: CreationService,
   workId: string,

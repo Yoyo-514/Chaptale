@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { Work, WorkSnapshot } from '@chaptale/creation/contracts';
 
 import { prepareSchema, SchemaVersionError } from '../schema.ts';
-import { workDatabaseFile, workDir, workSchema } from './database.ts';
+import { workDatabaseFile, workDir, workFilesDir, workSchema } from './database.ts';
 
 /** 作品包格式版本；包内作品库的结构版本另由 user_version 记录。 */
 const packageFormat = 1;
@@ -29,7 +29,7 @@ export function exportWorkPackage(rootDir: string, database: Database.Database, 
       target.exec(packageTables);
       target.prepare('INSERT INTO package_meta VALUES (?, ?)').run(packageFormat, JSON.stringify(work));
       const insert = target.prepare('INSERT INTO package_files VALUES (?, ?, ?)');
-      const filesDir = path.join(workDir(rootDir, work.id), 'files');
+      const filesDir = workFilesDir(rootDir, work.id);
       target.transaction(() => {
         if (!existsSync(filesDir)) return;
         for (const entryId of readdirSync(filesDir))

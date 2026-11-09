@@ -1,8 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { useAgentStore } from '@/features/agent';
-
 import { useWorkbenchStore } from '../store';
 
 beforeEach(() => setActivePinia(createPinia()));
@@ -31,12 +29,5 @@ describe('面板导航', () => {
     navigation.toggleAuxiliary();
     expect(navigation.auxiliaryOpen).toBe(true);
     expect(navigation.focusMode).toBe(false);
-  });
-  it('讨论请求写进新会话草稿并打开协作栏，不自动发送', () => {
-    const navigation = useWorkbenchStore();
-    navigation.askAgent('C:/work', '讨论选段', ['正文/第一章.md']);
-    expect(useAgentStore().draft).toBe('讨论选段\n文件：正文/第一章.md');
-    expect(useAgentStore().composeCwd).toBe('C:/work');
-    expect(navigation.auxiliaryOpen).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -18,7 +18,7 @@ it('通用 Node 启动入口装配既有工具与指令，并重开本机设置'
   try {
     const first = await createHostApplication(options);
     try {
-      expect(first.snapshot().cwd).toBe(options.cwd);
+      expect((await stat(options.cwd)).isDirectory()).toBe(true);
       expect(first.snapshot().tools).toEqual(['read', 'ls', 'find', 'grep']);
       expect(first.snapshot().settings.defaultInstructions).toEqual(builtinWritingInstructions);
       await first.execute({ method: 'defaultMode', input: { mode: 'direct' } });

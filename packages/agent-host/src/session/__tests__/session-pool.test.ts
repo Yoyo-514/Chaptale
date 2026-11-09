@@ -94,7 +94,7 @@ describe('会话所有权', () => {
   it('按已读历史决定不装配或拒绝时不创建会话，并释放文件', async () => {
     const file = saveUser(SessionManager.create(input.cwd, options.sessionDir), '只读的依据');
     const seen: string[] = [];
-    const skipped = await pool.openWith({ file, cwd: input.cwd }, manager => {
+    const skipped = await pool.openWith({ file, cwd: () => Promise.resolve(input.cwd) }, manager => {
       seen.push(...manager.buildSessionContext().messages.map(message => message.role));
       return undefined;
     });
@@ -102,7 +102,7 @@ describe('会话所有权', () => {
     expect(seen).toEqual(['user']);
     expect(pool.list()).toHaveLength(0);
     await expect(
-      pool.openWith({ file, cwd: input.cwd }, () => {
+      pool.openWith({ file, cwd: () => Promise.resolve(input.cwd) }, () => {
         throw new Error('记录无效');
       })
     ).rejects.toThrow('记录无效');
@@ -173,13 +173,13 @@ describe('会话所有权', () => {
     expect(await readFile(file, 'utf8')).toBe(original);
   });
 
-  it('拒绝不存在、相对路径和错误工作目录的恢复', async () => {
+  it('拒绝不存在、相对路径和不存在工作目录的恢复', async () => {
     await expect(pool.openSession({ ...input, file: 'missing.jsonl' })).rejects.toThrow('绝对路径');
     await expect(pool.openSession({ ...input, file: join(options.sessionDir, 'missing.jsonl') })).rejects.toMatchObject(
       { code: 'ENOENT' }
     );
     const file = saveUser(SessionManager.create(input.cwd, options.sessionDir));
-    await expect(pool.openSession({ ...input, cwd: root, file })).rejects.toThrow('工作目录');
+    await expect(pool.openSession({ ...input, cwd: join(root, 'missing'), file })).rejects.toThrow('工作目录');
   });
 
   it('关闭幂等，关闭中的会话不能被重新取得', async () => {

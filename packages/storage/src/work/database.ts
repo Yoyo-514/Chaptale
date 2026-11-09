@@ -13,9 +13,14 @@ export function workDir(rootDir: string, workId: string): string {
   return path.join(rootDir, 'works', workId);
 }
 
+/** 资料区文件条目的存放目录，也是归属该作品的 Agent 会话的工作目录。 */
+export function workFilesDir(rootDir: string, workId: string): string {
+  return path.join(workDir(rootDir, workId), 'files');
+}
+
 /** 文件条目独占一个子目录，文件保留添加时的原文件名。 */
 export function entryFileDir(rootDir: string, workId: string, entryId: string): string {
-  return path.join(workDir(rootDir, workId), 'files', entryId);
+  return path.join(workFilesDir(rootDir, workId), entryId);
 }
 
 export function workDatabaseFile(rootDir: string, workId: string): string {

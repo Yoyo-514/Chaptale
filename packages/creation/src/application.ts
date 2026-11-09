@@ -13,7 +13,7 @@ import type {
   CreationResult
 } from './contracts.ts';
 import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from './errors.ts';
-import { addFiles, locateFile } from './files/entry-files.ts';
+import { addFiles, locateFile, prepareWorkFiles } from './files/entry-files.ts';
 import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './files/exchange.ts';
 import { WorkPackageService } from './library/work-package.ts';
 import { WorkTrashService } from './library/work-trash.ts';
@@ -99,6 +99,8 @@ export class CreationApplication {
             ok: true,
             value: await locateFile(this.service, file.input.workId, file.input.entryId, file.input.trashed)
           };
+        case 'prepareWorkFiles':
+          return { ok: true, value: await prepareWorkFiles(this.service, file.input.workId) };
       }
     } catch (error) {
       return creationFailure(error);

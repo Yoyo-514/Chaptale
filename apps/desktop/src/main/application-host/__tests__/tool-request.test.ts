@@ -51,7 +51,7 @@ it('发往 OpenAI 兼容接口的工具参数顶层均为 object，作品工具�
     });
     const id = (await host.execute({
       method: 'create',
-      input: { model: { provider: 'offline-request', id: 'offline' } }
+      input: { model: { provider: 'offline-request', id: 'offline' }, workId: null }
     })) as string;
     await host.execute({ method: 'prompt', input: { id, text: '列出作品' } }).catch(() => undefined);
     await expect.poll(() => requests.length).toBeGreaterThan(0);

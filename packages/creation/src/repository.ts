@@ -141,6 +141,8 @@ export interface WorkRepository {
   updateTitle(snapshot: Revision['snapshot'], revision: Revision): void;
   relocateEntry(entry: Entry, parentId: string | null, position: number): void;
   getDocument(documentId: string): Document | undefined;
+  /** 资料区文件条目所在的作品文件目录，可能尚未创建。 */
+  filesDir(): string;
   /** 文件条目独占的目录，存放添加时复制的文件。 */
   entryFileDir(entryId: string): string;
   /** candidates 覆盖正式正文，hidden 为会话中待删除、不参与检索的条目。 */

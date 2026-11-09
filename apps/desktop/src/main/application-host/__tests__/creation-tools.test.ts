@@ -52,7 +52,7 @@ beforeEach(async () => {
   });
   id = (await host.execute({
     method: 'create',
-    input: { model: { provider: 'offline-tools', id: 'offline' } }
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
   })) as string;
   workId = value(
     creation.executeAuthor({ method: 'createWork', input: { commandId: randomUUID(), title: '长夜行', kind: 'novel' } })
@@ -119,7 +119,7 @@ function call(
   });
 }
 
-async function restartWithTools(tools: ToolDefinition[], history?: { file: string; cwd: string }) {
+async function restartWithTools(tools: ToolDefinition[], history?: { file: string }) {
   await host.dispose();
   const configDir = join(root, 'config');
   const runtime = await createHostModelRuntime({ configDir });
@@ -139,7 +139,7 @@ async function restartWithTools(tools: ToolDefinition[], history?: { file: strin
       ? { method: 'open', input: history }
       : {
           method: 'create',
-          input: { model: { provider: 'offline-tools', id: 'offline' } }
+          input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
         }
   )) as string;
   return runtime;
@@ -325,7 +325,7 @@ it('精确编辑进入本会话候选，读取与其他会话、正式稿保持�
   });
   const other = (await host.execute({
     method: 'create',
-    input: { model: { provider: 'offline-tools', id: 'offline' } }
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
   })) as string;
   const outside = await call('work_read', { workId, entryId: documentId }, randomUUID(), undefined, other);
   expect(outside.result.structuredContent).toMatchObject({ ok: true, value: { content: read().content } });
@@ -523,7 +523,7 @@ it('按正则逐行查找本会话正文，返回行号和稳定身份，报告�
   });
   const other = (await host.execute({
     method: 'create',
-    input: { model: { provider: 'offline-tools', id: 'offline' } }
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
   })) as string;
   const outside = await call('work_grep', { workId, pattern: '守城' }, randomUUID(), undefined, other);
   expect(outside.result.structuredContent).toMatchObject({
@@ -565,7 +565,7 @@ it('中文全文检索使用本会话候选并保留分页与分区，其他会�
   ).toEqual({ ok: true, value: { entries: [], hasMore: false } });
   const other = (await host.execute({
     method: 'create',
-    input: { model: { provider: 'offline-tools', id: 'offline' } }
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
   })) as string;
   expect(
     (await call('work_search', { workId, query: '长安', offset: 0, limit: 1 }, randomUUID(), undefined, other)).result
@@ -710,7 +710,7 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
   await host.execute({ method: 'defaultMode', input: { mode: 'discuss' } });
   id = (await host.execute({
     method: 'create',
-    input: { model: { provider: 'offline-tools', id: 'offline' } }
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
   })) as string;
   const session = host.liveSession(id)!;
   const reads = ['work_find', 'work_grep', 'work_ls', 'work_read', 'work_search'];
@@ -730,10 +730,9 @@ it('讨论模式的新会话与历史重开保持只读工具集合，切回直�
 
   session.sessionManager.appendMessage({ role: 'user', content: '查阅长夜行的序章', timestamp: Date.now() });
   const file = session.sessionFile!;
-  const cwd = session.sessionManager.getCwd();
   await host.execute({ method: 'close', input: { id } });
   await host.execute({ method: 'defaultMode', input: { mode: 'direct' } });
-  id = (await host.execute({ method: 'open', input: { file, cwd } })) as string;
+  id = (await host.execute({ method: 'open', input: { file } })) as string;
   const reopened = host.liveSession(id)!;
   expect(host.snapshot().sessions.find(view => view.id === id)?.mode).toBe('discuss');
   expect(
@@ -1022,7 +1021,7 @@ it.each(['先停止', '决定后立即停止', '关闭会话'] as const)('%s后�
   ).toBe(false);
   const session = host.liveSession(id)!;
   session.sessionManager.appendMessage({ role: 'user', content: '稍后继续写作', timestamp: Date.now() });
-  const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+  const history = { file: session.sessionFile! };
   if (timing === '决定后立即停止') decidePending('accept');
   await host.execute({ method: timing === '关闭会话' ? 'close' : 'cancel', input: { id } });
   if (timing !== '决定后立即停止') decidePending('accept');
@@ -1309,7 +1308,7 @@ it('重启后处理完待审保持停止，作者重新发起时携带正式快�
   await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
   const session = host.liveSession(id)!;
   session.sessionManager.appendMessage({ role: 'user', content: '连续写三章', timestamp: Date.now() });
-  const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+  const history = { file: session.sessionFile! };
   await host.execute({ method: 'close', input: { id } });
   creation.close();
   creation = new CreationApplication(await openCreationStorage({ rootDir: join(root, 'creation') }));
@@ -1353,7 +1352,7 @@ it.each(['discuss', 'review'] as const)('撤回延后的直接修改到 %s，重
   expect(view().switchingTo).toBeUndefined();
   const session = host.liveSession(id)!;
   session.sessionManager.appendMessage({ role: 'user', content: '稍后再处理这些修改', timestamp: Date.now() });
-  const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+  const history = { file: session.sessionFile! };
   await host.execute({ method: 'close', input: { id } });
   id = (await host.execute({ method: 'open', input: history })) as string;
   expect(view().mode).toBe(mode);
@@ -1373,7 +1372,7 @@ it.each(['空身份', '错误类型', '错误模式', '缺少分组', '其他会
     if (fault === '其他会话')
       id = (await host.execute({
         method: 'create',
-        input: { model: { provider: 'offline-tools', id: 'offline' } }
+        input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
       })) as string;
     const session = host.liveSession(id)!;
     session.sessionManager.appendCustomEntry(modeEntryType, {
@@ -1382,7 +1381,7 @@ it.each(['空身份', '错误类型', '错误模式', '缺少分组', '其他会
         fault === '空身份' ? ' ' : fault === '错误类型' ? 17 : fault === '缺少分组' ? randomUUID() : group.id
     });
     session.sessionManager.appendMessage({ role: 'user', content: '检查历史记录', timestamp: Date.now() });
-    const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+    const history = { file: session.sessionFile! };
     await host.execute({ method: 'close', input: { id } });
     const original = await readFile(history.file, 'utf8');
     id = (await host.execute({ method: 'open', input: history })) as string;
@@ -1575,7 +1574,7 @@ it('审阅模式下事件写入本会话候选：省略发生位置取出处章�
   expect(value(structured(listed))).toMatchObject([{ recordId: record.recordId, text: '柳七夜入城' }]);
   const other = (await host.execute({
     method: 'create',
-    input: { model: { provider: 'offline-tools', id: 'offline' } }
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
   })) as string;
   await load('work_record_ls', other);
   expect(value(structured(await call('work_record_ls', { workId }, randomUUID(), undefined, other)))).toEqual([]);
@@ -1809,7 +1808,7 @@ it('tool_search 加载的工具随历史重开保留，下一次请求不撤下'
   const view = () => host.snapshot().sessions.find(session => session.id === id)!;
   await expect.poll(() => view().running).toBe(false);
   const session = host.liveSession(id)!;
-  const history = { file: session.sessionFile!, cwd: session.sessionManager.getCwd() };
+  const history = { file: session.sessionFile! };
   await host.execute({ method: 'close', input: { id } });
   id = (await host.execute({ method: 'open', input: history })) as string;
   expect(host.liveSession(id)!.getActiveToolNames()).toEqual(
@@ -1818,4 +1817,32 @@ it('tool_search 加载的工具随历史重开保留，下一次请求不撤下'
   await host.execute({ method: 'prompt', input: { id, text: '再列一次' } });
   await expect.poll(() => requests.length).toBe(2);
   expect(requests[1].messages).not.toContain('toolsRemoved');
+});
+
+it('归属作品的会话以作品文件目录为工作目录，目录内读取不逐次询问，目录外仍需作者授权', async () => {
+  const owned = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId }
+  })) as string;
+  const session = host.liveSession(owned)!;
+  const cwd = session.sessionManager.getCwd();
+  expect(cwd).not.toBe(join(root, 'work'));
+  await writeFile(join(cwd, '设定.txt'), '城外下雪');
+  expect(session.systemPrompt).toContain(`本会话归属作品《长夜行》，作品 ID 为 ${workId}`);
+  expect(value(creation.executeAuthor({ method: 'readSessionState', input: {} })).assignments).toContainEqual({
+    sessionId: session.sessionId,
+    workId
+  });
+  await host.execute({ method: 'mode', input: { id: owned, mode: 'direct' } });
+
+  const inside = await call('read', { path: '设定.txt' }, undefined, undefined, owned);
+  expect(inside.isError).toBe(false);
+  expect(JSON.stringify(inside.result.content)).toContain('城外下雪');
+  expect(host.snapshot().approvals).toEqual([]);
+
+  await writeFile(join(root, '目录外.txt'), '不应自动读取');
+  const outside = call('read', { path: join(root, '目录外.txt') }, undefined, undefined, owned);
+  await expect.poll(() => host.snapshot().approvals).toHaveLength(1);
+  await host.execute({ method: 'approve', input: { id: host.snapshot().approvals[0].id, allow: false } });
+  expect((await outside).isError).toBe(true);
 });

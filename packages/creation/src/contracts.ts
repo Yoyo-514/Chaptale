@@ -265,6 +265,8 @@ export interface CreationCommands extends CreationAuthorCommands {
   addFiles: { input: AddFilesInput; output: CreationResult<AddFilesReport> };
   /** trashed 为 true 时定位回收站中的文件，只用于只读预览。 */
   locateFile: { input: { workId: string; entryId: string; trashed: boolean }; output: CreationResult<FileLocation> };
+  /** 创建并返回作品文件目录（资料区文件条目的存放位置），归属该作品的 Agent 会话以它为工作目录。 */
+  prepareWorkFiles: { input: { workId: string }; output: CreationResult<string> };
 }
 export type CreationAuthorCommand = RpcCommand<CreationAuthorCommands>;
 export type CreationCommand = RpcCommand<CreationCommands>;

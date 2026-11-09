@@ -115,7 +115,7 @@ function create() {
   navigation.agentView = 'chat';
 }
 function createIndependent() {
-  void agent.newDraft(undefined, true);
+  void agent.newDraft(true);
   navigation.agentView = 'chat';
 }
 function select(entry: SessionEntry) {

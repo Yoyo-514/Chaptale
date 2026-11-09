@@ -21,7 +21,6 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
     id: 'session',
     sessionId: 'session',
     file: 'history.jsonl',
-    cwd: 'work',
     running: true,
     compacting: true,
     instructions: [],
@@ -31,7 +30,6 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
   };
   agent.state = {
     cursor: 1,
-    cwd: 'work',
     tools: [],
     approvals: [],
     sessions: [session],

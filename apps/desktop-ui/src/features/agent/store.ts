@@ -27,7 +27,6 @@ export const useAgentStore = defineStore('agent', () => {
   const activeId = ref<string>();
   const drafts = ref<Record<string, string>>({});
   const outgoing = ref<Record<string, OutgoingMessage[]>>({});
-  const composeCwd = ref<string>();
   const selectedModel = ref<ModelRef>();
   const composeInstructions = ref<string>();
   const composeMode = ref<EditMode>();
@@ -60,7 +59,6 @@ export const useAgentStore = defineStore('agent', () => {
   }
   /** 新会话沿用最近一次选择的模型；它已从配置中删除时保留草稿当前的选择。 */
   function resetCompose() {
-    composeCwd.value = undefined;
     composeInstructions.value = undefined;
     composeMode.value = state.value?.settings.defaultMode;
     const last = state.value?.settings.lastModel;
@@ -83,7 +81,7 @@ export const useAgentStore = defineStore('agent', () => {
       }
       const item = history.value.find(candidate => candidate.id === selected);
       if (!item) throw new Error('上次选中的会话历史未找到，请在历史列表中选择其他会话');
-      const id = await getDesktopApi().agentHost.request('open', { file: item.file, cwd: item.cwd });
+      const id = await getDesktopApi().agentHost.request('open', { file: item.file });
       if (version === viewVersion) activeId.value = id;
     });
   }
@@ -158,20 +156,14 @@ export const useAgentStore = defineStore('agent', () => {
     return perform(() => remember(workId, session.sessionId));
   }
 
-  async function newDraft(cwd?: string, independent = false) {
+  async function newDraft(independent = false) {
     ++viewVersion;
     const workId = independent ? null : creation.workId;
     choose(workId);
     scope.value = workId;
     activeId.value = undefined;
     resetCompose();
-    composeCwd.value = cwd;
     return perform(() => remember(workId, null));
-  }
-
-  function compose(cwd: string, prompt: string, files: string[]) {
-    if (active.value?.cwd !== cwd) newDraft(cwd);
-    draft.value = [prompt, ...files.map(file => `文件：${file}`)].join('\n');
   }
 
   async function create(instructions = composeInstructions.value): Promise<string | undefined> {
@@ -185,22 +177,12 @@ export const useAgentStore = defineStore('agent', () => {
     const success = await perform(async () => {
       const { provider, id: modelId } = selectedModel.value!;
       const client = getDesktopApi().agentHost;
-      const id = await client.request('create', {
-        model: { provider, id: modelId },
-        cwd: composeCwd.value,
-        instructions
-      });
-      if (workId !== null) {
-        try {
-          catalog.value = await requestCreation('assignSession', { sessionId: id, workId });
-        } catch (cause) {
-          await client.request('close', { id });
-          throw cause;
-        }
-      }
+      // 宿主创建会话时完成作品归属。
+      const id = await client.request('create', { model: { provider, id: modelId }, workId, instructions });
       const session = state.value!.sessions.find(item => item.id === id)!;
       if (mode !== session.mode) await client.request('mode', { id, mode });
       if (choices.get(workId) === choice) await remember(workId, id);
+      else catalog.value = await requestCreation('readSessionState', {});
       drafts.value[id] = drafts.value[key] ?? '';
       delete drafts.value[key];
       if (version === viewVersion) activeId.value = id;
@@ -284,7 +266,7 @@ export const useAgentStore = defineStore('agent', () => {
     const choice = choose(workId);
     const version = ++viewVersion;
     return perform(async () => {
-      const id = await getDesktopApi().agentHost.request('open', { file: item.file, cwd: item.cwd });
+      const id = await getDesktopApi().agentHost.request('open', { file: item.file });
       if (choices.get(workId) === choice) await remember(workId, item.id);
       if (version === viewVersion) {
         scope.value = workId;
@@ -355,7 +337,6 @@ export const useAgentStore = defineStore('agent', () => {
     activeId,
     active,
     draft,
-    composeCwd,
     selectedModel,
     history,
     composeInstructions,
@@ -364,7 +345,6 @@ export const useAgentStore = defineStore('agent', () => {
     perform,
     select,
     newDraft,
-    compose,
     create,
     send,
     startReview,

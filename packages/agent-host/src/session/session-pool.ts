@@ -76,15 +76,18 @@ export class HostSessionPool {
 
   openSession(input: HostSessionInput & { file: string }): Promise<CreateAgentSessionResult> {
     // prepare 始终返回装配参数，结果不会是 undefined。
-    return this.openWith(input, () => input) as Promise<CreateAgentSessionResult>;
+    return this.openWith(
+      { file: input.file, cwd: () => Promise.resolve(input.cwd) },
+      () => input
+    ) as Promise<CreateAgentSessionResult>;
   }
 
   /**
    * 先占有文件再读取历史，由 prepare 根据已读内容给出装配参数；JSONL 只读一次。
-   * prepare 返回 undefined 时不创建会话并释放文件。
+   * cwd 按历史头中的会话 id 给出工作目录；prepare 返回 undefined 时不创建会话并释放文件。
    */
   openWith(
-    { file, cwd }: { file: string; cwd: string },
+    { file, cwd }: { file: string; cwd: (sessionId: string) => Promise<string> },
     prepare: (manager: SessionManager) => HostSessionInput | undefined
   ): Promise<CreateAgentSessionResult | undefined> {
     return this.start(async () => {

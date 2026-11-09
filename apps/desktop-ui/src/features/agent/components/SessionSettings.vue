@@ -3,6 +3,7 @@ import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { useCreationStore } from '@/features/creation';
 import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi } from '@/utils/desktop-api';
 
@@ -11,14 +12,16 @@ import InstructionsEditor from './InstructionsEditor.vue';
 
 const agent = useAgentStore();
 const settings = useSettingsStore();
+const creation = useCreationStore();
 const editable = computed(
   () => agent.connected && !agent.creating && !agent.active?.readonly && !agent.active?.running
 );
-/** 工作目录只展示执行位置，会话归属由作品 ID 单独记录。 */
-function workName(cwd: string) {
-  if (cwd === agent.state?.cwd) return '应用默认目录';
-  return cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? cwd;
-}
+/** 归属作品决定会话的工作目录：作品文件目录，未归属时为空目录。 */
+const workTitle = computed(() => {
+  const workId = agent.owner(agent.active?.sessionId ?? null);
+  if (workId === null) return '未归属作品';
+  return creation.works.find(work => work.id === workId)?.title ?? '已删除的作品';
+});
 </script>
 
 <template>
@@ -26,18 +29,6 @@ function workName(cwd: string) {
     <template v-if="!agent.active">
       <div class="agent-form agent-settings-scroll">
         <p class="agent-field-help">这些设置用于接下来开始的会话。</p>
-        <label
-          >工作目录<AppSelect
-            :model-value="agent.composeCwd ?? 'default'"
-            aria-label="工作目录"
-            @update:model-value="agent.composeCwd = $event === 'default' ? undefined : $event"
-          >
-            <AppSelectItem value="default">应用默认目录</AppSelectItem>
-            <AppSelectItem v-if="agent.composeCwd" :value="agent.composeCwd">{{
-              workName(agent.composeCwd)
-            }}</AppSelectItem>
-          </AppSelect></label
-        >
         <label
           >使用的指令<AppSelect
             :model-value="agent.composeInstructions ? `preset:${agent.composeInstructions}` : 'default'"
@@ -59,8 +50,8 @@ function workName(cwd: string) {
     </template>
     <template v-else>
       <dl class="agent-session-facts">
-        <dt>工作目录</dt>
-        <dd :title="agent.active.cwd">{{ workName(agent.active.cwd) }}</dd>
+        <dt>所属作品</dt>
+        <dd>{{ workTitle }}</dd>
       </dl>
       <p class="agent-field-help agent-session-scope">指令修改只作用于当前会话。</p>
       <InstructionsEditor

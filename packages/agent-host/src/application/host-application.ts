@@ -21,6 +21,7 @@ import type { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
 import { HostSessionOpenError } from '../session/session-storage.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
+import { targetsCwd } from '../tools/cwd-paths.ts';
 import type { HostToolDecision } from '../tools/tool-access.ts';
 import { ToolApprovals } from './approvals.ts';
 import { damagedHistory, sessionHistory, type SessionHistory } from './history.ts';
@@ -28,6 +29,7 @@ import { type AppliedInstructions, instructionCallbacks, LiveSession } from './l
 import { createWorkTools, deferredWorkToolsPrompt, workToolNames, workWriteToolNames } from './work-tools/index.ts';
 
 export interface HostApplicationOptions {
+  /** 未归属作品的会话使用的空工作目录。 */
   cwd: string;
   agentDir: string;
   sessionDir: string;
@@ -62,6 +64,9 @@ function rejectPendingChanges(creation: CreationApplication, sessionId: string) 
     }
   }
 }
+
+/** 会话归属的作品；未归属或作品已在回收站时为 null。 */
+type SessionWork = { id: string; title: string } | null;
 
 /** 已打开的会话；只读历史只有视图，没有可继续的会话。 */
 interface OpenSession {
@@ -117,7 +122,6 @@ export class HostApplication {
       models: this.models(),
       sessions: [...this.sessions.values()].map(({ view }) => view),
       approvals: this.approvals.list(),
-      cwd: this.options.cwd,
       tools: this.tools(this.options.cwd).map(tool => tool.name)
     });
   }
@@ -128,14 +132,13 @@ export class HostApplication {
       case 'state':
         return this.snapshot();
       case 'create':
-        return this.create(command.input.model, command.input.instructions, command.input.cwd ?? this.options.cwd);
+        return this.create(command.input.model, command.input.instructions, command.input.workId);
       case 'open':
-        return this.open(command.input.file, command.input.cwd);
+        return this.open(command.input.file);
       case 'history':
         return (await SessionManager.listAll(this.options.sessionDir)).map(item => ({
           id: item.id,
           file: item.path,
-          cwd: item.cwd,
           title: item.name || item.firstMessage || '未命名会话',
           modified: item.modified.toISOString()
         }));
@@ -232,13 +235,51 @@ export class HostApplication {
     return live;
   }
 
-  /** 新会话复制一份指令与默认模式，之后与设置各自独立。 */
-  private async create(model: ModelRef, name: string | undefined, cwd: string): Promise<string> {
+  /** 作品文件目录；未归属的会话使用应用的空工作目录。 */
+  private async workingDirectory(work: SessionWork): Promise<string> {
+    if (!work) return this.options.cwd;
+    const prepared = await this.options.creation!.execute({ method: 'prepareWorkFiles', input: { workId: work.id } });
+    if (!prepared.ok) throw new Error(prepared.error.message);
+    return prepared.value;
+  }
+
+  private findWork(workId: string | null): SessionWork {
+    if (workId === null) return null;
+    const works = this.options.creation!.executeAuthor({ method: 'listWorks', input: {} });
+    if (!works.ok) throw new Error(works.error.message);
+    const work = works.value.find(item => item.id === workId);
+    return work ? { id: work.id, title: work.title } : null;
+  }
+
+  /** 会话当前归属的作品，打开历史时据此确定工作目录与系统提示词。 */
+  private sessionWork(sessionId: string): SessionWork {
+    const creation = this.options.creation;
+    if (!creation) return null;
+    const state = creation.executeAuthor({ method: 'readSessionState', input: {} });
+    if (!state.ok) throw new Error(state.error.message);
+    return this.findWork(state.value.assignments.find(item => item.sessionId === sessionId)?.workId ?? null);
+  }
+
+  /** 新会话复制一份指令与默认模式，之后与设置各自独立；指定作品时先归入作品再交给界面。 */
+  private async create(model: ModelRef, name: string | undefined, workId: string | null): Promise<string> {
+    const work = this.findWork(workId);
+    if (workId !== null && !work) throw new Error('目标作品不存在');
+    const cwd = await this.workingDirectory(work);
     const applied = { entries: this.settings.instructionsFor(name) };
     const mode = this.settings.defaultMode;
     // 先记下作者的选择，设置写入失败时不创建会话。
     await this.rememberModel(model);
-    const { session } = await this.pool.createSession({ ...this.sessionInput(applied, cwd), model });
+    const { session } = await this.pool.createSession({ ...this.sessionInput(applied, cwd, work), model });
+    if (work) {
+      const assigned = this.options.creation!.executeAuthor({
+        method: 'assignSession',
+        input: { sessionId: session.sessionId, workId: work.id }
+      });
+      if (!assigned.ok) {
+        await this.pool.close(session.sessionId);
+        throw new Error(assigned.error.message);
+      }
+    }
     session.sessionManager.appendCustomEntry(instructionsEntryType, { entries: applied.entries });
     session.sessionManager.appendCustomEntry(modeEntryType, { mode });
     const live = new LiveSession(session, applied, mode, change => this.emit(change), {
@@ -267,31 +308,34 @@ export class HostApplication {
     return { allow: true };
   }
 
-  private sessionInput(applied: AppliedInstructions, cwd: string) {
+  private sessionInput(applied: AppliedInstructions, cwd: string, work: SessionWork) {
     const callbacks = instructionCallbacks(applied);
+    const identity = work ? `\n\n本会话归属作品《${work.title}》，作品 ID 为 ${work.id}。` : '';
     return {
       cwd,
       ...callbacks,
       ...(this.options.creation && {
-        systemPrompt: () => `${callbacks.systemPrompt()}\n\n${deferredWorkToolsPrompt}`
+        systemPrompt: () => `${callbacks.systemPrompt()}\n\n${deferredWorkToolsPrompt}${identity}`
       }),
       toolAccess: {
         tools: this.tools(cwd),
-        authorize: (request: Parameters<ToolApprovals['authorize']>[0], signal: AbortSignal | undefined) =>
-          this.options.creation && workToolNames.has(request.toolName)
-            ? Promise.resolve(this.authorizeWorkTool(request))
-            : this.approvals.authorize(request, signal),
+        // 原生文件工具在工作目录内不逐次询问，目录外仍由作者授权。
+        authorize: async (request: Parameters<ToolApprovals['authorize']>[0], signal: AbortSignal | undefined) => {
+          if (this.options.creation && workToolNames.has(request.toolName)) return this.authorizeWorkTool(request);
+          if (await targetsCwd(request.toolName, request.input, request.cwd)) return { allow: true } as const;
+          return this.approvals.authorize(request, signal);
+        },
         onToolsLoaded: (sessionId: string) => this.live(sessionId).syncWorkTools()
       }
     };
   }
 
-  private open(file: string, cwd: string): Promise<string> {
+  private open(file: string): Promise<string> {
     const existing = [...this.sessions.values()].find(record => record.view.file === file);
     if (existing) return Promise.resolve(existing.view.id);
     const pending = this.opening.get(file);
     if (pending) return pending;
-    const operation = this.openFile(file, cwd);
+    const operation = this.openFile(file);
     this.opening.set(file, operation);
     const finished = () => {
       this.opening.delete(file);
@@ -301,9 +345,14 @@ export class HostApplication {
   }
 
   /** 完整历史继续对话；损坏或缺少记录的历史只读打开，不修复、不套用当前默认值。 */
-  private async openFile(file: string, cwd: string): Promise<string> {
+  private async openFile(file: string): Promise<string> {
     const applied: AppliedInstructions = { entries: [] };
-    const opened: { history?: SessionHistory } = {};
+    const opened: { history?: SessionHistory; work?: SessionWork; cwd?: string } = {};
+    const cwd = async (sessionId: string) => {
+      opened.work = this.sessionWork(sessionId);
+      opened.cwd = await this.workingDirectory(opened.work);
+      return opened.cwd;
+    };
     let result: Awaited<ReturnType<HostSessionPool['openWith']>>;
     try {
       result = await this.pool.openWith({ file, cwd }, manager => {
@@ -311,10 +360,11 @@ export class HostApplication {
         opened.history = history;
         if (history.kind === 'readonly') return undefined;
         applied.entries = history.instructions;
-        return this.sessionInput(applied, cwd);
+        // SAFETY: 预检通过后才交给 prepare，工作目录与归属已经确定。
+        return this.sessionInput(applied, opened.cwd!, opened.work!);
       });
     } catch (error) {
-      // 需迁移、路径错误或工作目录不匹配的历史仍然报错。
+      // 需迁移或路径错误的历史仍然报错。
       if (!(error instanceof HostSessionOpenError) || error.code !== 'recovery-required') throw error;
       opened.history = await damagedHistory(file);
     }
@@ -329,7 +379,6 @@ export class HostApplication {
           sessionId,
           name,
           file,
-          cwd,
           running: false,
           compacting: false,
           instructions: [],

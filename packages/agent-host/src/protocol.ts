@@ -119,7 +119,6 @@ export interface SessionView {
   /** 用户设置的会话名称，保存在 pi 原生 session_info 记录中。 */
   name?: string;
   file: string;
-  cwd: string;
   model?: ModelRef;
   running: boolean;
   /** 手动或自动压缩期间为 true；running 包含压缩占用。 */
@@ -152,21 +151,23 @@ export interface HostState {
   models: ModelChoice[];
   sessions: SessionView[];
   approvals: Approval[];
-  cwd: string;
   tools: string[];
 }
 export interface HistoryItem {
   id: string;
   file: string;
-  cwd: string;
   title: string;
   modified: string;
 }
 export interface HostCommands {
   state: { input: undefined; output: HostState };
-  /** instructions 省略时复制全局默认指令；cwd 省略时使用应用工作目录。 */
-  create: { input: { model: ModelRef; instructions?: string; cwd?: string }; output: string };
-  open: { input: { file: string; cwd: string }; output: string };
+  /**
+   * instructions 省略时复制全局默认指令。workId 非空时会话归入该作品，以作品文件目录为工作目录；
+   * 为 null 时使用应用的空工作目录。
+   */
+  create: { input: { model: ModelRef; instructions?: string; workId: string | null }; output: string };
+  /** 工作目录按会话当前的作品归属确定。 */
+  open: { input: { file: string }; output: string };
   prompt: { input: { id: string; text: string }; output: void };
   cancel: { input: { id: string }; output: void };
   compact: { input: { id: string }; output: void };

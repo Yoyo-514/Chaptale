@@ -14,7 +14,7 @@ export interface SessionProcessInput {
 // 使用真实 SDK 的独立进程；不请求模型，也不调用 process.exit() 掩盖未释放资源。
 const input: SessionProcessInput = JSON.parse(process.argv[2]!);
 const manager = input.file
-  ? await openHostSessionManager({ file: input.file, cwd: input.cwd })
+  ? await openHostSessionManager({ file: input.file, cwd: () => Promise.resolve(input.cwd) })
   : SessionManager.create(input.cwd, input.sessionDir);
 const modelRuntime = await ModelRuntime.create({
   credentials: new InMemoryCredentialStore(),

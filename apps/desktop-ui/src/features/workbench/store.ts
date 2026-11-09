@@ -29,10 +29,6 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     if (auxiliaryOpen.value && !focusMode.value) auxiliaryOpen.value = false;
     else showAgent();
   }
-  function askAgent(rootPath: string, prompt: string, files: string[] = []) {
-    useAgentStore().compose(rootPath, prompt, files);
-    showAgent();
-  }
   /** 由 Agent 读取章节，把事件记到涉及的资料下，结果进入审阅。 */
   function extractChapter(chapter: { id: string; title: string }) {
     showAgent();
@@ -53,7 +49,6 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     toggleSidebar,
     showAgent,
     toggleAuxiliary,
-    askAgent,
     extractChapter
   };
 });

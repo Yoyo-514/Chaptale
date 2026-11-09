@@ -31,6 +31,8 @@ function createHistory() {
   return manager;
 }
 
+const at = (directory: string) => () => Promise.resolve(directory);
+
 function mutateEntry(text: string, index: number, patch: Record<string, unknown>): string {
   const lines = text.trimEnd().split('\n');
   lines[index] = JSON.stringify({ ...JSON.parse(lines[index]!), ...patch });
@@ -43,7 +45,7 @@ describe('严格会话打开', () => {
     const file = original.getSessionFile()!;
     const before = await readFile(file);
 
-    const manager = await openHostSessionManager({ file, cwd });
+    const manager = await openHostSessionManager({ file, cwd: at(cwd) });
 
     expect(manager.getSessionId()).toBe(original.getSessionId());
     expect(await readFile(file)).toEqual(before);
@@ -59,7 +61,7 @@ describe('严格会话打开', () => {
     await writeFile(file, (await readFile(file, 'utf8')).replace(/\n/g, '\r\n') + '\r\n');
     const before = await readFile(file);
 
-    const manager = await openHostSessionManager({ file, cwd });
+    const manager = await openHostSessionManager({ file, cwd: at(cwd) });
 
     expect(manager.buildSessionContext().messages).toHaveLength(1);
     expect(await readFile(file)).toEqual(before);
@@ -71,7 +73,7 @@ describe('严格会话打开', () => {
     await writeFile(file, (await readFile(file, 'utf8')).split('\n')[0] + '\n');
     const before = await readFile(file);
 
-    const manager = await openHostSessionManager({ file, cwd });
+    const manager = await openHostSessionManager({ file, cwd: at(cwd) });
 
     expect(manager.getSessionId()).toBe(original.getSessionId());
     expect(manager.buildSessionContext().messages).toEqual([]);
@@ -81,7 +83,7 @@ describe('严格会话打开', () => {
   it('缺失历史时明确拒绝，不准备新会话', async () => {
     const file = join(sessionDir, 'missing.jsonl');
 
-    await expect(openHostSessionManager({ file, cwd })).rejects.toMatchObject({ code: 'not-found' });
+    await expect(openHostSessionManager({ file, cwd: at(cwd) })).rejects.toMatchObject({ code: 'not-found' });
     await expect(readFile(file)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
@@ -99,7 +101,7 @@ describe('严格会话打开', () => {
     await writeFile(file, change(await readFile(file, 'utf8')));
     const before = await readFile(file);
 
-    await expect(openHostSessionManager({ file, cwd })).rejects.toMatchObject({ code: 'recovery-required' });
+    await expect(openHostSessionManager({ file, cwd: at(cwd) })).rejects.toMatchObject({ code: 'recovery-required' });
     expect(await readFile(file)).toEqual(before);
   });
 
@@ -108,21 +110,39 @@ describe('严格会话打开', () => {
     await writeFile(file, mutateEntry(await readFile(file, 'utf8'), 0, { version }));
     const before = await readFile(file);
 
-    await expect(openHostSessionManager({ file, cwd })).rejects.toMatchObject({ code: 'unsupported-version' });
+    await expect(openHostSessionManager({ file, cwd: at(cwd) })).rejects.toMatchObject({ code: 'unsupported-version' });
     expect(await readFile(file)).toEqual(before);
   });
 
-  it('工作目录不一致时不打开或修复文件', async () => {
-    const file = createHistory().getSessionFile()!;
+  it('按历史头中的会话 id 改用当前工作目录，不改写文件', async () => {
+    const original = createHistory();
+    const file = original.getSessionFile()!;
     const before = await readFile(file);
+    const asked: string[] = [];
 
-    await expect(openHostSessionManager({ file, cwd: root })).rejects.toMatchObject({ code: 'cwd-mismatch' });
+    const manager = await openHostSessionManager({
+      file,
+      cwd: async sessionId => {
+        asked.push(sessionId);
+        return root;
+      }
+    });
+
+    expect(asked).toEqual([original.getSessionId()]);
+    expect(manager.getCwd()).toBe(root);
     expect(await readFile(file)).toEqual(before);
+  });
+
+  it('工作目录不存在时拒绝打开', async () => {
+    const file = createHistory().getSessionFile()!;
+    await expect(openHostSessionManager({ file, cwd: at(join(root, 'missing')) })).rejects.toMatchObject({
+      code: 'invalid-path'
+    });
   });
 
   it.each(['relative.jsonl', 'directory'])('拒绝无效文件路径 %s', async value => {
     const file = value === 'directory' ? sessionDir : value;
-    await expect(openHostSessionManager({ file, cwd })).rejects.toMatchObject({ code: 'invalid-path' });
+    await expect(openHostSessionManager({ file, cwd: at(cwd) })).rejects.toMatchObject({ code: 'invalid-path' });
   });
 
   it('拒绝无效 UTF-8，不将替换字符当作历史内容', async () => {
@@ -132,7 +152,7 @@ describe('严格会话打开', () => {
     damaged[damaged.indexOf(Buffer.from('保留的历史'))] = 0xff;
     await writeFile(file, damaged);
 
-    await expect(openHostSessionManager({ file, cwd })).rejects.toMatchObject({ code: 'recovery-required' });
+    await expect(openHostSessionManager({ file, cwd: at(cwd) })).rejects.toMatchObject({ code: 'recovery-required' });
     expect(await readFile(file)).toEqual(damaged);
   });
 });

@@ -17,7 +17,7 @@ import type {
 } from '@chaptale/creation/contracts';
 
 import { readCommandReceipt } from '../commands.ts';
-import { entryFileDir } from './database.ts';
+import { entryFileDir, workFilesDir } from './database.ts';
 import * as entries from './entries.ts';
 import * as records from './records.ts';
 import * as relations from './relations.ts';
@@ -63,6 +63,9 @@ export class SqliteWorkRepository implements WorkRepository {
   }
   getDocument(documentId: string): Document | undefined {
     return entries.getDocument(this.connect(), documentId);
+  }
+  filesDir(): string {
+    return workFilesDir(this.rootDir, this.workId);
   }
   entryFileDir(entryId: string): string {
     return entryFileDir(this.rootDir, this.workId, entryId);

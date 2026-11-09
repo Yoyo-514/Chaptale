@@ -1,12 +1,12 @@
 import { CURRENT_SESSION_VERSION, SessionManager } from '@earendil-works/pi-coding-agent';
 import { readFile, stat } from 'node:fs/promises';
-import { isAbsolute, relative } from 'node:path';
+import { isAbsolute } from 'node:path';
 
 export interface OpenHostSessionManagerOptions {
   /** 应用管理的已有 JSONL；调用方负责单写者所有权。 */
   file: string;
-  /** 当前作品的已存在绝对目录，不隐式重绑定其他作品。 */
-  cwd: string;
+  /** 按历史头中的会话 id 给出工作目录（已存在的绝对目录），覆盖历史头记录的目录。 */
+  cwd: (sessionId: string) => Promise<string>;
 }
 
 export type HostSessionOpenErrorCode =
@@ -14,16 +14,14 @@ export type HostSessionOpenErrorCode =
   | 'not-found'
   | 'unreadable'
   | 'recovery-required'
-  | 'unsupported-version'
-  | 'cwd-mismatch';
+  | 'unsupported-version';
 
 const messages: Record<HostSessionOpenErrorCode, string> = {
   'invalid-path': '必须提供已有工作目录和会话文件的绝对路径',
   'not-found': '会话历史不存在，不能作为新会话打开',
   unreadable: '无法读取会话历史',
   'recovery-required': '会话历史需要恢复，原文件未被自动修复',
-  'unsupported-version': '会话版本需要显式迁移，不能自动改写',
-  'cwd-mismatch': '会话历史不属于当前工作目录'
+  'unsupported-version': '会话版本需要显式迁移，不能自动改写'
 };
 
 export class HostSessionOpenError extends Error {
@@ -36,7 +34,8 @@ export class HostSessionOpenError extends Error {
   }
 }
 
-function inspectHistory(bytes: Uint8Array, cwd: string): void {
+/** 返回历史头中的会话 id。 */
+function inspectHistory(bytes: Uint8Array): string {
   let entries: Record<string, unknown>[];
   try {
     // 保留 BOM 供 JSON 校验拒绝；不把非法 UTF-8 静默替换成作品文本。
@@ -61,7 +60,6 @@ function inspectHistory(bytes: Uint8Array, cwd: string): void {
   }
   if (header.version !== CURRENT_SESSION_VERSION) throw new HostSessionOpenError('unsupported-version');
   if (typeof header.cwd !== 'string' || !isAbsolute(header.cwd)) throw new HostSessionOpenError('recovery-required');
-  if (relative(cwd, header.cwd) !== '') throw new HostSessionOpenError('cwd-mismatch');
 
   const ids = new Set<string>();
   for (const entry of records) {
@@ -83,15 +81,17 @@ function inspectHistory(bytes: Uint8Array, cwd: string): void {
     }
     ids.add(entry.id);
   }
+  return header.id;
 }
 
 /** 先做无写入预检，再交给原生 SDK；不提供历史修复、版本迁移或跨进程锁。 */
 export async function openHostSessionManager({ file, cwd }: OpenHostSessionManagerOptions): Promise<SessionManager> {
-  if (!isAbsolute(file) || !isAbsolute(cwd) || !(await stat(cwd).catch(() => undefined))?.isDirectory()) {
+  if (!isAbsolute(file)) throw new HostSessionOpenError('invalid-path');
+  const directory = await cwd(inspectHistory(await readHistory(file)));
+  if (!isAbsolute(directory) || !(await stat(directory).catch(() => undefined))?.isDirectory()) {
     throw new HostSessionOpenError('invalid-path');
   }
-  inspectHistory(await readHistory(file), cwd);
-  return SessionManager.open(file);
+  return SessionManager.open(file, undefined, directory);
 }
 
 export interface DamagedHistory {

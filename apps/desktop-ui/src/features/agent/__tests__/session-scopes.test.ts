@@ -111,6 +111,7 @@ beforeEach(async () => {
       return stream;
     }
   });
+  author = new CreationApplication(await openCreationStorage({ rootDir: join(root, 'creation') }));
   options = {
     cwd: join(root, 'work'),
     agentDir: join(root, 'agent'),
@@ -119,10 +120,10 @@ beforeEach(async () => {
     builtinInstructions: instructions,
     modelRuntime: runtime,
     modelConfiguration: new HostModelConfiguration(join(root, 'config'), runtime),
+    creation: author,
     tools: () => []
   };
   host = await HostApplication.create(options);
-  author = new CreationApplication(await openCreationStorage({ rootDir: join(root, 'creation') }));
   works = ['同名作品', '同名作品'].map(title =>
     value(
       author.executeAuthor({
@@ -178,13 +179,12 @@ function history(text: string, complete = true) {
   return {
     id: manager.getSessionId(),
     file: manager.getSessionFile()!,
-    cwd: options.cwd,
     title: text,
     modified: new Date().toISOString()
   };
 }
 
-it('同名作品共用工作目录时仍各自归属，新建独立会话保留独立范围', async () => {
+it('同名作品各自归属并使用各自的文件目录，新建独立会话保留独立范围', async () => {
   await agent.connect();
   const a = (await agent.create())!;
   expect(agent.error).toBe('');
@@ -192,7 +192,7 @@ it('同名作品共用工作目录时仍各自归属，新建独立会话保留�
   await creation.openWork(works[1]!.id);
   await flushPromises();
   const b = (await agent.create())!;
-  await agent.newDraft(undefined, true);
+  await agent.newDraft(true);
   const independent = (await agent.create())!;
   const state = value(author.executeAuthor({ method: 'readSessionState', input: {} }));
   expect(state.assignments).toEqual(
@@ -202,6 +202,9 @@ it('同名作品共用工作目录时仍各自归属，新建独立会话保留�
     ])
   );
   expect(state.assignments).toHaveLength(2);
+  const cwds = [a, b, independent].map(id => host.liveSession(id)!.sessionManager.getCwd());
+  expect(new Set(cwds).size).toBe(3);
+  expect(cwds[2]).toBe(options.cwd);
   expect(agent.scope).toBeNull();
   expect(agent.recent.map(entry => entry.live?.sessionId)).toEqual([independent]);
   await creation.openWork(works[0]!.id);
@@ -240,8 +243,8 @@ it('只读历史沿用原生身份归入作品，重启后恢复该作品最后�
   disposePinia(pinia);
   await host.dispose();
   author.close();
-  host = await HostApplication.create(options);
   author = new CreationApplication(await openCreationStorage({ rootDir: join(root, 'creation') }));
+  host = await HostApplication.create({ ...options, creation: author });
   await front();
   await agent.connect();
   expect(agent.active?.sessionId).toBe(item.id);

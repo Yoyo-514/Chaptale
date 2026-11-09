@@ -81,8 +81,14 @@ test('真实宿主保存模型、创建独立会话，刷新界面后读取同�
       },
       apiKey: 'electron-offline-key'
     });
-    const first = await client.request('create', { model: { provider: 'electron-offline', id: 'offline' } });
-    const second = await client.request('create', { model: { provider: 'electron-offline', id: 'offline' } });
+    const first = await client.request('create', {
+      model: { provider: 'electron-offline', id: 'offline' },
+      workId: null
+    });
+    const second = await client.request('create', {
+      model: { provider: 'electron-offline', id: 'offline' },
+      workId: null
+    });
     await client.request('instructions', {
       id: first,
       entries: [
@@ -131,7 +137,7 @@ test('真实宿主保存模型、创建独立会话，刷新界面后读取同�
     manager.appendMessage({ role: 'user', content: '已有历史正文', timestamp: Date.now() });
     await writeFile(output, JSON.stringify({ file: manager.getSessionFile(), id: manager.getSessionId() }));
   `,
-      result.state.cwd,
+      home,
       path.join(home, '.chaptale/pi/sessions'),
       fixtureFile,
       JSON.stringify(result.initial.settings.defaultInstructions)
@@ -147,7 +153,7 @@ test('真实宿主保存模型、创建独立会话，刷新界面后读取同�
       const opened = await client.request('open', input);
       return { opened, state: await client.request('state', undefined) };
     },
-    { file, cwd: result.state.cwd }
+    { file }
   );
   expect(reopened.opened).toBe(fixture.id);
   expect(reopened.state.sessions.find(session => session.id === reopened.opened)).toMatchObject({
@@ -196,7 +202,10 @@ test('界面管理多个模型、直接聊天与切换会话，移动视图保�
   const ids = await page.evaluate(async () => {
     const client = window.chaptaleDesktop.agentHost;
     const model = { provider: 'ui-offline', id: 'ui-model' };
-    const created = [await client.request('create', { model }), await client.request('create', { model })];
+    const created = [
+      await client.request('create', { model, workId: null }),
+      await client.request('create', { model, workId: null })
+    ];
     await client.request('rename', { id: created[0]!, name: '会话 1' });
     await client.request('rename', { id: created[1]!, name: '会话 2' });
     return created;
@@ -289,16 +298,16 @@ test('会话用量可用键盘查看，手动压缩走真实宿主且保留草�
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
       stopReason: 'stop', timestamp: Date.now()
     });
-    await writeFile(output, JSON.stringify({ file: manager.getSessionFile(), cwd }));
+    await writeFile(output, JSON.stringify({ file: manager.getSessionFile() }));
   `,
-      state.cwd,
+      home,
       path.join(home, '.chaptale/pi/sessions'),
       output,
       JSON.stringify(state.settings.defaultInstructions)
     ],
     { cwd: desktop }
   );
-  const fixture = JSON.parse(await readFile(output, 'utf8')) as { file: string; cwd: string };
+  const fixture = JSON.parse(await readFile(output, 'utf8')) as { file: string };
   await page.evaluate(input => window.chaptaleDesktop.agentHost.request('open', input), fixture);
   await assignOpenSessions();
   await page.getByRole('button', { name: '切换会话', exact: true }).click();
@@ -368,7 +377,7 @@ test('生成时停止原位替换发送，快捷键插话不另起请求且停�
           models: [{ id: 'pending', name: '本地挂起请求', contextWindow: 8192, maxTokens: 512 }]
         }
       });
-      await host.request('create', { model: { provider: 'pending-local', id: 'pending' } });
+      await host.request('create', { model: { provider: 'pending-local', id: 'pending' }, workId: null });
     }, address.port);
     await assignOpenSessions();
     await page.getByRole('button', { name: '切换会话', exact: true }).click();
