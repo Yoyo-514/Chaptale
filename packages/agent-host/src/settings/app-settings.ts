@@ -1,16 +1,31 @@
 import { readFile, rename, writeFile } from 'node:fs/promises';
 
 import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
-import type { AgentInstructions, EditMode, HostSettings, NamedInstructions } from '../protocol.ts';
+import type { AgentInstructions, EditMode, HostSettings, ModelRef, NamedInstructions } from '../protocol.ts';
 
-/** 设置文件内容；defaultInstructions 为 null 表示作者尚未设置，新会话使用应用内置指令。 */
+/**
+ * 设置文件内容；defaultInstructions 为 null 表示作者尚未设置，新会话使用应用内置指令。
+ * lastModel 为作者最近一次选择的模型，新会话沿用；尚未选择过时为 null。
+ */
 interface AppSettings {
   defaultInstructions: AgentInstructions | null;
   namedInstructions: NamedInstructions[];
   defaultMode: EditMode;
+  lastModel: ModelRef | null;
 }
 
-const initialSettings: AppSettings = { defaultInstructions: null, namedInstructions: [], defaultMode: 'review' };
+const initialSettings: AppSettings = {
+  defaultInstructions: null,
+  namedInstructions: [],
+  defaultMode: 'review',
+  lastModel: null
+};
+
+function normalizeModel(value: ModelRef): ModelRef {
+  if (typeof value.provider !== 'string' || !value.provider || typeof value.id !== 'string' || !value.id)
+    throw new Error('模型需要供应商与 ID');
+  return { provider: value.provider, id: value.id };
+}
 
 function normalizeNamed(value: NamedInstructions): NamedInstructions {
   if (typeof value.name !== 'string' || !value.name.trim()) throw new Error('命名指令需要名称');
@@ -25,7 +40,9 @@ function parseSettings(value: AppSettings): AppSettings {
   return {
     defaultInstructions: value.defaultInstructions === null ? null : normalizeInstructions(value.defaultInstructions),
     namedInstructions,
-    defaultMode: normalizeMode(value.defaultMode)
+    defaultMode: normalizeMode(value.defaultMode),
+    // 早于该字段写入的设置文件表示尚未选择过模型。
+    lastModel: value.lastModel ? normalizeModel(value.lastModel) : null
   };
 }
 
@@ -70,7 +87,8 @@ export class AppSettingsStore {
     return {
       defaultInstructions: this.value.defaultInstructions ?? this.builtin,
       namedInstructions: this.value.namedInstructions,
-      defaultMode: this.value.defaultMode
+      defaultMode: this.value.defaultMode,
+      lastModel: this.value.lastModel
     };
   }
 
@@ -108,6 +126,15 @@ export class AppSettingsStore {
 
   setDefaultMode(mode: EditMode): Promise<void> {
     return this.save({ ...this.value, defaultMode: normalizeMode(mode) });
+  }
+
+  /** 与已记录的模型相同时不写文件。 */
+  async setLastModel(model: ModelRef): Promise<boolean> {
+    const next = normalizeModel(model);
+    const last = this.value.lastModel;
+    if (last?.provider === next.provider && last.id === next.id) return false;
+    await this.save({ ...this.value, lastModel: next });
+    return true;
   }
 
   /** 先写临时文件再替换，中断时保留上一次完整设置。 */

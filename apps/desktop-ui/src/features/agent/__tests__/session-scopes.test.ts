@@ -214,6 +214,18 @@ it('同名作品共用工作目录时仍各自归属，新建独立会话保留�
   expect(agent.active?.sessionId).toBe(b);
 });
 
+it('新会话草稿沿用最近一次选择的模型', async () => {
+  await agent.connect();
+  await agent.create();
+  expect(agent.error).toBe('');
+  disposePinia(pinia);
+  await front();
+  agent.selectedModel = undefined;
+  await agent.connect();
+  await agent.newDraft();
+  expect(agent.selectedModel).toEqual(model);
+});
+
 it('只读历史沿用原生身份归入作品，重启后恢复该作品最后查看的历史', async () => {
   const item = history('独立历史', false);
   await agent.connect();

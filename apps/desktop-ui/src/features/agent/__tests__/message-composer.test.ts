@@ -36,7 +36,7 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
     approvals: [],
     sessions: [session],
     models: [{ provider: 'offline', id: 'model', name: '离线模型' }],
-    settings: { defaultInstructions: [], defaultMode: 'review', namedInstructions: [] }
+    settings: { defaultInstructions: [], defaultMode: 'review', lastModel: null, namedInstructions: [] }
   };
   agent.connected = true;
   agent.activeId = session.id;

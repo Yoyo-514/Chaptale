@@ -163,6 +163,8 @@ export class HostApplication {
         const live = this.live(command.input.id);
         const model = this.options.modelRuntime.getModel(command.input.model.provider, command.input.model.id);
         if (!model) throw new Error('所选模型不可用');
+        // 先记下作者的选择，设置写入失败时不切换。
+        await this.rememberModel(command.input.model);
         return live.setModel(model);
       }
       case 'instructions':
@@ -210,6 +212,10 @@ export class HostApplication {
     return this.sessions.get(id)?.live?.session;
   }
 
+  private async rememberModel(model: ModelRef): Promise<void> {
+    if (await this.settings.setLastModel(model)) this.emitSettings();
+  }
+
   private emitSettings(): void {
     this.emit({ kind: 'settings', settings: this.settings.view() });
   }
@@ -230,6 +236,8 @@ export class HostApplication {
   private async create(model: ModelRef, name: string | undefined, cwd: string): Promise<string> {
     const applied = { entries: this.settings.instructionsFor(name) };
     const mode = this.settings.defaultMode;
+    // 先记下作者的选择，设置写入失败时不创建会话。
+    await this.rememberModel(model);
     const { session } = await this.pool.createSession({ ...this.sessionInput(applied, cwd), model });
     session.sessionManager.appendCustomEntry(instructionsEntryType, { entries: applied.entries });
     session.sessionManager.appendCustomEntry(modeEntryType, { mode });

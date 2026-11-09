@@ -30,6 +30,8 @@ export interface HostSettings {
   defaultInstructions: AgentInstructions;
   namedInstructions: NamedInstructions[];
   defaultMode: EditMode;
+  /** 作者最近一次选择的模型（新建会话或会话中切换），新会话沿用；可能已从配置中删除。 */
+  lastModel: ModelRef | null;
 }
 /** 只读历史的原因；lines 是无法解析的 JSONL 行号（从 1 开始）。 */
 export interface ReadonlyHistory {

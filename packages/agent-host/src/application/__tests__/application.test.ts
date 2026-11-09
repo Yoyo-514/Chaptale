@@ -234,8 +234,9 @@ it('全局默认指令只影响之后创建的会话并写入设置文件，会�
 });
 
 it('设置写入失败时不更新内存设置或已有会话', async () => {
-  await restart({ settingsFile: join(root, 'missing', 'settings.json') });
   const id = await create();
+  // 临时文件位置被目录占用，之后的设置写入都会失败。
+  await mkdir(`${options.settingsFile}.tmp`);
   await expect(
     app.execute({ method: 'defaultInstructions', input: { entries: [entry('不能保存', 'system', '内容')] } })
   ).rejects.toThrow();
@@ -296,6 +297,16 @@ it('新会话使用全局默认模式，会话模式随历史重开且不跟随�
   await expect(app.execute({ method: 'mode', input: { id: reopened, mode: 'auto' as EditMode } })).rejects.toThrow(
     '修改模式无效'
   );
+});
+
+it('记录作者最近一次选择的模型，重启后保留', async () => {
+  expect(app.snapshot().settings.lastModel).toBeNull();
+  const id = await create();
+  expect(app.snapshot().settings.lastModel).toEqual(model);
+  await app.execute({ method: 'model', input: { id, model: capture } });
+  expect(app.snapshot().settings.lastModel).toEqual(capture);
+  await restart();
+  expect(app.snapshot().settings.lastModel).toEqual(capture);
 });
 
 it('严格重开保留原消息与会话指令，并发打开不重复占用', async () => {
@@ -469,12 +480,14 @@ it('订阅游标与快照对应，取消订阅不取消会话', async () => {
   const unsubscribe = app.subscribe(event => events.push(event));
   const id = await create();
   const state = app.snapshot();
-  expect(events).toHaveLength(1);
-  expect(events[0]).toMatchObject({ kind: 'session', cursor: state.cursor, session: { id } });
+  expect(events).toMatchObject([
+    { kind: 'settings', settings: { lastModel: model } },
+    { kind: 'session', cursor: state.cursor, session: { id } }
+  ]);
   unsubscribe();
   const next = [entry('继续', 'system', '继续使用')];
   await app.execute({ method: 'instructions', input: { id, entries: next } });
-  expect(events).toHaveLength(1);
+  expect(events).toHaveLength(2);
   expect(view(id).instructions).toEqual(next);
 });
 

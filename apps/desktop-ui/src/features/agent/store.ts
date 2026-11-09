@@ -58,10 +58,14 @@ export const useAgentStore = defineStore('agent', () => {
   async function remember(workId: string | null, sessionId: string | null) {
     catalog.value = await requestCreation('selectSession', { workId, sessionId });
   }
+  /** 新会话沿用最近一次选择的模型；它已从配置中删除时保留草稿当前的选择。 */
   function resetCompose() {
     composeCwd.value = undefined;
     composeInstructions.value = undefined;
     composeMode.value = state.value?.settings.defaultMode;
+    const last = state.value?.settings.lastModel;
+    if (last && state.value!.models.some(item => item.provider === last.provider && item.id === last.id))
+      selectedModel.value = { ...last };
   }
   async function changeScope(workId: string | null) {
     const version = ++viewVersion;
