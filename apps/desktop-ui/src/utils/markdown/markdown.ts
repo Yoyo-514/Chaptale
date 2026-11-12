@@ -1,4 +1,4 @@
-import { marked, Renderer } from 'marked';
+import { Marked, Renderer } from 'marked';
 
 import { escapeHtml } from './escape';
 
@@ -34,15 +34,12 @@ function isSafeUrl(href: string, protocols: Set<string>) {
   }
 }
 
-type MarkedParseResult = string | Promise<string>;
-
 const markdownCache = new Map<string, string>();
 /** 缓存按总字符数设限（源串 + HTML 双份），避免长会话内存膨胀。 */
 const MAX_CACHE_CHARS = 2 * 1024 * 1024;
 let cachedChars = 0;
 
-marked.setOptions({
-  async: false,
+const markdown = new Marked().setOptions({
   breaks: true,
   gfm: true,
   renderer
@@ -63,13 +60,8 @@ export function renderMarkdown(content: string) {
     cachedChars += content.length + html.length;
 
     while (cachedChars > MAX_CACHE_CHARS && markdownCache.size > 0) {
-      const [firstKey] = markdownCache.keys();
-      const evicted = markdownCache.get(firstKey);
-
-      if (evicted !== undefined) {
-        cachedChars -= firstKey.length + evicted.length;
-      }
-
+      const [firstKey, evicted] = markdownCache.entries().next().value!;
+      cachedChars -= firstKey.length + evicted.length;
       markdownCache.delete(firstKey);
     }
   }
@@ -78,17 +70,17 @@ export function renderMarkdown(content: string) {
 }
 
 export function renderMarked(content: string) {
-  return marked.parse(content) as Exclude<MarkedParseResult, Promise<string>>;
+  return markdown.parse(content, { async: false });
 }
 
 /** 按顶层块渲染，并记录每块在原文中的起点，供分页阅读定位。 */
 export function renderMarkdownBlocks(content: string) {
-  const tokens = marked.lexer(content);
+  const tokens = markdown.lexer(content);
   const blocks: { offset: number; html: string }[] = [];
   let offset = 0;
   for (const token of tokens) {
     if (token.type !== 'space')
-      blocks.push({ offset, html: marked.parser(Object.assign([token], { links: tokens.links })) });
+      blocks.push({ offset, html: markdown.parser(Object.assign([token], { links: tokens.links })) });
     offset += token.raw.length;
   }
   return blocks;

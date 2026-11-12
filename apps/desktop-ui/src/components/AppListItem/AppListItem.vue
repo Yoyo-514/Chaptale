@@ -22,9 +22,7 @@ withDefaults(
       <span v-if="!dense && (description || $slots.description)" class="app-list-item-description">
         <slot name="description">{{ description }}</slot>
       </span>
-      <small v-if="meta || $slots.meta" class="app-list-item-meta"
-        ><slot name="meta">{{ meta }}</slot></small
-      >
+      <small v-if="meta || $slots.meta" class="app-list-item-meta"><slot name="meta">{{ meta }}</slot></small>
     </span>
     <span v-if="$slots.trailing" class="app-list-item-trailing"><slot name="trailing" /></span>
   </AppButton>

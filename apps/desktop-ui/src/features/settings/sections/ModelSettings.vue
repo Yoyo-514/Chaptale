@@ -210,8 +210,7 @@ function setInput(model: NativeModel, image: boolean) {
             :aria-current="current?.id === provider.id ? 'true' : undefined"
             @click="edit(provider)"
           >
-            <span>{{ provider.id }}</span
-            ><small>{{ provider.config.models?.length ?? 0 }} 个模型</small>
+            <span>{{ provider.id }}</span><small>{{ provider.config.models?.length ?? 0 }} 个模型</small>
           </button>
           <p v-if="loading" class="agent-empty-small">正在读取模型…</p>
           <AppButton type="button" variant="ghost" :disabled="loading || !!pending" @click="edit()"

@@ -66,10 +66,7 @@ onBeforeUnmount(() => view?.destroy());
 
 <template>
   <section class="app-diff" aria-label="版本对比">
-    <header>
-      <span>{{ originalLabel }}</span
-      ><span>{{ modifiedLabel }}</span>
-    </header>
+    <header><span>{{ originalLabel }}</span><span>{{ modifiedLabel }}</span></header>
     <div ref="host" class="app-diff-content" />
   </section>
 </template>

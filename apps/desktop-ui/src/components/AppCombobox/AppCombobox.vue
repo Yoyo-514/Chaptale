@@ -166,8 +166,7 @@ function choose(value: unknown) {
           <ComboboxEmpty class="app-combobox-empty">没有匹配项</ComboboxEmpty>
           <ComboboxItem v-for="option in options" :key="option.value" :value="option.value" class="app-combobox-item">
             <span class="app-combobox-copy"
-              ><span>{{ option.label }}</span
-              ><small v-if="option.description">{{ option.description }}</small></span
+              ><span>{{ option.label }}</span><small v-if="option.description">{{ option.description }}</small></span
             >
             <ComboboxItemIndicator
               ><span class="i-mingcute-check-line size-4" aria-hidden="true"
