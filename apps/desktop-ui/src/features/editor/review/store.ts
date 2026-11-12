@@ -4,6 +4,7 @@ import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 
 import type {
   CreationEvent,
+  DecideReviewInput,
   DeliverySummary,
   Entry,
   EntryChange,
@@ -334,14 +335,14 @@ export const useReviewStore = defineStore('review', () => {
     return !error;
   }
 
-  /** 缺省时整篇接受或拒绝；range 决定正文的一处，title 只决定改名。 */
-  function decide(key: string, decision: 'accept' | 'reject', scope?: ReviewRange | 'title') {
+  /** 缺省时整篇决定；range 决定一处正文，part 决定标题或整组资料属性。 */
+  function decide(key: string, decision: 'accept' | 'reject', scope?: ReviewRange | DecideReviewInput['part']) {
     return act(key, tab =>
       requestCreation('decideReview', {
         commandId: command(),
         ...reviewTarget(tab.review!),
         decision,
-        ...(scope === 'title' ? { part: 'title' as const } : scope ? { range: scope } : {})
+        ...(typeof scope === 'string' ? { part: scope } : scope ? { range: scope } : {})
       })
     );
   }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { applySnapshot } from '../../content/commit.ts';
+import { sameAttributes } from '../../content/entries.ts';
 import { readEntrySnapshot } from '../../content/mutations.ts';
 import type {
   DecideReviewInput,
@@ -23,7 +24,9 @@ export interface ReviewDecision {
   parameters: readonly unknown[];
 }
 
-/** 条目候选的审阅规则：整篇、单处正文、单独改名与删除；在调用方的本机库事务中执行。 */
+const attributeFields = new Set(['type', 'aliases', 'tags']);
+
+/** 条目候选的审阅规则：整篇、单处正文、标题、资料属性与删除；在调用方的本机库事务中执行。 */
 export class EntryReview {
   private readonly repository: CreationRepository;
   private readonly creation: CreationService;
@@ -53,9 +56,10 @@ export class EntryReview {
     if (change.deleted) return this.decideDeletion(change, decision);
     if (this.repository.work(change.workId).readReceipt<Entry>(input.commandId, parameters))
       return this.recover(change, input);
-    if (input.range && input.part) throw new Error('一次只能决定一处正文或标题');
+    if (input.range && input.part) throw new Error('一次只能处理正文、标题或资料属性中的一项');
     const view = this.checked(input);
     if (input.part === 'title') return this.decideTitle(view, decision);
+    if (input.part === 'attributes') return this.decideAttributes(view, decision);
     if (input.range) return this.decideRange(view, { ...decision, input: { ...input, range: input.range } });
     return this.decideWhole(view, decision);
   }
@@ -120,6 +124,30 @@ export class EntryReview {
       base: current,
       candidate,
       conflicts: conflicts.filter(conflict => conflict.field !== 'title'),
+      authorEdited: true,
+      status: sameContent(current, candidate) ? settled(decision.input) : 'pending'
+    });
+  }
+
+  private decideAttributes(view: EntryReviewView, decision: ReviewDecision): PendingChange {
+    const { change, conflicts } = view;
+    if (
+      !view.current?.attributes ||
+      !view.candidate.attributes ||
+      sameAttributes(view.current.attributes, view.candidate.attributes)
+    )
+      throw new Error('这项修改没有资料属性可单独处理');
+    let current = view.current;
+    let candidate = view.candidate;
+    if (decision.input.decision === 'accept') {
+      if (conflicts.some(conflict => attributeFields.has(conflict.field)))
+        throw new Error('资料属性有冲突，请先处理冲突再接受');
+      current = this.accept(change, decision, current, { ...current, attributes: candidate.attributes })!;
+    } else candidate = { ...candidate, attributes: current.attributes };
+    return this.ledger.finish(change, {
+      base: current,
+      candidate,
+      conflicts: conflicts.filter(conflict => !attributeFields.has(conflict.field)),
       authorEdited: true,
       status: sameContent(current, candidate) ? settled(decision.input) : 'pending'
     });

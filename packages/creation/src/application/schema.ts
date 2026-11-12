@@ -22,7 +22,11 @@ const attributes = object({
   tags: Type.Array(text),
   cover: Type.Union([Type.String({ minLength: 1 }), Type.Null()])
 });
-/** 作者保存可带资料属性；Agent 写入不接受属性。 */
+const agentAttributes = Type.Object(
+  { type: Type.Optional(text), aliases: Type.Optional(Type.Array(text)), tags: Type.Optional(Type.Array(text)) },
+  { additionalProperties: false, minProperties: 1 }
+);
+/** 作者保存包含完整资料属性；Agent 仅更新允许写入的字段。 */
 const authorDocumentInput = { ...documentInput, attributes: Type.Optional(attributes) };
 const entryInput = {
   commandId: id,
@@ -182,7 +186,7 @@ const inputs = {
     commandId: id,
     decision: Type.Union([Type.Literal('accept'), Type.Literal('reject')]),
     range: Type.Optional(object({ fromA: offset, toA: offset, fromB: offset, toB: offset })),
-    part: Type.Optional(Type.Literal('title'))
+    part: Type.Optional(Type.Union([Type.Literal('title'), Type.Literal('attributes')]))
   }),
   updateRecordReview: object({ ...reviewTarget, ...recordFields, commandId: id, resolveConflicts: Type.Boolean() }),
   updateRelationReview: object({
@@ -199,9 +203,27 @@ export const agentInputs = {
   listEntries: inputs.listEntries,
   readDocument: inputs.readDocument,
   searchDocuments: inputs.searchDocuments,
-  createEntry: inputs.createEntry,
-  writeDocument: object({ commandId: id, ...documentInput }),
-  writeContent: object({ commandId: id, ...documentTarget, expectedRevisionId: id, content: Type.String() }),
+  createEntry: Type.Union([
+    object({ ...entryInput, kind: Type.Literal('directory') }),
+    object({
+      ...entryInput,
+      kind: Type.Literal('document'),
+      format,
+      content: Type.String(),
+      attributes: Type.Optional(agentAttributes)
+    })
+  ]),
+  writeDocument: object({ commandId: id, ...documentInput, attributes: Type.Optional(agentAttributes) }),
+  writeContent: Type.Object(
+    {
+      commandId: id,
+      ...documentTarget,
+      expectedRevisionId: id,
+      content: Type.Optional(Type.String()),
+      attributes: Type.Optional(agentAttributes)
+    },
+    { additionalProperties: false, anyOf: [{ required: ['content'] }, { required: ['attributes'] }] }
+  ),
   moveEntry: inputs.moveEntry,
   deleteEntry: object({ commandId: id, workId: id, entryId: id, expectedRevisionId: id }),
   renameEntry: object({ commandId: id, workId: id, entryId: id, expectedRevisionId: id, title: Type.String() }),

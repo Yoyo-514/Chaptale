@@ -8,6 +8,7 @@ import type {
   Entry,
   EntrySnapshot,
   MoveEntryInput,
+  ResourceAttributePatch,
   SaveDocumentInput
 } from './content.ts';
 import type {
@@ -50,6 +51,8 @@ export interface ReviewConflict {
     | 'placement'
     | 'storyTime'
     | 'type'
+    | 'aliases'
+    | 'tags'
     | 'directed'
     | 'titles'
     | 'milestone';
@@ -233,9 +236,9 @@ export interface ReviewRange {
 export interface DecideReviewInput extends ReviewTarget {
   commandId: string;
   decision: 'accept' | 'reject';
-  /** 与 part 互斥：range 只决定正文的一处，part=title 只决定改名；都缺省时整体决定。 */
+  /** 与 part 互斥：range 决定一处正文，part 决定标题或整组资料属性；都缺省时整体决定。 */
   range?: ReviewRange;
-  part?: 'title';
+  part?: 'title' | 'attributes';
 }
 
 export interface UpdateReviewInput extends ReviewTarget {
@@ -276,10 +279,23 @@ export type AgentWriteResult =
   /** 审阅模式下删除本会话尚未接受的新建条目，撤回这些候选。 */
   | { kind: 'withdrawn'; change: PendingChange };
 export interface CreationAgentCommands extends CreationReadCommands {
-  createEntry: { input: CreateEntryInput; output: CreationResult<AgentWriteResult> };
-  writeDocument: { input: Omit<SaveDocumentInput, 'attributes'>; output: CreationResult<AgentWriteResult> };
-  /** 整篇覆盖只改变正文；命令参数保持模型提交的快照，重试不依赖后续标题与格式。 */
-  writeContent: { input: Omit<SaveDocumentInput, 'title' | 'format'>; output: CreationResult<AgentWriteResult> };
+  createEntry: {
+    input: CreateEntryInput & { attributes?: ResourceAttributePatch };
+    output: CreationResult<AgentWriteResult>;
+  };
+  writeDocument: {
+    input: Omit<SaveDocumentInput, 'attributes'> & { attributes?: ResourceAttributePatch };
+    output: CreationResult<AgentWriteResult>;
+  };
+  /** 更新正文或资料属性；省略的字段保持不变，命令重试沿用提交时的参数快照。 */
+  writeContent: {
+    input: Pick<SaveDocumentInput, 'commandId' | 'workId' | 'documentId' | 'expectedRevisionId'> &
+      (
+        | { content: string; attributes?: ResourceAttributePatch }
+        | { content?: string; attributes: ResourceAttributePatch }
+      );
+    output: CreationResult<AgentWriteResult>;
+  };
   editDocument: {
     input: {
       commandId: string;

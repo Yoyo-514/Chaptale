@@ -40,6 +40,9 @@ export interface ResourceAttributes {
   cover: string | null;
 }
 
+/** Agent 只更新传入的类型、别名和标签；数组整体替换，封面由作者选择。 */
+export type ResourceAttributePatch = Partial<Pick<ResourceAttributes, 'type' | 'aliases' | 'tags'>>;
+
 /** 应用内可预览、可作封面的图片格式，与 pi 读取工具支持的格式一致。 */
 const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
 export function isImageFile(entry: Pick<Entry, 'kind' | 'fileName'>): boolean {

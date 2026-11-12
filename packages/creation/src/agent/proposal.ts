@@ -66,7 +66,7 @@ export function proposeEntry(
       throw new RevisionConflictError(command.input.expectedRevisionId, snapshot.revisionId);
     if (command.method === 'writeDocument' || command.method === 'writeContent') {
       if (snapshot.kind !== 'document') throw new Error('文稿或资料不存在');
-      candidate.content = command.input.content;
+      if (command.input.content !== undefined) candidate.content = command.input.content;
       if (command.method === 'writeDocument') {
         candidate.title = command.input.title;
         candidate.format = command.input.format;
@@ -102,6 +102,10 @@ export function proposeEntry(
         candidate.position = position;
       }
     }
+  }
+  if ('attributes' in command.input && command.input.attributes !== undefined) {
+    if (candidate.attributes === null) throw new Error('只有资料文档可以设置属性');
+    candidate.attributes = { ...candidate.attributes, ...command.input.attributes };
   }
   assertEntryParent(entries, candidate);
   candidate.revisionId = randomUUID();

@@ -7,6 +7,19 @@ export function initialAttributes(entry: Pick<Entry, 'section' | 'kind'>): Resou
     : null;
 }
 
+/** 属性按字段内容比较；数组顺序保留作者与 Agent 提交的次序。 */
+export function sameAttributes(a: ResourceAttributes | null, b: ResourceAttributes | null): boolean {
+  return (
+    a === b ||
+    (a !== null &&
+      b !== null &&
+      a.type === b.type &&
+      a.cover === b.cover &&
+      JSON.stringify(a.aliases) === JSON.stringify(b.aliases) &&
+      JSON.stringify(a.tags) === JSON.stringify(b.tags))
+  );
+}
+
 /** 封面只能是资料区的图片文件条目；沿用已失效的封面不再校验。 */
 export function assertCover(entries: Entry[], cover: string | null, previous: string | null): void {
   if (cover === null || cover === previous) return;

@@ -252,21 +252,34 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
     ),
     tool(
       'work_write',
-      '写入作品正文',
-      '新建时提供 workId、parentId、title、section、format、content，返回应用生成的 entryId。覆盖时提供 workId、entryId、expectedRevisionId、content，保留标题与格式。',
+      '写入作品正文与资料属性',
+      '新建时提供 workId、parentId、title、section、format、content，返回应用生成的 entryId。更新时提供 workId、entryId、expectedRevisionId，以及 content 或 attributes，保留标题与格式。资料可提供 attributes 的 type、aliases、tags：省略的字段保持不变，数组整体替换，空字符串清空类型，空数组清空别名或标签。封面只由作者选择。',
       object({
         workId: id,
-        content: Type.String(),
+        content: Type.Optional(Type.String()),
         entryId: Type.Optional(id),
         expectedRevisionId: Type.Optional(id),
         parentId: Type.Optional(nullableId),
         title: Type.Optional(Type.String()),
         section: Type.Optional(section),
-        format: Type.Optional(Type.Union([Type.Literal('txt'), Type.Literal('markdown')]))
+        format: Type.Optional(Type.Union([Type.Literal('txt'), Type.Literal('markdown')])),
+        attributes: Type.Optional(
+          Type.Object(
+            {
+              type: Type.Optional(Type.String()),
+              aliases: Type.Optional(Type.Array(Type.String())),
+              tags: Type.Optional(Type.Array(Type.String()))
+            },
+            { additionalProperties: false, minProperties: 1 }
+          )
+        )
       }),
       (input, context, commandId) => {
         const { entryId, ...fields } = input;
-        const rest = { ...fields, content: fromIllustrationPlaceholders(fields.content) };
+        const rest = {
+          ...fields,
+          ...(fields.content !== undefined && { content: fromIllustrationPlaceholders(fields.content) })
+        };
         // 混用新建与覆盖字段时由 creation 的 additionalProperties 拒绝。
         return written(
           context,

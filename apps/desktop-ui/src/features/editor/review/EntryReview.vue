@@ -1,6 +1,10 @@
 <script lang="ts">
 /** 候选更新会重建编辑器，按修改记住滚动位置。 */
 const scrollTops = new Map<string, number>();
+
+function displayAttribute(value: string | string[]) {
+  return (typeof value === 'string' ? value : value.join('、')) || '未设置';
+}
 </script>
 
 <script setup lang="ts">
@@ -51,8 +55,27 @@ const fields: Record<string, string> = {
   title: '标题',
   format: '格式',
   parentId: '位置',
-  position: '位置'
+  position: '位置',
+  type: '类型',
+  aliases: '别名',
+  tags: '标签'
 };
+const attributeRows = computed(() => {
+  const proposed = candidate.value.attributes;
+  if (!proposed) return [];
+  const original = current.value?.attributes;
+  return (['type', 'aliases', 'tags'] as const)
+    .filter(field => !original || JSON.stringify(original[field]) !== JSON.stringify(proposed[field]))
+    .map(field => ({
+      field,
+      label: fields[field],
+      before: original ? displayAttribute(original[field]) : '',
+      after: displayAttribute(proposed[field])
+    }));
+});
+const attributesConflicted = computed(() =>
+  data.value.conflicts.some(item => ['type', 'aliases', 'tags'].includes(item.field))
+);
 const conflictFields = computed(() => [...new Set(data.value.conflicts.map(item => fields[item.field]))].join('、'));
 const locked = computed(() => props.tab.busy || props.tab.dirty);
 /** 新资料候选：依赖它的事件与关系候选随拒绝一并拒绝，或改为关联已有资料。 */
@@ -180,9 +203,7 @@ onBeforeUnmount(() => {
       >
     </header>
     <div v-if="renamed && !deleted" class="review-row">
-      <span
-        >标题：<del>{{ current!.title }}</del> → {{ candidate.title }}</span
-      >
+      <span>标题：<del>{{ current!.title }}</del> → {{ candidate.title }}</span>
       <AppButton size="xs" variant="ghost" :disabled="locked" @click="review.decide(tab.key, 'reject', 'title')"
         >保留原标题</AppButton
       >
@@ -195,6 +216,40 @@ onBeforeUnmount(() => {
         >接受改名</AppButton
       >
     </div>
+    <section v-if="attributeRows.length && !deleted" class="review-attributes" aria-label="资料属性修改">
+      <div class="review-row">
+        <span>资料属性</span>
+        <template v-if="current">
+          <AppButton
+            size="xs"
+            variant="ghost"
+            :disabled="locked"
+            @click="review.decide(tab.key, 'reject', 'attributes')"
+            >保留原属性</AppButton
+          >
+          <AppButton
+            size="xs"
+            variant="ghost"
+            :disabled="locked || attributesConflicted"
+            :title="attributesConflicted ? '资料属性有冲突，请先处理冲突' : undefined"
+            @click="review.decide(tab.key, 'accept', 'attributes')"
+            >接受属性</AppButton
+          >
+        </template>
+      </div>
+      <dl class="review-attribute-fields">
+        <template v-for="row in attributeRows" :key="row.field">
+          <dt>{{ row.label }}</dt>
+          <dd>
+            <template v-if="current">
+              <del>{{ row.before }}</del>
+              <span aria-hidden="true">→</span>
+            </template>
+            <span>{{ row.after }}</span>
+          </dd>
+        </template>
+      </dl>
+    </section>
     <div v-if="newResource && dependents" class="review-row">
       <span>{{ dependents }}依赖这份新资料。已有同一份资料时，可改为关联它。</span>
       <AppSelect v-model="relinkTarget" class="review-relink" aria-label="改为关联的资料" placeholder="选择已有资料">
@@ -212,7 +267,7 @@ onBeforeUnmount(() => {
       <span>位置：移到{{ destination }}，随整篇一起接受或拒绝</span>
     </div>
     <div v-if="conflicted" class="review-row review-conflict" role="status">
-      <span>Agent 修改期间，正式稿的{{ conflictFields }}也有变化。可直接在下方修改候选，确认后标记已解决。</span>
+      <span>正式稿的{{ conflictFields }}已有变化。请核对修改前后；正文可在下方手改，确认后标记已解决。</span>
       <AppButton size="xs" variant="ghost" :disabled="tab.busy || tab.outdated" @click="review.save(tab.key, true)"
         >已检查，标记解决</AppButton
       >
@@ -313,6 +368,35 @@ onBeforeUnmount(() => {
 .review-row > span {
   flex: 1;
   min-width: 0;
+}
+.review-attributes {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.review-attributes .review-row {
+  border-bottom: 0;
+}
+.review-attribute-fields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  padding: 0 16px 8px;
+  font-size: var(--ui-font-size);
+}
+.review-attribute-fields dt {
+  color: var(--muted-foreground);
+}
+.review-attribute-fields dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.review-attribute-fields del {
+  color: var(--muted-foreground);
 }
 .review-conflict {
   background: color-mix(in srgb, var(--warning) 10%, transparent);

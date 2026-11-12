@@ -208,6 +208,65 @@ function proposeRecord(resourceId: string, text: string) {
   }).change;
 }
 
+it.each(['accept', 'reject'] as const)('资料属性只读对比与整组 %s，正文保留待审', async decision => {
+  const resourceId = createResource('沈霁', 'author');
+  const initial = value(author.executeAuthor({ method: 'readDocument', input: { workId, documentId: resourceId } }));
+  const saved = value(
+    author.executeAuthor({
+      method: 'saveDocument',
+      input: {
+        commandId: crypto.randomUUID(),
+        workId,
+        documentId: resourceId,
+        expectedRevisionId: initial.revisionId,
+        title: initial.title,
+        format: initial.format,
+        content: '守城的将军。',
+        attributes: { type: '人物', aliases: ['阿霁'], tags: ['主角'], cover: null }
+      }
+    })
+  );
+  agent('writeContent', {
+    documentId: resourceId,
+    expectedRevisionId: saved.revisionId,
+    content: '出征的将军。',
+    attributes: { aliases: ['小沈'], tags: [] }
+  });
+  await flushPromises();
+  await review.open({ sessionId: context.sessionId, entryId: resourceId });
+  const key = `${context.sessionId}:${resourceId}`;
+  const tab = () => review.tabs.find(item => item.key === key)!;
+  const view = mount(EntryReview, { props: { tab: tab() }, global: { plugins: [pinia] } });
+  try {
+    const attributes = view.find('[aria-label="资料属性修改"]');
+    expect(attributes.exists()).toBe(true);
+    expect(attributes.text()).toContain('阿霁');
+    expect(attributes.text()).toContain('小沈');
+    expect(attributes.text()).toContain('主角');
+    expect(attributes.text()).toContain('未设置');
+    expect(attributes.findAll('input, select, textarea, [contenteditable="true"]')).toHaveLength(0);
+    const label = decision === 'accept' ? '接受属性' : '保留原属性';
+    const button = attributes.findAll('button').find(item => item.text() === label)!;
+    expect(button).toBeDefined();
+    await button.trigger('click');
+    await flushPromises();
+    expect(tab().error).toBe('');
+    const expected = decision === 'accept' ? ['小沈'] : ['阿霁'];
+    const current = value(author.executeAuthor({ method: 'readDocument', input: { workId, documentId: resourceId } }));
+    expect(current.content).toBe('守城的将军。');
+    expect(current.attributes?.aliases).toEqual(expected);
+    expect(tab().review?.candidate.content).toBe('出征的将军。');
+    expect(tab().review?.change.status).toBe('pending');
+    await review.decide(key, 'accept');
+    await flushPromises();
+    const final = value(author.executeAuthor({ method: 'readDocument', input: { workId, documentId: resourceId } }));
+    expect(final.content).toBe('出征的将军。');
+    expect(final.attributes?.aliases).toEqual(expected);
+  } finally {
+    view.unmount();
+  }
+});
+
 it('资料审阅标签列出事件候选，同一会话只在后台打开第一份资料；接受事件时一并提交其新资料', async () => {
   const resourceId = createResource('沈霁', 'agent');
   const other = createResource('柳七', 'agent');

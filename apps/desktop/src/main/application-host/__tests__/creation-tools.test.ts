@@ -385,6 +385,55 @@ it('整篇写入区分新建和覆盖，保留既有标题格式，重复调用�
   expect(read()).toEqual(later);
 });
 
+it('作品写工具支持新建资料属性和单独更新，审阅读取包含本会话属性候选', async () => {
+  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
+  const created = await call('work_write', {
+    workId,
+    parentId: null,
+    title: '沈霁',
+    section: 'resource',
+    format: 'txt',
+    content: '守城的将军。',
+    attributes: { type: '人物', aliases: ['阿霁'], tags: ['主角'] }
+  });
+  expect(created.isError, JSON.stringify(created.result)).toBe(false);
+  const resource = value(creation.executeAuthor({ method: 'listEntries', input: { workId } })).find(
+    entry => entry.title === '沈霁'
+  )!;
+  const updated = await call('work_write', {
+    workId,
+    entryId: resource.id,
+    expectedRevisionId: resource.revisionId,
+    attributes: { aliases: ['小沈'] }
+  });
+  expect(updated.isError, JSON.stringify(updated.result)).toBe(false);
+  const current = value(creation.executeAuthor({ method: 'readDocument', input: { workId, documentId: resource.id } }));
+  expect(current).toMatchObject({
+    content: '守城的将军。',
+    attributes: { type: '人物', aliases: ['小沈'], tags: ['主角'], cover: null }
+  });
+  await host.execute({ method: 'mode', input: { id, mode: 'review' } });
+  const proposed = await call('work_write', {
+    workId,
+    entryId: resource.id,
+    expectedRevisionId: current.revisionId,
+    attributes: { tags: [] }
+  });
+  expect(proposed.isError, JSON.stringify(proposed.result)).toBe(false);
+  const seen = await call('work_read', { workId, entryId: resource.id });
+  expect(seen.result.structuredContent).toMatchObject({
+    ok: true,
+    value: {
+      pending: true,
+      content: '守城的将军。',
+      attributes: { type: '人物', aliases: ['小沈'], tags: [], cover: null }
+    }
+  });
+  expect(
+    value(creation.executeAuthor({ method: 'readDocument', input: { workId, documentId: resource.id } })).attributes
+  ).toEqual({ type: '人物', aliases: ['小沈'], tags: ['主角'], cover: null });
+});
+
 it('创建候选目录并移动、改名文稿，条目身份保持稳定，重复移动校验原位置', async () => {
   const directory = await call('work_mkdir', { workId, parentId: null, title: '第一卷', section: 'manuscript' });
   expect(directory.isError).toBe(false);

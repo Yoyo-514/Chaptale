@@ -1,3 +1,4 @@
+import { sameAttributes } from '../../content/entries.ts';
 import type { EntrySnapshot } from '../../contracts/content.ts';
 import type { DecideReviewInput, EntryReviewView } from '../../contracts/review.ts';
 
@@ -37,6 +38,7 @@ export function sameContent(a: EntrySnapshot | null, b: EntrySnapshot): boolean 
     a.content === b.content &&
     a.format === b.format &&
     a.parentId === b.parentId &&
-    a.position === b.position
+    a.position === b.position &&
+    sameAttributes(a.attributes, b.attributes)
   );
 }

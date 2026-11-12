@@ -17,6 +17,18 @@ export function mergeCandidate(change: EntryChange, current: EntrySnapshot | nul
       if (proposed === original) Object.assign(candidate, { [field]: official });
       else conflicts.push({ field, base: display(original), current: display(official), proposed: display(proposed) });
     }
+    if (change.base.attributes && current.attributes && candidate.attributes) {
+      const attributes = { ...candidate.attributes, cover: current.attributes.cover };
+      for (const field of ['type', 'aliases', 'tags'] as const) {
+        const original = display(change.base.attributes[field]),
+          official = display(current.attributes[field]),
+          proposed = display(attributes[field]);
+        if (official === original || official === proposed) continue;
+        if (proposed === original) Object.assign(attributes, { [field]: current.attributes[field] });
+        else conflicts.push({ field, base: original, current: official, proposed });
+      }
+      candidate.attributes = attributes;
+    }
     if (
       current.content !== change.base.content &&
       current.content !== candidate.content &&
@@ -43,6 +55,6 @@ export function mergeCandidate(change: EntryChange, current: EntrySnapshot | nul
   candidate.wordCount = candidate.content === null ? 0 : countDocumentWords(candidate.content);
   return { change, current, candidate, conflicts };
 }
-function display(value: string | number | null): string | null {
-  return value === null ? null : String(value);
+function display(value: string | number | string[] | null): string | null {
+  return value === null ? null : Array.isArray(value) ? JSON.stringify(value) : String(value);
 }
