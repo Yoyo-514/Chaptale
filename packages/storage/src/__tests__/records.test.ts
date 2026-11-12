@@ -464,30 +464,30 @@ it('接受依赖新资料的事件后本机进度失败，重启凭回执补齐�
   }
 });
 
-it('整组接受按写入顺序先建资料再写事件，作品提交与回执在一个事务中', async () => {
+it('批量接受按写入顺序先建资料再写事件，作品提交与回执在一个事务中', async () => {
   const fixture = await application();
   const shen = resource(fixture, '沈霁');
   extract(fixture, shen.id, '沈霁结识柳七');
-  const [summary] = value(
-    fixture.app.executeAuthor({ method: 'listDeliveries', input: { sessionId: fixture.context.sessionId } })
+  const summary = value(
+    fixture.app.executeAuthor({ method: 'listReviewItems', input: { sessionId: fixture.context.sessionId } })
   );
-  expect(summary!.items.map(item => item.kind)).toEqual(['document', 'record']);
+  expect(summary.map(item => item.kind)).toEqual(['document', 'record']);
   value(
     fixture.app.executeAuthor({
-      method: 'decideDelivery',
+      method: 'decidePending',
       input: {
         commandId: randomUUID(),
-        groupId: summary!.group.id,
+        sessionId: fixture.context.sessionId,
         workId: fixture.work.id,
         decision: 'accept',
-        targets: summary!.items.map(item => item.target)
+        targets: summary.map(item => item.target)
       }
     })
   );
   expect(pending(fixture)).toEqual([]);
   expect(records(fixture)[0]!.resourceIds).toHaveLength(2);
   const contents = value(
-    fixture.app.executeAuthor({ method: 'readDeliveryContents', input: { groupId: summary!.group.id } })
+    fixture.app.executeAuthor({ method: 'listReviewResults', input: { sessionId: fixture.context.sessionId } })
   );
   expect(contents.map(content => [content.target, content.decision])).toEqual([
     ['entry', 'accepted'],

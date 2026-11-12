@@ -138,7 +138,7 @@ export class StoryReview {
     return this.ledger.finishAccepted(change);
   }
 
-  /** 整组接受中的一项，在调用方的作品库事务中写入；移除时返回移除前的正式内容。 */
+  /** 批量接受中的一项，在调用方的作品库事务中写入；移除时返回移除前的正式内容。 */
   apply(work: WorkRepository, view: StoryView) {
     const { change } = view;
     if (change.deleted) {

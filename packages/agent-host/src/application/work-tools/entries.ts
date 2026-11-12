@@ -235,7 +235,6 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       object({ ...revisionTarget, oldText: Type.String({ minLength: 1 }), newText: Type.String() }),
       (input, context, commandId) =>
         written(
-          context,
           input.workId,
           application.executeAgent(context, {
             method: 'editDocument',
@@ -282,7 +281,6 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
         };
         // 混用新建与覆盖字段时由 creation 的 additionalProperties 拒绝。
         return written(
-          context,
           input.workId,
           entryId !== undefined
             ? executeWrite(context, {
@@ -303,7 +301,6 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       object(newEntry),
       (input, context, commandId) =>
         written(
-          context,
           input.workId,
           application.executeAgent(context, {
             method: 'createEntry',
@@ -326,7 +323,6 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       }),
       (input, context, commandId) =>
         written(
-          context,
           input.workId,
           input.title !== undefined
             ? executeWrite(context, { method: 'renameEntry', input: { ...input, commandId } })
@@ -340,7 +336,6 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       object(revisionTarget),
       (input, context, commandId) =>
         written(
-          context,
           input.workId,
           application.executeAgent(context, { method: 'deleteEntry', input: { ...input, commandId } })
         )

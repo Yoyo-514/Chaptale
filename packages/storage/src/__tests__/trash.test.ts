@@ -121,7 +121,7 @@ describe('作品回收站', () => {
     expect(t.batches()).toEqual([]);
   });
 
-  it('删除时一并拒绝指向这些条目的待审修改，续跑结果标为作者已删除', async () => {
+  it('删除时一并拒绝指向这些条目的待审修改，处理结果标为作者已删除', async () => {
     const t = await setup();
     const change = t.propose('Agent 改写的序章');
     expect(t.author('previewTrash', { workId: t.work.id, entryIds: [t.document.id] })).toMatchObject({
@@ -132,9 +132,8 @@ describe('作品回收站', () => {
     t.trash(t.document.id);
 
     expect(t.author('listPendingChanges', { workId: t.work.id, sessionId: null })).toEqual([]);
-    const group = t.author<{ group: { id: string } } | null>('readCurrentDelivery', { sessionId: t.context.sessionId });
-    const contents = t.author<{ entryId: string; decision: string }[]>('readDeliveryContents', {
-      groupId: group!.group.id
+    const contents = t.author<{ targetId: string; decision: string }[]>('listReviewResults', {
+      sessionId: t.context.sessionId
     });
     expect(contents).toEqual([expect.objectContaining({ targetId: change.targetId, decision: 'deleted' })]);
 
@@ -272,10 +271,8 @@ describe('Agent 删除', () => {
     expect(result.kind).toBe('withdrawn');
     expect(pending(t).map(item => item.targetId)).toEqual([t.document.id]);
     expect(t.batches()).toEqual([]);
-    const group = t.author<{ group: { changeIds: string[] } }>('readCurrentDelivery', {
-      sessionId: t.context.sessionId
-    });
-    expect(group.group.changeIds).not.toContain(created.change.id);
+    const items = t.author<{ target: { changeId: string } }[]>('listReviewItems', { sessionId: t.context.sessionId });
+    expect(items.map(item => item.target.changeId)).not.toContain(created.change.id);
   });
 });
 
@@ -307,11 +304,10 @@ describe('作品库回收站', () => {
     expect(t.author('listPendingChanges', { workId: t.work.id, sessionId: null })).toEqual([]);
   });
 
-  it('永久清空作品时返回作品目录，清除查看位置，交付组不再引用该作品的修改', async () => {
+  it('永久清空作品时返回作品目录，清除查看位置与该作品的处理结果', async () => {
     const t = await setup();
     t.author('selectSession', { sessionId: t.context.sessionId, workId: t.work.id });
     t.propose('Agent 改写');
-    const group = t.author<{ group: { id: string } }>('readCurrentDelivery', { sessionId: t.context.sessionId }).group;
     command(t, 'trashWork');
 
     const { files } = command(t, 'purgeWork') as { files: string[] };
@@ -320,6 +316,6 @@ describe('作品库回收站', () => {
     expect(existsSync(join(files[0]!, 'work.sqlite'))).toBe(true);
     expect(t.author('listTrashedWorks', {})).toEqual([]);
     expect(t.author<{ selections: unknown[] }>('readSessionState', {}).selections).toEqual([]);
-    expect(t.author('readDeliveryContents', { groupId: group.id })).toEqual([]);
+    expect(t.author('listReviewResults', { sessionId: t.context.sessionId })).toEqual([]);
   });
 });

@@ -20,7 +20,6 @@ import { WorkTrashService } from './library/work-trash.ts';
 import { RecordService } from './records/service.ts';
 import { RelationService } from './relations/service.ts';
 import type { CreationRepository } from './repository.ts';
-import { DeliveryService } from './review/delivery.ts';
 import { ReviewService } from './review/service.ts';
 import { CreationService } from './service.ts';
 
@@ -34,7 +33,6 @@ export class CreationApplication {
   private readonly service: CreationService;
   private readonly review: ReviewService;
   private readonly agent: CreationAgentService;
-  private readonly delivery: DeliveryService;
   private readonly trash: TrashService;
   private readonly workTrash: WorkTrashService;
   private readonly workPackages: WorkPackageService;
@@ -43,8 +41,7 @@ export class CreationApplication {
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
-    this.delivery = new DeliveryService(repository, this.service);
-    this.review = new ReviewService(repository, this.service, this.delivery);
+    this.review = new ReviewService(repository, this.service);
     this.trash = new TrashService(repository, this.service, this.review);
     this.workTrash = new WorkTrashService(repository, this.service, this.review);
     this.workPackages = new WorkPackageService(repository, this.service, this.review);
@@ -54,10 +51,9 @@ export class CreationApplication {
       repository,
       this.service,
       this.review,
-      this.delivery,
       this.trash,
-      new AgentRecordService(repository, this.service, this.review, this.delivery),
-      new AgentRelationService(repository, this.service, this.review, this.delivery)
+      new AgentRecordService(repository, this.service, this.review),
+      new AgentRelationService(repository, this.service, this.review)
     );
   }
 
@@ -219,20 +215,14 @@ export class CreationApplication {
         return this.service.snapshot(command.input.workId);
       case 'readChanges':
         return this.service.readChanges(command.input.cursor, command.input.limit);
-      case 'readCurrentDelivery':
-        return this.delivery.current(command.input.sessionId);
-      case 'readDeliveryGroup':
-        return this.delivery.read(command.input.groupId);
-      case 'readDeliveryContents':
-        return this.delivery.contents(command.input.groupId);
-      case 'continueDelivery':
-        return this.delivery.continue(command.input);
-      case 'endDelivery':
-        return this.delivery.end(command.input);
-      case 'listDeliveries':
-        return this.review.deliveries(command.input.sessionId);
-      case 'decideDelivery':
-        return this.review.decideDelivery(command.input);
+      case 'listReviewItems':
+        return this.review.items(command.input.sessionId);
+      case 'listReviewResults':
+        return this.review.listResults(command.input.sessionId);
+      case 'reportReviewResults':
+        return this.review.reportResults(command.input.sessionId, command.input.resultIds);
+      case 'decidePending':
+        return this.review.decidePending(command.input);
       case 'listPendingChanges':
         return this.review.list(command.input.workId, command.input.sessionId);
       case 'readReview':

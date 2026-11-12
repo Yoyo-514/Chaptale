@@ -10,9 +10,9 @@ import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi } from '@/utils/desktop-api';
 
-import DeliveryCard from './components/DeliveryCard.vue';
 import MessageComposer from './components/MessageComposer.vue';
 import MessageList from './components/MessageList.vue';
+import PendingReviewCard from './components/PendingReviewCard.vue';
 import SessionHistory from './components/SessionHistory.vue';
 import SessionSettings from './components/SessionSettings.vue';
 import { type SessionEntry, useAgentStore } from './store';
@@ -66,12 +66,6 @@ watch(
     review.viewingSessionId = id;
   },
   { immediate: true }
-);
-watch(
-  () => agent.active?.delivery?.group.version,
-  () => {
-    if (review.viewingSessionId) void review.refreshDeliveries(review.viewingSessionId);
-  }
 );
 function trackScroll() {
   const element = body.value!;
@@ -284,7 +278,7 @@ function approve(id: string, allow: boolean) {
           />
         </div>
       </div>
-      <DeliveryCard v-if="agent.active" />
+      <PendingReviewCard v-if="agent.active" />
       <MessageComposer />
     </template>
     <p v-if="error" role="alert" class="agent-error agent-panel-error">{{ error }}</p>

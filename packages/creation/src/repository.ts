@@ -1,5 +1,7 @@
 import type {
-  DeliveryGroup,
+  ReviewBatchIntent,
+  ReviewIntent,
+  ReviewResult,
   CreationChanges,
   CreationCursor,
   CreationEvent,
@@ -12,8 +14,6 @@ import type {
   EntrySnapshot,
   RecoveryDraft,
   PendingChange,
-  DecideReviewInput,
-  DecideDeliveryInput,
   RecordSnapshot,
   RelationSnapshot,
   StoryRelation,
@@ -36,7 +36,7 @@ export type CommitEffect =
   | { kind: 'entry' }
   | { kind: 'entries' }
   | { kind: 'review' }
-  | { kind: 'delivery' }
+  | { kind: 'reviewBatch'; sessionId: string }
   | { kind: 'record'; removed: boolean }
   | { kind: 'records' }
   | { kind: 'relation'; removed: boolean }
@@ -47,7 +47,7 @@ export type CommitResult =
   | Entry
   | Entry[]
   | PendingChange
-  | DeliveryGroup
+  | { sessionId: string; count: number }
   | StoryRecord
   | StoryRelation
   | { count: number };
@@ -78,7 +78,7 @@ export interface CommandCommit<T> {
   fresh: boolean;
 }
 
-/** 本机库 library.sqlite：作品列表、会话归属、工作台、待审修改、交付进度、提交意图与恢复草稿。 */
+/** 本机库 library.sqlite：作品列表、会话归属、工作台、待审修改、处理结果、提交意图与恢复草稿。 */
 export interface LibraryRepository {
   /** 回调同步执行，内部读写共用本机库事务。 */
   transaction<T>(apply: () => T): T;
@@ -93,7 +93,7 @@ export interface LibraryRepository {
   getTrashedWork(workId: string): TrashedWork | undefined;
   trashWork(workId: string, now: number): void;
   restoreWork(workId: string): void;
-  /** 删除作品库中该作品的记录与查看位置，待审修改移出交付组。 */
+  /** 删除作品库中该作品的记录与查看位置，清除对应审阅进度。 */
   purgeWork(workId: string): void;
 
   readSessionState(): SessionState;
@@ -102,21 +102,19 @@ export interface LibraryRepository {
   readWorkbench(): WorkbenchState;
   writeWorkbench(state: WorkbenchState): void;
 
-  getCurrentDelivery(sessionId: string): DeliveryGroup | undefined;
-  /** 按新到旧排列。 */
-  listDeliveryGroups(sessionId: string): DeliveryGroup[];
-  getDeliveryGroup(id: string): DeliveryGroup | undefined;
-  putDeliveryGroup(group: DeliveryGroup): void;
+  putReviewResult(result: ReviewResult): void;
+  listReviewResults(sessionId: string): ReviewResult[];
+  reportReviewResults(sessionId: string, resultIds: string[]): void;
 
   getPendingChange(id: string): PendingChange | undefined;
   listPendingChanges(workId: string | null, sessionId: string | null): PendingChange[];
   putPendingChange(change: PendingChange): void;
-  putReviewIntent(input: DecideReviewInput): void;
-  listReviewIntents(): DecideReviewInput[];
+  putReviewIntent(intent: ReviewIntent): void;
+  listReviewIntents(): ReviewIntent[];
   clearReviewIntent(commandId: string): void;
-  putDeliveryIntent(input: DecideDeliveryInput): void;
-  listDeliveryIntents(): DecideDeliveryInput[];
-  clearDeliveryIntent(commandId: string): void;
+  putReviewBatchIntent(intent: ReviewBatchIntent): void;
+  listReviewBatchIntents(): ReviewBatchIntent[];
+  clearReviewBatchIntent(commandId: string): void;
 
   getDraftState(workId: string, documentId: string): DraftState;
   putDraft(draft: RecoveryDraft): void;

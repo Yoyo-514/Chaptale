@@ -5,12 +5,13 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { Type } from 'typebox';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
 import { builtinWritingInstructions, createHostModelRuntime, HostModelConfiguration } from '@chaptale/agent-host';
 import { createHostApplication, HostApplication } from '@chaptale/agent-host/application';
-import { type HistoryItem, modeEntryType } from '@chaptale/agent-host/protocol';
+import { type HistoryItem, modeEntryType, reviewResultsMessageType } from '@chaptale/agent-host/protocol';
 import { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult, EntrySnapshot, WorkReplacement } from '@chaptale/creation/contracts';
 import { openCreationStorage } from '@chaptale/storage';
@@ -965,16 +966,16 @@ async function ownSession() {
   })) as string;
 }
 
-async function observeContinuation(runtime: Awaited<ReturnType<typeof restartWithTools>>) {
+async function observeRequests(runtime: Awaited<ReturnType<typeof restartWithTools>>) {
   const requests: Array<{ messages: string; tools: string[] }> = [];
   runtime.registerProvider('offline-tools', {
     baseUrl: 'http://127.0.0.1:9',
     apiKey: 'offline-test-only',
-    api: 'offline-delivery',
+    api: 'offline-review-results',
     models: [
       {
         id: 'offline',
-        name: '离线继续检查',
+        name: '离线请求观察',
         contextWindow: 8192,
         maxTokens: 128,
         reasoning: false,
@@ -990,7 +991,7 @@ async function observeContinuation(runtime: Awaited<ReturnType<typeof restartWit
           message.role === 'system' ? (message.toolsAdded ?? []).map(tool => tool.name) : []
         )
       });
-      throw new Error('离线继续请求检查结束');
+      throw new Error('离线传输检查结束');
     }
   });
   await host.execute({ method: 'model', input: { id, model: { provider: 'offline-tools', id: 'offline' } } });
@@ -1046,7 +1047,7 @@ async function finishToolTurn(outcome: Awaited<ReturnType<typeof call>>) {
   });
 }
 
-it('重载后审阅模式写入不打断本轮，Agent 继续完成任务，结束后等待作者处理', async () => {
+it('审阅写入不打断本轮，完成本次请求后停下并保留候选', async () => {
   await host.liveSession(id)!.reload();
   const writing = await call('work_write', {
     workId,
@@ -1056,258 +1057,140 @@ it('重载后审阅模式写入不打断本轮，Agent 继续完成任务，结�
   });
   expect(writing.isError).toBe(false);
   expect(await finishToolTurn(writing)).toBeUndefined();
-  expect(host.snapshot().sessions.find(session => session.id === id)?.waitingForReview).toBe(true);
   expect(pending()).toHaveLength(1);
   expect(read().revisionId).toBe(revisionId);
-  const reading = await call('work_read', { workId, entryId: documentId });
-  expect(reading.isError).toBe(false);
-  expect(await finishToolTurn(reading)).toBeUndefined();
-  expect(pending()).toHaveLength(1);
+  expect(host.snapshot().sessions.find(session => session.id === id)!.running).toBe(false);
 });
 
-it.each(['先停止', '决定后立即停止', '关闭会话'] as const)('%s后审阅清零保持停止，作者重新发起才继续', async timing => {
-  const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
-  expect(
-    (
-      await call('work_write', {
-        workId,
-        entryId: documentId,
-        expectedRevisionId: revisionId,
-        content: '实际接受的正文'
-      })
-    ).isError
-  ).toBe(false);
-  const session = host.liveSession(id)!;
-  session.sessionManager.appendMessage({ role: 'user', content: '稍后继续写作', timestamp: Date.now() });
-  const history = { file: session.sessionFile! };
-  if (timing === '决定后立即停止') decidePending('accept');
-  await host.execute({ method: timing === '关闭会话' ? 'close' : 'cancel', input: { id } });
-  if (timing !== '决定后立即停止') decidePending('accept');
-  await Promise.resolve();
-  expect(requests).toHaveLength(0);
-  if (timing === '关闭会话') id = (await host.execute({ method: 'open', input: history })) as string;
-  const view = () => host.snapshot().sessions.find(item => item.id === id)!;
-  expect(view().waitingForReview).toBeUndefined();
-  expect(view().running).toBe(false);
-  expect(read().content).toBe('实际接受的正文');
-  await host.execute({ method: 'prompt', input: { id, text: '继续余下任务' } });
-  await expect.poll(() => requests.length).toBe(1);
-  await expect.poll(() => view().running).toBe(false);
-  expect(requests[0].messages).toContain('实际接受的正文');
-});
+it.each(['先停止', '决定后立即停止', '关闭会话'] as const)(
+  '%s后作者决定保持空闲，下一条消息才交出结果',
+  async timing => {
+    const runtime = await restartWithTools([]);
+    const requests = await observeRequests(runtime);
+    expect(
+      (
+        await call('work_write', {
+          workId,
+          entryId: documentId,
+          expectedRevisionId: revisionId,
+          content: '实际接受的正文'
+        })
+      ).isError
+    ).toBe(false);
+    const session = host.liveSession(id)!;
+    session.sessionManager.appendMessage({ role: 'user', content: '稍后继续写作', timestamp: Date.now() });
+    const history = { file: session.sessionFile! };
+    if (timing === '决定后立即停止') decidePending('accept');
+    await host.execute({ method: timing === '关闭会话' ? 'close' : 'cancel', input: { id } });
+    if (timing !== '决定后立即停止') decidePending('accept');
+    expect(requests).toHaveLength(0);
+    if (timing === '关闭会话') id = (await host.execute({ method: 'open', input: history })) as string;
+    const view = () => host.snapshot().sessions.find(item => item.id === id)!;
+    expect(view().running).toBe(false);
+    await host.execute({ method: 'prompt', input: { id, text: '继续余下任务' } });
+    await expect.poll(() => requests.length).toBe(1);
+    await expect.poll(() => view().running).toBe(false);
+    expect(requests[0].messages).toContain('实际接受的正文');
+    expect(requests[0].messages.indexOf('作者已处理')).toBeLessThan(requests[0].messages.indexOf('继续余下任务'));
+  }
+);
 
-it('最后一处待审决定保存后自动续跑，延后的直接修改生效并发送正式内容', async () => {
+it('已有候选时切到直接修改立即生效，原候选留待作者审阅', async () => {
   const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
+  const requests = await observeRequests(runtime);
   expect(
     (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '待审正文' }))
       .isError
   ).toBe(false);
-  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
-  await expect.poll(() => view().delivery?.pendingCount).toBe(1);
-  const group = view().delivery!.group;
-  expect(group.status).toBe('pending');
-  expect(view().running).toBe(false);
   await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
-  expect(view()).toMatchObject({ mode: 'review', switchingTo: 'direct' });
+  const view = host.snapshot().sessions.find(session => session.id === id)!;
+  expect(view.mode).toBe('direct');
   expect(requests).toHaveLength(0);
-  decidePending('reject');
-  await expect.poll(() => requests.length).toBe(1);
-  await expect.poll(() => view().running).toBe(false);
-  expect(requests[0].messages).toContain('《序章》已拒绝');
-  expect(requests[0].messages).toContain('不要原样重做');
-  expect(requests[0].messages).toContain('将军守城');
-  expect(requests[0].messages).not.toContain('待审正文');
-  const messages = view().messages;
-  expect(messages.filter(message => message.role === 'reviewContinued')).toMatchObject([
-    { text: '作者已处理 1 处修改，任务继续', outcomes: ['《序章》已拒绝'] }
-  ]);
-  expect(messages.some(message => message.text.includes('处理后的正式内容'))).toBe(false);
-  expect(view().mode).toBe('direct');
-  expect(view().switchingTo).toBeUndefined();
   expect(
-    (
-      await call('work_write', {
-        workId,
-        entryId: documentId,
-        expectedRevisionId: read().revisionId,
-        content: '直接保存'
-      })
-    ).isError
+    (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '直接保存' }))
+      .isError
   ).toBe(false);
   expect(read().content).toBe('直接保存');
-  expect(pending()).toEqual([]);
+  expect(pending()).toHaveLength(1);
+  expect((pending()[0].candidate as EntrySnapshot).content).toBe('待审正文');
 });
 
-it('作者结束等待中的任务后立即应用延后切换，历史待审处理完也不自动续跑', async () => {
+it('部分正文已处理后随下一条消息送达，剩余候选继续待审；再次发送不重复插入结果', async () => {
   const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
+  const requests = await observeRequests(runtime);
   expect(
-    (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '待审正文' }))
-      .isError
+    (
+      await call('work_write', {
+        workId,
+        entryId: documentId,
+        expectedRevisionId: revisionId,
+        content: '将军出城。\n城外下雪。\n斥候远行。'
+      })
+    ).isError
   ).toBe(false);
-  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
-  await expect.poll(() => view().waitingForReview).toBe(true);
-  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
-  expect(view()).toMatchObject({ mode: 'review', switchingTo: 'direct' });
-  const group = view().delivery!.group;
+  const review = value(creation.executeAuthor({ method: 'readReview', input: { changeId: pending()[0].id } }));
   value(
     creation.executeAuthor({
-      method: 'endDelivery',
-      input: { commandId: randomUUID(), sessionId: group.sessionId, groupId: group.id, expectedVersion: group.version }
+      method: 'decideReview',
+      input: {
+        commandId: randomUUID(),
+        changeId: review.change.id,
+        expectedVersion: review.change.version,
+        expectedRevisionId: review.current!.revisionId,
+        expectedLocation: { parentId: null, position: 0 },
+        decision: 'accept',
+        range: { fromA: 0, toA: 5, fromB: 0, toB: 5 }
+      }
     })
   );
-  await expect.poll(() => view().mode).toBe('direct');
-  expect(view()).toMatchObject({ delivery: null });
-  expect(view().waitingForReview).toBeUndefined();
-  expect(view().switchingTo).toBeUndefined();
-  decidePending('accept');
-  await Promise.resolve();
   expect(requests).toHaveLength(0);
-  expect(view().running).toBe(false);
-  expect(read().content).toBe('待审正文');
-});
-
-it('部分接受与陈旧决定保持待审，最后拒绝剩余修改后只续跑一次', async () => {
-  const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
-  expect(
-    (
-      await call('work_write', {
-        workId,
-        entryId: documentId,
-        expectedRevisionId: revisionId,
-        content: '将军出城。\n城外下雨。\n斥候回营。'
-      })
-    ).isError
-  ).toBe(false);
-  const change = pending()[0];
-  const command = {
-    method: 'decideReview' as const,
-    input: {
-      commandId: randomUUID(),
-      changeId: change.id,
-      expectedVersion: change.version,
-      expectedRevisionId: revisionId,
-      expectedLocation: { parentId: null, position: 0 },
-      decision: 'accept' as const,
-      range: { fromA: 2, toA: 4, fromB: 2, toB: 4 }
-    }
-  };
-  value(creation.executeAuthor(command));
-  await Promise.resolve();
   expect(pending()).toHaveLength(1);
-  expect(read().content).toBe('将军出城。\n城外下雪。\n斥候回营。');
-  expect(requests).toHaveLength(0);
-  value(creation.executeAuthor(command));
-  expect(creation.executeAuthor({ ...command, input: { ...command.input, commandId: randomUUID() } })).toMatchObject({
-    ok: false
-  });
-  await Promise.resolve();
-  expect(requests).toHaveLength(0);
-  const final = decidePending('reject');
-  await expect.poll(() => requests.length).toBe(1);
-  await expect.poll(() => host.snapshot().sessions.find(session => session.id === id)?.running).toBe(false);
-  expect(requests[0].messages).toContain('《序章》作者逐处决定或手改过');
+  await host.execute({ method: 'prompt', input: { id, text: '解释余下的修改' } });
+  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
+  await expect.poll(() => view().running).toBe(false);
+  expect(requests).toHaveLength(1);
   expect(requests[0].messages).toContain('将军出城');
-  expect(requests[0].messages).toContain('城外下雪');
-  value(creation.executeAuthor(final));
-  await Promise.resolve();
-  expect(requests).toHaveLength(1);
-});
-
-it.each(['accept', 'reject'] as const)('多篇待审的最后一个决定为 %s，集中处理后只自动续跑一次', async lastDecision => {
-  const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
-  expect(
-    (
-      await call('work_write', {
-        workId,
-        entryId: documentId,
-        expectedRevisionId: revisionId,
-        content: '第三章正式新稿'
-      })
-    ).isError
-  ).toBe(false);
-  expect(
-    (
-      await call('work_write', {
-        workId,
-        parentId: null,
-        title: '人物',
-        section: 'resource',
-        format: 'markdown',
-        content: '副将随行的资料'
-      })
-    ).isError
-  ).toBe(false);
-  const changes = pending();
-  expect(changes).toHaveLength(2);
-  const body = changes.find(change => change.targetId === documentId)!;
-  const note = changes.find(change => change.targetId !== documentId)!;
-  const decisions = [decidePending('accept', body.id), decidePending(lastDecision, note.id)];
-  await expect.poll(() => requests.length).toBe(1);
-  await expect.poll(() => host.snapshot().sessions.find(session => session.id === id)?.running).toBe(false);
-  const group = value(creation.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: id } }))!;
-  expect(group.pendingCount).toBe(0);
-  const contents = value(
-    creation.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group.group.id } })
-  );
-  expect(contents.map(item => (item.snapshot as EntrySnapshot | null)?.content ?? null)).toEqual([
-    '第三章正式新稿',
-    lastDecision === 'accept' ? '副将随行的资料' : null
+  expect(view().messages.filter(message => message.role === 'reviewResults')).toMatchObject([
+    { text: '作者已处理 1 处修改' }
   ]);
-  for (const command of decisions) value(creation.executeAuthor(command));
-  await Promise.resolve();
-  expect(requests).toHaveLength(1);
+  expect(pending()).toHaveLength(1);
+  await host.execute({ method: 'prompt', input: { id, text: '再解释一下' } });
+  await expect.poll(() => view().running).toBe(false);
+  expect(requests).toHaveLength(2);
+  expect(view().messages.filter(message => message.role === 'reviewResults')).toHaveLength(1);
 });
 
-it('待审期间提问保留候选，补改更新同一组，最终接受后自动使用新稿续跑', async () => {
+it('拒绝片段与正式稿写入原生消息，界面只展示逐处摘要', async () => {
   const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
+  const requests = await observeRequests(runtime);
   expect(
     (
       await call('work_write', {
         workId,
         entryId: documentId,
         expectedRevisionId: revisionId,
-        content: '将军独自出城。'
+        content: '被拒绝的候选正文'
       })
     ).isError
   ).toBe(false);
-  const first = pending()[0];
-  const before = value(creation.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: id } }))!.group;
-  await host.execute({ method: 'prompt', input: { id, text: '为什么要独自出城？' } });
-  await expect.poll(() => requests.length).toBe(1);
-  await expect.poll(() => host.snapshot().sessions.find(session => session.id === id)?.running).toBe(false);
-  expect(requests[0].messages).toContain('为什么要独自出城');
-  expect(pending()[0]).toEqual(first);
-  expect(read().revisionId).toBe(revisionId);
-  const writing = await call('work_write', {
-    workId,
-    entryId: documentId,
-    expectedRevisionId: first.version,
-    content: '将军带副将一同出城。'
-  });
-  expect(writing.isError).toBe(false);
-  expect(await finishToolTurn(writing)).toBeUndefined();
-  const after = value(creation.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: id } }))!;
-  expect(after.group.id).toBe(before.id);
-  expect(after.pendingCount).toBe(1);
-  expect(pending()[0].version).not.toBe(first.version);
-  expect(read().revisionId).toBe(revisionId);
-  expect(requests).toHaveLength(1);
-  decidePending('accept');
-  await expect.poll(() => requests.length).toBe(2);
-  await expect.poll(() => host.snapshot().sessions.find(session => session.id === id)?.running).toBe(false);
-  expect(read().content).toBe('将军带副将一同出城。');
-  expect(requests[1].messages).toContain('将军带副将一同出城');
+  decidePending('reject');
+  expect(requests).toHaveLength(0);
+  await host.execute({ method: 'prompt', input: { id, text: '请说明刚才的建议' } });
+  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
+  await expect.poll(() => view().running).toBe(false);
+  expect(requests[0].messages).toContain('被拒绝的候选正文');
+  expect(requests[0].messages).toContain('不要原样重做');
+  expect(requests[0].messages).toContain('将军守城');
+  const notices = view().messages.filter(message => message.role === 'reviewResults');
+  expect(notices).toMatchObject([
+    { text: '作者已处理 1 处修改', outcomes: [{ id: expect.any(String), text: '《序章》·正文已拒绝' }] }
+  ]);
+  expect(view().messages.some(message => message.text.includes('各处决定与原文'))).toBe(false);
 });
 
-it('最后决定发生在提问请求期间时，等当前请求收尾后再自动续跑', async () => {
+it('自定义消息已写盘而本机送达进度失败，重开补进度并只保留一条结果消息', async () => {
   const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
+  const requests = await observeRequests(runtime);
   expect(
     (
       await call('work_write', {
@@ -1315,6 +1198,54 @@ it('最后决定发生在提问请求期间时，等当前请求收尾后再自�
         entryId: documentId,
         expectedRevisionId: revisionId,
         content: '实际接受的正文'
+      })
+    ).isError
+  ).toBe(false);
+  decidePending('accept');
+  const session = host.liveSession(id)!;
+  session.sessionManager.appendMessage({ role: 'user', content: '先前任务', timestamp: Date.now() });
+  const history = { file: session.sessionFile! };
+  const fault = new DatabaseSync(join(root, 'creation', 'library.sqlite'));
+  try {
+    fault.exec(
+      "CREATE TRIGGER fail_reporting BEFORE UPDATE ON review_results BEGIN SELECT RAISE(ABORT, '送达进度故障'); END"
+    );
+    await host.execute({ method: 'prompt', input: { id, text: '继续任务' } });
+    await expect.poll(() => host.snapshot().sessions.find(item => item.id === id)!.running).toBe(false);
+    expect(requests).toHaveLength(0);
+    expect(
+      session.sessionManager
+        .getBranch()
+        .filter(entry => entry.type === 'custom_message' && entry.customType === reviewResultsMessageType)
+    ).toHaveLength(1);
+    fault.exec('DROP TRIGGER fail_reporting');
+    await host.execute({ method: 'close', input: { id } });
+    id = (await host.execute({ method: 'open', input: history })) as string;
+    await host.execute({ method: 'prompt', input: { id, text: '重新继续任务' } });
+    await expect.poll(() => host.snapshot().sessions.find(item => item.id === id)!.running).toBe(false);
+    expect(requests).toHaveLength(1);
+    expect(
+      host
+        .liveSession(id)!
+        .sessionManager.getBranch()
+        .filter(entry => entry.type === 'custom_message' && entry.customType === reviewResultsMessageType)
+    ).toHaveLength(1);
+    expect(value(creation.executeAuthor({ method: 'listReviewResults', input: { sessionId: id } }))).toEqual([]);
+  } finally {
+    fault.close();
+  }
+});
+
+it('生成中插话使用SDK原生队列，结果在对应消息前入队，连续插话各自捕获快照', async () => {
+  const runtime = await restartWithTools([]);
+  const requests = await observeRequests(runtime);
+  expect(
+    (
+      await call('work_write', {
+        workId,
+        entryId: documentId,
+        expectedRevisionId: revisionId,
+        content: '将军出城。\n城外下雪。\n斥候远行。'
       })
     ).isError
   ).toBe(false);
@@ -1322,139 +1253,89 @@ it('最后决定发生在提问请求期间时，等当前请求收尾后再自�
   const send = session.agent.streamFunction;
   const entered = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
-  let holding = true;
-  // 只延迟传输入口，再交回真实 SDK；不生成模型回复。
   session.agent.streamFunction = async (...args) => {
-    if (holding) {
-      holding = false;
-      entered.resolve();
-      await release.promise;
-    }
+    entered.resolve();
+    await release.promise;
     return send(...args);
   };
-  const view = () => host.snapshot().sessions.find(item => item.id === id)!;
   try {
-    await host.execute({ method: 'prompt', input: { id, text: '解释这处修改' } });
+    await host.execute({ method: 'prompt', input: { id, text: '解释原建议' } });
     await entered.promise;
-    expect(view().running).toBe(true);
-    decidePending('accept');
-    await Promise.resolve();
-    expect(view().delivery).toMatchObject({ pendingCount: 0, group: { status: 'pending' } });
-    expect(requests).toHaveLength(0);
+    const change = pending()[0];
+    const review = value(creation.executeAuthor({ method: 'readReview', input: { changeId: change.id } }));
+    value(
+      creation.executeAuthor({
+        method: 'decideReview',
+        input: {
+          commandId: randomUUID(),
+          changeId: change.id,
+          expectedVersion: change.version,
+          expectedRevisionId: review.current!.revisionId,
+          expectedLocation: { parentId: null, position: 0 },
+          decision: 'accept',
+          range: { fromA: 0, toA: 5, fromB: 0, toB: 5 }
+        }
+      })
+    );
+    await host.execute({ method: 'prompt', input: { id, text: '第一条插话' } });
+    decidePending('reject');
+    await host.execute({ method: 'prompt', input: { id, text: '第二条插话' } });
+    expect(session.getSteeringMessages()).toEqual(['第一条插话', '第二条插话']);
     release.resolve();
-    await expect.poll(() => requests.length).toBe(2);
-    await expect.poll(() => view().running).toBe(false);
-    expect(requests[0].messages).toContain('解释这处修改');
-    expect(requests[1].messages).toContain('《序章》已接受');
-    expect(view().delivery?.group.status).toBe('continued');
+    await expect.poll(() => host.snapshot().sessions.find(item => item.id === id)!.running).toBe(false);
+    expect(requests).toHaveLength(3);
+    const resultMessages = session.sessionManager
+      .getBranch()
+      .filter(entry => entry.type === 'custom_message' && entry.customType === reviewResultsMessageType);
+    expect(resultMessages).toHaveLength(2);
+    expect(
+      resultMessages.map(entry => entry.type === 'custom_message' && (entry.details as { count: number }).count)
+    ).toEqual([1, 1]);
+    expect(JSON.stringify(resultMessages[0])).toContain('将军出城');
+    expect(JSON.stringify(resultMessages[0])).not.toContain('斥候远行');
+    expect(JSON.stringify(resultMessages[1])).toContain('斥候远行');
   } finally {
     release.resolve();
+    await expect.poll(() => host.snapshot().sessions.find(item => item.id === id)!.running).toBe(false);
     session.agent.streamFunction = send;
   }
 });
 
-it('重启后处理完待审保持停止，作者重新发起时携带正式快照并应用模式切换', async () => {
-  expect(
-    (
-      await call('work_write', {
-        workId,
-        entryId: documentId,
-        expectedRevisionId: revisionId,
-        content: '实际接受的正文'
-      })
-    ).isError
-  ).toBe(false);
-  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
-  const session = host.liveSession(id)!;
-  session.sessionManager.appendMessage({ role: 'user', content: '连续写三章', timestamp: Date.now() });
-  const history = { file: session.sessionFile! };
-  await host.execute({ method: 'close', input: { id } });
-  creation.close();
-  creation = new CreationApplication(await openCreationStorage({ rootDir: join(root, 'creation') }));
-  const runtime = await restartWithTools([], history);
-  const requests = await observeContinuation(runtime);
-  const view = () => host.snapshot().sessions.find(item => item.id === id)!;
-  expect(view()).toMatchObject({ mode: 'review', switchingTo: 'direct', delivery: { pendingCount: 1 } });
-  expect(view().waitingForReview).toBeUndefined();
-  const decision = decidePending('accept');
-  await Promise.resolve();
-  expect(requests).toHaveLength(0);
-  expect(view().running).toBe(false);
-  await host.execute({ method: 'prompt', input: { id, text: '继续写余下章节' } });
-  await expect.poll(() => requests.length).toBe(1);
-  await expect.poll(() => view().running).toBe(false);
-  expect(requests[0].messages).toContain('《序章》已接受');
-  expect(requests[0].messages).toContain('实际接受的正文');
-  expect(requests[0].messages).toContain('继续写余下章节');
-  expect(requests[0].tools).toContain('work_write');
-  expect(view().mode).toBe('direct');
-  expect(view().switchingTo).toBeUndefined();
-  value(creation.executeAuthor(decision));
-  await Promise.resolve();
-  expect(requests).toHaveLength(1);
-  await host.execute({ method: 'close', input: { id } });
-  id = (await host.execute({ method: 'open', input: history })) as string;
-  expect(view().mode).toBe('direct');
-  expect(view().waitingForReview).toBeUndefined();
-});
-
-it.each(['discuss', 'review'] as const)('撤回延后的直接修改到 %s，重开仍保持所选模式及待审内容', async mode => {
+it.each(['direct', 'discuss', 'review'] as const)('切换到%s立即生效，历史重开保持所选模式和待审候选', async mode => {
   expect(
     (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '待审正文' }))
       .isError
   ).toBe(false);
-  await host.execute({ method: 'mode', input: { id, mode: 'direct' } });
-  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
-  expect(view().switchingTo).toBe('direct');
   await host.execute({ method: 'mode', input: { id, mode } });
+  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
   expect(view().mode).toBe(mode);
-  expect(view().switchingTo).toBeUndefined();
   const session = host.liveSession(id)!;
-  session.sessionManager.appendMessage({ role: 'user', content: '稍后再处理这些修改', timestamp: Date.now() });
+  session.sessionManager.appendMessage({ role: 'user', content: '稍后继续', timestamp: Date.now() });
   const history = { file: session.sessionFile! };
   await host.execute({ method: 'close', input: { id } });
   id = (await host.execute({ method: 'open', input: history })) as string;
   expect(view().mode).toBe(mode);
-  expect(view().switchingTo).toBeUndefined();
-  expect((pending()[0].candidate as EntrySnapshot).content).toBe('待审正文');
+  expect(pending()).toHaveLength(1);
   expect(read().revisionId).toBe(revisionId);
 });
 
-it.each(['空身份', '错误类型', '错误模式', '缺少分组', '其他会话'] as const)(
-  '延后切换历史的%s只读打开并保留原文件',
-  async fault => {
-    expect(
-      (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '待审正文' }))
-        .isError
-    ).toBe(false);
-    const group = value(creation.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: id } }))!.group;
-    if (fault === '其他会话')
-      id = (await host.execute({
-        method: 'create',
-        input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
-      })) as string;
-    const session = host.liveSession(id)!;
-    session.sessionManager.appendCustomEntry(modeEntryType, {
-      mode: fault === '错误模式' ? 'direct' : 'review',
-      directAfterGroupId:
-        fault === '空身份' ? ' ' : fault === '错误类型' ? 17 : fault === '缺少分组' ? randomUUID() : group.id
-    });
-    session.sessionManager.appendMessage({ role: 'user', content: '检查历史记录', timestamp: Date.now() });
-    const history = { file: session.sessionFile! };
-    await host.execute({ method: 'close', input: { id } });
-    const original = await readFile(history.file, 'utf8');
-    id = (await host.execute({ method: 'open', input: history })) as string;
-    const view = host.snapshot().sessions.find(item => item.id === id)!;
-    expect(view.readonly).toMatchObject({ reason: 'damaged' });
-    expect(host.liveSession(id)).toBeUndefined();
-    await expect(host.execute({ method: 'prompt', input: { id, text: '继续' } })).rejects.toThrow('只读历史');
-    expect(await readFile(history.file, 'utf8')).toBe(original);
-  }
-);
+it.each(['', 'unknown', 17] as const)('无效模式记录%s只读打开，原始历史保持原样', async mode => {
+  const session = host.liveSession(id)!;
+  session.sessionManager.appendCustomEntry(modeEntryType, { mode });
+  session.sessionManager.appendMessage({ role: 'user', content: '检查历史记录', timestamp: Date.now() });
+  const history = { file: session.sessionFile! };
+  await host.execute({ method: 'close', input: { id } });
+  const original = await readFile(history.file, 'utf8');
+  id = (await host.execute({ method: 'open', input: history })) as string;
+  expect(host.snapshot().sessions.find(item => item.id === id)!.readonly).toMatchObject({ reason: 'damaged' });
+  expect(host.liveSession(id)).toBeUndefined();
+  await expect(host.execute({ method: 'prompt', input: { id, text: '继续' } })).rejects.toThrow('只读历史');
+  expect(await readFile(history.file, 'utf8')).toBe(original);
+});
 
 it('删除会话时拒绝其全部待审修改、清除查看位置、关闭会话，并返回待移入回收站的历史文件', async () => {
   const runtime = await restartWithTools([]);
-  await observeContinuation(runtime);
+  await observeRequests(runtime);
   const edited = await call('work_edit', {
     workId,
     entryId: documentId,
@@ -1502,7 +1383,7 @@ it('删除会话时拒绝其全部待审修改、清除查看位置、关闭会�
 
 it('删除作品时属于它的会话在运行则拒绝；停止后移入作品库回收站、关闭会话，历史仍在作品的会话目录', async () => {
   const runtime = await restartWithTools([]);
-  await observeContinuation(runtime);
+  await observeRequests(runtime);
   await ownSession();
   const edited = await call('work_edit', {
     workId,
@@ -1543,7 +1424,7 @@ it('删除作品时属于它的会话在运行则拒绝；停止后移入作品�
 });
 
 it('归入作品移动历史文件并重新打开；运行中拒绝，尚未写盘与已归属的会话不能归入', async () => {
-  await observeContinuation(await restartWithTools([]));
+  await observeRequests(await restartWithTools([]));
   const sessions = join(root, 'sessions');
   const draft = (await host.execute({
     method: 'create',
@@ -1604,7 +1485,7 @@ it('永久删除作品时关闭其会话，作品目录与会话目录一并交�
 
 it('覆盖导入与恢复导入前版本：属于作品的会话在运行则拒绝；停止后替换内容并关闭会话', async () => {
   const runtime = await restartWithTools([]);
-  await observeContinuation(runtime);
+  await observeRequests(runtime);
   await ownSession();
   const path = join(await mkdtemp(join(tmpdir(), 'chaptale-package-')), '作品.chaptale');
   value(await creation.execute({ method: 'exportWorkPackage', input: { workId, path } }));
@@ -1835,7 +1716,7 @@ it('直接修改模式下事件生成正式修订，未提供出处与发生位�
   expect(value(structured(await call('work_record_ls', { workId })))).toEqual([]);
 });
 
-it('讨论模式拒绝事件写入，处理完事件候选后续跑消息带上事件结果', async () => {
+it('讨论模式拒绝事件写入，下一条作者消息携带事件处理结果', async () => {
   const nestedRecord = defineTool({
     name: 'nested_record',
     label: '嵌套事件写入',
@@ -1847,7 +1728,7 @@ it('讨论模式拒绝事件写入，处理完事件候选后续跑消息带上�
     }
   });
   const runtime = await restartWithTools([nestedRecord]);
-  const requests = await observeContinuation(runtime);
+  const requests = await observeRequests(runtime);
   const resourceId = value(
     creation.executeAuthor({
       method: 'createEntry',
@@ -1878,17 +1759,18 @@ it('讨论模式拒绝事件写入，处理完事件候选后续跑消息带上�
   await host.execute({ method: 'mode', input: { id, mode: 'review' } });
   await load('work_record_write');
   expect((await call('work_record_write', input)).isError).toBe(false);
-  const view = () => host.snapshot().sessions.find(session => session.id === id)!;
-  await expect.poll(() => view().delivery?.pendingCount).toBe(1);
+  expect(pending()).toHaveLength(1);
   decidePending('reject');
+  expect(requests).toHaveLength(0);
+  await host.execute({ method: 'prompt', input: { id, text: '继续讨论这条事件' } });
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0].messages).toContain('事件“沈霁守城”已拒绝');
-  expect(requests[0].messages).toContain('"recordId"');
+  expect(requests[0].messages).toContain('targetId');
 });
 
-it('审阅模式改写章节后，事件出处可用读到的待接受版本；拒绝正文后事件随之拒绝，续跑消息说明原因', async () => {
+it('审阅模式改写章节后，事件出处可用读到的待接受版本；拒绝正文后事件随之拒绝，下一条作者消息说明原因', async () => {
   const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
+  const requests = await observeRequests(runtime);
   await load('work_record');
   const resourceId = await createResource('沈霁');
   expect(
@@ -1909,13 +1791,15 @@ it('审阅模式改写章节后，事件出处可用读到的待接受版本；�
   decidePending('reject', pending().find(change => change.targetId === documentId)!.id);
   expect(pending()).toMatchObject([{ targetId: resourceId }]);
   decidePending('reject');
+  expect(requests).toHaveLength(0);
+  await host.execute({ method: 'prompt', input: { id, text: '解释刚才拒绝的结果' } });
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0].messages).toContain('作者拒绝了来源正文');
 });
 
 it('tool_search 加载的工具随历史重开保留，下一次请求不撤下', async () => {
   const runtime = await restartWithTools([]);
-  const requests = await observeContinuation(runtime);
+  const requests = await observeRequests(runtime);
   await load('work_record');
   await host.execute({ method: 'prompt', input: { id, text: '列出事件' } });
   await expect.poll(() => requests.length).toBe(1);

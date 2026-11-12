@@ -368,11 +368,8 @@ it('出处章节删除时拒绝出自该章的事件与关系候选，续跑结�
   expect(
     value(fixture.app.executeAuthor({ method: 'listPendingChanges', input: { workId, sessionId: null } }))
   ).toEqual([]);
-  const group = value(
-    fixture.app.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: fixture.context.sessionId } })
-  );
   const contents = value(
-    fixture.app.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group!.group.id } })
+    fixture.app.executeAuthor({ method: 'listReviewResults', input: { sessionId: fixture.context.sessionId } })
   );
   expect(contents).toEqual([expect.objectContaining({ targetId: written.change.targetId, decision: 'sourceDeleted' })]);
 });

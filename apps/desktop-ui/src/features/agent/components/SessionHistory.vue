@@ -103,8 +103,8 @@ async function askRemove(entries: SessionEntry[]) {
   }
   agent.error = '';
   const ids = entries.map(sessionId).filter(id => id !== null);
-  const lists = await Promise.all(ids.map(id => requestCreation('listDeliveries', { sessionId: id })));
-  removingPending.value = lists.flat().reduce((sum, summary) => sum + summary.items.length, 0);
+  const lists = await Promise.all(ids.map(id => requestCreation('listReviewItems', { sessionId: id })));
+  removingPending.value = lists.flat().reduce((sum, item) => sum + item.count, 0);
   removing.value = entries;
   confirmOpen.value = true;
 }

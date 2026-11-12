@@ -2,9 +2,9 @@ import type Database from 'better-sqlite3';
 
 import type { LibraryRepository } from '@chaptale/creation';
 import type {
-  DecideDeliveryInput,
-  DecideReviewInput,
-  DeliveryGroup,
+  ReviewBatchIntent,
+  ReviewIntent,
+  ReviewResult,
   DraftState,
   PendingChange,
   RecoveryDraft,
@@ -91,21 +91,15 @@ export class SqliteLibraryRepository implements LibraryRepository {
   }
 
   purgeWork(workId: string): void {
-    const changeIds = new Set(
-      (this.database.prepare('SELECT id FROM pending_changes WHERE workId = ?').all(workId) as { id: string }[]).map(
-        row => row.id
+    this.database
+      .prepare(
+        "DELETE FROM review_intents WHERE json_extract(input, '$.input.changeId') IN (SELECT id FROM pending_changes WHERE workId = ?)"
       )
-    );
-    const groups = this.database.prepare('SELECT id, value FROM delivery_groups').all() as {
-      id: string;
-      value: string;
-    }[];
-    const update = this.database.prepare('UPDATE delivery_groups SET value = ? WHERE id = ?');
-    for (const row of groups) {
-      const group = JSON.parse(row.value) as DeliveryGroup;
-      if (!group.changeIds.some(id => changeIds.has(id))) continue;
-      update.run(JSON.stringify({ ...group, changeIds: group.changeIds.filter(id => !changeIds.has(id)) }), row.id);
-    }
+      .run(workId);
+    this.database
+      .prepare("DELETE FROM review_batch_intents WHERE json_extract(input, '$.input.workId') = ?")
+      .run(workId);
+    this.database.prepare('DELETE FROM review_results WHERE workId = ?').run(workId);
     this.database.prepare('DELETE FROM pending_changes WHERE workId = ?').run(workId);
     this.database.prepare('DELETE FROM recovery_drafts WHERE workId = ?').run(workId);
     this.database.prepare('DELETE FROM session_selections WHERE scopeId = ?').run(workId);
@@ -132,8 +126,10 @@ export class SqliteLibraryRepository implements LibraryRepository {
 
   forgetSessions(sessionIds: string[]): void {
     const clear = this.database.prepare('UPDATE session_selections SET sessionId = NULL WHERE sessionId = ?');
+    const results = this.database.prepare('DELETE FROM review_results WHERE sessionId = ?');
     for (const sessionId of sessionIds) {
       clear.run(sessionId);
+      results.run(sessionId);
     }
   }
 
@@ -152,33 +148,22 @@ export class SqliteLibraryRepository implements LibraryRepository {
       .run(JSON.stringify(state));
   }
 
-  getCurrentDelivery(sessionId: string): DeliveryGroup | undefined {
-    const row = this.database
-      .prepare('SELECT value FROM delivery_groups WHERE sessionId = ? ORDER BY sequence DESC LIMIT 1')
-      .get(sessionId) as { value: string } | undefined;
-    return row ? (JSON.parse(row.value) as DeliveryGroup) : undefined;
-  }
-
-  listDeliveryGroups(sessionId: string): DeliveryGroup[] {
-    const rows = this.database
-      .prepare('SELECT value FROM delivery_groups WHERE sessionId = ? ORDER BY sequence DESC')
-      .all(sessionId) as { value: string }[];
-    return rows.map(row => JSON.parse(row.value) as DeliveryGroup);
-  }
-
-  getDeliveryGroup(id: string): DeliveryGroup | undefined {
-    const row = this.database.prepare('SELECT value FROM delivery_groups WHERE id = ?').get(id) as
-      | { value: string }
-      | undefined;
-    return row ? (JSON.parse(row.value) as DeliveryGroup) : undefined;
-  }
-
-  putDeliveryGroup(group: DeliveryGroup): void {
+  putReviewResult(result: ReviewResult): void {
     this.database
-      .prepare(
-        'INSERT INTO delivery_groups (id, sessionId, value) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET value = excluded.value'
-      )
-      .run(group.id, group.sessionId, JSON.stringify(group));
+      .prepare('INSERT OR IGNORE INTO review_results (id, workId, sessionId, value) VALUES (?, ?, ?, ?)')
+      .run(result.id, result.workId, result.sessionId, JSON.stringify(result));
+  }
+  listReviewResults(sessionId: string): ReviewResult[] {
+    const rows = this.database
+      .prepare('SELECT value FROM review_results WHERE sessionId = ? AND reported = 0 ORDER BY sequence')
+      .all(sessionId) as { value: string }[];
+    return rows.map(row => JSON.parse(row.value) as ReviewResult);
+  }
+  reportReviewResults(sessionId: string, resultIds: string[]): void {
+    this.transaction(() => {
+      const update = this.database.prepare('UPDATE review_results SET reported = 1 WHERE sessionId = ? AND id = ?');
+      for (const id of resultIds) update.run(sessionId, id);
+    });
   }
 
   getPendingChange(id: string): PendingChange | undefined {
@@ -190,23 +175,23 @@ export class SqliteLibraryRepository implements LibraryRepository {
   putPendingChange(change: PendingChange): void {
     reviews.putPendingChange(this.database, change);
   }
-  putReviewIntent(input: DecideReviewInput): void {
+  putReviewIntent(input: ReviewIntent): void {
     reviews.putIntent(this.database, 'review_intents', input);
   }
-  listReviewIntents(): DecideReviewInput[] {
+  listReviewIntents(): ReviewIntent[] {
     return reviews.listIntents(this.database, 'review_intents');
   }
   clearReviewIntent(commandId: string): void {
     reviews.clearIntent(this.database, 'review_intents', commandId);
   }
-  putDeliveryIntent(input: DecideDeliveryInput): void {
-    reviews.putIntent(this.database, 'delivery_intents', input);
+  putReviewBatchIntent(input: ReviewBatchIntent): void {
+    reviews.putIntent(this.database, 'review_batch_intents', input);
   }
-  listDeliveryIntents(): DecideDeliveryInput[] {
-    return reviews.listIntents(this.database, 'delivery_intents');
+  listReviewBatchIntents(): ReviewBatchIntent[] {
+    return reviews.listIntents(this.database, 'review_batch_intents');
   }
-  clearDeliveryIntent(commandId: string): void {
-    reviews.clearIntent(this.database, 'delivery_intents', commandId);
+  clearReviewBatchIntent(commandId: string): void {
+    reviews.clearIntent(this.database, 'review_batch_intents', commandId);
   }
 
   getDraftState(workId: string, documentId: string): DraftState {

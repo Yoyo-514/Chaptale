@@ -1,5 +1,5 @@
 import type { RpcClient, RpcCommand, RpcPacket, RpcReply, RpcRequest } from '@chaptale/contracts';
-import type { DeliveryView, ImportWorkPackageInput, Work, WorkReplacement } from '@chaptale/creation/contracts';
+import type { ImportWorkPackageInput, Work, WorkReplacement } from '@chaptale/creation/contracts';
 
 /**
  * 原生 JSONL 中保存会话指令与修改模式的自定义记录类型。
@@ -7,7 +7,7 @@ import type { DeliveryView, ImportWorkPackageInput, Work, WorkReplacement } from
  */
 export const instructionsEntryType = 'chaptale-agent-instructions';
 export const modeEntryType = 'chaptale-edit-mode';
-export const reviewContinuationMessageType = 'chaptale-review-continued';
+export const reviewResultsMessageType = 'chaptale-review-results';
 
 /** 讨论禁止写入作品；审阅生成待接受修改；直接修改保存正式修订。 */
 export const editModes = ['discuss', 'review', 'direct'] as const;
@@ -90,7 +90,7 @@ export interface DiscoveredModel {
   name: string;
 }
 export interface ChatMessage {
-  /** pi 消息角色；`compactionSummary` 为会话压缩总结，`reviewContinued` 为审阅后续跑提示，text 是显示文字。 */
+  /** pi 消息角色；`compactionSummary` 为会话压缩总结，`reviewResults` 为作者的逐处处理结果，text 是显示文字。 */
   role: string;
   text: string;
   thinking: string;
@@ -99,8 +99,8 @@ export interface ChatMessage {
   error?: boolean;
   /** 已被压缩总结代替、不再发送给模型的消息，界面仍可查看。 */
   compacted?: boolean;
-  /** reviewContinued 的逐条处理结果，如“《第一章》已拒绝”。 */
-  outcomes?: string[];
+  /** reviewResults 的逐条处理结果，如“《第一章》已拒绝”。 */
+  outcomes?: { id: string; text: string }[];
 }
 /** pi 记录的累计用量；供应商未报告的项目可能记为 0。 */
 export interface SessionUsage {
@@ -128,11 +128,6 @@ export interface SessionView {
   /** 只读历史缺少记录时为空列表。 */
   instructions: AgentInstructions;
   mode?: EditMode;
-  /** 请求直接修改后，当前待审清零并恢复任务时生效。 */
-  switchingTo?: 'direct';
-  delivery?: DeliveryView | null;
-  /** 仅本次等待审阅的任务在待审清零后自动续跑；停止与重开清除此资格。 */
-  waitingForReview?: boolean;
   messages: ChatMessage[];
   /** 可继续的会话从原生 SDK 读取；只读历史不计算用量。 */
   usage?: SessionUsage;

@@ -12,7 +12,7 @@ import {
   type SessionView
 } from '../protocol.ts';
 import { messageView, transcriptView } from './message-view.ts';
-import { ReviewFlow } from './review-flow.ts';
+import { SessionReviewResults } from './review-results.ts';
 import { workWriteToolNames } from './work-tools/index.ts';
 
 /** 当前请求使用的指令；创建会话前交给 SDK 回调，之后在每次发送前更新。 */
@@ -40,15 +40,14 @@ export class LiveSession {
   private readonly unsubscribe: () => void;
   private cancelled = false;
   private operation?: Promise<void>;
-  private readonly unsubscribeCreation?: () => void;
-  private readonly review: ReviewFlow;
+  private readonly reviewResults?: SessionReviewResults;
 
   constructor(
     session: AgentSession,
     applied: AppliedInstructions,
     mode: EditMode,
     emit: (change: HostChange) => void,
-    options: { workId: string | null; creation?: CreationApplication; directAfterGroupId?: string }
+    options: { workId: string | null; creation?: CreationApplication }
   ) {
     this.session = session;
     this.applied = applied;
@@ -67,26 +66,9 @@ export class LiveSession {
       messages: transcriptView(session.sessionManager)
     };
     this.view.usage = this.usage();
-    this.review = new ReviewFlow(this.view, mode, options);
-    this.review.refresh();
+    if (options.creation) this.reviewResults = new SessionReviewResults(session, options.creation);
     this.syncWorkTools();
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
-    this.unsubscribeCreation = options.creation?.subscribe(event => {
-      const sessionId =
-        event.change.kind === 'review'
-          ? event.change.change.sessionId
-          : event.change.kind === 'delivery'
-            ? event.change.group.sessionId
-            : undefined;
-      if (sessionId !== this.view.sessionId) return;
-      try {
-        this.refreshReview();
-        this.resumeReviewed();
-      } catch (error) {
-        this.view.error = error instanceof Error ? error.message : String(error);
-      }
-      this.emit({ kind: 'session', session: this.view });
-    });
   }
 
   async prompt(text: string): Promise<void> {
@@ -96,15 +78,17 @@ export class LiveSession {
     if (view.running) {
       // 重载与停止尚未进入可插话的生成阶段，拒收后由界面把该消息标为发送失败。
       if (this.cancelled || !this.session.isStreaming) throw new Error('会话正在启动或停止，请稍后再发送');
+      const results = this.reviewResults?.prepare();
+      if (results) await this.session.sendCustomMessage(results, { triggerTurn: false });
       await this.session.steer(text);
       return;
     }
-    const continuation = this.review.beforePrompt();
-    // 继续进度可能让延后的直接修改生效。
-    this.syncWorkTools();
-    if (view.waitingForReview) this.emit({ kind: 'session', session: view });
+    const results = this.reviewResults?.prepare();
     this.launch(async () => {
-      if (continuation) await this.session.sendCustomMessage(continuation, { triggerTurn: false });
+      if (results) {
+        await this.session.sendCustomMessage(results, { triggerTurn: false });
+        this.reviewResults!.acknowledge();
+      }
       await this.session.prompt(text);
     });
   }
@@ -132,7 +116,7 @@ export class LiveSession {
         view.running = false;
         this.emitRunning();
         try {
-          this.resumeReviewed();
+          this.reviewResults?.acknowledge();
         } catch (error) {
           view.error = error instanceof Error ? error.message : String(error);
           this.emit({ kind: 'session', session: view });
@@ -172,7 +156,6 @@ export class LiveSession {
   /** 取消当前运行并等待它结束；会话仍可继续使用。 */
   async stop(): Promise<void> {
     this.cancelled = true;
-    this.review.clearWaiting();
     this.emit({ kind: 'session', session: this.view });
     await this.session.abort();
     await this.operation;
@@ -193,34 +176,13 @@ export class LiveSession {
     this.emit({ kind: 'session', session: this.view });
   }
 
-  /** 延后切换只记录选择；待审处理完成并恢复任务时按持久化进度生效。 */
+  /** 切换立即作用于后续作品写入；已开始的单次保存沿用其调用时模式。 */
   setMode(mode: EditMode): void {
-    this.session.sessionManager.appendCustomEntry(modeEntryType, this.review.select(mode));
-    this.review.refresh();
+    this.session.sessionManager.appendCustomEntry(modeEntryType, { mode });
+    this.view.mode = mode;
     this.syncWorkTools();
     this.emit({ kind: 'session', session: this.view });
   }
-
-  /** 只有本次工具写入或作者重新发起的任务获得自动续跑资格；打开历史只读取进度。 */
-  reviewWritten(): void {
-    if (this.cancelled) return;
-    this.refreshReview();
-    if (!this.review.written()) return;
-    this.emit({ kind: 'session', session: this.view });
-  }
-
-  private refreshReview(): void {
-    if (this.review.refresh()) this.syncWorkTools();
-  }
-
-  private resumeReviewed(): void {
-    if (this.cancelled) return;
-    const continuation = this.review.resume();
-    if (!continuation) return;
-    this.syncWorkTools();
-    this.launch(() => this.session.sendCustomMessage(continuation, { triggerTurn: true }));
-  }
-
   /** 讨论模式撤下全部作品写工具（包括 tool_search 加载的）；其他模式补回常驻写工具，保留已加载的工具。 */
   syncWorkTools(): void {
     const active = this.session.getActiveToolNames();
@@ -246,7 +208,6 @@ export class LiveSession {
   /** 停止转发事件；原生会话由会话池释放。 */
   detach(): void {
     this.unsubscribe();
-    this.unsubscribeCreation?.();
   }
 
   private emitRunning(): void {

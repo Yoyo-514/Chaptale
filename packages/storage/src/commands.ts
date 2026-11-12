@@ -6,7 +6,6 @@ import type {
   CreationChanges,
   CreationCursor,
   CreationEvent,
-  DeliveryGroup,
   Entry,
   PendingChange,
   StoryRecord,
@@ -77,7 +76,7 @@ function changeFrom(effect: CommitEffect, result: CommitResult): CreationEvent['
   if (effect.kind === 'work') return { kind: 'work', work: result as Work };
   if (effect.kind === 'library') return { kind: 'library', work: result as Work };
   if (effect.kind === 'review') return { kind: 'review', change: result as PendingChange };
-  if (effect.kind === 'delivery') return { kind: 'delivery', group: result as DeliveryGroup };
+  if (effect.kind === 'reviewBatch') return { kind: 'reviewBatch', sessionId: effect.sessionId };
   if (effect.kind === 'entries') return { kind: 'entries', entries: result as Entry[] };
   if (effect.kind === 'record') return { kind: 'record', record: result as StoryRecord, removed: effect.removed };
   if (effect.kind === 'records') return { kind: 'records' };

@@ -1,3 +1,4 @@
+import { getChunks } from '@codemirror/merge';
 import { flushPromises, mount } from '@vue/test-utils';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -122,9 +123,20 @@ it('Agent 写入后审阅标签在后台打开；作者正在看该会话且焦�
   expect(review.activeId).toBe(tabKey());
   expect(review.activeTab?.review?.candidate.content).toBe('将军出征。\n公主回宫。\n夜深。');
   await flushPromises();
-  expect(review.summaries[context.sessionId]?.[0]?.items.map(item => 'title' in item && item.title)).toEqual(['序章']);
+  expect(review.summaries[context.sessionId]?.map(item => 'title' in item && item.title)).toEqual(['序章']);
 });
 
+it.each([
+  '将军出征。\n公主远行。\n天明。',
+  '将军守城。\n公主远行。\n夜深。\n追加。',
+  '将军守城。\n夜深。',
+  '将军行至城外。\n公主远行。\n夜深。'
+])('浮卡计数与编辑器实际正文审阅块一致：%s', async content => {
+  review.viewingSessionId = context.sessionId;
+  propose(content);
+  await flushPromises();
+  expect(review.summaries[context.sessionId][0].count).toBe(getChunks(review.getState(tabKey())!)!.chunks.length);
+});
 it('逐块接受只写入该处，候选其余部分继续待审；拒绝最后一处后标签关闭', async () => {
   propose('将军出征。\n公主远行。\n天明。');
   await flushPromises();
@@ -163,25 +175,18 @@ it('手改候选保存后成为新候选，未保存时不能关闭标签', asyn
   expect(formal().content).toBe('将军守城。\n公主远行。\n夜深。');
 });
 
-it('整组接受写入全部修改并关闭标签；结束任务后修改转入早前任务', async () => {
+it('全部接受按当前会话快照提交并关闭标签', async () => {
   review.viewingSessionId = context.sessionId;
   propose('将军出征。\n公主远行。\n夜深。');
   await flushPromises();
-  let [summary] = review.summaries[context.sessionId]!;
-  await review.endTask(summary!);
+  expect(review.summaries[context.sessionId]).toHaveLength(1);
+  await review.decideAll(context.sessionId, 'accept');
   await flushPromises();
-  [summary] = review.summaries[context.sessionId]!;
-  expect(summary!.group.status).toBe('ended');
-  expect(review.deliveryErrors[context.sessionId]).toBe('');
-
-  await review.decideGroup(summary!, 'accept');
-  await flushPromises();
-  expect(review.deliveryErrors[context.sessionId]).toBe('');
+  expect(review.batchErrors[context.sessionId]).toBe('');
   expect(formal().content).toBe('将军出征。\n公主远行。\n夜深。');
   expect(review.summaries[context.sessionId]).toEqual([]);
   expect(review.tabs).toEqual([]);
 });
-
 function agent<T>(method: string, input: Record<string, unknown>): T {
   const input_ = { commandId: crypto.randomUUID(), workId, ...input };
   return value(author.executeAgent(context, { method, input: input_ } as never) as CreationResult<T>);

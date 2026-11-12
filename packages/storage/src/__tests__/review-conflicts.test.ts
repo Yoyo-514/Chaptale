@@ -28,7 +28,7 @@ it('作者改动与 Agent 改动不重叠时三方合并，接受以最新正式
   ).toBe(latest.revisionId);
 });
 
-it('重叠改动保留双方，作者解决冲突产生新候选，迟到接受和 Agent 覆盖都被拒绝', async () => {
+it('重叠改动保留双方，作者解决冲突产生新候选，迟到接受被拒绝，Agent 可基于新版本继续补改', async () => {
   const fixture = await application();
   const { app, work, document, context, propose, save } = fixture;
   const change = propose('将军出征。\n公主远行。');
@@ -75,7 +75,7 @@ it('重叠改动保留双方，作者解决冲突产生新候选，迟到接受�
         newText: '终于'
       }
     })
-  ).toMatchObject({ ok: false, error: { message: '作者正在审阅或手改此候选，请等待作者处理后再修改' } });
+  ).toMatchObject({ ok: true, value: { kind: 'pending' } });
   const resolved = value(app.executeAuthor({ method: 'readReview', input: { changeId: change.id } }));
   expect(resolved.conflicts).toEqual([]);
   value(
@@ -84,7 +84,7 @@ it('重叠改动保留双方，作者解决冲突产生新候选，迟到接受�
       input: { commandId: randomUUID(), ...target(resolved), decision: 'accept' }
     })
   );
-  expect(fixture.read().content).toBe('将军再次出征。\n公主远行。');
+  expect(fixture.read().content).toBe('将军终于出征。\n公主远行。');
 });
 
 it('逐块接受只修改选中部分，剩余候选可拒绝，正式修订和已接受部分保留', async () => {

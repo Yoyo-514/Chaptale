@@ -9,6 +9,7 @@ import type {
   EntrySnapshot,
   MoveEntryInput,
   ResourceAttributePatch,
+  ResourceAttributes,
   SaveDocumentInput
 } from './content.ts';
 import type {
@@ -109,59 +110,42 @@ export interface RelationChange extends ChangeFields {
 }
 export type PendingChange = EntryChange | RecordChange | RelationChange;
 
-/**
- * 分组身份跨问答与重启保留；候选仍按自身版本接受或拒绝。
- * continued 表示作者处理完后任务已继续；ended 表示作者结束了该任务，剩余候选作为历史待审保留。
- */
-export interface DeliveryGroup {
+/** 每次作者决定按审阅单元记录；保存手改候选仍保持待审。 */
+export type ReviewDecision = 'accepted' | 'rejected' | 'deleted' | 'sourceDeleted' | 'sourceRejected';
+export type ReviewResultValue =
+  | string
+  | EntrySnapshot
+  | RecordSnapshot
+  | RelationSnapshot
+  | ResourceAttributes
+  | { parentId: string | null; position: number }
+  | null;
+export interface ReviewResult {
   id: string;
+  workId: string;
   sessionId: string;
-  version: string;
-  status: 'pending' | 'continued' | 'ended';
-  changeIds: string[];
+  changeId: string;
+  targetId: string;
+  target: PendingChange['target'];
+  label: string;
+  part: 'body' | 'title' | 'attributes' | 'location' | 'entry' | 'record' | 'relation';
+  decision: ReviewDecision;
+  authorEdited: boolean;
+  before: ReviewResultValue;
+  proposed: ReviewResultValue;
 }
-
-export interface DeliveryView {
-  group: DeliveryGroup;
-  pendingCount: number;
+/** 发消息时捕获该目标的最新正式稿，与决定时的原文和候选片段分开。 */
+export interface ReviewResultContent extends ReviewResult {
+  snapshot: EntrySnapshot | RecordSnapshot | RelationSnapshot | null;
 }
-
-/** 整篇接受、整篇拒绝，或作者逐处决定、手改过（以正式内容为准）；deleted：作者删除了目标，候选随删除一并拒绝。 */
-export type DeliveryDecision = 'accepted' | 'rejected' | 'edited' | 'deleted' | 'sourceDeleted' | 'sourceRejected';
-export type DeliveryContent =
-  | {
-      target: 'entry';
-      workId: string;
-      targetId: string;
-      title: string;
-      decision: DeliveryDecision;
-      snapshot: EntrySnapshot | null;
-    }
-  | {
-      target: 'record';
-      workId: string;
-      targetId: string;
-      /** 候选中的事件内容，拒绝新建后仍可辨认是哪一条。 */
-      text: string;
-      decision: DeliveryDecision;
-      snapshot: RecordSnapshot | null;
-    }
-  | {
-      target: 'relation';
-      workId: string;
-      targetId: string;
-      /** 候选中的关系类型，拒绝新建后仍可辨认是哪一条。 */
-      type: string;
-      decision: DeliveryDecision;
-      snapshot: RelationSnapshot | null;
-    };
-
-/** 继续与结束任务都只推进当前组的进度。 */
-export interface DeliveryProgressInput {
-  commandId: string;
-  sessionId: string;
-  groupId: string;
-  expectedVersion: string;
+/** 接受前保存决定及其片段；恢复时只补齐已有作品回执对应的本机进度。 */
+export interface ReviewIntent {
+  input: DecideReviewInput;
+  results: ReviewResult[];
+}
+export interface ReviewBatchIntent {
+  input: DecidePendingInput;
+  results: ReviewResult[];
 }
 
 export interface EntryReviewView {
@@ -192,8 +176,9 @@ export interface ReviewTarget {
   expectedLocation: { parentId: string | null; position: number } | null;
 }
 
-/** 组内一项待审修改的摘要；target 即作者看到的版本，整组决定按它校验。 */
-interface DeliveryItemFields {
+/** 当前会话的一项待审摘要；批量决定按作者看到的版本校验。 */
+interface ReviewItemFields {
+  count: number;
   target: ReviewTarget;
   workId: string;
   targetId: string;
@@ -201,27 +186,22 @@ interface DeliveryItemFields {
   deleted: boolean;
   conflicted: boolean;
 }
-export type DeliveryItem =
-  | (DeliveryItemFields & {
+export type ReviewItem =
+  | (ReviewItemFields & {
       kind: EntrySnapshot['kind'];
       section: EntrySnapshot['section'];
       title: string;
     })
-  | (DeliveryItemFields & { kind: 'record'; record: RecordSnapshot })
-  | (DeliveryItemFields & { kind: 'relation'; relation: RelationSnapshot });
-
-export interface DeliverySummary {
-  group: DeliveryGroup;
-  items: DeliveryItem[];
-}
+  | (ReviewItemFields & { kind: 'record'; record: RecordSnapshot })
+  | (ReviewItemFields & { kind: 'relation'; relation: RelationSnapshot });
 
 /** 一次只处理一部作品，正式修订与回执在该作品库的一个事务中提交。 */
-export interface DecideDeliveryInput {
+export interface DecidePendingInput {
   commandId: string;
-  groupId: string;
+  sessionId: string;
   workId: string;
   decision: 'accept' | 'reject';
-  /** 必须覆盖该组在此作品中的全部待审修改。 */
+  /** 覆盖本会话在此作品中的全部待审修改。 */
   targets: ReviewTarget[];
 }
 
@@ -363,15 +343,10 @@ export type AgentWriteCommand = Exclude<
 >;
 
 export interface ReviewCommands {
-  readCurrentDelivery: { input: { sessionId: string }; output: CreationResult<DeliveryView | null> };
-  readDeliveryGroup: { input: { groupId: string }; output: CreationResult<DeliveryView> };
-  readDeliveryContents: { input: { groupId: string }; output: CreationResult<DeliveryContent[]> };
-  continueDelivery: { input: DeliveryProgressInput; output: CreationResult<DeliveryGroup> };
-  /** 作者结束当前任务；剩余候选保留为历史待审，不再自动继续。 */
-  endDelivery: { input: DeliveryProgressInput; output: CreationResult<DeliveryGroup> };
-  /** 当前组及仍有待审修改的历史组，按新到旧排列。 */
-  listDeliveries: { input: { sessionId: string }; output: CreationResult<DeliverySummary[]> };
-  decideDelivery: { input: DecideDeliveryInput; output: CreationResult<DeliveryGroup> };
+  listReviewItems: { input: { sessionId: string }; output: CreationResult<ReviewItem[]> };
+  listReviewResults: { input: { sessionId: string }; output: CreationResult<ReviewResultContent[]> };
+  reportReviewResults: { input: { sessionId: string; resultIds: string[] }; output: CreationResult<null> };
+  decidePending: { input: DecidePendingInput; output: CreationResult<{ sessionId: string; count: number }> };
   listPendingChanges: {
     input: { workId: string | null; sessionId: string | null };
     output: CreationResult<PendingChange[]>;

@@ -29,7 +29,6 @@ export function proposeEntry(
   current: EntrySnapshot | null,
   existing?: EntryChange
 ): { base: EntrySnapshot | null; candidate: EntrySnapshot } {
-  if (existing?.authorEdited) throw new Error('作者正在审阅或手改此候选，请等待作者处理后再修改');
   const view = existing ? mergeCandidate(existing, current) : undefined;
   if (view?.conflicts.length) throw new Error('候选与正式内容存在冲突，请等待作者处理');
   let candidate: EntrySnapshot;

@@ -16,7 +16,6 @@ import { RevisionConflictError } from '../errors.ts';
 import { applyRecordSnapshot, assertRecord, normalizeRecord } from '../records/commit.ts';
 import { sourceChecker } from '../records/sources.ts';
 import type { CreationRepository } from '../repository.ts';
-import type { DeliveryService } from '../review/delivery.ts';
 import { overlayEntries } from '../review/entry/overlay.ts';
 import { mergeRecord, recordSnapshot } from '../review/record/merge.ts';
 import type { ReviewService } from '../review/service.ts';
@@ -29,18 +28,11 @@ export class AgentRecordService {
   private readonly repository: CreationRepository;
   private readonly creation: CreationService;
   private readonly review: ReviewService;
-  private readonly delivery: DeliveryService;
 
-  constructor(
-    repository: CreationRepository,
-    creation: CreationService,
-    review: ReviewService,
-    delivery: DeliveryService
-  ) {
+  constructor(repository: CreationRepository, creation: CreationService, review: ReviewService) {
     this.repository = repository;
     this.creation = creation;
     this.review = review;
-    this.delivery = delivery;
   }
 
   /** 审阅模式下候选覆盖正式事件，待移除的事件隐藏；候选的 revisionId 为候选版本。 */
@@ -88,14 +80,11 @@ export class AgentRecordService {
     if (context.mode === 'discuss') throw new Error('当前为讨论模式，作品只读');
     const { workId, commandId } = command.input;
     const parameters = ['agent', context.sessionId, command] as const;
-    const targetId = command.method === 'createRecord' ? null : command.input.recordId;
     if (context.mode === 'direct') {
       const removed = command.method === 'removeRecord';
       const receipt = this.repository.work(workId).readReceipt<StoryRecord>(commandId, parameters);
       if (receipt) return { kind: 'record', record: receipt, removed };
-      if ((this.delivery.current(context.sessionId)?.pendingCount ?? 0) > 0)
-        throw new Error('请先处理当前这组待接受修改，再切换直接修改');
-      this.delivery.assertWritable(context.sessionId, workId, targetId);
+
       const record = this.creation.commit(workId, commandId, parameters, { kind: 'record', removed }, () =>
         this.commitDirect(command)
       );
@@ -103,7 +92,6 @@ export class AgentRecordService {
       return { kind: 'record', record, removed };
     }
     const change = this.creation.commit(null, commandId, parameters, { kind: 'review' }, () => {
-      this.delivery.assertWritable(context.sessionId, workId, targetId);
       return this.propose(context, command);
     });
     return change.status === 'pending' ? { kind: 'pending', change } : { kind: 'withdrawn', change };
@@ -152,7 +140,6 @@ export class AgentRecordService {
     const existing = changes.find(
       (change): change is RecordChange => change.target === 'record' && change.targetId === recordId
     );
-    if (existing?.authorEdited) throw new Error('作者正在审阅或手改此候选，请等待作者处理后再修改');
     if (existing?.deleted) throw new Error('该事件已有待接受的移除');
     const current = work.getRecord(recordId) ?? null;
     if (!existing && !current) throw new Error(work.isRecordTrashed(recordId) ? '事件在回收站中' : '事件不存在');
@@ -166,6 +153,7 @@ export class AgentRecordService {
       return this.put({
         ...newChange(workId, sessionId, existing?.order ?? order, base, base, basis),
         id: existing?.id ?? randomUUID(),
+        authorEdited: existing !== undefined && existing.authorEdited,
         deleted: true
       });
     }
@@ -175,13 +163,14 @@ export class AgentRecordService {
     const base = existing ? existing.base : recordSnapshot(current!);
     return this.put({
       ...newChange(workId, sessionId, existing?.order ?? order, base, candidate, basis),
-      id: existing?.id ?? randomUUID()
+      id: existing?.id ?? randomUUID(),
+      authorEdited: existing !== undefined && existing.authorEdited
     });
   }
 
   private put(change: RecordChange): RecordChange {
     this.repository.library.putPendingChange(change);
-    this.delivery.attach(change);
+
     return change;
   }
 

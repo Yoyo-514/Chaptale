@@ -5,7 +5,7 @@ import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type {
   CreationEvent,
   DecideReviewInput,
-  DeliverySummary,
+  ReviewItem,
   Entry,
   EntryChange,
   EntryReviewView,
@@ -114,7 +114,7 @@ function changeEntryId(change: PendingChange) {
 }
 
 /**
- * 待接受修改的审阅标签与会话交付摘要。
+ * 待接受修改的审阅标签与会话待审摘要。
  * 编辑器状态按标签保存在普通 Map 中，标签切换不丢手改；Agent 写入的新修改在后台打开，
  * 仅当作者正在查看该会话且焦点不在编辑区时切到前台。资料区修改一次只在后台打开一份资料。
  */
@@ -123,9 +123,9 @@ export const useReviewStore = defineStore('review', () => {
   const tabs = shallowRef<ReviewTab[]>([]);
   const activeId = ref('');
   const viewingSessionId = ref<string | null>(null);
-  const summaries = ref<Record<string, DeliverySummary[]>>({});
-  const deliveryErrors = ref<Record<string, string>>({});
-  const deliveryBusy = ref<Record<string, boolean>>({});
+  const summaries = ref<Record<string, ReviewItem[]>>({});
+  const batchErrors = ref<Record<string, string>>({});
+  const batchBusy = ref<Record<string, boolean>>({});
   const activeTab = computed(() => tabs.value.find(tab => tab.key === activeId.value) ?? null);
   const states = new Map<string, EditorState>();
   const ownCommands = new Set<string>();
@@ -331,7 +331,7 @@ export const useReviewStore = defineStore('review', () => {
     if (find(key)) patch(key, { busy: false });
     if (find(key)) await load(key);
     if (find(key) && error) patch(key, { error });
-    if (viewingSessionId.value) await refreshDeliveries(viewingSessionId.value);
+    if (viewingSessionId.value) await refreshSummary(viewingSessionId.value);
     return !error;
   }
 
@@ -436,45 +436,46 @@ export const useReviewStore = defineStore('review', () => {
   async function decideChange(changeId: string, decision: 'accept' | 'reject') {
     const current = entryReview(await requestCreation('readReview', { changeId }));
     await requestCreation('decideReview', { commandId: command(), ...reviewTarget(current), decision });
-    if (viewingSessionId.value) await refreshDeliveries(viewingSessionId.value);
+    if (viewingSessionId.value) await refreshSummary(viewingSessionId.value);
   }
-  async function refreshDeliveries(sessionId: string) {
+  async function refreshSummary(sessionId: string) {
     try {
-      const list = await requestCreation('listDeliveries', { sessionId });
+      const list = await requestCreation('listReviewItems', { sessionId });
       summaries.value = { ...summaries.value, [sessionId]: list };
-      deliveryErrors.value = { ...deliveryErrors.value, [sessionId]: '' };
+      batchErrors.value = { ...batchErrors.value, [sessionId]: '' };
     } catch (cause) {
-      deliveryErrors.value = { ...deliveryErrors.value, [sessionId]: toErrorMessage(cause) };
+      batchErrors.value = { ...batchErrors.value, [sessionId]: toErrorMessage(cause) };
     }
   }
-  async function deliveryAction(sessionId: string, operation: () => Promise<string[]>) {
-    if (deliveryBusy.value[sessionId]) return;
-    deliveryBusy.value = { ...deliveryBusy.value, [sessionId]: true };
-    deliveryErrors.value = { ...deliveryErrors.value, [sessionId]: '' };
+  async function batchAction(sessionId: string, operation: () => Promise<string[]>) {
+    if (batchBusy.value[sessionId]) return;
+    batchBusy.value = { ...batchBusy.value, [sessionId]: true };
+    batchErrors.value = { ...batchErrors.value, [sessionId]: '' };
     let failures: string[];
     try {
       failures = await operation();
     } catch (cause) {
       failures = [toErrorMessage(cause)];
     }
-    deliveryBusy.value = { ...deliveryBusy.value, [sessionId]: false };
-    await refreshDeliveries(sessionId);
-    if (failures.length) deliveryErrors.value = { ...deliveryErrors.value, [sessionId]: failures.join('\n') };
+    batchBusy.value = { ...batchBusy.value, [sessionId]: false };
+    await refreshSummary(sessionId);
+    if (failures.length) batchErrors.value = { ...batchErrors.value, [sessionId]: failures.join('\n') };
     for (const tab of tabs.value) if (tab.sessionId === sessionId) void load(tab.key);
   }
-  /** 整组决定按作品逐部提交，每部作品在自己的事务内全部成功或全部不变。 */
-  function decideGroup(summary: DeliverySummary, decision: 'accept' | 'reject') {
-    return deliveryAction(summary.group.sessionId, async () => {
+  /** 入队时捕获纯 JSON 快照，按作品逐部提交本会话所有待审修改。 */
+  function decideAll(sessionId: string, decision: 'accept' | 'reject') {
+    const items = JSON.parse(JSON.stringify(summaries.value[sessionId] ?? [])) as ReviewItem[];
+    return batchAction(sessionId, async () => {
       const failures: string[] = [];
-      const workIds = [...new Set(summary.items.map(item => item.workId))];
+      const workIds = [...new Set(items.map(item => item.workId))];
       for (const workId of workIds) {
         try {
-          await requestCreation('decideDelivery', {
+          await requestCreation('decidePending', {
             commandId: command(),
-            groupId: summary.group.id,
+            sessionId,
             workId,
             decision,
-            targets: summary.items.filter(item => item.workId === workId).map(item => item.target)
+            targets: items.filter(item => item.workId === workId).map(item => item.target)
           });
         } catch (cause) {
           const title = creation.works.find(work => work.id === workId)?.title;
@@ -484,24 +485,13 @@ export const useReviewStore = defineStore('review', () => {
       return failures;
     });
   }
-  function endTask(summary: DeliverySummary) {
-    return deliveryAction(summary.group.sessionId, async () => {
-      await requestCreation('endDelivery', {
-        commandId: command(),
-        sessionId: summary.group.sessionId,
-        groupId: summary.group.id,
-        expectedVersion: summary.group.version
-      });
-      return [];
-    });
-  }
 
   function handle(event: CreationEvent) {
     const own = ownCommands.delete(event.commandId);
     const { change } = event;
     if (change.kind === 'review') {
       const pending = change.change;
-      if (viewingSessionId.value === pending.sessionId) void refreshDeliveries(pending.sessionId);
+      if (viewingSessionId.value === pending.sessionId) void refreshSummary(pending.sessionId);
       const ids = pending.target === 'entry' ? [pending.targetId] : storyResources(pending);
       const affected = tabs.value.filter(tab => tab.sessionId === pending.sessionId && ids.includes(tab.entryId));
       for (const tab of affected) void load(tab.key);
@@ -514,19 +504,19 @@ export const useReviewStore = defineStore('review', () => {
         activeId.value = tabKey(target.sessionId, target.entryId);
       return;
     }
-    if (change.kind === 'delivery') {
-      if (viewingSessionId.value === change.group.sessionId) void refreshDeliveries(change.group.sessionId);
+    if (change.kind === 'reviewBatch') {
+      if (viewingSessionId.value === change.sessionId) void refreshSummary(change.sessionId);
       return;
     }
     if (change.kind === 'work' || change.kind === 'library' || event.cursor.workId !== creation.workId) return;
     // 正式稿与事件变化会改变冲突与可接受状态。
     for (const tab of tabs.value) void load(tab.key);
-    if (viewingSessionId.value) void refreshDeliveries(viewingSessionId.value);
+    if (viewingSessionId.value) void refreshSummary(viewingSessionId.value);
   }
   const offEvent = creation.onEvent(handle);
 
   watch(viewingSessionId, id => {
-    if (id) void refreshDeliveries(id);
+    if (id) void refreshSummary(id);
   });
   watch(
     () => creation.workId,
@@ -554,8 +544,8 @@ export const useReviewStore = defineStore('review', () => {
     activeTab,
     viewingSessionId,
     summaries,
-    deliveryErrors,
-    deliveryBusy,
+    batchErrors,
+    batchBusy,
     open,
     reveal,
     select,
@@ -574,9 +564,8 @@ export const useReviewStore = defineStore('review', () => {
     updateRelation,
     relink,
     decideChange,
-    refreshDeliveries,
-    decideGroup,
-    endTask,
+    refreshSummary,
+    decideAll,
     confirmLeave,
     hasUnsaved: computed(() => tabs.value.some(tab => tab.dirty))
   };

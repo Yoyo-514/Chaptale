@@ -50,22 +50,20 @@ export interface HostApplicationOptions {
 
 /** 删除会话前拒绝它留下的全部待审修改，避免候选失去来源。 */
 function rejectPendingChanges(creation: CreationApplication, sessionId: string) {
-  const listed = creation.executeAuthor({ method: 'listDeliveries', input: { sessionId } });
+  const listed = creation.executeAuthor({ method: 'listReviewItems', input: { sessionId } });
   if (!listed.ok) throw new Error(listed.error.message);
-  for (const summary of listed.value) {
-    for (const workId of new Set(summary.items.map(item => item.workId))) {
-      const result = creation.executeAuthor({
-        method: 'decideDelivery',
-        input: {
-          commandId: randomUUID(),
-          groupId: summary.group.id,
-          workId,
-          decision: 'reject',
-          targets: summary.items.filter(item => item.workId === workId).map(item => item.target)
-        }
-      });
-      if (!result.ok) throw new Error(result.error.message);
-    }
+  for (const workId of new Set(listed.value.map(item => item.workId))) {
+    const result = creation.executeAuthor({
+      method: 'decidePending',
+      input: {
+        commandId: randomUUID(),
+        sessionId,
+        workId,
+        decision: 'reject',
+        targets: listed.value.filter(item => item.workId === workId).map(item => item.target)
+      }
+    });
+    if (!result.ok) throw new Error(result.error.message);
   }
 }
 
@@ -306,14 +304,7 @@ export class HostApplication {
 
   private tools(cwd: string): ToolDefinition[] {
     const tools = [...this.options.tools(cwd)];
-    if (this.options.creation)
-      tools.push(
-        ...createWorkTools(
-          this.options.creation,
-          id => this.live(id).view.mode!,
-          id => this.live(id).reviewWritten()
-        )
-      );
+    if (this.options.creation) tools.push(...createWorkTools(this.options.creation, id => this.live(id).view.mode!));
     return tools;
   }
 
@@ -373,7 +364,7 @@ export class HostApplication {
     let result: Awaited<ReturnType<HostSessionPool['openWith']>>;
     try {
       result = await this.pool.openWith({ file, cwd }, manager => {
-        const history = sessionHistory(manager, this.options.creation);
+        const history = sessionHistory(manager);
         opened.history = history;
         if (history.kind === 'readonly') return undefined;
         applied.entries = history.instructions;
@@ -407,8 +398,7 @@ export class HostApplication {
     }
     const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change), {
       workId,
-      creation: this.options.creation,
-      directAfterGroupId: history.directAfterGroupId
+      creation: this.options.creation
     });
     return this.attach({ view: live.view, live });
   }

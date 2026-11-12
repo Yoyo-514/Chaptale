@@ -64,11 +64,7 @@ export function mapResult<T, U>(result: CreationResult<T>, map: (value: T) => U)
 export interface WorkToolKit {
   application: CreationApplication;
   mode: (sessionId: string) => EditMode;
-  written: (
-    context: CreationAgentContext,
-    workId: string,
-    result: CreationResult<AgentWriteResult>
-  ) => CreationResult<JsonValue>;
+  written: (workId: string, result: CreationResult<AgentWriteResult>) => CreationResult<JsonValue>;
   executeWrite: (
     context: CreationAgentContext,
     command: { method: string; input: unknown }
@@ -86,13 +82,8 @@ export interface WorkToolKit {
   ) => ToolDefinition;
 }
 
-export function workToolKit(
-  application: CreationApplication,
-  mode: (sessionId: string) => EditMode,
-  onPendingWrite: (sessionId: string) => void
-): WorkToolKit {
-  function written(context: CreationAgentContext, workId: string, result: CreationResult<AgentWriteResult>) {
-    if (result.ok && result.value.kind === 'pending') onPendingWrite(context.sessionId);
+export function workToolKit(application: CreationApplication, mode: (sessionId: string) => EditMode): WorkToolKit {
+  function written(workId: string, result: CreationResult<AgentWriteResult>) {
     return mapResult(result, (value): JsonValue => {
       if (value.kind === 'trashed')
         return { kind: value.kind, entries: value.entries.map(entry => located(workId, entry)) };

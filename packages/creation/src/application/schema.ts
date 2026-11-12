@@ -159,15 +159,12 @@ const inputs = {
     cursor: object({ workId: parentId, sequence: offset, token: parentId }),
     limit: Type.Integer({ minimum: 1 })
   }),
-  readCurrentDelivery: object({ sessionId: id }),
-  readDeliveryGroup: object({ groupId: id }),
-  readDeliveryContents: object({ groupId: id }),
-  continueDelivery: object({ commandId: id, sessionId: id, groupId: id, expectedVersion: id }),
-  endDelivery: object({ commandId: id, sessionId: id, groupId: id, expectedVersion: id }),
-  listDeliveries: object({ sessionId: id }),
-  decideDelivery: object({
+  listReviewItems: object({ sessionId: id }),
+  listReviewResults: object({ sessionId: id }),
+  reportReviewResults: object({ sessionId: id, resultIds: Type.Array(id) }),
+  decidePending: object({
     commandId: id,
-    groupId: id,
+    sessionId: id,
     workId: id,
     decision: Type.Union([Type.Literal('accept'), Type.Literal('reject')]),
     targets: Type.Array(object(reviewTarget))

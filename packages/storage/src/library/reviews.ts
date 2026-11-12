@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 
-import type { DecideDeliveryInput, DecideReviewInput, PendingChange } from '@chaptale/creation/contracts';
+import type { ReviewBatchIntent, ReviewIntent, PendingChange } from '@chaptale/creation/contracts';
 
 export function readPendingChange(database: Database.Database, id: string): PendingChange | undefined {
   const row = database.prepare('SELECT value FROM pending_changes WHERE id = ?').get(id) as
@@ -18,7 +18,7 @@ export function listPendingChanges(
     .prepare(`
     SELECT value FROM pending_changes WHERE status = 'pending'
       AND (? IS NULL OR workId = ?) AND (? IS NULL OR sessionId = ?)
-    ORDER BY id
+    ORDER BY json_extract(value, '$.order'), id
   `)
     .all(workId, workId, sessionId, sessionId) as { value: string }[];
   return rows.map(row => decode<PendingChange>(row.value));
@@ -41,20 +41,22 @@ export function putPendingChange(database: Database.Database, change: PendingCha
     );
 }
 
-type IntentTable = 'review_intents' | 'delivery_intents';
+type IntentTable = 'review_intents' | 'review_batch_intents';
 
 /** 意图先于跨库提交保存；恢复只读取已有作品回执，不执行尚未提交的修改。 */
 export function putIntent(
   database: Database.Database,
   table: IntentTable,
-  input: DecideReviewInput | DecideDeliveryInput
+  input: ReviewIntent | ReviewBatchIntent
 ): void {
-  const row = database.prepare(`SELECT input FROM ${table} WHERE commandId = ?`).get(input.commandId) as
+  const row = database.prepare(`SELECT input FROM ${table} WHERE commandId = ?`).get(input.input.commandId) as
     | { input: string }
     | undefined;
   const serialized = JSON.stringify(input);
   if (row && row.input !== serialized) throw new Error('同一命令不能用于不同审阅决定');
-  database.prepare(`INSERT OR IGNORE INTO ${table} (commandId, input) VALUES (?, ?)`).run(input.commandId, serialized);
+  database
+    .prepare(`INSERT OR IGNORE INTO ${table} (commandId, input) VALUES (?, ?)`)
+    .run(input.input.commandId, serialized);
 }
 
 export function listIntents<T>(database: Database.Database, table: IntentTable): T[] {

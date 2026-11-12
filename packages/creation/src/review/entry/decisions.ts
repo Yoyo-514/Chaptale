@@ -76,7 +76,7 @@ export class EntryReview {
     });
   }
 
-  /** 整组接受中的一项，在调用方的作品库事务中写入。 */
+  /** 批量接受中的一项，在调用方的作品库事务中写入。 */
   apply(work: WorkRepository, view: EntryReviewView): Entry[] {
     return view.change.deleted
       ? this.trash(work, [view.change])

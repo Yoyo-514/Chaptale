@@ -94,7 +94,6 @@ export function relationTools({ application, written, executeWrite, tool }: Work
         const milestones = input.milestones ?? [];
         if (relationId === undefined)
           return written(
-            context,
             workId,
             executeWrite(context, {
               method: 'createRelation',
@@ -109,7 +108,6 @@ export function relationTools({ application, written, executeWrite, tool }: Work
           );
         if (input.remove)
           return written(
-            context,
             workId,
             executeWrite(context, {
               method: 'removeRelation',
@@ -135,7 +133,6 @@ export function relationTools({ application, written, executeWrite, tool }: Work
           patches.push(milestoneOf(item, existing));
         }
         return written(
-          context,
           workId,
           executeWrite(context, {
             method: 'updateRelation',

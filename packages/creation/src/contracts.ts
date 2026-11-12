@@ -38,7 +38,7 @@ import type {
   StoryRelation,
   UpdateRelationInput
 } from './contracts/relations.ts';
-import type { DeliveryGroup, PendingChange, ReviewCommands } from './contracts/review.ts';
+import type { PendingChange, ReviewCommands } from './contracts/review.ts';
 
 export type * from './contracts/content.ts';
 export { isImageFile } from './contracts/content.ts';
@@ -84,9 +84,9 @@ export type CreationChange =
   /** 作品进入、离开作品库回收站或被永久清空；客户端重取作品列表。 */
   | { kind: 'library'; work: Work }
   | { kind: 'review'; change: PendingChange }
-  | { kind: 'delivery'; group: DeliveryGroup }
+  | { kind: 'reviewBatch'; sessionId: string }
   | { kind: 'entry'; entry: Entry }
-  /** 一次提交改动多个条目，例如整组接受待审修改；目录位置可能变化，客户端重取快照。 */
+  /** 一次提交改动多个条目，例如批量接受待审修改；目录位置可能变化，客户端重取快照。 */
   | { kind: 'entries'; entries: Entry[] }
   | { kind: 'move'; entry: Entry; from: { parentId: string | null; position: number } }
   /** removed：事件移入回收站。调整顺序会改变同位置其他事件的序号，客户端重取快照。 */

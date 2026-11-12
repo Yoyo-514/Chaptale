@@ -22,7 +22,7 @@ const lastIndex = computed(() => props.session.messages.length - 1);
 const waiting = computed(() => {
   if (props.outgoing.some(item => !item.error)) return true;
   const last = props.session.messages.at(-1);
-  return props.session.running && (!last || ['user', 'reviewContinued', 'toolResult'].includes(last.role));
+  return props.session.running && (!last || ['user', 'reviewResults', 'toolResult'].includes(last.role));
 });
 const expanded = ref(new Set<string>());
 const streamKey = (index: number) => `${props.session.id}:${index}`;
@@ -67,7 +67,7 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
           <span class="agent-notice-chevron i-mingcute-down-line size-3.5 shrink-0" aria-hidden="true" />
         </summary>
         <ul>
-          <li v-for="line in item.outcomes" :key="line">{{ line }}</li>
+          <li v-for="outcome in item.outcomes" :key="outcome.id">{{ outcome.text }}</li>
         </ul>
       </details>
       <section v-else-if="item.kind === 'summary'" class="agent-activity agent-summary" aria-label="压缩总结">

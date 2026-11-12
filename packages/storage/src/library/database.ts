@@ -83,6 +83,22 @@ const librarySchema: SchemaPlan = {
   },
   migrations: [
     // 会话归属改由会话文件所在目录决定。
-    database => database.exec('DROP TABLE session_assignments')
+    database => database.exec('DROP TABLE session_assignments'),
+    // 新的逐处处理结果独立记录，旧交付进度退出使用。
+    database =>
+      database.exec(`
+      DROP TABLE delivery_groups;
+      DROP TABLE delivery_intents;
+      CREATE TABLE review_batch_intents (commandId TEXT PRIMARY KEY, input TEXT NOT NULL) STRICT;
+      CREATE TABLE review_results (
+        sequence INTEGER PRIMARY KEY,
+        id TEXT NOT NULL UNIQUE,
+        workId TEXT NOT NULL REFERENCES works(id),
+        sessionId TEXT NOT NULL,
+        reported INTEGER NOT NULL DEFAULT 0,
+        value TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX review_results_session ON review_results(sessionId, reported, sequence);
+    `)
   ]
 };

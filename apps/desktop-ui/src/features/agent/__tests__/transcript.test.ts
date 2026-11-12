@@ -27,13 +27,16 @@ describe('buildTranscript', () => {
     ]);
   });
 
-  it('审阅续跑提示单独成条，不并入助手回复', () => {
+  it('作者处理结果单独成条，不并入助手回复', () => {
     const items = buildTranscript([
       message({ role: 'assistant', text: '已改好第一章' }),
       message({
-        role: 'reviewContinued',
-        text: '作者已处理 2 处修改，任务继续',
-        outcomes: ['《第一章》已接受', '《第二章》已拒绝']
+        role: 'reviewResults',
+        text: '作者已处理 2 处修改',
+        outcomes: [
+          { id: 'r1', text: '《第一章》已接受' },
+          { id: 'r2', text: '《第二章》已拒绝' }
+        ]
       }),
       message({ role: 'assistant', text: '继续第二章' })
     ]);
@@ -42,8 +45,11 @@ describe('buildTranscript', () => {
       {
         kind: 'notice',
         key: '1',
-        text: '作者已处理 2 处修改，任务继续',
-        outcomes: ['《第一章》已接受', '《第二章》已拒绝']
+        text: '作者已处理 2 处修改',
+        outcomes: [
+          { id: 'r1', text: '《第一章》已接受' },
+          { id: 'r2', text: '《第二章》已拒绝' }
+        ]
       },
       { kind: 'assistant', text: '继续第二章' }
     ]);

@@ -15,6 +15,9 @@ it('通用 Node 启动入口装配既有工具与指令，并重开本机设置'
     sessionDir: join(root, 'sessions'),
     settingsFile: join(root, 'config', 'settings.json')
   };
+  const savedInstructions = [
+    { name: '作者指令', role: 'system' as const, enabled: true, text: '保留作者保存的资料整理要求。' }
+  ];
   try {
     const first = await createHostApplication(options);
     try {
@@ -22,12 +25,14 @@ it('通用 Node 启动入口装配既有工具与指令，并重开本机设置'
       expect(first.snapshot().tools).toEqual(['read', 'ls', 'find', 'grep']);
       expect(first.snapshot().settings.defaultInstructions).toEqual(builtinWritingInstructions);
       await first.execute({ method: 'defaultMode', input: { mode: 'direct' } });
+      await first.execute({ method: 'defaultInstructions', input: { entries: savedInstructions } });
     } finally {
       await first.dispose();
     }
     const reopened = await createHostApplication(options);
     try {
       expect(reopened.snapshot().settings.defaultMode).toBe('direct');
+      expect(reopened.snapshot().settings.defaultInstructions).toEqual(savedInstructions);
       expect(reopened.snapshot().sessions).toEqual([]);
     } finally {
       await reopened.dispose();

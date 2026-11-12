@@ -15,7 +15,6 @@ import type {
 } from '../contracts.ts';
 import { assertNotTrashed, RevisionConflictError } from '../errors.ts';
 import type { CreationRepository } from '../repository.ts';
-import type { DeliveryService } from '../review/delivery.ts';
 import { overlayEntries } from '../review/entry/overlay.ts';
 import { advanceChange } from '../review/pending-change.ts';
 import type { ReviewService } from '../review/service.ts';
@@ -32,7 +31,6 @@ export class CreationAgentService {
   private readonly repository: CreationRepository;
   private readonly creation: CreationService;
   private readonly review: ReviewService;
-  private readonly delivery: DeliveryService;
   private readonly trash: TrashService;
   private readonly records: AgentRecordService;
   private readonly relations: AgentRelationService;
@@ -40,7 +38,6 @@ export class CreationAgentService {
     repository: CreationRepository,
     creation: CreationService,
     review: ReviewService,
-    delivery: DeliveryService,
     trash: TrashService,
     records: AgentRecordService,
     relations: AgentRelationService
@@ -48,7 +45,6 @@ export class CreationAgentService {
     this.repository = repository;
     this.creation = creation;
     this.review = review;
-    this.delivery = delivery;
     this.trash = trash;
     this.records = records;
     this.relations = relations;
@@ -136,9 +132,7 @@ export class CreationAgentService {
     if (context.mode === 'direct') {
       const receipt = this.repository.work(workId).readReceipt<Entry[]>(commandId, ['trashEntries', workId, [entryId]]);
       if (receipt) return { kind: 'trashed', entries: receipt };
-      if ((this.delivery.current(sessionId)?.pendingCount ?? 0) > 0)
-        throw new Error('请先处理当前这组待接受修改，再切换直接修改');
-      this.delivery.assertWritable(sessionId, workId, entryId);
+
       const current = this.existingEntry(workId, entryId);
       if (current.revisionId !== expectedRevisionId)
         throw new RevisionConflictError(expectedRevisionId, current.revisionId);
@@ -146,12 +140,10 @@ export class CreationAgentService {
     }
     const parameters = ['agent', sessionId, command] as const;
     const change = this.creation.commit(null, commandId, parameters, { kind: 'review' }, () => {
-      this.delivery.assertWritable(sessionId, workId, entryId);
       const changes = this.review.list(workId, sessionId);
       const existing = changes.find(
         (item): item is EntryChange => item.target === 'entry' && item.targetId === entryId
       );
-      if (existing?.authorEdited) throw new Error('作者正在审阅或手改此候选，请等待作者处理后再修改');
       if (existing?.base === null) {
         if (existing.candidate.revisionId !== expectedRevisionId)
           throw new RevisionConflictError(expectedRevisionId, existing.candidate.revisionId);
@@ -184,14 +176,14 @@ export class CreationAgentService {
         base: current,
         candidate: { ...current, revisionId: version },
         conflicts: [],
-        authorEdited: false,
+        authorEdited: existing !== undefined && existing.authorEdited,
         status: 'pending',
         deleted: true,
         covers: covered.map(item => item.id),
         updatedAt: Date.now()
       };
       this.repository.library.putPendingChange(next);
-      this.delivery.attach(next);
+
       return next;
     });
     return change.deleted ? { kind: 'pending', change } : { kind: 'withdrawn', change };
@@ -212,9 +204,7 @@ export class CreationAgentService {
     if (context.mode === 'direct') {
       const receipt = this.repository.work(workId).readReceipt<Entry>(commandId, parameters);
       if (receipt) return { kind: 'saved', entry: receipt };
-      if ((this.delivery.current(context.sessionId)?.pendingCount ?? 0) > 0)
-        throw new Error('请先处理当前这组待接受修改，再切换直接修改');
-      this.delivery.assertWritable(context.sessionId, workId, targetId(command));
+
       const { base, candidate } = this.propose(context, command);
       return {
         kind: 'saved',
@@ -229,7 +219,6 @@ export class CreationAgentService {
       };
     }
     const pending = this.creation.commit(null, commandId, parameters, { kind: 'review' }, () => {
-      this.delivery.assertWritable(context.sessionId, workId, targetId(command));
       const { base, candidate, existing } = this.propose(context, command);
       const order =
         existing && command.method !== 'moveEntry'
@@ -246,12 +235,12 @@ export class CreationAgentService {
         base,
         candidate,
         conflicts: [],
-        authorEdited: false,
+        authorEdited: existing !== undefined && existing.authorEdited,
         status: 'pending',
         updatedAt: Date.now()
       };
       this.repository.library.putPendingChange(change);
-      this.delivery.attach(change);
+
       return change;
     });
     return { kind: 'pending', change: pending };

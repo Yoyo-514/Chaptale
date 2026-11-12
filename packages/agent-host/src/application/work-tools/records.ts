@@ -60,7 +60,6 @@ export function recordTools({ application, written, executeWrite, tool }: WorkTo
         const { workId, basis, recordId, expectedRevisionId } = input;
         if (input.remove)
           return written(
-            context,
             workId,
             executeWrite(context, {
               method: 'removeRecord',
@@ -73,7 +72,6 @@ export function recordTools({ application, written, executeWrite, tool }: WorkTo
           if (!placement)
             return { ok: false, error: { code: 'invalid-request', message: '未提供 sourceId 时需指定 placement' } };
           return written(
-            context,
             workId,
             executeWrite(context, {
               method: 'createRecord',
@@ -98,7 +96,6 @@ export function recordTools({ application, written, executeWrite, tool }: WorkTo
         const current = listed.value.find(record => record.id === recordId);
         if (!current) return { ok: false, error: { code: 'invalid-request', message: '事件不存在' } };
         return written(
-          context,
           workId,
           executeWrite(context, {
             method: 'updateRecord',

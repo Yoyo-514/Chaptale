@@ -17,7 +17,6 @@ import { RevisionConflictError } from '../errors.ts';
 import { sourceChecker } from '../records/sources.ts';
 import { applyRelationSnapshot, assertRelation, normalizeRelation, relationSnapshot } from '../relations/commit.ts';
 import type { CreationRepository } from '../repository.ts';
-import type { DeliveryService } from '../review/delivery.ts';
 import { overlayEntries } from '../review/entry/overlay.ts';
 import { mergeRelation, relationSnapshot as snapshotOf } from '../review/relation/merge.ts';
 import type { ReviewService } from '../review/service.ts';
@@ -31,18 +30,11 @@ export class AgentRelationService {
   private readonly repository: CreationRepository;
   private readonly creation: CreationService;
   private readonly review: ReviewService;
-  private readonly delivery: DeliveryService;
 
-  constructor(
-    repository: CreationRepository,
-    creation: CreationService,
-    review: ReviewService,
-    delivery: DeliveryService
-  ) {
+  constructor(repository: CreationRepository, creation: CreationService, review: ReviewService) {
     this.repository = repository;
     this.creation = creation;
     this.review = review;
-    this.delivery = delivery;
   }
 
   list(context: CreationAgentContext, input: CreationAgentCommands['listRelations']['input']): Listed {
@@ -72,14 +64,11 @@ export class AgentRelationService {
     if (context.mode === 'discuss') throw new Error('当前为讨论模式，作品只读');
     const { workId, commandId } = command.input;
     const parameters = ['agent', context.sessionId, command] as const;
-    const targetId = command.method === 'createRelation' ? null : command.input.relationId;
     if (context.mode === 'direct') {
       const removed = command.method === 'removeRelation';
       const receipt = this.repository.work(workId).readReceipt<StoryRelation>(commandId, parameters);
       if (receipt) return { kind: 'relation', relation: receipt, removed };
-      if ((this.delivery.current(context.sessionId)?.pendingCount ?? 0) > 0)
-        throw new Error('请先处理当前这组待接受修改，再切换直接修改');
-      this.delivery.assertWritable(context.sessionId, workId, targetId);
+
       const relation = this.creation.commit(workId, commandId, parameters, { kind: 'relation', removed }, () =>
         this.commitDirect(command)
       );
@@ -87,7 +76,6 @@ export class AgentRelationService {
       return { kind: 'relation', relation, removed };
     }
     const change = this.creation.commit(null, commandId, parameters, { kind: 'review' }, () => {
-      this.delivery.assertWritable(context.sessionId, workId, targetId);
       return this.propose(context, command);
     });
     return change.status === 'pending' ? { kind: 'pending', change } : { kind: 'withdrawn', change };
@@ -161,7 +149,6 @@ export class AgentRelationService {
     const existing = changes.find(
       (change): change is RelationChange => change.target === 'relation' && change.targetId === relationId
     );
-    if (existing?.authorEdited) throw new Error('作者正在审阅或手改此候选，请等待作者处理后再修改');
     if (existing?.deleted) throw new Error('该关系已有待接受的移除');
     const current = work.getRelation(relationId) ?? null;
     if (!existing && !current) throw new Error(work.isRelationTrashed(relationId) ? '关系在回收站中' : '关系不存在');
@@ -177,18 +164,23 @@ export class AgentRelationService {
       return this.put({
         ...newChange(workId, sessionId, existing?.order ?? order, formal, formal, basis),
         id,
+        authorEdited: existing !== undefined && existing.authorEdited,
         deleted: true
       });
     }
     const previous = existing?.candidate ?? snapshotOf(current!);
     const candidate = patchRelation(previous, command.input);
     assertRelation(work, candidate, previous, entries, relations);
-    return this.put({ ...newChange(workId, sessionId, existing?.order ?? order, base, candidate, basis), id });
+    return this.put({
+      ...newChange(workId, sessionId, existing?.order ?? order, base, candidate, basis),
+      id,
+      authorEdited: existing !== undefined && existing.authorEdited
+    });
   }
 
   private put(change: RelationChange): RelationChange {
     this.repository.library.putPendingChange(change);
-    this.delivery.attach(change);
+
     return change;
   }
 }

@@ -179,7 +179,7 @@ export const useCreationStore = defineStore('creation', () => {
     if (event.change.kind === 'review' && event.change.change.workId === workId.value) reportPending();
     if (event.change.kind === 'entries' && event.cursor.workId === workId.value) reportPending();
     // 待审修改及继续进度保持在本机，正式目录使用作品库内的条目游标。
-    if (event.change.kind === 'review' || event.change.kind === 'delivery') return;
+    if (event.change.kind === 'review' || event.change.kind === 'reviewBatch') return;
     if (event.change.kind === 'library') {
       void refreshLibrary().then(() => {
         if (!works.value.some(item => item.id === workId.value)) dropWork(workId.value);

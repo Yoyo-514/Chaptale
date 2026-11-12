@@ -81,20 +81,20 @@ it('出处可指向本会话待审正文；正文未接受时不能接受事件�
   expect(value(fixture.app.executeAuthor({ method: 'listSourceReviews', input: { workId } }))).toEqual([]);
 });
 
-it('整组接受时正文先写入，事件出处绑定同一事务中的新修订', async () => {
+it('批量接受时正文先写入，事件出处绑定同一事务中的新修订', async () => {
   const { fixture } = await drafted();
   const group = value(
-    fixture.app.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: fixture.context.sessionId } })
-  )!.group;
-  const views = group.changeIds.map(changeId =>
-    value(fixture.app.executeAuthor({ method: 'readReview', input: { changeId } }))
+    fixture.app.executeAuthor({ method: 'listReviewItems', input: { sessionId: fixture.context.sessionId } })
+  );
+  const views = group.map(item =>
+    value(fixture.app.executeAuthor({ method: 'readReview', input: { changeId: item.target.changeId } }))
   );
   value(
     fixture.app.executeAuthor({
-      method: 'decideDelivery',
+      method: 'decidePending',
       input: {
         commandId: randomUUID(),
-        groupId: group.id,
+        sessionId: fixture.context.sessionId,
         workId: fixture.work.id,
         decision: 'accept',
         targets: views.map(target)
@@ -104,7 +104,7 @@ it('整组接受时正文先写入，事件出处绑定同一事务中的新修�
   expect(records(fixture)[0]!.source).toMatchObject({ revisionId: fixture.read().revisionId });
 });
 
-it('正文整篇被拒绝时，出处指向它的事件候选一并拒绝，续跑结果为作者拒绝了来源正文', async () => {
+it('正文整篇被拒绝时，出处指向它的事件候选一并拒绝，处理结果为作者拒绝了来源正文', async () => {
   const { fixture, chapter, record } = await drafted();
   value(decide(fixture, chapter, 'reject'));
   expect(
@@ -112,11 +112,8 @@ it('正文整篇被拒绝时，出处指向它的事件候选一并拒绝，续�
       fixture.app.executeAuthor({ method: 'listPendingChanges', input: { workId: fixture.work.id, sessionId: null } })
     )
   ).toEqual([]);
-  const group = value(
-    fixture.app.executeAuthor({ method: 'readCurrentDelivery', input: { sessionId: fixture.context.sessionId } })
-  );
   const contents = value(
-    fixture.app.executeAuthor({ method: 'readDeliveryContents', input: { groupId: group!.group.id } })
+    fixture.app.executeAuthor({ method: 'listReviewResults', input: { sessionId: fixture.context.sessionId } })
   );
   expect(contents).toEqual(
     expect.arrayContaining([expect.objectContaining({ targetId: record.targetId, decision: 'sourceRejected' })])

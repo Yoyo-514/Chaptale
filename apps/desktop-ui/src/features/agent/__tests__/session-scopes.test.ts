@@ -21,6 +21,7 @@ import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
 import { openCreationStorage } from '@chaptale/storage';
 
 import { useCreationStore } from '@/features/creation';
+import { useWorkbenchStore } from '@/features/workbench';
 
 import { useAgentStore } from '../store';
 
@@ -211,6 +212,62 @@ it('同名作品各自归属并使用各自的文件目录，新建独立会话�
   await creation.openWork(works[1]!.id);
   await flushPromises();
   expect(agent.active?.sessionId).toBe(b);
+});
+
+it('本章提取新建作品审阅会话，携带资料规则并保留作者已有指令', async () => {
+  await host.execute({ method: 'defaultMode', input: { mode: 'direct' } });
+  await agent.connect();
+  const previous = (await agent.create())!;
+  expect(agent.error).toBe('');
+  const chapter = value(
+    author.executeAuthor({
+      method: 'createEntry',
+      input: {
+        commandId: crypto.randomUUID(),
+        workId: works[0]!.id,
+        parentId: null,
+        section: 'manuscript',
+        kind: 'document',
+        title: '渡口',
+        format: 'txt',
+        content: '沈霁在渡口救下柳七。'
+      }
+    })
+  );
+  const navigation = useWorkbenchStore();
+  navigation.agentInMain = true;
+  navigation.agentView = 'settings';
+  navigation.focusMode = true;
+  await navigation.extractChapter(chapter);
+  expect(agent.error).toBe('');
+  await started;
+  const current = agent.active!;
+  expect(current.sessionId).not.toBe(previous);
+  expect(current.workId).toBe(works[0]!.id);
+  expect(current.mode).toBe('review');
+  expect(current.instructions).toEqual(instructions);
+  expect(host.snapshot().settings.defaultInstructions).toEqual(instructions);
+  expect(host.snapshot().sessions.find(session => session.id === previous)?.mode).toBe('direct');
+  expect(navigation.auxiliaryOpen).toBe(true);
+  expect(navigation.agentInMain).toBe(false);
+  expect(navigation.agentView).toBe('chat');
+  expect(navigation.focusMode).toBe(false);
+  const messages = current.messages.filter(message => message.role === 'user');
+  expect(messages).toHaveLength(1);
+  const prompt = messages[0]!.text;
+  expect(prompt).toContain(chapter.title);
+  expect(prompt).toContain(`条目 ID：${chapter.id}`);
+  expect(prompt).toContain('attributes.type');
+  expect(prompt).toContain('attributes.aliases');
+  expect(prompt).toContain('跨章稳定');
+  expect(prompt).toContain('原文明示');
+  expect(prompt).toContain('已有资料正文');
+  expect(prompt).toContain('移除候选');
+  expect(prompt).toContain('work_relation_ls');
+  expect(prompt).toContain('sourceRevisionId');
+  expect(prompt).toContain('已有事件字段一致时保持原样');
+  expect(prompt).toContain('在回复中说明对应规划');
+  expect(prompt).toContain('规划《资料名》：原句');
 });
 
 it('新会话草稿沿用最近一次选择的模型', async () => {
