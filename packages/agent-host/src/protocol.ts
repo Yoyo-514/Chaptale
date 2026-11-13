@@ -89,13 +89,56 @@ export interface DiscoveredModel {
   id: string;
   name: string;
 }
+/** 发送消息时附带的当前打开标签定位与可选框选原文；正文由 Agent 按需调用 work_read 读取。 */
+export interface EditorContext {
+  workId: string;
+  entryId: string;
+  title: string;
+  section: 'manuscript' | 'resource';
+  selection?: string;
+}
+
+/** 工具结果中用于阅读摘要的元数据，正文只通过原始结果传输一次。 */
+export interface ToolResultInfo {
+  title?: string;
+  section?: 'manuscript' | 'resource';
+  wordCount?: number;
+  count?: number;
+  description?: string;
+  error?: string;
+}
+/** pi 原生保存的有界子调用记录；详细输出仍属于外层脚本。 */
+export interface NestedToolView {
+  id: string;
+  name: string;
+  input?: unknown;
+  /** 运行中的摘要字段；原始参数沿用完成后的 SDK 有界记录。 */
+  preview?: Record<string, unknown>;
+  status: 'running' | 'ok' | 'error' | 'unfinished';
+  error?: string;
+  info?: ToolResultInfo;
+}
+export interface ToolCallView {
+  id: string;
+  name: string;
+  input: unknown;
+  info?: ToolResultInfo;
+  nestedTools?: NestedToolView[];
+}
 export interface ChatMessage {
   /** pi 消息角色；`compactionSummary` 为会话压缩总结，`reviewResults` 为作者的逐处处理结果，text 是显示文字。 */
   role: string;
   text: string;
   thinking: string;
-  tools: { id: string; name: string; input: unknown }[];
+  tools: ToolCallView[];
   toolName?: string;
+  /** toolResult 对应的原生调用身份，同名调用按此关联。 */
+  toolCallId?: string;
+  toolInfo?: ToolResultInfo;
+  nestedTools?: NestedToolView[];
+  nestedToolsComplete?: boolean;
+  /** 作者消息关联的编辑上下文（仅在有选区时在气泡上方显示引用块）。 */
+  editorContext?: EditorContext;
   error?: boolean;
   /** 已被压缩总结代替、不再发送给模型的消息，界面仍可查看。 */
   compacted?: boolean;
@@ -172,7 +215,7 @@ export interface HostCommands {
    * 未打开时返回 null。尚未写盘的新会话不能归入。
    */
   assignSession: { input: { sessionId: string; workId: string }; output: string | null };
-  prompt: { input: { id: string; text: string }; output: void };
+  prompt: { input: { id: string; text: string; editorContext?: EditorContext }; output: void };
   cancel: { input: { id: string }; output: void };
   compact: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
@@ -213,6 +256,7 @@ export type HostChange =
   | { kind: 'session'; session: SessionView }
   | { kind: 'message'; id: string; index: number; message: ChatMessage }
   | { kind: 'delta'; id: string; index: number; field: 'text' | 'thinking'; text: string }
+  | { kind: 'tool'; id: string; index: number; parentCallId: string; call: NestedToolView }
   | { kind: 'running'; id: string; running: boolean; compacting: boolean; error?: string }
   | { kind: 'usage'; id: string; usage: SessionUsage }
   | { kind: 'closed'; id: string }

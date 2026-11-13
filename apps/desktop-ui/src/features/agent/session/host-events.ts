@@ -12,12 +12,31 @@ export function applyHostEvent(snapshot: HostState, event: HostEvent) {
       else snapshot.sessions[index] = event.session;
       break;
     }
-    case 'message':
-      session(event.id).messages[event.index] = event.message;
+    case 'message': {
+      const messages = session(event.id).messages;
+      if (event.message.role === 'toolResult') {
+        for (let index = event.index - 1; index >= 0; index--) {
+          const parent = messages[index].tools.find(tool => tool.id === event.message.toolCallId);
+          if (parent) {
+            delete parent.nestedTools;
+            break;
+          }
+        }
+      }
+      messages[event.index] = event.message;
       break;
+    }
     case 'delta':
       session(event.id).messages[event.index][event.field] += event.text;
       break;
+    case 'tool': {
+      const parent = session(event.id).messages[event.index].tools.find(tool => tool.id === event.parentCallId)!;
+      const calls = (parent.nestedTools ??= []);
+      const index = calls.findIndex(call => call.id === event.call.id);
+      if (index === -1) calls.push(event.call);
+      else calls[index] = event.call;
+      break;
+    }
     case 'running': {
       const target = session(event.id);
       target.running = event.running;

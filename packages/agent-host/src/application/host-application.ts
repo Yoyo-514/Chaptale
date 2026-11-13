@@ -145,7 +145,10 @@ export class HostApplication {
       case 'assignSession':
         return this.assignSession(command.input.sessionId, command.input.workId);
       case 'prompt':
-        return this.live(command.input.id).prompt(command.input.text);
+        return this.live(command.input.id).prompt(
+          command.input.text,
+          command.input.editorContext && structuredClone(command.input.editorContext)
+        );
       case 'cancel':
         return this.live(command.input.id).stop();
       case 'compact':
@@ -332,7 +335,9 @@ export class HostApplication {
           if (await targetsCwd(request.toolName, request.input, request.cwd)) return { allow: true } as const;
           return this.approvals.authorize(request, signal);
         },
-        onToolsLoaded: (sessionId: string) => this.live(sessionId).syncWorkTools()
+        onToolsLoaded: (sessionId: string) => this.live(sessionId).syncWorkTools(),
+        onToolActivity: (sessionId: string, event: Parameters<LiveSession['toolActivity']>[0]) =>
+          this.sessions.get(sessionId)?.live?.toolActivity(event)
       }
     };
   }

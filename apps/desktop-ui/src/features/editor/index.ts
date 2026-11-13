@@ -1,4 +1,5 @@
 export { useEditorStore } from './store';
+export { useEditorContext } from './context';
 export { useReviewStore } from './review/store';
 export { useHistoryStore } from './history/store';
 export type { EditorTab } from './types';

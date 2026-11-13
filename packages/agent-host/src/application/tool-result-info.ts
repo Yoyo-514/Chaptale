@@ -1,0 +1,75 @@
+import type { CreationApplication } from '@chaptale/creation/application';
+import type { Entry } from '@chaptale/creation/contracts';
+
+import type { EditMode, ToolResultInfo } from '../protocol.ts';
+
+/** 运行中的子调用摘要只取定位字段；整章正文和脚本代码沿用 SDK 最终记录。 */
+export function previewToolInput(input: Record<string, unknown>): Record<string, unknown> {
+  const fields = new Set([
+    'title',
+    'section',
+    'entryId',
+    'recordId',
+    'relationId',
+    'remove',
+    'pattern',
+    'query',
+    'path',
+    'file_path',
+    'text'
+  ]);
+  return Object.fromEntries(Object.entries(input).filter(([key]) => fields.has(key)));
+}
+
+export type ToolTargetLookup = (input: unknown) => ToolResultInfo | undefined;
+
+/** 一次投影内每部作品只读一份目录，把原生参数中的条目 ID 显示为可读标题。 */
+export function toolTargetLookup(creation: CreationApplication, sessionId: string, mode: EditMode): ToolTargetLookup {
+  const works = new Map<string, Entry[]>();
+  return input => {
+    const fields = object(input);
+    if (typeof fields?.workId !== 'string' || typeof fields.entryId !== 'string') return undefined;
+    let entries = works.get(fields.workId);
+    if (!entries) {
+      const result = creation.executeAgent(
+        { sessionId, mode },
+        { method: 'listEntries', input: { workId: fields.workId } }
+      );
+      if (!result.ok) return undefined;
+      entries = result.value;
+      works.set(fields.workId, entries);
+    }
+    const entry = entries.find(item => item.id === fields.entryId);
+    return entry && { title: entry.title, section: entry.section };
+  };
+}
+
+function object(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/** 从 SDK 原生 toolResult.details 提取可读标题、字数与计数摘要。 */
+export function toolResultInfo(details: unknown): ToolResultInfo | undefined {
+  const result = object(details);
+  if (!result || !('ok' in result)) return undefined;
+  if (result.ok === false) {
+    const error = object(result.error);
+    return typeof error?.message === 'string' ? { error: error.message } : undefined;
+  }
+  const value = object(result.value);
+  if (!value) return Array.isArray(result.value) ? { count: result.value.length } : undefined;
+  const entry = object(value.entry) ?? value;
+  const record = object(value.record);
+  const relation = object(value.relation);
+  const entries = value.entries ?? value.relations;
+  return {
+    ...(typeof entry.title === 'string' && { title: entry.title }),
+    ...((entry.section === 'manuscript' || entry.section === 'resource') && { section: entry.section }),
+    ...(typeof entry.wordCount === 'number' && { wordCount: entry.wordCount }),
+    ...(Array.isArray(entries) && { count: entries.length }),
+    ...(typeof record?.text === 'string' && { description: record.text }),
+    ...(typeof relation?.type === 'string' && { description: relation.type })
+  };
+}

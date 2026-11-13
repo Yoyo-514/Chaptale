@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia';
-import { computed, onScopeDispose, ref, watch } from 'vue';
+import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 
-import type { HistoryItem, HostEvent, HostState, ModelRef, EditMode } from '@chaptale/agent-host/protocol';
+import type {
+  EditorContext,
+  HistoryItem,
+  HostEvent,
+  HostState,
+  ModelRef,
+  EditMode
+} from '@chaptale/agent-host/protocol';
 import type { SessionState } from '@chaptale/creation/contracts';
 
 import { requestCreation, useCreationStore } from '@/features/creation';
@@ -13,6 +20,10 @@ import { enqueueMessage, type OutgoingMessage, unsentMessages } from './session/
 
 export type { OutgoingMessage } from './session/outgoing';
 export type { SessionEntry } from './session/list';
+
+interface EditorContextSource {
+  prepare(sessionId: string | null): Promise<{ ok: boolean; context?: EditorContext }>;
+}
 
 /** 界面只持有快照、草稿和查看位置；原生会话由宿主持有。 */
 export const useAgentStore = defineStore('agent', () => {
@@ -31,6 +42,10 @@ export const useAgentStore = defineStore('agent', () => {
   const composeInstructions = ref<string>();
   const composeMode = ref<EditMode>();
   const history = ref<HistoryItem[]>([]);
+  const editorContextSource = shallowRef<EditorContextSource>();
+  function setEditorContextSource(source: EditorContextSource | undefined) {
+    editorContextSource.value = source;
+  }
   const active = computed(() => state.value?.sessions.find(session => session.id === activeId.value));
   const activeOutgoing = computed(() => (active.value ? unsent(active.value.id) : []));
   const draftKey = computed(() => activeId.value ?? `new:${scope.value ?? ''}`);
@@ -202,17 +217,21 @@ export const useAgentStore = defineStore('agent', () => {
     if (active.value?.compacting || creating.value) return;
     const text = draft.value.trim();
     if (!text) return;
+    if (!activeId.value && !selectedModel.value) {
+      error.value = '请先选择模型';
+      return;
+    }
+    const prepared = editorContextSource.value
+      ? await editorContextSource.value.prepare(active.value?.sessionId ?? null)
+      : { ok: true as const };
+    if (!prepared.ok) return;
     let id = activeId.value;
     if (!id) {
-      if (!selectedModel.value) {
-        error.value = '请先选择模型';
-        return;
-      }
       id = await create();
       if (!id) return;
     }
     drafts.value[id] = '';
-    await dispatch(id, text);
+    await dispatch(id, text, prepared.context);
   }
 
   /** 新建归属当前作品的审阅模式会话并发送作者可见的指令。 */
@@ -230,11 +249,13 @@ export const useAgentStore = defineStore('agent', () => {
     return unsentMessages(liveSession(id), outgoing.value[id]);
   }
   /** 先显示消息再请求；宿主拒收时保留消息并标记失败，供作者重试或移除。 */
-  async function dispatch(id: string, text: string) {
-    const { message, list } = enqueueMessage(liveSession(id), outgoing.value[id] ?? [], text);
+  async function dispatch(id: string, text: string, context?: EditorContext) {
+    // 重试消息来自响应式待发列表，同样按纯 JSON 契约生成本次请求自己的数据。
+    const capturedContext = context && (JSON.parse(JSON.stringify(context)) as EditorContext);
+    const { message, list } = enqueueMessage(liveSession(id), outgoing.value[id] ?? [], text, capturedContext);
     outgoing.value[id] = list;
     try {
-      await getDesktopApi().agentHost.request('prompt', { id, text });
+      await getDesktopApi().agentHost.request('prompt', { id, text, editorContext: capturedContext });
     } catch (cause) {
       const failed = outgoing.value[id].find(item => item.key === message.key);
       if (failed) failed.error = toErrorMessage(cause);
@@ -246,9 +267,9 @@ export const useAgentStore = defineStore('agent', () => {
   }
   function retryOutgoing(key: string) {
     const id = activeId.value!;
-    const { text } = outgoing.value[id].find(item => item.key === key)!;
+    const { text, editorContext: context } = outgoing.value[id].find(item => item.key === key)!;
     discardOutgoing(key);
-    return dispatch(id, text);
+    return dispatch(id, text, context);
   }
 
   /** 宿主拒绝待审修改并关闭会话，历史文件移入回收站后刷新列表。 */
@@ -338,6 +359,7 @@ export const useAgentStore = defineStore('agent', () => {
   });
   return {
     state,
+    setEditorContextSource,
     catalog,
     scope,
     creating,

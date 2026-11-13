@@ -3,7 +3,7 @@ import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { SessionPanel } from '@/features/agent';
+import { SessionPanel, useAgentStore } from '@/features/agent';
 import {
   useCreationStore,
   CreationExplorer,
@@ -11,12 +11,14 @@ import {
   FileExchangeDialog,
   WorksLibrary
 } from '@/features/creation';
-import { EditorGroup } from '@/features/editor';
+import { EditorGroup, useEditorContext } from '@/features/editor';
 import { useWorkbenchStore } from '@/features/workbench';
 import { hasDesktopApi } from '@/utils/desktop-api';
 
 const creation = useCreationStore();
 const navigation = useWorkbenchStore();
+const agent = useAgentStore();
+agent.setEditorContextSource(useEditorContext());
 const sidebar = ref<InstanceType<typeof SplitterPanel>>();
 const auxiliary = ref<InstanceType<typeof SplitterPanel>>();
 const showSidebar = computed(
@@ -40,7 +42,10 @@ onMounted(() => {
   window.addEventListener('keydown', keydown);
   if (hasDesktopApi()) void creation.connect();
 });
-onBeforeUnmount(() => window.removeEventListener('keydown', keydown));
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', keydown);
+  agent.setEditorContextSource(undefined);
+});
 </script>
 
 <template>

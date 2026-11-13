@@ -64,7 +64,7 @@ describe('buildTranscript', () => {
         thinking: '需要读取正文',
         tools: [{ id: 'a', name: 'read', input: { path: '正文/第一章.md' } }]
       }),
-      message({ role: 'toolResult', toolName: 'read', text: '雪落在窗沿' }),
+      message({ role: 'toolResult', toolCallId: 'a', toolName: 'read', text: '雪落在窗沿' }),
       message({ role: 'assistant', text: '读完了。' })
     ]);
     expect(items.map(item => item.kind)).toEqual(['user', 'assistant', 'assistant']);
@@ -76,7 +76,7 @@ describe('buildTranscript', () => {
     });
   });
 
-  it('同名工具按调用顺序匹配结果，失败结果保留错误标记', () => {
+  it('同名工具按原生调用身份匹配结果，失败结果保留错误标记', () => {
     const [, assistant] = buildTranscript([
       message({ role: 'user', text: '找人物' }),
       message({
@@ -86,8 +86,8 @@ describe('buildTranscript', () => {
           { id: 'b', name: 'grep', input: { pattern: '沈舟' } }
         ]
       }),
-      message({ role: 'toolResult', toolName: 'grep', text: '第一处' }),
-      message({ role: 'toolResult', toolName: 'grep', text: '没有权限', error: true })
+      message({ role: 'toolResult', toolCallId: 'a', toolName: 'grep', text: '第一处' }),
+      message({ role: 'toolResult', toolCallId: 'b', toolName: 'grep', text: '没有权限', error: true })
     ]);
     expect(assistant!.kind === 'assistant' && assistant!.tools.map(tool => [tool.summary, tool.result])).toEqual([
       ['搜索了 林晚 · 正文', { text: '第一处', error: false }],

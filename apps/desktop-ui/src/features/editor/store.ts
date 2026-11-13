@@ -365,19 +365,26 @@ export const useEditorStore = defineStore('editor', () => {
     resetToDocument(id, tab.conflict);
   }
 
-  async function confirmClose(ids = tabs.value.map(tab => tab.id), discard = true): Promise<boolean> {
-    await Promise.all(ids.map(id => saves.get(id)));
-    const dirty = tabs.value.filter(tab => ids.includes(tab.id) && tab.dirty);
-    if (!dirty.length) return true;
+  async function promptUnsaved(titles: string[], discard = true): Promise<'save' | 'discard' | 'cancel'> {
     if (!decision) {
       let resolve!: (choice: 'save' | 'discard' | 'cancel') => void;
       const promise = new Promise<'save' | 'discard' | 'cancel'>(done => {
         resolve = done;
       });
       decision = { promise, resolve };
-      unsavedPrompt.value = { titles: dirty.map(tab => tab.title), discard };
+      unsavedPrompt.value = { titles, discard };
     }
-    const choice = await decision.promise;
+    return decision.promise;
+  }
+
+  async function confirmClose(ids = tabs.value.map(tab => tab.id), discard = true): Promise<boolean> {
+    await Promise.all(ids.map(id => saves.get(id)));
+    const dirty = tabs.value.filter(tab => ids.includes(tab.id) && tab.dirty);
+    if (!dirty.length) return true;
+    const choice = await promptUnsaved(
+      dirty.map(tab => tab.title),
+      discard
+    );
     if (choice === 'cancel') return false;
     if (choice === 'save') {
       for (const tab of dirty) if (!(await saveDocument(tab.id))) return false;
@@ -537,6 +544,7 @@ export const useEditorStore = defineStore('editor', () => {
     saveAll,
     keepLocal,
     acceptSaved,
+    promptUnsaved,
     confirmClose,
     resolveUnsaved,
     closeTab,

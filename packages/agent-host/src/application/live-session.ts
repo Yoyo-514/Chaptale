@@ -1,4 +1,4 @@
-import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent';
+import type { AgentSession, AgentSessionEvent, ToolCallEvent, ToolResultEvent } from '@earendil-works/pi-coding-agent';
 
 import type { CreationApplication } from '@chaptale/creation/application';
 
@@ -6,13 +6,17 @@ import { prefixMessages, systemPrompt } from '../instructions/instructions.ts';
 import {
   type AgentInstructions,
   type EditMode,
+  type EditorContext,
   type HostChange,
+  type NestedToolView,
   instructionsEntryType,
   modeEntryType,
   type SessionView
 } from '../protocol.ts';
+import { encodePromptWithContext } from './editor-context.ts';
 import { messageView, transcriptView } from './message-view.ts';
 import { SessionReviewResults } from './review-results.ts';
+import { previewToolInput, toolResultInfo, toolTargetLookup } from './tool-result-info.ts';
 import { workWriteToolNames } from './work-tools/index.ts';
 
 /** 当前请求使用的指令；创建会话前交给 SDK 回调，之后在每次发送前更新。 */
@@ -41,6 +45,7 @@ export class LiveSession {
   private cancelled = false;
   private operation?: Promise<void>;
   private readonly reviewResults?: SessionReviewResults;
+  private readonly creation?: CreationApplication;
 
   constructor(
     session: AgentSession,
@@ -52,6 +57,7 @@ export class LiveSession {
     this.session = session;
     this.applied = applied;
     this.emit = emit;
+    this.creation = options.creation;
     this.view = {
       id: session.sessionId,
       sessionId: session.sessionId,
@@ -63,7 +69,10 @@ export class LiveSession {
       compacting: false,
       instructions: applied.entries,
       mode,
-      messages: transcriptView(session.sessionManager)
+      messages: transcriptView(
+        session.sessionManager,
+        options.creation && toolTargetLookup(options.creation, session.sessionId, mode)
+      )
     };
     this.view.usage = this.usage();
     if (options.creation) this.reviewResults = new SessionReviewResults(session, options.creation);
@@ -71,16 +80,17 @@ export class LiveSession {
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
   }
 
-  async prompt(text: string): Promise<void> {
+  async prompt(text: string, context?: EditorContext): Promise<void> {
     const { view } = this;
     if (!text.trim()) throw new Error('消息不能为空');
     if (view.compacting) throw new Error('该会话正在运行压缩，请等待结束或停止后再发送');
+    const encoded = encodePromptWithContext(text, context, view.workId);
     if (view.running) {
       // 重载与停止尚未进入可插话的生成阶段，拒收后由界面把该消息标为发送失败。
       if (this.cancelled || !this.session.isStreaming) throw new Error('会话正在启动或停止，请稍后再发送');
       const results = this.reviewResults?.prepare();
       if (results) await this.session.sendCustomMessage(results, { triggerTurn: false });
-      await this.session.steer(text);
+      await this.session.steer(encoded);
       return;
     }
     const results = this.reviewResults?.prepare();
@@ -89,7 +99,7 @@ export class LiveSession {
         await this.session.sendCustomMessage(results, { triggerTurn: false });
         this.reviewResults!.acknowledge();
       }
-      await this.session.prompt(text);
+      await this.session.prompt(encoded);
     });
   }
 
@@ -158,6 +168,7 @@ export class LiveSession {
     this.cancelled = true;
     this.emit({ kind: 'session', session: this.view });
     await this.session.abort();
+    this.session.clearQueue();
     await this.operation;
   }
 
@@ -231,10 +242,54 @@ export class LiveSession {
     this.emit({ kind: 'usage', id: this.view.id, usage: this.view.usage });
   }
 
+  private findToolCall(id: string, nested = false) {
+    for (let index = this.view.messages.length - 1; index >= 0; index--) {
+      const message = this.view.messages[index];
+      const tool = message.tools.find(call => call.id === id || (nested && id.startsWith(`${call.id}/`)));
+      if (tool) return { index, message, tool };
+    }
+    return undefined;
+  }
+
+  /** 只投影 SDK 生命周期；调用、授权、调度和最终嵌套记录仍由 SDK 负责。 */
+  toolActivity(event: ToolCallEvent | ToolResultEvent): void {
+    if (!event.parentToolCallId) return;
+    const parent = this.findToolCall(event.parentToolCallId, true);
+    if (!parent || this.view.messages.slice(parent.index + 1).some(message => message.toolCallId === parent.tool.id))
+      return;
+    const calls = (parent.tool.nestedTools ??= []);
+    let call: NestedToolView;
+    if (event.type === 'tool_call') {
+      call = { id: event.toolCallId, name: event.toolName, preview: previewToolInput(event.input), status: 'running' };
+      calls.push(call);
+    } else {
+      call = calls.find(item => item.id === event.toolCallId)!;
+      const info = toolResultInfo(event.structuredContent ?? event.details);
+      call.status = event.isError ? 'error' : 'ok';
+      call.info = info;
+      if (event.isError)
+        call.error =
+          info?.error ??
+          event.content
+            .filter(block => block.type === 'text')
+            .map(block => block.text)
+            .join('\n');
+    }
+    this.emit({ kind: 'tool', id: this.view.id, index: parent.index, parentCallId: parent.tool.id, call });
+  }
+
+  private toolTargets() {
+    return this.creation && toolTargetLookup(this.creation, this.session.sessionId, this.view.mode!);
+  }
+
   private onEvent(event: AgentSessionEvent): void {
     const { view } = this;
     if (event.type === 'message_start') {
-      const message = messageView(event.message);
+      const message = messageView(event.message, this.toolTargets());
+      if (event.message.role === 'toolResult') {
+        const parent = this.findToolCall(event.message.toolCallId);
+        if (parent) delete parent.tool.nestedTools;
+      }
       const index = view.messages.push(message) - 1;
       this.emit({ kind: 'message', id: view.id, index, message });
     } else if (event.type === 'message_update') {
@@ -246,7 +301,7 @@ export class LiveSession {
       this.emit({ kind: 'delta', id: view.id, index, field, text: delta.delta });
     } else if (event.type === 'message_end') {
       const index = view.messages.length - 1;
-      const message = messageView(event.message);
+      const message = messageView(event.message, this.toolTargets());
       view.messages[index] = message;
       this.emit({ kind: 'message', id: view.id, index, message });
     } else if (event.type === 'turn_end') {
@@ -261,7 +316,7 @@ export class LiveSession {
       view.compacting = false;
       if (event.result) {
         // 压缩前的对话保留显示并标记，总结插在记录位置。
-        view.messages = transcriptView(this.session.sessionManager);
+        view.messages = transcriptView(this.session.sessionManager, this.toolTargets());
       }
       view.usage = this.usage();
       this.emit({ kind: 'session', session: view });

@@ -7,7 +7,9 @@ import { AppButton } from '@/components/AppButton';
 import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } from '@/utils/markdown';
 
 import type { OutgoingMessage } from '../store';
-import { buildTranscript, describeTool } from '../transcript';
+import { buildTranscript, describeTool, hasRunningTools, summarizeTools, toolRows } from '../transcript';
+import EditorContextBadge from './EditorContextBadge.vue';
+import ToolCallRow from './ToolCallRow.vue';
 
 const props = defineProps<{ session: SessionView; approvals: Approval[]; outgoing: OutgoingMessage[] }>();
 const emit = defineEmits<{
@@ -59,7 +61,10 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
         :class="{ 'is-compacted': item.compacted }"
         aria-label="作者"
       >
-        <div class="agent-user-text">{{ item.text }}</div>
+        <div class="agent-user-body">
+          <EditorContextBadge v-if="item.editorContext" :context="item.editorContext" />
+          <div class="agent-user-text">{{ item.text }}</div>
+        </div>
       </article>
       <details v-else-if="item.kind === 'notice'" class="agent-notice">
         <summary>
@@ -111,33 +116,38 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
           :class="{ 'agent-error': item.error }"
           v-html="html(item.index, item.text)"
         />
-        <div v-for="tool in item.tools" :key="tool.key" class="agent-activity">
+        <section v-if="item.tools.length" class="agent-activity agent-tool-group" aria-label="工具调用">
           <button
             type="button"
             class="agent-activity-row"
-            :aria-expanded="expanded.has(tool.key)"
-            @click="toggle(tool.key)"
+            :aria-expanded="expanded.has(`tools:${item.key}`)"
+            @click="toggle(`tools:${item.key}`)"
           >
             <span
-              v-if="!tool.result && session.running"
+              v-if="session.running && hasRunningTools(item.tools)"
               class="i-mingcute-loading-line agent-activity-icon animate-spin"
               aria-label="进行中"
             />
-            <span
-              v-else-if="tool.result?.error"
-              class="i-mingcute-warning-line agent-activity-icon is-error"
-              aria-label="失败"
-            />
-            <span v-else class="i-mingcute-file-search-line agent-activity-icon" aria-hidden="true" />
-            <span class="agent-activity-summary" :title="tool.summary">{{ tool.summary }}</span>
+            <span v-else class="i-mingcute-tool-line agent-activity-icon" aria-hidden="true" />
+            <span class="agent-activity-summary agent-tool-counts">{{ summarizeTools(item.tools) }}</span>
             <span class="i-mingcute-right-line agent-activity-chevron" aria-hidden="true" />
           </button>
-          <div v-if="expanded.has(tool.key)" class="agent-activity-detail">
-            <pre v-if="tool.input !== undefined">{{ format(tool.input) }}</pre>
-            <pre v-if="tool.result" :class="{ 'agent-error': tool.result.error }">{{ tool.result.text }}</pre>
-            <p v-else class="agent-activity-empty">还没有结果。</p>
+          <p v-if="item.tools.some(tool => tool.incomplete)" class="agent-activity-empty">部分调用记录</p>
+          <div v-if="expanded.has(`tools:${item.key}`)" class="agent-tool-steps">
+            <ToolCallRow
+              v-for="tool in toolRows(item.tools).filter(tool => !tool.result?.error)"
+              :key="tool.key"
+              :tool="tool"
+              :running="session.running"
+            />
           </div>
-        </div>
+          <ToolCallRow
+            v-for="tool in toolRows(item.tools).filter(tool => tool.result?.error)"
+            :key="tool.key"
+            :tool="tool"
+            :running="false"
+          />
+        </section>
       </article>
     </template>
     <article
@@ -147,7 +157,10 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
       :class="item.error ? 'is-failed' : 'is-sending'"
       aria-label="作者"
     >
-      <div class="agent-user-text">{{ item.text }}</div>
+      <div class="agent-user-body">
+        <EditorContextBadge v-if="item.editorContext" :context="item.editorContext" />
+        <div class="agent-user-text">{{ item.text }}</div>
+      </div>
       <p v-if="item.error" class="agent-user-failure" role="alert">
         <span class="i-mingcute-warning-line size-3.5 shrink-0" aria-hidden="true" />
         <span class="flex-1">发送失败：{{ item.error }}</span>

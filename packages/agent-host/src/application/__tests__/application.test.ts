@@ -1,13 +1,15 @@
 import { createAssistantMessageEventStream, InMemoryCredentialStore, type Message } from '@earendil-works/pi-ai';
-import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
+import { createReadToolDefinition, defineTool, ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Type } from 'typebox';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
 import {
   type AgentInstructions,
   type EditMode,
+  type EditorContext,
   type HostEvent,
   type InstructionEntry,
   instructionsEntryType,
@@ -43,6 +45,16 @@ const offlineModel = {
   maxTokens: 512,
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 };
+
+function makeEditorContext(title: string): EditorContext {
+  return {
+    workId: 'work',
+    entryId: title,
+    title,
+    section: 'manuscript',
+    selection: `选中${title}`
+  };
+}
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'chaptale-application-'));
@@ -142,6 +154,253 @@ async function restart(overrides: Partial<HostApplicationOptions> = {}) {
   await app.dispose();
   app = await HostApplication.create({ ...options, ...overrides });
 }
+
+it('每条作者消息附带当前打开标签定位与选区原文，重开后保持关联', async () => {
+  const id = await create(undefined, capture);
+  const editorContext: EditorContext = {
+    workId: 'work',
+    entryId: 'chapter',
+    title: '第三回',
+    section: 'manuscript',
+    selection: '选中的原句'
+  };
+  const done = settled();
+  await app.execute({ method: 'prompt', input: { id, text: '润色这里', editorContext } });
+  editorContext.title = '发送后切到另一章';
+  await done;
+  const sent = view(id).messages.find(message => message.role === 'user')!;
+  expect(sent.text).toBe('润色这里');
+  expect(sent.editorContext).toEqual({
+    workId: 'work',
+    entryId: 'chapter',
+    title: '第三回',
+    section: 'manuscript',
+    selection: '选中的原句'
+  });
+  expect(JSON.stringify(captured)).toContain('当前打开：文稿《第三回》（entryId: chapter，workId: work）');
+  expect(JSON.stringify(captured)).toContain('选中的原句');
+  expect(JSON.stringify(captured)).not.toContain('发送后切到另一章');
+  const file = view(id).file;
+  await app.execute({ method: 'close', input: { id } });
+  const reopened = await open({ file });
+  expect(view(reopened).messages.find(message => message.role === 'user')!.editorContext).toEqual(sent.editorContext);
+});
+
+it('原生嵌套调用逐步更新界面，完成后沿用原生子调用记录重开', async () => {
+  await writeFile(join(options.cwd, '第一章.txt'), '将军守城。');
+  await writeFile(join(options.cwd, '第二章.txt'), '公主远行。');
+  let release!: () => void;
+  let reached!: () => void;
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  const first = new Promise<void>(resolve => {
+    reached = resolve;
+  });
+  const batch = defineTool({
+    name: 'batch_read',
+    label: '批量读取',
+    description: '读取两份临时章节',
+    parameters: Type.Object({}),
+    async execute(_id, _input, _signal, _update, ctx) {
+      await ctx.executeTool('read', { path: '第一章.txt' });
+      reached();
+      await gate;
+      await ctx.executeTool('read', { path: '第二章.txt' });
+      return { content: [{ type: 'text' as const, text: '实际读取完成' }], details: undefined };
+    }
+  });
+  await restart({ tools: () => [batch, defineTool(createReadToolDefinition(options.cwd))] });
+  const manager = SessionManager.create(options.cwd, join(options.sessionDir, 'unassigned'));
+  manager.appendCustomEntry(instructionsEntryType, { entries: builtin });
+  manager.appendCustomEntry(modeEntryType, { mode: 'review' });
+  manager.appendMessage({ role: 'user', content: '读取两章', timestamp: Date.UTC(2026, 10, 13) });
+  manager.appendMessage({
+    role: 'assistant',
+    api: 'openai-completions',
+    provider: capture.provider,
+    model: capture.id,
+    content: [{ type: 'toolCall', id: 'batch', name: 'batch_read', arguments: {} }],
+    usage: zeroUsage,
+    stopReason: 'toolUse',
+    timestamp: Date.UTC(2026, 10, 13) + 1
+  });
+  const id = await open({ file: manager.getSessionFile()! });
+  await app.execute({ method: 'model', input: { id, model: capture } });
+  const session = app.liveSession(id)!;
+  const off = app.subscribe(event => {
+    if (event.kind === 'approval')
+      void app.execute({ method: 'approve', input: { id: event.approval.id, allow: true } });
+  });
+  const executing = session.agent.state.tools.find(tool => tool.name === 'batch_read')!.execute('batch', {});
+  try {
+    await first;
+    expect(view(id).messages.find(message => message.role === 'assistant')!.tools[0].nestedTools).toMatchObject([
+      { name: 'read', status: 'ok', preview: { path: '第一章.txt' } }
+    ]);
+  } finally {
+    release();
+    await executing;
+    off();
+  }
+  const result = await executing;
+  await session.agent.prompt({
+    role: 'toolResult',
+    toolCallId: 'batch',
+    toolName: 'batch_read',
+    content: result.content,
+    details: result.details,
+    isError: false,
+    timestamp: Date.UTC(2026, 10, 13) + 2
+  });
+  const completed = view(id).messages.find(message => message.role === 'toolResult')!;
+  expect(completed.nestedTools?.map(call => [call.name, call.status])).toEqual([
+    ['read', 'ok'],
+    ['read', 'ok']
+  ]);
+  const file = view(id).file;
+  await app.execute({ method: 'close', input: { id } });
+  expect(view(await open({ file })).messages.find(message => message.role === 'toolResult')!.nestedTools).toEqual(
+    completed.nestedTools
+  );
+});
+
+it('连续同文插话与后续起始输入按原生排队顺序保留各自的打开标签与选区', async () => {
+  const id = await create(undefined, capture);
+  const session = app.liveSession(id)!;
+  session.settingsManager.setRetryEnabled(false);
+  let entered!: () => void;
+  let release!: () => void;
+  const starting = new Promise<void>(resolve => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  const original = session.agent.streamFunction;
+  let first = true;
+  session.agent.streamFunction = async (...args) => {
+    if (first) {
+      first = false;
+      entered();
+      await gate;
+    }
+    return original(...args);
+  };
+  const owners = new WeakMap<object, string>();
+  let expectedStarting = '甲';
+  const observed: string[] = [];
+  const off = session.subscribe(event => {
+    if (event.type === 'message_start' && event.message.role === 'user')
+      observed.push(owners.get(event.message) ?? expectedStarting);
+  });
+  const done = settled();
+  await app.execute({ method: 'prompt', input: { id, text: '改这里', editorContext: makeEditorContext('甲') } });
+  try {
+    await starting;
+    await app.execute({ method: 'prompt', input: { id, text: '改这里', editorContext: makeEditorContext('乙') } });
+    await app.execute({ method: 'prompt', input: { id, text: '改这里', editorContext: makeEditorContext('丙') } });
+    const mode = session.agent.steeringMode;
+    session.agent.steeringMode = 'all';
+    const queued = session.agent.peekQueuedMessages().filter(message => message.role === 'user');
+    session.agent.steeringMode = mode;
+    expect(queued).toHaveLength(2);
+    owners.set(queued[0], '乙');
+    owners.set(queued[1], '丙');
+  } finally {
+    release();
+    await done;
+  }
+  for (const title of ['丁', '戊']) {
+    expectedStarting = title;
+    const finished = settled();
+    await app.execute({ method: 'prompt', input: { id, text: '改这里', editorContext: makeEditorContext(title) } });
+    await finished;
+  }
+  off();
+  const users = view(id).messages.filter(message => message.role === 'user');
+  expect(users.map(message => message.editorContext!.title)).toEqual(observed);
+  expect(users.map(message => message.editorContext!.selection)).toEqual(observed.map(title => `选中${title}`));
+  expect(users.every(message => message.text === '改这里')).toBe(true);
+  expect(captured.length).toBeLessThanOrEqual(users.length);
+});
+
+it('取消运行会清空排队中的插话及其快照，下一条新消息不会错绑旧上下文', async () => {
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => {
+    markStarted = resolve;
+  });
+  let hangFirst = true;
+  options.modelRuntime.registerProvider('abort-capture', {
+    baseUrl: 'http://127.0.0.1:9',
+    apiKey: 'offline-capture',
+    api: 'application-abort-capture',
+    models: [{ id: 'offline', ...offlineModel }],
+    streamSimple: (target, _context, request) => {
+      const stream = createAssistantMessageEventStream();
+      if (hangFirst) {
+        hangFirst = false;
+        request?.signal?.addEventListener(
+          'abort',
+          () =>
+            stream.push({
+              type: 'error',
+              reason: 'aborted',
+              error: {
+                role: 'assistant',
+                content: [],
+                api: target.api,
+                provider: target.provider,
+                model: target.id,
+                usage: zeroUsage,
+                stopReason: 'aborted',
+                errorMessage: '离线请求已取消',
+                timestamp: Date.now()
+              }
+            }),
+          { once: true }
+        );
+        markStarted();
+      } else {
+        queueMicrotask(() =>
+          stream.push({
+            type: 'error',
+            reason: 'error',
+            error: {
+              role: 'assistant',
+              content: [],
+              api: target.api,
+              provider: target.provider,
+              model: target.id,
+              usage: zeroUsage,
+              stopReason: 'error',
+              errorMessage: '离线捕获结束',
+              timestamp: Date.now()
+            }
+          })
+        );
+      }
+      return stream;
+    }
+  });
+  const id = await create(undefined, { provider: 'abort-capture', id: 'offline' });
+  const session = app.liveSession(id)!;
+  session.settingsManager.setRetryEnabled(false);
+  await app.execute({ method: 'prompt', input: { id, text: '首轮', editorContext: makeEditorContext('甲') } });
+  await started;
+  await app.execute({ method: 'prompt', input: { id, text: '插话', editorContext: makeEditorContext('乙') } });
+  expect(session.getSteeringMessages()).toHaveLength(1);
+  await app.execute({ method: 'cancel', input: { id } });
+  expect(session.getSteeringMessages()).toEqual([]);
+  const done = settled();
+  await app.execute({ method: 'prompt', input: { id, text: '新消息', editorContext: makeEditorContext('丙') } });
+  await done;
+  const users = view(id).messages.filter(message => message.role === 'user');
+  expect(users.map(message => [message.text, message.editorContext?.title])).toEqual([
+    ['首轮', '甲'],
+    ['新消息', '丙']
+  ]);
+});
 
 it('重连读取快照不会创建新执行者，返回值不能修改宿主状态', async () => {
   const first = await create();

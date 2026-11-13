@@ -53,9 +53,10 @@ async function load(documentId: string, target: number | 'end') {
   try {
     const content = await reading.readChapter(documentId);
     if (version !== loadVersion) return;
+    reading.remember(props.tab.id, { documentId, offset: target === 'end' ? position.value.offset : target });
     const blocks = readingBlocks(content.content, content.format);
     for (const block of blocks) if (block.illustration) void illustrations.load(block.illustration.entryId);
-    chapter.value = { id: documentId, ...content, blocks };
+    chapter.value = { ...content, blocks };
     await layout(target);
   } catch (cause) {
     if (version === loadVersion) error.value = toErrorMessage(cause);
@@ -89,6 +90,7 @@ function keydown(event: KeyboardEvent) {
 }
 
 onMounted(() => {
+  reading.bindViewport(props.tab.id, viewport.value!);
   observer = new ResizeObserver(([entry]) => {
     const { width, height } = entry!.contentRect;
     if (width === size.value.width && height === size.value.height) return;
@@ -99,7 +101,10 @@ onMounted(() => {
   void load(position.value.documentId, position.value.offset);
   viewport.value!.focus();
 });
-onBeforeUnmount(() => observer?.disconnect());
+onBeforeUnmount(() => {
+  reading.bindViewport(props.tab.id, null);
+  observer?.disconnect();
+});
 watch(
   () => props.tab.format,
   () => {

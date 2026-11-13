@@ -169,6 +169,79 @@
 .agent-user:first-child {
   margin-top: 0;
 }
+.agent-user-body {
+  display: flex;
+  max-width: 85%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.agent-user-body .agent-user-text {
+  max-width: 100%;
+}
+.agent-editor-context {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-editor-context > summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 22px;
+  min-width: 0;
+  gap: 4px;
+  list-style: none;
+  cursor: pointer;
+  border-radius: var(--radius-control-sm);
+}
+.agent-editor-context > summary::-webkit-details-marker {
+  display: none;
+}
+.agent-editor-context > summary:hover {
+  color: var(--foreground);
+}
+.agent-editor-context > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.agent-editor-context-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-editor-context-state {
+  flex-shrink: 0;
+  color: var(--warning);
+}
+.agent-editor-context-chevron {
+  transition: transform 150ms ease-out;
+}
+.agent-editor-context[open] .agent-editor-context-chevron {
+  transform: rotate(180deg);
+}
+.agent-editor-context-detail {
+  padding: 4px 0 4px 12px;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.agent-editor-context-detail p {
+  margin: 2px 0;
+}
+.agent-editor-context-detail pre {
+  max-height: 14rem;
+  overflow: auto;
+  padding: 6px 8px;
+  border-left: 1px solid var(--border);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  margin: 4px 0 0;
+}
 .agent-user-text {
   max-width: 85%;
   padding: 8px 14px;
@@ -194,6 +267,18 @@
 }
 .agent-activity {
   min-width: 0;
+}
+.agent-tool-counts {
+  font-variant-numeric: tabular-nums;
+}
+.agent-tool-steps {
+  padding-left: 14px;
+}
+.agent-tool-call.is-nested {
+  padding-left: 14px;
+}
+.agent-tool-failure > .agent-activity-row {
+  color: var(--destructive);
 }
 .agent-activity-row {
   display: flex;
@@ -243,6 +328,7 @@
     opacity 150ms ease-out;
 }
 .agent-activity-row:hover .agent-activity-chevron,
+.agent-activity-row:focus-visible .agent-activity-chevron,
 .agent-activity-row[aria-expanded='true'] .agent-activity-chevron {
   opacity: 1;
 }

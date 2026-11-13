@@ -1,4 +1,10 @@
-import { createToolSearchExtension, type ExtensionFactory, type ToolDefinition } from '@earendil-works/pi-coding-agent';
+import {
+  createToolSearchExtension,
+  type ExtensionFactory,
+  type ToolCallEvent,
+  type ToolResultEvent,
+  type ToolDefinition
+} from '@earendil-works/pi-coding-agent';
 
 const toolSearchName = 'tool_search';
 
@@ -24,6 +30,8 @@ export interface HostToolAccess {
   authorize: HostToolAuthorizer;
   /** tool_search 加载工具后调用，宿主据此按会话状态校正声明的工具。 */
   onToolsLoaded?: (sessionId: string) => void;
+  /** 原生事件只用于应用展示，执行与嵌套记录继续由 SDK 持有。 */
+  onToolActivity?: (sessionId: string, event: ToolCallEvent | ToolResultEvent) => void;
 }
 
 function aborted(): Error {
@@ -110,7 +118,9 @@ export function bindHostTools(access: HostToolAccess): {
           if (event.toolName === toolSearchName) access.onToolsLoaded?.(ctx.sessionManager.getSessionId());
         });
       }
-      pi.on('tool_call', event => {
+      pi.on('tool_result', (event, ctx) => access.onToolActivity?.(ctx.sessionManager.getSessionId(), event));
+      pi.on('tool_call', (event, ctx) => {
+        access.onToolActivity?.(ctx.sessionManager.getSessionId(), event);
         if (!registered.has(event.toolName)) return { block: true, reason: '工具未在应用宿主中授权注册' };
       });
     }

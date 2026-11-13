@@ -67,6 +67,90 @@ test.afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 
+test('未保存修改先提示保存再发送，附带当前标签与选区并在重开后保留标记', async () => {
+  const requests: string[] = [];
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => {
+    markStarted = resolve;
+  });
+  // 本地端点仅捕获请求并返回错误，不生成模型回复。
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on('data', chunk => chunks.push(Buffer.from(chunk)));
+    request.on('end', () => {
+      requests.push(Buffer.concat(chunks).toString('utf8'));
+      response.writeHead(400, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: { message: '离线捕获结束' } }));
+      markStarted();
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as { port: number };
+  try {
+    await createWork();
+    await openSessions();
+    await page
+      .getByRole('complementary', { name: '作品导航' })
+      .getByRole('button', { name: '作品操作', exact: true })
+      .click();
+    await page.getByRole('menuitem', { name: '新建文稿', exact: true }).click();
+    await page.getByRole('textbox', { name: '文档标题', exact: true }).fill('第三回');
+    await page.getByRole('button', { name: '创建文档', exact: true }).click();
+    const body = page.getByRole('textbox', { name: '文档正文', exact: true });
+    await body.click();
+    await page.keyboard.insertText('这句需要润色\n未选中的完整稿件内容');
+    await body.press('Control+Home');
+    await body.press('Shift+End');
+    await page.evaluate(async port => {
+      await window.chaptaleDesktop.agentHost.request('saveProvider', {
+        id: 'editor-context-local',
+        apiKey: 'offline-local',
+        config: {
+          baseUrl: `http://127.0.0.1:${port}/v1`,
+          api: 'openai-completions',
+          models: [{ id: 'capture', name: '离线编辑快照', contextWindow: 8192, maxTokens: 512 }]
+        }
+      });
+    }, port);
+    await page.getByLabel('会话模型', { exact: true }).click();
+    await page.getByRole('option', { name: '离线编辑快照', exact: true }).click();
+    await page.getByLabel('消息', { exact: true }).fill('润色选中的句子');
+    await page.getByRole('button', { name: '发送', exact: true }).click();
+    const unsaved = page.getByRole('dialog', { name: '保存未保存的修改？', exact: true });
+    await expect(unsaved).toBeVisible();
+    await unsaved.getByRole('button', { name: '保存并继续', exact: true }).click();
+    await started;
+    await expect(page.getByRole('button', { name: '发送', exact: true })).toBeVisible();
+    expect(requests.join('\n')).toContain('当前打开：文稿《第三回》');
+    expect(requests.join('\n')).toContain('这句需要润色');
+    expect(requests.join('\n')).not.toContain('未选中的完整稿件内容');
+    const sent = await page.evaluate(async () => {
+      const state = await window.chaptaleDesktop.agentHost.request('state', undefined);
+      const session = state.sessions[0];
+      return {
+        id: session.id,
+        file: session.file,
+        context: session.messages.find(message => message.role === 'user')!.editorContext
+      };
+    });
+    expect(sent.context).toMatchObject({ title: '第三回', section: 'manuscript', selection: '这句需要润色' });
+    await expect(page.locator('.agent-user [aria-label="编辑上下文"]')).toContainText('文稿《第三回》选区');
+    await expect(page.getByRole('tab', { name: '第三回', exact: true })).toBeVisible();
+    const reopened = await page.evaluate(async ({ id, file }) => {
+      const client = window.chaptaleDesktop.agentHost;
+      await client.request('close', { id });
+      const opened = await client.request('open', { file });
+      const state = await client.request('state', undefined);
+      return state.sessions.find(session => session.id === opened)!.messages.find(message => message.role === 'user')!
+        .editorContext;
+    }, sent);
+    expect(reopened).toEqual(sent.context);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
+  }
+});
+
 test('真实宿主保存模型、创建独立会话，刷新界面后读取同一快照，历史原件可重开', async () => {
   const result = await page.evaluate(async () => {
     const client = window.chaptaleDesktop.agentHost;

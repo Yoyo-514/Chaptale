@@ -1,6 +1,6 @@
 import { createAssistantMessageEventStream, InMemoryCredentialStore } from '@earendil-works/pi-ai';
 import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
-import { flushPromises } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
@@ -21,8 +21,10 @@ import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
 import { openCreationStorage } from '@chaptale/storage';
 
 import { useCreationStore } from '@/features/creation';
+import { useEditorContext, useEditorStore } from '@/features/editor';
 import { useWorkbenchStore } from '@/features/workbench';
 
+import MessageList from '../components/MessageList.vue';
 import { useAgentStore } from '../store';
 
 let root: string;
@@ -36,6 +38,8 @@ let works: Work[];
 let started: Promise<void>;
 let finish: (() => void) | undefined;
 let delay: { method: string; wait: Promise<void> } | undefined;
+let rejectPrompt: boolean;
+let wrappers: VueWrapper[];
 const model = { provider: 'ownership-test', id: 'offline' };
 const instructions = [{ name: '测试', role: 'system' as const, text: '离线会话归属测试', enabled: true }];
 function value<T>(result: CreationResult<T>): T {
@@ -49,6 +53,7 @@ async function front() {
   await creation.connect();
   await creation.openWork(works[0]!.id);
   agent = useAgentStore();
+  agent.setEditorContextSource(useEditorContext());
   agent.selectedModel = model;
 }
 beforeEach(async () => {
@@ -66,6 +71,8 @@ beforeEach(async () => {
   });
   finish = undefined;
   delay = undefined;
+  rejectPrompt = false;
+  wrappers = [];
   runtime.registerProvider(model.provider, {
     baseUrl: 'http://127.0.0.1:9',
     api: 'ownership-test',
@@ -143,7 +150,10 @@ beforeEach(async () => {
       input: HostCommands[K]['input']
     ): Promise<HostCommands[K]['output']> {
       if (delay?.method === method) await delay.wait;
-      return host.execute({ method, input } as HostCommand) as Promise<HostCommands[K]['output']>;
+      if (method === 'prompt' && rejectPrompt) throw new Error('离线传输失败');
+      return host.execute({ method, input: structuredClone(input) } as HostCommand) as Promise<
+        HostCommands[K]['output']
+      >;
     },
     subscribe: listener => host.subscribe(listener),
     onDisconnected: () => () => {}
@@ -163,6 +173,7 @@ beforeEach(async () => {
   await front();
 });
 afterEach(async () => {
+  for (const wrapper of wrappers) wrapper.unmount();
   finish?.();
   if (pinia) disposePinia(pinia);
   await host?.dispose();
@@ -186,6 +197,123 @@ function history(text: string, complete = true, workId: string | null = null) {
     modified: new Date().toISOString()
   };
 }
+
+it('点击发送时捕获焦点与选区，新建会话期间切页和后续输入保持各自内容', async () => {
+  await agent.connect();
+  const entries = ['第三回', '第四回'].map(title =>
+    value(
+      author.executeAuthor({
+        method: 'createEntry',
+        input: {
+          commandId: crypto.randomUUID(),
+          workId: works[0]!.id,
+          parentId: null,
+          section: 'manuscript',
+          kind: 'document',
+          title,
+          format: 'txt',
+          content: '原文\r\n第二行'
+        }
+      })
+    )
+  );
+  await flushPromises();
+  expect(creation.entries.map(entry => entry.id)).toContain(entries[0]!.id);
+  const editor = useEditorStore();
+  await editor.openDocument(entries[0]!.id);
+  expect(editor.tabs[0]).toMatchObject({ status: 'ready', error: '' });
+  const buffer = editor.getBuffer(entries[0]!.id)!;
+  buffer.update(
+    buffer.state.update({ changes: { from: 0, to: 2, insert: '手改' }, selection: { anchor: 0, head: 2 } }).state
+  );
+  editor.updateBuffer(entries[0]!.id, buffer);
+  let release!: () => void;
+  delay = {
+    method: 'create',
+    wait: new Promise<void>(resolve => {
+      release = resolve;
+    })
+  };
+  agent.draft = '润色这里';
+  const sending = agent.send();
+  await flushPromises();
+  expect(editor.unsavedPrompt).toEqual({ titles: ['第三回'], discard: false });
+  editor.resolveUnsaved('save');
+  await flushPromises();
+  await editor.openDocument(entries[1]!.id);
+  buffer.update(buffer.state.update({ changes: { from: buffer.state.doc.length, insert: '发送后的输入' } }).state);
+  editor.updateBuffer(entries[0]!.id, buffer);
+  release();
+  await sending;
+  await started;
+  const sent = host
+    .snapshot()
+    .sessions.find(session => session.id === agent.activeId)!
+    .messages.find(message => message.role === 'user')!;
+  expect(sent.editorContext).toEqual({
+    workId: works[0]!.id,
+    entryId: entries[0]!.id,
+    title: '第三回',
+    section: 'manuscript',
+    selection: '手改'
+  });
+  expect(
+    value(author.executeAuthor({ method: 'readDocument', input: { workId: works[0]!.id, documentId: entries[0]!.id } }))
+      .content
+  ).toBe('手改\r\n第二行');
+  expect(editor.getBuffer(entries[0]!.id)!.content).toContain('发送后的输入');
+  expect(editor.tabs.find(tab => tab.id === entries[0]!.id)!.dirty).toBe(true);
+});
+
+it('失败重试与历史标记沿用原消息发送时的标签与选区', async () => {
+  await agent.connect();
+  const entries = ['第三回', '第四回'].map(title =>
+    value(
+      author.executeAuthor({
+        method: 'createEntry',
+        input: {
+          commandId: crypto.randomUUID(),
+          workId: works[0]!.id,
+          parentId: null,
+          section: 'manuscript',
+          kind: 'document',
+          title,
+          format: 'txt',
+          content: '正式正文'
+        }
+      })
+    )
+  );
+  await flushPromises();
+  const editor = useEditorStore();
+  await editor.openDocument(entries[0]!.id);
+  const buffer = editor.getBuffer(entries[0]!.id)!;
+  buffer.update(buffer.state.update({ selection: { anchor: 0, head: 2 } }).state);
+  rejectPrompt = true;
+  agent.draft = '继续润色';
+  await agent.send();
+  const failed = agent.activeOutgoing[0];
+  expect(failed.error).toContain('离线传输失败');
+  buffer.replaceContent('失败后继续输入');
+  editor.updateBuffer(entries[0]!.id, buffer);
+  await editor.openDocument(entries[1]!.id);
+  await flushPromises();
+  rejectPrompt = false;
+  await agent.retryOutgoing(failed.key);
+  await started;
+  const session = host.snapshot().sessions.find(item => item.id === agent.activeId)!;
+  const sent = session.messages.find(message => message.role === 'user')!;
+  expect(sent.editorContext).toEqual({
+    workId: works[0]!.id,
+    entryId: entries[0]!.id,
+    title: '第三回',
+    section: 'manuscript',
+    selection: '正式'
+  });
+  const transcript = mount(MessageList, { props: { session, approvals: [], outgoing: [] } });
+  wrappers.push(transcript);
+  expect(transcript.get('[aria-label="编辑上下文"]').text()).toContain('文稿《第三回》选区');
+});
 
 it('同名作品各自归属并使用各自的文件目录，新建独立会话保留独立范围', async () => {
   await agent.connect();
