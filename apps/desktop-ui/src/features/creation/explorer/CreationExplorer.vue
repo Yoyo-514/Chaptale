@@ -62,7 +62,12 @@ const menu = computed<AppContextMenuItem[]>(() => [
       ]),
   ...(target.value
     ? [
-        ...(target.value.kind === 'document' ? [{ id: 'history', label: '查看历史', separatorBefore: true }] : []),
+        ...(target.value.kind === 'document'
+          ? [
+              { id: 'open-side', label: '在侧边打开', separatorBefore: true },
+              { id: 'history', label: '查看历史' }
+            ]
+          : []),
         ...(target.value.kind === 'document' && target.value.section === 'manuscript'
           ? [{ id: 'extract', label: '从本章提取' }]
           : []),
@@ -172,6 +177,10 @@ async function selectAction(id: string) {
   }
   if (id === 'open' || id === 'open-with' || id === 'show-in-folder') {
     await openFile(entry, id);
+    return;
+  }
+  if (id === 'open-side') {
+    await editor.openToSide(entry.id);
     return;
   }
   if (id === 'history') {

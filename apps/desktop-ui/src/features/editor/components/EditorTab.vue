@@ -14,8 +14,6 @@ const props = defineProps<{
   selected: boolean;
   dirty?: boolean;
   busy?: boolean;
-  /** 分栏时标出该标签所在位置。 */
-  location?: string;
 }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -45,7 +43,6 @@ const label = computed(
     >
       <span v-if="kind.icon" class="tab-kind-icon" :class="kind.icon" aria-hidden="true" />
       <span class="tab-title">{{ title }}</span>
-      <span v-if="location" class="tab-location">{{ location }}</span>
     </TabsTrigger>
     <AppButton
       icon
@@ -104,10 +101,6 @@ const label = computed(
 .tab-kind-icon {
   flex-shrink: 0;
   color: var(--warning);
-}
-.tab-location {
-  font-size: 12px;
-  color: var(--muted-foreground);
 }
 .editor-tab-close {
   position: relative;

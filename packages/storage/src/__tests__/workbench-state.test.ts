@@ -42,9 +42,26 @@ it('按作品和文档身份恢复标签、两棵树与阅读位置，拒绝无�
       works: [
         {
           workId: work.id,
-          activeDocumentId: entry.id,
-          secondaryDocumentId: null,
-          tabs: [{ documentId: entry.id, anchor: 2, head: 3, scrollTop: 80, scrollLeft: 0 }],
+          activeGroup: 1 as const,
+          groups: [
+            {
+              activeDocumentId: entry.id,
+              tabs: [{ documentId: entry.id, anchor: 2, head: 3, scrollTop: 80, scrollLeft: 0 }]
+            },
+            {
+              activeDocumentId: entry.id,
+              tabs: [{ documentId: entry.id, anchor: 0, head: 2, scrollTop: 12, scrollLeft: 0 }]
+            }
+          ] as [
+            {
+              activeDocumentId: string;
+              tabs: { documentId: string; anchor: number; head: number; scrollTop: number; scrollLeft: number }[];
+            },
+            {
+              activeDocumentId: string;
+              tabs: { documentId: string; anchor: number; head: number; scrollTop: number; scrollLeft: number }[];
+            }
+          ],
           section: 'manuscript' as const,
           manuscript: { expandedIds: [], selectedId: entry.id, scrollTop: 32 },
           resource: { expandedIds: [], selectedId: null, scrollTop: 0 }
@@ -61,7 +78,30 @@ it('按作品和文档身份恢复标签、两棵树与阅读位置，拒绝无�
         input: {
           ...state,
           works: [
-            { ...state.works[0], tabs: [{ documentId: entry.id, anchor: -1, head: 0, scrollTop: 0, scrollLeft: 0 }] }
+            {
+              ...state.works[0],
+              groups: [
+                {
+                  activeDocumentId: entry.id,
+                  tabs: [{ documentId: entry.id, anchor: -1, head: 0, scrollTop: 0, scrollLeft: 0 }]
+                }
+              ]
+            }
+          ]
+        }
+      })
+    ).toMatchObject({ ok: false, error: { code: 'invalid-request' } });
+    expect(
+      await app.execute({
+        method: 'writeWorkbench',
+        input: {
+          ...state,
+          works: [
+            {
+              ...state.works[0],
+              activeGroup: 1,
+              groups: [state.works[0].groups[0]] as unknown as (typeof state.works)[0]['groups']
+            }
           ]
         }
       })

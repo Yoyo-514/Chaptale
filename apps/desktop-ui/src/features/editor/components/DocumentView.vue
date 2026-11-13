@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import type { EditorGroupIndex } from '@chaptale/creation/contracts';
 import type { EditCommand } from '@chaptale/desktop/bridge';
 
 import { AppButton } from '@/components/AppButton';
@@ -24,7 +25,9 @@ import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 import type { EditorTab } from '../types';
 
-const props = defineProps<{ tab: EditorTab; active: boolean }>();
+const props = withDefaults(defineProps<{ tab: EditorTab; active: boolean; groupIndex?: EditorGroupIndex }>(), {
+  groupIndex: 0
+});
 const editor = useEditorStore();
 const reading = useReadingStore();
 const check = useCheckStore();
@@ -56,14 +59,14 @@ const illustrations = useIllustrations(
   () => view
 );
 function prepareMenu(event: MouseEvent) {
-  editor.focusedId = props.tab.id;
+  editor.focusGroup(props.groupIndex);
   if (event.target instanceof HTMLInputElement) {
     event.target.focus();
     quoteText.value = undefined;
   } else {
     view!.focus();
     const buffer = editor.getBuffer(props.tab.id);
-    quoteText.value = buffer ? selectedText(buffer.state, buffer.content) : undefined;
+    quoteText.value = buffer && view ? selectedText(view.getState(), buffer.content) : undefined;
   }
   editingTarget = captureEditingTarget();
 }
@@ -103,7 +106,7 @@ async function selectAction(id: string) {
   }
 }
 function render() {
-  const savedPosition = view?.getViewState() ?? editor.viewState(props.tab);
+  const savedPosition = view?.getViewState() ?? editor.viewState(props.tab, props.groupIndex);
   view?.destroy();
   view = createDocumentView(host.value!, props.tab.document!.content, {
     markdown: props.tab.format === 'markdown',
@@ -111,13 +114,14 @@ function render() {
     buffer: editor.getBuffer(props.tab.id),
     viewState: savedPosition,
     onChange: buffer => editor.updateBuffer(props.tab.id, buffer),
-    onPosition: position => editor.rememberView(props.tab.workId, props.tab.id, position),
+    onPosition: position => editor.rememberView(props.tab.workId, props.tab.id, position, props.groupIndex),
     illustrations: { ...illustrations.options, render: props.tab.format === 'markdown' }
   });
+  editor.registerMountedState(props.groupIndex, props.tab.id, () => view!.getState());
 }
 /** 从阅读切回编辑：等恢复滚动位置的帧之后再定位到读到的正文。 */
 function consumeReveal() {
-  const offset = view ? reading.takeReveal(props.tab.id) : null;
+  const offset = view ? reading.takeReveal(props.tab.id, props.groupIndex) : null;
   if (offset !== null) requestAnimationFrame(() => view?.goTo(offset));
 }
 onMounted(() => {
@@ -126,8 +130,9 @@ onMounted(() => {
 });
 watch(() => reading.reveal, consumeReveal);
 onBeforeUnmount(() => {
+  editor.registerMountedState(props.groupIndex, props.tab.id, null);
   if (view) {
-    editor.rememberView(props.tab.workId, props.tab.id, view.getViewState());
+    editor.rememberView(props.tab.workId, props.tab.id, view.getViewState(), props.groupIndex);
     view.destroy();
   }
 });

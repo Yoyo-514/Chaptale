@@ -38,18 +38,31 @@ const entryInput = {
 const offset = Type.Integer({ minimum: 0 });
 const scroll = Type.Number({ minimum: 0 });
 const treeState = object({ expandedIds: Type.Array(id), selectedId: parentId, scrollTop: scroll });
+const editorGroupState = object({
+  activeDocumentId: parentId,
+  tabs: Type.Array(object({ documentId: id, anchor: offset, head: offset, scrollTop: scroll, scrollLeft: scroll }))
+});
 const workbenchState = object({
   activeWorkId: parentId,
   works: Type.Array(
-    object({
-      workId: id,
-      activeDocumentId: parentId,
-      secondaryDocumentId: parentId,
-      tabs: Type.Array(object({ documentId: id, anchor: offset, head: offset, scrollTop: scroll, scrollLeft: scroll })),
-      section: entryInput.section,
-      manuscript: treeState,
-      resource: treeState
-    })
+    Type.Union([
+      object({
+        workId: id,
+        activeGroup: Type.Literal(0),
+        groups: Type.Tuple([editorGroupState]),
+        section: entryInput.section,
+        manuscript: treeState,
+        resource: treeState
+      }),
+      object({
+        workId: id,
+        activeGroup: Type.Union([Type.Literal(0), Type.Literal(1)]),
+        groups: Type.Tuple([editorGroupState, editorGroupState]),
+        section: entryInput.section,
+        manuscript: treeState,
+        resource: treeState
+      })
+    ])
   )
 });
 const reviewTarget = {

@@ -99,6 +99,8 @@ const librarySchema: SchemaPlan = {
         value TEXT NOT NULL
       ) STRICT;
       CREATE INDEX review_results_session ON review_results(sessionId, reported, sequence);
-    `)
+    `),
+    // 工作台位置改为双编辑组结构，旧单栏位置记录退出使用。
+    database => database.exec('DELETE FROM workbench_state')
   ]
 };

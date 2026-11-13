@@ -1,9 +1,15 @@
-import type { EditorState } from '@codemirror/state';
+import { EditorSelection, type EditorState } from '@codemirror/state';
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 
 import type { EditorContext } from '@chaptale/agent-host/protocol';
-import type { Document, ResourceAttributes, SaveDocumentInput } from '@chaptale/creation/contracts';
+import type {
+  Document,
+  EditorGroupIndex,
+  EditorGroupState,
+  ResourceAttributes,
+  SaveDocumentInput
+} from '@chaptale/creation/contracts';
 import { countDocumentWords } from '@chaptale/creation/text';
 
 import { CreationRequestError, requestCreation, useCreationStore, useTrashStore } from '@/features/creation';
@@ -14,7 +20,17 @@ import { registerWorkspaceTransitionGuard } from '@/utils/workspace-transition';
 
 import { useCheckStore } from './check/store';
 import { DocumentBuffer } from './codemirror/document-buffer';
+import {
+  activateTabInGroup,
+  allOpenDocumentIds,
+  closeTabInGroup,
+  countDocumentOccurrences,
+  createEmptyGroups,
+  openTabInSideGroup,
+  splitTabToRightGroup
+} from './groups';
 import { useHistoryStore } from './history/store';
+import { useReadingStore } from './reading/store';
 import { reviewDone, useReviewStore } from './review/store';
 import { writingTiming } from './timing';
 import type { DocumentViewState, EditorTab } from './types';
@@ -47,16 +63,35 @@ export const useEditorStore = defineStore('editor', () => {
   const settings = useSettingsStore();
   const review = useReviewStore();
   const tabs = shallowRef<EditorTab[]>([]);
-  const activeId = ref('');
-  const focusedId = ref('');
+  const specialGroup = ref<EditorGroupIndex>(0);
+  const bufferVersions = ref<Record<string, number>>({});
   const searchRequest = ref(0);
   const command = shallowRef<{ name: 'undo' | 'redo'; sequence: number } | null>(null);
   /** discard 为 false 时只能保存或取消，用于需要正式稿的操作。 */
   const unsavedPrompt = shallowRef<{ titles: string[]; discard: boolean } | null>(null);
-  const activeTab = computed(() => tabs.value.find(tab => tab.id === (focusedId.value || activeId.value)) ?? null);
+  const groups = computed<readonly EditorGroupState[]>(() => creation.view?.groups ?? createEmptyGroups());
+  const activeGroup = computed<EditorGroupIndex>(() => {
+    const current = creation.view;
+    if (!current) return 0;
+    return current.activeGroup < current.groups.length ? current.activeGroup : 0;
+  });
+  function isSpecialActiveInGroup(groupIndex: EditorGroupIndex): boolean {
+    const currentGroup: EditorGroupIndex = groups.value.length === 1 ? 0 : specialGroup.value;
+    return (
+      currentGroup === groupIndex &&
+      Boolean(review.activeTab || useHistoryStore().activeTab || useCheckStore().activeTab)
+    );
+  }
+  const activeId = computed(() =>
+    isSpecialActiveInGroup(activeGroup.value) ? '' : (groups.value[activeGroup.value]?.activeDocumentId ?? '')
+  );
+  const activeTab = computed(() =>
+    activeId.value ? (tabs.value.find(tab => tab.id === activeId.value) ?? null) : null
+  );
   const hasUnsaved = computed(() => tabs.value.some(tab => tab.dirty || tab.saving));
   const autoSave = computed(() => settings.state?.settings.editor?.autoSave ?? false);
   const buffers = new Map<string, DocumentBuffer>();
+  const mountedStates = new Map<string, () => EditorState>();
   const queues = new Map<string, Promise<unknown>>();
   const saves = new Map<string, Promise<boolean>>();
   const attempts = new Map<string, { input: SaveDocumentInput; state: EditorState }>();
@@ -113,11 +148,15 @@ export const useEditorStore = defineStore('editor', () => {
     );
     return next;
   }
+  function bumpBufferVersion(id: string) {
+    bufferVersions.value = { ...bufferVersions.value, [id]: (bufferVersions.value[id] ?? 0) + 1 };
+  }
   function updateBuffer(id: string, buffer: DocumentBuffer) {
     const tab = find(id);
     if (!tab?.document) return;
     buffers.set(id, buffer);
     patch(id, { dirty: isDirty(tab, buffer), words: countDocumentWords(buffer.content) });
+    bumpBufferVersion(id);
     schedule(id);
   }
   function updateMetadata(
@@ -147,16 +186,11 @@ export const useEditorStore = defineStore('editor', () => {
       );
   }
 
-  async function openDocument(id: string, reveal = true) {
-    if (reveal) useWorkbenchStore().focusEditor();
-    useTrashStore().preview = null;
-    if (find(id)) {
-      selectTab(id);
-      return;
-    }
+  function ensureTabRecord(id: string): boolean {
+    if (find(id)) return true;
     const workId = creation.workId!;
     const entry = creation.entries.find(item => item.id === id);
-    if (!entry || entry.kind !== 'document') return;
+    if (!entry || entry.kind !== 'document') return false;
     tabs.value = [
       ...tabs.value,
       {
@@ -179,12 +213,39 @@ export const useEditorStore = defineStore('editor', () => {
         generation: 0
       }
     ];
-    const state = creation.viewFor(workId);
-    if (!state.tabs.some(tab => tab.documentId === id))
-      state.tabs.push({ documentId: id, anchor: 0, head: 0, scrollTop: 0, scrollLeft: 0 });
-    selectTab(id);
-    await load(id);
+    return true;
   }
+
+  async function openDocument(id: string, reveal = true, groupIndex: EditorGroupIndex = activeGroup.value) {
+    if (reveal) useWorkbenchStore().focusEditor();
+    useTrashStore().preview = null;
+    const alreadyLoaded = Boolean(find(id));
+    if (!ensureTabRecord(id)) return;
+    const state = creation.viewFor(creation.workId!);
+    activateTabInGroup(state, groupIndex, id);
+    clearSpecialTabsForGroup(state.activeGroup);
+    if (!alreadyLoaded) await load(id);
+  }
+
+  async function openToSide(id: string) {
+    useWorkbenchStore().focusEditor();
+    useTrashStore().preview = null;
+    const alreadyLoaded = Boolean(find(id));
+    if (!ensureTabRecord(id)) return;
+    const state = creation.viewFor(creation.workId!);
+    openTabInSideGroup(state, id);
+    clearSpecialTabsForGroup(state.activeGroup);
+    if (!alreadyLoaded) await load(id);
+  }
+
+  function splitRight(id = activeId.value, sourceGroup: EditorGroupIndex = activeGroup.value) {
+    if (!id || !find(id) || !creation.workId) return;
+    useTrashStore().preview = null;
+    const state = creation.viewFor(creation.workId);
+    splitTabToRightGroup(state, id, sourceGroup);
+    clearSpecialTabsForGroup(1);
+  }
+
   async function load(id: string) {
     const tab = find(id)!;
     try {
@@ -206,29 +267,67 @@ export const useEditorStore = defineStore('editor', () => {
         conflict: null,
         saveError: ''
       });
+      bumpBufferVersion(id);
     } catch (cause) {
       if (find(id)?.workId === tab.workId) patch(id, { status: 'error', error: toErrorMessage(cause) });
     }
   }
-  function selectTab(id: string) {
-    const tab = find(id);
-    if (!tab) return;
-    const state = creation.viewFor(tab.workId);
-    if (state.secondaryDocumentId === id) state.secondaryDocumentId = activeId.value || null;
+
+  function clearSpecialTabsForGroup(groupIndex: EditorGroupIndex) {
+    const owner: EditorGroupIndex = groups.value.length === 1 ? 0 : specialGroup.value;
+    if (owner !== groupIndex) return;
     review.activeId = '';
     useHistoryStore().activeId = '';
     useCheckStore().activeId = '';
-    useTrashStore().preview = null;
-    activeId.value = id;
-    focusedId.value = id;
-    state.activeDocumentId = id;
   }
-  function rememberView(workId: string, id: string, state: DocumentViewState) {
-    const position = creation.viewFor(workId).tabs.find(tab => tab.documentId === id);
+
+  function focusGroup(groupIndex: EditorGroupIndex) {
+    if (!creation.view || !creation.view.groups[groupIndex]) return;
+    creation.view.activeGroup = groupIndex;
+  }
+
+  function selectTab(id: string, groupIndex: EditorGroupIndex = activeGroup.value) {
+    const tab = find(id);
+    if (!tab) return;
+    const state = creation.viewFor(tab.workId);
+    activateTabInGroup(state, groupIndex, id);
+    clearSpecialTabsForGroup(state.activeGroup);
+    useTrashStore().preview = null;
+  }
+
+  function rememberView(workId: string, id: string, state: DocumentViewState, groupIndex: EditorGroupIndex = 0) {
+    const group = creation.viewFor(workId).groups[groupIndex];
+    const position = group?.tabs.find(tab => tab.documentId === id);
     if (position) Object.assign(position, state);
   }
-  function viewState(tab: EditorTab) {
-    return creation.viewFor(tab.workId).tabs.find(item => item.documentId === tab.id);
+
+  function viewState(tab: EditorTab, groupIndex: EditorGroupIndex = activeGroup.value) {
+    const view = creation.viewFor(tab.workId);
+    const group = view.groups[groupIndex] ?? view.groups[0];
+    return group?.tabs.find(item => item.documentId === tab.id);
+  }
+
+  function registerMountedState(groupIndex: EditorGroupIndex, documentId: string, getter: (() => EditorState) | null) {
+    const key = `${groupIndex}:${documentId}`;
+    if (getter) mountedStates.set(key, getter);
+    else mountedStates.delete(key);
+  }
+
+  function selectionState(
+    documentId: string,
+    groupIndex: EditorGroupIndex = activeGroup.value
+  ): EditorState | undefined {
+    const live = mountedStates.get(`${groupIndex}:${documentId}`);
+    if (live) return live();
+    const buffer = buffers.get(documentId);
+    const tab = find(documentId);
+    if (!buffer || !tab) return buffer?.state;
+    const pos = viewState(tab, groupIndex);
+    if (!pos || (pos.anchor === 0 && pos.head === 0)) return buffer.state;
+    const length = buffer.state.doc.length;
+    return buffer.state.update({
+      selection: EditorSelection.single(Math.min(pos.anchor, length), Math.min(pos.head, length))
+    }).state;
   }
 
   async function writeRecovery(id: string, input: Omit<SaveDocumentInput, 'commandId'>, draftId: string) {
@@ -287,7 +386,7 @@ export const useEditorStore = defineStore('editor', () => {
     updateBuffer(id, buffer);
   }
 
-  function saveDocument(id = focusedId.value || activeId.value): Promise<boolean> {
+  function saveDocument(id = activeId.value): Promise<boolean> {
     const running = saves.get(id);
     if (running) return running;
     clearTimers(id);
@@ -416,20 +515,40 @@ export const useEditorStore = defineStore('editor', () => {
   function quoteToChat(context: EditorContext) {
     useWorkbenchStore().quoteToChat(JSON.parse(JSON.stringify(context)) as EditorContext);
   }
-  async function closeTab(id: string) {
-    if (!(await confirmClose([id]))) return;
-    await queues.get(id);
-    const tab = find(id)!;
+  async function closeTab(id: string, groupIndex?: EditorGroupIndex) {
+    const tab = find(id);
+    if (!tab) return;
     const state = creation.viewFor(tab.workId);
-    state.tabs = state.tabs.filter(item => item.documentId !== id);
-    if (state.secondaryDocumentId === id) state.secondaryDocumentId = null;
-    buffers.delete(id);
-    if (focusedId.value === id) focusedId.value = '';
-    clearTimers(id);
-    tabs.value = tabs.value.filter(item => item.id !== id);
-    if (activeId.value === id) {
-      activeId.value = tabs.value.at(-1)?.id ?? '';
-      state.activeDocumentId = activeId.value || null;
+    const closingAll = groupIndex === undefined;
+    const occurrences = countDocumentOccurrences(state, id);
+    const willUnload = closingAll || occurrences <= 1;
+    if (willUnload && !(await confirmClose([id]))) return;
+    if (willUnload) await queues.get(id);
+
+    if (closingAll) {
+      for (let idx = state.groups.length - 1; idx >= 0; idx -= 1) {
+        if (state.groups[idx]?.tabs.some(item => item.documentId === id)) {
+          const result = closeTabInGroup(state, idx as EditorGroupIndex, id);
+          if (result.keptGroupAfterCollapse !== undefined) {
+            useReadingStore().onGroupCollapsed(result.keptGroupAfterCollapse);
+            specialGroup.value = 0;
+          }
+        }
+      }
+    } else {
+      const result = closeTabInGroup(state, groupIndex, id);
+      if (result.keptGroupAfterCollapse !== undefined) {
+        useReadingStore().onGroupCollapsed(result.keptGroupAfterCollapse);
+        specialGroup.value = 0;
+      }
+    }
+
+    if (countDocumentOccurrences(state, id) === 0) {
+      buffers.delete(id);
+      mountedStates.delete(`0:${id}`);
+      mountedStates.delete(`1:${id}`);
+      clearTimers(id);
+      tabs.value = tabs.value.filter(item => item.id !== id);
     }
   }
   function requestCommand(name: 'undo' | 'redo') {
@@ -472,23 +591,32 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   watch(
+    () => [review.activeId, useHistoryStore().activeId, useCheckStore().activeId] as const,
+    ([reviewId, historyId, checkId], [prevReview, prevHistory, prevCheck]) => {
+      const activated =
+        (reviewId && reviewId !== prevReview) ||
+        (historyId && historyId !== prevHistory) ||
+        (checkId && checkId !== prevCheck);
+      if (activated) specialGroup.value = activeGroup.value;
+    }
+  );
+
+  watch(
     () => creation.workId,
     async id => {
       clearAllTimers();
       tabs.value = [];
-      activeId.value = '';
-      focusedId.value = '';
+      specialGroup.value = 0;
       buffers.clear();
+      mountedStates.clear();
       attempts.clear();
       if (!id) return;
       const state = creation.viewFor(id);
-      const selected = state.activeDocumentId;
-      const documentIds = state.tabs.map(tab => tab.documentId);
+      const documentIds = allOpenDocumentIds(state);
       for (const documentId of documentIds) {
         if (creation.workId !== id) return;
-        await openDocument(documentId, false);
+        if (ensureTabRecord(documentId)) await load(documentId);
       }
-      if (selected && find(selected)) selectTab(selected);
     },
     { flush: 'post' }
   );
@@ -524,20 +652,29 @@ export const useEditorStore = defineStore('editor', () => {
 
   return {
     tabs,
+    groups,
+    activeGroup,
+    specialGroup,
+    bufferVersions,
     activeId,
-    focusedId,
     activeTab,
     hasUnsaved,
     autoSave,
     searchRequest,
     command,
     unsavedPrompt,
+    isSpecialActiveInGroup,
+    focusGroup,
     extractChapter,
     quoteToChat,
     getBuffer: (id: string) => buffers.get(id),
+    registerMountedState,
+    selectionState,
     updateBuffer,
     updateMetadata,
     openDocument,
+    openToSide,
+    splitRight,
     selectTab,
     reloadDocument: load,
     rememberView,

@@ -75,16 +75,11 @@ const legacyReviewSchema = `
   CREATE INDEX delivery_groups_session ON delivery_groups(sessionId, sequence DESC);
 `;
 
-it('新建的本机库记为结构第 3 版，作品库记为第 1 版', async () => {
-  const dir = await root();
-  const { file } = await withWork(dir);
-  expect(version(join(dir, 'library.sqlite'))).toBe(3);
-  expect(version(file)).toBe(1);
-});
-
-it('第 1 版本机库升级时删除会话归属表，保留作品与查看位置并留下备份', async () => {
+it('历史本机库逐版升级到当前版本时清理退场结构与旧布局缓存，保留作品与会话选择并留下备份', async () => {
   const dir = await root();
   const { workId } = await withWork(dir);
+  const currentVersion = version(join(dir, 'library.sqlite')) as number;
+  expect(currentVersion).toBeGreaterThanOrEqual(4);
   const library = join(dir, 'library.sqlite');
   const sessionId = randomUUID();
   setVersion(
@@ -94,7 +89,8 @@ it('第 1 版本机库升级时删除会话归属表，保留作品与查看位�
       sessionId TEXT PRIMARY KEY,
       workId TEXT NOT NULL REFERENCES works(id)
     ) STRICT; INSERT INTO session_assignments VALUES ('${sessionId}', '${workId}');
-    INSERT INTO session_selections VALUES ('${workId}', '${sessionId}')`
+    INSERT INTO session_selections VALUES ('${workId}', '${sessionId}');
+    INSERT OR REPLACE INTO workbench_state (id, state) VALUES (1, '{"legacy":true}')`
   );
   const app = new CreationApplication(await openCreationStorage({ rootDir: dir }));
   expect(app.executeAuthor({ method: 'listWorks', input: {} })).toMatchObject({ ok: true, value: [{ id: workId }] });
@@ -102,8 +98,12 @@ it('第 1 版本机库升级时删除会话归属表，保留作品与查看位�
     ok: true,
     value: { selections: [{ workId, sessionId }] }
   });
+  expect(app.executeAuthor({ method: 'readWorkbench', input: {} })).toEqual({
+    ok: true,
+    value: { activeWorkId: null, works: [] }
+  });
   app.close();
-  expect(version(library)).toBe(3);
+  expect(version(library)).toBe(currentVersion);
   expect(existsSync(`${library}.v1.bak`)).toBe(true);
   const database = new Database(library, { readonly: true });
   expect(database.prepare("SELECT name FROM sqlite_master WHERE name = 'session_assignments'").all()).toEqual([]);
@@ -113,6 +113,7 @@ it('第 1 版本机库升级时删除会话归属表，保留作品与查看位�
 it('没有版本记录的已有库结构一致时认作第 1 版并保留内容；结构不一致时拒绝打开', async () => {
   const dir = await root();
   const { workId, file } = await withWork(dir);
+  const currentVersion = version(join(dir, 'library.sqlite')) as number;
   // 版本机制之前的本机库是第 1 版结构，含会话归属表。
   setVersion(
     join(dir, 'library.sqlite'),
@@ -127,7 +128,7 @@ it('没有版本记录的已有库结构一致时认作第 1 版并保留内容�
   const listed = app.executeAuthor({ method: 'listEntries', input: { workId } });
   expect(listed).toMatchObject({ ok: true, value: [{ title: '第一章' }] });
   app.close();
-  expect(version(join(dir, 'library.sqlite'))).toBe(3);
+  expect(version(join(dir, 'library.sqlite'))).toBe(currentVersion);
   expect(version(file)).toBe(1);
 
   setVersion(file, 'PRAGMA user_version = 0; ALTER TABLE entries ADD COLUMN extra TEXT');

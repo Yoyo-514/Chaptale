@@ -9,7 +9,7 @@ import {
   unfoldEffect
 } from '@codemirror/language';
 import { openSearchPanel, search, searchKeymap } from '@codemirror/search';
-import { EditorSelection, EditorState } from '@codemirror/state';
+import { Compartment, EditorSelection, EditorState, type TransactionSpec } from '@codemirror/state';
 import {
   drawSelection,
   EditorView,
@@ -20,7 +20,7 @@ import {
 } from '@codemirror/view';
 
 import type { DocumentViewState } from '../types';
-import { DocumentBuffer } from './document-buffer';
+import { type BufferPeer, DocumentBuffer, lockExtensions } from './document-buffer';
 import { illustrations, insertIllustration, reloadIllustrations, type IllustrationOptions } from './illustrations';
 import { documentHeadings, documentHeadRange } from './markdown-navigation';
 import { createSearchPanel, openReplacePanel } from './search-panel';
@@ -30,12 +30,12 @@ function position(view: EditorView): DocumentViewState {
   return {
     anchor: view.state.selection.main.anchor,
     head: view.state.selection.main.head,
-    scrollTop: view.scrollDOM.scrollTop,
-    scrollLeft: view.scrollDOM.scrollLeft
+    scrollTop: Math.max(0, view.scrollDOM.scrollTop),
+    scrollLeft: Math.max(0, view.scrollDOM.scrollLeft)
   };
 }
 
-/** 视图可卸载，正文、原始换行与撤销历史由标签的 DocumentBuffer 持有。 */
+/** 视图可卸载或同文档双开挂载多个实例，正文、原始换行与撤销历史由共享 DocumentBuffer 持有。 */
 export function createDocumentView(
   parent: HTMLElement,
   content: string,
@@ -50,7 +50,25 @@ export function createDocumentView(
     illustrations?: IllustrationOptions;
   }
 ) {
+  const lockCompartment = new Compartment();
+  const buffer = options.large ? null : (options.buffer ?? new DocumentBuffer(content));
+  let view!: EditorView;
+  const peer: BufferPeer = {
+    syncDoc(spec) {
+      view.dispatch(spec);
+    },
+    syncLock(locked) {
+      view.dispatch({ effects: lockCompartment.reconfigure(lockExtensions(locked)) });
+    },
+    notifyChange() {
+      if (buffer) options.onChange?.(buffer);
+    }
+  };
+  const runUndo = () => (buffer ? buffer.undoFromView(peer, spec => view.dispatch(spec)) : undo(view));
+  const runRedo = () => (buffer ? buffer.redoFromView(peer, spec => view.dispatch(spec)) : redo(view));
+
   const extensions = [
+    lockCompartment.of(buffer ? lockExtensions(buffer.isLocked) : []),
     EditorState.readOnly.of(options.large),
     EditorView.editable.of(!options.large),
     ...(options.large
@@ -65,7 +83,13 @@ export function createDocumentView(
     }),
     keymap.of([
       { key: 'Mod-h', mac: 'Mod-Alt-f', run: openReplacePanel, scope: 'editor search-panel', preventDefault: true },
-      ...historyKeymap,
+      ...(buffer
+        ? [
+            { key: 'Mod-z', run: runUndo, preventDefault: true },
+            { key: 'Mod-y', mac: 'Mod-Shift-z', run: runRedo, preventDefault: true },
+            { linux: 'Ctrl-Shift-z', run: runRedo, preventDefault: true }
+          ]
+        : historyKeymap),
       ...searchKeymap,
       ...defaultKeymap
     ]),
@@ -100,24 +124,22 @@ export function createDocumentView(
       : [],
     options.illustrations && !options.large ? illustrations(options.illustrations) : []
   ];
-  const buffer = options.large ? null : (options.buffer ?? new DocumentBuffer(content, extensions));
-  buffer?.configure(extensions);
-  const view = new EditorView({
+  view = new EditorView({
     parent,
-    state: buffer?.state ?? EditorState.create({ doc: content, extensions }),
+    state: EditorState.create({ doc: buffer ? buffer.state.doc : content, extensions }),
     dispatchTransactions(transactions, currentView) {
       currentView.update(transactions);
+      if (buffer) {
+        for (const transaction of transactions) buffer.applyViewTransaction(transaction, peer);
+      }
       if (transactions.some(transaction => transaction.selection || transaction.docChanged))
         options.onPosition?.(position(currentView));
-      if (buffer) {
-        buffer.update(currentView.state);
-        if (transactions.some(transaction => transaction.docChanged)) options.onChange?.(buffer);
-      }
+      if (buffer && transactions.some(transaction => transaction.docChanged)) options.onChange?.(buffer);
     }
   });
   const rememberPosition = () => options.onPosition?.(position(view));
   view.scrollDOM.addEventListener('scroll', rememberPosition, { passive: true });
-  const detachBuffer = buffer?.attach(transaction => view.dispatch(transaction));
+  const detachBuffer = buffer?.attachPeer(peer);
   const head = options.markdown && !options.large && options.foldHead ? documentHeadRange(view.state) : null;
   if (head && !options.viewState) {
     view.dispatch({
@@ -143,11 +165,13 @@ export function createDocumentView(
 
   return {
     buffer,
+    getState: () => view.state,
+    dispatch: (spec: TransactionSpec) => view.dispatch(spec),
     focus: () => view.focus(),
     find: () => openSearchPanel(view),
     replace: () => openReplacePanel(view),
-    undo: () => undo(view),
-    redo: () => redo(view),
+    undo: runUndo,
+    redo: runRedo,
     headings: () => documentHeadings(view.state),
     selection: () => {
       const { from, to } = view.state.selection.main;

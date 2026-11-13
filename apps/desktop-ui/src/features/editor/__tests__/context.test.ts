@@ -90,19 +90,36 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-it('分栏按最后焦点捕获标签与选区，保留 BOM 与混合换行，遇到未保存修改先提示保存', async () => {
+it('双编辑组按焦点组独立捕获选区（含同文稿双开），关闭一侧分栏不误弹保存提示并自动合并回单栏', async () => {
   const first = await chapter('第三回', '\uFEFF甲\r\n乙\n丙');
   const second = await chapter('第四回', '另一章');
   const editor = useEditorStore();
   await editor.openDocument(first.id);
   await editor.openDocument(second.id);
-  creation.view!.secondaryDocumentId = first.id;
-  editor.focusedId = first.id;
-  const buffer = editor.getBuffer(first.id)!;
-  buffer.update(buffer.state.update({ selection: { anchor: 0, head: 3 } }).state);
+  editor.selectTab(first.id, 0);
+  editor.splitRight(first.id, 0);
+  expect(editor.groups).toHaveLength(2);
+  expect(editor.activeGroup).toBe(1);
+
+  editor.rememberView(workId, first.id, { anchor: 0, head: 3, scrollTop: 0, scrollLeft: 0 }, 0);
+  editor.rememberView(workId, first.id, { anchor: 4, head: 5, scrollTop: 0, scrollLeft: 0 }, 1);
+
   const source = useEditorContext();
-  const captured = await source.prepare(null);
-  expect(captured).toEqual({
+  // 当前焦点在右侧组（组 1），捕获右侧组选区「丙」。
+  expect(await source.prepare(null)).toEqual({
+    ok: true,
+    context: {
+      workId,
+      entryId: first.id,
+      title: '第三回',
+      section: 'manuscript',
+      selection: '丙'
+    }
+  });
+
+  // 切回左侧组（组 0），同一篇文稿捕获左侧组独立选区「甲\r\n乙」。
+  editor.focusGroup(0);
+  expect(await source.prepare(null)).toEqual({
     ok: true,
     context: {
       workId,
@@ -113,10 +130,15 @@ it('分栏按最后焦点捕获标签与选区，保留 BOM 与混合换行，�
     }
   });
 
-  buffer.update(
-    buffer.state.update({ changes: { from: 0, to: 1, insert: '改' }, selection: { anchor: 0, head: 3 } }).state
-  );
+  const buffer = editor.getBuffer(first.id)!;
+  buffer.update(buffer.state.update({ changes: { from: 0, to: 1, insert: '改' } }).state);
   editor.updateBuffer(first.id, buffer);
+
+  // 同文稿在两侧都打开时，关闭右侧组的最后一个标签无需弹保存提示，且自动合并回单栏。
+  await editor.closeTab(first.id, 1);
+  expect(editor.unsavedPrompt).toBeNull();
+  expect(editor.groups).toHaveLength(1);
+  expect(editor.tabs.find(tab => tab.id === first.id)!.dirty).toBe(true);
 
   const cancelled = source.prepare(null);
   await flushPromises();

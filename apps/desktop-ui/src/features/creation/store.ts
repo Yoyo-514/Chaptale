@@ -87,9 +87,8 @@ export const useCreationStore = defineStore('creation', () => {
     if (!item) {
       item = {
         workId: id,
-        tabs: [],
-        activeDocumentId: null,
-        secondaryDocumentId: null,
+        activeGroup: 0,
+        groups: [{ tabs: [], activeDocumentId: null }],
         section: 'manuscript',
         manuscript: { expandedIds: [], selectedId: null, scrollTop: 0 },
         resource: { expandedIds: [], selectedId: null, scrollTop: 0 }

@@ -1,4 +1,4 @@
-import { history, invertedEffects, isolateHistory } from '@codemirror/commands';
+import { history, invertedEffects, isolateHistory, redo, undo } from '@codemirror/commands';
 import { diff } from '@codemirror/merge';
 import {
   Annotation,
@@ -6,13 +6,32 @@ import {
   EditorState,
   StateEffect,
   StateField,
+  Transaction,
   type Extension,
-  type Transaction
+  type TransactionSpec
 } from '@codemirror/state';
 
 type LineFormat = { bom: boolean; preferred: string; separators: readonly string[] };
 const restoreLineFormat = StateEffect.define<LineFormat>();
-const controlledEdit = Annotation.define<boolean>();
+export const controlledEdit = Annotation.define<boolean>();
+export const peerSync = Annotation.define<boolean>();
+
+export interface BufferPeer {
+  syncDoc(spec: TransactionSpec): void;
+  syncLock(locked: boolean): void;
+  notifyChange?(): void;
+}
+
+export function lockExtensions(locked: boolean): Extension {
+  return locked
+    ? [
+        EditorState.readOnly.of(true),
+        EditorState.transactionFilter.of(change =>
+          change.docChanged && !change.annotation(controlledEdit) ? [] : change
+        )
+      ]
+    : [];
+}
 
 const lineFormat = StateField.define<LineFormat>({
   create: () => ({ bom: false, preferred: '\n', separators: [] }),
@@ -66,13 +85,14 @@ function serializeDocument(state: EditorState): string {
   return parts.join('');
 }
 
-/** 每个标签独立持有状态与保存基线；视图卸载和保存成功都不清除撤销历史。 */
+/** 每份文档共享唯一正文状态、原始换行与撤销历史；双编辑组挂载多个视图时实时同步正文并保留各自光标。 */
 export class DocumentBuffer {
   state: EditorState;
   private baseline: EditorState;
+  private lockedState = false;
   private readonly viewConfig = new Compartment();
   private readonly lockConfig = new Compartment();
-  private dispatchToView?: (transaction: Transaction) => void;
+  private readonly peers = new Set<BufferPeer>();
 
   constructor(content: string, extensions: Extension = []) {
     const format = parseLineFormat(content);
@@ -93,6 +113,10 @@ export class DocumentBuffer {
     this.baseline = this.state;
   }
 
+  get isLocked() {
+    return this.lockedState;
+  }
+
   update(state: EditorState) {
     this.state = state;
   }
@@ -101,28 +125,80 @@ export class DocumentBuffer {
     this.state = this.state.update({ effects: this.viewConfig.reconfigure(extensions) }).state;
   }
 
-  attach(dispatch: (transaction: Transaction) => void) {
-    this.dispatchToView = dispatch;
+  attachPeer(peer: BufferPeer) {
+    this.peers.add(peer);
     return () => {
-      if (this.dispatchToView === dispatch) this.dispatchToView = undefined;
+      this.peers.delete(peer);
     };
   }
 
-  setLocked(locked: boolean) {
-    const transaction = this.state.update({
-      effects: this.lockConfig.reconfigure(
-        locked
-          ? [
-              EditorState.readOnly.of(true),
-              EditorState.transactionFilter.of(change =>
-                change.docChanged && !change.annotation(controlledEdit) ? [] : change
-              )
-            ]
-          : []
-      )
+  /** 将任一挂载视图产生的正文变更写入权威缓冲，并广播给其他分栏视图。 */
+  applyViewTransaction(transaction: Transaction, source: BufferPeer) {
+    if (transaction.annotation(peerSync) || !transaction.docChanged) return;
+    const annotations: Annotation<unknown>[] = [];
+    if (transaction.annotation(controlledEdit)) annotations.push(controlledEdit.of(true));
+    const isolated = transaction.annotation(isolateHistory);
+    if (isolated) annotations.push(isolateHistory.of(isolated));
+    const event = transaction.annotation(Transaction.userEvent);
+    if (event) annotations.push(Transaction.userEvent.of(event));
+    const time = transaction.annotation(Transaction.time);
+    if (time !== undefined) annotations.push(Transaction.time.of(time));
+    const formatEffects = transaction.effects.filter(effect => effect.is(restoreLineFormat));
+    this.state = this.state.update({
+      changes: transaction.changes,
+      effects: formatEffects,
+      annotations
+    }).state;
+    for (const peer of this.peers) {
+      if (peer !== source) {
+        peer.syncDoc({
+          changes: transaction.changes,
+          annotations: [peerSync.of(true), controlledEdit.of(true)]
+        });
+      }
+    }
+  }
+
+  private runHistoryCommand(
+    command: typeof undo,
+    source?: BufferPeer,
+    dispatchSource?: (spec: TransactionSpec) => void
+  ): boolean {
+    return command({
+      state: this.state,
+      dispatch: transaction => {
+        this.state = transaction.state;
+        dispatchSource?.({
+          changes: transaction.changes,
+          selection: { anchor: transaction.state.selection.main.anchor, head: transaction.state.selection.main.head },
+          scrollIntoView: true,
+          annotations: [peerSync.of(true), controlledEdit.of(true)]
+        });
+        for (const peer of this.peers) {
+          if (peer !== source) {
+            peer.syncDoc({
+              changes: transaction.changes,
+              annotations: [peerSync.of(true), controlledEdit.of(true)]
+            });
+          }
+        }
+        source?.notifyChange?.();
+      }
     });
-    if (this.dispatchToView) this.dispatchToView(transaction);
-    else this.update(transaction.state);
+  }
+
+  undoFromView(source?: BufferPeer, dispatchSource?: (spec: TransactionSpec) => void): boolean {
+    return this.runHistoryCommand(undo, source, dispatchSource);
+  }
+
+  redoFromView(source?: BufferPeer, dispatchSource?: (spec: TransactionSpec) => void): boolean {
+    return this.runHistoryCommand(redo, source, dispatchSource);
+  }
+
+  setLocked(locked: boolean) {
+    this.lockedState = locked;
+    this.state = this.state.update({ effects: this.lockConfig.reconfigure(lockExtensions(locked)) }).state;
+    for (const peer of this.peers) peer.syncLock(locked);
   }
 
   replaceContent(content: string, isolated = false) {
@@ -138,15 +214,18 @@ export class DocumentBuffer {
       annotations: [controlledEdit.of(true), ...(isolated ? [isolateHistory.of('full')] : [])],
       userEvent: 'input'
     });
-    if (this.dispatchToView) this.dispatchToView(transaction);
-    else this.update(transaction.state);
+    this.state = transaction.state;
+    for (const peer of this.peers) {
+      peer.syncDoc({
+        changes: transaction.changes,
+        annotations: [peerSync.of(true), controlledEdit.of(true)]
+      });
+    }
   }
 
   /** 保存请求发出前划分撤销记录，后续输入可单独撤销回这份快照。 */
   prepareSave(): EditorState {
-    const transaction = this.state.update({ annotations: isolateHistory.of('full') });
-    if (this.dispatchToView) this.dispatchToView(transaction);
-    else this.update(transaction.state);
+    this.state = this.state.update({ annotations: isolateHistory.of('full') }).state;
     return this.state;
   }
 

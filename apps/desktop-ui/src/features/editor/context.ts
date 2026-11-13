@@ -29,7 +29,7 @@ export interface PreparedEditorContext {
   context?: EditorContext;
 }
 
-/** 仅感知当前聚焦的正式文稿、资料、阅读页或本会话审阅标签；存在未保存手改时先弹窗询问保存。 */
+/** 仅感知当前聚焦编辑组的正式文稿、资料、阅读页或本会话审阅标签；存在未保存手改时先弹窗询问保存。 */
 export function useEditorContext() {
   const creation = useCreationStore();
   const editor = useEditorStore();
@@ -40,11 +40,13 @@ export function useEditorContext() {
   const reading = useReadingStore();
 
   async function prepare(sessionId: string | null): Promise<PreparedEditorContext> {
-    if (creation.libraryOpen || trash.preview?.document || check.activeTab || history.activeTab) return { ok: true };
+    if (creation.libraryOpen || trash.preview?.document) return { ok: true };
 
-    const reviewing = review.activeTab;
-    if (reviewing) {
-      if (reviewing.sessionId !== sessionId) return { ok: true };
+    const groupIndex = editor.activeGroup;
+    if (editor.isSpecialActiveInGroup(groupIndex)) {
+      if (check.activeTab || history.activeTab) return { ok: true };
+      const reviewing = review.activeTab;
+      if (!reviewing || reviewing.sessionId !== sessionId) return { ok: true };
       const initialCandidate = reviewing.review?.candidate;
       const initialState = review.getState(reviewing.key);
       const selection =
@@ -74,7 +76,8 @@ export function useEditorContext() {
     const tab = editor.activeTab;
     if (!tab) return { ok: true };
 
-    const position = reading.positions[tab.id];
+    const readingSlot = reading.slotKey(groupIndex, tab.id);
+    const position = reading.positions[readingSlot];
     if (position) {
       const opened = editor.tabs.find(item => item.id === position.documentId);
       if (opened?.dirty) {
@@ -82,7 +85,7 @@ export function useEditorContext() {
         if (choice !== 'save' || !(await editor.saveDocument(opened.id))) return { ok: false };
       }
       const entry = creation.entries.find(item => item.id === position.documentId);
-      const selection = reading.selectedText(tab.id) || undefined;
+      const selection = reading.selectedText(readingSlot) || undefined;
       return {
         ok: true,
         context: {
@@ -101,7 +104,8 @@ export function useEditorContext() {
     }
     const latest = editor.tabs.find(item => item.id === tab.id) ?? tab;
     const buffer = latest.status === 'ready' ? editor.getBuffer(latest.id) : undefined;
-    const selection = buffer ? selectedText(buffer.state, buffer.content) : undefined;
+    const state = latest.status === 'ready' ? editor.selectionState(latest.id, groupIndex) : undefined;
+    const selection = buffer && state ? selectedText(state, buffer.content) : undefined;
     return {
       ok: true,
       context: {

@@ -171,11 +171,15 @@ export interface TreeState {
   selectedId: string | null;
   scrollTop: number;
 }
-export interface WorkViewState {
-  workId: string;
+export interface EditorGroupState {
   tabs: (DocumentPosition & { documentId: string })[];
   activeDocumentId: string | null;
-  secondaryDocumentId: string | null;
+}
+export type EditorGroupIndex = 0 | 1;
+export interface WorkViewState {
+  workId: string;
+  groups: [EditorGroupState] | [EditorGroupState, EditorGroupState];
+  activeGroup: EditorGroupIndex;
   section: Entry['section'];
   manuscript: TreeState;
   resource: TreeState;

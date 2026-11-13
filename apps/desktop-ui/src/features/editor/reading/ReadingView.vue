@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 
+import type { EditorGroupIndex } from '@chaptale/creation/contracts';
+
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { useCreationStore } from '@/features/creation';
@@ -14,10 +16,13 @@ import { chapterOrder, readingBlocks, type ReadingBlock } from './blocks';
 import { countPages, offsetOf, pageOf, type PageGeometry } from './layout';
 import { useReadingStore } from './store';
 
-const props = defineProps<{ tab: EditorTab }>();
+const props = withDefaults(defineProps<{ tab: EditorTab; groupIndex?: EditorGroupIndex }>(), {
+  groupIndex: 0
+});
 const reading = useReadingStore();
 const editor = useEditorStore();
 const creation = useCreationStore();
+const slot = computed(() => reading.slotKey(props.groupIndex, props.tab.id));
 /** 栏间距；一栏即一页，翻页步长为栏宽加栏间距。 */
 const GAP = 48;
 const viewport = ref<HTMLElement>();
@@ -37,8 +42,8 @@ const menu = computed<AppContextMenuItem[]>(() => [
 ]);
 
 function prepareMenu() {
-  editor.focusedId = props.tab.id;
-  quoteText.value = reading.selectedText(props.tab.id) || undefined;
+  editor.focusGroup(props.groupIndex);
+  quoteText.value = reading.selectedText(slot.value) || undefined;
   editingTarget = captureEditingTarget();
 }
 async function selectAction(id: string) {
@@ -65,7 +70,7 @@ function illustrationState(entryId: string) {
   if (!image) return { text: '正在读取图片…' };
   return 'src' in image ? { src: image.src } : { text: image.error };
 }
-const position = computed(() => reading.positions[props.tab.id]!);
+const position = computed(() => reading.positions[slot.value]!);
 const chapters = computed(() => chapterOrder(creation.entries));
 const index = computed(() => chapters.value.findIndex(entry => entry.id === chapter.value?.id));
 const stride = computed(() => size.value.width + GAP);
@@ -75,7 +80,7 @@ function geometry(): PageGeometry {
 }
 function show(target: number) {
   page.value = target;
-  reading.remember(props.tab.id, { documentId: chapter.value!.id, offset: offsetOf(geometry(), target) });
+  reading.remember(slot.value, { documentId: chapter.value!.id, offset: offsetOf(geometry(), target) });
 }
 
 /** 读取章节并按 offset 或末页定位；迟到的读取结果丢弃。 */
@@ -85,7 +90,7 @@ async function load(documentId: string, target: number | 'end') {
   try {
     const content = await reading.readChapter(documentId);
     if (version !== loadVersion) return;
-    reading.remember(props.tab.id, { documentId, offset: target === 'end' ? position.value.offset : target });
+    reading.remember(slot.value, { documentId, offset: target === 'end' ? position.value.offset : target });
     const blocks = readingBlocks(content.content, content.format);
     for (const block of blocks) if (block.illustration) void illustrations.load(block.illustration.entryId);
     chapter.value = { ...content, blocks };
@@ -122,7 +127,7 @@ function keydown(event: KeyboardEvent) {
 }
 
 onMounted(() => {
-  reading.bindViewport(props.tab.id, viewport.value!);
+  reading.bindViewport(slot.value, viewport.value!);
   observer = new ResizeObserver(([entry]) => {
     const { width, height } = entry!.contentRect;
     if (width === size.value.width && height === size.value.height) return;
@@ -134,13 +139,22 @@ onMounted(() => {
   viewport.value!.focus();
 });
 onBeforeUnmount(() => {
-  reading.bindViewport(props.tab.id, null);
+  reading.bindViewport(slot.value, null);
   observer?.disconnect();
 });
 watch(
   () => props.tab.format,
   () => {
-    if (chapter.value?.id === props.tab.id) void load(props.tab.id, position.value.offset);
+    if (chapter.value?.id === props.tab.id && position.value) void load(props.tab.id, position.value.offset);
+  }
+);
+watch(
+  () => editor.bufferVersions,
+  (versions, previous) => {
+    const currentId = chapter.value?.id;
+    if (currentId && versions[currentId] !== previous[currentId] && position.value) {
+      void load(currentId, position.value.offset);
+    }
   }
 );
 </script>
@@ -149,7 +163,7 @@ watch(
   <section class="reading-view" :aria-label="`阅读：${chapter?.title ?? tab.title}`">
     <header class="reading-header">
       <h2 class="reading-title">{{ chapter?.title ?? tab.title }}</h2>
-      <AppButton size="xs" :disabled="!chapter" @click="reading.edit(tab.id)">编辑</AppButton>
+      <AppButton size="xs" :disabled="!chapter" @click="reading.edit(tab.id, groupIndex)">编辑</AppButton>
     </header>
     <p v-if="error" class="reading-error" role="alert">{{ error }}</p>
     <AppContextMenu :items="menu" @prepare="prepareMenu" @select="selectAction">

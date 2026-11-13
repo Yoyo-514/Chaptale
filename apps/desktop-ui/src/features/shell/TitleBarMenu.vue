@@ -196,7 +196,7 @@ function handleSelect(id: string) {
       break;
     case 'file.close-editor':
       if (navigation.agentInMain) navigation.agentInMain = false;
-      else void editor.closeTab(editor.activeId);
+      else void editor.closeTab(editor.activeId, editor.activeGroup);
       break;
     case 'file.settings':
       settings.openPanel();

@@ -1,91 +1,50 @@
 <script setup lang="ts">
-import { TabsList, TabsRoot } from 'reka-ui';
+import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
-import { AppContextMenu } from '@/components/AppContextMenu';
-import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppTextView } from '@/components/AppTextView';
 import { useCreationStore, useTrashStore } from '@/features/creation';
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
-import CheckPane from '../check/CheckPane.vue';
 import { useCheckStore } from '../check/store';
-import HistoryPane from '../history/HistoryPane.vue';
 import { useHistoryStore } from '../history/store';
-import ReadingView from '../reading/ReadingView.vue';
-import { useReadingStore } from '../reading/store';
-import ReviewPane from '../review/ReviewPane.vue';
-import { reviewDone, useReviewStore } from '../review/store';
+import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
-import DocumentView from './DocumentView.vue';
-import EditorTab from './EditorTab.vue';
+import EditorGroupPane from './EditorGroupPane.vue';
 import UnsavedDocumentsDialog from './UnsavedDocumentsDialog.vue';
 
 const editor = useEditorStore();
 const review = useReviewStore();
-const reading = useReadingStore();
 const history = useHistoryStore();
 const check = useCheckStore();
 const creation = useCreationStore();
 const trash = useTrashStore();
+
+const isSplit = computed(() => editor.groups.length === 2);
+const hasAnyContent = computed(
+  () => editor.tabs.length > 0 || review.tabs.length > 0 || history.tabs.length > 0 || check.tabs.length > 0
+);
+
 function restorePreview() {
   trash.restore(trash.preview!.batchId).catch(cause => {
     trash.error = toErrorMessage(cause);
   });
 }
+
 watch(
   () => review.activeId,
   id => {
     if (id) trash.preview = null;
   }
 );
-/** 文档、审阅与历史标签共用一个标签栏；审阅和历史标签值带前缀，选中时占用主栏。 */
-const selected = computed(() => {
-  if (trash.preview) return '';
-  if (review.activeTab) return `review:${review.activeTab.key}`;
-  if (history.activeTab) return `history:${history.activeTab.documentId}`;
-  if (check.activeTab) return `check:${check.activeTab.chapterId}`;
-  return editor.activeId;
-});
-function select(value: string) {
-  if (value.startsWith('review:')) review.select(value.slice('review:'.length));
-  else if (value.startsWith('history:')) history.select(value.slice('history:'.length));
-  else if (value.startsWith('check:')) check.select(value.slice('check:'.length));
-  else editor.selectTab(value);
-}
-function tabMenu(id: string) {
-  const chapter = creation.entries.find(entry => entry.id === id)?.section === 'manuscript';
-  return [
-    { id: 'history', label: '查看历史' },
-    ...(chapter ? [{ id: 'extract', label: '从本章提取' }] : []),
-    ...(check.countOf(id) ? [{ id: 'check', label: '核对本章记录' }] : []),
-    { id: 'close', label: '关闭', separatorBefore: true }
-  ];
-}
-function tabAction(id: string, action: string) {
-  if (action === 'history') history.open(id);
-  else if (action === 'check') check.open(id);
-  else if (action === 'extract') void editor.extractChapter(editor.tabs.find(tab => tab.id === id)!);
-  else void editor.closeTab(id);
-}
-const primary = computed(() => editor.tabs.find(tab => tab.id === editor.activeId));
-/** 当前文稿是章节且有待核对记录时，标签栏显示提醒。 */
-const checkCount = computed(() =>
-  primary.value && !review.activeTab && !history.activeTab && !check.activeTab ? check.countOf(primary.value.id) : 0
-);
-const secondary = computed(() => editor.tabs.find(tab => tab.id === creation.view?.secondaryDocumentId));
-function split() {
-  if (!creation.view) return;
-  creation.view.secondaryDocumentId = secondary.value
-    ? null
-    : (editor.tabs.find(tab => tab.id !== editor.activeId)?.id ?? null);
-}
+
 function keydown(event: KeyboardEvent) {
   if (!(event.ctrlKey || event.metaKey)) return;
-  const reviewing = review.activeTab;
-  const viewing = history.activeTab;
-  const checking = check.activeTab;
+  const specialActive = editor.isSpecialActiveInGroup(editor.activeGroup);
+  const reviewing = specialActive ? review.activeTab : undefined;
+  const viewing = specialActive ? history.activeTab : undefined;
+  const checking = specialActive ? check.activeTab : undefined;
   if (event.key.toLowerCase() === 's') {
     event.preventDefault();
     if (event.shiftKey) void editor.saveAll();
@@ -99,9 +58,10 @@ function keydown(event: KeyboardEvent) {
     if (reviewing) review.close(reviewing.key);
     else if (viewing) history.close(viewing.documentId);
     else if (checking) check.close(checking.chapterId);
-    else void editor.closeTab(editor.activeTab!.id);
+    else void editor.closeTab(editor.activeTab!.id, editor.activeGroup);
   }
 }
+
 let offClose: (() => void) | undefined;
 onMounted(() => {
   window.addEventListener('keydown', keydown);
@@ -119,204 +79,90 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <TabsRoot :model-value="selected" class="editor-group" @update:model-value="value => select(String(value))">
-    <div class="editor-tabbar">
-      <AppScrollArea orientation="horizontal" class="editor-tab-scroll">
-        <TabsList class="editor-tabs" aria-label="文档标签">
-          <AppContextMenu
-            v-for="tab in editor.tabs"
-            :key="tab.id"
-            :items="tabMenu(tab.id)"
-            @select="action => tabAction(tab.id, action)"
-          >
-            <EditorTab
-              kind="document"
-              :value="tab.id"
-              :trigger-id="`document-tab-${tab.id}`"
-              :title="tab.title"
-              :selected="tab.id === selected"
-              :dirty="tab.dirty"
-              :busy="tab.saving"
-              :location="secondary?.id === tab.id ? '右侧' : undefined"
-              @close="editor.closeTab(tab.id)"
-            />
-          </AppContextMenu>
-          <EditorTab
-            v-for="tab in review.tabs"
-            :key="`review:${tab.key}`"
-            :kind="reviewDone(tab) ? 'document' : 'review'"
-            :value="`review:${tab.key}`"
-            :trigger-id="`review-tab-${tab.key}`"
-            :title="tab.title"
-            :selected="`review:${tab.key}` === selected"
-            :dirty="tab.dirty"
-            @close="review.close(tab.key)"
-          />
-          <EditorTab
-            v-for="tab in history.tabs"
-            :key="`history:${tab.documentId}`"
-            kind="history"
-            :value="`history:${tab.documentId}`"
-            :trigger-id="`history-tab-${tab.documentId}`"
-            :title="tab.title"
-            :selected="`history:${tab.documentId}` === selected"
-            @close="history.close(tab.documentId)"
-          />
-          <EditorTab
-            v-for="tab in check.tabs"
-            :key="`check:${tab.chapterId}`"
-            kind="check"
-            :value="`check:${tab.chapterId}`"
-            :trigger-id="`check-tab-${tab.chapterId}`"
-            :title="creation.entries.find(entry => entry.id === tab.chapterId)?.title ?? ''"
-            :selected="`check:${tab.chapterId}` === selected"
-            @close="check.close(tab.chapterId)"
-          />
-        </TabsList>
-      </AppScrollArea>
-      <AppButton
-        v-if="checkCount"
-        size="xs"
-        variant="ghost"
-        class="check-chip"
-        title="本章正文改过，出自本章的记录需要核对"
-        @click="check.open(primary!.id)"
-        ><span class="i-mingcute-alert-line check-chip-icon" aria-hidden="true" />本章
-        {{ checkCount }} 条记录待核对</AppButton
-      >
-      <AppButton
-        icon
-        size="xs"
-        variant="ghost"
-        :disabled="
-          !primary ||
-          primary.status !== 'ready' ||
-          Boolean(reading.positions[primary.id]) ||
-          Boolean(review.activeTab || history.activeTab || check.activeTab)
-        "
-        aria-label="阅读"
-        @click="reading.start(primary!.id)"
-        ><span class="i-mingcute-book-6-line" aria-hidden="true"
-      /></AppButton>
-      <AppButton
-        icon
-        size="xs"
-        variant="ghost"
-        :disabled="!primary || Boolean(review.activeTab || history.activeTab || check.activeTab)"
-        aria-label="查看历史"
-        title="查看历史"
-        @click="history.open(primary!.id)"
-        ><span class="i-mingcute-history-line" aria-hidden="true"
-      /></AppButton>
-      <AppButton
-        icon
-        size="xs"
-        variant="ghost"
-        :disabled="editor.tabs.length < 2"
-        :aria-label="secondary ? '关闭分栏' : '并排查看'"
-        :selected="Boolean(secondary)"
-        @click="split"
-        ><span class="i-mingcute-layout-right-line" aria-hidden="true"
-      /></AppButton>
-    </div>
-    <div v-if="trash.preview" class="editor-panes">
-      <section class="editor-pane trash-preview" aria-label="回收站预览">
-        <header class="trash-preview-bar">
-          <span class="i-mingcute-delete-2-line trash-preview-icon" aria-hidden="true" />
-          <span class="trash-preview-title">{{ trash.preview.document.title }}</span>
-          <span class="trash-preview-note">在回收站中 · 只读</span>
-          <AppButton size="xs" @click="restorePreview">恢复</AppButton>
-          <AppButton icon size="xs" variant="ghost" aria-label="关闭预览" @click="trash.preview = null"
-            ><span class="i-mingcute-close-line size-3.5" aria-hidden="true"
-          /></AppButton>
-        </header>
-        <AppTextView
-          :key="trash.preview.document.id"
-          class="trash-preview-text"
-          :text="trash.preview.document.content"
-          :label="`${trash.preview.document.title}（回收站，只读）`"
-        />
-      </section>
-    </div>
-    <div v-else-if="review.activeTab" class="editor-panes">
-      <section class="editor-pane" aria-label="审阅">
-        <ReviewPane
-          v-if="review.activeTab.status === 'ready'"
-          :key="`${review.activeTab.key}:${review.activeTab.generation}`"
-          :tab="review.activeTab"
-        />
-        <div v-else-if="review.activeTab.status === 'loading'" class="editor-empty" role="status">
-          正在读取待接受修改…
-        </div>
-        <div v-else class="editor-empty" role="alert">
-          <p>{{ review.activeTab.error }}</p>
-        </div>
-      </section>
-    </div>
-    <div v-else-if="check.activeTab" class="editor-panes">
-      <section class="editor-pane" aria-label="核对">
-        <CheckPane :key="check.activeTab.chapterId" :tab="check.activeTab" />
-      </section>
-    </div>
-    <div v-else-if="history.activeTab" class="editor-panes">
-      <section class="editor-pane" aria-label="历史">
-        <HistoryPane v-if="history.activeTab.status === 'ready'" :tab="history.activeTab" />
-        <div v-else-if="history.activeTab.status === 'loading'" class="editor-empty" role="status">正在读取历史…</div>
-        <div v-else class="editor-empty" role="alert">
-          <p>{{ history.activeTab.error }}</p>
-        </div>
-      </section>
-    </div>
-    <div v-else-if="!editor.tabs.length" class="editor-empty">
+  <div class="editor-group">
+    <section v-if="trash.preview" class="trash-preview" aria-label="回收站预览">
+      <header class="trash-preview-bar">
+        <span class="i-mingcute-delete-2-line trash-preview-icon" aria-hidden="true" />
+        <span class="trash-preview-title">{{ trash.preview.document.title }}</span>
+        <span class="trash-preview-note">在回收站中 · 只读</span>
+        <AppButton size="xs" @click="restorePreview">恢复</AppButton>
+        <AppButton icon size="xs" variant="ghost" aria-label="关闭预览" @click="trash.preview = null"
+          ><span class="i-mingcute-close-line size-3.5" aria-hidden="true"
+        /></AppButton>
+      </header>
+      <AppTextView
+        :key="trash.preview.document.id"
+        class="trash-preview-text"
+        :text="trash.preview.document.content"
+        :label="`${trash.preview.document.title}（回收站，只读）`"
+      />
+    </section>
+
+    <div v-else-if="!hasAnyContent" class="editor-empty">
       <h2>{{ creation.work?.title }}</h2>
       <p>选择一份文稿或资料开始编辑。</p>
       <AppButton @click="creation.newEntry = { kind: 'document', parentId: null }">{{
         creation.view?.section === 'resource' ? '新建资料' : '新建文稿'
       }}</AppButton>
     </div>
-    <div v-else class="editor-panes" :class="{ split: secondary }">
-      <section
-        v-for="(tab, index) in [primary, secondary].filter(Boolean)"
-        :key="tab!.id"
-        class="editor-pane"
-        :aria-label="index ? '右侧文档' : '当前文档'"
-        @focusin="editor.focusedId = tab!.id"
-      >
-        <ReadingView
-          v-if="tab!.status === 'ready' && reading.positions[tab!.id]"
-          :key="`reading:${tab!.id}`"
-          :tab="tab!"
-        />
-        <DocumentView
-          v-else-if="tab!.status === 'ready'"
-          :key="`${tab!.id}:${tab!.generation}`"
-          :tab="tab!"
-          :active="editor.activeTab?.id === tab!.id"
-        />
-        <div v-else-if="tab!.status === 'loading'" class="editor-empty" role="status">正在读取文档…</div>
-        <div v-else class="editor-empty" role="alert">
-          <p>{{ tab!.error }}</p>
-          <AppButton @click="editor.reloadDocument(tab!.id)">重新读取</AppButton>
-        </div>
-      </section>
-    </div>
-  </TabsRoot>
+
+    <SplitterGroup v-else id="editor-groups-split" direction="horizontal" class="editor-groups-split">
+      <SplitterPanel :order="1" :default-size="isSplit ? 50 : 100" :min-size="25" class="editor-group-panel">
+        <EditorGroupPane :group-index="0" :is-split="isSplit" :focused="editor.activeGroup === 0" />
+      </SplitterPanel>
+      <template v-if="isSplit">
+        <SplitterResizeHandle class="editor-split-handle" aria-label="调整编辑分栏宽度" />
+        <SplitterPanel :order="2" :default-size="50" :min-size="25" class="editor-group-panel">
+          <EditorGroupPane :group-index="1" :is-split="true" :focused="editor.activeGroup === 1" />
+        </SplitterPanel>
+      </template>
+    </SplitterGroup>
+  </div>
   <UnsavedDocumentsDialog />
 </template>
 
 <style scoped>
-.check-chip {
-  gap: 4px;
-  margin-right: 4px;
-  color: var(--warning);
+.editor-group {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background);
 }
-.check-chip-icon {
-  width: 14px;
-  height: 14px;
+.editor-groups-split {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.editor-group-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.editor-split-handle {
+  position: relative;
+  width: 1px;
+  flex-shrink: 0;
+  background: var(--border-subtle);
+}
+.editor-split-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 -3px;
+  z-index: 1;
+}
+.editor-split-handle:hover,
+.editor-split-handle[data-state='drag'] {
+  background: var(--ring);
 }
 .trash-preview {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-height: 0;
 }
 .trash-preview-bar {
   display: flex;
@@ -347,56 +193,6 @@ onBeforeUnmount(() => {
 .trash-preview-text {
   flex: 1;
   min-height: 0;
-}
-.editor-group {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--background);
-}
-.editor-tabbar {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  height: 36px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--surface-muted);
-}
-.editor-tab-scroll {
-  flex: 1;
-  min-width: 0;
-}
-.editor-tabs {
-  display: flex;
-  width: max-content;
-  height: 35px;
-}
-.editor-tabbar span[aria-hidden='true'] {
-  display: block;
-  width: 14px;
-  height: 14px;
-}
-.editor-panes {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
-}
-.editor-panes.split {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.editor-pane {
-  display: flex;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-.editor-pane + .editor-pane {
-  border-left: 1px solid var(--border-subtle);
 }
 .editor-empty {
   display: flex;
