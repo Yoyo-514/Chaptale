@@ -17,12 +17,13 @@ import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 import { applyHostEvent } from './session/host-events';
 import { type SessionEntry, sessionEntries, sessionTitle } from './session/list';
 import { enqueueMessage, type OutgoingMessage, unsentMessages } from './session/outgoing';
+import { useComposerQuotes } from './session/quotes';
 
 export type { OutgoingMessage } from './session/outgoing';
 export type { SessionEntry } from './session/list';
 
 interface EditorContextSource {
-  prepare(sessionId: string | null): Promise<{ ok: boolean; context?: EditorContext }>;
+  prepare(sessionId: string | null, quoted?: EditorContext): Promise<{ ok: boolean; context?: EditorContext }>;
 }
 
 /** 界面只持有快照、草稿和查看位置；原生会话由宿主持有。 */
@@ -49,6 +50,7 @@ export const useAgentStore = defineStore('agent', () => {
   const active = computed(() => state.value?.sessions.find(session => session.id === activeId.value));
   const activeOutgoing = computed(() => (active.value ? unsent(active.value.id) : []));
   const draftKey = computed(() => activeId.value ?? `new:${scope.value ?? ''}`);
+  const quotes = useComposerQuotes(draftKey);
   const entries = computed(() => sessionEntries(history.value, state.value?.sessions ?? [], owner));
   const recent = computed(() => entries.value.filter(entry => entry.workId === scope.value).slice(0, 5));
   const draft = computed({
@@ -206,6 +208,7 @@ export const useAgentStore = defineStore('agent', () => {
       else catalog.value = await requestCreation('readSessionState', {});
       drafts.value[id] = drafts.value[key] ?? '';
       delete drafts.value[key];
+      quotes.migrate(key, id);
       if (version === viewVersion) activeId.value = id;
       createdId = id;
     });
@@ -221,9 +224,10 @@ export const useAgentStore = defineStore('agent', () => {
       error.value = '请先选择模型';
       return;
     }
+    const quoted = quotes.current.value;
     const prepared = editorContextSource.value
-      ? await editorContextSource.value.prepare(active.value?.sessionId ?? null)
-      : { ok: true as const };
+      ? await editorContextSource.value.prepare(active.value?.sessionId ?? null, quoted)
+      : { ok: true as const, context: quoted };
     if (!prepared.ok) return;
     let id = activeId.value;
     if (!id) {
@@ -231,6 +235,7 @@ export const useAgentStore = defineStore('agent', () => {
       if (!id) return;
     }
     drafts.value[id] = '';
+    quotes.clear(id);
     await dispatch(id, text, prepared.context);
   }
 
@@ -270,6 +275,25 @@ export const useAgentStore = defineStore('agent', () => {
     const { text, editorContext: context } = outgoing.value[id].find(item => item.key === key)!;
     discardOutgoing(key);
     return dispatch(id, text, context);
+  }
+
+  function editMessage(entryId: string, text: string, context?: EditorContext, discardPending = false) {
+    const id = activeId.value!;
+    const capturedContext = context && (JSON.parse(JSON.stringify(context)) as EditorContext);
+    return perform(() =>
+      getDesktopApi().agentHost.request('editMessage', {
+        id,
+        entryId,
+        text,
+        editorContext: capturedContext,
+        discardPending
+      })
+    );
+  }
+
+  function switchBranch(leafId: string, discardPending = false) {
+    const id = activeId.value!;
+    return perform(() => getDesktopApi().agentHost.request('switchBranch', { id, leafId, discardPending }));
   }
 
   /** 宿主拒绝待审修改并关闭会话，历史文件移入回收站后刷新列表。 */
@@ -376,6 +400,10 @@ export const useAgentStore = defineStore('agent', () => {
     activeId,
     active,
     draft,
+    quotedSelection: quotes.current,
+    composerFocusVersion: quotes.focusVersion,
+    quoteSelection: quotes.set,
+    clearQuote: quotes.clear,
     selectedModel,
     history,
     composeInstructions,
@@ -386,6 +414,8 @@ export const useAgentStore = defineStore('agent', () => {
     newDraft,
     create,
     send,
+    editMessage,
+    switchBranch,
     startReview,
     deleteSessions,
     activeOutgoing,

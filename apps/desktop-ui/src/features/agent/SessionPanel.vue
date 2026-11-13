@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, shallowRef, watch } from 'vue';
+
+import type { EditorContext } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
+import { AppAlertDialog } from '@/components/AppDialog';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
 import { AppInput } from '@/components/AppInput';
 import { AppTooltip } from '@/components/AppTooltip';
@@ -126,6 +129,39 @@ function move() {
 }
 function approve(id: string, allow: boolean) {
   void agent.perform(() => getDesktopApi().agentHost.request('approve', { id, allow }));
+}
+
+type PendingBranchAction =
+  | { kind: 'edit'; entryId: string; text: string; editorContext?: EditorContext }
+  | { kind: 'switch'; leafId: string };
+const branchConfirmOpen = ref(false);
+const pendingBranchAction = shallowRef<PendingBranchAction>();
+const pendingReviewCount = computed(() => {
+  const sessionId = agent.active?.sessionId;
+  if (!sessionId) return 0;
+  return (review.summaries[sessionId] ?? []).reduce((sum, item) => sum + item.count, 0);
+});
+function requestEditMessage(payload: { entryId: string; text: string; editorContext?: EditorContext }) {
+  if (pendingReviewCount.value > 0) {
+    pendingBranchAction.value = { kind: 'edit', ...payload };
+    branchConfirmOpen.value = true;
+    return;
+  }
+  void agent.editMessage(payload.entryId, payload.text, payload.editorContext);
+}
+function requestSwitchBranch(leafId: string) {
+  if (pendingReviewCount.value > 0) {
+    pendingBranchAction.value = { kind: 'switch', leafId };
+    branchConfirmOpen.value = true;
+    return;
+  }
+  void agent.switchBranch(leafId);
+}
+function confirmBranchAction() {
+  const action = pendingBranchAction.value;
+  if (!action) return;
+  if (action.kind === 'edit') void agent.editMessage(action.entryId, action.text, action.editorContext, true);
+  else void agent.switchBranch(action.leafId, true);
 }
 </script>
 
@@ -275,11 +311,20 @@ function approve(id: string, allow: boolean) {
             @approve="approve"
             @retry="agent.retryOutgoing"
             @discard="agent.discardOutgoing"
+            @edit-message="requestEditMessage"
+            @switch-branch="requestSwitchBranch"
           />
         </div>
       </div>
       <PendingReviewCard v-if="agent.active" />
       <MessageComposer />
+      <AppAlertDialog
+        v-model:open="branchConfirmOpen"
+        title="撤回待审修改并继续？"
+        :description="`当前分支还有 ${pendingReviewCount} 处待接受修改尚未处理，继续将一并拒绝这 ${pendingReviewCount} 处修改。`"
+        confirm-label="拒绝并继续"
+        @confirm="confirmBranchAction"
+      />
     </template>
     <p v-if="error" role="alert" class="agent-error agent-panel-error">{{ error }}</p>
   </section>

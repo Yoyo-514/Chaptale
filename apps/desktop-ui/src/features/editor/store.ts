@@ -2,6 +2,7 @@ import type { EditorState } from '@codemirror/state';
 import { defineStore } from 'pinia';
 import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 
+import type { EditorContext } from '@chaptale/agent-host/protocol';
 import type { Document, ResourceAttributes, SaveDocumentInput } from '@chaptale/creation/contracts';
 import { countDocumentWords } from '@chaptale/creation/text';
 
@@ -412,6 +413,9 @@ export const useEditorStore = defineStore('editor', () => {
     if (find(chapter.id) && !(await confirmClose([chapter.id], false))) return;
     await useWorkbenchStore().extractChapter(chapter);
   }
+  function quoteToChat(context: EditorContext) {
+    useWorkbenchStore().quoteToChat(JSON.parse(JSON.stringify(context)) as EditorContext);
+  }
   async function closeTab(id: string) {
     if (!(await confirmClose([id]))) return;
     await queues.get(id);
@@ -529,6 +533,7 @@ export const useEditorStore = defineStore('editor', () => {
     command,
     unsavedPrompt,
     extractChapter,
+    quoteToChat,
     getBuffer: (id: string) => buffers.get(id),
     updateBuffer,
     updateMetadata,

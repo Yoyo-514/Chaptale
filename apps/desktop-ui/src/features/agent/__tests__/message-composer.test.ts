@@ -59,3 +59,55 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
   expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined();
   expect(wrapper.get('[aria-label="会话模型"]').attributes('disabled')).toBeUndefined();
 });
+
+it('引用到对话显示待发选区芯片并聚焦输入框，移除或发送后清理芯片', async () => {
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  const agent = useAgentStore();
+  const session: SessionView = {
+    id: 'session',
+    sessionId: 'session',
+    file: 'history.jsonl',
+    workId: 'work-1',
+    running: false,
+    compacting: false,
+    instructions: [],
+    mode: 'review',
+    messages: [],
+    model: { provider: 'offline', id: 'model' }
+  };
+  agent.state = {
+    cursor: 1,
+    tools: [],
+    approvals: [],
+    sessions: [session],
+    models: [{ provider: 'offline', id: 'model', name: '离线模型' }],
+    settings: { defaultInstructions: [], defaultMode: 'review', lastModel: null, namedInstructions: [] }
+  };
+  agent.connected = true;
+  agent.activeId = session.id;
+  wrapper = mount(MessageComposer, { attachTo: document.body, global: { plugins: [pinia] } });
+
+  const quote = {
+    workId: 'work-1',
+    entryId: 'doc-3',
+    title: '第三回',
+    section: 'manuscript' as const,
+    selection: '北风卷起残雪，灯火微摇。'
+  };
+  agent.quoteSelection(quote);
+  await flushPromises();
+
+  expect(wrapper.get('[aria-label="文稿《第三回》选区"]').text()).toContain('北风卷起残雪，灯火微摇。');
+  expect(document.activeElement).toBe(wrapper.get('textarea').element);
+
+  await wrapper.get('button[aria-label="移除引用"]').trigger('click');
+  expect(wrapper.find('[aria-label="文稿《第三回》选区"]').exists()).toBe(false);
+
+  agent.quoteSelection(quote);
+  await flushPromises();
+  expect(wrapper.find('[aria-label="文稿《第三回》选区"]').exists()).toBe(true);
+  agent.clearQuote();
+  await flushPromises();
+  expect(wrapper.find('[aria-label="文稿《第三回》选区"]').exists()).toBe(false);
+});

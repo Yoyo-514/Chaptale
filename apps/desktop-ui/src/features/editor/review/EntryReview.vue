@@ -11,19 +11,24 @@ function displayAttribute(value: string | string[]) {
 import { getChunks, getOriginalDoc } from '@codemirror/merge';
 import type { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextView } from '@/components/AppTextView';
 import { useCreationStore } from '@/features/creation';
+import { captureEditingTarget } from '@/utils/editing-target';
 
-import { chunkRange } from './chunk-range';
+import { selectedText } from '../context';
+import { useEditorStore } from '../store';
+import { chunkRange, serializeLike } from './chunk-range';
 import { type ReviewTab, useReviewStore } from './store';
 
 const props = defineProps<{ tab: ReviewTab }>();
 const review = useReviewStore();
+const editor = useEditorStore();
 const creation = useCreationStore();
 const host = ref<HTMLElement>();
 const blockError = ref('');
@@ -31,6 +36,38 @@ let view: EditorView | undefined;
 /** 本编辑器最近一次同步给标签的状态。 */
 let synced: EditorState | undefined;
 let frame: number | undefined;
+let editingTarget: ReturnType<typeof captureEditingTarget> | undefined;
+const quoteText = ref<string>();
+const menu = computed<AppContextMenuItem[]>(() => [
+  { id: 'copy', label: '复制', shortcut: 'Ctrl+C', disabled: !quoteText.value },
+  { id: 'quoteToChat', label: '引用到对话', disabled: !quoteText.value, separatorBefore: true }
+]);
+
+function prepareMenu() {
+  view?.focus();
+  if (view && candidate.value.kind === 'document' && candidate.value.content !== null) {
+    const text = props.tab.dirty ? serializeLike(view.state.doc, candidate.value.content) : candidate.value.content;
+    quoteText.value = selectedText(view.state, text);
+  } else {
+    quoteText.value = undefined;
+  }
+  editingTarget = captureEditingTarget();
+}
+async function selectMenu(id: string) {
+  await nextTick();
+  if (id === 'quoteToChat') {
+    if (!quoteText.value) return;
+    editor.quoteToChat({
+      workId: props.tab.workId,
+      entryId: props.tab.entryId,
+      title: props.tab.title,
+      section: props.tab.section,
+      selection: quoteText.value
+    });
+    return;
+  }
+  if (id === 'copy') await editingTarget?.execute('copy');
+}
 
 const data = computed(() => props.tab.review!);
 const current = computed(() => data.value.current);
@@ -291,7 +328,11 @@ onBeforeUnmount(() => {
       :label="`将删除的《${candidate.title}》，只读`"
     />
     <p v-else-if="deleted" class="review-row">目录中的内容会一起移入作品回收站。</p>
-    <div v-else ref="host" class="review-editor" @mousedown="blockAction" />
+    <AppContextMenu v-else :items="menu" @prepare="prepareMenu" @select="selectMenu">
+      <div class="review-context-host">
+        <div ref="host" class="review-editor" @mousedown="blockAction" />
+      </div>
+    </AppContextMenu>
     <AppAlertDialog
       v-model:open="confirmReject"
       :title="rejectNotice?.title ?? ''"
@@ -407,6 +448,13 @@ onBeforeUnmount(() => {
   color: var(--destructive);
   font-size: 13px;
   white-space: pre-line;
+}
+.review-context-host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 .review-editor {
   flex: 1;

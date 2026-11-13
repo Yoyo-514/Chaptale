@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 import type { EditMode, ModelRef } from '@chaptale/agent-host/protocol';
 
@@ -12,10 +12,19 @@ import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi } from '@/utils/desktop-api';
 
 import { useAgentStore } from '../store';
+import ComposerQuoteChip from './ComposerQuoteChip.vue';
 import SessionUsage from './SessionUsage.vue';
 
 const agent = useAgentStore();
 const settings = useSettingsStore();
+const textarea = ref<InstanceType<typeof AppTextarea>>();
+watch(
+  () => agent.composerFocusVersion,
+  async () => {
+    await nextTick();
+    textarea.value?.focus();
+  }
+);
 const editable = computed(() => agent.connected && !agent.creating && !agent.active?.readonly);
 const current = computed(() => (agent.active ? agent.active.model : agent.selectedModel));
 const modelKey = computed(() =>
@@ -56,7 +65,9 @@ function mode(value: string) {
 <template>
   <AppForm class="agent-composer" :disabled="!editable" @submit="agent.send">
     <div class="agent-composer-box agent-column">
+      <ComposerQuoteChip v-if="agent.quotedSelection" :quote="agent.quotedSelection" @remove="agent.clearQuote()" />
       <AppTextarea
+        ref="textarea"
         v-model="agent.draft"
         aria-label="消息"
         :rows="2"

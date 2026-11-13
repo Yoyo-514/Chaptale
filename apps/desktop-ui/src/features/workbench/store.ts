@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
+import type { EditorContext } from '@chaptale/agent-host/protocol';
+
 import { useAgentStore } from '@/features/agent';
 
 export const useWorkbenchStore = defineStore('workbench-navigation', () => {
@@ -44,6 +46,10 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
         '本章正文保持原样。完成后简要说明提出了哪些资料、事件与关系修改，以及需要作者确认的事项。'
     );
   }
+  function quoteToChat(context: EditorContext) {
+    showAgent();
+    useAgentStore().quoteSelection(context);
+  }
   return {
     sidebarOpen,
     auxiliaryOpen,
@@ -55,6 +61,7 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     toggleSidebar,
     showAgent,
     toggleAuxiliary,
-    extractChapter
+    extractChapter,
+    quoteToChat
   };
 });

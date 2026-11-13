@@ -295,3 +295,52 @@ it('运行中仅当组内仍有未完成调用时转圈，助手正文划分新�
   expect(groups[0]!.find('[aria-label="已停止"]').exists()).toBe(true);
   expect(wrapper.text()).not.toContain('一的原文');
 });
+
+it('支持作者消息原地编辑重发、助手回复重试与分支切换器派发', async () => {
+  const editorContext = {
+    workId: 'work-1',
+    entryId: 'doc-1',
+    title: '第一回',
+    section: 'manuscript' as const,
+    selection: '风雪夜归人'
+  };
+  wrapper = mount(MessageList, {
+    props: {
+      session: session([
+        message({
+          entryId: 'entry-u1',
+          role: 'user',
+          text: '润色这一句',
+          editorContext,
+          branch: { index: 2, total: 2, prevLeafId: 'leaf-1' }
+        }),
+        message({ role: 'assistant', text: '风雪深处，有人踏夜归来。' })
+      ]),
+      approvals: [],
+      outgoing: []
+    }
+  });
+
+  expect(wrapper.get('[aria-label="分支切换"]').text()).toContain('2 / 2');
+  expect(wrapper.get('.agent-user .agent-message-actions').element.lastElementChild?.getAttribute('aria-label')).toBe(
+    '分支切换'
+  );
+  expect(wrapper.get('button[aria-label="下一分支"]').attributes('disabled')).toBeDefined();
+  await wrapper.get('button[aria-label="上一分支"]').trigger('click');
+  expect(wrapper.emitted('switchBranch')).toEqual([['leaf-1']]);
+
+  await wrapper.get('.agent-user button[aria-label="编辑消息"]').trigger('click');
+  const textarea = wrapper.get('textarea[aria-label="编辑消息"]');
+  expect((textarea.element as HTMLTextAreaElement).value).toBe('润色这一句');
+  await textarea.setValue('改为冷峻克制的语气');
+  await wrapper
+    .findAll('.agent-user-edit-actions button')
+    .find(button => button.text() === '发送')!
+    .trigger('click');
+  expect(wrapper.emitted('editMessage')?.[0]).toEqual([
+    { entryId: 'entry-u1', text: '改为冷峻克制的语气', editorContext }
+  ]);
+
+  await wrapper.get('.agent-assistant button[aria-label="重试消息"]').trigger('click');
+  expect(wrapper.emitted('editMessage')?.[1]).toEqual([{ entryId: 'entry-u1', text: '润色这一句', editorContext }]);
+});

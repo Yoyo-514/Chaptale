@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
-import type { Approval, SessionView } from '@chaptale/agent-host/protocol';
+import type { Approval, EditorContext, SessionView } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
 import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } from '@/utils/markdown';
@@ -9,13 +9,17 @@ import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } 
 import type { OutgoingMessage } from '../store';
 import { buildTranscript, describeTool, hasRunningTools, summarizeTools, toolRows } from '../transcript';
 import EditorContextBadge from './EditorContextBadge.vue';
+import MessageActions from './MessageActions.vue';
 import ToolCallRow from './ToolCallRow.vue';
+import UserMessageItem from './UserMessageItem.vue';
 
 const props = defineProps<{ session: SessionView; approvals: Approval[]; outgoing: OutgoingMessage[] }>();
 const emit = defineEmits<{
   approve: [id: string, allow: boolean];
   retry: [key: string];
   discard: [key: string];
+  editMessage: [payload: { entryId: string; text: string; editorContext?: EditorContext }];
+  switchBranch: [leafId: string];
 }>();
 
 const items = computed(() => buildTranscript(props.session.messages));
@@ -55,17 +59,18 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
 <template>
   <div class="agent-transcript">
     <template v-for="item in items" :key="item.key">
-      <article
+      <UserMessageItem
         v-if="item.kind === 'user'"
-        class="agent-user"
-        :class="{ 'is-compacted': item.compacted }"
-        aria-label="作者"
-      >
-        <div class="agent-user-body">
-          <EditorContextBadge v-if="item.editorContext" :context="item.editorContext" />
-          <div class="agent-user-text">{{ item.text }}</div>
-        </div>
-      </article>
+        :entry-id="item.entryId"
+        :text="item.text"
+        :compacted="item.compacted"
+        :editor-context="item.editorContext"
+        :branch="item.branch"
+        :readonly="Boolean(session.readonly)"
+        :busy="session.running"
+        @edit-message="emit('editMessage', $event)"
+        @switch-branch="emit('switchBranch', $event)"
+      />
       <details v-else-if="item.kind === 'notice'" class="agent-notice">
         <summary>
           <span class="i-mingcute-check-circle-line size-3.5 shrink-0" aria-hidden="true" />{{ item.text }}
@@ -148,6 +153,14 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
             :running="false"
           />
         </section>
+        <MessageActions
+          v-if="!session.running || item.index !== lastIndex"
+          align="start"
+          :copy-text="item.text || undefined"
+          :can-retry="!session.readonly && Boolean(item.retryTarget)"
+          :disabled="session.running || Boolean(session.readonly)"
+          @retry="emit('editMessage', item.retryTarget!)"
+        />
       </article>
     </template>
     <article

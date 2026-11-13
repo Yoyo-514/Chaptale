@@ -2,10 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { useCreationStore } from '@/features/creation';
 import { toErrorMessage } from '@/utils/desktop-api';
+import { captureEditingTarget } from '@/utils/editing-target';
 
 import { useIllustrationImages } from '../illustrations/images';
+import { useEditorStore } from '../store';
 import type { EditorTab } from '../types';
 import { chapterOrder, readingBlocks, type ReadingBlock } from './blocks';
 import { countPages, offsetOf, pageOf, type PageGeometry } from './layout';
@@ -13,6 +16,7 @@ import { useReadingStore } from './store';
 
 const props = defineProps<{ tab: EditorTab }>();
 const reading = useReadingStore();
+const editor = useEditorStore();
 const creation = useCreationStore();
 /** 栏间距；一栏即一页，翻页步长为栏宽加栏间距。 */
 const GAP = 48;
@@ -25,6 +29,34 @@ const pages = ref(1);
 const error = ref('');
 let loadVersion = 0;
 let observer: ResizeObserver | undefined;
+let editingTarget: ReturnType<typeof captureEditingTarget> | undefined;
+const quoteText = ref<string>();
+const menu = computed<AppContextMenuItem[]>(() => [
+  { id: 'copy', label: '复制', shortcut: 'Ctrl+C', disabled: !quoteText.value },
+  { id: 'quoteToChat', label: '引用到对话', disabled: !quoteText.value, separatorBefore: true }
+]);
+
+function prepareMenu() {
+  editor.focusedId = props.tab.id;
+  quoteText.value = reading.selectedText(props.tab.id) || undefined;
+  editingTarget = captureEditingTarget();
+}
+async function selectAction(id: string) {
+  await nextTick();
+  if (id === 'quoteToChat') {
+    if (!quoteText.value || !chapter.value) return;
+    const entry = creation.entries.find(item => item.id === chapter.value!.id);
+    editor.quoteToChat({
+      workId: props.tab.workId,
+      entryId: chapter.value.id,
+      title: chapter.value.title,
+      section: entry?.section ?? props.tab.document?.section ?? 'manuscript',
+      selection: quoteText.value
+    });
+    return;
+  }
+  if (id === 'copy') await editingTarget?.execute('copy');
+}
 
 const illustrations = useIllustrationImages(() => props.tab.workId);
 /** 插图图片的显示状态：src 为已读取的图片，否则为占位文字。 */
@@ -120,44 +152,48 @@ watch(
       <AppButton size="xs" :disabled="!chapter" @click="reading.edit(tab.id)">编辑</AppButton>
     </header>
     <p v-if="error" class="reading-error" role="alert">{{ error }}</p>
-    <div ref="viewport" class="reading-viewport" tabindex="0" aria-label="阅读页" @keydown="keydown">
-      <div
-        v-if="chapter"
-        ref="columns"
-        class="reading-columns"
-        :class="{ 'markdown-body': chapter.format === 'markdown' }"
-        :style="{
-          width: `${size.width}px`,
-          height: `${size.height}px`,
-          columnWidth: `${size.width}px`,
-          columnGap: `${GAP}px`,
-          transform: `translateX(-${page * stride}px)`,
-          '--page-height': `${size.height}px`
-        }"
-        @load.capture="layout()"
-      >
-        <template v-for="block in chapter.blocks" :key="block.offset">
-          <figure
-            v-if="block.illustration"
-            class="reading-block reading-illustration"
-            :data-offset="block.offset"
-            :aria-label="`插图 ${block.illustration.caption}`"
+    <AppContextMenu :items="menu" @prepare="prepareMenu" @select="selectAction">
+      <div class="reading-context-host">
+        <div ref="viewport" class="reading-viewport" tabindex="0" aria-label="阅读页" @keydown="keydown">
+          <div
+            v-if="chapter"
+            ref="columns"
+            class="reading-columns"
+            :class="{ 'markdown-body': chapter.format === 'markdown' }"
+            :style="{
+              width: `${size.width}px`,
+              height: `${size.height}px`,
+              columnWidth: `${size.width}px`,
+              columnGap: `${GAP}px`,
+              transform: `translateX(-${page * stride}px)`,
+              '--page-height': `${size.height}px`
+            }"
+            @load.capture="layout()"
           >
-            <span v-if="illustrationState(block.illustration.entryId).src" class="reading-illustration-frame">
-              <img :src="illustrationState(block.illustration.entryId).src" :alt="block.illustration.caption" />
-              <span v-if="block.illustration.caption" class="reading-illustration-caption">{{
-                block.illustration.caption
-              }}</span>
-            </span>
-            <span v-else class="reading-illustration-missing"
-              >{{ illustrationState(block.illustration.entryId).text
-              }}{{ block.illustration.caption ? `：${block.illustration.caption}` : '' }}</span
-            >
-          </figure>
-          <div v-else class="reading-block" :data-offset="block.offset" v-html="block.html" />
-        </template>
+            <template v-for="block in chapter.blocks" :key="block.offset">
+              <figure
+                v-if="block.illustration"
+                class="reading-block reading-illustration"
+                :data-offset="block.offset"
+                :aria-label="`插图 ${block.illustration.caption}`"
+              >
+                <span v-if="illustrationState(block.illustration.entryId).src" class="reading-illustration-frame">
+                  <img :src="illustrationState(block.illustration.entryId).src" :alt="block.illustration.caption" />
+                  <span v-if="block.illustration.caption" class="reading-illustration-caption">{{
+                    block.illustration.caption
+                  }}</span>
+                </span>
+                <span v-else class="reading-illustration-missing"
+                  >{{ illustrationState(block.illustration.entryId).text
+                  }}{{ block.illustration.caption ? `：${block.illustration.caption}` : '' }}</span
+                >
+              </figure>
+              <div v-else class="reading-block" :data-offset="block.offset" v-html="block.html" />
+            </template>
+          </div>
+        </div>
       </div>
-    </div>
+    </AppContextMenu>
     <footer class="reading-footer">
       <AppButton size="xs" variant="ghost" :disabled="page === 0 && index <= 0" @click="previous">上一页</AppButton>
       <span role="status">本章 {{ page + 1 }} / {{ pages }}</span>
@@ -210,6 +246,13 @@ watch(
   padding: 8px 16px;
   font-size: 12px;
   color: var(--destructive);
+}
+.reading-context-host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 .reading-viewport {
   flex: 1;

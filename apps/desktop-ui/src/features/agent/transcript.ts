@@ -16,8 +16,21 @@ export type ToolActivity = {
   result?: { text: string; error: boolean };
 };
 export type ThinkingActivity = { kind: 'thinking'; key: string; text: string };
+export type RetryTarget = {
+  entryId: string;
+  text: string;
+  editorContext?: ChatMessage['editorContext'];
+};
 export type TranscriptItem =
-  | { kind: 'user'; key: string; text: string; compacted?: boolean; editorContext?: ChatMessage['editorContext'] }
+  | {
+      kind: 'user';
+      key: string;
+      entryId?: string;
+      text: string;
+      compacted?: boolean;
+      editorContext?: ChatMessage['editorContext'];
+      branch?: ChatMessage['branch'];
+    }
   /** 会话压缩总结，只读；它之前的对话已由总结代替。 */
   | { kind: 'summary'; key: string; text: string }
   /** 作者逐处处理结果，只读，完整正式稿留在模型上下文中。 */
@@ -31,6 +44,7 @@ export type TranscriptItem =
       text: string;
       error: boolean;
       tools: ToolActivity[];
+      retryTarget?: RetryTarget;
       /** 已被压缩总结代替，只供查看。 */
       compacted?: boolean;
     };
@@ -197,6 +211,7 @@ function nestedActivities(parent: ToolActivity, calls: NestedToolView[]): ToolAc
 export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
   const items: TranscriptItem[] = [];
   const pending: ToolActivity[] = [];
+  let currentTurnUser: RetryTarget | undefined;
   function appendAssistant(item: Extract<TranscriptItem, { kind: 'assistant' }>) {
     const previous = items.at(-1);
     if (!item.text && previous?.kind === 'assistant' && previous.tools.length) {
@@ -206,17 +221,26 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
         else previous.thinking = item.thinking;
       }
       previous.error ||= item.error;
-    } else items.push(item);
+    } else {
+      if (previous?.kind === 'assistant') delete previous.retryTarget;
+      item.retryTarget = currentTurnUser;
+      items.push(item);
+    }
   }
   messages.forEach((message, index) => {
     const key = String(index);
     if (message.role === 'user') {
+      currentTurnUser = message.entryId
+        ? { entryId: message.entryId, text: message.text, editorContext: message.editorContext }
+        : undefined;
       items.push({
         kind: 'user',
         key,
+        entryId: message.entryId,
         text: message.text,
         compacted: message.compacted,
-        editorContext: message.editorContext
+        editorContext: message.editorContext,
+        branch: message.branch
       });
       return;
     }

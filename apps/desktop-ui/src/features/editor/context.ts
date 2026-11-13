@@ -12,7 +12,7 @@ import { useReviewStore } from './review/store';
 import { useEditorStore } from './store';
 
 /** CodeMirror 的换行已规范化，按行映射回实际稿件，保留选区的换行与字符。 */
-function selectedText(state: EditorState, content: string): string | undefined {
+export function selectedText(state: EditorState, content: string): string | undefined {
   const selection = state.selection.main;
   if (selection.empty) return undefined;
   const starts = [content.startsWith('\uFEFF') && state.doc.sliceString(0, 1) !== '\uFEFF' ? 1 : 0];
@@ -115,9 +115,33 @@ export function useEditorContext() {
     };
   }
 
+  async function prepareQuoted(sessionId: string | null, quoted: EditorContext): Promise<PreparedEditorContext> {
+    const reviewing = sessionId
+      ? review.tabs.find(item => item.sessionId === sessionId && item.entryId === quoted.entryId)
+      : undefined;
+    if (reviewing?.dirty) {
+      const choice = await editor.promptUnsaved([reviewing.title], false);
+      if (choice !== 'save' || !(await review.save(reviewing.key))) return { ok: false };
+    }
+    const opened = editor.tabs.find(item => item.id === quoted.entryId);
+    if (opened?.dirty) {
+      const choice = await editor.promptUnsaved([opened.title], false);
+      if (choice !== 'save' || !(await editor.saveDocument(opened.id))) return { ok: false };
+    }
+    const latestDoc = editor.tabs.find(item => item.id === quoted.entryId);
+    const latestEntry = creation.entries.find(item => item.id === quoted.entryId);
+    return {
+      ok: true,
+      context: {
+        ...quoted,
+        title: latestDoc?.title ?? latestEntry?.title ?? quoted.title
+      }
+    };
+  }
+
   return {
-    prepare: async (sessionId: string | null): Promise<PreparedEditorContext> => {
-      const result = await prepare(sessionId);
+    prepare: async (sessionId: string | null, quoted?: EditorContext): Promise<PreparedEditorContext> => {
+      const result = quoted ? await prepareQuoted(sessionId, quoted) : await prepare(sessionId);
       return {
         ok: result.ok,
         context: result.context && (JSON.parse(JSON.stringify(result.context)) as EditorContext)

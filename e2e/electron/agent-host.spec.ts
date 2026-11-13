@@ -136,15 +136,49 @@ test('未保存修改先提示保存再发送，附带当前标签与选区并�
     expect(sent.context).toMatchObject({ title: '第三回', section: 'manuscript', selection: '这句需要润色' });
     await expect(page.locator('.agent-user [aria-label="编辑上下文"]')).toContainText('文稿《第三回》选区');
     await expect(page.getByRole('tab', { name: '第三回', exact: true })).toBeVisible();
+
+    // 编辑器右键“引用到对话”聚焦输入框并挂上待发选区芯片。
+    await body.click();
+    await body.press('Control+End');
+    await body.press('Shift+Home');
+    await body.press('Shift+F10');
+    await page.getByRole('menuitem', { name: '引用到对话', exact: true }).click();
+    await expect(page.getByRole('group', { name: '文稿《第三回》选区', exact: true })).toContainText(
+      '未选中的完整稿件内容'
+    );
+    await expect(page.getByLabel('消息', { exact: true })).toBeFocused();
+    await page.getByRole('button', { name: '移除引用', exact: true }).click();
+    await expect(page.getByRole('group', { name: '文稿《第三回》选区', exact: true })).toHaveCount(0);
+
+    // 编辑历史消息原地分叉并可通过分支切换器切回旧分支，重开历史后保留。
+    const nextRequest = new Promise<void>(resolve => {
+      markStarted = resolve;
+    });
+    await page.locator('.agent-user').hover();
+    await page.getByRole('button', { name: '编辑消息', exact: true }).click();
+    await page.getByLabel('编辑消息', { exact: true }).fill('改用冷峻语气润色');
+    await page.locator('.agent-user-edit-actions').getByRole('button', { name: '发送', exact: true }).click();
+    await nextRequest;
+    await expect(page.getByRole('group', { name: '分支切换', exact: true })).toContainText('2 / 2');
+    await expect(page.locator('.agent-user-text')).toHaveText('改用冷峻语气润色');
+
+    await page.getByRole('button', { name: '上一分支', exact: true }).click();
+    await expect(page.getByRole('group', { name: '分支切换', exact: true })).toContainText('1 / 2');
+    await expect(page.locator('.agent-user-text')).toHaveText('润色选中的句子');
+
     const reopened = await page.evaluate(async ({ id, file }) => {
       const client = window.chaptaleDesktop.agentHost;
       await client.request('close', { id });
       const opened = await client.request('open', { file });
       const state = await client.request('state', undefined);
-      return state.sessions.find(session => session.id === opened)!.messages.find(message => message.role === 'user')!
-        .editorContext;
+      const user = state.sessions
+        .find(session => session.id === opened)!
+        .messages.find(message => message.role === 'user')!;
+      return { context: user.editorContext, text: user.text, branch: user.branch };
     }, sent);
-    expect(reopened).toEqual(sent.context);
+    expect(reopened.context).toEqual(sent.context);
+    expect(reopened.text).toBe('润色选中的句子');
+    expect(reopened.branch).toMatchObject({ index: 1, total: 2 });
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));

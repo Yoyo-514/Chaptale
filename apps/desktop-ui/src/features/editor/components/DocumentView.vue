@@ -16,6 +16,7 @@ import { captureEditingTarget } from '@/utils/editing-target';
 import AttributesPanel from '../attributes/AttributesPanel.vue';
 import { useCheckStore } from '../check/store';
 import { createDocumentView } from '../codemirror/view';
+import { selectedText } from '../context';
 import IllustrationPicker from '../illustrations/IllustrationPicker.vue';
 import { useIllustrations } from '../illustrations/use-illustrations';
 import { useReadingStore } from '../reading/store';
@@ -37,29 +38,51 @@ const host = ref<HTMLElement>();
 const compare = ref(false);
 let view: ReturnType<typeof createDocumentView> | undefined;
 let editingTarget: ReturnType<typeof captureEditingTarget>;
-const menu: AppContextMenuItem[] = [
+const quoteText = ref<string>();
+const menu = computed<AppContextMenuItem[]>(() => [
   { id: 'undo', label: '撤销', shortcut: 'Ctrl+Z' },
   { id: 'redo', label: '重做', shortcut: 'Ctrl+Y' },
   { id: 'cut', label: '剪切', shortcut: 'Ctrl+X', separatorBefore: true },
   { id: 'copy', label: '复制', shortcut: 'Ctrl+C' },
   { id: 'paste', label: '粘贴', shortcut: 'Ctrl+V' },
   { id: 'selectAll', label: '全选', shortcut: 'Ctrl+A' },
+  { id: 'quoteToChat', label: '引用到对话', disabled: !quoteText.value, separatorBefore: true },
   { id: 'find', label: '查找', shortcut: 'Ctrl+F', separatorBefore: true },
   { id: 'replace', label: '替换', shortcut: 'Ctrl+H' },
   { id: 'illustration', label: '插入插图…', separatorBefore: true }
-];
+]);
 const illustrations = useIllustrations(
   () => props.tab,
   () => view
 );
 function prepareMenu(event: MouseEvent) {
   editor.focusedId = props.tab.id;
-  if (event.target instanceof HTMLInputElement) event.target.focus();
-  else view!.focus();
+  if (event.target instanceof HTMLInputElement) {
+    event.target.focus();
+    quoteText.value = undefined;
+  } else {
+    view!.focus();
+    const buffer = editor.getBuffer(props.tab.id);
+    quoteText.value = buffer ? selectedText(buffer.state, buffer.content) : undefined;
+  }
   editingTarget = captureEditingTarget();
 }
 async function selectAction(id: string) {
   await nextTick();
+  if (id === 'quoteToChat') {
+    if (!quoteText.value) return;
+    editor.quoteToChat({
+      workId: props.tab.workId,
+      entryId: props.tab.id,
+      title: props.tab.title,
+      section:
+        props.tab.document?.section ??
+        creation.entries.find(entry => entry.id === props.tab.id)?.section ??
+        'manuscript',
+      selection: quoteText.value
+    });
+    return;
+  }
   if (id === 'find' || id === 'replace') {
     view![id]();
     return;
