@@ -1842,3 +1842,47 @@ it('归属作品的会话以作品文件目录为工作目录，目录内读取�
   await host.execute({ method: 'approve', input: { id: host.snapshot().approvals[0].id, allow: false } });
   expect((await outside).isError).toBe(true);
 });
+
+it('原地分叉前若有未处理待审修改需确认撤回，撤回后不会把旧分支拒绝回执带入新分支', async () => {
+  const runtime = await restartWithTools([]);
+  const requests = await observeRequests(runtime);
+  await host.execute({ method: 'prompt', input: { id, text: '修改序章' } });
+  await expect.poll(() => requests.length).toBe(1);
+  const view = () => host.snapshot().sessions.find(item => item.id === id)!;
+  await expect.poll(() => view().running).toBe(false);
+  const firstUser = view().messages.find(message => message.role === 'user')!;
+
+  expect(
+    (
+      await call('work_write', {
+        workId,
+        entryId: documentId,
+        expectedRevisionId: revisionId,
+        content: '将军登城。\n城外下雪。\n斥候回营。'
+      })
+    ).isError
+  ).toBe(false);
+  const sessionId = view().sessionId!;
+  expect(value(creation.executeAuthor({ method: 'listReviewItems', input: { sessionId } }))).toHaveLength(1);
+
+  await expect(
+    host.execute({ method: 'editMessage', input: { id, entryId: firstUser.entryId!, text: '换一种写法' } })
+  ).rejects.toThrow('当前分支有未处理的待审修改');
+  expect(value(creation.executeAuthor({ method: 'listReviewItems', input: { sessionId } }))).toHaveLength(1);
+
+  await host.execute({
+    method: 'editMessage',
+    input: { id, entryId: firstUser.entryId!, text: '换一种写法', discardPending: true }
+  });
+  await expect.poll(() => requests.length).toBe(2);
+  await expect.poll(() => view().running).toBe(false);
+
+  expect(requests[1]!.messages).not.toContain('已拒绝');
+  expect(value(creation.executeAuthor({ method: 'listReviewItems', input: { sessionId } }))).toEqual([]);
+  expect(value(creation.executeAuthor({ method: 'listReviewResults', input: { sessionId } }))).toEqual([]);
+  expect(view().messages.some(message => message.role === 'reviewResults')).toBe(false);
+  expect(view().messages.find(message => message.role === 'user')).toMatchObject({
+    text: '换一种写法',
+    branch: { index: 2, total: 2 }
+  });
+});

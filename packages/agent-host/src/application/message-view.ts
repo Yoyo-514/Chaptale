@@ -2,6 +2,7 @@ import { type AgentSession, type SessionManager, sessionEntryToContextMessages }
 
 import { type ChatMessage, reviewResultsMessageType } from '../protocol.ts';
 import { decodePromptWithContext } from './editor-context.ts';
+import { branchMap } from './session-tree.ts';
 import { toolResultInfo, type ToolTargetLookup } from './tool-result-info.ts';
 
 export type SdkMessage = AgentSession['messages'][number];
@@ -73,12 +74,18 @@ export function messageView(message: SdkMessage, target?: ToolTargetLookup): Cha
  * 压缩总结出现在它被记录的位置。模型实际收到的内容仍由 pi 决定。
  */
 export function transcriptView(manager: SessionManager, target?: ToolTargetLookup): ChatMessage[] {
+  const branch = manager.getBranch();
+  const branchIds = new Set(branch.map(entry => entry.id));
+  const branches = branchMap(manager, branchIds);
   const inContext = new Set(manager.buildContextEntries().map(entry => entry.id));
-  return manager.getBranch().flatMap(entry =>
+  return branch.flatMap(entry =>
     sessionEntryToContextMessages(entry)
       .filter(message => message.role !== 'system')
       .map(message => {
         const view = messageView(message, target);
+        view.entryId = entry.id;
+        const branchInfo = branches.get(entry.id);
+        if (branchInfo) view.branch = branchInfo;
         if (!inContext.has(entry.id)) view.compacted = true;
         return view;
       })

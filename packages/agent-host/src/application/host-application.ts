@@ -29,6 +29,7 @@ import type { HostToolDecision } from '../tools/tool-access.ts';
 import { ToolApprovals } from './approvals.ts';
 import { damagedHistory, sessionHistory, type SessionHistory } from './history.ts';
 import { type AppliedInstructions, instructionCallbacks, LiveSession } from './live-session.ts';
+import { rejectPendingChanges } from './review-results.ts';
 import { createWorkTools, deferredWorkToolsPrompt, workToolNames, workWriteToolNames } from './work-tools/index.ts';
 
 export interface HostApplicationOptions {
@@ -46,25 +47,6 @@ export interface HostApplicationOptions {
   tools: (cwd: string) => ToolDefinition[];
   /** 作品应用与 Agent 共用宿主，直接注入既有应用入口。 */
   creation?: CreationApplication;
-}
-
-/** 删除会话前拒绝它留下的全部待审修改，避免候选失去来源。 */
-function rejectPendingChanges(creation: CreationApplication, sessionId: string) {
-  const listed = creation.executeAuthor({ method: 'listReviewItems', input: { sessionId } });
-  if (!listed.ok) throw new Error(listed.error.message);
-  for (const workId of new Set(listed.value.map(item => item.workId))) {
-    const result = creation.executeAuthor({
-      method: 'decidePending',
-      input: {
-        commandId: randomUUID(),
-        sessionId,
-        workId,
-        decision: 'reject',
-        targets: listed.value.filter(item => item.workId === workId).map(item => item.target)
-      }
-    });
-    if (!result.ok) throw new Error(result.error.message);
-  }
 }
 
 /** 会话归属的作品；未归属或作品已在回收站时为 null。 */
@@ -149,6 +131,15 @@ export class HostApplication {
           command.input.text,
           command.input.editorContext && structuredClone(command.input.editorContext)
         );
+      case 'editMessage':
+        return this.live(command.input.id).editMessage(
+          command.input.entryId,
+          command.input.text,
+          command.input.editorContext && structuredClone(command.input.editorContext),
+          command.input.discardPending
+        );
+      case 'switchBranch':
+        return this.live(command.input.id).switchBranch(command.input.leafId, command.input.discardPending);
       case 'cancel':
         return this.live(command.input.id).stop();
       case 'compact':

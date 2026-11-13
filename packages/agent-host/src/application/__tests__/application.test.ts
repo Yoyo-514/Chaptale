@@ -1090,3 +1090,55 @@ it('正在生成内容的模型及其供应商不能删除，结束后可以删�
   await app.execute({ method: 'deleteProvider', input: { id: busy.provider } });
   expect(view(id).running).toBe(false);
 });
+
+it('编辑历史作者消息基于原生会话树原地分叉，切换分支在重开历史后仍保留', async () => {
+  const id = await create(undefined, capture);
+  const context = makeEditorContext('第一回');
+
+  let done = settled();
+  await app.execute({ method: 'prompt', input: { id, text: '旧构思', editorContext: context } });
+  await done;
+  const firstEntryId = view(id).messages.find(message => message.role === 'user')!.entryId!;
+  expect(firstEntryId).toBeTruthy();
+
+  done = settled();
+  await app.execute({ method: 'prompt', input: { id, text: '继续推演' } });
+  await done;
+  expect(
+    view(id)
+      .messages.filter(message => message.role === 'user')
+      .map(message => message.text)
+  ).toEqual(['旧构思', '继续推演']);
+
+  captured.length = 0;
+  done = settled();
+  await app.execute({
+    method: 'editMessage',
+    input: { id, entryId: firstEntryId, text: '新构思', editorContext: context }
+  });
+  await done;
+
+  const sentTexts = JSON.stringify(captured[0]);
+  expect(sentTexts).toContain('新构思');
+  expect(sentTexts).not.toContain('旧构思');
+  expect(sentTexts).not.toContain('继续推演');
+
+  const forkedUser = view(id).messages.find(message => message.role === 'user')!;
+  expect(forkedUser).toMatchObject({
+    text: '新构思',
+    editorContext: context,
+    branch: { index: 2, total: 2, prevLeafId: expect.any(String) }
+  });
+
+  await app.execute({ method: 'switchBranch', input: { id, leafId: forkedUser.branch!.prevLeafId! } });
+  const branchOneUsers = view(id).messages.filter(message => message.role === 'user');
+  expect(branchOneUsers.map(message => message.text)).toEqual(['旧构思', '继续推演']);
+  expect(branchOneUsers[0]?.branch).toMatchObject({ index: 1, total: 2, nextLeafId: expect.any(String) });
+
+  const file = view(id).file;
+  await app.execute({ method: 'close', input: { id } });
+  const reopened = await open({ file });
+  const reopenedUsers = view(reopened).messages.filter(message => message.role === 'user');
+  expect(reopenedUsers.map(message => message.text)).toEqual(['旧构思', '继续推演']);
+  expect(reopenedUsers[0]?.branch).toMatchObject({ index: 1, total: 2, nextLeafId: expect.any(String) });
+});

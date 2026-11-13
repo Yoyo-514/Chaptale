@@ -1,16 +1,9 @@
-import type { SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent';
+import type { SessionManager } from '@earendil-works/pi-coding-agent';
 
-import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
-import {
-  type AgentInstructions,
-  type ChatMessage,
-  type EditMode,
-  instructionsEntryType,
-  modeEntryType,
-  type ReadonlyHistory
-} from '../protocol.ts';
+import type { AgentInstructions, ChatMessage, EditMode, ReadonlyHistory } from '../protocol.ts';
 import { type DamagedHistory, readDamagedHistory } from '../session/session-storage.ts';
 import { messageView, type SdkMessage, transcriptView } from './message-view.ts';
+import { sessionRecords } from './session-tree.ts';
 
 /** 打开历史的结论：完整历史可继续对话；损坏或缺少记录的只能查看。 */
 export type SessionHistory =
@@ -22,26 +15,6 @@ const readonlyMessages = {
   invalid: '指令或修改模式记录无效，只能查看，不能继续；原文件未修改',
   damaged: '会话历史部分损坏，只能查看，不能继续；原文件未修改'
 };
-
-/** 当前分支上最近一次的指令与模式记录；记录内容无效时抛错。 */
-function sessionRecords(branch: SessionEntry[]): {
-  instructions?: AgentInstructions;
-  mode?: EditMode;
-} {
-  let instructions: AgentInstructions | undefined;
-  let mode: EditMode | undefined;
-  for (let index = branch.length - 1; index >= 0 && (!instructions || !mode); index--) {
-    const entry = branch[index];
-    if (entry.type !== 'custom') continue;
-    const data = entry.data as { entries?: unknown; mode?: unknown } | undefined;
-    if (!instructions && entry.customType === instructionsEntryType)
-      instructions = normalizeInstructions(data?.entries);
-    else if (!mode && entry.customType === modeEntryType) {
-      mode = normalizeMode(data?.mode);
-    }
-  }
-  return { instructions, mode };
-}
 
 /** 损坏历史按文件顺序显示能识别的消息，其余行计入坏行。 */
 function damagedMessages(history: DamagedHistory): { messages: ChatMessage[]; lines: number[] } {

@@ -15,7 +15,8 @@ import {
 } from '../protocol.ts';
 import { encodePromptWithContext } from './editor-context.ts';
 import { messageView, transcriptView } from './message-view.ts';
-import { SessionReviewResults } from './review-results.ts';
+import { SessionReviewResults, withdrawBranchPendingChanges } from './review-results.ts';
+import { navigateToBranchLeaf, rewindForMessageEdit } from './session-tree.ts';
 import { previewToolInput, toolResultInfo, toolTargetLookup } from './tool-result-info.ts';
 import { workWriteToolNames } from './work-tools/index.ts';
 
@@ -103,6 +104,45 @@ export class LiveSession {
     });
   }
 
+  /** 基于目标作者消息在原生会话树原地分叉并重发。 */
+  async editMessage(entryId: string, text: string, context?: EditorContext, discardPending = false): Promise<void> {
+    if (!text.trim()) throw new Error('消息不能为空');
+    if (this.view.running || this.view.compacting) throw new Error('请在当前操作结束后再编辑或重发消息');
+    const manager = this.session.sessionManager;
+    const entry = manager.getEntry(entryId);
+    if (!entry || entry.type !== 'message' || entry.message.role !== 'user') throw new Error('目标作者消息不存在');
+    if (this.creation) {
+      withdrawBranchPendingChanges(this.creation, this.session.sessionId, discardPending);
+      this.reviewResults?.reset();
+    }
+    await rewindForMessageEdit(this.session, entryId, this.view.instructions, this.view.mode!);
+    this.syncWorkTools();
+    this.view.messages = transcriptView(manager, this.toolTargets());
+    this.view.usage = this.usage();
+    delete this.view.error;
+    this.emit({ kind: 'session', session: this.view });
+    await this.prompt(text, context);
+  }
+
+  /** 切换到原生会话树的另一分支叶子，并落盘记录当前活动分支。 */
+  async switchBranch(leafId: string, discardPending = false): Promise<void> {
+    if (this.view.running || this.view.compacting) throw new Error('请在当前操作结束后再切换分支');
+    const manager = this.session.sessionManager;
+    if (!manager.getEntry(leafId)) throw new Error('目标分支节点不存在');
+    if (this.creation) {
+      withdrawBranchPendingChanges(this.creation, this.session.sessionId, discardPending);
+      this.reviewResults?.reset();
+    }
+    const records = await navigateToBranchLeaf(this.session, leafId);
+    if (records.instructions) this.view.instructions = records.instructions;
+    if (records.mode) this.view.mode = records.mode;
+    this.syncWorkTools();
+    this.view.messages = transcriptView(manager, this.toolTargets());
+    this.view.usage = this.usage();
+    delete this.view.error;
+    this.emit({ kind: 'session', session: this.view });
+  }
+
   private launch(send: () => Promise<void>): void {
     const { view } = this;
     this.cancelled = false;
@@ -122,8 +162,10 @@ export class LiveSession {
       } catch {
         view.error = '本次请求未完成，请检查模型设置或连接后重新发送';
       } finally {
+        view.messages = transcriptView(this.session.sessionManager, this.toolTargets());
         this.refreshUsage();
         view.running = false;
+        this.emit({ kind: 'session', session: view });
         this.emitRunning();
         try {
           this.reviewResults?.acknowledge();
@@ -285,6 +327,14 @@ export class LiveSession {
   private onEvent(event: AgentSessionEvent): void {
     const { view } = this;
     if (event.type === 'message_start') {
+      if (event.message.role === 'assistant') {
+        const persisted = transcriptView(this.session.sessionManager, this.toolTargets());
+        const prevIndex = view.messages.length - 1;
+        if (prevIndex >= 0 && persisted[prevIndex]?.role === 'user') {
+          view.messages[prevIndex] = persisted[prevIndex]!;
+          this.emit({ kind: 'message', id: view.id, index: prevIndex, message: persisted[prevIndex]! });
+        }
+      }
       const message = messageView(event.message, this.toolTargets());
       if (event.message.role === 'toolResult') {
         const parent = this.findToolCall(event.message.toolCallId);

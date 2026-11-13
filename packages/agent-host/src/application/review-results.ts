@@ -1,4 +1,5 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent';
+import { randomUUID } from 'node:crypto';
 
 import type { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult, ReviewResultContent } from '@chaptale/creation/contracts';
@@ -29,6 +30,46 @@ const parts = {
 function value<T>(result: CreationResult<T>): T {
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
+}
+
+/** 删除会话或切换/分叉会话树前拒绝全部待审修改，避免候选失去来源。 */
+export function rejectPendingChanges(creation: CreationApplication, sessionId: string): void {
+  const listed = value(creation.executeAuthor({ method: 'listReviewItems', input: { sessionId } }));
+  for (const workId of new Set(listed.map(item => item.workId))) {
+    value(
+      creation.executeAuthor({
+        method: 'decidePending',
+        input: {
+          commandId: randomUUID(),
+          sessionId,
+          workId,
+          decision: 'reject',
+          targets: listed.filter(item => item.workId === workId).map(item => item.target)
+        }
+      })
+    );
+  }
+}
+
+/** 分叉或切换会话树前检查待审修改；确认撤回时拒绝待审项并消费其处理回执，避免注入目标分支。 */
+export function withdrawBranchPendingChanges(
+  creation: CreationApplication,
+  sessionId: string,
+  discardPending = false
+): void {
+  const listed = value(creation.executeAuthor({ method: 'listReviewItems', input: { sessionId } }));
+  if (!listed.length) return;
+  if (!discardPending) throw new Error('当前分支有未处理的待审修改，请先处理或确认撤回');
+  rejectPendingChanges(creation, sessionId);
+  const results = value(creation.executeAuthor({ method: 'listReviewResults', input: { sessionId } }));
+  if (results.length) {
+    value(
+      creation.executeAuthor({
+        method: 'reportReviewResults',
+        input: { sessionId, resultIds: results.map(item => item.id) }
+      })
+    );
+  }
 }
 
 /** 复用 SDK 原生上下文消息；入队期间去重，本机进度只确认已写入 JSONL 的结果。 */
@@ -107,6 +148,9 @@ export class SessionReviewResults {
     if (!this.issued.size) return;
     const persisted = this.persisted();
     this.report([...this.issued].filter(id => persisted.has(id)));
+  }
+  reset(): void {
+    this.issued.clear();
   }
 }
 function describe(result: ReviewResultContent): string {

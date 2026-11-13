@@ -7,6 +7,7 @@ import type { ImportWorkPackageInput, Work, WorkReplacement } from '@chaptale/cr
  */
 export const instructionsEntryType = 'chaptale-agent-instructions';
 export const modeEntryType = 'chaptale-edit-mode';
+export const branchCursorEntryType = 'chaptale-branch';
 export const reviewResultsMessageType = 'chaptale-review-results';
 
 /** 讨论禁止写入作品；审阅生成待接受修改；直接修改保存正式修订。 */
@@ -125,7 +126,16 @@ export interface ToolCallView {
   info?: ToolResultInfo;
   nestedTools?: NestedToolView[];
 }
+/** 会话树分叉点在当前分支消息上的切换信息（1-based）。 */
+export interface MessageBranch {
+  index: number;
+  total: number;
+  prevLeafId?: string;
+  nextLeafId?: string;
+}
 export interface ChatMessage {
+  /** 原生 JSONL 条目 ID；流式尚未落盘或损坏行恢复时可能为空。 */
+  entryId?: string;
   /** pi 消息角色；`compactionSummary` 为会话压缩总结，`reviewResults` 为作者的逐处处理结果，text 是显示文字。 */
   role: string;
   text: string;
@@ -139,6 +149,8 @@ export interface ChatMessage {
   nestedToolsComplete?: boolean;
   /** 作者消息关联的编辑上下文（仅在有选区时在气泡上方显示引用块）。 */
   editorContext?: EditorContext;
+  /** 该条消息所在分叉点的兄弟分支信息。 */
+  branch?: MessageBranch;
   error?: boolean;
   /** 已被压缩总结代替、不再发送给模型的消息，界面仍可查看。 */
   compacted?: boolean;
@@ -216,6 +228,13 @@ export interface HostCommands {
    */
   assignSession: { input: { sessionId: string; workId: string }; output: string | null };
   prompt: { input: { id: string; text: string; editorContext?: EditorContext }; output: void };
+  /** 基于目标作者消息在原生会话树原地分叉并重发；有未处理待审修改时需 discardPending 确认撤回。 */
+  editMessage: {
+    input: { id: string; entryId: string; text: string; editorContext?: EditorContext; discardPending?: boolean };
+    output: void;
+  };
+  /** 切换到原生会话树的另一分支叶子；有未处理待审修改时需 discardPending 确认撤回。 */
+  switchBranch: { input: { id: string; leafId: string; discardPending?: boolean }; output: void };
   cancel: { input: { id: string }; output: void };
   compact: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
