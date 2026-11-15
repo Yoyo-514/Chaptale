@@ -172,13 +172,4 @@ export const writingHighlight = HighlightStyle.define([
   { tag: [tags.string, tags.monospace, tags.quote], color: 'var(--foreground)' }
 ]);
 
-/** 同区对比的新增与删除标记，审阅与历史共用。 */
-export const diffTheme = EditorView.theme({
-  '.cm-changedLine': { backgroundColor: 'color-mix(in srgb, var(--success) 10%, transparent)' },
-  '.cm-changedText': { backgroundColor: 'color-mix(in srgb, var(--success) 22%, transparent)' },
-  '.cm-deletedChunk': { backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)' },
-  '.cm-deletedChunk del, .cm-deletedText': {
-    textDecoration: 'line-through',
-    backgroundColor: 'color-mix(in srgb, var(--destructive) 18%, transparent)'
-  }
-});
+export { DIFF_SCAN_LIMIT, diffTheme } from '@/utils/codemirror-diff';

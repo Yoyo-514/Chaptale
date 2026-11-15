@@ -1,6 +1,8 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
-import { nextTick } from 'vue';
+import { h, nextTick } from 'vue';
+
+import { AppInput } from '@/components/AppInput';
 
 import AppDialog from '../AppDialog.vue';
 
@@ -40,6 +42,20 @@ describe('AppDialog 无障碍描述', () => {
     await nextTick();
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(document.getElementById(dialog.getAttribute('aria-describedby')!)?.textContent).toBe('完整删除范围');
+    wrapper.unmount();
+  });
+  it('弹窗内存在 autofocus 输入框时打开即聚焦输入框而非右上角关闭按钮', async () => {
+    const wrapper = mount(AppDialog, {
+      attachTo: document.body,
+      props: { open: true, title: '新建作品' },
+      slots: {
+        default: () => h(AppInput, { 'aria-label': '作品名称', autofocus: true })
+      }
+    });
+    await flushPromises();
+    await nextTick();
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="作品名称"]')!;
+    expect(document.activeElement).toBe(input);
     wrapper.unmount();
   });
 });

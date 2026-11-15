@@ -15,7 +15,7 @@ import {
 
 import type { EntryReviewView } from '@chaptale/creation/contracts';
 
-import { diffTheme, theme, writingHighlight } from '../codemirror/theme';
+import { DIFF_SCAN_LIMIT, diffTheme, theme, writingHighlight } from '../codemirror/theme';
 
 /** 逐处决定按钮条，记住所属修改块在候选稿中的起点。 */
 class ChunkActions extends WidgetType {
@@ -103,7 +103,8 @@ export function createReviewState(review: EntryReviewView): EditorState {
         original: review.current?.content ?? '',
         mergeControls: false,
         gutter: true,
-        collapseUnchanged: { margin: 3, minSize: 8 }
+        collapseUnchanged: { margin: 3, minSize: 8 },
+        diffConfig: { scanLimit: DIFF_SCAN_LIMIT }
       }),
       editable && review.current !== null ? chunkActionsField : [],
       EditorState.readOnly.of(!editable),

@@ -65,3 +65,15 @@ it('只删除的修改把按钮放在删除块之后；新建条目没有逐处�
   const created = mount(null, '新的开头');
   expect(created.contentDOM.querySelector('.cm-reviewActions')).toBeNull();
 });
+
+it('千字长自然段改动少量字词时保留段内字级增删定位', () => {
+  const prefix = '北风卷地白草折，胡天八月即飞雪。忽如一夜春风来，千树万树梨花开。'.repeat(24);
+  const suffix = '散入珠帘湿罗幕，狐裘不暖锦衾薄。将军角弓不得控，都护铁衣冷难着。'.repeat(24);
+  const target = mount(`${prefix}旧字词，${suffix}`, `${prefix}新润色，${suffix}`);
+  const deletedWords = [...target.contentDOM.querySelectorAll('.cm-deletedChunk .cm-deletedText')].map(
+    node => node.textContent
+  );
+  const changedWords = [...target.contentDOM.querySelectorAll('.cm-changedText')].map(node => node.textContent);
+  expect(deletedWords.join('')).toBe('旧字词');
+  expect(changedWords.join('')).toBe('新润色');
+});

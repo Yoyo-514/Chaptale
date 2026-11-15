@@ -11,7 +11,7 @@ import { AppListItem } from '@/components/AppListItem';
 import { AppNotice } from '@/components/AppNotice';
 import { AppScrollArea } from '@/components/AppScrollArea';
 
-import { diffTheme, theme, writingHighlight } from '../codemirror/theme';
+import { DIFF_SCAN_LIMIT, diffTheme, theme, writingHighlight } from '../codemirror/theme';
 import { type HistoryTab, useHistoryStore } from './store';
 
 const props = defineProps<{ tab: HistoryTab }>();
@@ -37,7 +37,8 @@ function render() {
           original: props.tab.current!.content,
           mergeControls: false,
           gutter: true,
-          collapseUnchanged: { margin: 3, minSize: 8 }
+          collapseUnchanged: { margin: 3, minSize: 8 },
+          diffConfig: { scanLimit: DIFF_SCAN_LIMIT }
         }),
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),

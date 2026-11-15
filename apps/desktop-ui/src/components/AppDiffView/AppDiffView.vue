@@ -4,6 +4,7 @@ import { EditorState } from '@codemirror/state';
 import { drawSelection, EditorView, lineNumbers } from '@codemirror/view';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { DIFF_SCAN_LIMIT, diffTheme } from '@/utils/codemirror-diff';
 import { selectionBackgroundTheme } from '@/utils/codemirror-selection';
 
 const props = withDefaults(
@@ -34,7 +35,8 @@ function render() {
       '.cm-gutters': { color: 'var(--muted-foreground)', background: 'var(--surface-muted)' },
       '.cm-content': { padding: '8px 0' },
       ...selectionBackgroundTheme
-    })
+    }),
+    diffTheme
   ];
   view = new MergeView({
     parent: host.value,
@@ -56,7 +58,7 @@ function render() {
       extensions: [...extensions, EditorView.contentAttributes.of({ 'aria-label': props.modifiedLabel })]
     },
     collapseUnchanged: { margin: 3, minSize: 8 },
-    diffConfig: { scanLimit: 1000 }
+    diffConfig: { scanLimit: DIFF_SCAN_LIMIT }
   });
 }
 onMounted(render);

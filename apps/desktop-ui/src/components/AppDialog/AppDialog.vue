@@ -60,13 +60,34 @@ const contentAttrs = computed(() => {
 function closeDialog() {
   emit('update:open', false);
 }
+
+/** 弹窗内若声明了 autofocus 输入控件，打开时优先将焦点交给它，避免落到右上角关闭按钮。 */
+function handleOpenAutoFocus(event: Event) {
+  if (event.defaultPrevented) return;
+  const container = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  if (!container) return;
+  const candidates = container.querySelectorAll<HTMLElement>(
+    'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  const target = [...candidates].find(
+    element => (element as HTMLInputElement).autofocus || element.hasAttribute('autofocus')
+  );
+  if (!target) return;
+  event.preventDefault();
+  target.focus();
+}
 </script>
 
 <template>
   <DialogRoot :open="props.open" @update:open="emit('update:open', $event)">
     <DialogPortal>
       <DialogOverlay :class="overlayClassName" data-slot="app-dialog-overlay" />
-      <DialogContent v-bind="contentAttrs" :class="contentClassName" data-slot="app-dialog-content">
+      <DialogContent
+        v-bind="contentAttrs"
+        :class="contentClassName"
+        data-slot="app-dialog-content"
+        @open-auto-focus="handleOpenAutoFocus"
+      >
         <div class="app-dialog-header" data-slot="app-dialog-header">
           <div class="app-dialog-heading" data-slot="app-dialog-heading">
             <DialogTitle class="app-dialog-title" data-slot="app-dialog-title">

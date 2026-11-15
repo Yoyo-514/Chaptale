@@ -133,13 +133,17 @@
 }
 
 .markdown-body .markdown-table-wrapper table {
-  @apply max-w-full table-fixed border-collapse border-0;
+  @apply border-collapse border-0;
+  width: max-content;
   border-spacing: 0;
 }
 
 .markdown-body .markdown-table-wrapper th,
 .markdown-body .markdown-table-wrapper td {
   @apply border-b border-r border-border-subtle px-3 py-2 align-top;
+  min-width: 4.5rem;
+  max-width: 16rem;
+  overflow-wrap: break-word;
 }
 
 .markdown-body .markdown-table-wrapper th {
