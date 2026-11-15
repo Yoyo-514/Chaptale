@@ -9,11 +9,13 @@ import {
   type EditorContext,
   type HostChange,
   type NestedToolView,
+  type QueuedDelivery,
+  type QueuedMessage,
   instructionsEntryType,
   modeEntryType,
   type SessionView
 } from '../protocol.ts';
-import { encodePromptWithContext } from './editor-context.ts';
+import { decodePromptWithContext, encodePromptWithContext } from './editor-context.ts';
 import { messageView, transcriptView } from './message-view.ts';
 import { SessionReviewResults, withdrawBranchPendingChanges } from './review-results.ts';
 import { navigateToBranchLeaf, rewindForMessageEdit } from './session-tree.ts';
@@ -44,9 +46,11 @@ export class LiveSession {
   private readonly emit: (change: HostChange) => void;
   private readonly unsubscribe: () => void;
   private cancelled = false;
+  private reorderingQueue = false;
   private operation?: Promise<void>;
   private readonly reviewResults?: SessionReviewResults;
   private readonly creation?: CreationApplication;
+  private appliedGuidelines: string;
 
   constructor(
     session: AgentSession,
@@ -59,6 +63,7 @@ export class LiveSession {
     this.applied = applied;
     this.emit = emit;
     this.creation = options.creation;
+    this.appliedGuidelines = this.currentGuidelines(options.workId);
     this.view = {
       id: session.sessionId,
       sessionId: session.sessionId,
@@ -73,7 +78,8 @@ export class LiveSession {
       messages: transcriptView(
         session.sessionManager,
         options.creation && toolTargetLookup(options.creation, session.sessionId, mode)
-      )
+      ),
+      queued: []
     };
     this.view.usage = this.usage();
     if (options.creation) this.reviewResults = new SessionReviewResults(session, options.creation);
@@ -81,7 +87,7 @@ export class LiveSession {
     this.unsubscribe = session.subscribe(event => this.onEvent(event));
   }
 
-  async prompt(text: string, context?: EditorContext): Promise<void> {
+  async prompt(text: string, context?: EditorContext, delivery: QueuedDelivery = 'steer'): Promise<void> {
     const { view } = this;
     if (!text.trim()) throw new Error('消息不能为空');
     if (view.compacting) throw new Error('该会话正在运行压缩，请等待结束或停止后再发送');
@@ -90,8 +96,9 @@ export class LiveSession {
       // 重载与停止尚未进入可插话的生成阶段，拒收后由界面把该消息标为发送失败。
       if (this.cancelled || !this.session.isStreaming) throw new Error('会话正在启动或停止，请稍后再发送');
       const results = this.reviewResults?.prepare();
-      if (results) await this.session.sendCustomMessage(results, { triggerTurn: false });
-      await this.session.steer(encoded);
+      if (results) await this.session.sendCustomMessage(results, { triggerTurn: false, deliverAs: delivery });
+      if (delivery === 'followUp') await this.session.followUp(encoded);
+      else await this.session.steer(encoded);
       return;
     }
     const results = this.reviewResults?.prepare();
@@ -102,6 +109,30 @@ export class LiveSession {
       }
       await this.session.prompt(encoded);
     });
+  }
+
+  /** 撤回指定位置的待处理消息并按原序保留其余排队项；已被模型读取时返回 null。 */
+  async dequeue(delivery: QueuedDelivery, index: number): Promise<QueuedMessage | null> {
+    if (!Number.isInteger(index) || index < 0) return null;
+    this.reorderingQueue = true;
+    let removedRaw: string | undefined;
+    try {
+      const { steering, followUp } = this.session.clearQueue();
+      const entries = [
+        ...steering.map(raw => ({ delivery: 'steer' as const, raw })),
+        ...followUp.map(raw => ({ delivery: 'followUp' as const, raw }))
+      ];
+      if (entries[index]?.delivery === delivery) removedRaw = entries.splice(index, 1)[0]!.raw;
+      for (const item of entries) {
+        if (item.delivery === 'followUp') await this.session.followUp(item.raw);
+        else await this.session.steer(item.raw);
+      }
+    } finally {
+      this.reorderingQueue = false;
+      this.syncQueue();
+    }
+    if (removedRaw === undefined) return null;
+    return { delivery, ...decodePromptWithContext(removedRaw) };
   }
 
   /** 基于目标作者消息在原生会话树原地分叉并重发。 */
@@ -151,9 +182,11 @@ export class LiveSession {
     this.emitRunning();
     this.operation = (async () => {
       try {
-        // 修改后的指令在发送前 reload 生效；reload 期间再次修改的指令留到下一次发送。
-        if (this.applied.entries !== view.instructions) {
+        const guidelines = this.currentGuidelines(view.workId);
+        // 修改后的指令与作品写作要求在发送前 reload 生效；reload 期间再次修改的留到下一次发送。
+        if (this.applied.entries !== view.instructions || this.appliedGuidelines !== guidelines) {
           this.applied.entries = view.instructions;
+          this.appliedGuidelines = guidelines;
           await this.session.reload();
           // SDK 重载会重新激活已注册工具，按重载结束时的模式恢复作品工具集合。
           this.syncWorkTools();
@@ -163,6 +196,7 @@ export class LiveSession {
         view.error = '本次请求未完成，请检查模型设置或连接后重新发送';
       } finally {
         view.messages = transcriptView(this.session.sessionManager, this.toolTargets());
+        view.queued = this.readQueue();
         this.refreshUsage();
         view.running = false;
         this.emit({ kind: 'session', session: view });
@@ -211,6 +245,7 @@ export class LiveSession {
     this.emit({ kind: 'session', session: this.view });
     await this.session.abort();
     this.session.clearQueue();
+    this.syncQueue();
     await this.operation;
   }
 
@@ -261,6 +296,28 @@ export class LiveSession {
   /** 停止转发事件；原生会话由会话池释放。 */
   detach(): void {
     this.unsubscribe();
+  }
+
+  private currentGuidelines(workId: string | null): string {
+    if (!workId || !this.creation) return '';
+    const result = this.creation.executeAuthor({ method: 'readWritingGuidelines', input: { workId } });
+    return result.ok ? result.value.trim() : '';
+  }
+
+  private readQueue(): QueuedMessage[] {
+    return [
+      ...this.session
+        .getSteeringMessages()
+        .map(raw => ({ delivery: 'steer' as const, ...decodePromptWithContext(raw) })),
+      ...this.session
+        .getFollowUpMessages()
+        .map(raw => ({ delivery: 'followUp' as const, ...decodePromptWithContext(raw) }))
+    ];
+  }
+
+  private syncQueue(): void {
+    this.view.queued = this.readQueue();
+    this.emit({ kind: 'queue', id: this.view.id, queued: this.view.queued });
   }
 
   private emitRunning(): void {
@@ -357,6 +414,13 @@ export class LiveSession {
     } else if (event.type === 'turn_end') {
       // message_end 早于 SDK 持久化；一轮结束时消息与工具结果已写入 JSONL。
       this.refreshUsage();
+    } else if (event.type === 'queue_update') {
+      if (this.reorderingQueue) return;
+      view.queued = [
+        ...event.steering.map(raw => ({ delivery: 'steer' as const, ...decodePromptWithContext(raw) })),
+        ...event.followUp.map(raw => ({ delivery: 'followUp' as const, ...decodePromptWithContext(raw) }))
+      ];
+      this.emit({ kind: 'queue', id: view.id, queued: view.queued });
     } else if (event.type === 'compaction_start') {
       view.compacting = true;
       // cancel 可能发生在 compact() 内部的首次 await 与控制器创建之间。

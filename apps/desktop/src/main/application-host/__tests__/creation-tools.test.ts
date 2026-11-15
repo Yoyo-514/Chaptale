@@ -1886,3 +1886,43 @@ it('原地分叉前若有未处理待审修改需确认撤回，撤回后不会�
     branch: { index: 2, total: 2 }
   });
 });
+
+it('归属作品的会话将非空写作要求拼入系统提示词前缀，修改或清空后在下一轮请求生效', async () => {
+  const runtime = await restartWithTools([]);
+  const requests = await observeRequests(runtime);
+  const owned = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId }
+  })) as string;
+  const view = () => host.snapshot().sessions.find(item => item.id === owned)!;
+  const session = host.liveSession(owned)!;
+  expect(session.systemPrompt).toContain(`本会话归属作品《长夜行》，作品 ID 为 ${workId}`);
+  expect(session.systemPrompt).not.toContain('<writing_guidelines>');
+
+  value(
+    creation.executeAuthor({
+      method: 'writeWritingGuidelines',
+      input: {
+        commandId: randomUUID(),
+        workId,
+        writingGuidelines: '全程使用清代白话章回体与繁体字，禁用现代网络用语。'
+      }
+    })
+  );
+  await host.execute({ method: 'prompt', input: { id: owned, text: '试写第一段' } });
+  await expect.poll(() => requests.length).toBe(1);
+  await expect.poll(() => view().running).toBe(false);
+  expect(session.systemPrompt).toContain('<writing_guidelines>');
+  expect(session.systemPrompt).toContain('全程使用清代白话章回体与繁体字，禁用现代网络用语。');
+
+  value(
+    creation.executeAuthor({
+      method: 'writeWritingGuidelines',
+      input: { commandId: randomUUID(), workId, writingGuidelines: '   ' }
+    })
+  );
+  await host.execute({ method: 'prompt', input: { id: owned, text: '试写第二段' } });
+  await expect.poll(() => requests.length).toBe(2);
+  await expect.poll(() => view().running).toBe(false);
+  expect(session.systemPrompt).not.toContain('<writing_guidelines>');
+});

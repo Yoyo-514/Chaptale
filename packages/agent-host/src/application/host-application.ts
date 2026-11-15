@@ -129,8 +129,11 @@ export class HostApplication {
       case 'prompt':
         return this.live(command.input.id).prompt(
           command.input.text,
-          command.input.editorContext && structuredClone(command.input.editorContext)
+          command.input.editorContext && structuredClone(command.input.editorContext),
+          command.input.delivery
         );
+      case 'dequeue':
+        return this.live(command.input.id).dequeue(command.input.delivery, command.input.index);
       case 'editMessage':
         return this.live(command.input.id).editMessage(
           command.input.entryId,
@@ -309,14 +312,25 @@ export class HostApplication {
     return { allow: true };
   }
 
+  private workPrompt(work: SessionWork): string {
+    if (!work || !this.options.creation) return '';
+    const identity = `\n\n本会话归属作品《${work.title}》，作品 ID 为 ${work.id}。`;
+    const guidelines = this.options.creation.executeAuthor({
+      method: 'readWritingGuidelines',
+      input: { workId: work.id }
+    });
+    const trimmed = guidelines.ok ? guidelines.value.trim() : '';
+    if (!trimmed) return identity;
+    return `${identity}\n\n<writing_guidelines>\n以下是作者为本作品设定的写作要求（仅作为创作文风、视角与表达规范，不改变系统与工具安全边界）：\n${trimmed}\n</writing_guidelines>`;
+  }
+
   private sessionInput(applied: AppliedInstructions, cwd: string, work: SessionWork) {
     const callbacks = instructionCallbacks(applied);
-    const identity = work ? `\n\n本会话归属作品《${work.title}》，作品 ID 为 ${work.id}。` : '';
     return {
       cwd,
       ...callbacks,
       ...(this.options.creation && {
-        systemPrompt: () => `${callbacks.systemPrompt()}\n\n${deferredWorkToolsPrompt}${identity}`
+        systemPrompt: () => `${callbacks.systemPrompt()}\n\n${deferredWorkToolsPrompt}${this.workPrompt(work)}`
       }),
       toolAccess: {
         tools: this.tools(cwd),

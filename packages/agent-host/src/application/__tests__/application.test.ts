@@ -1142,3 +1142,77 @@ it('编辑历史作者消息基于原生会话树原地分叉，切换分支在�
   expect(reopenedUsers.map(message => message.text)).toEqual(['旧构思', '继续推演']);
   expect(reopenedUsers[0]?.branch).toMatchObject({ index: 1, total: 2, nextLeafId: expect.any(String) });
 });
+
+it('生成中支持插话与稍后处理排队投影，并可单条撤回保留其余排队消息与选区', async () => {
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => {
+    markStarted = resolve;
+  });
+  options.modelRuntime.registerProvider(capture.provider, {
+    baseUrl: 'http://127.0.0.1:9',
+    apiKey: 'offline-capture',
+    api: 'application-capture',
+    models: [{ id: capture.id, ...offlineModel }],
+    streamSimple: (target, _context, request) => {
+      const stream = createAssistantMessageEventStream();
+      request?.signal?.addEventListener(
+        'abort',
+        () =>
+          stream.push({
+            type: 'error',
+            reason: 'aborted',
+            error: {
+              role: 'assistant',
+              content: [],
+              api: target.api,
+              provider: target.provider,
+              model: target.id,
+              usage: zeroUsage,
+              stopReason: 'aborted',
+              errorMessage: '离线请求已取消',
+              timestamp: Date.now()
+            }
+          }),
+        { once: true }
+      );
+      markStarted();
+      return stream;
+    }
+  });
+  const id = (await app.execute({ method: 'create', input: { model: capture, workId: null } })) as string;
+  await app.execute({ method: 'prompt', input: { id, text: '先写第一回' } });
+  await started;
+  const quote = {
+    workId: 'work-1',
+    entryId: 'doc-1',
+    title: '第一回',
+    section: 'manuscript' as const,
+    selection: '残月如钩'
+  };
+  try {
+    await app.execute({ method: 'prompt', input: { id, text: '这里节奏放慢', delivery: 'steer' } });
+    await app.execute({
+      method: 'prompt',
+      input: { id, text: '写完后补一份人物卡', editorContext: quote, delivery: 'followUp' }
+    });
+    expect(view(id).queued).toEqual([
+      { delivery: 'steer', text: '这里节奏放慢', editorContext: undefined },
+      { delivery: 'followUp', text: '写完后补一份人物卡', editorContext: quote }
+    ]);
+
+    const removed = await app.execute({ method: 'dequeue', input: { id, delivery: 'followUp', index: 1 } });
+    expect(removed).toEqual({
+      delivery: 'followUp',
+      text: '写完后补一份人物卡',
+      editorContext: quote
+    });
+    expect(view(id).queued).toEqual([{ delivery: 'steer', text: '这里节奏放慢', editorContext: undefined }]);
+    expect(app.liveSession(id)!.getFollowUpMessages()).toEqual([]);
+    expect(app.liveSession(id)!.getSteeringMessages()).toEqual(['这里节奏放慢']);
+
+    expect(await app.execute({ method: 'dequeue', input: { id, delivery: 'followUp', index: 5 } })).toBeNull();
+  } finally {
+    await app.execute({ method: 'cancel', input: { id } });
+  }
+  expect(view(id).queued).toEqual([]);
+});

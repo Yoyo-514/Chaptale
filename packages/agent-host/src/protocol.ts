@@ -101,6 +101,8 @@ export interface EditorContext {
 
 /** 工具结果中用于阅读摘要的元数据，正文只通过原始结果传输一次。 */
 export interface ToolResultInfo {
+  workId?: string;
+  entryId?: string;
   title?: string;
   section?: 'manuscript' | 'resource';
   wordCount?: number;
@@ -166,6 +168,13 @@ export interface SessionUsage {
   /** 上下文为估算值；压缩后尚无有效回复时 tokens、percent 为 null。 */
   context?: { tokens: number | null; contextWindow: number; percent: number | null };
 }
+/** 运行中发出的消息排队方式：steer 在当前步骤后立即插话，followUp 等整轮收尾后继续处理。 */
+export type QueuedDelivery = 'steer' | 'followUp';
+export interface QueuedMessage {
+  delivery: QueuedDelivery;
+  text: string;
+  editorContext?: EditorContext;
+}
 export interface SessionView {
   /** 当前打开实例的操作句柄；只读副本具有独立句柄。 */
   id: string;
@@ -184,6 +193,8 @@ export interface SessionView {
   instructions: AgentInstructions;
   mode?: EditMode;
   messages: ChatMessage[];
+  /** 已入队但尚未被模型消费的插话与稍后处理消息。 */
+  queued?: QueuedMessage[];
   /** 可继续的会话从原生 SDK 读取；只读历史不计算用量。 */
   usage?: SessionUsage;
   error?: string;
@@ -227,7 +238,12 @@ export interface HostCommands {
    * 未打开时返回 null。尚未写盘的新会话不能归入。
    */
   assignSession: { input: { sessionId: string; workId: string }; output: string | null };
-  prompt: { input: { id: string; text: string; editorContext?: EditorContext }; output: void };
+  prompt: {
+    input: { id: string; text: string; editorContext?: EditorContext; delivery?: QueuedDelivery };
+    output: void;
+  };
+  /** 撤回一条尚未被模型读取的排队消息；若已被模型消费则返回 null。 */
+  dequeue: { input: { id: string; delivery: QueuedDelivery; index: number }; output: QueuedMessage | null };
   /** 基于目标作者消息在原生会话树原地分叉并重发；有未处理待审修改时需 discardPending 确认撤回。 */
   editMessage: {
     input: { id: string; entryId: string; text: string; editorContext?: EditorContext; discardPending?: boolean };
@@ -276,6 +292,7 @@ export type HostChange =
   | { kind: 'message'; id: string; index: number; message: ChatMessage }
   | { kind: 'delta'; id: string; index: number; field: 'text' | 'thinking'; text: string }
   | { kind: 'tool'; id: string; index: number; parentCallId: string; call: NestedToolView }
+  | { kind: 'queue'; id: string; queued: QueuedMessage[] }
   | { kind: 'running'; id: string; running: boolean; compacting: boolean; error?: string }
   | { kind: 'usage'; id: string; usage: SessionUsage }
   | { kind: 'closed'; id: string }

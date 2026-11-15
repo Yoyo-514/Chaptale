@@ -6,6 +6,7 @@ import type { EditMode, ToolResultInfo } from '../protocol.ts';
 /** 运行中的子调用摘要只取定位字段；整章正文和脚本代码沿用 SDK 最终记录。 */
 export function previewToolInput(input: Record<string, unknown>): Record<string, unknown> {
   const fields = new Set([
+    'workId',
     'title',
     'section',
     'entryId',
@@ -40,7 +41,7 @@ export function toolTargetLookup(creation: CreationApplication, sessionId: strin
       works.set(fields.workId, entries);
     }
     const entry = entries.find(item => item.id === fields.entryId);
-    return entry && { title: entry.title, section: entry.section };
+    return entry && { workId: fields.workId, entryId: entry.id, title: entry.title, section: entry.section };
   };
 }
 
@@ -65,6 +66,9 @@ export function toolResultInfo(details: unknown): ToolResultInfo | undefined {
   const relation = object(value.relation);
   const entries = value.entries ?? value.relations;
   return {
+    ...(typeof entry.workId === 'string' && { workId: entry.workId }),
+    ...(typeof entry.id === 'string' &&
+      (entry.section === 'manuscript' || entry.section === 'resource') && { entryId: entry.id }),
     ...(typeof entry.title === 'string' && { title: entry.title }),
     ...((entry.section === 'manuscript' || entry.section === 'resource') && { section: entry.section }),
     ...(typeof entry.wordCount === 'number' && { wordCount: entry.wordCount }),
