@@ -288,6 +288,9 @@ const treeDrop = useTreeDrop({
         <AppDropdownMenuItem v-if="creation.view?.section === 'resource'" density="sm" @select="pickFiles(null)"
           >添加文件…</AppDropdownMenuItem
         >
+        <AppDropdownMenuItem density="sm" @select="creation.writingGuidelinesOpen = true"
+          >写作要求…</AppDropdownMenuItem
+        >
         <AppDropdownMenuItem density="sm" @select="creation.importOpen = true">导入文稿与资料…</AppDropdownMenuItem>
         <AppDropdownMenuItem density="sm" @select="creation.exportOpen = true">导出正文…</AppDropdownMenuItem>
       </AppDropdownMenu>

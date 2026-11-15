@@ -62,6 +62,7 @@ describe('作品提交事件与快照', () => {
       kind: 'work',
       workId: work.id,
       cursor: end.cursor,
+      writingGuidelines: '',
       entries: [first, second],
       records: [],
       relations: []

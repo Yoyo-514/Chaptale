@@ -68,6 +68,7 @@ class SqliteCreationRepository implements CreationRepository {
             kind: 'work',
             workId,
             cursor,
+            writingGuidelines: this.work(workId).readWritingGuidelines(),
             entries: this.work(workId).listEntries(),
             records: this.work(workId).listRecords(),
             relations: this.work(workId).listRelations()
@@ -148,14 +149,20 @@ class SqliteCreationRepository implements CreationRepository {
 
   /** 作品列表的更新时间：当前作品沿用已有连接，其他作品临时只读打开，不替换当前连接；从未打开过的作品没有条目。 */
   private latestEntryUpdate(workId: string): number | null {
-    const query = 'SELECT max(updatedAt) AS updatedAt FROM entries';
-    if (this.current?.id === workId)
-      return (this.current.database.prepare(query).get() as { updatedAt: number | null }).updatedAt;
+    const readMax = (db: Database.Database) => {
+      const version = db.pragma('user_version', { simple: true }) as number;
+      const query =
+        version >= 2
+          ? 'SELECT max(updatedAt) AS updatedAt FROM (SELECT updatedAt FROM entries UNION ALL SELECT updatedAt FROM work_settings)'
+          : 'SELECT max(updatedAt) AS updatedAt FROM entries';
+      return (db.prepare(query).get() as { updatedAt: number | null }).updatedAt;
+    };
+    if (this.current?.id === workId) return readMax(this.current.database);
     const file = workDatabaseFile(this.rootDir, workId);
     if (!existsSync(file)) return null;
     const database = new Database(file, { readonly: true, fileMustExist: true });
     try {
-      return (database.prepare(query).get() as { updatedAt: number | null }).updatedAt;
+      return readMax(database);
     } finally {
       database.close();
     }

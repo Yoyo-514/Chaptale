@@ -59,6 +59,8 @@ export const useCreationStore = defineStore('creation', () => {
   const records = ref<StoryRecord[]>([]);
   /** 当前作品的正式关系；资料页按资料筛选。 */
   const relations = ref<StoryRelation[]>([]);
+  /** 当前作品的写作要求文本；为空表示未额外设置。 */
+  const writingGuidelines = ref('');
   const state = ref<WorkbenchState>({ activeWorkId: null, works: [] });
   const libraryOpen = ref(true);
   const connected = ref(false);
@@ -71,6 +73,7 @@ export const useCreationStore = defineStore('creation', () => {
   const newEntry = ref<{ kind: Entry['kind']; parentId: string | null } | null>(null);
   const importOpen = ref(false);
   const exportOpen = ref(false);
+  const writingGuidelinesOpen = ref(false);
   const workId = computed(() => state.value.activeWorkId);
   const work = computed(() => works.value.find(item => item.id === workId.value));
   const view = computed(() => (workId.value ? viewFor(workId.value) : null));
@@ -134,6 +137,7 @@ export const useCreationStore = defineStore('creation', () => {
   }
 
   function applySnapshot(snapshot: Extract<CreationSnapshot, { kind: 'work' }>) {
+    writingGuidelines.value = snapshot.writingGuidelines;
     entries.value = snapshot.entries;
     records.value = snapshot.records;
     relations.value = snapshot.relations;
@@ -192,6 +196,11 @@ export const useCreationStore = defineStore('creation', () => {
     }
     if (event.cursor.workId !== workId.value || event.cursor.sequence <= cursor) return;
     const change = event.change;
+    if (change.kind === 'writingGuidelines' && event.cursor.sequence === cursor + 1) {
+      writingGuidelines.value = change.writingGuidelines;
+      cursor = event.cursor.sequence;
+      return;
+    }
     if (change.kind === 'record' && event.cursor.sequence === cursor + 1) {
       records.value = upsert(records.value, change.record, change.removed);
       cursor = event.cursor.sequence;
@@ -292,6 +301,8 @@ export const useCreationStore = defineStore('creation', () => {
     state.value.works = state.value.works.filter(item => item.workId !== id);
     if (state.value.activeWorkId !== id) return;
     state.value.activeWorkId = null;
+    writingGuidelines.value = '';
+    writingGuidelinesOpen.value = false;
     entries.value = [];
     records.value = [];
     relations.value = [];
@@ -330,6 +341,16 @@ export const useCreationStore = defineStore('creation', () => {
     await refreshLibrary();
     if (await openWork(created.id)) newWorkOpen.value = false;
     return created;
+  }
+
+  async function saveWritingGuidelines(text: string, commandId: string) {
+    const saved = await requestCreation('writeWritingGuidelines', {
+      commandId,
+      workId: workId.value!,
+      writingGuidelines: text
+    });
+    writingGuidelines.value = saved.writingGuidelines;
+    writingGuidelinesOpen.value = false;
   }
 
   async function createEntry(title: string, format: 'txt' | 'markdown', commandId: string) {
@@ -387,6 +408,7 @@ export const useCreationStore = defineStore('creation', () => {
     pendingStories,
     records,
     relations,
+    writingGuidelines,
     state,
     workId,
     work,
@@ -401,6 +423,7 @@ export const useCreationStore = defineStore('creation', () => {
     newEntry,
     importOpen,
     exportOpen,
+    writingGuidelinesOpen,
     connect,
     onEvent,
     refreshLibrary,
@@ -412,6 +435,7 @@ export const useCreationStore = defineStore('creation', () => {
     trashWork,
     replaceWork,
     createWork,
+    saveWritingGuidelines,
     createEntry,
     move,
     addFiles,

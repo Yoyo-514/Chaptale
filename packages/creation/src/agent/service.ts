@@ -61,6 +61,8 @@ export class CreationAgentService {
     switch (command.method) {
       case 'listWorks':
         return this.creation.listWorks();
+      case 'readWritingGuidelines':
+        return this.creation.readWritingGuidelines(command.input.workId);
       case 'listEntries':
         return context.mode === 'review'
           ? this.entries(command.input.workId, context.sessionId)

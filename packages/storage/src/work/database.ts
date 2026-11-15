@@ -84,5 +84,15 @@ export const workSchema: SchemaPlan = {
     database.exec(trashSchema);
     database.exec(receiptSchema);
   },
-  migrations: []
+  migrations: [
+    database => {
+      database.exec(`
+        CREATE TABLE work_settings (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          writingGuidelines TEXT NOT NULL,
+          updatedAt INTEGER NOT NULL
+        ) STRICT;
+      `);
+    }
+  ]
 };

@@ -51,6 +51,11 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         separatorBefore: true
       },
       {
+        id: 'file.writing-guidelines',
+        label: '写作要求…',
+        disabled: creation.libraryOpen || !creation.workId || !creation.connected
+      },
+      {
         id: 'file.import',
         label: '导入文稿与资料…',
         disabled: creation.libraryOpen || !creation.workId || !creation.connected
@@ -170,6 +175,9 @@ function handleSelect(id: string) {
       break;
     case 'file.new-document':
       creation.newEntry = { kind: 'document', parentId: null };
+      break;
+    case 'file.writing-guidelines':
+      creation.writingGuidelinesOpen = true;
       break;
     case 'file.import':
       creation.importOpen = true;

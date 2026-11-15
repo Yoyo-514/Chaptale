@@ -135,6 +135,10 @@ export class CreationApplication {
     switch (command.method) {
       case 'listWorks':
         return this.service.listWorks();
+      case 'readWritingGuidelines':
+        return this.service.readWritingGuidelines(command.input.workId);
+      case 'writeWritingGuidelines':
+        return this.service.writeWritingGuidelines(command.input);
       case 'listEntries':
         return this.service.listEntries(command.input.workId);
       case 'searchDocuments':

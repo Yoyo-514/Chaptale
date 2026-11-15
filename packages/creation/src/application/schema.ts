@@ -109,6 +109,8 @@ const removeRecord = { commandId: id, workId: id, recordId: id, expectedRevision
 const inputs = {
   listWorks: object({}),
   listEntries: object({ workId: id }),
+  readWritingGuidelines: object({ workId: id }),
+  writeWritingGuidelines: object({ commandId: id, workId: id, writingGuidelines: text }),
   searchDocuments: object({
     workId: id,
     query: Type.String({ minLength: 1, pattern: '\\S' }),
@@ -245,6 +247,7 @@ export const agentInputs = {
     newText: Type.String()
   }),
   listRecords: object({ workId: id, resourceId: parentId, sourceId: parentId, asOf: parentId }),
+  readWritingGuidelines: inputs.readWritingGuidelines,
   createRecord: object({ ...createRecord, basis: Type.String() }),
   updateRecord: object({ ...updateRecord, basis: Type.String() }),
   removeRecord: object({ ...removeRecord, basis: Type.String() }),

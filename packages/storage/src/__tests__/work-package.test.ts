@@ -38,6 +38,7 @@ async function source() {
   const author = <T>(method: string, input: object) =>
     ok(app.executeAuthor({ method, input: { commandId: randomUUID(), ...input } } as never) as CreationResult<T>);
   const work = author<Work>('createWork', { title: '长夜行', kind: 'novel' });
+  author('writeWritingGuidelines', { workId: work.id, writingGuidelines: '使用第三人称限知视角，语言平实克制。' });
   const chapter = author<Entry>('createEntry', {
     workId: work.id,
     parentId: null,
@@ -73,6 +74,7 @@ async function contents(app: CreationApplication, workId: string) {
   return {
     titles: entries.map(entry => entry.title).sort(),
     text: ok(app.executeAuthor({ method: 'readDocument', input: { workId, documentId: document.id } })).content,
+    writingGuidelines: ok(app.executeAuthor({ method: 'readWritingGuidelines', input: { workId } })),
     image: [...(await readFile(located.path))]
   };
 }
@@ -97,6 +99,7 @@ it('导出的作品包导入到另一作品库时按原 ID 加入，正文与资
   expect(await contents(target, work.id)).toMatchObject({
     titles: ['城门.png', '第一章'],
     text: '夜里下着雨。',
+    writingGuidelines: '使用第三人称限知视角，语言平实克制。',
     image: [137, 80, 78, 71, 1, 2, 3]
   });
 });

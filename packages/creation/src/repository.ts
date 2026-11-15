@@ -33,6 +33,7 @@ import type {
 export type CommitEffect =
   | { kind: 'work' }
   | { kind: 'library' }
+  | { kind: 'writingGuidelines' }
   | { kind: 'entry' }
   | { kind: 'entries' }
   | { kind: 'review' }
@@ -44,6 +45,7 @@ export type CommitEffect =
 
 export type CommitResult =
   | Work
+  | { writingGuidelines: string }
   | Entry
   | Entry[]
   | PendingChange
@@ -126,6 +128,8 @@ export interface LibraryRepository {
 export interface WorkRepository {
   readonly workId: string;
   readReceipt<T>(commandId: string, parameters: readonly unknown[]): T | undefined;
+  readWritingGuidelines(): string;
+  writeWritingGuidelines(writingGuidelines: string, now: number): void;
 
   getEntry(entryId: string): Entry | undefined;
   listEntries(): Entry[];

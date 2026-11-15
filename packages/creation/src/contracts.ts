@@ -21,7 +21,8 @@ import type {
   TrashImpact,
   TrashedWork,
   WorkCommandInput,
-  Work
+  Work,
+  WriteWritingGuidelinesInput
 } from './contracts/content.ts';
 import type {
   CreateRecordInput,
@@ -75,6 +76,7 @@ export type CreationSnapshot =
       kind: 'work';
       workId: string;
       cursor: CreationCursor;
+      writingGuidelines: string;
       entries: Entry[];
       records: StoryRecord[];
       relations: StoryRelation[];
@@ -83,6 +85,7 @@ export type CreationChange =
   | { kind: 'work'; work: Work }
   /** 作品进入、离开作品库回收站或被永久清空；客户端重取作品列表。 */
   | { kind: 'library'; work: Work }
+  | { kind: 'writingGuidelines'; writingGuidelines: string }
   | { kind: 'review'; change: PendingChange }
   | { kind: 'reviewBatch'; sessionId: string }
   | { kind: 'entry'; entry: Entry }
@@ -205,6 +208,10 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   readWorkbench: { input: Record<string, never>; output: CreationResult<WorkbenchState> };
   writeWorkbench: { input: WorkbenchState; output: CreationResult<WorkbenchState> };
   createWork: { input: CreateWorkInput; output: CreationResult<Work> };
+  writeWritingGuidelines: {
+    input: WriteWritingGuidelinesInput;
+    output: CreationResult<{ writingGuidelines: string }>;
+  };
   createEntry: { input: CreateEntryInput; output: CreationResult<Entry> };
   saveDocument: { input: SaveDocumentInput; output: CreationResult<Entry> };
   renameEntry: { input: RenameEntryInput; output: CreationResult<Entry> };

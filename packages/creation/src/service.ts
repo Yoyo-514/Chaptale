@@ -24,7 +24,8 @@ import type {
   SessionState,
   Work,
   WorkbenchState,
-  WriteDraftInput
+  WriteDraftInput,
+  WriteWritingGuidelinesInput
 } from './contracts.ts';
 import { assertNotTrashed } from './errors.ts';
 import * as sessions from './library/sessions.ts';
@@ -95,6 +96,23 @@ export class CreationService {
   }
   listWorks(): Work[] {
     return this.repository.library.listWorks();
+  }
+  readWritingGuidelines(workId: string): string {
+    if (!this.repository.library.hasWork(workId)) throw new Error('作品不存在');
+    return this.repository.work(workId).readWritingGuidelines();
+  }
+  writeWritingGuidelines(input: WriteWritingGuidelinesInput): { writingGuidelines: string } {
+    if (!this.repository.library.hasWork(input.workId)) throw new Error('作品不存在');
+    return this.commit(
+      input.workId,
+      input.commandId,
+      ['writeWritingGuidelines', input.workId, input.writingGuidelines],
+      { kind: 'writingGuidelines' },
+      () => {
+        this.repository.work(input.workId).writeWritingGuidelines(input.writingGuidelines, Date.now());
+        return { writingGuidelines: input.writingGuidelines };
+      }
+    );
   }
   listEntries(workId: string): Entry[] {
     return this.repository.work(workId).listEntries();

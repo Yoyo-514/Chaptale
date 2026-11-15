@@ -136,6 +136,12 @@ export interface CreateWorkInput {
   kind: Work['kind'];
 }
 
+export interface WriteWritingGuidelinesInput {
+  commandId: string;
+  workId: string;
+  writingGuidelines: string;
+}
+
 export type CreateEntryInput = {
   commandId: string;
   workId: string;
@@ -221,5 +227,6 @@ export interface CreationReadCommands {
   listWorks: { input: Record<string, never>; output: CreationResult<Work[]> };
   listEntries: { input: { workId: string }; output: CreationResult<Entry[]> };
   readDocument: { input: { workId: string; documentId: string }; output: CreationResult<Document> };
+  readWritingGuidelines: { input: { workId: string }; output: CreationResult<string> };
   searchDocuments: { input: SearchDocumentsInput; output: CreationResult<DocumentSearchPage> };
 }

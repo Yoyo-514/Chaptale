@@ -6,6 +6,7 @@ import { AppDialog } from '@/components/AppDialog';
 import { AppForm, AppFormActions } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppTextarea } from '@/components/AppTextarea';
 import { useEditorStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
 
@@ -17,8 +18,13 @@ const title = ref('');
 const kind = ref<'novel' | 'script'>('novel');
 const busy = ref(false);
 const error = ref('');
+const guidelines = ref('');
+const guidelinesBusy = ref(false);
+const guidelinesError = ref('');
 let previous = '';
 let commandId = '';
+let guidelinesPrevious = '';
+let guidelinesCommandId = '';
 watch(
   () => [creation.newWorkOpen, creation.newEntry],
   () => {
@@ -26,6 +32,16 @@ watch(
     error.value = '';
     previous = '';
     commandId = '';
+  }
+);
+watch(
+  () => creation.writingGuidelinesOpen,
+  open => {
+    if (!open) return;
+    guidelines.value = creation.writingGuidelines;
+    guidelinesError.value = '';
+    guidelinesPrevious = '';
+    guidelinesCommandId = '';
   }
 );
 async function create() {
@@ -54,6 +70,26 @@ function close() {
     creation.newWorkOpen = false;
     creation.newEntry = null;
   }
+}
+async function submitGuidelines() {
+  if (guidelinesBusy.value || !creation.workId) return;
+  guidelinesBusy.value = true;
+  guidelinesError.value = '';
+  const identity = JSON.stringify([creation.workId, guidelines.value]);
+  if (guidelinesPrevious !== identity) {
+    guidelinesPrevious = identity;
+    guidelinesCommandId = crypto.randomUUID();
+  }
+  try {
+    await creation.saveWritingGuidelines(guidelines.value, guidelinesCommandId);
+  } catch (cause) {
+    guidelinesError.value = toErrorMessage(cause);
+  } finally {
+    guidelinesBusy.value = false;
+  }
+}
+function closeGuidelines() {
+  if (!guidelinesBusy.value) creation.writingGuidelinesOpen = false;
 }
 </script>
 
@@ -93,6 +129,33 @@ function close() {
               : creation.newEntry?.kind === 'directory'
                 ? '创建目录'
                 : '创建文档'
+        }}</AppButton>
+      </AppFormActions>
+    </AppForm>
+  </AppDialog>
+  <AppDialog
+    content-size="md"
+    :open="creation.writingGuidelinesOpen"
+    title="写作要求"
+    description="设定本作品的人称、叙事视角、文风或禁用词等全局规范，归属本作品的会话会自动遵循；留空表示不额外限定。"
+    @update:open="open => !open && closeGuidelines()"
+  >
+    <AppForm class="creation-form" :disabled="guidelinesBusy" @submit="submitGuidelines">
+      <label
+        >写作要求
+        <AppTextarea
+          v-model="guidelines"
+          aria-label="写作要求"
+          :rows="7"
+          placeholder="例如：采用第三人称限知视角；语言克制平实，不使用现代网络流行语。"
+          autofocus
+        />
+      </label>
+      <p v-if="guidelinesError" role="alert">{{ guidelinesError }}</p>
+      <AppFormActions>
+        <AppButton :disabled="guidelinesBusy" @click="closeGuidelines">取消</AppButton>
+        <AppButton type="submit" variant="primary" :disabled="guidelinesBusy">{{
+          guidelinesBusy ? '正在保存…' : '保存'
         }}</AppButton>
       </AppFormActions>
     </AppForm>

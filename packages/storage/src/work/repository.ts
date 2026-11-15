@@ -40,6 +40,23 @@ export class SqliteWorkRepository implements WorkRepository {
     return readCommandReceipt<T>(this.connect(), commandId, parameters);
   }
 
+  readWritingGuidelines(): string {
+    const row = this.connect().prepare('SELECT writingGuidelines FROM work_settings WHERE id = 1').get() as
+      | { writingGuidelines: string }
+      | undefined;
+    return row?.writingGuidelines ?? '';
+  }
+
+  writeWritingGuidelines(writingGuidelines: string, now: number): void {
+    this.connect()
+      .prepare(
+        `INSERT INTO work_settings (id, writingGuidelines, updatedAt)
+         VALUES (1, @writingGuidelines, @updatedAt)
+         ON CONFLICT(id) DO UPDATE SET writingGuidelines = excluded.writingGuidelines, updatedAt = excluded.updatedAt`
+      )
+      .run({ writingGuidelines, updatedAt: now });
+  }
+
   getEntry(entryId: string): Entry | undefined {
     return entries.getEntry(this.connect(), entryId);
   }
