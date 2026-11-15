@@ -37,6 +37,9 @@ export function applyHostEvent(snapshot: HostState, event: HostEvent) {
       else calls[index] = event.call;
       break;
     }
+    case 'queue':
+      session(event.id).queued = event.queued;
+      break;
     case 'running': {
       const target = session(event.id);
       target.running = event.running;

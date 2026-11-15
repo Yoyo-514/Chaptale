@@ -37,9 +37,17 @@ const placeholder = computed(() => {
   if (agent.active?.readonly) return '只读历史不能继续对话';
   if (agent.active?.compacting) return '正在压缩，可以先写下下一条消息';
   return agent.active?.running
-    ? 'Ctrl + Enter 插话，助手会在当前步骤后读到'
+    ? 'Ctrl + Enter 插话，Ctrl + Shift + Enter 稍后处理'
     : '写下想讨论或推进的事，Ctrl + Enter 发送';
 });
+const canQueueWhileRunning = computed(() =>
+  Boolean(agent.active?.running && !agent.active.compacting && editable.value && agent.draft.trim())
+);
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
+  event.preventDefault();
+  void agent.send(event.shiftKey ? 'followUp' : 'steer');
+}
 const modes: { value: EditMode; label: string }[] = [
   { value: 'discuss', label: '讨论' },
   { value: 'review', label: '审阅' },
@@ -63,7 +71,7 @@ function mode(value: string) {
 </script>
 
 <template>
-  <AppForm class="agent-composer" :disabled="!editable" @submit="agent.send">
+  <AppForm class="agent-composer" :disabled="!editable" @submit="agent.send('steer')">
     <div class="agent-composer-box agent-column">
       <ComposerQuoteChip v-if="agent.quotedSelection" :quote="agent.quotedSelection" @remove="agent.clearQuote()" />
       <AppTextarea
@@ -74,7 +82,7 @@ function mode(value: string) {
         variant="plain"
         resize="auto"
         :placeholder="placeholder"
-        @keydown.ctrl.enter.prevent="agent.send"
+        @keydown="onKeydown"
       />
       <div class="agent-composer-tools">
         <AppSelect
@@ -105,17 +113,38 @@ function mode(value: string) {
           <AppSelectItem v-for="item in modes" :key="item.value" :value="item.value">{{ item.label }}</AppSelectItem>
         </AppSelect>
         <span class="flex-1" />
-        <AppTooltip v-if="agent.active?.running" :text="agent.active.compacting ? '停止压缩' : '停止生成'">
-          <AppButton
-            type="button"
-            icon
-            size="sm"
-            variant="ghost"
-            :aria-label="agent.active.compacting ? '停止压缩' : '停止生成'"
-            @click="agent.perform(() => getDesktopApi().agentHost.request('cancel', { id: agent.activeId! }))"
-            ><span class="i-mingcute-stop-fill size-4" aria-hidden="true"
-          /></AppButton>
-        </AppTooltip>
+        <template v-if="agent.active?.running">
+          <template v-if="canQueueWhileRunning">
+            <AppTooltip text="稍后处理 (Ctrl+Shift+Enter)">
+              <AppButton
+                type="button"
+                icon
+                size="sm"
+                variant="ghost"
+                aria-label="稍后处理"
+                @click="agent.send('followUp')"
+              >
+                <span class="i-mingcute-time-line size-4" aria-hidden="true" />
+              </AppButton>
+            </AppTooltip>
+            <AppTooltip text="立即插话 (Ctrl+Enter)">
+              <AppButton class="agent-send-button" type="submit" icon size="sm" variant="primary" aria-label="立即插话">
+                <span class="i-mingcute-send-plane-line size-4" aria-hidden="true" />
+              </AppButton>
+            </AppTooltip>
+          </template>
+          <AppTooltip :text="agent.active.compacting ? '停止压缩' : '停止生成'">
+            <AppButton
+              type="button"
+              icon
+              size="sm"
+              variant="ghost"
+              :aria-label="agent.active.compacting ? '停止压缩' : '停止生成'"
+              @click="agent.perform(() => getDesktopApi().agentHost.request('cancel', { id: agent.activeId! }))"
+              ><span class="i-mingcute-stop-fill size-4" aria-hidden="true"
+            /></AppButton>
+          </AppTooltip>
+        </template>
         <AppTooltip v-else text="发送">
           <AppButton
             class="agent-send-button"

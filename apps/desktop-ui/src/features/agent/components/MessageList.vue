@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
-import type { Approval, EditorContext, SessionView } from '@chaptale/agent-host/protocol';
+import type { Approval, EditorContext, QueuedDelivery, SessionView } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
 import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } from '@/utils/markdown';
@@ -18,6 +18,7 @@ const emit = defineEmits<{
   approve: [id: string, allow: boolean];
   retry: [key: string];
   discard: [key: string];
+  recallQueued: [delivery: QueuedDelivery, index: number];
   editMessage: [payload: { entryId: string; text: string; editorContext?: EditorContext }];
   switchBranch: [leafId: string];
 }>();
@@ -26,7 +27,7 @@ const items = computed(() => buildTranscript(props.session.messages));
 const lastIndex = computed(() => props.session.messages.length - 1);
 /** 消息已发出但模型还没有输出时显示等待提示。 */
 const waiting = computed(() => {
-  if (props.outgoing.some(item => !item.error)) return true;
+  if (props.outgoing.some(item => !item.error && !item.delivery)) return true;
   const last = props.session.messages.at(-1);
   return props.session.running && (!last || ['user', 'reviewResults', 'toolResult'].includes(last.role));
 });
@@ -144,6 +145,8 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
               :key="tool.key"
               :tool="tool"
               :running="session.running"
+              :session-id="session.sessionId"
+              :session-work-id="session.workId"
             />
           </div>
           <ToolCallRow
@@ -151,6 +154,8 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
             :key="tool.key"
             :tool="tool"
             :running="false"
+            :session-id="session.sessionId"
+            :session-work-id="session.workId"
           />
         </section>
         <MessageActions
@@ -164,6 +169,33 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
       </article>
     </template>
     <article
+      v-for="(queuedItem, queueIndex) in session.queued"
+      :key="`queued:${queuedItem.delivery}:${queueIndex}`"
+      class="agent-user is-queued"
+      aria-label="作者排队消息"
+    >
+      <div class="agent-user-body">
+        <EditorContextBadge v-if="queuedItem.editorContext" :context="queuedItem.editorContext" />
+        <div class="agent-user-text">{{ queuedItem.text }}</div>
+        <p class="agent-user-queue-status">
+          <span
+            :class="queuedItem.delivery === 'followUp' ? 'i-mingcute-time-line' : 'i-mingcute-send-plane-line'"
+            class="size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          <span>{{ queuedItem.delivery === 'followUp' ? '稍后处理排队中' : '插话排队中' }}</span>
+          <span aria-hidden="true">·</span>
+          <button
+            type="button"
+            class="agent-queue-recall"
+            @click="emit('recallQueued', queuedItem.delivery, queueIndex)"
+          >
+            撤回重改
+          </button>
+        </p>
+      </div>
+    </article>
+    <article
       v-for="item in outgoing"
       :key="item.key"
       class="agent-user"
@@ -173,6 +205,14 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
       <div class="agent-user-body">
         <EditorContextBadge v-if="item.editorContext" :context="item.editorContext" />
         <div class="agent-user-text">{{ item.text }}</div>
+        <p v-if="!item.error && item.delivery" class="agent-user-queue-status">
+          <span
+            :class="item.delivery === 'followUp' ? 'i-mingcute-time-line' : 'i-mingcute-send-plane-line'"
+            class="size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          <span>{{ item.delivery === 'followUp' ? '稍后处理排队中' : '插话排队中' }}</span>
+        </p>
       </div>
       <p v-if="item.error" class="agent-user-failure" role="alert">
         <span class="i-mingcute-warning-line size-3.5 shrink-0" aria-hidden="true" />

@@ -97,9 +97,9 @@ watch(
     body.value?.scrollTo({ top: body.value.scrollHeight });
   }
 );
-// 作者刚发出消息时总是滚到底部，让乐观显示的消息可见。
+// 作者刚发出或入队消息时总是滚到底部，让乐观显示或排队中的消息可见。
 watch(
-  () => agent.activeOutgoing.length,
+  () => agent.activeOutgoing.length + (agent.active?.queued?.length ?? 0),
   async (count, was) => {
     if (count <= was) return;
     following.value = true;
@@ -292,7 +292,10 @@ function confirmBranchAction() {
             <span class="i-mingcute-lock-line size-4 shrink-0" aria-hidden="true" />
             <span>只读历史：{{ agent.active.readonly.message }}</span>
           </p>
-          <div v-if="!agent.active?.messages.length && !agent.activeOutgoing.length" class="agent-start">
+          <div
+            v-if="!agent.active?.messages.length && !agent.activeOutgoing.length && !agent.active?.queued?.length"
+            class="agent-start"
+          >
             <h3>从一个想法开始</h3>
             <p>讨论情节、推敲人物，或继续眼前这一章。</p>
             <AppButton
@@ -311,6 +314,7 @@ function confirmBranchAction() {
             @approve="approve"
             @retry="agent.retryOutgoing"
             @discard="agent.discardOutgoing"
+            @recall-queued="agent.recallQueued"
             @edit-message="requestEditMessage"
             @switch-branch="requestSwitchBranch"
           />

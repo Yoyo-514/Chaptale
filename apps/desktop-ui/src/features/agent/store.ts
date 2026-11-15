@@ -7,6 +7,7 @@ import type {
   HostEvent,
   HostState,
   ModelRef,
+  QueuedDelivery,
   EditMode
 } from '@chaptale/agent-host/protocol';
 import type { SessionState } from '@chaptale/creation/contracts';
@@ -216,7 +217,7 @@ export const useAgentStore = defineStore('agent', () => {
     return success ? createdId : undefined;
   }
 
-  async function send() {
+  async function send(delivery: QueuedDelivery = 'steer') {
     if (active.value?.compacting || creating.value) return;
     const text = draft.value.trim();
     if (!text) return;
@@ -234,9 +235,10 @@ export const useAgentStore = defineStore('agent', () => {
       id = await create();
       if (!id) return;
     }
+    const queuing = liveSession(id).running ? delivery : undefined;
     drafts.value[id] = '';
     quotes.clear(id);
-    await dispatch(id, text, prepared.context);
+    await dispatch(id, text, prepared.context, queuing);
   }
 
   /** 新建归属当前作品的审阅模式会话并发送作者可见的指令。 */
@@ -254,16 +256,33 @@ export const useAgentStore = defineStore('agent', () => {
     return unsentMessages(liveSession(id), outgoing.value[id]);
   }
   /** 先显示消息再请求；宿主拒收时保留消息并标记失败，供作者重试或移除。 */
-  async function dispatch(id: string, text: string, context?: EditorContext) {
+  async function dispatch(id: string, text: string, context?: EditorContext, delivery?: QueuedDelivery) {
     // 重试消息来自响应式待发列表，同样按纯 JSON 契约生成本次请求自己的数据。
     const capturedContext = context && (JSON.parse(JSON.stringify(context)) as EditorContext);
-    const { message, list } = enqueueMessage(liveSession(id), outgoing.value[id] ?? [], text, capturedContext);
+    const { message, list } = enqueueMessage(
+      liveSession(id),
+      outgoing.value[id] ?? [],
+      text,
+      capturedContext,
+      delivery
+    );
     outgoing.value[id] = list;
     try {
-      await getDesktopApi().agentHost.request('prompt', { id, text, editorContext: capturedContext });
+      await getDesktopApi().agentHost.request('prompt', {
+        id,
+        text,
+        editorContext: capturedContext,
+        ...(delivery && { delivery })
+      });
+      if (delivery) {
+        outgoing.value[id] = (outgoing.value[id] ?? []).filter(item => item.key !== message.key);
+      }
     } catch (cause) {
       const failed = outgoing.value[id].find(item => item.key === message.key);
-      if (failed) failed.error = toErrorMessage(cause);
+      if (failed) {
+        failed.queuedInflight = false;
+        failed.error = toErrorMessage(cause);
+      }
     }
   }
   function discardOutgoing(key: string) {
@@ -272,9 +291,24 @@ export const useAgentStore = defineStore('agent', () => {
   }
   function retryOutgoing(key: string) {
     const id = activeId.value!;
-    const { text, editorContext: context } = outgoing.value[id].find(item => item.key === key)!;
+    const { text, editorContext: context, delivery } = outgoing.value[id].find(item => item.key === key)!;
     discardOutgoing(key);
-    return dispatch(id, text, context);
+    const queuing = liveSession(id).running ? (delivery ?? 'steer') : undefined;
+    return dispatch(id, text, context, queuing);
+  }
+
+  /** 撤回尚未被模型读取的排队消息，并把正文与选区引用填回输入框供作者修改。 */
+  async function recallQueued(delivery: QueuedDelivery, index: number) {
+    const id = activeId.value;
+    if (!id) return;
+    await perform(async () => {
+      const removed = await getDesktopApi().agentHost.request('dequeue', { id, delivery, index });
+      if (!removed) return;
+      const existing = drafts.value[id]?.trim() ?? '';
+      drafts.value[id] = existing ? `${removed.text}\n${existing}` : removed.text;
+      if (removed.editorContext?.selection && !quotes.current.value) quotes.set(removed.editorContext);
+      else quotes.focus();
+    });
   }
 
   function editMessage(entryId: string, text: string, context?: EditorContext, discardPending = false) {
@@ -421,6 +455,7 @@ export const useAgentStore = defineStore('agent', () => {
     activeOutgoing,
     retryOutgoing,
     discardOutgoing,
+    recallQueued,
     loadHistory,
     open,
     title: sessionTitle

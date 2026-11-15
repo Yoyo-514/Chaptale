@@ -1,7 +1,16 @@
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, expect, it } from 'vitest';
 
 import type { ChatMessage, HostState, SessionView } from '@chaptale/agent-host/protocol';
+import { CreationApplication } from '@chaptale/creation/application';
+import { openCreationStorage } from '@chaptale/storage';
+
+import { useCreationStore } from '@/features/creation';
+import { useEditorStore } from '@/features/editor';
 
 import MessageList from '../components/MessageList.vue';
 import { applyHostEvent } from '../session/host-events';
@@ -343,4 +352,103 @@ it('支持作者消息原地编辑重发、助手回复重试与分支切换器�
 
   await wrapper.get('.agent-assistant button[aria-label="重试消息"]').trigger('click');
   expect(wrapper.emitted('editMessage')?.[1]).toEqual([{ entryId: 'entry-u1', text: '润色这一句', editorContext }]);
+});
+
+it('展开工具步骤后点击本作品有效文档标题直接在当前编辑组打开标签', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'chaptale-tool-open-'));
+  const author = new CreationApplication(await openCreationStorage({ rootDir: root }));
+  Object.defineProperty(window, 'chaptaleDesktop', {
+    configurable: true,
+    value: {
+      creation: {
+        request: (method: string, input: unknown) => author.execute({ method, input } as never),
+        subscribe: (listener: (event: unknown) => void) => author.subscribe(listener as never),
+        onDisconnected: () => () => {}
+      }
+    }
+  });
+  try {
+    const workRes = author.executeAuthor({
+      method: 'createWork',
+      input: { commandId: crypto.randomUUID(), title: '石头记', kind: 'novel' }
+    });
+    if (!workRes.ok) throw new Error(workRes.error.message);
+    const docRes = author.executeAuthor({
+      method: 'createEntry',
+      input: {
+        commandId: crypto.randomUUID(),
+        workId: workRes.value.id,
+        section: 'manuscript',
+        parentId: null,
+        kind: 'document',
+        title: '第三回',
+        format: 'markdown',
+        content: '正文内容'
+      }
+    });
+    if (!docRes.ok) throw new Error(docRes.error.message);
+
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const creation = useCreationStore();
+    await creation.connect();
+    await creation.openWork(workRes.value.id);
+    const editor = useEditorStore();
+
+    const viewSession: SessionView = {
+      id: 'session',
+      sessionId: 'session',
+      file: 'history.jsonl',
+      workId: workRes.value.id,
+      running: false,
+      compacting: false,
+      instructions: [],
+      mode: 'review',
+      messages: [
+        message({
+          role: 'assistant',
+          tools: [
+            {
+              id: 'call-1',
+              name: 'work_read',
+              input: { workId: workRes.value.id, entryId: docRes.value.id },
+              info: { workId: workRes.value.id, entryId: docRes.value.id, title: '第三回', section: 'manuscript' }
+            }
+          ]
+        }),
+        message({
+          role: 'toolResult',
+          toolCallId: 'call-1',
+          toolName: 'work_read',
+          text: '{"ok":true}',
+          toolInfo: {
+            workId: workRes.value.id,
+            entryId: docRes.value.id,
+            title: '第三回',
+            section: 'manuscript',
+            wordCount: 4
+          }
+        })
+      ]
+    };
+
+    wrapper = mount(MessageList, {
+      props: { session: viewSession, approvals: [], outgoing: [] },
+      global: { plugins: [pinia] }
+    });
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('读取 1 份'))!
+      .trigger('click');
+    const openBtn = wrapper.get('button[aria-label="打开《第三回》"]');
+    expect(openBtn.text()).toBe('《第三回》');
+    await openBtn.trigger('click');
+    await flushPromises();
+    expect(editor.activeId).toBe(docRes.value.id);
+  } finally {
+    wrapper?.unmount();
+    wrapper = undefined;
+    author.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });

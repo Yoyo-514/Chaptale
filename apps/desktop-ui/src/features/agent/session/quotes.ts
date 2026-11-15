@@ -33,10 +33,15 @@ export function useComposerQuotes(draftKey: Readonly<Ref<string>>) {
     quotes.value = next;
   }
 
+  function focus() {
+    focusVersion.value += 1;
+  }
+
   return {
     current,
     focusVersion,
     set,
+    focus,
     clear,
     migrate
   };

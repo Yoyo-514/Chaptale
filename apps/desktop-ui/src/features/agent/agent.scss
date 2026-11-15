@@ -350,8 +350,90 @@
 .agent-tool-call.is-nested {
   padding-left: 14px;
 }
-.agent-tool-failure > .agent-activity-row {
+.agent-tool-failure > .agent-activity-row,
+.agent-tool-failure > .agent-activity-line {
   color: var(--destructive);
+}
+.agent-activity-line {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  height: 26px;
+  padding: 0 6px;
+  margin-left: -6px;
+  border-radius: var(--radius-control-sm);
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-activity-line:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+.agent-activity-row.is-split {
+  width: auto;
+  flex-shrink: 0;
+  margin-left: 0;
+  padding: 0;
+  color: inherit;
+}
+.agent-activity-row.is-split:hover {
+  background: transparent;
+}
+.agent-activity-prefix {
+  white-space: nowrap;
+}
+.agent-activity-target {
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  padding: 0 1px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.agent-activity-target:hover {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.agent-activity-target:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+.agent-activity-tail {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-activity-suffix {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-activity-line:hover .agent-activity-chevron,
+.agent-activity-line:focus-within .agent-activity-chevron,
+.agent-activity-row.is-split[aria-expanded='true'] ~ .agent-activity-tail .agent-activity-chevron {
+  opacity: 1;
+}
+.agent-activity-row.is-split[aria-expanded='true'] ~ .agent-activity-tail .agent-activity-chevron {
+  transform: rotate(90deg);
 }
 .agent-activity-row {
   display: flex;
@@ -414,6 +496,35 @@
 }
 .agent-user.is-sending .agent-user-text {
   opacity: 0.7;
+}
+.agent-user.is-queued .agent-user-text {
+  opacity: 0.85;
+}
+.agent-user-queue-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-queue-recall {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.agent-queue-recall:hover {
+  color: var(--primary);
+}
+.agent-queue-recall:focus-visible {
+  outline: none;
+  border-radius: var(--radius-control-sm);
+  box-shadow: var(--input-focus-shadow);
 }
 .agent-user.is-failed {
   flex-direction: column;

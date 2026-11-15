@@ -1,10 +1,21 @@
+import { createAssistantMessageEventStream, InMemoryCredentialStore } from '@earendil-works/pi-ai';
+import { ModelRuntime } from '@earendil-works/pi-coding-agent';
 import { flushPromises, mount } from '@vue/test-utils';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, expect, it } from 'vitest';
 
-import type { SessionView } from '@chaptale/agent-host/protocol';
+import { HostModelConfiguration } from '@chaptale/agent-host';
+import { HostApplication } from '@chaptale/agent-host/application';
+import type { HostCommand, HostCommands, SessionView } from '@chaptale/agent-host/protocol';
+import { CreationApplication } from '@chaptale/creation/application';
+import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
+import { openCreationStorage } from '@chaptale/storage';
 
 import MessageComposer from '../components/MessageComposer.vue';
+import MessageList from '../components/MessageList.vue';
 import { useAgentStore } from '../store';
 
 let wrapper: ReturnType<typeof mount>;
@@ -50,9 +61,17 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
   expect(agent.draft).toBe('继续创作的草稿');
   agent.state.sessions[0].compacting = false;
   await flushPromises();
-  expect(wrapper.find('button[type="submit"]').exists()).toBe(false);
+  expect(wrapper.find('button[aria-label="稍后处理"]').exists()).toBe(true);
+  expect(wrapper.find('button[aria-label="立即插话"]').exists()).toBe(true);
   expect(wrapper.find('button[aria-label="停止生成"]').exists()).toBe(true);
   expect(wrapper.get('textarea').attributes('placeholder')).toContain('Ctrl + Enter 插话');
+  expect(wrapper.get('textarea').attributes('placeholder')).toContain('Ctrl + Shift + Enter 稍后处理');
+  agent.draft = '';
+  await flushPromises();
+  expect(wrapper.find('button[aria-label="稍后处理"]').exists()).toBe(false);
+  expect(wrapper.find('button[aria-label="立即插话"]').exists()).toBe(false);
+  expect(wrapper.find('button[aria-label="停止生成"]').exists()).toBe(true);
+  agent.draft = '继续创作的草稿';
   agent.state.sessions[0].running = false;
   await flushPromises();
   expect(wrapper.find('[role="status"]').exists()).toBe(false);
@@ -110,4 +129,158 @@ it('引用到对话显示待发选区芯片并聚焦输入框，移除或发送�
   agent.clearQuote();
   await flushPromises();
   expect(wrapper.find('[aria-label="文稿《第三回》选区"]').exists()).toBe(false);
+});
+
+it('生成中支持快捷键与按钮分别发送插话或稍后处理，并可从底部排队气泡撤回重改', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'chaptale-composer-queue-'));
+  for (const part of ['agent', 'sessions', 'work', 'data']) await mkdir(join(root, part));
+  const runtime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+    refreshOnCreate: false
+  });
+  const model = { provider: 'queue-test', id: 'offline' };
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => {
+    markStarted = resolve;
+  });
+  runtime.registerProvider(model.provider, {
+    baseUrl: 'http://127.0.0.1:9',
+    api: 'queue-test',
+    apiKey: 'offline-test',
+    models: [
+      {
+        id: model.id,
+        name: '离线排队测试',
+        reasoning: false,
+        input: ['text'],
+        contextWindow: 8192,
+        maxTokens: 512,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+      }
+    ],
+    streamSimple: (target, _context, request) => {
+      const stream = createAssistantMessageEventStream();
+      request?.signal?.addEventListener(
+        'abort',
+        () =>
+          stream.push({
+            type: 'error',
+            reason: 'aborted',
+            error: {
+              role: 'assistant',
+              content: [],
+              api: target.api,
+              provider: target.provider,
+              model: target.id,
+              usage: {
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 0,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+              },
+              stopReason: 'aborted',
+              errorMessage: '离线请求已取消',
+              timestamp: Date.now()
+            }
+          }),
+        { once: true }
+      );
+      markStarted();
+      return stream;
+    }
+  });
+  const author = new CreationApplication(await openCreationStorage({ rootDir: join(root, 'creation') }));
+  const host = await HostApplication.create({
+    cwd: join(root, 'work'),
+    agentDir: join(root, 'agent'),
+    sessionDir: join(root, 'sessions'),
+    settingsFile: join(root, 'data', 'settings.json'),
+    builtinInstructions: [{ name: '默认', role: 'system', text: '离线测试指令', enabled: true }],
+    modelRuntime: runtime,
+    modelConfiguration: new HostModelConfiguration(join(root, 'config'), runtime),
+    creation: author,
+    tools: () => []
+  });
+  const agentClient: ChaptaleDesktopApi['agentHost'] = {
+    request: <K extends keyof HostCommands>(method: K, input: HostCommands[K]['input']) =>
+      host.execute({ method, input: structuredClone(input) } as HostCommand) as Promise<HostCommands[K]['output']>,
+    subscribe: listener => host.subscribe(listener),
+    onDisconnected: () => () => {}
+  };
+  const creationClient = {
+    request: (method: string, input: unknown) => author.execute({ method, input } as never),
+    subscribe: (listener: (event: unknown) => void) => author.subscribe(listener as never),
+    onDisconnected: () => () => {}
+  };
+  Object.defineProperty(window, 'chaptaleDesktop', {
+    configurable: true,
+    value: { agentHost: agentClient, creation: creationClient }
+  });
+
+  try {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const agent = useAgentStore();
+    await agent.connect();
+    agent.selectedModel = model;
+    const id = (await host.execute({ method: 'create', input: { model, workId: null } })) as string;
+    await agent.select(id);
+    await host.execute({ method: 'prompt', input: { id, text: '先写第一回' } });
+    await started;
+    await flushPromises();
+
+    wrapper = mount(MessageComposer, { attachTo: document.body, global: { plugins: [pinia] } });
+    agent.draft = '先改这一段语气';
+    await flushPromises();
+    await wrapper.get('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true });
+    await flushPromises();
+    expect(agent.active?.queued).toEqual([{ delivery: 'steer', text: '先改这一段语气', editorContext: undefined }]);
+
+    const quote = {
+      workId: 'work-1',
+      entryId: 'doc-1',
+      title: '第一回',
+      section: 'manuscript' as const,
+      selection: '残月如钩'
+    };
+    agent.quoteSelection(quote);
+    agent.draft = '写完后补人物设定';
+    await flushPromises();
+    await wrapper.get('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true, shiftKey: true });
+    await flushPromises();
+    expect(agent.active?.queued).toEqual([
+      { delivery: 'steer', text: '先改这一段语气', editorContext: undefined },
+      { delivery: 'followUp', text: '写完后补人物设定', editorContext: quote }
+    ]);
+    expect(agent.activeOutgoing).toEqual([]);
+
+    const listWrapper = mount(MessageList, {
+      props: { session: agent.active!, approvals: [], outgoing: agent.activeOutgoing },
+      global: { plugins: [pinia] }
+    });
+    const queuedCards = listWrapper.findAll('[aria-label="作者排队消息"]');
+    expect(queuedCards).toHaveLength(2);
+    expect(queuedCards[0]?.text()).toContain('插话排队中');
+    expect(queuedCards[1]?.text()).toContain('稍后处理排队中');
+    await queuedCards[1]!.get('button.agent-queue-recall').trigger('click');
+    const emitted = listWrapper.emitted('recallQueued');
+    expect(emitted?.[0]).toEqual(['followUp', 1]);
+    listWrapper.unmount();
+
+    await agent.recallQueued('followUp', 1);
+    await flushPromises();
+    expect(agent.active?.queued).toEqual([{ delivery: 'steer', text: '先改这一段语气', editorContext: undefined }]);
+    expect(agent.draft).toBe('写完后补人物设定');
+    expect(agent.quotedSelection).toEqual(quote);
+
+    await host.execute({ method: 'cancel', input: { id } });
+  } finally {
+    await host.dispose();
+    author.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });

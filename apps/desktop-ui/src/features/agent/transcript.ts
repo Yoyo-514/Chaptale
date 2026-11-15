@@ -1,5 +1,11 @@
 import type { ChatMessage, NestedToolView, ToolResultInfo } from '@chaptale/agent-host/protocol';
 
+export interface ToolEntryTarget {
+  workId?: string;
+  entryId: string;
+  title: string;
+}
+
 export type ToolActivity = {
   kind: 'tool';
   id: string;
@@ -7,6 +13,7 @@ export type ToolActivity = {
   name: string;
   /** 「读取了 正文/第一章.md」这样的一句话，作者不必看参数也知道助手做了什么。 */
   summary: string;
+  entryTarget?: ToolEntryTarget;
   input: unknown;
   preview?: Record<string, unknown>;
   info?: ToolResultInfo;
@@ -178,21 +185,33 @@ export function hasRunningTools(tools: readonly ToolActivity[]): boolean {
   );
 }
 
+export function extractEntryTarget(name: string, input: unknown, info?: ToolResultInfo): ToolEntryTarget | undefined {
+  if (!name.startsWith('work_')) return undefined;
+  const fields = input && typeof input === 'object' ? (input as Record<string, unknown>) : undefined;
+  const entryId = info?.entryId ?? (typeof fields?.entryId === 'string' ? fields.entryId : '');
+  const title = info?.title ?? (typeof fields?.title === 'string' ? fields.title : '');
+  if (!entryId || !title) return undefined;
+  const workId = info?.workId ?? (typeof fields?.workId === 'string' ? fields.workId : undefined);
+  return { ...(workId && { workId }), entryId, title };
+}
+
 function nestedActivities(parent: ToolActivity, calls: NestedToolView[]): ToolActivity[] {
   return calls.map(call => {
     const info = { ...call.info, error: call.info?.error ?? call.error };
     const failed = call.status === 'error';
+    const rawInput = call.input ?? call.preview;
     return {
       kind: 'tool',
       id: call.id,
       key: `${parent.key}:${call.id}`,
       name: call.name,
-      input: call.input ?? call.preview,
+      input: rawInput,
       preview: call.preview,
       info,
       nested: true,
       incomplete: call.status === 'unfinished',
-      summary: describeTool(call.name, call.input ?? call.preview, call.status === 'ok', failed, info),
+      summary: describeTool(call.name, rawInput, call.status === 'ok', failed, info),
+      entryTarget: extractEntryTarget(call.name, rawInput, info),
       result:
         call.status === 'running'
           ? undefined
@@ -259,18 +278,21 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
         tool.result = { text: message.text, error: message.error === true };
         tool.info = { ...tool.info, ...message.toolInfo };
         tool.summary = describeTool(tool.name, tool.input, true, message.error === true, tool.info);
+        tool.entryTarget = extractEntryTarget(tool.name, tool.input, tool.info);
         if (message.nestedTools) {
           tool.incomplete = message.nestedToolsComplete === false;
           tool.children = nestedActivities(tool, message.nestedTools);
         }
         return;
       }
+      const orphanName = message.toolName ?? '工具';
       const orphan: ToolActivity = {
         kind: 'tool',
         id: message.toolCallId!,
         key,
-        name: message.toolName ?? '工具',
-        summary: describeTool(message.toolName ?? '工具', undefined, true, message.error === true),
+        name: orphanName,
+        summary: describeTool(orphanName, undefined, true, message.error === true, message.toolInfo),
+        entryTarget: extractEntryTarget(orphanName, undefined, message.toolInfo),
         input: undefined,
         info: message.toolInfo,
         result: { text: message.text, error: message.error === true }
@@ -293,6 +315,7 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
         key: `${key}:${tool.id}`,
         name: tool.name,
         summary: describeTool(tool.name, tool.input, false, false, tool.info),
+        entryTarget: extractEntryTarget(tool.name, tool.input, tool.info),
         input: tool.input,
         info: tool.info
       };
