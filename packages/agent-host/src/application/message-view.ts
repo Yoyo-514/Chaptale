@@ -37,6 +37,17 @@ export function messageView(message: SdkMessage, target?: ToolTargetLookup): Cha
     }
   }
   if ('isError' in message) view.error = message.isError;
+  if (message.role === 'assistant' && 'stopReason' in message) {
+    if (message.stopReason === 'error') {
+      view.error = true;
+      view.errorMessage =
+        typeof message.errorMessage === 'string' && message.errorMessage.trim()
+          ? message.errorMessage
+          : '模型请求未完成';
+    } else if (message.stopReason === 'aborted') {
+      view.aborted = true;
+    }
+  }
   if (message.role === 'custom' && message.customType === reviewResultsMessageType) {
     const { count, outcomes, resultIds } = message.details as {
       count: number;
@@ -73,21 +84,48 @@ export function messageView(message: SdkMessage, target?: ToolTargetLookup): Cha
  * 按当前分支的记录顺序列出全部消息：压缩前的对话保留显示，已不在模型上下文中的标记 compacted；
  * 压缩总结出现在它被记录的位置。模型实际收到的内容仍由 pi 决定。
  */
-export function transcriptView(manager: SessionManager, target?: ToolTargetLookup): ChatMessage[] {
+export function transcriptView(
+  manager: SessionManager,
+  target?: ToolTargetLookup,
+  options?: { running?: boolean }
+): ChatMessage[] {
   const branch = manager.getBranch();
   const branchIds = new Set(branch.map(entry => entry.id));
   const branches = branchMap(manager, branchIds);
   const inContext = new Set(manager.buildContextEntries().map(entry => entry.id));
-  return branch.flatMap(entry =>
-    sessionEntryToContextMessages(entry)
+  const omittedIds = new Set<string>();
+  for (const entry of branch) {
+    if (entry.type !== 'context_edit') continue;
+    if (entry.replacement === null) omittedIds.add(entry.targetId);
+    else omittedIds.delete(entry.targetId);
+  }
+  return branch.flatMap((entry, index) => {
+    const omitted = omittedIds.has(entry.id);
+    if (omitted) {
+      const superseded =
+        options?.running === true ||
+        branch
+          .slice(index + 1)
+          .some(later => !omittedIds.has(later.id) && (later.type === 'message' || later.type === 'compaction'));
+      if (superseded) return [];
+    }
+    return sessionEntryToContextMessages(entry)
       .filter(message => message.role !== 'system')
       .map(message => {
         const view = messageView(message, target);
         view.entryId = entry.id;
         const branchInfo = branches.get(entry.id);
         if (branchInfo) view.branch = branchInfo;
-        if (!inContext.has(entry.id)) view.compacted = true;
+        if (omitted) {
+          if (view.role === 'assistant') {
+            view.aborted = true;
+            delete view.error;
+            delete view.errorMessage;
+          }
+        } else if (!inContext.has(entry.id)) {
+          view.compacted = true;
+        }
         return view;
-      })
-  );
+      });
+  });
 }

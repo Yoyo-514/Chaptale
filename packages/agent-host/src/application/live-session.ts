@@ -101,6 +101,14 @@ export class LiveSession {
       else await this.session.steer(encoded);
       return;
     }
+    const model = this.session.model;
+    if (!model) throw new Error('请先选择模型');
+    const runtime = this.session.modelRuntime;
+    const hasAuth =
+      runtime.hasConfiguredAuth(model.provider) || (await runtime.checkAuth(model.provider)) !== undefined;
+    if (!hasAuth) {
+      throw new Error(`未配置供应商“${model.provider}”的 API 密钥，请在模型设置中填写后重试`);
+    }
     const results = this.reviewResults?.prepare();
     this.launch(async () => {
       if (results) {
@@ -109,6 +117,13 @@ export class LiveSession {
       }
       await this.session.prompt(encoded);
     });
+  }
+
+  clearError(): void {
+    if (!this.view.error && !this.view.noticeLevel) return;
+    delete this.view.error;
+    delete this.view.noticeLevel;
+    this.emitRunning();
   }
 
   /** 撤回指定位置的待处理消息并按原序保留其余排队项；已被模型读取时返回 null。 */
@@ -151,6 +166,7 @@ export class LiveSession {
     this.view.messages = transcriptView(manager, this.toolTargets());
     this.view.usage = this.usage();
     delete this.view.error;
+    delete this.view.noticeLevel;
     this.emit({ kind: 'session', session: this.view });
     await this.prompt(text, context);
   }
@@ -171,6 +187,7 @@ export class LiveSession {
     this.view.messages = transcriptView(manager, this.toolTargets());
     this.view.usage = this.usage();
     delete this.view.error;
+    delete this.view.noticeLevel;
     this.emit({ kind: 'session', session: this.view });
   }
 
@@ -179,6 +196,8 @@ export class LiveSession {
     this.cancelled = false;
     view.running = true;
     delete view.error;
+    delete view.noticeLevel;
+    delete view.retrying;
     this.emitRunning();
     this.operation = (async () => {
       try {
@@ -192,9 +211,13 @@ export class LiveSession {
           this.syncWorkTools();
         }
         if (!this.cancelled) await send();
-      } catch {
-        view.error = '本次请求未完成，请检查模型设置或连接后重新发送';
+      } catch (cause) {
+        if (!this.cancelled) {
+          view.error = cause instanceof Error ? cause.message : String(cause);
+          view.noticeLevel = 'error';
+        }
       } finally {
+        delete view.retrying;
         view.messages = transcriptView(this.session.sessionManager, this.toolTargets());
         view.queued = this.readQueue();
         this.refreshUsage();
@@ -205,6 +228,7 @@ export class LiveSession {
           this.reviewResults?.acknowledge();
         } catch (error) {
           view.error = error instanceof Error ? error.message : String(error);
+          view.noticeLevel = 'error';
           this.emit({ kind: 'session', session: view });
         }
       }
@@ -219,6 +243,8 @@ export class LiveSession {
     view.running = true;
     view.compacting = true;
     delete view.error;
+    delete view.noticeLevel;
+    delete view.retrying;
     this.emitRunning();
     this.operation = (async () => {
       try {
@@ -226,9 +252,16 @@ export class LiveSession {
       } catch (error) {
         if (!this.cancelled) {
           const reason = error instanceof Error ? error.message : String(error);
-          if (reason.includes('Nothing to compact')) view.error = '对话内容较少，暂时无需压缩';
-          else if (reason.includes('Already compacted')) view.error = '对话已压缩，请继续交流后再试';
-          else view.error = `压缩未完成：${reason}`;
+          if (reason.includes('Nothing to compact')) {
+            view.error = '对话内容较少，暂时无需压缩';
+            view.noticeLevel = 'info';
+          } else if (reason.includes('Already compacted')) {
+            view.error = '对话已压缩，请继续交流后再试';
+            view.noticeLevel = 'info';
+          } else {
+            view.error = `压缩未完成：${reason}`;
+            view.noticeLevel = 'error';
+          }
         }
       } finally {
         view.running = false;
@@ -321,8 +354,8 @@ export class LiveSession {
   }
 
   private emitRunning(): void {
-    const { id, running, compacting, error } = this.view;
-    this.emit({ kind: 'running', id, running, compacting, error });
+    const { id, running, compacting, error, noticeLevel, retrying } = this.view;
+    this.emit({ kind: 'running', id, running, compacting, error, noticeLevel, retrying });
   }
 
   private usage() {
@@ -385,7 +418,11 @@ export class LiveSession {
     const { view } = this;
     if (event.type === 'message_start') {
       if (event.message.role === 'assistant') {
-        const persisted = transcriptView(this.session.sessionManager, this.toolTargets());
+        if (view.retrying) {
+          delete view.retrying;
+          this.emitRunning();
+        }
+        const persisted = transcriptView(this.session.sessionManager, this.toolTargets(), { running: view.running });
         const prevIndex = view.messages.length - 1;
         if (prevIndex >= 0 && persisted[prevIndex]?.role === 'user') {
           view.messages[prevIndex] = persisted[prevIndex]!;
@@ -421,6 +458,21 @@ export class LiveSession {
         ...event.followUp.map(raw => ({ delivery: 'followUp' as const, ...decodePromptWithContext(raw) }))
       ];
       this.emit({ kind: 'queue', id: view.id, queued: view.queued });
+    } else if (event.type === 'auto_retry_start') {
+      view.retrying = {
+        attempt: event.attempt,
+        maxAttempts: event.maxAttempts,
+        delayMs: event.delayMs,
+        errorMessage: event.errorMessage
+      };
+      if (this.cancelled) this.session.abortRetry();
+      this.emitRunning();
+    } else if (event.type === 'auto_retry_end') {
+      delete view.retrying;
+      this.emitRunning();
+    } else if (event.type === 'entry_appended' && event.entry.type === 'context_edit') {
+      view.messages = transcriptView(this.session.sessionManager, this.toolTargets(), { running: view.running });
+      this.emit({ kind: 'session', session: view });
     } else if (event.type === 'compaction_start') {
       view.compacting = true;
       // cancel 可能发生在 compact() 内部的首次 await 与控制器创建之间。
@@ -430,7 +482,7 @@ export class LiveSession {
       view.compacting = false;
       if (event.result) {
         // 压缩前的对话保留显示并标记，总结插在记录位置。
-        view.messages = transcriptView(this.session.sessionManager, this.toolTargets());
+        view.messages = transcriptView(this.session.sessionManager, this.toolTargets(), { running: view.running });
       }
       view.usage = this.usage();
       this.emit({ kind: 'session', session: view });

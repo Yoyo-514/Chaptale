@@ -22,7 +22,7 @@ function damagedMessages(history: DamagedHistory): { messages: ChatMessage[]; li
   const lines = [...history.damagedLines];
   for (const { line, value } of history.entries) {
     if (value.type !== 'message') continue;
-    // SAFETY: 下面确认 role 与 content 的形状后才交给 messageView；它只读取这些字段及可选的 toolName/isError。
+    // SAFETY: 下面确认 role 与 content 的形状后才交给 messageView；它只读取这些字段及可选的 toolName/isError/stopReason/errorMessage。
     const message = value.message as SdkMessage | null;
     const content: unknown = message && 'content' in message ? message.content : undefined;
     const valid =

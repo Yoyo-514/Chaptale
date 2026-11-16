@@ -172,11 +172,23 @@ export interface ChatMessage {
   /** 该条消息所在分叉点的兄弟分支信息。 */
   branch?: MessageBranch;
   error?: boolean;
+  /** 助手轮流式报错时的原始错误信息，供界面提炼主因与展开查看。 */
+  errorMessage?: string;
+  /** 作者主动停止生成（stopReason: aborted）时为 true，不按错误标红。 */
+  aborted?: boolean;
   /** 已被压缩总结代替、不再发送给模型的消息，界面仍可查看。 */
   compacted?: boolean;
   /** reviewResults 的逐条处理结果，如“《第一章》已拒绝”。 */
   outcomes?: { id: string; text: string }[];
 }
+/** pi 原生自动退避重试的当前状态。 */
+export interface RetryState {
+  attempt: number;
+  maxAttempts: number;
+  delayMs: number;
+  errorMessage: string;
+}
+export type SessionNoticeLevel = 'info' | 'error';
 /** pi 记录的累计用量；供应商未报告的项目可能记为 0。 */
 export interface SessionUsage {
   input: number;
@@ -216,6 +228,8 @@ export interface SessionView {
   /** 可继续的会话从原生 SDK 读取；只读历史不计算用量。 */
   usage?: SessionUsage;
   error?: string;
+  noticeLevel?: SessionNoticeLevel;
+  retrying?: RetryState;
   /** 存在时会话只能查看，不能发送、切换模型或修改指令与模式。 */
   readonly?: ReadonlyHistory;
 }
@@ -273,6 +287,7 @@ export interface HostCommands {
   switchBranch: { input: { id: string; leafId: string; discardPending?: boolean }; output: void };
   cancel: { input: { id: string }; output: void };
   compact: { input: { id: string }; output: void };
+  dismissError: { input: { id: string }; output: void };
   close: { input: { id: string }; output: void };
   /**
    * 删除会话：任一会话在运行则整体拒绝；先拒绝这些会话的全部待审修改并清除查看位置，再关闭已打开的会话。
@@ -314,7 +329,15 @@ export type HostChange =
   | { kind: 'delta'; id: string; index: number; field: 'text' | 'thinking'; text: string }
   | { kind: 'tool'; id: string; index: number; parentCallId: string; call: NestedToolView }
   | { kind: 'queue'; id: string; queued: QueuedMessage[] }
-  | { kind: 'running'; id: string; running: boolean; compacting: boolean; error?: string }
+  | {
+      kind: 'running';
+      id: string;
+      running: boolean;
+      compacting: boolean;
+      error?: string;
+      noticeLevel?: SessionNoticeLevel;
+      retrying?: RetryState;
+    }
   | { kind: 'usage'; id: string; usage: SessionUsage }
   | { kind: 'closed'; id: string }
   | { kind: 'approval'; approval: Approval }

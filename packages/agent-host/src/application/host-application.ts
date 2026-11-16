@@ -148,6 +148,9 @@ export class HostApplication {
         return this.live(command.input.id).stop();
       case 'compact':
         return this.live(command.input.id).compact();
+      case 'dismissError':
+        this.sessions.get(command.input.id)?.live?.clearError();
+        return;
       case 'close':
         return this.close(command.input.id);
       case 'deleteSessions':
