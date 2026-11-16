@@ -15,11 +15,11 @@ import {
   modeEntryType,
   type SessionView
 } from '../protocol.ts';
-import { decodePromptWithContext, encodePromptWithContext } from './editor-context.ts';
+import { decodeUserPrompt, encodeUserPrompt, type SessionSkillsState } from '../skills/index.ts';
 import { messageView, transcriptView } from './message-view.ts';
 import { SessionReviewResults, withdrawBranchPendingChanges } from './review-results.ts';
 import { navigateToBranchLeaf, rewindForMessageEdit } from './session-tree.ts';
-import { previewToolInput, toolResultInfo, toolTargetLookup } from './tool-result-info.ts';
+import { composeToolTargetLookup, previewToolInput, toolResultInfo, toolTargetLookup } from './tool-result-info.ts';
 import { workWriteToolNames } from './work-tools/index.ts';
 
 /** 当前请求使用的指令；创建会话前交给 SDK 回调，之后在每次发送前更新。 */
@@ -50,6 +50,7 @@ export class LiveSession {
   private operation?: Promise<void>;
   private readonly reviewResults?: SessionReviewResults;
   private readonly creation?: CreationApplication;
+  private readonly skills?: SessionSkillsState;
   private appliedGuidelines: string;
 
   constructor(
@@ -57,13 +58,19 @@ export class LiveSession {
     applied: AppliedInstructions,
     mode: EditMode,
     emit: (change: HostChange) => void,
-    options: { workId: string | null; creation?: CreationApplication }
+    options: { workId: string | null; creation?: CreationApplication; skills?: SessionSkillsState }
   ) {
     this.session = session;
     this.applied = applied;
     this.emit = emit;
     this.creation = options.creation;
+    this.skills = options.skills;
     this.appliedGuidelines = this.currentGuidelines(options.workId);
+    const initialTargets = composeToolTargetLookup(
+      options.creation && toolTargetLookup(options.creation, session.sessionId, mode),
+      options.skills &&
+        ((input, toolName) => options.skills!.matchToolTarget(session.sessionManager.getCwd(), toolName, input))
+    );
     this.view = {
       id: session.sessionId,
       sessionId: session.sessionId,
@@ -75,10 +82,7 @@ export class LiveSession {
       compacting: false,
       instructions: applied.entries,
       mode,
-      messages: transcriptView(
-        session.sessionManager,
-        options.creation && toolTargetLookup(options.creation, session.sessionId, mode)
-      ),
+      messages: transcriptView(session.sessionManager, initialTargets),
       queued: []
     };
     this.view.usage = this.usage();
@@ -91,10 +95,10 @@ export class LiveSession {
     const { view } = this;
     if (!text.trim()) throw new Error('消息不能为空');
     if (view.compacting) throw new Error('该会话正在运行压缩，请等待结束或停止后再发送');
-    const encoded = encodePromptWithContext(text, context, view.workId);
     if (view.running) {
       // 重载与停止尚未进入可插话的生成阶段，拒收后由界面把该消息标为发送失败。
       if (this.cancelled || !this.session.isStreaming) throw new Error('会话正在启动或停止，请稍后再发送');
+      const encoded = await encodeUserPrompt(text, context, view.workId, this.skills?.currentSkills() ?? []);
       const results = this.reviewResults?.prepare();
       if (results) await this.session.sendCustomMessage(results, { triggerTurn: false, deliverAs: delivery });
       if (delivery === 'followUp') await this.session.followUp(encoded);
@@ -109,13 +113,15 @@ export class LiveSession {
     if (!hasAuth) {
       throw new Error(`未配置供应商“${model.provider}”的 API 密钥，请在模型设置中填写后重试`);
     }
+    await this.skills?.refresh();
+    const encoded = await encodeUserPrompt(text, context, view.workId, this.skills?.currentSkills() ?? []);
     const results = this.reviewResults?.prepare();
     this.launch(async () => {
       if (results) {
         await this.session.sendCustomMessage(results, { triggerTurn: false });
         this.reviewResults!.acknowledge();
       }
-      await this.session.prompt(encoded);
+      await this.session.prompt(encoded, { expandPromptTemplates: false });
     });
   }
 
@@ -147,7 +153,7 @@ export class LiveSession {
       this.syncQueue();
     }
     if (removedRaw === undefined) return null;
-    return { delivery, ...decodePromptWithContext(removedRaw) };
+    return { delivery, ...decodeUserPrompt(removedRaw) };
   }
 
   /** 基于目标作者消息在原生会话树原地分叉并重发。 */
@@ -202,8 +208,9 @@ export class LiveSession {
     this.operation = (async () => {
       try {
         const guidelines = this.currentGuidelines(view.workId);
-        // 修改后的指令与作品写作要求在发送前 reload 生效；reload 期间再次修改的留到下一次发送。
-        if (this.applied.entries !== view.instructions || this.appliedGuidelines !== guidelines) {
+        const skillsReload = this.skills?.consumeReload() === true;
+        // 修改后的指令、作品写作要求与技能索引在发送前 reload 生效；reload 期间再次修改的留到下一次发送。
+        if (this.applied.entries !== view.instructions || this.appliedGuidelines !== guidelines || skillsReload) {
           this.applied.entries = view.instructions;
           this.appliedGuidelines = guidelines;
           await this.session.reload();
@@ -339,12 +346,8 @@ export class LiveSession {
 
   private readQueue(): QueuedMessage[] {
     return [
-      ...this.session
-        .getSteeringMessages()
-        .map(raw => ({ delivery: 'steer' as const, ...decodePromptWithContext(raw) })),
-      ...this.session
-        .getFollowUpMessages()
-        .map(raw => ({ delivery: 'followUp' as const, ...decodePromptWithContext(raw) }))
+      ...this.session.getSteeringMessages().map(raw => ({ delivery: 'steer' as const, ...decodeUserPrompt(raw) })),
+      ...this.session.getFollowUpMessages().map(raw => ({ delivery: 'followUp' as const, ...decodeUserPrompt(raw) }))
     ];
   }
 
@@ -392,11 +395,17 @@ export class LiveSession {
     const calls = (parent.tool.nestedTools ??= []);
     let call: NestedToolView;
     if (event.type === 'tool_call') {
-      call = { id: event.toolCallId, name: event.toolName, preview: previewToolInput(event.input), status: 'running' };
+      call = {
+        id: event.toolCallId,
+        name: event.toolName,
+        preview: previewToolInput(event.input),
+        status: 'running',
+        info: this.toolTargets()?.(event.input, event.toolName)
+      };
       calls.push(call);
     } else {
       call = calls.find(item => item.id === event.toolCallId)!;
-      const info = toolResultInfo(event.details ?? event.structuredContent);
+      const info = toolResultInfo(event.details ?? event.structuredContent) ?? call.info;
       call.status = event.isError ? 'error' : 'ok';
       call.info = info;
       if (event.isError)
@@ -411,7 +420,11 @@ export class LiveSession {
   }
 
   private toolTargets() {
-    return this.creation && toolTargetLookup(this.creation, this.session.sessionId, this.view.mode!);
+    return composeToolTargetLookup(
+      this.creation && toolTargetLookup(this.creation, this.session.sessionId, this.view.mode!),
+      this.skills &&
+        ((input, toolName) => this.skills!.matchToolTarget(this.session.sessionManager.getCwd(), toolName, input))
+    );
   }
 
   private onEvent(event: AgentSessionEvent): void {
@@ -454,8 +467,8 @@ export class LiveSession {
     } else if (event.type === 'queue_update') {
       if (this.reorderingQueue) return;
       view.queued = [
-        ...event.steering.map(raw => ({ delivery: 'steer' as const, ...decodePromptWithContext(raw) })),
-        ...event.followUp.map(raw => ({ delivery: 'followUp' as const, ...decodePromptWithContext(raw) }))
+        ...event.steering.map(raw => ({ delivery: 'steer' as const, ...decodeUserPrompt(raw) })),
+        ...event.followUp.map(raw => ({ delivery: 'followUp' as const, ...decodeUserPrompt(raw) }))
       ];
       this.emit({ kind: 'queue', id: view.id, queued: view.queued });
     } else if (event.type === 'auto_retry_start') {

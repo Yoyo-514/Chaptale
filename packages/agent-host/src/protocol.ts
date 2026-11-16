@@ -52,6 +52,38 @@ export interface HostSettings {
   /** 作者主动记住的会话级与作品级本机工具放行规则。 */
   toolPermissions: ToolPermission[];
 }
+export type SkillScope = 'global' | 'work';
+export interface SkillDiagnosticView {
+  type: 'warning' | 'error' | 'collision';
+  message: string;
+  path: string;
+}
+export interface ManagedSkillView {
+  name: string;
+  description: string;
+  scope: SkillScope;
+  enabled: boolean;
+  disableModelInvocation: boolean;
+  filePath: string;
+  baseDir: string;
+  /** 全局技能被当前作品的同名技能接管时为 true。 */
+  overriddenByWork?: boolean;
+}
+export interface ManagedSkillsSnapshot {
+  globalDir: string;
+  workDir: string | null;
+  skills: ManagedSkillView[];
+  diagnostics: SkillDiagnosticView[];
+}
+export interface SessionSkillItem {
+  name: string;
+  description: string;
+  scope: SkillScope;
+  disableModelInvocation: boolean;
+}
+export interface SkillInvocationView {
+  name: string;
+}
 /** 只读历史的原因；lines 是无法解析的 JSONL 行号（从 1 开始）。 */
 export interface ReadonlyHistory {
   reason: 'incomplete' | 'damaged';
@@ -126,6 +158,8 @@ export interface ToolResultInfo {
   wordCount?: number;
   count?: number;
   description?: string;
+  /** 原生只读工具命中已启用技能目录时标记技能名，供界面显示“加载技能《…》”。 */
+  skillName?: string;
   error?: string;
 }
 /** pi 原生保存的有界子调用记录；详细输出仍属于外层脚本。 */
@@ -169,6 +203,8 @@ export interface ChatMessage {
   nestedToolsComplete?: boolean;
   /** 作者消息关联的编辑上下文（仅在有选区时在气泡上方显示引用块）。 */
   editorContext?: EditorContext;
+  /** 作者手动通过 /skill:名称 触发的技能标识，气泡按紧凑标签展示。 */
+  skill?: SkillInvocationView;
   /** 该条消息所在分叉点的兄弟分支信息。 */
   branch?: MessageBranch;
   error?: boolean;
@@ -204,6 +240,7 @@ export interface QueuedMessage {
   delivery: QueuedDelivery;
   text: string;
   editorContext?: EditorContext;
+  skill?: SkillInvocationView;
 }
 export interface SessionView {
   /** 当前打开实例的操作句柄；只读副本具有独立句柄。 */
@@ -321,6 +358,36 @@ export interface HostCommands {
   namedInstructions: { input: NamedInstructions; output: void };
   deleteNamedInstructions: { input: { name: string }; output: void };
   defaultMode: { input: { mode: EditMode }; output: void };
+  /** 扫描全局与可选作品目录下的 Skills 及其启停状态与格式告警。 */
+  listSkills: { input: { workId: string | null }; output: ManagedSkillsSnapshot };
+  /** 切换全局或作品级指定技能的启停状态。 */
+  setSkillEnabled: {
+    input: { scope: SkillScope; workId: string | null; name: string; enabled: boolean };
+    output: ManagedSkillsSnapshot;
+  };
+  /** 在全局或作品技能目录下新建标准 SKILL.md 模板。 */
+  createSkill: {
+    input: {
+      scope: SkillScope;
+      workId: string | null;
+      name: string;
+      description: string;
+      disableModelInvocation?: boolean;
+    };
+    output: { skill: ManagedSkillView; snapshot: ManagedSkillsSnapshot };
+  };
+  /** 导入外部技能文件夹或单个 .md 文件到全局或作品技能目录。 */
+  importSkill: {
+    input: { scope: SkillScope; workId: string | null; sourcePath: string };
+    output: { imported: string[]; snapshot: ManagedSkillsSnapshot };
+  };
+  /** 移除指定技能并暂存待回收目录，files 由平台移入系统回收站。 */
+  removeSkill: {
+    input: { scope: SkillScope; workId: string | null; filePath: string };
+    output: { files: string[]; snapshot: ManagedSkillsSnapshot };
+  };
+  /** 查询指定打开会话当前可用的已启用技能（含仅手动调用项），供输入框 `/` 补全。 */
+  sessionSkills: { input: { id: string }; output: SessionSkillItem[] };
 }
 export type HostCommand = RpcCommand<HostCommands>;
 export type HostChange =

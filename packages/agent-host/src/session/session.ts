@@ -8,7 +8,8 @@ import {
   type ExtensionFactory,
   type ModelRuntime,
   type SessionManager,
-  SettingsManager
+  SettingsManager,
+  type Skill
 } from '@earendil-works/pi-coding-agent';
 import { stat } from 'node:fs/promises';
 import { isAbsolute, relative } from 'node:path';
@@ -36,6 +37,8 @@ export interface CreateHostSessionOptions {
   sessionManager: SessionManager;
   /** 显式工具集合与逐次授权；省略时没有可执行工具。 */
   toolAccess?: HostToolAccess;
+  /** 仅注入应用全局与作品目录中已启用的技能；省略时不加载任何技能。 */
+  skills?: () => Skill[];
 }
 
 /**
@@ -88,6 +91,9 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
     noExtensions: true,
     extensionFactories,
     noSkills: true,
+    ...(options.skills && {
+      skillsOverride: () => ({ skills: options.skills!(), diagnostics: [] })
+    }),
     noPromptTemplates: true,
     noThemes: true,
     noContextFiles: true

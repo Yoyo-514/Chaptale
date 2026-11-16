@@ -1,7 +1,7 @@
 import { type AgentSession, type SessionManager, sessionEntryToContextMessages } from '@earendil-works/pi-coding-agent';
 
 import { type ChatMessage, reviewResultsMessageType } from '../protocol.ts';
-import { decodePromptWithContext } from './editor-context.ts';
+import { decodeUserPrompt } from '../skills/index.ts';
 import { branchMap } from './session-tree.ts';
 import { nestedToolError, toolResultInfo, type ToolTargetLookup } from './tool-result-info.ts';
 
@@ -12,9 +12,10 @@ function applyUserText(view: ChatMessage, raw: string) {
     view.text = raw;
     return;
   }
-  const decoded = decodePromptWithContext(raw);
+  const decoded = decodeUserPrompt(raw);
   view.text = decoded.text;
   if (decoded.editorContext) view.editorContext = decoded.editorContext;
+  if (decoded.skill) view.skill = decoded.skill;
 }
 
 /** 只投影界面需要的消息内容，不跨桥接复制 SDK、模型配置或媒体原件。 */
@@ -31,7 +32,7 @@ export function messageView(message: SdkMessage, target?: ToolTargetLookup): Cha
         input: call.arguments,
         status: call.status,
         error: nestedToolError(call.error),
-        info: target?.(call.arguments)
+        info: target?.(call.arguments, call.name)
       }));
       view.nestedToolsComplete = message.nestedCalls.complete;
     }
@@ -73,7 +74,12 @@ export function messageView(message: SdkMessage, target?: ToolTargetLookup): Cha
     if (block.type === 'text') text += block.text;
     else if (block.type === 'thinking') view.thinking += block.thinking;
     else if (block.type === 'toolCall')
-      view.tools.push({ id: block.id, name: block.name, input: block.arguments, info: target?.(block.arguments) });
+      view.tools.push({
+        id: block.id,
+        name: block.name,
+        input: block.arguments,
+        info: target?.(block.arguments, block.name)
+      });
     else if (block.type === 'image') text += '\n[图片内容；当前会话界面尚不提供附件预览]\n';
   }
   applyUserText(view, text);

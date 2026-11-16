@@ -1,7 +1,7 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from 'electron';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -10,6 +10,7 @@ import type { CommandDefinitions, RpcClient, RpcCommand } from '@chaptale/contra
 import { APPLICATION_HOST_CHANNELS, type HostChannels } from '../../bridge/channels';
 import type {
   AddFileDataInput,
+  DesktopAgentClient,
   DesktopCreationClient,
   FileAction,
   FileReadTarget,
@@ -19,6 +20,7 @@ import { showOpenDialog } from '../infra/electron/dialog';
 import { openPathOrThrow } from '../infra/electron/shell';
 import { handleTrustedIpc } from '../infra/security/trusted-ipc';
 import type { DesktopApplicationProcess } from './process';
+import { resolveAuthorizedSkillRevealPath } from './skill-paths';
 
 function registerClient<C extends CommandDefinitions<C>, E>(client: RpcClient<C, E>, channels: HostChannels): void {
   handleTrustedIpc(channels.request, (_event, command: RpcCommand<C>) => client.request(command.method, command.input));
@@ -30,6 +32,39 @@ function registerClient<C extends CommandDefinitions<C>, E>(client: RpcClient<C,
 export function registerApplicationHostIpc(host: DesktopApplicationProcess): void {
   registerClient(host.agent, APPLICATION_HOST_CHANNELS.agent);
   registerClient(host.creation, APPLICATION_HOST_CHANNELS.creation);
+  handleTrustedIpc(
+    APPLICATION_HOST_CHANNELS.agent.selectSkillSource,
+    async (event, kind: Parameters<NonNullable<DesktopAgentClient['selectSkillSource']>>[0]) => {
+      let options: OpenDialogOptions;
+      if (kind === 'directory') {
+        options = { title: '选择包含 SKILL.md 的技能文件夹', properties: ['openDirectory'] };
+      } else if (kind === 'file') {
+        options = {
+          title: '选择技能 Markdown 文件',
+          properties: ['openFile'],
+          filters: [{ name: 'Markdown 技能文件', extensions: ['md'] }]
+        };
+      } else {
+        throw new Error('技能导入源类型无效');
+      }
+      const result = await showOpenDialog(BrowserWindow.fromWebContents(event.sender), options);
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    }
+  );
+  handleTrustedIpc(
+    APPLICATION_HOST_CHANNELS.agent.revealSkillPath,
+    async (_event, input: Parameters<NonNullable<DesktopAgentClient['revealSkillPath']>>[0]) => {
+      const snapshot = await host.agent.request('listSkills', {
+        workId: input?.workId ?? null
+      });
+      const resolved = resolveAuthorizedSkillRevealPath(snapshot, input?.filePath);
+      if (resolved.kind === 'directory') {
+        await mkdir(resolved.path, { recursive: true });
+        return openPathOrThrow(resolved.path);
+      }
+      shell.showItemInFolder(resolved.path);
+    }
+  );
   handleTrustedIpc(
     APPLICATION_HOST_CHANNELS.creation.selectPaths,
     async (event, purpose: Parameters<DesktopCreationClient['selectPaths']>[0]) => {

@@ -12,7 +12,9 @@ export function sameFsPath(left: string, right: string): boolean {
 }
 
 function inside(root: string, target: string): boolean {
-  const path = relative(root, target);
+  const left = process.platform === 'win32' ? root.toLowerCase() : root;
+  const right = process.platform === 'win32' ? target.toLowerCase() : target;
+  const path = relative(left, right);
   return path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 }
 

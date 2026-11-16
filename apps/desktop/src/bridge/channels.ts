@@ -1,6 +1,11 @@
 /** Electron 通道由平台桥接持有，业务契约保持跨端可用。 */
 export const APPLICATION_HOST_CHANNELS = {
-  agent: { request: 'agent-host:request', event: 'agent-host:event' },
+  agent: {
+    request: 'agent-host:request',
+    event: 'agent-host:event',
+    selectSkillSource: 'agent-host:select-skill-source',
+    revealSkillPath: 'agent-host:reveal-skill-path'
+  },
   creation: {
     request: 'creation:request',
     event: 'creation:event',

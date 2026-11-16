@@ -22,7 +22,19 @@ export function previewToolInput(input: Record<string, unknown>): Record<string,
   return Object.fromEntries(Object.entries(input).filter(([key]) => fields.has(key)));
 }
 
-export type ToolTargetLookup = (input: unknown) => ToolResultInfo | undefined;
+export type ToolTargetLookup = (input: unknown, toolName?: string) => ToolResultInfo | undefined;
+
+export function composeToolTargetLookup(...lookups: Array<ToolTargetLookup | undefined>): ToolTargetLookup | undefined {
+  const active = lookups.filter((fn): fn is ToolTargetLookup => Boolean(fn));
+  if (active.length === 0) return undefined;
+  return (input, toolName) => {
+    for (const lookup of active) {
+      const info = lookup(input, toolName);
+      if (info) return info;
+    }
+    return undefined;
+  };
+}
 
 /** 一次投影内每部作品只读一份目录，把原生参数中的条目 ID 显示为可读标题。 */
 export function toolTargetLookup(creation: CreationApplication, sessionId: string, mode: EditMode): ToolTargetLookup {

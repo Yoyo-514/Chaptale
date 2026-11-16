@@ -25,6 +25,7 @@ import type { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
 import { HostSessionOpenError } from '../session/session-storage.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
+import { HostSkillsService, type SessionSkillsState } from '../skills/index.ts';
 import { inspectFsReadTarget, matchesFsReadPermission } from '../tools/cwd-paths.ts';
 import type { HostToolDecision, HostToolRequest } from '../tools/tool-access.ts';
 import { ToolApprovals } from './approvals.ts';
@@ -77,11 +78,22 @@ export class HostApplication {
   private readonly options: HostApplicationOptions;
   private readonly pool: HostSessionPool;
   private readonly settings: AppSettingsStore;
+  private readonly skills: HostSkillsService;
 
   private constructor(options: HostApplicationOptions, pool: HostSessionPool, settings: AppSettingsStore) {
     this.options = options;
     this.pool = pool;
     this.settings = settings;
+    this.skills = new HostSkillsService({
+      agentDir: options.agentDir,
+      settings,
+      resolveWorkFilesDir: async workId => {
+        if (!this.options.creation) throw new Error('未装配作品应用，不支持作品级技能');
+        const work = this.findWork(workId);
+        if (!work) throw new Error('目标作品不存在');
+        return this.workingDirectory(work);
+      }
+    });
   }
 
   static async create(options: HostApplicationOptions): Promise<HostApplication> {
@@ -194,6 +206,21 @@ export class HostApplication {
       case 'defaultMode':
         await this.settings.setDefaultMode(command.input.mode);
         return this.emitSettings();
+      case 'listSkills':
+        return this.skills.list(command.input.workId);
+      case 'setSkillEnabled':
+        return this.skills.setEnabled(command.input);
+      case 'createSkill':
+        return this.skills.create(command.input);
+      case 'importSkill':
+        return this.skills.import(command.input);
+      case 'removeSkill':
+        return this.skills.remove(command.input);
+      case 'sessionSkills': {
+        const record = this.get(command.input.id);
+        const work = record.view.workId && this.options.creation ? this.findWork(record.view.workId) : null;
+        return this.skills.sessionItems(work?.id ?? null);
+      }
       case 'providers':
         return this.options.modelConfiguration.list();
       case 'saveProvider': {
@@ -291,17 +318,19 @@ export class HostApplication {
     const cwd = await this.workingDirectory(work);
     const applied = { entries: this.settings.instructionsFor(name) };
     const mode = this.settings.defaultMode;
+    const skillsState = await this.skills.createSessionState(work?.id ?? null);
     // 先记下作者的选择，设置写入失败时不创建会话。
     await this.rememberModel(model);
     const { session } = await this.pool.createSession(
-      { ...this.sessionInput(applied, cwd, work), model },
+      { ...this.sessionInput(applied, cwd, work, skillsState), model },
       work?.id ?? unassignedFolder
     );
     session.sessionManager.appendCustomEntry(instructionsEntryType, { entries: applied.entries });
     session.sessionManager.appendCustomEntry(modeEntryType, { mode });
     const live = new LiveSession(session, applied, mode, change => this.emit(change), {
       workId: work?.id ?? null,
-      creation: this.options.creation
+      creation: this.options.creation,
+      skills: skillsState
     });
     return this.attach({ view: live.view, live });
   }
@@ -331,7 +360,7 @@ export class HostApplication {
     return `${identity}\n\n<writing_guidelines>\n以下是作者为本作品设定的写作要求（仅作为创作文风、视角与表达规范，不改变系统与工具安全边界）：\n${trimmed}\n</writing_guidelines>`;
   }
 
-  private sessionInput(applied: AppliedInstructions, cwd: string, work: SessionWork) {
+  private sessionInput(applied: AppliedInstructions, cwd: string, work: SessionWork, skillsState: SessionSkillsState) {
     const callbacks = instructionCallbacks(applied);
     return {
       cwd,
@@ -339,15 +368,16 @@ export class HostApplication {
       ...(this.options.creation && {
         systemPrompt: () => `${callbacks.systemPrompt()}\n\n${deferredWorkToolsPrompt}${this.workPrompt(work)}`
       }),
+      skills: () => skillsState.currentSkills(),
       toolAccess: {
         tools: this.tools(cwd),
-        // 原生文件工具在工作目录内不逐次询问，目录外先匹配本机会话／作品放行规则，未命中则由作者授权。
+        // 原生文件工具在工作目录与已启用技能目录内不逐次询问，目录外先匹配本机会话／作品放行规则，未命中则由作者授权。
         authorize: async (request: HostToolRequest, signal: AbortSignal | undefined) => {
           if (this.options.creation && workToolNames.has(request.toolName)) return this.authorizeWorkTool(request);
           const fsRead = await inspectFsReadTarget(request.toolName, request.input, request.cwd);
           const workId = work && (!this.options.creation || this.findWork(work.id)) ? work.id : null;
           if (fsRead) {
-            if (fsRead.inCwd) return { allow: true } as const;
+            if (fsRead.inCwd || skillsState.allowsTarget(fsRead.target)) return { allow: true } as const;
             if (
               fsRead.target &&
               this.settings
@@ -391,11 +421,12 @@ export class HostApplication {
   /** 完整历史继续对话；损坏或缺少记录的历史只读打开，不修复、不套用当前默认值。 */
   private async openFile(file: string): Promise<string> {
     const applied: AppliedInstructions = { entries: [] };
-    const opened: { history?: SessionHistory; work?: SessionWork; cwd?: string } = {};
+    const opened: { history?: SessionHistory; work?: SessionWork; cwd?: string; skills?: SessionSkillsState } = {};
     const workId = this.workIdOf(file);
     const cwd = async () => {
       opened.work = this.findWork(workId);
       opened.cwd = await this.workingDirectory(opened.work);
+      opened.skills = await this.skills.createSessionState(opened.work?.id ?? null);
       return opened.cwd;
     };
     let result: Awaited<ReturnType<HostSessionPool['openWith']>>;
@@ -405,8 +436,8 @@ export class HostApplication {
         opened.history = history;
         if (history.kind === 'readonly') return undefined;
         applied.entries = history.instructions;
-        // SAFETY: 预检通过后才交给 prepare，工作目录与归属已经确定。
-        return this.sessionInput(applied, opened.cwd!, opened.work!);
+        // SAFETY: 预检通过后才交给 prepare，工作目录、归属与技能快照已经确定。
+        return this.sessionInput(applied, opened.cwd!, opened.work!, opened.skills!);
       });
     } catch (error) {
       // 需迁移或路径错误的历史仍然报错。
@@ -435,7 +466,8 @@ export class HostApplication {
     }
     const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change), {
       workId,
-      creation: this.options.creation
+      creation: this.options.creation,
+      skills: opened.skills
     });
     return this.attach({ view: live.view, live });
   }

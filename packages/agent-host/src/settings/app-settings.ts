@@ -23,6 +23,7 @@ interface AppSettings {
   defaultMode: EditMode;
   lastModel: ModelRef | null;
   toolPermissions: ToolPermission[];
+  disabledGlobalSkills: string[];
 }
 
 const initialSettings: AppSettings = {
@@ -30,7 +31,8 @@ const initialSettings: AppSettings = {
   namedInstructions: [],
   defaultMode: 'review',
   lastModel: null,
-  toolPermissions: []
+  toolPermissions: [],
+  disabledGlobalSkills: []
 };
 
 function normalizeModel(value: ModelRef): ModelRef {
@@ -84,13 +86,25 @@ function parseSettings(value: AppSettings): AppSettings {
   if (new Set(toolPermissions.map(item => item.id)).size !== toolPermissions.length) {
     throw new Error('工具授权 ID 重复');
   }
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const disabledGlobalSkills = Array.isArray(value.disabledGlobalSkills)
+    ? [
+        ...new Set(
+          value.disabledGlobalSkills.map(name => {
+            if (typeof name !== 'string' || !name.trim()) throw new Error('停用技能名称无效');
+            return name.trim();
+          })
+        )
+      ].sort((a, b) => a.localeCompare(b))
+    : [];
   return {
     defaultInstructions: value.defaultInstructions === null ? null : normalizeInstructions(value.defaultInstructions),
     namedInstructions,
     defaultMode: normalizeMode(value.defaultMode),
     // 早于对应字段写入的设置文件保留为空。
     lastModel: value.lastModel ? normalizeModel(value.lastModel) : null,
-    toolPermissions
+    toolPermissions,
+    disabledGlobalSkills
   };
 }
 
@@ -139,6 +153,21 @@ export class AppSettingsStore {
       lastModel: this.value.lastModel,
       toolPermissions: this.value.toolPermissions
     };
+  }
+
+  get disabledGlobalSkills(): readonly string[] {
+    return this.value.disabledGlobalSkills;
+  }
+
+  async setGlobalSkillEnabled(name: string, enabled: boolean): Promise<boolean> {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('技能名称不能为空');
+    const set = new Set(this.value.disabledGlobalSkills);
+    const changed = enabled ? set.delete(trimmed) : !set.has(trimmed) && Boolean(set.add(trimmed));
+    if (!changed) return false;
+    // oxlint-disable-next-line unicorn/no-array-sort
+    await this.save({ ...this.value, disabledGlobalSkills: [...set].sort((a, b) => a.localeCompare(b)) });
+    return true;
   }
 
   /** 新会话复制的指令：省略名称时为全局默认，否则为同名命名指令。 */

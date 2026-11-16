@@ -1,4 +1,6 @@
 import { shell, utilityProcess, type UtilityProcess } from 'electron';
+import { rm } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import type { AgentClient, HostCommands, HostEvent } from '@chaptale/agent-host/protocol';
 import type { CreationClient, CreationCommands, CreationEvent } from '@chaptale/creation/contracts';
@@ -40,6 +42,12 @@ export class DesktopApplicationProcess {
       // 覆盖导入与恢复换下的作品目录、永久删除的作品及其会话目录，同样由主进程移入回收站。
       if (method === 'importWorkPackage' || method === 'restoreWorkSnapshot' || method === 'purgeWork')
         for (const file of (output as { files: string[] }).files) await shell.trashItem(file);
+      if (method === 'removeSkill') {
+        for (const file of (output as { files: string[] }).files) {
+          await shell.trashItem(file);
+          await rm(dirname(file), { recursive: true, force: true });
+        }
+      }
       return output;
     },
     subscribe: listener => {

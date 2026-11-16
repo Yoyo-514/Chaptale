@@ -14,6 +14,10 @@ import type { ChaptaleSettingsState, UpdateChaptaleSettingsPayload } from './set
 import type { WindowStateResult, WindowZoomCommand } from './window';
 
 export interface DesktopAgentClient extends AgentClient {
+  /** 选择要导入的技能文件夹或单个 .md 文件；取消时返回 null。 */
+  selectSkillSource?(kind: 'directory' | 'file'): Promise<string | null>;
+  /** 在系统文件管理器中定位已登记的技能文件，或打开技能根目录。 */
+  revealSkillPath?(input: { workId: string | null; filePath: string }): Promise<void>;
   onDisconnected(listener: (message: string) => void): () => void;
 }
 

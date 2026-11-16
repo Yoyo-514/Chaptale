@@ -13,7 +13,11 @@ import { createSettingsApi } from './api/settings';
 import { createWindowControlApi } from './api/window';
 
 const desktopApi: ChaptaleDesktopApi = {
-  agentHost: createHostApi<HostCommands, HostEvent>(APPLICATION_HOST_CHANNELS.agent),
+  agentHost: {
+    ...createHostApi<HostCommands, HostEvent>(APPLICATION_HOST_CHANNELS.agent),
+    selectSkillSource: kind => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.agent.selectSkillSource, kind),
+    revealSkillPath: input => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.agent.revealSkillPath, input)
+  },
   creation: {
     ...createHostApi<CreationCommands, CreationEvent>(APPLICATION_HOST_CHANNELS.creation),
     selectPaths: purpose => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.selectPaths, purpose),
