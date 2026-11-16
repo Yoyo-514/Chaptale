@@ -170,6 +170,21 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
+  async function dismissError() {
+    error.value = '';
+    const id = activeId.value;
+    const target = id ? state.value?.sessions.find(item => item.id === id) : undefined;
+    if (target && (target.error || target.noticeLevel)) {
+      delete target.error;
+      delete target.noticeLevel;
+      if (connected.value) {
+        await getDesktopApi()
+          .agentHost.request('dismissError', { id: target.id })
+          .catch(() => undefined);
+      }
+    }
+  }
+
   async function select(id: string) {
     ++viewVersion;
     const session = state.value!.sessions.find(item => item.id === id)!;
@@ -431,6 +446,7 @@ export const useAgentStore = defineStore('agent', () => {
     connected,
     connecting,
     error,
+    dismissError,
     activeId,
     active,
     draft,

@@ -45,6 +45,8 @@ export function applyHostEvent(snapshot: HostState, event: HostEvent) {
       target.running = event.running;
       target.compacting = event.compacting;
       target.error = event.error;
+      target.noticeLevel = event.noticeLevel;
+      target.retrying = event.retrying;
       break;
     }
     case 'usage':

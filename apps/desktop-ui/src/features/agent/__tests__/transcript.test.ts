@@ -153,4 +153,28 @@ describe('buildTranscript', () => {
     expect(rows[1]!.entryTarget).toEqual({ workId: 'w1', entryId: 'c1', title: '第一章' });
     expect(rows[3]!.result).toEqual({ text: '文稿修订已变化', error: true });
   });
+
+  it('连续工具调用后的空正文报错或主动停止合并入同一助手块并保留最新下标', () => {
+    const items = buildTranscript([
+      message({ role: 'user', entryId: 'u-1', text: '分析第一章' }),
+      message({
+        role: 'assistant',
+        tools: [{ id: 't-1', name: 'work_read', input: { workId: 'w1', entryId: 'c1' } }]
+      }),
+      message({ role: 'toolResult', toolCallId: 't-1', toolName: 'work_read', text: '正文' }),
+      message({
+        role: 'assistant',
+        error: true,
+        errorMessage: '429 {"error":{"message":"Rate limit"}}'
+      })
+    ]);
+    expect(items).toHaveLength(2);
+    expect(items[1]).toMatchObject({
+      kind: 'assistant',
+      index: 3,
+      error: true,
+      errorMessage: '429 {"error":{"message":"Rate limit"}}',
+      retryTarget: { entryId: 'u-1', text: '分析第一章' }
+    });
+  });
 });

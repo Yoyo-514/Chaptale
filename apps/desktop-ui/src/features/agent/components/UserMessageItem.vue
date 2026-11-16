@@ -17,6 +17,7 @@ const props = defineProps<{
   branch?: MessageBranch;
   readonly?: boolean;
   busy?: boolean;
+  alwaysShowActions?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -84,6 +85,7 @@ function retry() {
         :can-edit="!readonly && Boolean(entryId)"
         :can-retry="!readonly && Boolean(entryId)"
         :disabled="busy || readonly"
+        :always-visible="alwaysShowActions"
         @edit="startEdit"
         @retry="retry"
         @switch-branch="emit('switchBranch', $event)"

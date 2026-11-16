@@ -199,7 +199,12 @@ async function assign(entry: SessionEntry) {
           <PopoverRoot
             v-if="creation.work && entry.workId === null && entry.item"
             :open="confirming === entry.key"
-            @update:open="open => (confirming = open ? entry.key : assigning ? confirming : undefined)"
+            @update:open="
+              open => {
+                if (!open && !assigning) agent.error = '';
+                confirming = open ? entry.key : assigning ? confirming : undefined;
+              }
+            "
           >
             <PopoverTrigger as-child>
               <AppButton variant="ghost" size="xs" :aria-label="`将${entry.title}归入当前作品`">归入</AppButton>

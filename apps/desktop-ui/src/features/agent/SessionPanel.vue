@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 
 import type { ApprovalScope, EditorContext } from '@chaptale/agent-host/protocol';
 
@@ -18,6 +18,7 @@ import MessageList from './components/MessageList.vue';
 import PendingReviewCard from './components/PendingReviewCard.vue';
 import SessionHistory from './components/SessionHistory.vue';
 import SessionSettings from './components/SessionSettings.vue';
+import { formatAgentError } from './error-format';
 import { type SessionEntry, useAgentStore } from './store';
 
 const agent = useAgentStore();
@@ -28,7 +29,35 @@ const body = ref<HTMLElement>();
 const positions = new Map<string, { top: number; follow: boolean }>();
 const following = ref(true);
 const approvals = computed(() => agent.state?.approvals.filter(item => item.sessionId === agent.activeId) ?? []);
-const error = computed(() => agent.error || agent.active?.error);
+const banner = computed(() => {
+  const text = agent.error || agent.active?.error;
+  if (!text) return undefined;
+  const level = agent.error ? 'error' : (agent.active?.noticeLevel ?? 'error');
+  return { text, level, formatted: formatAgentError(text) };
+});
+let bannerTimer: ReturnType<typeof setTimeout> | undefined;
+watch(
+  () => (banner.value?.level === 'info' ? banner.value.text : ''),
+  infoText => {
+    clearTimeout(bannerTimer);
+    if (!infoText) return;
+    bannerTimer = setTimeout(() => {
+      void agent.dismissError();
+    }, 4000);
+  },
+  { immediate: true }
+);
+watch(
+  () => navigation.agentView,
+  () => {
+    agent.error = '';
+  }
+);
+onBeforeUnmount(() => clearTimeout(bannerTimer));
+function openModelSettings() {
+  void agent.dismissError();
+  settings.openPanel('llm');
+}
 const title = computed(() => (agent.active ? agent.title(agent.active) : '新会话'));
 /** 标题下拉列出当前范围最近的会话，完整列表在「全部历史」子页。 */
 const renaming = ref(false);
@@ -317,10 +346,36 @@ function confirmBranchAction() {
             @recall-queued="agent.recallQueued"
             @edit-message="requestEditMessage"
             @switch-branch="requestSwitchBranch"
+            @open-model-settings="openModelSettings"
           />
         </div>
       </div>
       <PendingReviewCard v-if="agent.active" />
+      <div v-if="banner" class="agent-banner-dock">
+        <div
+          class="agent-banner agent-column"
+          :class="banner.level === 'info' ? 'is-info' : 'is-error'"
+          :role="banner.level === 'info' ? 'status' : 'alert'"
+        >
+          <span
+            :class="banner.level === 'info' ? 'i-mingcute-information-line' : 'i-mingcute-warning-line'"
+            class="agent-banner-icon shrink-0"
+            aria-hidden="true"
+          />
+          <span class="agent-banner-text">{{ banner.formatted.summary }}</span>
+          <AppButton
+            v-if="banner.formatted.needsModelSettings"
+            type="button"
+            size="xs"
+            variant="ghost"
+            @click="openModelSettings"
+            >模型设置</AppButton
+          >
+          <AppButton type="button" icon size="xs" variant="ghost" aria-label="关闭提示" @click="agent.dismissError">
+            <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
+          </AppButton>
+        </div>
+      </div>
       <MessageComposer />
       <AppAlertDialog
         v-model:open="branchConfirmOpen"
@@ -330,6 +385,22 @@ function confirmBranchAction() {
         @confirm="confirmBranchAction"
       />
     </template>
-    <p v-if="error" role="alert" class="agent-error agent-panel-error">{{ error }}</p>
+    <div v-if="banner && (!agent.connected || navigation.agentView !== 'chat')" class="agent-banner-dock is-subpage">
+      <div
+        class="agent-banner agent-column"
+        :class="banner.level === 'info' ? 'is-info' : 'is-error'"
+        :role="banner.level === 'info' ? 'status' : 'alert'"
+      >
+        <span
+          :class="banner.level === 'info' ? 'i-mingcute-information-line' : 'i-mingcute-warning-line'"
+          class="agent-banner-icon shrink-0"
+          aria-hidden="true"
+        />
+        <span class="agent-banner-text">{{ banner.formatted.summary }}</span>
+        <AppButton type="button" icon size="xs" variant="ghost" aria-label="关闭提示" @click="agent.dismissError">
+          <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
+        </AppButton>
+      </div>
+    </div>
   </section>
 </template>

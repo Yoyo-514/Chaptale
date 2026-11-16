@@ -12,11 +12,13 @@ import type {
 import { AppButton } from '@/components/AppButton';
 import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } from '@/utils/markdown';
 
+import { formatAgentError, formatRetryStatus } from '../error-format';
 import type { OutgoingMessage } from '../store';
 import { buildTranscript, describeTool, hasRunningTools, summarizeTools, toolRows } from '../transcript';
 import EditorContextBadge from './EditorContextBadge.vue';
 import MessageActions from './MessageActions.vue';
 import ToolCallRow from './ToolCallRow.vue';
+import TurnErrorCard from './TurnErrorCard.vue';
 import UserMessageItem from './UserMessageItem.vue';
 
 const props = defineProps<{ session: SessionView; approvals: Approval[]; outgoing: OutgoingMessage[] }>();
@@ -27,16 +29,21 @@ const emit = defineEmits<{
   recallQueued: [delivery: QueuedDelivery, index: number];
   editMessage: [payload: { entryId: string; text: string; editorContext?: EditorContext }];
   switchBranch: [leafId: string];
+  openModelSettings: [];
 }>();
 
 const items = computed(() => buildTranscript(props.session.messages));
 const lastIndex = computed(() => props.session.messages.length - 1);
-/** 消息已发出但模型还没有输出时显示等待提示。 */
+/** 消息已发出但模型还没有输出，或正在自动退避重试时显示等待提示。 */
 const waiting = computed(() => {
+  if (props.session.retrying) return true;
   if (props.outgoing.some(item => !item.error && !item.delivery)) return true;
   const last = props.session.messages.at(-1);
   return props.session.running && (!last || ['user', 'reviewResults', 'toolResult'].includes(last.role));
 });
+const waitingText = computed(() =>
+  props.session.retrying ? formatRetryStatus(props.session.retrying) : '正在等待回复…'
+);
 const expanded = ref(new Set<string>());
 const streamKey = (index: number) => `${props.session.id}:${index}`;
 
@@ -65,7 +72,7 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
 
 <template>
   <div class="agent-transcript">
-    <template v-for="item in items" :key="item.key">
+    <template v-for="(item, itemIndex) in items" :key="item.key">
       <UserMessageItem
         v-if="item.kind === 'user'"
         :entry-id="item.entryId"
@@ -75,6 +82,7 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
         :branch="item.branch"
         :readonly="Boolean(session.readonly)"
         :busy="session.running"
+        :always-show-actions="itemIndex === items.length - 1 && !session.running && !outgoing.length"
         @edit-message="emit('editMessage', $event)"
         @switch-branch="emit('switchBranch', $event)"
       />
@@ -122,12 +130,7 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
             {{ item.thinking.text }}
           </div>
         </div>
-        <div
-          v-if="item.text"
-          class="agent-assistant-text markdown-body"
-          :class="{ 'agent-error': item.error }"
-          v-html="html(item.index, item.text)"
-        />
+        <div v-if="item.text" class="agent-assistant-text markdown-body" v-html="html(item.index, item.text)" />
         <section v-if="item.tools.length" class="agent-activity agent-tool-group" aria-label="工具调用">
           <button
             type="button"
@@ -164,12 +167,24 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
             :session-work-id="session.workId"
           />
         </section>
+        <TurnErrorCard
+          v-if="item.error && (!session.running || item.index !== lastIndex)"
+          :error-message="item.errorMessage"
+          :can-retry="!session.readonly && Boolean(item.retryTarget)"
+          :disabled="session.running || Boolean(session.readonly)"
+          @retry="emit('editMessage', item.retryTarget!)"
+          @open-model-settings="emit('openModelSettings')"
+        />
+        <p v-else-if="item.aborted && (!session.running || item.index !== lastIndex)" class="agent-turn-aborted">
+          已停止生成
+        </p>
         <MessageActions
           v-if="!session.running || item.index !== lastIndex"
           align="start"
           :copy-text="item.text || undefined"
-          :can-retry="!session.readonly && Boolean(item.retryTarget)"
+          :can-retry="!item.error && !session.readonly && Boolean(item.retryTarget)"
           :disabled="session.running || Boolean(session.readonly)"
+          :always-visible="Boolean(item.aborted && !item.text && !item.tools.length)"
           @retry="emit('editMessage', item.retryTarget!)"
         />
       </article>
@@ -222,13 +237,20 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
       </div>
       <p v-if="item.error" class="agent-user-failure" role="alert">
         <span class="i-mingcute-warning-line size-3.5 shrink-0" aria-hidden="true" />
-        <span class="flex-1">发送失败：{{ item.error }}</span>
+        <span class="flex-1">发送失败：{{ formatAgentError(item.error).summary }}</span>
+        <AppButton
+          v-if="formatAgentError(item.error).needsModelSettings"
+          size="xs"
+          variant="ghost"
+          @click="emit('openModelSettings')"
+          >模型设置</AppButton
+        >
         <AppButton size="xs" variant="ghost" @click="emit('discard', item.key)">移除</AppButton>
         <AppButton size="xs" variant="ghost" @click="emit('retry', item.key)">重试</AppButton>
       </p>
     </article>
     <p v-if="waiting" class="agent-waiting" role="status">
-      <span class="agent-waiting-dots" aria-hidden="true"><i /><i /><i /></span>正在等待回复…
+      <span class="agent-waiting-dots" aria-hidden="true"><i /><i /><i /></span>{{ waitingText }}
     </p>
     <section
       v-for="approval in approvals"

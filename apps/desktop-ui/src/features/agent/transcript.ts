@@ -50,6 +50,8 @@ export type TranscriptItem =
       thinking?: ThinkingActivity;
       text: string;
       error: boolean;
+      errorMessage?: string;
+      aborted?: boolean;
       tools: ToolActivity[];
       retryTarget?: RetryTarget;
       /** 已被压缩总结代替，只供查看。 */
@@ -244,6 +246,9 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
         else previous.thinking = item.thinking;
       }
       previous.error ||= item.error;
+      if (item.errorMessage) previous.errorMessage = item.errorMessage;
+      if (item.aborted) previous.aborted = true;
+      previous.index = item.index;
     } else {
       if (previous?.kind === 'assistant') delete previous.retryTarget;
       item.retryTarget = currentTurnUser;
@@ -334,6 +339,8 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
       thinking: message.thinking ? { kind: 'thinking', key: `${key}:thinking`, text: message.thinking } : undefined,
       text: message.text,
       error: message.error === true,
+      errorMessage: message.errorMessage,
+      aborted: message.aborted,
       tools,
       compacted: message.compacted
     });

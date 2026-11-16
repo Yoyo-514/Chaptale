@@ -197,7 +197,7 @@ function purge() {
       @confirm="purge"
     >
       <template #description
-        >作品数据库文件会移入系统回收站，并从作品库移除。属于它的会话保留，转为未归属作品的会话。</template
+        >作品目录（含正文、资料与添加的文件）会移入系统回收站，并从作品库移除。属于它的会话保留，转为未归属作品的会话。</template
       >
     </AppAlertDialog>
   </main>

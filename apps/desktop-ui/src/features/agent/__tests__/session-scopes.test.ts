@@ -22,9 +22,11 @@ import { openCreationStorage } from '@chaptale/storage';
 
 import { useCreationStore } from '@/features/creation';
 import { useEditorContext, useEditorStore } from '@/features/editor';
+import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 
 import MessageList from '../components/MessageList.vue';
+import SessionPanel from '../SessionPanel.vue';
 import { useAgentStore } from '../store';
 
 let root: string;
@@ -502,4 +504,55 @@ it('创建期间切换作品，迟到的新会话仍归原作品且保持当前�
   await flushPromises();
   expect(agent.active?.sessionId).toBe(created);
   expect(agent.draft).toBe('作品甲的草稿');
+});
+
+it('输入框上方提示条区分中性提示与错误、支持关闭同步宿主并在切换子视图时清理瞬时提示', async () => {
+  const workbench = useWorkbenchStore();
+  const settings = useSettingsStore();
+  workbench.auxiliaryOpen = true;
+  workbench.agentView = 'chat';
+  await agent.connect();
+  const id = await agent.create();
+  expect(id).toEqual(expect.any(String));
+
+  const panel = mount(SessionPanel, { global: { plugins: [pinia] } });
+  wrappers.push(panel);
+  await flushPromises();
+
+  // 1. 新会话无对话内容时触发手动压缩：宿主通过 running 事件推送 noticeLevel: 'info'
+  await agent.perform(() => host.execute({ method: 'compact', input: { id: id! } }));
+  await expect.poll(() => agent.active?.error).toBe('对话内容较少，暂时无需压缩');
+  expect(agent.active?.noticeLevel).toBe('info');
+  await flushPromises();
+
+  const infoBanner = panel.get('.agent-banner');
+  expect(infoBanner.classes()).toContain('is-info');
+  expect(infoBanner.text()).toContain('对话内容较少，暂时无需压缩');
+
+  await infoBanner.get('button[aria-label="关闭提示"]').trigger('click');
+  await flushPromises();
+  expect(panel.find('.agent-banner').exists()).toBe(false);
+  expect(host.snapshot().sessions.find(s => s.id === id)?.error).toBeUndefined();
+
+  // 2. 面板瞬时错误显示为错误提示条，切换子视图时自动清理
+  workbench.agentView = 'history';
+  await flushPromises();
+  agent.error = '有会话正在运行，停止后才能删除';
+  await flushPromises();
+  expect(panel.get('.agent-banner').classes()).toContain('is-error');
+  workbench.agentView = 'chat';
+  await flushPromises();
+  expect(agent.error).toBe('');
+  expect(panel.find('.agent-banner').exists()).toBe(false);
+
+  // 3. 提示“请先选择模型”时附带“模型设置”快捷入口
+  agent.error = '请先选择模型';
+  await flushPromises();
+  await panel
+    .get('.agent-banner')
+    .findAll('button')
+    .find(btn => btn.text() === '模型设置')!
+    .trigger('click');
+  expect(settings.isOpen).toBe(true);
+  expect(settings.activeSection).toBe('llm');
 });

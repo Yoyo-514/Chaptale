@@ -617,3 +617,117 @@ it('授权卡片按可记住范围展示对应档位并派发 scope 参数', asy
     ['work-allowed', false]
   ]);
 });
+
+it('助手流式报错保留正文不标红，内嵌错误卡片提供主因、原始详情折叠复制、重试与模型设置入口', async () => {
+  let clipboardText = '';
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: async (value: string) => {
+        clipboardText = value;
+      }
+    }
+  });
+  const rawError = '401 {"error":{"message":"Incorrect API key provided"}}';
+  wrapper = mount(MessageList, {
+    props: {
+      session: session([
+        message({ role: 'user', entryId: 'u-err', text: '续写潇湘馆夜谈' }),
+        message({
+          role: 'assistant',
+          text: '黛玉正欲开口，忽闻窗外风竹作响。',
+          error: true,
+          errorMessage: rawError
+        })
+      ]),
+      approvals: [],
+      outgoing: []
+    }
+  });
+
+  // 已生成的正文保持正常样式，不染红。
+  const prose = wrapper.get('.agent-assistant-text');
+  expect(prose.text()).toContain('黛玉正欲开口');
+  expect(prose.classes()).not.toContain('agent-error');
+
+  // 末尾内嵌错误卡片显示提炼主因、模型设置与重试，默认折叠原始报错。
+  const card = wrapper.get('.agent-turn-error');
+  expect(card.text()).toContain('模型鉴权未通过（401）');
+  expect(card.find('.agent-turn-error-detail').exists()).toBe(false);
+
+  await card.get('button[aria-expanded="false"]').trigger('click');
+  expect(card.get('.agent-turn-error-detail pre').text()).toBe(rawError);
+  await card.get('button[aria-label="复制原始报错"]').trigger('click');
+  await flushPromises();
+  expect(clipboardText).toBe(rawError);
+
+  await card
+    .findAll('button')
+    .find(btn => btn.text() === '模型设置')!
+    .trigger('click');
+  expect(wrapper.emitted('openModelSettings')).toHaveLength(1);
+
+  await card
+    .findAll('button')
+    .find(btn => btn.text() === '重试')!
+    .trigger('click');
+  expect(wrapper.emitted('editMessage')?.[0]).toEqual([
+    { entryId: 'u-err', text: '续写潇湘馆夜谈', editorContext: undefined }
+  ]);
+});
+
+it('自动退避重试显示原因与次数；主动停止不标红且空输出常驻操作；拒收缺密钥气泡附模型设置入口', async () => {
+  // 1. 自动退避重试等待状态
+  const retryingSession = session([message({ role: 'user', entryId: 'u-1', text: '写第一段' })], true);
+  retryingSession.retrying = {
+    attempt: 1,
+    maxAttempts: 3,
+    delayMs: 2000,
+    errorMessage: '429 rate limit exceeded'
+  };
+  wrapper = mount(MessageList, {
+    props: { session: retryingSession, approvals: [], outgoing: [] }
+  });
+  expect(wrapper.get('.agent-waiting').text()).toContain('请求过快或触发供应商限流（429），正在自动重试（1/3）…');
+  wrapper.unmount();
+
+  // 2. 主动停止生成：显示浅色“已停止生成”，无错误卡片，空输出时重发操作常驻可见
+  wrapper = mount(MessageList, {
+    props: {
+      session: session([
+        message({ role: 'user', entryId: 'u-2', text: '写第二段' }),
+        message({ role: 'assistant', text: '', aborted: true })
+      ]),
+      approvals: [],
+      outgoing: []
+    }
+  });
+  expect(wrapper.find('.agent-turn-error').exists()).toBe(false);
+  expect(wrapper.get('.agent-turn-aborted').text()).toBe('已停止生成');
+  expect(wrapper.get('.agent-assistant .agent-message-action-buttons').classes()).toContain('is-visible');
+  wrapper.unmount();
+
+  // 3. 发送前缺密钥被宿主拒收：作者气泡附带“模型设置”“移除”“重试”
+  wrapper = mount(MessageList, {
+    props: {
+      session: session([]),
+      approvals: [],
+      outgoing: [
+        {
+          key: 'out-1',
+          text: '帮我梳理人物',
+          expectUsers: 1,
+          queuedInflight: false,
+          error: '未配置供应商“deepseek”的 API 密钥，请在模型设置中填写后重试'
+        }
+      ]
+    }
+  });
+  const failure = wrapper.get('.agent-user-failure');
+  expect(failure.text()).toContain('未配置供应商“deepseek”的 API 密钥');
+  await failure
+    .findAll('button')
+    .find(btn => btn.text() === '模型设置')!
+    .trigger('click');
+  expect(wrapper.emitted('openModelSettings')).toHaveLength(1);
+});

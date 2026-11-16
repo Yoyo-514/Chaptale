@@ -12,6 +12,7 @@ const props = defineProps<{
   canEdit?: boolean;
   canRetry?: boolean;
   disabled?: boolean;
+  alwaysVisible?: boolean;
   align?: 'start' | 'end';
 }>();
 
@@ -43,7 +44,11 @@ onBeforeUnmount(() => clearTimeout(copyTimer));
     class="agent-message-actions"
     :class="align === 'end' ? 'is-end' : 'is-start'"
   >
-    <div v-if="copyText || canEdit || canRetry" class="agent-message-action-buttons">
+    <div
+      v-if="copyText || canEdit || canRetry"
+      class="agent-message-action-buttons"
+      :class="{ 'is-visible': alwaysVisible }"
+    >
       <AppTooltip v-if="copyText" :text="copied ? '已复制' : '复制'">
         <AppButton type="button" icon size="xs" variant="ghost" aria-label="复制消息" @click="copy">
           <span
