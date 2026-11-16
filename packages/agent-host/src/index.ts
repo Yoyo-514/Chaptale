@@ -14,4 +14,5 @@ export {
   type HostSessionInput,
   type HostSessionSummary
 } from './session/session-pool.ts';
+export { defaultCodemodeTimeoutMs, maxCodemodeTimeoutMs, type HostCodemodeOptions } from './tools/codemode.ts';
 export type { HostToolAccess, HostToolAuthorizer, HostToolDecision, HostToolRequest } from './tools/tool-access.ts';

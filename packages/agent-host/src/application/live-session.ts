@@ -363,7 +363,7 @@ export class LiveSession {
       calls.push(call);
     } else {
       call = calls.find(item => item.id === event.toolCallId)!;
-      const info = toolResultInfo(event.structuredContent ?? event.details);
+      const info = toolResultInfo(event.details ?? event.structuredContent);
       call.status = event.isError ? 'error' : 'ok';
       call.info = info;
       if (event.isError)

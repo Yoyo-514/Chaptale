@@ -18,9 +18,51 @@ import type { EditMode } from '../../protocol.ts';
 
 export const id = Type.String({ minLength: 1 });
 export const nullableId = Type.Union([id, Type.Null()]);
+export const sectionSchema = Type.Union([Type.Literal('manuscript'), Type.Literal('resource')]);
+export const formatSchema = Type.Union([Type.Literal('txt'), Type.Literal('markdown')]);
 // OpenAI 兼容接口要求工具参数顶层为 type: object，不能用 Union；分支字段设为可选，组合由 creation 的参数校验判定。
 export const object = <T extends Record<string, TSchema>>(fields: T) =>
   Type.Object(fields, { additionalProperties: false });
+
+export const locatedEntrySchema = object({
+  workId: id,
+  entryId: id,
+  parentId: nullableId,
+  section: sectionSchema,
+  kind: Type.Union([Type.Literal('directory'), Type.Literal('document'), Type.Literal('file')]),
+  title: Type.String(),
+  position: Type.Integer(),
+  format: Type.Union([formatSchema, Type.Null()]),
+  fileName: nullableId,
+  wordCount: Type.Integer(),
+  revisionId: id,
+  createdAt: Type.Number(),
+  updatedAt: Type.Number(),
+  file: Type.Optional(
+    object({
+      image: Type.Boolean(),
+      size: Type.Optional(Type.Number()),
+      path: Type.Optional(Type.String()),
+      error: Type.Optional(Type.String())
+    })
+  )
+});
+
+export const entrySavedOutputSchema = object({
+  kind: Type.Union([Type.Literal('saved'), Type.Literal('pending')]),
+  entry: locatedEntrySchema
+});
+
+export const recordSourceSchema = Type.Union([
+  object({ kind: Type.Literal('chapter'), chapterId: id, revisionId: id }),
+  object({ kind: Type.Literal('author') })
+]);
+
+export const recordPlacementSchema = Type.Union([
+  object({ kind: Type.Literal('chapter'), chapterId: id }),
+  object({ kind: Type.Literal('opening') }),
+  object({ kind: Type.Literal('undetermined') })
+]);
 
 export function located<T extends Entry>(workId: string, entry: T) {
   const { id: entryId, ...metadata } = entry;
@@ -51,7 +93,7 @@ export function toolResult(result: CreationResult<JsonValue>) {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(result) }],
     details: result,
-    structuredContent: result,
+    ...(result.ok && { structuredContent: result.value }),
     isError: !result.ok
   };
 }
@@ -74,6 +116,7 @@ export interface WorkToolKit {
     label: string,
     description: string,
     parameters: S,
+    outputSchema: TSchema,
     execute: (
       input: Parameters<ToolDefinition<S>['execute']>[1],
       context: CreationAgentContext,
@@ -118,6 +161,7 @@ export function workToolKit(application: CreationApplication, mode: (sessionId: 
     label: string,
     description: string,
     parameters: S,
+    outputSchema: TSchema,
     execute: (
       input: Parameters<ToolDefinition<S>['execute']>[1],
       context: CreationAgentContext,
@@ -129,6 +173,7 @@ export function workToolKit(application: CreationApplication, mode: (sessionId: 
       label,
       description,
       parameters,
+      outputSchema,
       async execute(toolCallId, input, signal, _onUpdate, ctx) {
         signal?.throwIfAborted();
         const sessionId = ctx.sessionManager.getSessionId();

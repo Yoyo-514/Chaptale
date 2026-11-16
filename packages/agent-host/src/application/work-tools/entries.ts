@@ -6,12 +6,23 @@ import { Type, type Static } from 'typebox';
 import { isImageFile, type CreationAgentContext, type Entry } from '@chaptale/creation/contracts';
 import { fromIllustrationPlaceholders, toIllustrationPlaceholders } from '@chaptale/creation/text';
 
-import { id, located, mapResult, nullableId, object, toolResult, type WorkToolKit } from './shared.ts';
+import {
+  entrySavedOutputSchema,
+  formatSchema,
+  id,
+  located,
+  locatedEntrySchema,
+  mapResult,
+  nullableId,
+  object,
+  sectionSchema,
+  toolResult,
+  type WorkToolKit
+} from './shared.ts';
 
 const target = { workId: id, entryId: id };
 const revisionTarget = { ...target, expectedRevisionId: id };
-const section = Type.Union([Type.Literal('manuscript'), Type.Literal('resource')]);
-const newEntry = { workId: id, parentId: nullableId, title: Type.String(), section };
+const newEntry = { workId: id, parentId: nullableId, title: Type.String(), section: sectionSchema };
 const workReadParameters = Type.Object(
   {
     ...target,
@@ -20,6 +31,61 @@ const workReadParameters = Type.Object(
   },
   { additionalProperties: false }
 );
+const workSummarySchema = object({
+  workId: id,
+  title: Type.String(),
+  kind: Type.Union([Type.Literal('novel'), Type.Literal('script')]),
+  createdAt: Type.Number(),
+  updatedAt: Type.Number()
+});
+const workLsOutputSchema = Type.Union([Type.Array(workSummarySchema), Type.Array(locatedEntrySchema)]);
+const workReadOutputSchema = Type.Union([
+  object({
+    workId: id,
+    entryId: id,
+    parentId: nullableId,
+    section: sectionSchema,
+    kind: Type.Literal('document'),
+    title: Type.String(),
+    position: Type.Integer(),
+    format: formatSchema,
+    fileName: Type.Null(),
+    wordCount: Type.Integer(),
+    revisionId: id,
+    createdAt: Type.Number(),
+    updatedAt: Type.Number(),
+    pending: Type.Boolean(),
+    content: Type.String(),
+    attributes: Type.Optional(
+      object({
+        type: Type.String(),
+        aliases: Type.Array(Type.String()),
+        tags: Type.Array(Type.String()),
+        cover: nullableId
+      })
+    )
+  }),
+  object({ type: Type.Literal('image'), data: Type.String(), mimeType: Type.String(), note: Type.String() }),
+  Type.String()
+]);
+const workGrepOutputSchema = Type.Array(
+  object({
+    workId: id,
+    entryId: id,
+    revisionId: id,
+    title: Type.String(),
+    line: Type.Integer(),
+    text: Type.String()
+  })
+);
+const workSearchOutputSchema = object({
+  entries: Type.Array(locatedEntrySchema),
+  hasMore: Type.Boolean()
+});
+const workRmOutputSchema = Type.Union([
+  entrySavedOutputSchema,
+  object({ kind: Type.Literal('trashed'), entries: Type.Array(locatedEntrySchema) })
+]);
 
 /** Markdown 插图对 Agent 显示为文字占位，写入时还原。 */
 function agentText(document: { format: 'txt' | 'markdown'; content: string }) {
@@ -92,7 +158,8 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       'work_ls',
       '浏览作品',
       'workId 为 null 时列出作品；提供作品 ID 时列出 entryId 目录的直接子条目，entryId 缺省或为 null 表示根目录。返回稳定 ID 与修订、位置元数据；资料中的文件条目（kind 为 file）附带是否图片、大小与文件路径。',
-      object({ workId: nullableId, entryId: Type.Optional(nullableId), section: Type.Optional(section) }),
+      object({ workId: nullableId, entryId: Type.Optional(nullableId), section: Type.Optional(sectionSchema) }),
+      workLsOutputSchema,
       async (input, context) => {
         if (input.workId === null)
           return mapResult(application.executeAgent(context, { method: 'listWorks', input: {} }), works =>
@@ -121,6 +188,7 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       description:
         '按 workId 与 entryId 读取文稿或资料，包含本会话待接受修改；pending 为 true 表示读到的是本会话待作者接受的修改，正式稿尚未改变。资料另附类型、别名、标签与封面条目 ID。offset 为从 1 开始的行号，省略时从首行读取；limit 为最多读取行数，省略时读取至末尾。图片文件条目返回图片（模型支持读图时）；其他文件条目返回路径，需用原始工具读取。Markdown 正文中的插图显示为独占一行的 [插图：说明 entry:<图片条目ID>]，以该 ID 调用 work_read 可查看图片；写入时可保留、移动或删除插图占位，不能新建。',
       parameters: workReadParameters,
+      outputSchema: workReadOutputSchema,
       async execute(toolCallId, input, signal, onUpdate, ctx) {
         signal?.throwIfAborted();
         const sessionId = ctx.sessionManager.getSessionId();
@@ -155,9 +223,10 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       object({
         workId: id,
         pattern: Type.String(),
-        section: Type.Optional(section),
+        section: Type.Optional(sectionSchema),
         type: Type.Optional(Type.String({ minLength: 1 }))
       }),
+      Type.Array(locatedEntrySchema),
       async (input, context) => {
         const result = application.executeAgent(context, { method: 'listEntries', input: { workId: input.workId } });
         if (!result.ok) return result;
@@ -174,7 +243,8 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       'work_grep',
       '查找作品正文',
       '按 JavaScript 正则表达式逐行查找指定作品正文，包含本会话候选。返回稳定 ID、修订、从 1 开始的行号及匹配行；section 可限定分区。',
-      object({ workId: id, pattern: Type.String(), section: Type.Optional(section) }),
+      object({ workId: id, pattern: Type.String(), section: Type.Optional(sectionSchema) }),
+      workGrepOutputSchema,
       (input, context) => {
         let pattern: RegExp;
         try {
@@ -217,8 +287,9 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
         query: Type.String({ minLength: 1, pattern: '\\S' }),
         offset: Type.Integer({ minimum: 0 }),
         limit: Type.Integer({ minimum: 1 }),
-        section: Type.Optional(section)
+        section: Type.Optional(sectionSchema)
       }),
+      workSearchOutputSchema,
       async (input, context) => {
         const result = application.executeAgent(context, { method: 'searchDocuments', input });
         if (!result.ok) return result;
@@ -233,6 +304,7 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       '精确编辑作品正文',
       '按读取所得修订替换唯一匹配的 oldText。审阅模式写入本会话候选，直接修改模式生成正式修订。插图占位规则见 work_read。',
       object({ ...revisionTarget, oldText: Type.String({ minLength: 1 }), newText: Type.String() }),
+      entrySavedOutputSchema,
       (input, context, commandId) =>
         written(
           input.workId,
@@ -260,8 +332,8 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
         expectedRevisionId: Type.Optional(id),
         parentId: Type.Optional(nullableId),
         title: Type.Optional(Type.String()),
-        section: Type.Optional(section),
-        format: Type.Optional(Type.Union([Type.Literal('txt'), Type.Literal('markdown')])),
+        section: Type.Optional(sectionSchema),
+        format: Type.Optional(formatSchema),
         attributes: Type.Optional(
           Type.Object(
             {
@@ -273,6 +345,7 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
           )
         )
       }),
+      entrySavedOutputSchema,
       (input, context, commandId) => {
         const { entryId, ...fields } = input;
         const rest = {
@@ -299,6 +372,7 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       '创建作品目录',
       '在指定作品的文稿或资料分区创建目录，parentId 为 null 表示根目录。返回稳定 entryId。',
       object(newEntry),
+      entrySavedOutputSchema,
       (input, context, commandId) =>
         written(
           input.workId,
@@ -321,6 +395,7 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
         parentId: Type.Optional(nullableId),
         beforeEntryId: Type.Optional(nullableId)
       }),
+      entrySavedOutputSchema,
       (input, context, commandId) =>
         written(
           input.workId,
@@ -334,6 +409,7 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       '删除作品条目',
       '将文稿、资料或目录（连同其中内容）移入作品回收站，作者可以恢复。提供读取所得 expectedRevisionId。审阅模式下生成待作者接受的删除；删除本会话尚未被接受的新建条目时直接撤回该新建。',
       object(revisionTarget),
+      workRmOutputSchema,
       (input, context, commandId) =>
         written(
           input.workId,

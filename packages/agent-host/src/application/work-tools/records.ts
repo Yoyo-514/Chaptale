@@ -2,7 +2,35 @@ import type { JsonValue } from '@earendil-works/pi-ai';
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 
-import { agentRecord, id, mapResult, nullableId, object, placementOf, sourceOf, type WorkToolKit } from './shared.ts';
+import {
+  agentRecord,
+  id,
+  mapResult,
+  nullableId,
+  object,
+  placementOf,
+  recordPlacementSchema,
+  recordSourceSchema,
+  sourceOf,
+  type WorkToolKit
+} from './shared.ts';
+
+const recordSnapshotSchema = object({
+  recordId: id,
+  revisionId: Type.Optional(nullableId),
+  resourceIds: Type.Array(id),
+  text: Type.String(),
+  source: recordSourceSchema,
+  sourceChanged: Type.Optional(Type.Boolean()),
+  placement: recordPlacementSchema,
+  storyTime: Type.String(),
+  pending: Type.Optional(Type.Boolean())
+});
+const recordWriteOutputSchema = object({
+  kind: Type.Union([Type.Literal('saved'), Type.Literal('removed'), Type.Literal('pending')]),
+  removed: Type.Optional(Type.Boolean()),
+  record: recordSnapshotSchema
+});
 
 const recordWriteParameters = object({
   workId: id,
@@ -31,6 +59,7 @@ export function recordTools({ application, written, executeWrite, tool }: WorkTo
         sourceId: Type.Optional(nullableId),
         asOf: Type.Optional(nullableId)
       }),
+      Type.Array(recordSnapshotSchema),
       (input, context) =>
         mapResult(
           application.executeAgent(context, {
@@ -56,6 +85,7 @@ export function recordTools({ application, written, executeWrite, tool }: WorkTo
         '审阅模式写入本会话候选；移除本会话尚未接受的新建事件时直接撤回。'
       ].join(''),
       recordWriteParameters,
+      recordWriteOutputSchema,
       (input, context, commandId) => {
         const { workId, basis, recordId, expectedRevisionId } = input;
         if (input.remove)

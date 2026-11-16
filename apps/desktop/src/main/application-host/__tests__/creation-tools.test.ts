@@ -187,18 +187,17 @@ it('未归属作品的会话发现作品、列出根目录并按稳定身份读�
   expect(tools.filter(name => name.startsWith('creation_'))).toEqual([]);
   const works = await call('work_ls', { workId: null });
   expect(works.isError).toBe(false);
-  expect(works.result.structuredContent).toMatchObject({ ok: true, value: [{ workId, title: '长夜行' }] });
+  expect(works.result.structuredContent).toMatchObject([{ workId, title: '长夜行' }]);
   const entries = await call('work_ls', { workId, entryId: null });
   expect(entries.isError).toBe(false);
-  expect(entries.result.structuredContent).toMatchObject({
-    ok: true,
-    value: [{ workId, entryId: documentId, title: '序章' }]
-  });
+  expect(entries.result.structuredContent).toMatchObject([{ workId, entryId: documentId, title: '序章' }]);
   const document = await call('work_read', { workId, entryId: documentId, offset: 2, limit: 1 });
   expect(document.isError).toBe(false);
   expect(document.result.structuredContent).toMatchObject({
-    ok: true,
-    value: { workId, entryId: documentId, revisionId, content: '城外下雪。' }
+    workId,
+    entryId: documentId,
+    revisionId,
+    content: '城外下雪。'
   });
   expect(host.snapshot().approvals).toEqual([]);
 });
@@ -226,14 +225,11 @@ it('资料文件条目在目录中附带大小与路径，图片交给 pi 读取
   );
   const [image, pdf] = report.entries;
   const listed = await call('work_ls', { workId, section: 'resource' });
-  expect(listed.result.structuredContent).toMatchObject({
-    ok: true,
-    value: [
-      { entryId: image!.id, kind: 'file', title: '地图.png', file: { image: true, size: png.length } },
-      { entryId: pdf!.id, kind: 'file', title: '设定.pdf', file: { image: false, size: 3 } }
-    ]
-  });
-  const path = (listed.result.structuredContent as { value: { file: { path: string } }[] }).value[1]!.file.path;
+  expect(listed.result.structuredContent).toMatchObject([
+    { entryId: image!.id, kind: 'file', title: '地图.png', file: { image: true, size: png.length } },
+    { entryId: pdf!.id, kind: 'file', title: '设定.pdf', file: { image: false, size: 3 } }
+  ]);
+  const path = (listed.result.structuredContent as { file: { path: string } }[])[1]!.file.path;
   const imageRead = await call('work_read', { workId, entryId: image!.id });
   expect(imageRead.isError).toBe(false);
   expect(imageRead.result.content).toEqual(
@@ -243,7 +239,8 @@ it('资料文件条目在目录中附带大小与路径，图片交给 pi 读取
   );
   const other = await call('work_read', { workId, entryId: pdf!.id });
   expect(other.isError).toBe(true);
-  expect(other.result.structuredContent).toMatchObject({
+  expect(other.result.structuredContent).toBeUndefined();
+  expect(other.result.details).toMatchObject({
     ok: false,
     error: { message: `这个文件条目不是图片，需要时用原始工具读取：${path}` }
   });
@@ -266,10 +263,7 @@ it('Markdown 插图对 Agent 显示为占位，编辑时还原，不能新建插
     })
   );
   const read = await call('work_read', { workId, entryId: chapter.id });
-  expect(read.result.structuredContent).toMatchObject({
-    ok: true,
-    value: { content: '开头。\n[插图：城门 entry:img-1]\n结尾。' }
-  });
+  expect(read.result.structuredContent).toMatchObject({ content: '开头。\n[插图：城门 entry:img-1]\n结尾。' });
   const moved = await call('work_edit', {
     workId,
     entryId: chapter.id,
@@ -287,7 +281,8 @@ it('Markdown 插图对 Agent 显示为占位，编辑时还原，不能新建插
     oldText: '开头。',
     newText: '开头。\n[插图：新图 entry:img-2]'
   });
-  expect(created.result.structuredContent).toMatchObject({
+  expect(created.result.structuredContent).toBeUndefined();
+  expect(created.result.details).toMatchObject({
     ok: false,
     error: { message: '不能新建插图，只能保留或移动正文中已有的插图' }
   });
@@ -295,19 +290,17 @@ it('Markdown 插图对 Agent 显示为占位，编辑时还原，不能新建插
 
 it('默认读取完整正文，范围可读取至末尾，整篇覆盖允许清空正文', async () => {
   expect((await call('work_read', { workId, entryId: documentId })).result.structuredContent).toMatchObject({
-    ok: true,
-    value: { content: '将军守城。\n城外下雪。\n斥候回营。' }
+    content: '将军守城。\n城外下雪。\n斥候回营。'
   });
   expect((await call('work_read', { workId, entryId: documentId, offset: 3 })).result.structuredContent).toMatchObject({
-    ok: true,
-    value: { content: '斥候回营。' }
+    content: '斥候回营。'
   });
   expect(
     (await call('work_write', { workId, entryId: documentId, expectedRevisionId: revisionId, content: '' })).isError
   ).toBe(false);
   expect((await call('work_read', { workId, entryId: documentId })).result.structuredContent).toMatchObject({
-    ok: true,
-    value: { content: '', wordCount: 0 }
+    content: '',
+    wordCount: 0
   });
 });
 
@@ -315,25 +308,20 @@ it('精确编辑进入本会话候选，读取与其他会话、正式稿保持�
   const input = { workId, entryId: documentId, expectedRevisionId: revisionId, oldText: '守城', newText: '出城' };
   const edited = await call('work_edit', input);
   expect(edited.isError).toBe(false);
-  expect(edited.result.structuredContent).toMatchObject({
-    ok: true,
-    value: { kind: 'pending', entry: { workId, entryId: documentId } }
-  });
+  expect(edited.result.structuredContent).toMatchObject({ kind: 'pending', entry: { workId, entryId: documentId } });
   expect(read().content).toBe('将军守城。\n城外下雪。\n斥候回营。');
   const own = await call('work_read', { workId, entryId: documentId });
-  expect(own.result.structuredContent).toMatchObject({
-    ok: true,
-    value: { content: '将军出城。\n城外下雪。\n斥候回营。' }
-  });
+  expect(own.result.structuredContent).toMatchObject({ content: '将军出城。\n城外下雪。\n斥候回营。' });
   const other = (await host.execute({
     method: 'create',
     input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
   })) as string;
   const outside = await call('work_read', { workId, entryId: documentId }, randomUUID(), undefined, other);
-  expect(outside.result.structuredContent).toMatchObject({ ok: true, value: { content: read().content } });
+  expect(outside.result.structuredContent).toMatchObject({ content: read().content });
   const stale = await call('work_edit', { ...input, oldText: '出城', newText: '回城' });
   expect(stale.isError).toBe(true);
-  expect(stale.result.structuredContent).toMatchObject({ ok: false, error: { code: 'revision-conflict' } });
+  expect(stale.result.structuredContent).toBeUndefined();
+  expect(stale.result.details).toMatchObject({ ok: false, error: { code: 'revision-conflict' } });
   expect(pending()).toHaveLength(1);
   expect(pending(other)).toEqual([]);
 });
@@ -354,8 +342,8 @@ it('整篇写入区分新建和覆盖，保留既有标题格式，重复调用�
   )!;
   expect(resource.id).not.toBe(documentId);
   expect(created.result.structuredContent).toMatchObject({
-    ok: true,
-    value: { kind: 'saved', entry: { workId, entryId: resource.id, format: 'markdown' } }
+    kind: 'saved',
+    entry: { workId, entryId: resource.id, format: 'markdown' }
   });
   const input = { workId, entryId: documentId, expectedRevisionId: revisionId, content: '新的正文。' };
   const callId = randomUUID();
@@ -423,12 +411,9 @@ it('作品写工具支持新建资料属性和单独更新，审阅读取包含�
   expect(proposed.isError, JSON.stringify(proposed.result)).toBe(false);
   const seen = await call('work_read', { workId, entryId: resource.id });
   expect(seen.result.structuredContent).toMatchObject({
-    ok: true,
-    value: {
-      pending: true,
-      content: '守城的将军。',
-      attributes: { type: '人物', aliases: ['小沈'], tags: [], cover: null }
-    }
+    pending: true,
+    content: '守城的将军。',
+    attributes: { type: '人物', aliases: ['小沈'], tags: [], cover: null }
   });
   expect(
     value(creation.executeAuthor({ method: 'readDocument', input: { workId, documentId: resource.id } })).attributes
@@ -451,10 +436,7 @@ it('创建候选目录并移动、改名文稿，条目身份保持稳定，重�
   const moved = await call('work_mv', move);
   expect(moved.isError).toBe(false);
   const inside = await call('work_ls', { workId, entryId: folder.id });
-  expect(inside.result.structuredContent).toMatchObject({
-    ok: true,
-    value: [{ entryId: documentId, parentId: folder.id, position: 0 }]
-  });
+  expect(inside.result.structuredContent).toMatchObject([{ entryId: documentId, parentId: folder.id, position: 0 }]);
   const renamed = await call('work_mv', {
     workId,
     entryId: documentId,
@@ -463,12 +445,12 @@ it('创建候选目录并移动、改名文稿，条目身份保持稳定，重�
   });
   expect(renamed.isError).toBe(false);
   expect(renamed.result.structuredContent).toMatchObject({
-    ok: true,
-    value: { entry: { entryId: documentId, parentId: folder.id, title: '第一章' } }
+    entry: { entryId: documentId, parentId: folder.id, title: '第一章' }
   });
   const stale = await call('work_mv', move);
   expect(stale.isError).toBe(true);
-  expect(stale.result.structuredContent).toMatchObject({ ok: false, error: { code: 'entry-location-conflict' } });
+  expect(stale.result.structuredContent).toBeUndefined();
+  expect(stale.result.details).toMatchObject({ ok: false, error: { code: 'entry-location-conflict' } });
   expect(read()).toMatchObject({ id: documentId, parentId: null, title: '序章' });
   expect((await call('work_ls', { workId, entryId: documentId })).isError).toBe(true);
 });
@@ -488,23 +470,17 @@ it('按 glob 查找条目名称，包含候选改名及同名资料，并可限�
   ).toBe(false);
   const found = await call('work_find', { workId, pattern: '序?' });
   expect(found.isError).toBe(false);
-  expect(found.result.structuredContent).toMatchObject({
-    ok: true,
-    value: [
-      { workId, entryId: documentId, title: '序章', section: 'manuscript' },
-      { title: '序章', section: 'resource' }
-    ]
-  });
+  expect(found.result.structuredContent).toMatchObject([
+    { workId, entryId: documentId, title: '序章', section: 'manuscript' },
+    { title: '序章', section: 'resource' }
+  ]);
   expect(
     (await call('work_mv', { workId, entryId: documentId, expectedRevisionId: revisionId, title: '第一章' })).isError
   ).toBe(false);
   const renamed = await call('work_find', { workId, pattern: '第*章', section: 'manuscript' });
-  expect(renamed.result.structuredContent).toMatchObject({
-    ok: true,
-    value: [{ entryId: documentId, title: '第一章' }]
-  });
+  expect(renamed.result.structuredContent).toMatchObject([{ entryId: documentId, title: '第一章' }]);
   const absent = await call('work_find', { workId, pattern: '第*章', section: 'resource' });
-  expect(absent.result.structuredContent).toEqual({ ok: true, value: [] });
+  expect(absent.result.structuredContent).toEqual([]);
 });
 
 it('按资料类型查找规划资料', async () => {
@@ -544,8 +520,8 @@ it('按资料类型查找规划资料', async () => {
     );
   }
   const found = await call('work_find', { workId, pattern: '*', type: '规划' });
-  expect(found.result.structuredContent).toMatchObject({ ok: true, value: [{ title: '长夜大纲' }] });
-  expect((found.result.structuredContent as { value: unknown[] }).value).toHaveLength(1);
+  expect(found.result.structuredContent).toMatchObject([{ title: '长夜大纲' }]);
+  expect(found.result.structuredContent).toHaveLength(1);
 });
 
 it('按正则逐行查找本会话正文，返回行号和稳定身份，报告无效正则', async () => {
@@ -562,28 +538,20 @@ it('按正则逐行查找本会话正文，返回行号和稳定身份，报告�
   ).toBe(false);
   const matches = await call('work_grep', { workId, pattern: '^将军(出城|巡营)' });
   expect(matches.isError).toBe(false);
-  expect(matches.result.structuredContent).toEqual({
-    ok: true,
-    value: [
-      { workId, entryId: documentId, revisionId: pending()[0].version, title: '序章', line: 1, text: '将军出城。' }
-    ]
-  });
-  expect((await call('work_grep', { workId, pattern: '守城' })).result.structuredContent).toEqual({
-    ok: true,
-    value: []
-  });
+  expect(matches.result.structuredContent).toEqual([
+    { workId, entryId: documentId, revisionId: pending()[0].version, title: '序章', line: 1, text: '将军出城。' }
+  ]);
+  expect((await call('work_grep', { workId, pattern: '守城' })).result.structuredContent).toEqual([]);
   const other = (await host.execute({
     method: 'create',
     input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
   })) as string;
   const outside = await call('work_grep', { workId, pattern: '守城' }, randomUUID(), undefined, other);
-  expect(outside.result.structuredContent).toMatchObject({
-    ok: true,
-    value: [{ entryId: documentId, text: '将军守城。' }]
-  });
+  expect(outside.result.structuredContent).toMatchObject([{ entryId: documentId, text: '将军守城。' }]);
   const invalid = await call('work_grep', { workId, pattern: '[' });
   expect(invalid.isError).toBe(true);
-  expect(invalid.result.structuredContent).toMatchObject({
+  expect(invalid.result.structuredContent).toBeUndefined();
+  expect(invalid.result.details).toMatchObject({
     ok: false,
     error: { code: 'invalid-request', message: '正则表达式无效' }
   });
@@ -603,17 +571,17 @@ it('中文全文检索使用本会话候选并保留分页与分区，其他会�
   const found = await call('work_search', { workId, query: '长安', offset: 0, limit: 1, section: 'manuscript' });
   expect(found.isError).toBe(false);
   expect(found.result.structuredContent).toMatchObject({
-    ok: true,
-    value: { entries: [{ workId, entryId: documentId, revisionId: pending()[0].version }], hasMore: false }
+    entries: [{ workId, entryId: documentId, revisionId: pending()[0].version }],
+    hasMore: false
   });
   expect((await call('work_search', { workId, query: '长安', offset: 1, limit: 1 })).result.structuredContent).toEqual({
-    ok: true,
-    value: { entries: [], hasMore: false }
+    entries: [],
+    hasMore: false
   });
   expect(
     (await call('work_search', { workId, query: '长安', offset: 0, limit: 1, section: 'resource' })).result
       .structuredContent
-  ).toEqual({ ok: true, value: { entries: [], hasMore: false } });
+  ).toEqual({ entries: [], hasMore: false });
   const other = (await host.execute({
     method: 'create',
     input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
@@ -621,11 +589,11 @@ it('中文全文检索使用本会话候选并保留分页与分区，其他会�
   expect(
     (await call('work_search', { workId, query: '长安', offset: 0, limit: 1 }, randomUUID(), undefined, other)).result
       .structuredContent
-  ).toEqual({ ok: true, value: { entries: [], hasMore: false } });
+  ).toEqual({ entries: [], hasMore: false });
   expect(
     (await call('work_search', { workId, query: '将军', offset: 0, limit: 1 }, randomUUID(), undefined, other)).result
       .structuredContent
-  ).toMatchObject({ ok: true, value: { entries: [{ entryId: documentId, revisionId }] } });
+  ).toMatchObject({ entries: [{ entryId: documentId, revisionId }] });
 });
 
 it('切到讨论时，已经取得旧工具集合的写调用仍按执行时模式拒绝', async () => {
@@ -688,7 +656,7 @@ it('运行中的父工具按切换后的 callable 集合嵌套调用，讨论可
   await approve();
   const readResult = await reading;
   expect(readResult.isError, JSON.stringify(readResult.result)).toBe(false);
-  expect(readResult.result.structuredContent).toMatchObject({ ok: true, value: { content: read().content } });
+  expect(readResult.result.structuredContent).toMatchObject({ content: read().content });
   await host.execute({ method: 'mode', input: { id, mode: 'review' } });
   const restored = call('nested_work', { tool: 'work_write' });
   await approve();
@@ -1528,7 +1496,10 @@ it('覆盖导入与恢复导入前版本：属于作品的会话在运行则拒�
 });
 
 function structured(outcome: Awaited<ReturnType<typeof call>>) {
-  return outcome.result.structuredContent as CreationResult<Record<string, unknown>>;
+  const details = outcome.result.details as CreationResult<Record<string, unknown>>;
+  if (details.ok) expect(outcome.result.structuredContent).toEqual(details.value);
+  else expect(outcome.result.structuredContent).toBeUndefined();
+  return details;
 }
 
 async function createResource(title: string) {
@@ -1991,4 +1962,190 @@ it('作品会话支持“为这部作品记住”目录外只读授权，同作�
   await host.execute({ method: 'trashWork', input: { commandId: randomUUID(), workId } });
   await host.execute({ method: 'purgeWork', input: { commandId: randomUUID(), workId } });
   expect(host.snapshot().settings.toolPermissions).toEqual([]);
+});
+
+it('codemode 在审阅模式下直拿 work_* 解包业务对象，无需 tool_search 直接批量写入资料、事件与关系候选，失败时抛 Error', async () => {
+  const outcome = await call('codemode', {
+    code: `
+      const chapter = await tools.work_read({ workId: ${JSON.stringify(workId)}, entryId: ${JSON.stringify(documentId)} });
+      const general = await tools.work_write({
+        workId: ${JSON.stringify(workId)},
+        parentId: null,
+        section: 'resource',
+        format: 'markdown',
+        title: '沈临',
+        content: '北境守将。',
+        attributes: { type: '人物', aliases: ['沈将军'], tags: ['守军'] }
+      });
+      const scout = await tools.work_write({
+        workId: ${JSON.stringify(workId)},
+        parentId: null,
+        section: 'resource',
+        format: 'markdown',
+        title: '林越',
+        content: '军中斥候。',
+        attributes: { type: '人物' }
+      });
+      const record = await tools.work_record_write({
+        workId: ${JSON.stringify(workId)},
+        basis: '斥候回营。',
+        resourceIds: [general.entry.entryId, scout.entry.entryId],
+        text: '林越冒雪回营向沈临禀报敌情。',
+        sourceId: chapter.entryId,
+        sourceRevisionId: chapter.revisionId
+      });
+      const relation = await tools.work_relation_write({
+        workId: ${JSON.stringify(workId)},
+        basis: '将军守城。\\n斥候回营。',
+        resourceIds: [general.entry.entryId, scout.entry.entryId],
+        type: '上下级',
+        directed: true,
+        titles: ['主将', '斥候'],
+        milestones: [{ kind: 'start', sourceId: chapter.entryId, sourceRevisionId: chapter.revisionId }]
+      });
+      const records = await tools.work_record_ls({ workId: ${JSON.stringify(workId)} });
+      const relations = await tools.work_relation_ls({ workId: ${JSON.stringify(workId)} });
+      let staleError = '';
+      try {
+        await tools.work_edit({
+          workId: ${JSON.stringify(workId)},
+          entryId: chapter.entryId,
+          expectedRevisionId: 'stale-revision',
+          oldText: '将军守城。',
+          newText: '沈临守城。'
+        });
+      } catch (err) {
+        staleError = err.message;
+      }
+      return {
+        chapterTitle: chapter.title,
+        recordCount: records.length,
+        relationType: relations.relations[0].type,
+        recordKind: record.kind,
+        relationKind: relation.kind,
+        staleError
+      };
+    `
+  });
+
+  const text = outcome.result.content
+    .filter(block => block.type === 'text')
+    .map(block => block.text)
+    .join('\n');
+  expect(outcome.isError, text).toBe(false);
+  const parsed = JSON.parse(text.slice(text.indexOf('Output:\n\n') + 'Output:\n\n'.length).trim()) as {
+    chapterTitle: string;
+    recordCount: number;
+    relationType: string;
+    recordKind: string;
+    relationKind: string;
+    staleError: string;
+  };
+  expect(parsed).toMatchObject({
+    chapterTitle: '序章',
+    recordCount: 1,
+    relationType: '上下级',
+    recordKind: 'pending',
+    relationKind: 'pending'
+  });
+  expect(parsed.staleError).toContain('revision-conflict');
+  expect(pending()).toHaveLength(4);
+
+  // 重开带 codemode 调用记录的会话，验证运行中子调用事件提取到解包前的作品标题与字数摘要。
+  const session = host.liveSession(id)!;
+  const parentCallId = 'cm-live-activity';
+  session.sessionManager.appendMessage({
+    role: 'assistant',
+    content: [{ type: 'toolCall', id: parentCallId, name: 'codemode', arguments: { code: 'return 1;' } }],
+    api: 'openai-completions',
+    provider: 'offline-tools',
+    model: 'offline',
+    stopReason: 'toolUse',
+    timestamp: Date.now(),
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    }
+  });
+  const file = session.sessionFile!;
+  await host.execute({ method: 'close', input: { id } });
+  const reopenedId = (await host.execute({ method: 'open', input: { file } })) as string;
+  const toolEvents: Array<{ name: string; status: string; info?: unknown }> = [];
+  const unsubscribe = host.subscribe(event => {
+    if (event.kind === 'tool' && event.id === reopenedId) {
+      toolEvents.push({ name: event.call.name, status: event.call.status, info: event.call.info });
+    }
+  });
+  try {
+    const reopenedSession = host.liveSession(reopenedId)!;
+    const codemodeTool = reopenedSession.agent.state.tools.find(tool => tool.name === 'codemode')!;
+    await codemodeTool.execute(parentCallId, {
+      code: `return (await tools.work_read({ workId: ${JSON.stringify(workId)}, entryId: ${JSON.stringify(documentId)} })).title;`
+    });
+  } finally {
+    unsubscribe();
+  }
+  expect(toolEvents).toContainEqual({
+    name: 'work_read',
+    status: 'ok',
+    info: expect.objectContaining({ workId, title: '序章', section: 'manuscript' })
+  });
+});
+
+it('codemode 在讨论模式下拦截常驻与延迟写工具，嵌套读取目录外文件继续走三档授权', async () => {
+  const refDir = join(root, 'external-refs');
+  await mkdir(refDir);
+  await writeFile(join(refDir, 'a.txt'), '北境舆图');
+  await writeFile(join(refDir, 'b.txt'), '兵制考');
+  await host.execute({ method: 'mode', input: { id, mode: 'discuss' } });
+
+  const running = call('codemode', {
+    code: `
+      const entries = await tools.work_ls({ workId: ${JSON.stringify(workId)}, entryId: null });
+      let writeErr = '';
+      try {
+        await tools.work_record_write({
+          workId: ${JSON.stringify(workId)},
+          basis: '将军守城。',
+          resourceIds: ['missing'],
+          text: '不应写入',
+          placement: 'opening'
+        });
+      } catch (err) {
+        writeErr = err.message;
+      }
+      const firstRef = await tools.read({ path: ${JSON.stringify(join(refDir, 'a.txt'))} });
+      const secondRef = await tools.read({ path: ${JSON.stringify(join(refDir, 'b.txt'))} });
+      return { titles: entries.map(item => item.title), writeErr, firstRef, secondRef };
+    `
+  });
+
+  await expect.poll(() => host.snapshot().approvals).toHaveLength(1);
+  const approval = host.snapshot().approvals[0]!;
+  expect(approval.toolName).toBe('read');
+  await host.execute({ method: 'approve', input: { id: approval.id, allow: true, scope: 'session' } });
+
+  const outcome = await running;
+  const text = outcome.result.content
+    .filter(block => block.type === 'text')
+    .map(block => block.text)
+    .join('\n');
+  expect(outcome.isError, text).toBe(false);
+  const parsed = JSON.parse(text.slice(text.indexOf('Output:\n\n') + 'Output:\n\n'.length).trim()) as {
+    titles: string[];
+    writeErr: string;
+    firstRef: string;
+    secondRef: string;
+  };
+  expect(parsed).toEqual({
+    titles: ['序章'],
+    writeErr: '当前为讨论模式，作品只读',
+    firstRef: '北境舆图',
+    secondRef: '兵制考'
+  });
+  expect(pending()).toEqual([]);
 });

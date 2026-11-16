@@ -6,7 +6,10 @@ import {
   type ToolDefinition
 } from '@earendil-works/pi-coding-agent';
 
+import { codemodeToolName, createHostCodemodeExtension, type HostCodemodeOptions } from './codemode.ts';
+
 const toolSearchName = 'tool_search';
+const reservedToolNames = new Set([toolSearchName, codemodeToolName]);
 
 /** 只传递本次授权所需的数据，不把带模型与凭据的 SDK context 交给界面。 */
 export interface HostToolRequest {
@@ -28,6 +31,8 @@ export interface HostToolAccess {
   tools: ToolDefinition[];
   /** 每次实际执行重新求值；父工具获准不代表嵌套调用获准。 */
   authorize: HostToolAuthorizer;
+  /** 原生 Code Mode 单次脚本的默认与最大超时覆盖。 */
+  codemode?: HostCodemodeOptions;
   /** tool_search 加载工具后调用，宿主据此按会话状态校正声明的工具。 */
   onToolsLoaded?: (sessionId: string) => void;
   /** 原生事件只用于应用展示，执行与嵌套记录继续由 SDK 持有。 */
@@ -75,14 +80,18 @@ export function bindHostTools(access: HostToolAccess): {
 } {
   const names = access.tools.map(tool => tool.name);
   if (
-    names.some(name => !name || name.trim() !== name || name.includes('*') || /^[+-]/.test(name)) ||
+    names.some(
+      name => !name || name.trim() !== name || name.includes('*') || /^[+-]/.test(name) || reservedToolNames.has(name)
+    ) ||
     new Set(names).size !== names.length
   ) {
-    throw new Error('工具名必须唯一且不能包含 SDK 选择器通配符或修饰前缀');
+    throw new Error('工具名必须唯一且不能包含保留名、SDK 选择器通配符或修饰前缀');
   }
+  const hasTools = names.length > 0;
   // 延迟加载的工具由 pi 原生 tool_search 按需声明；加载后的调用仍经过下方授权。
   const deferred = new Set(access.tools.filter(tool => tool.exposure === 'deferred').map(tool => tool.name));
   if (deferred.size > 0) names.push(toolSearchName);
+  if (hasTools) names.push(codemodeToolName);
   const registered = new Set(names);
   return {
     names,
@@ -112,6 +121,7 @@ export function bindHostTools(access: HostToolAccess): {
     })),
     // 激活原生内置工具不等于应用授予了执行权；未显式注册的工具一律阻断。
     guard: pi => {
+      if (hasTools) createHostCodemodeExtension(access.codemode)(pi);
       if (deferred.size > 0) {
         createToolSearchExtension()(pi);
         pi.on('tool_result', (event, ctx) => {

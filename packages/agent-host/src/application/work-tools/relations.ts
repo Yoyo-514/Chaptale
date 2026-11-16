@@ -4,9 +4,48 @@ import { Type, type Static, type TSchema } from 'typebox';
 
 import type { MilestoneInput, MilestonePatch, RelationMilestone } from '@chaptale/creation/contracts';
 
-import { agentRelation, id, mapResult, nullableId, object, placementOf, sourceOf, type WorkToolKit } from './shared.ts';
+import {
+  agentRelation,
+  id,
+  mapResult,
+  nullableId,
+  object,
+  placementOf,
+  recordPlacementSchema,
+  recordSourceSchema,
+  sourceOf,
+  type WorkToolKit
+} from './shared.ts';
 
 const pair = <T extends TSchema>(item: T) => Type.Array(item, { minItems: 2, maxItems: 2 });
+const milestoneOutputSchema = object({
+  id: id,
+  kind: Type.Union([Type.Literal('start'), Type.Literal('end')]),
+  source: recordSourceSchema,
+  sourceChanged: Type.Optional(Type.Boolean()),
+  placement: recordPlacementSchema,
+  storyTime: Type.String()
+});
+const relationSnapshotSchema = object({
+  relationId: id,
+  revisionId: Type.Optional(nullableId),
+  resourceIds: pair(id),
+  type: Type.String(),
+  directed: Type.Boolean(),
+  titles: pair(Type.String()),
+  state: Type.Optional(Type.Union([Type.Literal('active'), Type.Literal('ended'), Type.Literal('undetermined')])),
+  milestones: Type.Array(milestoneOutputSchema),
+  pending: Type.Optional(Type.Boolean())
+});
+const relationLsOutputSchema = object({
+  relations: Type.Array(relationSnapshotSchema),
+  types: Type.Array(object({ type: Type.String(), directed: Type.Boolean(), titles: pair(Type.String()) }))
+});
+const relationWriteOutputSchema = object({
+  kind: Type.Union([Type.Literal('saved'), Type.Literal('removed'), Type.Literal('pending')]),
+  removed: Type.Optional(Type.Boolean()),
+  relation: relationSnapshotSchema
+});
 const relationWriteParameters = object({
   workId: id,
   basis: Type.String(),
@@ -63,6 +102,7 @@ export function relationTools({ application, written, executeWrite, tool }: Work
         'milestones 按发生位置排列，kind 为 start（建立）或 end（结束）；directed 为 true 时 titles 依次是 resourceIds 双方的称谓。建立／结束的 sourceChanged 为 true 表示出处章节在核对后又改过正文，source.revisionId 是此前核对的版本；只有作者能确认整章记录仍适用。'
       ].join(''),
       object({ workId: id, resourceId: Type.Optional(nullableId), asOf: Type.Optional(nullableId) }),
+      relationLsOutputSchema,
       (input, context) =>
         mapResult(
           application.executeAgent(context, {
@@ -83,6 +123,7 @@ export function relationTools({ application, written, executeWrite, tool }: Work
         '移除整条关系提供 relationId、expectedRevisionId 与 remove: true。审阅模式写入本会话候选；移除本会话尚未接受的新建关系时直接撤回。'
       ].join(''),
       relationWriteParameters,
+      relationWriteOutputSchema,
       (input, context, commandId) => {
         const { workId, basis, relationId, expectedRevisionId } = input;
         const fields = {
