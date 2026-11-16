@@ -22,6 +22,16 @@ const workTitle = computed(() => {
   if (workId === null) return '未归属作品';
   return creation.works.find(work => work.id === workId)?.title ?? '已删除的作品';
 });
+const sessionPermissions = computed(() => {
+  const sessionId = agent.active?.sessionId;
+  if (!sessionId || !agent.state) return [];
+  return agent.state.settings.toolPermissions.filter(
+    item => item.scope.kind === 'session' && item.scope.sessionId === sessionId
+  );
+});
+function revokePermission(id: string) {
+  void agent.perform(() => getDesktopApi().agentHost.request('revokeToolPermission', { id }));
+}
 </script>
 
 <template>
@@ -52,7 +62,25 @@ const workTitle = computed(() => {
       <dl class="agent-session-facts">
         <dt>所属作品</dt>
         <dd>{{ workTitle }}</dd>
+        <dt>本会话授权</dt>
+        <dd>{{ sessionPermissions.length ? `已允许 ${sessionPermissions.length} 处` : '未保存目录外授权' }}</dd>
       </dl>
+      <ul v-if="sessionPermissions.length" class="agent-session-permissions" aria-label="本会话已允许的目录外权限">
+        <li v-for="item in sessionPermissions" :key="item.id" class="agent-session-permission-item">
+          <div class="agent-session-permission-copy">
+            <span>{{ item.pathKind === 'file' ? '读取文件' : '读取目录' }}</span>
+            <code>{{ item.path }}</code>
+          </div>
+          <AppButton
+            type="button"
+            size="xs"
+            variant="ghost"
+            :disabled="!agent.connected"
+            @click="revokePermission(item.id)"
+            >撤销</AppButton
+          >
+        </li>
+      </ul>
       <p class="agent-field-help agent-session-scope">指令修改只作用于当前会话。</p>
       <InstructionsEditor
         :entries="agent.active.instructions"

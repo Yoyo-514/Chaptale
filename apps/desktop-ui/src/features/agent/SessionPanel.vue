@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch } from 'vue';
 
-import type { EditorContext } from '@chaptale/agent-host/protocol';
+import type { ApprovalScope, EditorContext } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog } from '@/components/AppDialog';
@@ -127,8 +127,8 @@ function move() {
   navigation.agentInMain = !navigation.agentInMain;
   navigation.auxiliaryOpen = true;
 }
-function approve(id: string, allow: boolean) {
-  void agent.perform(() => getDesktopApi().agentHost.request('approve', { id, allow }));
+function approve(id: string, allow: boolean, scope?: ApprovalScope) {
+  void agent.perform(() => getDesktopApi().agentHost.request('approve', { id, allow, ...(scope && { scope }) }));
 }
 
 type PendingBranchAction =

@@ -678,6 +678,20 @@
   margin-top: 2px;
   color: var(--primary-solid);
 }
+.agent-approval-scope {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.agent-approval-scope code {
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+.agent-approval-actions {
+  flex-wrap: wrap;
+}
 .agent-approval-detail {
   color: var(--muted-foreground);
   font-size: var(--ui-caption-size);
@@ -1141,6 +1155,42 @@
   flex-shrink: 0;
   margin: 0;
   padding: 0 16px 10px;
+}
+.agent-session-permissions {
+  display: flex;
+  max-height: 8.5rem;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  margin: 4px 16px 8px;
+  padding: 0;
+  list-style: none;
+}
+.agent-session-permission-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-acrylic-subtle);
+}
+.agent-session-permission-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--ui-caption-size);
+}
+.agent-session-permission-copy > span {
+  color: var(--muted-foreground);
+}
+.agent-session-permission-copy > code {
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  overflow-wrap: anywhere;
 }
 .agent-session-settings > .agent-settings-scroll {
   padding: 16px;

@@ -22,6 +22,11 @@ const sections: { id: SettingsSection; title: string; icon: string }[] = [
     icon: 'i-mingcute-edit-3-line'
   },
   {
+    id: 'permissions',
+    title: '工具授权',
+    icon: 'i-mingcute-shield-line'
+  },
+  {
     id: 'cloudSync',
     title: '云端账户',
     icon: 'i-mingcute-cloud-line'

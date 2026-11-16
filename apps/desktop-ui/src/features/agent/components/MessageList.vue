@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
-import type { Approval, EditorContext, QueuedDelivery, SessionView } from '@chaptale/agent-host/protocol';
+import type {
+  Approval,
+  ApprovalScope,
+  EditorContext,
+  QueuedDelivery,
+  SessionView
+} from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
 import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } from '@/utils/markdown';
@@ -15,7 +21,7 @@ import UserMessageItem from './UserMessageItem.vue';
 
 const props = defineProps<{ session: SessionView; approvals: Approval[]; outgoing: OutgoingMessage[] }>();
 const emit = defineEmits<{
-  approve: [id: string, allow: boolean];
+  approve: [id: string, allow: boolean, scope?: ApprovalScope];
   retry: [key: string];
   discard: [key: string];
   recallQueued: [delivery: QueuedDelivery, index: number];
@@ -234,12 +240,31 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
         <span class="i-mingcute-shield-line size-4 shrink-0" aria-hidden="true" />
         <span>助手想要{{ describeTool(approval.toolName, approval.input, false) }}</span>
       </p>
+      <p v-if="approval.remember" class="agent-approval-scope">
+        记住后允许读取{{ approval.remember.pathKind === 'file' ? '文件' : '目录' }}：<code>{{
+          approval.remember.path
+        }}</code>
+      </p>
       <details class="agent-approval-detail">
         <summary>查看参数</summary>
         <pre>{{ format(approval.input) }}</pre>
       </details>
-      <div class="agent-row">
-        <AppButton size="sm" variant="primary" @click="emit('approve', approval.id, true)">允许这次调用</AppButton>
+      <div class="agent-row agent-approval-actions">
+        <AppButton size="sm" variant="primary" @click="emit('approve', approval.id, true, 'once')">仅此次</AppButton>
+        <AppButton
+          v-if="approval.remember"
+          size="sm"
+          variant="outline"
+          @click="emit('approve', approval.id, true, 'session')"
+          >本会话允许</AppButton
+        >
+        <AppButton
+          v-if="approval.remember?.allowWork"
+          size="sm"
+          variant="outline"
+          @click="emit('approve', approval.id, true, 'work')"
+          >为这部作品记住</AppButton
+        >
         <AppButton size="sm" variant="ghost" @click="emit('approve', approval.id, false)">拒绝</AppButton>
       </div>
     </section>

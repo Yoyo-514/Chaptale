@@ -458,3 +458,74 @@ it('展开工具步骤后点击本作品有效文档标题直接在当前编辑�
     await rm(root, { recursive: true, force: true });
   }
 });
+
+it('授权卡片按可记住范围展示对应档位并派发 scope 参数', async () => {
+  wrapper = mount(MessageList, {
+    props: {
+      session: session([]),
+      outgoing: [],
+      approvals: [
+        {
+          id: 'once-only',
+          sessionId: 'session',
+          toolName: 'ls',
+          input: { path: 'D:\\' },
+          cwd: 'F:\\work'
+        },
+        {
+          id: 'session-only',
+          sessionId: 'session',
+          toolName: 'read',
+          input: { path: 'D:\\参考书\\职官志.txt' },
+          cwd: 'F:\\work',
+          remember: {
+            capability: 'fs_read',
+            path: 'D:\\参考书',
+            pathKind: 'directory',
+            allowWork: false
+          }
+        },
+        {
+          id: 'work-allowed',
+          sessionId: 'session',
+          toolName: 'read',
+          input: { path: 'D:\\note.txt' },
+          cwd: 'F:\\work',
+          remember: {
+            capability: 'fs_read',
+            path: 'D:\\note.txt',
+            pathKind: 'file',
+            allowWork: true
+          }
+        }
+      ]
+    }
+  });
+
+  const cards = wrapper.findAll('.agent-approval');
+  expect(cards).toHaveLength(3);
+
+  // 不可记住范围：仅显示“仅此次”和“拒绝”
+  expect(cards[0]!.find('.agent-approval-scope').exists()).toBe(false);
+  expect(cards[0]!.findAll('button').map(btn => btn.text())).toEqual(['仅此次', '拒绝']);
+
+  // 独立会话：显示“仅此次”“本会话允许”“拒绝”，提示读取目录
+  expect(cards[1]!.get('.agent-approval-scope').text()).toContain('记住后允许读取目录：D:\\参考书');
+  expect(cards[1]!.findAll('button').map(btn => btn.text())).toEqual(['仅此次', '本会话允许', '拒绝']);
+
+  // 归属作品会话：显示全部三档与“拒绝”，提示单文件降级范围
+  expect(cards[2]!.get('.agent-approval-scope').text()).toContain('记住后允许读取文件：D:\\note.txt');
+  const workButtons = cards[2]!.findAll('button');
+  expect(workButtons.map(btn => btn.text())).toEqual(['仅此次', '本会话允许', '为这部作品记住', '拒绝']);
+
+  await workButtons[0]!.trigger('click');
+  await workButtons[1]!.trigger('click');
+  await workButtons[2]!.trigger('click');
+  await workButtons[3]!.trigger('click');
+  expect(wrapper.emitted('approve')).toEqual([
+    ['work-allowed', true, 'once'],
+    ['work-allowed', true, 'session'],
+    ['work-allowed', true, 'work'],
+    ['work-allowed', false]
+  ]);
+});
