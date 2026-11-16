@@ -19,6 +19,7 @@ import { applyHostEvent } from './session/host-events';
 import { type SessionEntry, sessionEntries, sessionTitle } from './session/list';
 import { enqueueMessage, type OutgoingMessage, unsentMessages } from './session/outgoing';
 import { useComposerQuotes } from './session/quotes';
+import { formatSkillPrompt } from './skills';
 
 export type { OutgoingMessage } from './session/outgoing';
 export type { SessionEntry } from './session/list';
@@ -319,8 +320,9 @@ export const useAgentStore = defineStore('agent', () => {
     await perform(async () => {
       const removed = await getDesktopApi().agentHost.request('dequeue', { id, delivery, index });
       if (!removed) return;
+      const restored = formatSkillPrompt(removed.text, removed.skill);
       const existing = drafts.value[id]?.trim() ?? '';
-      drafts.value[id] = existing ? `${removed.text}\n${existing}` : removed.text;
+      drafts.value[id] = existing ? `${restored}\n${existing}` : restored;
       if (removed.editorContext?.selection && !quotes.current.value) quotes.set(removed.editorContext);
       else quotes.focus();
     });

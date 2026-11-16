@@ -296,3 +296,121 @@ it('生成中支持快捷键与按钮分别发送插话或稍后处理，并可�
     await rm(root, { recursive: true, force: true });
   }
 });
+
+it('输入 / 搜索当前范围已启用技能（含仅手动调用项），支持中文描述过滤、键盘选择与 Esc 收起', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'chaptale-composer-skills-'));
+  for (const part of ['agent', 'sessions', 'work', 'data']) await mkdir(join(root, part));
+  const runtime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    allowModelNetwork: false,
+    refreshOnCreate: false
+  });
+  const model = { provider: 'skill-test', id: 'offline' };
+  runtime.registerProvider(model.provider, {
+    baseUrl: 'http://127.0.0.1:9',
+    api: 'skill-test',
+    apiKey: 'offline-test',
+    models: [
+      {
+        id: model.id,
+        name: '离线技能模型',
+        reasoning: false,
+        input: ['text'],
+        contextWindow: 8192,
+        maxTokens: 512,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+      }
+    ]
+  });
+  const author = new CreationApplication(await openCreationStorage({ rootDir: join(root, 'creation') }));
+  const host = await HostApplication.create({
+    cwd: join(root, 'work'),
+    agentDir: join(root, 'agent'),
+    sessionDir: join(root, 'sessions'),
+    settingsFile: join(root, 'data', 'settings.json'),
+    builtinInstructions: [{ name: '默认', role: 'system', text: '离线测试指令', enabled: true }],
+    modelRuntime: runtime,
+    modelConfiguration: new HostModelConfiguration(join(root, 'config'), runtime),
+    creation: author,
+    tools: () => []
+  });
+  await host.execute({
+    method: 'createSkill',
+    input: { scope: 'global', workId: null, name: 'polish', description: '古风对白润色规范' }
+  });
+  await host.execute({
+    method: 'createSkill',
+    input: {
+      scope: 'global',
+      workId: null,
+      name: 'audit-plot',
+      description: '暗线伏笔一致性检查',
+      disableModelInvocation: true
+    }
+  });
+  await host.execute({
+    method: 'createSkill',
+    input: { scope: 'global', workId: null, name: 'disabled-one', description: '停用技能不应出现' }
+  });
+  await host.execute({
+    method: 'setSkillEnabled',
+    input: { scope: 'global', workId: null, name: 'disabled-one', enabled: false }
+  });
+
+  const agentClient: ChaptaleDesktopApi['agentHost'] = {
+    request: <K extends keyof HostCommands>(method: K, input: HostCommands[K]['input']) =>
+      host.execute({ method, input: structuredClone(input) } as HostCommand) as Promise<HostCommands[K]['output']>,
+    subscribe: listener => host.subscribe(listener),
+    onDisconnected: () => () => {}
+  };
+  const creationClient = {
+    request: (method: string, input: unknown) => author.execute({ method, input } as never),
+    subscribe: (listener: (event: unknown) => void) => author.subscribe(listener as never),
+    onDisconnected: () => () => {}
+  };
+  Object.defineProperty(window, 'chaptaleDesktop', {
+    configurable: true,
+    value: { agentHost: agentClient, creation: creationClient }
+  });
+
+  try {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const agent = useAgentStore();
+    await agent.connect();
+    agent.selectedModel = model;
+
+    wrapper = mount(MessageComposer, { attachTo: document.body, global: { plugins: [pinia] } });
+
+    // 新草稿输入 / 时列出已启用技能（包含 disable-model-invocation 手动技能，不含已停用项）
+    await wrapper.get('textarea').setValue('/');
+    await flushPromises();
+    const listbox = wrapper.get('[role="listbox"][aria-label="可用技能"]');
+    expect(listbox.text()).toContain('/skill:audit-plot');
+    expect(listbox.text()).toContain('仅手动');
+    expect(listbox.text()).toContain('/skill:polish');
+    expect(listbox.text()).not.toContain('disabled-one');
+
+    // 按 Esc 收起当前查询的补全浮层
+    await wrapper.get('textarea').trigger('keydown', { key: 'Escape' });
+    await flushPromises();
+    expect(wrapper.find('[role="listbox"][aria-label="可用技能"]').exists()).toBe(false);
+
+    // 继续按中文描述搜索，按 Enter 补全为 /skill:polish 并在后续空格后自动收起
+    await wrapper.get('textarea').setValue('/古风');
+    await flushPromises();
+    const filtered = wrapper.findAll('[role="option"]');
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]!.text()).toContain('/skill:polish');
+
+    await wrapper.get('textarea').trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    expect(agent.draft).toBe('/skill:polish ');
+    expect(wrapper.find('[role="listbox"][aria-label="可用技能"]').exists()).toBe(false);
+  } finally {
+    await host.dispose();
+    author.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -1,5 +1,7 @@
 import type { ChatMessage, NestedToolView, ToolResultInfo } from '@chaptale/agent-host/protocol';
 
+import { formatSkillPrompt } from './skills';
+
 export interface ToolEntryTarget {
   workId?: string;
   entryId: string;
@@ -36,6 +38,7 @@ export type TranscriptItem =
       text: string;
       compacted?: boolean;
       editorContext?: ChatMessage['editorContext'];
+      skill?: ChatMessage['skill'];
       branch?: ChatMessage['branch'];
     }
   /** 会话压缩总结，只读；它之前的对话已由总结代替。 */
@@ -75,6 +78,9 @@ function target(input: unknown): string {
 }
 
 function toolAction(name: string, input: unknown, info?: ToolResultInfo): [string, string] {
+  if (info?.skillName) {
+    return name === 'read' ? ['加载技能', '项'] : ['查阅技能', '次'];
+  }
   const fields = input as Record<string, unknown> | undefined;
   const section = info?.section ?? fields?.section;
   const subject = section === 'resource' ? '资料' : section === 'manuscript' ? '文稿' : '正文';
@@ -144,6 +150,9 @@ export function describeTool(
   info?: ToolResultInfo
 ): string {
   const [action] = toolAction(name, input, info);
+  if (info?.skillName) {
+    return `${failed ? '未能' : ''}${action}《${info.skillName}》`;
+  }
   if (name.startsWith('work_')) {
     const fields = input as Record<string, unknown> | undefined;
     const title = info?.title ?? (typeof fields?.title === 'string' ? fields.title : '');
@@ -259,7 +268,11 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
     const key = String(index);
     if (message.role === 'user') {
       currentTurnUser = message.entryId
-        ? { entryId: message.entryId, text: message.text, editorContext: message.editorContext }
+        ? {
+            entryId: message.entryId,
+            text: formatSkillPrompt(message.text, message.skill),
+            editorContext: message.editorContext
+          }
         : undefined;
       items.push({
         kind: 'user',
@@ -268,6 +281,7 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
         text: message.text,
         compacted: message.compacted,
         editorContext: message.editorContext,
+        ...(message.skill && { skill: message.skill }),
         branch: message.branch
       });
       return;

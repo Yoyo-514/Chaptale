@@ -731,3 +731,49 @@ it('自动退避重试显示原因与次数；主动停止不标红且空输出�
     .trigger('click');
   expect(wrapper.emitted('openModelSettings')).toHaveLength(1);
 });
+
+it('作者气泡与排队消息展示紧凑技能标签，编辑与重发无损回填 /skill: 命令', async () => {
+  const queuedSession = session([
+    message({
+      role: 'user',
+      entryId: 'u-only',
+      text: '',
+      skill: { name: 'outline' }
+    }),
+    message({
+      role: 'user',
+      entryId: 'u-args',
+      text: '改冷峻一点',
+      skill: { name: 'polish' }
+    })
+  ]);
+  queuedSession.queued = [{ delivery: 'followUp', text: '核对年表', skill: { name: 'timeline' } }];
+
+  wrapper = mount(MessageList, {
+    props: {
+      session: queuedSession,
+      approvals: [],
+      outgoing: [{ key: 'out-skill', text: '/skill:pacing 检查节奏', expectUsers: 3 }]
+    }
+  });
+
+  const badges = wrapper.findAll('.agent-skill-badge').map(node => node.text());
+  expect(badges).toEqual(['/skill:outline', '/skill:polish', '/skill:timeline', '/skill:pacing']);
+
+  const userArticles = wrapper.findAll('article[aria-label="作者"]');
+  // 仅调用技能无附加正文时不留空白正文块
+  expect(userArticles[0]!.find('.agent-user-text').exists()).toBe(false);
+  expect(userArticles[1]!.get('.agent-user-text').text()).toBe('改冷峻一点');
+  expect(userArticles[2]!.get('.agent-user-text').text()).toBe('检查节奏');
+
+  // 点击重发：完整带回 /skill:polish 改冷峻一点
+  await userArticles[1]!.get('button[aria-label="重试消息"]').trigger('click');
+  expect(wrapper.emitted('editMessage')?.[0]).toEqual([
+    { entryId: 'u-args', text: '/skill:polish 改冷峻一点', editorContext: undefined }
+  ]);
+
+  // 点击编辑：输入框回填 /skill:polish 改冷峻一点
+  await userArticles[1]!.get('button[aria-label="编辑消息"]').trigger('click');
+  await flushPromises();
+  expect((userArticles[1]!.get('textarea').element as HTMLTextAreaElement).value).toBe('/skill:polish 改冷峻一点');
+});

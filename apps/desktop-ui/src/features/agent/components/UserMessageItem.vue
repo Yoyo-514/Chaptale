@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 
-import type { EditorContext, MessageBranch } from '@chaptale/agent-host/protocol';
+import type { EditorContext, MessageBranch, SkillInvocationView } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTextarea } from '@/components/AppTextarea';
 
+import { formatSkillPrompt } from '../skills';
 import EditorContextBadge from './EditorContextBadge.vue';
 import MessageActions from './MessageActions.vue';
+import SkillBadge from './SkillBadge.vue';
 
 const props = defineProps<{
   entryId?: string;
   text: string;
   compacted?: boolean;
   editorContext?: EditorContext;
+  skill?: SkillInvocationView;
   branch?: MessageBranch;
   readonly?: boolean;
   busy?: boolean;
@@ -28,10 +31,11 @@ const emit = defineEmits<{
 const editing = ref(false);
 const draft = ref('');
 const editor = ref<InstanceType<typeof AppTextarea>>();
+const rawPrompt = computed(() => formatSkillPrompt(props.text, props.skill));
 
 async function startEdit() {
   if (!props.entryId || props.readonly || props.busy) return;
-  draft.value = props.text;
+  draft.value = rawPrompt.value;
   editing.value = true;
   await nextTick();
   editor.value?.focus();
@@ -50,7 +54,7 @@ function submitEdit() {
 
 function retry() {
   if (!props.entryId || props.busy) return;
-  emit('editMessage', { entryId: props.entryId, text: props.text, editorContext: props.editorContext });
+  emit('editMessage', { entryId: props.entryId, text: rawPrompt.value, editorContext: props.editorContext });
 }
 </script>
 
@@ -77,10 +81,11 @@ function retry() {
     </div>
     <div v-else class="agent-user-body">
       <EditorContextBadge v-if="editorContext" :context="editorContext" />
-      <div class="agent-user-text">{{ text }}</div>
+      <SkillBadge v-if="skill" :name="skill.name" />
+      <div v-if="text || !skill" class="agent-user-text">{{ text }}</div>
       <MessageActions
         align="end"
-        :copy-text="text"
+        :copy-text="rawPrompt"
         :branch="branch"
         :can-edit="!readonly && Boolean(entryId)"
         :can-retry="!readonly && Boolean(entryId)"

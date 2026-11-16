@@ -177,4 +177,50 @@ describe('buildTranscript', () => {
       retryTarget: { entryId: 'u-1', text: '分析第一章' }
     });
   });
+
+  it('命中已启用技能目录的只读工具显示加载或查阅技能，助手重试目标完整还原 /skill: 命令', () => {
+    const items = buildTranscript([
+      message({
+        role: 'user',
+        entryId: 'u-skill',
+        text: '把这章对话改冷峻',
+        skill: { name: 'polish' }
+      }),
+      message({
+        role: 'assistant',
+        tools: [
+          {
+            id: 'r-1',
+            name: 'read',
+            input: { path: 'D:/skills/polish/SKILL.md' },
+            info: { skillName: 'polish' }
+          },
+          {
+            id: 'l-1',
+            name: 'ls',
+            input: { path: 'D:/skills/polish/references' },
+            info: { skillName: 'polish' }
+          }
+        ]
+      }),
+      message({ role: 'toolResult', toolCallId: 'r-1', toolName: 'read', text: '# Polish' }),
+      message({ role: 'toolResult', toolCallId: 'l-1', toolName: 'ls', text: 'tone.md' }),
+      message({ role: 'assistant', text: '已按技能规范润色。' })
+    ]);
+    expect(items[0]).toMatchObject({
+      kind: 'user',
+      text: '把这章对话改冷峻',
+      skill: { name: 'polish' }
+    });
+    const toolTurn = items[1]!;
+    expect(toolTurn.kind).toBe('assistant');
+    if (toolTurn.kind !== 'assistant') return;
+    expect(summarizeTools(toolTurn.tools)).toBe('加载技能 1 项 · 查阅技能 1 次');
+    expect(toolRows(toolTurn.tools).map(row => row.summary)).toEqual(['加载技能《polish》', '查阅技能《polish》']);
+    const finalTurn = items[2]!;
+    expect(finalTurn).toMatchObject({
+      kind: 'assistant',
+      retryTarget: { entryId: 'u-skill', text: '/skill:polish 把这章对话改冷峻' }
+    });
+  });
 });

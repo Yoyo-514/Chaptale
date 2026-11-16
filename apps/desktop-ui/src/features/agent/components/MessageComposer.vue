@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 
-import type { EditMode, ModelRef } from '@chaptale/agent-host/protocol';
+import type { EditMode, ModelRef, SessionSkillItem } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
 import { AppForm } from '@/components/AppForm';
@@ -11,8 +11,10 @@ import { AppTooltip } from '@/components/AppTooltip';
 import { useSettingsStore } from '@/features/settings';
 import { getDesktopApi } from '@/utils/desktop-api';
 
+import { applySkillCompletion, filterSessionSkills, matchDraftSkillSlash } from '../skills';
 import { useAgentStore } from '../store';
 import ComposerQuoteChip from './ComposerQuoteChip.vue';
+import ComposerSkillMenu from './ComposerSkillMenu.vue';
 import SessionUsage from './SessionUsage.vue';
 
 const agent = useAgentStore();
@@ -43,8 +45,113 @@ const placeholder = computed(() => {
 const canQueueWhileRunning = computed(() =>
   Boolean(agent.active?.running && !agent.active.compacting && editable.value && agent.draft.trim())
 );
+
+const availableSkills = ref<SessionSkillItem[]>([]);
+const activeSkillIndex = ref(0);
+const dismissedQuery = ref<string | null>(null);
+const skillsLoaded = ref(false);
+let skillLoadVersion = 0;
+
+const slashMatch = computed(() => (editable.value ? matchDraftSkillSlash(agent.draft) : null));
+const filteredSkills = computed(() =>
+  slashMatch.value ? filterSessionSkills(availableSkills.value, slashMatch.value.query) : []
+);
+const skillMenuOpen = computed(() => {
+  if (!slashMatch.value || !skillsLoaded.value) return false;
+  if (dismissedQuery.value !== null && dismissedQuery.value === slashMatch.value.query) return false;
+  return filteredSkills.value.length > 0 || slashMatch.value.query === '';
+});
+
+async function refreshSkills() {
+  if (!agent.connected) return;
+  const version = ++skillLoadVersion;
+  try {
+    const client = getDesktopApi().agentHost;
+    let items: SessionSkillItem[];
+    if (agent.active) {
+      items = await client.request('sessionSkills', { id: agent.active.id });
+    } else {
+      const snapshot = await client.request('listSkills', { workId: agent.scope });
+      items = snapshot.skills
+        .filter(skill => skill.enabled && !skill.overriddenByWork)
+        .map(skill => ({
+          name: skill.name,
+          description: skill.description,
+          scope: skill.scope,
+          disableModelInvocation: skill.disableModelInvocation
+        }));
+    }
+    if (version !== skillLoadVersion) return;
+    availableSkills.value = items;
+    skillsLoaded.value = true;
+  } catch {
+    if (version !== skillLoadVersion) return;
+    availableSkills.value = [];
+    skillsLoaded.value = false;
+  }
+}
+
+watch(
+  [() => Boolean(slashMatch.value), () => agent.active?.id, () => agent.scope, () => agent.connected],
+  ([hasSlash]) => {
+    if (hasSlash) void refreshSkills();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => slashMatch.value?.query,
+  query => {
+    activeSkillIndex.value = 0;
+    if (query === undefined || (dismissedQuery.value !== null && query !== dismissedQuery.value)) {
+      dismissedQuery.value = null;
+    }
+  }
+);
+
+async function selectSkill(item: SessionSkillItem) {
+  agent.draft = applySkillCompletion(agent.draft, item.name);
+  dismissedQuery.value = null;
+  await nextTick();
+  textarea.value?.focus();
+}
+
+function openSkillSettings() {
+  dismissedQuery.value = slashMatch.value?.query ?? '';
+  settings.openPanel('skills');
+}
+
 function onKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
+  if (event.isComposing) return;
+  if (skillMenuOpen.value) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      dismissedQuery.value = slashMatch.value?.query ?? '';
+      return;
+    }
+    if (filteredSkills.value.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        activeSkillIndex.value = (activeSkillIndex.value + 1) % filteredSkills.value.length;
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        activeSkillIndex.value =
+          (activeSkillIndex.value - 1 + filteredSkills.value.length) % filteredSkills.value.length;
+        return;
+      }
+      if (
+        event.key === 'Tab' ||
+        (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey)
+      ) {
+        event.preventDefault();
+        void selectSkill(filteredSkills.value[activeSkillIndex.value]!);
+        return;
+      }
+    }
+  }
+  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.altKey) return;
   event.preventDefault();
   void agent.send(event.shiftKey ? 'followUp' : 'steer');
 }
@@ -72,92 +179,110 @@ function mode(value: string) {
 
 <template>
   <AppForm class="agent-composer" :disabled="!editable" @submit="agent.send('steer')">
-    <div class="agent-composer-box agent-column">
-      <ComposerQuoteChip v-if="agent.quotedSelection" :quote="agent.quotedSelection" @remove="agent.clearQuote()" />
-      <AppTextarea
-        ref="textarea"
-        v-model="agent.draft"
-        aria-label="消息"
-        :rows="2"
-        variant="plain"
-        resize="auto"
-        :placeholder="placeholder"
-        @keydown="onKeydown"
+    <div class="agent-composer-anchor agent-column">
+      <ComposerSkillMenu
+        v-if="skillMenuOpen && slashMatch"
+        :items="filteredSkills"
+        :active-index="activeSkillIndex"
+        :query="slashMatch.query"
+        @select="selectSkill"
+        @hover="activeSkillIndex = $event"
+        @open-settings="openSkillSettings"
       />
-      <div class="agent-composer-tools">
-        <AppSelect
-          aria-label="会话模型"
-          variant="ghost"
-          content-size="md"
-          class="agent-model-picker"
-          :disabled="agent.active?.running"
-          :model-value="modelKey"
-          :placeholder="modelPlaceholder"
-          @update:model-value="model"
-        >
-          <AppSelectItem
-            v-for="item in agent.state?.models"
-            :key="JSON.stringify([item.provider, item.id])"
-            :value="JSON.stringify({ provider: item.provider, id: item.id })"
-            >{{ item.name }}</AppSelectItem
+      <div class="agent-composer-box">
+        <ComposerQuoteChip v-if="agent.quotedSelection" :quote="agent.quotedSelection" @remove="agent.clearQuote()" />
+        <AppTextarea
+          ref="textarea"
+          v-model="agent.draft"
+          aria-label="消息"
+          :rows="2"
+          variant="plain"
+          resize="auto"
+          :placeholder="placeholder"
+          @keydown="onKeydown"
+        />
+        <div class="agent-composer-tools">
+          <AppSelect
+            aria-label="会话模型"
+            variant="ghost"
+            content-size="md"
+            class="agent-model-picker"
+            :disabled="agent.active?.running"
+            :model-value="modelKey"
+            :placeholder="modelPlaceholder"
+            @update:model-value="model"
           >
-          <AppSelectItem value="configure">配置模型…</AppSelectItem>
-        </AppSelect>
-        <AppSelect
-          aria-label="修改模式"
-          variant="ghost"
-          content-size="sm"
-          :model-value="agent.active ? agent.active.mode : agent.composeMode"
-          @update:model-value="mode"
-        >
-          <AppSelectItem v-for="item in modes" :key="item.value" :value="item.value">{{ item.label }}</AppSelectItem>
-        </AppSelect>
-        <span class="flex-1" />
-        <template v-if="agent.active?.running">
-          <template v-if="canQueueWhileRunning">
-            <AppTooltip text="稍后处理 (Ctrl+Shift+Enter)">
+            <AppSelectItem
+              v-for="item in agent.state?.models"
+              :key="JSON.stringify([item.provider, item.id])"
+              :value="JSON.stringify({ provider: item.provider, id: item.id })"
+              >{{ item.name }}</AppSelectItem
+            >
+            <AppSelectItem value="configure">配置模型…</AppSelectItem>
+          </AppSelect>
+          <AppSelect
+            aria-label="修改模式"
+            variant="ghost"
+            content-size="sm"
+            :model-value="agent.active ? agent.active.mode : agent.composeMode"
+            @update:model-value="mode"
+          >
+            <AppSelectItem v-for="item in modes" :key="item.value" :value="item.value">{{ item.label }}</AppSelectItem>
+          </AppSelect>
+          <span class="flex-1" />
+          <template v-if="agent.active?.running">
+            <template v-if="canQueueWhileRunning">
+              <AppTooltip text="稍后处理 (Ctrl+Shift+Enter)">
+                <AppButton
+                  type="button"
+                  icon
+                  size="sm"
+                  variant="ghost"
+                  aria-label="稍后处理"
+                  @click="agent.send('followUp')"
+                >
+                  <span class="i-mingcute-time-line size-4" aria-hidden="true" />
+                </AppButton>
+              </AppTooltip>
+              <AppTooltip text="立即插话 (Ctrl+Enter)">
+                <AppButton
+                  class="agent-send-button"
+                  type="submit"
+                  icon
+                  size="sm"
+                  variant="primary"
+                  aria-label="立即插话"
+                >
+                  <span class="i-mingcute-send-plane-line size-4" aria-hidden="true" />
+                </AppButton>
+              </AppTooltip>
+            </template>
+            <AppTooltip :text="agent.active.compacting ? '停止压缩' : '停止生成'">
               <AppButton
                 type="button"
                 icon
                 size="sm"
                 variant="ghost"
-                aria-label="稍后处理"
-                @click="agent.send('followUp')"
-              >
-                <span class="i-mingcute-time-line size-4" aria-hidden="true" />
-              </AppButton>
-            </AppTooltip>
-            <AppTooltip text="立即插话 (Ctrl+Enter)">
-              <AppButton class="agent-send-button" type="submit" icon size="sm" variant="primary" aria-label="立即插话">
-                <span class="i-mingcute-send-plane-line size-4" aria-hidden="true" />
-              </AppButton>
+                :aria-label="agent.active.compacting ? '停止压缩' : '停止生成'"
+                @click="agent.perform(() => getDesktopApi().agentHost.request('cancel', { id: agent.activeId! }))"
+                ><span class="i-mingcute-stop-fill size-4" aria-hidden="true"
+              /></AppButton>
             </AppTooltip>
           </template>
-          <AppTooltip :text="agent.active.compacting ? '停止压缩' : '停止生成'">
+          <AppTooltip v-else text="发送">
             <AppButton
-              type="button"
+              class="agent-send-button"
+              type="submit"
               icon
               size="sm"
-              variant="ghost"
-              :aria-label="agent.active.compacting ? '停止压缩' : '停止生成'"
-              @click="agent.perform(() => getDesktopApi().agentHost.request('cancel', { id: agent.activeId! }))"
-              ><span class="i-mingcute-stop-fill size-4" aria-hidden="true"
-            /></AppButton>
+              variant="primary"
+              aria-label="发送"
+              :disabled="!editable || !agent.draft.trim() || (!agent.active && !agent.selectedModel)"
+            >
+              <span class="i-mingcute-send-plane-line size-4" aria-hidden="true" />
+            </AppButton>
           </AppTooltip>
-        </template>
-        <AppTooltip v-else text="发送">
-          <AppButton
-            class="agent-send-button"
-            type="submit"
-            icon
-            size="sm"
-            variant="primary"
-            aria-label="发送"
-            :disabled="!editable || !agent.draft.trim() || (!agent.active && !agent.selectedModel)"
-          >
-            <span class="i-mingcute-send-plane-line size-4" aria-hidden="true" />
-          </AppButton>
-        </AppTooltip>
+        </div>
       </div>
     </div>
     <div v-if="agent.active" class="agent-composer-meta agent-column">

@@ -13,10 +13,12 @@ import { AppButton } from '@/components/AppButton';
 import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } from '@/utils/markdown';
 
 import { formatAgentError, formatRetryStatus } from '../error-format';
+import { splitOutgoingSkillPrompt } from '../skills';
 import type { OutgoingMessage } from '../store';
 import { buildTranscript, describeTool, hasRunningTools, summarizeTools, toolRows } from '../transcript';
 import EditorContextBadge from './EditorContextBadge.vue';
 import MessageActions from './MessageActions.vue';
+import SkillBadge from './SkillBadge.vue';
 import ToolCallRow from './ToolCallRow.vue';
 import TurnErrorCard from './TurnErrorCard.vue';
 import UserMessageItem from './UserMessageItem.vue';
@@ -79,6 +81,7 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
         :text="item.text"
         :compacted="item.compacted"
         :editor-context="item.editorContext"
+        :skill="item.skill"
         :branch="item.branch"
         :readonly="Boolean(session.readonly)"
         :busy="session.running"
@@ -197,7 +200,8 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
     >
       <div class="agent-user-body">
         <EditorContextBadge v-if="queuedItem.editorContext" :context="queuedItem.editorContext" />
-        <div class="agent-user-text">{{ queuedItem.text }}</div>
+        <SkillBadge v-if="queuedItem.skill" :name="queuedItem.skill.name" />
+        <div v-if="queuedItem.text || !queuedItem.skill" class="agent-user-text">{{ queuedItem.text }}</div>
         <p class="agent-user-queue-status">
           <span
             :class="queuedItem.delivery === 'followUp' ? 'i-mingcute-time-line' : 'i-mingcute-send-plane-line'"
@@ -225,7 +229,16 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
     >
       <div class="agent-user-body">
         <EditorContextBadge v-if="item.editorContext" :context="item.editorContext" />
-        <div class="agent-user-text">{{ item.text }}</div>
+        <SkillBadge
+          v-if="splitOutgoingSkillPrompt(item.text).skill"
+          :name="splitOutgoingSkillPrompt(item.text).skill!.name"
+        />
+        <div
+          v-if="splitOutgoingSkillPrompt(item.text).text || !splitOutgoingSkillPrompt(item.text).skill"
+          class="agent-user-text"
+        >
+          {{ splitOutgoingSkillPrompt(item.text).text }}
+        </div>
         <p v-if="!item.error && item.delivery" class="agent-user-queue-status">
           <span
             :class="item.delivery === 'followUp' ? 'i-mingcute-time-line' : 'i-mingcute-send-plane-line'"
