@@ -26,13 +26,31 @@ export interface NamedInstructions {
   name: string;
   entries: AgentInstructions;
 }
-/** 本机应用设置；只决定新会话的初始指令与模式。 */
+export type ApprovalScope = 'once' | 'session' | 'work';
+export type ToolPermissionScope = { kind: 'session'; sessionId: string } | { kind: 'work'; workId: string };
+export interface ToolPermission {
+  id: string;
+  scope: ToolPermissionScope;
+  capability: 'fs_read';
+  path: string;
+  pathKind: 'directory' | 'file';
+}
+export interface ApprovalRememberOption {
+  capability: 'fs_read';
+  path: string;
+  pathKind: 'directory' | 'file';
+  /** 会话归属有效作品时为 true，允许保存为本机作品级授权。 */
+  allowWork: boolean;
+}
+/** 本机应用设置；不进入作品备份。 */
 export interface HostSettings {
   defaultInstructions: AgentInstructions;
   namedInstructions: NamedInstructions[];
   defaultMode: EditMode;
   /** 作者最近一次选择的模型（新建会话或会话中切换），新会话沿用；可能已从配置中删除。 */
   lastModel: ModelRef | null;
+  /** 作者主动记住的会话级与作品级本机工具放行规则。 */
+  toolPermissions: ToolPermission[];
 }
 /** 只读历史的原因；lines 是无法解析的 JSONL 行号（从 1 开始）。 */
 export interface ReadonlyHistory {
@@ -207,6 +225,8 @@ export interface Approval {
   toolName: string;
   input: unknown;
   cwd: string;
+  /** 可记住的放行范围；路径无法静态解析或直接读取盘符根／用户主目录时为空（仅开放单次允许）。 */
+  remember?: ApprovalRememberOption;
 }
 export interface HostState {
   cursor: number;
@@ -268,7 +288,8 @@ export interface HostCommands {
   /** 换回导入前快照，会话规则同覆盖导入。files 由平台移入回收站。 */
   restoreWorkSnapshot: { input: { commandId: string; workId: string }; output: WorkReplacement };
   model: { input: { id: string; model: ModelRef }; output: void };
-  approve: { input: { id: string; allow: boolean }; output: void };
+  approve: { input: { id: string; allow: boolean; scope?: ApprovalScope }; output: void };
+  revokeToolPermission: { input: { id: string }; output: void };
   /** 只读历史不能重命名。 */
   rename: { input: { id: string; name: string }; output: void };
   /** 枚举宿主管理目录中的全部原生历史，业务归属由应用层筛选。 */

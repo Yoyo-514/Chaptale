@@ -45,7 +45,13 @@ it('原生子调用增量到达时刷新动作计数，完成记录替换临时�
     tools: [],
     models: [],
     approvals: [],
-    settings: { defaultInstructions: [], defaultMode: 'review', lastModel: null, namedInstructions: [] },
+    settings: {
+      defaultInstructions: [],
+      defaultMode: 'review',
+      lastModel: null,
+      namedInstructions: [],
+      toolPermissions: []
+    },
     sessions: [
       session(
         [message({ role: 'assistant', tools: [{ id: 'script', name: 'codemode', input: { code: '批量操作' } }] })],

@@ -1,7 +1,17 @@
+import { randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 
 import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
-import type { AgentInstructions, EditMode, HostSettings, ModelRef, NamedInstructions } from '../protocol.ts';
+import type {
+  AgentInstructions,
+  EditMode,
+  HostSettings,
+  ModelRef,
+  NamedInstructions,
+  ToolPermission,
+  ToolPermissionScope
+} from '../protocol.ts';
+import { sameFsPath } from '../tools/cwd-paths.ts';
 
 /**
  * 设置文件内容；defaultInstructions 为 null 表示作者尚未设置，新会话使用应用内置指令。
@@ -12,13 +22,15 @@ interface AppSettings {
   namedInstructions: NamedInstructions[];
   defaultMode: EditMode;
   lastModel: ModelRef | null;
+  toolPermissions: ToolPermission[];
 }
 
 const initialSettings: AppSettings = {
   defaultInstructions: null,
   namedInstructions: [],
   defaultMode: 'review',
-  lastModel: null
+  lastModel: null,
+  toolPermissions: []
 };
 
 function normalizeModel(value: ModelRef): ModelRef {
@@ -32,17 +44,53 @@ function normalizeNamed(value: NamedInstructions): NamedInstructions {
   return { name: value.name, entries: normalizeInstructions(value.entries) };
 }
 
+function normalizePermissionScope(scope: ToolPermissionScope): ToolPermissionScope {
+  if (scope.kind === 'session' && typeof scope.sessionId === 'string' && scope.sessionId.trim()) {
+    return { kind: 'session', sessionId: scope.sessionId };
+  }
+  if (scope.kind === 'work' && typeof scope.workId === 'string' && scope.workId.trim()) {
+    return { kind: 'work', workId: scope.workId };
+  }
+  throw new Error('工具授权作用域无效');
+}
+
+function normalizeToolPermission(value: ToolPermission): ToolPermission {
+  if (typeof value.id !== 'string' || !value.id.trim()) throw new Error('工具授权需要稳定 ID');
+  if (value.capability !== 'fs_read') throw new Error('工具授权能力无效');
+  if (typeof value.path !== 'string' || !value.path.trim()) throw new Error('工具授权需要路径');
+  if (value.pathKind !== 'directory' && value.pathKind !== 'file') throw new Error('工具授权路径类型无效');
+  return {
+    id: value.id,
+    scope: normalizePermissionScope(value.scope),
+    capability: 'fs_read',
+    path: value.path,
+    pathKind: value.pathKind
+  };
+}
+
+function sameScope(left: ToolPermissionScope, right: ToolPermissionScope): boolean {
+  if (left.kind !== right.kind) return false;
+  return left.kind === 'session'
+    ? left.sessionId === (right as { kind: 'session'; sessionId: string }).sessionId
+    : left.workId === (right as { kind: 'work'; workId: string }).workId;
+}
+
 function parseSettings(value: AppSettings): AppSettings {
   const namedInstructions = value.namedInstructions.map(normalizeNamed);
   if (new Set(namedInstructions.map(item => item.name)).size !== namedInstructions.length) {
     throw new Error('命名指令名称重复');
   }
+  const toolPermissions = value.toolPermissions ? value.toolPermissions.map(normalizeToolPermission) : [];
+  if (new Set(toolPermissions.map(item => item.id)).size !== toolPermissions.length) {
+    throw new Error('工具授权 ID 重复');
+  }
   return {
     defaultInstructions: value.defaultInstructions === null ? null : normalizeInstructions(value.defaultInstructions),
     namedInstructions,
     defaultMode: normalizeMode(value.defaultMode),
-    // 早于该字段写入的设置文件表示尚未选择过模型。
-    lastModel: value.lastModel ? normalizeModel(value.lastModel) : null
+    // 早于对应字段写入的设置文件保留为空。
+    lastModel: value.lastModel ? normalizeModel(value.lastModel) : null,
+    toolPermissions
   };
 }
 
@@ -65,7 +113,7 @@ async function loadSettings(file: string): Promise<AppSettings> {
 }
 
 /**
- * 应用数据目录下的本机设置：全局默认指令、命名指令与默认模式。
+ * 应用数据目录下的本机设置：全局默认指令、命名指令、默认模式与本机工具放行规则。
  * 不进作品备份，不复用 pi 的 SettingsManager；每次修改先写入文件，成功后才更新内存。
  */
 export class AppSettingsStore {
@@ -88,7 +136,8 @@ export class AppSettingsStore {
       defaultInstructions: this.value.defaultInstructions ?? this.builtin,
       namedInstructions: this.value.namedInstructions,
       defaultMode: this.value.defaultMode,
-      lastModel: this.value.lastModel
+      lastModel: this.value.lastModel,
+      toolPermissions: this.value.toolPermissions
     };
   }
 
@@ -102,6 +151,14 @@ export class AppSettingsStore {
 
   get defaultMode(): EditMode {
     return this.value.defaultMode;
+  }
+
+  permissionsFor(sessionId: string, workId: string | null): ToolPermission[] {
+    return this.value.toolPermissions.filter(item =>
+      item.scope.kind === 'session'
+        ? item.scope.sessionId === sessionId
+        : workId !== null && item.scope.workId === workId
+    );
   }
 
   setDefaultInstructions(entries: AgentInstructions): Promise<void> {
@@ -134,6 +191,50 @@ export class AppSettingsStore {
     const last = this.value.lastModel;
     if (last?.provider === next.provider && last.id === next.id) return false;
     await this.save({ ...this.value, lastModel: next });
+    return true;
+  }
+
+  /** 已存在完全相同的放行规则时不重复写盘。 */
+  async addToolPermission(draft: Omit<ToolPermission, 'id'>): Promise<boolean> {
+    const normalized = normalizeToolPermission({ id: randomUUID(), ...draft });
+    const exists = this.value.toolPermissions.some(
+      item =>
+        sameScope(item.scope, normalized.scope) &&
+        item.capability === normalized.capability &&
+        item.pathKind === normalized.pathKind &&
+        sameFsPath(item.path, normalized.path)
+    );
+    if (exists) return false;
+    await this.save({ ...this.value, toolPermissions: [...this.value.toolPermissions, normalized] });
+    return true;
+  }
+
+  async revokeToolPermission(id: string): Promise<void> {
+    const list = this.value.toolPermissions;
+    if (!list.some(item => item.id === id)) throw new Error('授权规则不存在');
+    await this.save({ ...this.value, toolPermissions: list.filter(item => item.id !== id) });
+  }
+
+  async clearSessionPermissions(sessionIds: Iterable<string>): Promise<boolean> {
+    const ids = new Set(sessionIds);
+    if (ids.size === 0) return false;
+    const next = this.value.toolPermissions.filter(
+      item => !(item.scope.kind === 'session' && ids.has(item.scope.sessionId))
+    );
+    if (next.length === this.value.toolPermissions.length) return false;
+    await this.save({ ...this.value, toolPermissions: next });
+    return true;
+  }
+
+  async clearWorkPermissions(workId: string, sessionIds: Iterable<string> = []): Promise<boolean> {
+    const ids = new Set(sessionIds);
+    const next = this.value.toolPermissions.filter(
+      item =>
+        !(item.scope.kind === 'work' && item.scope.workId === workId) &&
+        !(item.scope.kind === 'session' && ids.has(item.scope.sessionId))
+    );
+    if (next.length === this.value.toolPermissions.length) return false;
+    await this.save({ ...this.value, toolPermissions: next });
     return true;
   }
 

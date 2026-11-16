@@ -9,6 +9,7 @@ import type { ImportWorkPackageInput } from '@chaptale/creation/contracts';
 import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
 import {
   type AgentInstructions,
+  type ApprovalScope,
   type HostChange,
   type HostCommand,
   type HostEvent,
@@ -24,8 +25,8 @@ import type { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
 import { HostSessionOpenError } from '../session/session-storage.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
-import { targetsCwd } from '../tools/cwd-paths.ts';
-import type { HostToolDecision } from '../tools/tool-access.ts';
+import { inspectFsReadTarget, matchesFsReadPermission } from '../tools/cwd-paths.ts';
+import type { HostToolDecision, HostToolRequest } from '../tools/tool-access.ts';
 import { ToolApprovals } from './approvals.ts';
 import { damagedHistory, sessionHistory, type SessionHistory } from './history.ts';
 import { type AppliedInstructions, instructionCallbacks, LiveSession } from './live-session.ts';
@@ -160,7 +161,10 @@ export class HostApplication {
       case 'restoreWorkSnapshot':
         return this.restoreWorkSnapshot(command.input);
       case 'approve':
-        return this.approvals.approve(command.input.id, command.input.allow);
+        return this.approveTool(command.input);
+      case 'revokeToolPermission':
+        await this.settings.revokeToolPermission(command.input.id);
+        return this.emitSettings();
       case 'rename':
         return this.live(command.input.id).rename(command.input.name);
       case 'model': {
@@ -334,11 +338,31 @@ export class HostApplication {
       }),
       toolAccess: {
         tools: this.tools(cwd),
-        // 原生文件工具在工作目录内不逐次询问，目录外仍由作者授权。
-        authorize: async (request: Parameters<ToolApprovals['authorize']>[0], signal: AbortSignal | undefined) => {
+        // 原生文件工具在工作目录内不逐次询问，目录外先匹配本机会话／作品放行规则，未命中则由作者授权。
+        authorize: async (request: HostToolRequest, signal: AbortSignal | undefined) => {
           if (this.options.creation && workToolNames.has(request.toolName)) return this.authorizeWorkTool(request);
-          if (await targetsCwd(request.toolName, request.input, request.cwd)) return { allow: true } as const;
-          return this.approvals.authorize(request, signal);
+          const fsRead = await inspectFsReadTarget(request.toolName, request.input, request.cwd);
+          const workId = work && (!this.options.creation || this.findWork(work.id)) ? work.id : null;
+          if (fsRead) {
+            if (fsRead.inCwd) return { allow: true } as const;
+            if (
+              fsRead.target &&
+              this.settings
+                .permissionsFor(request.sessionId, workId)
+                .some(rule => rule.capability === 'fs_read' && matchesFsReadPermission(rule, fsRead.target!))
+            ) {
+              return { allow: true } as const;
+            }
+          }
+          return this.approvals.enqueue(
+            {
+              ...request,
+              workId,
+              target: fsRead?.target,
+              remember: fsRead?.remember && { ...fsRead.remember, allowWork: workId !== null }
+            },
+            signal
+          );
         },
         onToolsLoaded: (sessionId: string) => this.live(sessionId).syncWorkTools(),
         onToolActivity: (sessionId: string, event: Parameters<LiveSession['toolActivity']>[0]) =>
@@ -442,7 +466,58 @@ export class HostApplication {
       if (!forgotten.ok) throw new Error(forgotten.error.message);
     }
     for (const [id] of open) await this.close(id);
+    if (await this.settings.clearSessionPermissions(ids)) this.emitSettings();
     return { files };
+  }
+
+  private async approveTool(input: { id: string; allow: boolean; scope?: ApprovalScope }): Promise<void> {
+    const pending = this.approvals.peek(input.id);
+    if (!pending) throw new Error('授权请求已结束，请查看当前状态');
+    if (!input.allow) {
+      this.approvals.finish(input.id, { allow: false });
+      return;
+    }
+    const scope = input.scope ?? 'once';
+    if (scope === 'once') {
+      this.approvals.finish(input.id, { allow: true });
+      return;
+    }
+    const remember = pending.value.remember;
+    if (!remember) throw new Error('该调用仅支持单次允许');
+    if (scope === 'work') {
+      if (!remember.allowWork || !pending.workId || (this.options.creation && !this.findWork(pending.workId))) {
+        throw new Error('当前会话不支持保存作品级授权');
+      }
+      if (
+        await this.settings.addToolPermission({
+          scope: { kind: 'work', workId: pending.workId },
+          capability: remember.capability,
+          path: remember.path,
+          pathKind: remember.pathKind
+        })
+      ) {
+        this.emitSettings();
+      }
+    } else {
+      if (
+        await this.settings.addToolPermission({
+          scope: { kind: 'session', sessionId: pending.value.sessionId },
+          capability: remember.capability,
+          path: remember.path,
+          pathKind: remember.pathKind
+        })
+      ) {
+        this.emitSettings();
+      }
+    }
+    const resolved = this.approvals.finish(input.id, { allow: true });
+    this.approvals.allowMatching(entry => {
+      if (!entry.target) return false;
+      return this.settings
+        .permissionsFor(entry.value.sessionId, entry.workId)
+        .some(rule => rule.capability === 'fs_read' && matchesFsReadPermission(rule, entry.target!));
+    });
+    if (!resolved) throw new Error('授权请求已结束，请查看当前状态');
   }
 
   /** 未归属会话的历史文件移入作品目录；已打开的先关闭，移动后重新打开。 */
@@ -511,6 +586,8 @@ export class HostApplication {
     const purged = this.options.creation!.executeAuthor({ method: 'purgeWork', input });
     if (!purged.ok) throw new Error(purged.error.message);
     for (const id of open) await this.close(id);
+    const workSessionIds = (await this.history()).filter(item => item.workId === input.workId).map(item => item.id);
+    if (await this.settings.clearWorkPermissions(input.workId, workSessionIds)) this.emitSettings();
     const sessions = join(this.options.sessionDir, input.workId);
     const exists = await stat(sessions).then(
       () => true,
@@ -521,6 +598,7 @@ export class HostApplication {
 
   async dispose(): Promise<void> {
     this.stopping = true;
+    this.approvals.cancelAll();
     const lives = [...this.sessions.values()].flatMap(({ live }) => (live ? [live] : []));
     await Promise.all(lives.map(live => live.stop()));
     await this.pool.dispose();

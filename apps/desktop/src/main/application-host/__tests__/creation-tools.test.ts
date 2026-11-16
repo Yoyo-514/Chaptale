@@ -1926,3 +1926,69 @@ it('归属作品的会话将非空写作要求拼入系统提示词前缀，修�
   await expect.poll(() => view().running).toBe(false);
   expect(session.systemPrompt).not.toContain('<writing_guidelines>');
 });
+
+it('作品会话支持“为这部作品记住”目录外只读授权，同作品跨会话共享，另存副本不继承且永久删除作品时自动清理', async () => {
+  const refDir = join(root, 'shared-reference');
+  await mkdir(refDir, { recursive: true });
+  await writeFile(join(refDir, 'chronicle.txt'), '永乐元年大事记');
+  const firstSession = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId }
+  })) as string;
+  const secondSession = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId }
+  })) as string;
+  const otherWork = value(
+    creation.executeAuthor({
+      method: 'createWork',
+      input: { commandId: randomUUID(), title: '另一部作品', kind: 'novel' }
+    })
+  );
+  const otherWorkSession = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId: otherWork.id }
+  })) as string;
+
+  const firstRead = call('read', { path: join(refDir, 'chronicle.txt') }, undefined, undefined, firstSession);
+  await expect.poll(() => host.snapshot().approvals).toHaveLength(1);
+  const approval = host.snapshot().approvals[0]!;
+  expect(approval.remember).toMatchObject({ capability: 'fs_read', pathKind: 'directory', allowWork: true });
+  await host.execute({ method: 'approve', input: { id: approval.id, allow: true, scope: 'work' } });
+  expect((await firstRead).isError).toBe(false);
+  expect(host.snapshot().settings.toolPermissions).toMatchObject([{ scope: { kind: 'work', workId } }]);
+
+  // 同作品第二个会话直接共享该目录的只读权限（含 ls / grep 等）。
+  const secondLs = await call('ls', { path: refDir }, undefined, undefined, secondSession);
+  expect(secondLs.isError).toBe(false);
+  expect(JSON.stringify(secondLs.result.content)).toContain('chronicle.txt');
+  expect(host.snapshot().approvals).toEqual([]);
+
+  // 另一部作品不共享该规则。
+  const otherRead = call('read', { path: join(refDir, 'chronicle.txt') }, undefined, undefined, otherWorkSession);
+  await expect.poll(() => host.snapshot().approvals).toHaveLength(1);
+  await host.execute({ method: 'approve', input: { id: host.snapshot().approvals[0]!.id, allow: false } });
+  expect((await otherRead).isError).toBe(true);
+
+  // 导出作品包再另存为副本导入，新作品不携带原作品的本机授权。
+  const pkgPath = join(root, 'export.chaptale-work');
+  const exported = await creation.execute({ method: 'exportWorkPackage', input: { workId, path: pkgPath } });
+  expect(exported.ok).toBe(true);
+  const imported = (await host.execute({
+    method: 'importWorkPackage',
+    input: { commandId: randomUUID(), path: pkgPath, asCopy: true }
+  })) as { work: { id: string } };
+  const copySession = (await host.execute({
+    method: 'create',
+    input: { model: { provider: 'offline-tools', id: 'offline' }, workId: imported.work.id }
+  })) as string;
+  const copyRead = call('read', { path: join(refDir, 'chronicle.txt') }, undefined, undefined, copySession);
+  await expect.poll(() => host.snapshot().approvals).toHaveLength(1);
+  await host.execute({ method: 'approve', input: { id: host.snapshot().approvals[0]!.id, allow: false } });
+  expect((await copyRead).isError).toBe(true);
+
+  // 移入回收站并永久删除作品后，自动清理该作品的本机授权规则。
+  await host.execute({ method: 'trashWork', input: { commandId: randomUUID(), workId } });
+  await host.execute({ method: 'purgeWork', input: { commandId: randomUUID(), workId } });
+  expect(host.snapshot().settings.toolPermissions).toEqual([]);
+});

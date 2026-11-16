@@ -1,5 +1,11 @@
 import { createAssistantMessageEventStream, InMemoryCredentialStore, type Message } from '@earendil-works/pi-ai';
-import { createReadToolDefinition, defineTool, ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent';
+import {
+  createLsToolDefinition,
+  createReadToolDefinition,
+  defineTool,
+  ModelRuntime,
+  SessionManager
+} from '@earendil-works/pi-coding-agent';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1215,4 +1221,79 @@ it('生成中支持插话与稍后处理排队投影，并可单条撤回保留�
     await app.execute({ method: 'cancel', input: { id } });
   }
   expect(view(id).queued).toEqual([]);
+});
+
+it('独立会话支持“本会话允许”并发放行、重开保留、手动撤销与删除会话清理，且拒绝保存作品级规则', async () => {
+  const refDir = join(root, 'external-ref');
+  await mkdir(refDir, { recursive: true });
+  await writeFile(join(refDir, 'first.txt'), '卷一内容');
+  await writeFile(join(refDir, 'second.txt'), '卷二内容');
+  await restart({
+    tools: cwd => [defineTool(createReadToolDefinition(cwd)), defineTool(createLsToolDefinition(cwd))]
+  });
+
+  const id = await create(undefined, capture);
+  app.liveSession(id)!.sessionManager.appendMessage({
+    role: 'user',
+    content: '查阅外部史料',
+    timestamp: Date.UTC(2026, 10, 14)
+  });
+  const other = await create(undefined, capture);
+  const runTool = (sessionId: string, name: string, input: Record<string, unknown>) =>
+    app
+      .liveSession(sessionId)!
+      .agent.state.tools.find(tool => tool.name === name)!
+      .execute(`${name}-${Math.random()}`, input);
+
+  // 并发发起同目录的 read 与 ls，挂起两条请求，独立会话 remember.allowWork 为 false。
+  const firstCall = runTool(id, 'read', { path: join(refDir, 'first.txt') });
+  const secondCall = runTool(id, 'ls', { path: refDir });
+  await expect.poll(() => app.snapshot().approvals.length).toBe(2);
+  const firstApproval = app.snapshot().approvals[0]!;
+  expect(firstApproval.remember).toMatchObject({ capability: 'fs_read', pathKind: 'directory', allowWork: false });
+
+  await expect(
+    app.execute({ method: 'approve', input: { id: firstApproval.id, allow: true, scope: 'work' } })
+  ).rejects.toThrow('当前会话不支持保存作品级授权');
+
+  // 批准第一条为“本会话允许”后，同目录第二条挂起请求一并自动放行。
+  await app.execute({ method: 'approve', input: { id: firstApproval.id, allow: true, scope: 'session' } });
+  expect(app.snapshot().approvals).toEqual([]);
+  expect(JSON.stringify((await firstCall).content)).toContain('卷一内容');
+  expect(JSON.stringify((await secondCall).content)).toContain('second.txt');
+  expect(app.snapshot().settings.toolPermissions).toHaveLength(1);
+
+  // 另一个会话不共享“本会话允许”，仍需单独授权。
+  const otherCall = runTool(other, 'read', { path: join(refDir, 'second.txt') });
+  await expect.poll(() => app.snapshot().approvals.length).toBe(1);
+  await app.execute({ method: 'approve', input: { id: app.snapshot().approvals[0]!.id, allow: false } });
+  await expect(otherCall).rejects.toThrow('工具调用未获授权');
+
+  // 持久化：重启宿主并重开原会话后，“本会话允许”依然生效。
+  const sessionFile = view(id).file;
+  const sessionId = view(id).sessionId!;
+  await restart({
+    tools: cwd => [defineTool(createReadToolDefinition(cwd)), defineTool(createLsToolDefinition(cwd))]
+  });
+  const reopened = await open({ file: sessionFile });
+  const thirdCall = await runTool(reopened, 'read', { path: join(refDir, 'second.txt') });
+  expect(JSON.stringify(thirdCall.content)).toContain('卷二内容');
+  expect(app.snapshot().approvals).toEqual([]);
+
+  // 撤销规则后立即恢复询问；再次记住后删除会话会自动清理对应规则。
+  const permissionId = app.snapshot().settings.toolPermissions[0]!.id;
+  await app.execute({ method: 'revokeToolPermission', input: { id: permissionId } });
+  expect(app.snapshot().settings.toolPermissions).toEqual([]);
+
+  const afterRevoke = runTool(reopened, 'read', { path: join(refDir, 'first.txt') });
+  await expect.poll(() => app.snapshot().approvals.length).toBe(1);
+  await app.execute({
+    method: 'approve',
+    input: { id: app.snapshot().approvals[0]!.id, allow: true, scope: 'session' }
+  });
+  await afterRevoke;
+  expect(app.snapshot().settings.toolPermissions).toHaveLength(1);
+
+  await app.execute({ method: 'deleteSessions', input: { sessionIds: [sessionId] } });
+  expect(app.snapshot().settings.toolPermissions).toEqual([]);
 });
