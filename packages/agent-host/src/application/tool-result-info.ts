@@ -67,6 +67,7 @@ export function toolResultInfo(details: unknown): ToolResultInfo | undefined {
   const entries = value.entries ?? value.relations;
   return {
     ...(typeof entry.workId === 'string' && { workId: entry.workId }),
+    ...(typeof entry.entryId === 'string' && { entryId: entry.entryId }),
     ...(typeof entry.id === 'string' &&
       (entry.section === 'manuscript' || entry.section === 'resource') && { entryId: entry.id }),
     ...(typeof entry.title === 'string' && { title: entry.title }),
@@ -76,4 +77,14 @@ export function toolResultInfo(details: unknown): ToolResultInfo | undefined {
     ...(typeof record?.text === 'string' && { description: record.text }),
     ...(typeof relation?.type === 'string' && { description: relation.type })
   };
+}
+
+/** 从嵌套子调用持久化错误文本中提取可读消息，避免界面直接展示 CreationResult 的原始 JSON。 */
+export function nestedToolError(error: string | undefined): string | undefined {
+  if (!error?.startsWith('{')) return error;
+  try {
+    return toolResultInfo(JSON.parse(error))?.error ?? error;
+  } catch {
+    return error;
+  }
 }

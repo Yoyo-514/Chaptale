@@ -148,8 +148,12 @@ export function describeTool(
     const query = fields?.query ?? fields?.pattern;
     let summary = `${failed ? '未能' : ''}${action}${title ? `《${title}》` : ''}`;
     if (typeof query === 'string') summary += `“${query}”`;
-    if (info?.wordCount !== undefined) summary += `${info.wordCount.toLocaleString('en-US')} 字`;
-    if (info?.count !== undefined) summary += `返回 ${info.count} 条`;
+    const metrics: string[] = [];
+    if (info?.wordCount !== undefined) metrics.push(`${info.wordCount.toLocaleString('en-US')} 字`);
+    if (info?.count !== undefined) metrics.push(`返回 ${info.count} 条`);
+    if (metrics.length) {
+      summary += `${summary.endsWith('》') || summary.endsWith('”') ? ' ' : ' · '}${metrics.join(' · ')}`;
+    }
     const description =
       info?.description ?? (name === 'work_record_write' && typeof fields?.text === 'string' ? fields.text : '');
     if (description) summary += `：${description}`;

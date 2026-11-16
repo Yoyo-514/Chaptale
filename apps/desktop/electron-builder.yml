@@ -4,6 +4,9 @@ artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 copyright: Copyright © 2026 yoyo514
 
 asar: true
+asarUnpack:
+  - '**/node_modules/@earendil-works/pi-codemode/**'
+  - '**/node_modules/quickjs-wasi/**'
 afterPack: ./scripts/after-pack.cjs
 
 extraResources:

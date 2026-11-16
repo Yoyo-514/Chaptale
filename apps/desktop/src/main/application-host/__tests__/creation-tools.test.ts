@@ -2148,4 +2148,72 @@ it('codemode 在讨论模式下拦截常驻与延迟写工具，嵌套读取目�
     secondRef: '兵制考'
   });
   expect(pending()).toEqual([]);
+
+  const live = host.liveSession(id)!;
+  expect(live.systemPrompt).toContain('codemode');
+});
+
+it('持久化并重开 codemode 工具结果后，失败的 work_* 子调用错误摘要展示可读消息而非原始 JSON', async () => {
+  const runtime = await restartWithTools([]);
+  await observeRequests(runtime);
+  const session = host.liveSession(id)!;
+  const callId = 'cm-persisted-error';
+  session.sessionManager.appendMessage({ role: 'user', content: '执行脚本', timestamp: Date.now() });
+  session.sessionManager.appendMessage({
+    role: 'assistant',
+    content: [{ type: 'toolCall', id: callId, name: 'codemode', arguments: { code: 'return 1;' } }],
+    api: 'offline-review-results',
+    provider: 'offline-tools',
+    model: 'offline',
+    stopReason: 'toolUse',
+    timestamp: Date.now(),
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    }
+  });
+  const codemodeTool = session.agent.state.tools.find(tool => tool.name === 'codemode')!;
+  const result = await codemodeTool.execute(callId, {
+    code: `
+      try {
+        await tools.work_edit({
+          workId: ${JSON.stringify(workId)},
+          entryId: ${JSON.stringify(documentId)},
+          expectedRevisionId: 'stale-rev',
+          oldText: '将军守城。',
+          newText: '沈临守城。'
+        });
+      } catch {}
+      return 'done';
+    `
+  });
+  await session.agent
+    .prompt({
+      role: 'toolResult',
+      toolCallId: callId,
+      toolName: 'codemode',
+      content: result.content,
+      details: result.details,
+      isError: Boolean(result.isError),
+      timestamp: Date.now()
+    })
+    .catch(() => {});
+
+  const file = session.sessionFile!;
+  await host.execute({ method: 'close', input: { id } });
+  const reopenedId = (await host.execute({ method: 'open', input: { file } })) as string;
+  const sessionView = host.snapshot().sessions.find(item => item.id === reopenedId)!;
+  const toolResultMsg = sessionView.messages.find(msg => msg.role === 'toolResult' && msg.toolName === 'codemode')!;
+  expect(toolResultMsg.nestedTools).toHaveLength(1);
+  expect(toolResultMsg.nestedTools![0]).toMatchObject({
+    name: 'work_edit',
+    status: 'error',
+    info: { workId, entryId: documentId, title: '序章', section: 'manuscript' }
+  });
+  expect(toolResultMsg.nestedTools![0]!.error).toBeTruthy();
+  expect(toolResultMsg.nestedTools![0]!.error).not.toContain('{"ok":false');
 });

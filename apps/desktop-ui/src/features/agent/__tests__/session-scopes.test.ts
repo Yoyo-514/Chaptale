@@ -396,6 +396,7 @@ it('本章提取新建作品审阅会话，携带资料规则并保留作者已�
   expect(prompt).toContain('已有事件字段一致时保持原样');
   expect(prompt).toContain('在回复中说明对应规划');
   expect(prompt).toContain('规划《资料名》：原句');
+  expect(prompt).toContain('codemode');
 });
 
 it('新会话草稿沿用最近一次选择的模型', async () => {

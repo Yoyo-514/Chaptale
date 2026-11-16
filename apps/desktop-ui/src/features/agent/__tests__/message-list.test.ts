@@ -213,14 +213,32 @@ it('业务动作按类型计数，展开后用标题与字数展示，原始身�
           role: 'toolResult',
           toolCallId: 'r',
           toolName: 'work_read',
-          text: '原始读取结果',
+          text: JSON.stringify({
+            ok: true,
+            value: {
+              workId: 'work-id',
+              entryId: 'chapter-id',
+              section: 'manuscript',
+              kind: 'document',
+              title: '第三回',
+              wordCount: 3412,
+              pending: false,
+              content: '黛玉方进入房时，只见两个人搀着一位鬓发如银的老母迎上来。'
+            }
+          }),
           toolInfo: { title: '第三回', section: 'manuscript', wordCount: 3412 }
         }),
         message({
           role: 'toolResult',
           toolCallId: 'w',
           toolName: 'work_write',
-          text: '原始新建结果',
+          text: JSON.stringify({
+            ok: true,
+            value: {
+              kind: 'pending',
+              entry: { workId: 'work-id', entryId: 'res-id', section: 'resource', kind: 'document', title: '沈霁' }
+            }
+          }),
           toolInfo: { title: '沈霁', section: 'resource' }
         })
       ]),
@@ -231,10 +249,22 @@ it('业务动作按类型计数，展开后用标题与字数展示，原始身�
   const group = wrapper.findAll('button').find(button => button.text() === '读取 1 份 · 新建资料 1 份');
   expect(group).toBeDefined();
   await group!.trigger('click');
-  expect(wrapper.text()).toContain('读取《第三回》3,412 字');
+  expect(wrapper.text()).toContain('读取《第三回》 3,412 字');
   expect(wrapper.text()).toContain('新建资料《沈霁》');
   expect(wrapper.text()).not.toContain('work_read');
   expect(wrapper.text()).not.toContain('chapter-id');
+
+  // 展开具体工具行时优先显示可读正文与摘要，原始 JSON 收在二级折叠里
+  await wrapper
+    .findAll('button')
+    .find(button => button.text().includes('读取《第三回》'))!
+    .trigger('click');
+  expect(wrapper.text()).toContain('黛玉方进入房时');
+  expect(wrapper.text()).not.toContain('"ok": true');
+  expect(wrapper.text()).not.toContain('chapter-id');
+  await wrapper.get('.agent-tool-raw-toggle').trigger('click');
+  expect(wrapper.text()).toContain('chapter-id');
+  expect(wrapper.text()).toContain('"ok": true');
 });
 
 it('脚本里的原生子调用按实际动作计数，失败单列，脚本保留原始输出', async () => {
@@ -246,9 +276,14 @@ it('脚本里的原生子调用按实际动作计数，失败单列，脚本保�
           role: 'toolResult',
           toolCallId: 'script',
           toolName: 'codemode',
-          text: '脚本完整原始输出',
+          text: 'Script completed in 24ms.\n\nOutput:\n\n脚本完整原始输出',
           nestedTools: [
-            { id: 'script/1', name: 'work_write', input: { section: 'resource', title: '沈霁' }, status: 'ok' },
+            {
+              id: 'script/1',
+              name: 'work_write',
+              input: { section: 'resource', title: '沈霁', content: '北境守将。' },
+              status: 'ok'
+            },
             { id: 'script/2', name: 'work_record_write', input: { text: '沈霁抵达渡口' }, status: 'ok' },
             {
               id: 'script/3',
@@ -274,12 +309,16 @@ it('脚本里的原生子调用按实际动作计数，失败单列，脚本保�
   expect(wrapper.text()).toContain('沈霁抵达渡口');
   const nestedRow = wrapper.findAll('.agent-tool-call.is-nested')[0]!;
   await nestedRow.get('button').trigger('click');
+  expect(nestedRow.text()).toContain('北境守将。');
+  expect(nestedRow.text()).not.toContain('"title": "沈霁"');
+  await nestedRow.get('.agent-tool-raw-toggle').trigger('click');
   expect(nestedRow.text()).toContain('"title": "沈霁"');
   expect(nestedRow.text()).not.toContain('"status": "ok"');
   await wrapper
     .findAll('button')
     .find(button => button.text() === '执行脚本')!
     .trigger('click');
+  expect(wrapper.text()).toContain('耗时 24 ms');
   expect(wrapper.text()).toContain('脚本完整原始输出');
 });
 
@@ -393,6 +432,20 @@ it('展开工具步骤后点击本作品有效文档标题直接在当前编辑�
       }
     });
     if (!docRes.ok) throw new Error(docRes.error.message);
+    const ch8Res = author.executeAuthor({
+      method: 'createEntry',
+      input: {
+        commandId: crypto.randomUUID(),
+        workId: workRes.value.id,
+        section: 'manuscript',
+        parentId: null,
+        kind: 'document',
+        title: '第八回',
+        format: 'markdown',
+        content: '莫失莫忘，仙寿恒昌。'
+      }
+    });
+    if (!ch8Res.ok) throw new Error(ch8Res.error.message);
 
     const pinia = createPinia();
     setActivePinia(pinia);
@@ -419,6 +472,11 @@ it('展开工具步骤后点击本作品有效文档标题直接在当前编辑�
               name: 'work_read',
               input: { workId: workRes.value.id, entryId: docRes.value.id },
               info: { workId: workRes.value.id, entryId: docRes.value.id, title: '第三回', section: 'manuscript' }
+            },
+            {
+              id: 'call-2',
+              name: 'work_grep',
+              input: { workId: workRes.value.id, pattern: '莫失莫忘' }
             }
           ]
         }),
@@ -434,6 +492,25 @@ it('展开工具步骤后点击本作品有效文档标题直接在当前编辑�
             section: 'manuscript',
             wordCount: 4
           }
+        }),
+        message({
+          role: 'toolResult',
+          toolCallId: 'call-2',
+          toolName: 'work_grep',
+          text: JSON.stringify({
+            ok: true,
+            value: [
+              {
+                workId: workRes.value.id,
+                entryId: ch8Res.value.id,
+                revisionId: ch8Res.value.revisionId,
+                title: '第八回',
+                line: 1,
+                text: '莫失莫忘，仙寿恒昌。'
+              }
+            ]
+          }),
+          toolInfo: { count: 1 }
         })
       ]
     };
@@ -444,13 +521,24 @@ it('展开工具步骤后点击本作品有效文档标题直接在当前编辑�
     });
     await wrapper
       .findAll('button')
-      .find(button => button.text().includes('读取 1 份'))!
+      .find(button => button.text().includes('读取 1 份 · 检索 1 次'))!
       .trigger('click');
     const openBtn = wrapper.get('button[aria-label="打开《第三回》"]');
     expect(openBtn.text()).toBe('《第三回》');
     await openBtn.trigger('click');
     await flushPromises();
     expect(editor.activeId).toBe(docRes.value.id);
+
+    // 展开检索工具行后，结果列表里的命中文档标题同样可点击打开
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('检索“莫失莫忘”'))!
+      .trigger('click');
+    expect(wrapper.text()).toContain('第 1 行');
+    expect(wrapper.text()).toContain('莫失莫忘，仙寿恒昌。');
+    await wrapper.get('button[aria-label="打开《第八回》"]').trigger('click');
+    await flushPromises();
+    expect(editor.activeId).toBe(ch8Res.value.id);
   } finally {
     wrapper?.unmount();
     wrapper = undefined;

@@ -3,7 +3,7 @@ import { type AgentSession, type SessionManager, sessionEntryToContextMessages }
 import { type ChatMessage, reviewResultsMessageType } from '../protocol.ts';
 import { decodePromptWithContext } from './editor-context.ts';
 import { branchMap } from './session-tree.ts';
-import { toolResultInfo, type ToolTargetLookup } from './tool-result-info.ts';
+import { nestedToolError, toolResultInfo, type ToolTargetLookup } from './tool-result-info.ts';
 
 export type SdkMessage = AgentSession['messages'][number];
 
@@ -30,7 +30,7 @@ export function messageView(message: SdkMessage, target?: ToolTargetLookup): Cha
         name: call.name,
         input: call.arguments,
         status: call.status,
-        error: call.error,
+        error: nestedToolError(call.error),
         info: target?.(call.arguments)
       }));
       view.nestedToolsComplete = message.nestedCalls.complete;

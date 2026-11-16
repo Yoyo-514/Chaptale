@@ -36,7 +36,7 @@ export const useWorkbenchStore = defineStore('workbench-navigation', () => {
     showAgent();
     return useAgentStore().startReview(
       `请阅读《${chapter.title}》（条目 ID：${chapter.id}），提取本章交代的资料、事件和关系，结果留作本会话待接受修改。\n` +
-        '先在资料区（section: resource）检索相关资料并读取正文与属性，再用 work_record_ls、work_relation_ls 查阅已有事件和关系。沿用已有对象的稳定 ID，只处理与本章有关的内容。\n' +
+        '可用 codemode 批量完成查阅与写入：先在资料区（section: resource）检索相关资料并读取正文与属性，再用 work_record_ls、work_relation_ls 查阅已有事件和关系（脚本中可直接调用这两个工具）。沿用已有对象的稳定 ID，只处理与本章有关的内容。\n' +
         '资料正文只写原文明示的基础介绍和跨章稳定设定，例如身份、外貌、性格、背景；从正文直接开始介绍，标题由资料条目保存。动作、遭遇和状态变化记为事件，性格与关系以原文明示为准。\n' +
         '新资料先在资料区建立，放入现有合适目录，保持作者的目录组织。类型写入 attributes.type，优先沿用作品已有类型，需要时自定义。别名写入 attributes.aliases，只收录标题外的其他姓名、字号和稳定绰号；临时尊称、当次装扮的代称留在原文中。补充别名时保留已有别名。\n' +
         '已有资料正文只补充或修改相关句段，保留其余原文与作者表达。\n' +

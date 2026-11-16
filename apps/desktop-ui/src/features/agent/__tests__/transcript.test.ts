@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ChatMessage } from '@chaptale/agent-host/protocol';
 
-import { buildTranscript } from '../transcript';
+import { buildTranscript, summarizeTools, toolRows } from '../transcript';
 
 const message = (fields: Partial<ChatMessage> & Pick<ChatMessage, 'role'>): ChatMessage => ({
   text: '',
@@ -101,5 +101,56 @@ describe('buildTranscript', () => {
     ]);
     expect(assistant!.kind === 'assistant' && assistant!.tools[0]).toMatchObject({ summary: '查看目录 资料' });
     expect(assistant!.kind === 'assistant' && assistant!.tools[0]!.result).toBeUndefined();
+  });
+
+  it('codemode 按子调用汇总动作计数，展开时保留脚本入口、作品条目跳转与失败摘要', () => {
+    const [assistant] = buildTranscript([
+      message({
+        role: 'assistant',
+        tools: [{ id: 'cm-1', name: 'codemode', input: { code: 'return 1;' } }]
+      }),
+      message({
+        role: 'toolResult',
+        toolCallId: 'cm-1',
+        toolName: 'codemode',
+        text: 'Script completed',
+        nestedToolsComplete: true,
+        nestedTools: [
+          {
+            id: 'cm-1/1',
+            name: 'work_read',
+            input: { workId: 'w1', entryId: 'c1' },
+            status: 'ok',
+            info: { workId: 'w1', entryId: 'c1', title: '第一章', section: 'manuscript' }
+          },
+          {
+            id: 'cm-1/2',
+            name: 'work_record_write',
+            input: { workId: 'w1', text: '沈临巡城' },
+            status: 'ok'
+          },
+          {
+            id: 'cm-1/3',
+            name: 'work_edit',
+            input: { workId: 'w1', entryId: 'c1' },
+            status: 'error',
+            error: '文稿修订已变化',
+            info: { workId: 'w1', entryId: 'c1', title: '第一章', section: 'manuscript' }
+          }
+        ]
+      })
+    ]);
+    expect(assistant?.kind).toBe('assistant');
+    if (!assistant || assistant.kind !== 'assistant') return;
+    expect(summarizeTools(assistant.tools)).toBe('读取 1 份 · 记录事件 1 条 · 修改文稿 1 份');
+    const rows = toolRows(assistant.tools);
+    expect(rows.map(row => row.summary)).toEqual([
+      '执行脚本',
+      '读取《第一章》',
+      '记录事件：沈临巡城',
+      '未能修改文稿《第一章》：文稿修订已变化'
+    ]);
+    expect(rows[1]!.entryTarget).toEqual({ workId: 'w1', entryId: 'c1', title: '第一章' });
+    expect(rows[3]!.result).toEqual({ text: '文稿修订已变化', error: true });
   });
 });

@@ -655,6 +655,121 @@
 .agent-activity-empty {
   margin: 0;
 }
+.agent-tool-meta {
+  margin: 0 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.agent-tool-error {
+  margin: 0 0 4px;
+  color: var(--destructive);
+}
+.agent-tool-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.agent-tool-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.agent-tool-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.agent-tool-item-label {
+  color: var(--foreground);
+}
+.agent-tool-item-connector {
+  color: var(--muted-foreground);
+}
+.agent-tool-item-meta {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.agent-tool-item-snippet,
+.agent-tool-basis {
+  margin: 0;
+  color: var(--foreground);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-tool-basis {
+  margin-bottom: 4px;
+  color: var(--muted-foreground);
+}
+.agent-tool-body {
+  color: var(--foreground);
+  font-family: inherit;
+}
+.agent-tool-edits {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 6px;
+}
+.agent-tool-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.agent-tool-edit-old,
+.agent-tool-edit-new {
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: var(--radius-control-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-tool-edit-old {
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  color: var(--muted-foreground);
+}
+.agent-tool-edit-new {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--foreground);
+}
+.agent-tool-raw {
+  margin-top: 4px;
+}
+.agent-tool-raw-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 4px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+.agent-tool-raw-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+.agent-tool-raw-toggle:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+.agent-tool-raw-chevron {
+  font-size: 13px;
+  transition: transform 150ms ease-out;
+}
+.agent-tool-raw-toggle[aria-expanded='true'] .agent-tool-raw-chevron {
+  transform: rotate(90deg);
+}
+.agent-tool-raw-body {
+  margin-top: 4px;
+}
 .agent-approval {
   display: flex;
   flex-direction: column;
