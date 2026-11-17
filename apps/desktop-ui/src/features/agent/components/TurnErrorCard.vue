@@ -87,3 +87,99 @@ onBeforeUnmount(() => clearTimeout(copyTimer));
     </div>
   </section>
 </template>
+
+<style lang="scss">
+.agent-turn-error {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 36%, var(--border));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--destructive) 6%, var(--surface));
+}
+.agent-turn-error-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.agent-turn-error-icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  color: var(--destructive);
+}
+.agent-turn-error-summary {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.agent-turn-error-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+.agent-turn-error-raw {
+  padding-left: 24px;
+  font-size: var(--ui-caption-size);
+}
+.agent-turn-error-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 4px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+.agent-turn-error-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+.agent-turn-error-toggle:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+.agent-turn-error-chevron {
+  font-size: 13px;
+  transition: transform 150ms ease-out;
+}
+.agent-turn-error-toggle[aria-expanded='true'] .agent-turn-error-chevron {
+  transform: rotate(90deg);
+}
+.agent-turn-error-detail {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control-sm);
+  background: var(--surface);
+}
+.agent-turn-error-detail-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 2px;
+}
+.agent-turn-error-detail pre {
+  max-height: 12rem;
+  overflow: auto;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: var(--ui-caption-size);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+</style>

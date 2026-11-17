@@ -116,3 +116,53 @@ onBeforeUnmount(() => clearTimeout(copyTimer));
     </div>
   </div>
 </template>
+
+<style lang="scss">
+.agent-message-actions {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-message-actions.is-end {
+  justify-content: flex-end;
+}
+.agent-message-actions.is-start {
+  width: 100%;
+  justify-content: flex-start;
+}
+.agent-message-actions.is-start .agent-branch-switcher {
+  margin-left: auto;
+}
+.agent-branch-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+.agent-branch-count {
+  padding: 0 2px;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.agent-message-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.agent-message-action-buttons.is-visible,
+.agent-user:hover .agent-message-action-buttons,
+.agent-user:focus-within .agent-message-action-buttons,
+.agent-assistant:hover .agent-message-action-buttons,
+.agent-assistant:focus-within .agent-message-action-buttons {
+  opacity: 1;
+}
+@media (hover: none) {
+  .agent-message-action-buttons {
+    opacity: 1;
+  }
+}
+</style>

@@ -351,3 +351,64 @@ async function assign(entry: SessionEntry) {
   fill: var(--popover);
 }
 </style>
+
+<style lang="scss">
+.agent-session-link:hover {
+  background: var(--surface-hover);
+}
+.agent-session-link[aria-current='page'] {
+  background: var(--secondary);
+  color: var(--primary-solid);
+}
+.agent-session-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.agent-subpage-toolbar {
+  flex-shrink: 0;
+  padding: 12px 16px 4px;
+}
+.agent-history-scroll {
+  min-height: 0;
+  flex: 1;
+}
+.agent-history {
+  box-sizing: border-box;
+  padding: 4px 8px 16px;
+}
+.agent-history h4 {
+  margin: 16px 8px 4px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-weight: 600;
+}
+.agent-session-link {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  text-align: left;
+  cursor: pointer;
+}
+.agent-session-link > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-session-link > time,
+.agent-session-link > span + span {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+</style>

@@ -323,3 +323,231 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
     </section>
   </div>
 </template>
+
+<style lang="scss">
+/* 对话：作者浅色气泡靠右，助手正文铺满；活动行是一行小字，点开看细节。 */
+.agent-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+}
+.agent-assistant {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.agent-assistant-text {
+  margin-block: 4px 8px;
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.agent-activity {
+  min-width: 0;
+}
+.agent-tool-counts {
+  font-variant-numeric: tabular-nums;
+}
+.agent-tool-steps {
+  padding-left: 14px;
+}
+.agent-assistant.is-compacted {
+  opacity: 0.6;
+}
+.agent-user-queue-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-queue-recall {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.agent-queue-recall:hover {
+  color: var(--primary);
+}
+.agent-queue-recall:focus-visible {
+  outline: none;
+  border-radius: var(--radius-control-sm);
+  box-shadow: var(--input-focus-shadow);
+}
+.agent-user-failure {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 85%;
+  margin: 0;
+  color: var(--destructive);
+  font-size: var(--ui-caption-size);
+}
+.agent-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-waiting-dots {
+  display: inline-flex;
+  gap: 3px;
+  i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: agent-waiting 1.2s ease-in-out infinite;
+  }
+  i:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  i:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+}
+@keyframes agent-waiting {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-waiting-dots i {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+.agent-notice {
+  margin: 8px 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  summary {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    width: fit-content;
+    cursor: pointer;
+    list-style: none;
+    border-radius: var(--radius-control-sm);
+    &::-webkit-details-marker {
+      display: none;
+    }
+    &:hover {
+      color: var(--foreground);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+  }
+  &[open] .agent-notice-chevron {
+    transform: rotate(180deg);
+  }
+  ul {
+    margin: 4px 0 0 20px;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    padding: 1px 0;
+  }
+}
+.agent-summary {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.agent-summary-text {
+  max-height: 24rem;
+  overflow: auto;
+}
+.agent-summary-text.markdown-body :is(h1, h2, h3, h4) {
+  margin: 8px 0 4px;
+  font-size: var(--ui-caption-size);
+  font-weight: 600;
+}
+.agent-thinking {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-approval {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-block: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-overlay);
+  background: var(--surface-elevated);
+}
+.agent-approval-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--ui-font-size);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.agent-approval-title > span:first-child {
+  margin-top: 2px;
+  color: var(--primary-solid);
+}
+.agent-approval-scope {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.agent-approval-scope code {
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+.agent-approval-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  color: var(--foreground);
+  font-size: var(--ui-caption-size);
+  cursor: pointer;
+}
+.agent-approval-actions {
+  flex-wrap: wrap;
+}
+.agent-approval-detail {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-approval-detail summary {
+  cursor: pointer;
+}
+.agent-approval-detail pre {
+  max-height: 12rem;
+  overflow: auto;
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-turn-aborted {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.5;
+}
+</style>

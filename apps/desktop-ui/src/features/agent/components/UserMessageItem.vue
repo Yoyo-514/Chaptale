@@ -98,3 +98,30 @@ function retry() {
     </div>
   </article>
 </template>
+
+<style lang="scss">
+.agent-user-edit {
+  display: flex;
+  width: min(100%, 34rem);
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--ring);
+  border-radius: 12px;
+  background: var(--input);
+}
+.agent-user-edit textarea {
+  min-height: 3rem;
+  max-height: 12rem;
+  padding: 2px 4px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.agent-user-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+</style>

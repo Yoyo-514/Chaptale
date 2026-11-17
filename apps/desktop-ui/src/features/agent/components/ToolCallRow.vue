@@ -219,3 +219,198 @@ function openEntry(target: ToolEntryTarget | undefined) {
     </div>
   </div>
 </template>
+
+<style lang="scss">
+.agent-tool-call.is-nested {
+  padding-left: 14px;
+}
+.agent-tool-failure > .agent-activity-line {
+  color: var(--destructive);
+}
+.agent-activity-line {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  height: 26px;
+  padding: 0 6px;
+  margin-left: -6px;
+  border-radius: var(--radius-control-sm);
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-activity-line:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+.agent-activity-prefix {
+  white-space: nowrap;
+}
+.agent-activity-target {
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  padding: 0 1px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.agent-activity-target:hover {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.agent-activity-target:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+.agent-activity-tail {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-activity-suffix {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-activity-line:hover .agent-activity-chevron,
+.agent-activity-line:focus-within .agent-activity-chevron,
+.agent-activity-row.is-split[aria-expanded='true'] ~ .agent-activity-tail .agent-activity-chevron {
+  opacity: 1;
+}
+.agent-activity-row.is-split[aria-expanded='true'] ~ .agent-activity-tail .agent-activity-chevron {
+  transform: rotate(90deg);
+}
+.agent-tool-meta {
+  margin: 0 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.agent-tool-error {
+  margin: 0 0 4px;
+  color: var(--destructive);
+}
+.agent-tool-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.agent-tool-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.agent-tool-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.agent-tool-item-label {
+  color: var(--foreground);
+}
+.agent-tool-item-connector {
+  color: var(--muted-foreground);
+}
+.agent-tool-item-meta {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.agent-tool-item-snippet,
+.agent-tool-basis {
+  margin: 0;
+  color: var(--foreground);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-tool-basis {
+  margin-bottom: 4px;
+  color: var(--muted-foreground);
+}
+.agent-tool-body {
+  color: var(--foreground);
+  font-family: inherit;
+}
+.agent-tool-edits {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 6px;
+}
+.agent-tool-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.agent-tool-edit-old,
+.agent-tool-edit-new {
+  margin: 0;
+  padding: 2px 6px;
+  border-radius: var(--radius-control-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-tool-edit-old {
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  color: var(--muted-foreground);
+}
+.agent-tool-edit-new {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--foreground);
+}
+.agent-tool-raw {
+  margin-top: 4px;
+}
+.agent-tool-raw-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 4px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+.agent-tool-raw-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+.agent-tool-raw-toggle:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+.agent-tool-raw-chevron {
+  font-size: 13px;
+  transition: transform 150ms ease-out;
+}
+.agent-tool-raw-toggle[aria-expanded='true'] .agent-tool-raw-chevron {
+  transform: rotate(90deg);
+}
+.agent-tool-raw-body {
+  margin-top: 4px;
+}
+</style>

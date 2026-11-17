@@ -292,3 +292,61 @@ function mode(value: string) {
     </div>
   </AppForm>
 </template>
+
+<style lang="scss">
+/* 输入区：大圆角输入框，模型与模式是无边框文字菜单。 */
+.agent-composer {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 4px 16px 12px;
+}
+.agent-composer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-composer-meta [role='status'] {
+  margin-right: auto;
+}
+.agent-composer-anchor {
+  position: relative;
+}
+.agent-composer-box {
+  overflow: hidden;
+  border: 1px solid var(--input-border);
+  border-radius: calc(var(--radius-overlay) * 2);
+  background: var(--input);
+  transition: border-color 150ms ease-out;
+}
+.agent-composer-box:hover {
+  border-color: var(--input-hover-border);
+}
+.agent-composer-box:focus-within {
+  border-color: var(--ring);
+}
+.agent-composer textarea {
+  min-height: 3.5rem;
+  max-height: 14rem;
+  padding: 12px 14px 4px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.agent-composer-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px 8px 6px;
+}
+.agent-model-picker {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.agent-send-button {
+  border-radius: var(--radius-pill);
+}
+</style>

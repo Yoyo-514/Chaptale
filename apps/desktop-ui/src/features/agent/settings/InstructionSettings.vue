@@ -160,3 +160,68 @@ async function remove() {
     <p v-if="error" role="alert" class="agent-error agent-settings-status">{{ error }}</p>
   </section>
 </template>
+
+<style lang="scss">
+.instruction-settings {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.agent-settings-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px 12px;
+}
+.agent-subnav {
+  display: flex;
+  gap: 4px;
+}
+.agent-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-inline-field > .app-select-trigger {
+  width: 6rem;
+}
+.agent-settings-status {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 6px 20px;
+  font-size: var(--ui-caption-size);
+}
+.instruction-scope {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 20px 12px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  line-height: 1.6;
+}
+.instruction-library-toolbar {
+  flex-shrink: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 0 20px 12px;
+}
+.instruction-library-toolbar > .app-select-trigger,
+.instruction-library-toolbar > label {
+  min-width: 10rem;
+  flex: 1;
+}
+@container settings-panel (max-width: 760px) {
+  .agent-settings-toolbar {
+    padding-inline: 16px;
+  }
+}
+</style>

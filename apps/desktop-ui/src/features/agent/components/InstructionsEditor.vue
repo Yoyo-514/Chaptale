@@ -152,3 +152,128 @@ function remove() {
     </footer>
   </AppForm>
 </template>
+
+<style lang="scss">
+.instruction-save {
+  display: flex;
+  min-height: 56px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.instruction-save > span {
+  margin-right: auto;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.instruction-list-item:hover {
+  background: var(--surface-hover);
+}
+.instruction-list-item[aria-current='true'] {
+  background: var(--secondary);
+  color: var(--primary-solid);
+}
+.instruction-list-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.instruction-editor {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.instruction-editor-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(7rem, 26%) minmax(0, 1fr);
+  border-top: 1px solid var(--border-subtle);
+}
+.instruction-list {
+  min-height: 0;
+  padding: 8px;
+  border-right: 1px solid var(--border-subtle);
+}
+.instruction-list-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  text-align: left;
+  cursor: pointer;
+}
+.instruction-order {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+.instruction-list-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.instruction-off {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.instruction-detail {
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  gap: 8px;
+}
+.instruction-actions {
+  justify-content: space-between;
+}
+.instruction-content {
+  min-height: 8rem;
+  flex: 1;
+  line-height: 1.75;
+}
+.instruction-advanced {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.instruction-advanced summary {
+  padding-block: 4px;
+  cursor: pointer;
+}
+.instruction-advanced label {
+  margin-block: 8px 4px;
+}
+/* 窄栏里的指令：条目列表在上、编辑区在下。 */
+.instruction-editor-layout.is-stacked {
+  display: flex;
+  flex-direction: column;
+}
+.instruction-editor-layout.is-stacked > .instruction-list {
+  max-height: 11rem;
+  flex-shrink: 0;
+  border-right: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.instruction-editor-layout.is-stacked > .instruction-detail {
+  flex: 1;
+}
+.instruction-editor-layout.is-stacked .instruction-list-item {
+  padding-block: 6px;
+}
+</style>

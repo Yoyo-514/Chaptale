@@ -415,3 +415,148 @@ function setInput(model: NativeModel, image: boolean) {
     </div>
   </section>
 </template>
+
+<style lang="scss">
+.agent-form-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.model-settings {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.agent-settings-fields {
+  box-sizing: border-box;
+  padding: 18px 20px;
+}
+.agent-settings-footer {
+  display: flex;
+  min-height: 56px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.agent-settings-footer > span {
+  margin-right: auto;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.model-settings-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  border-top: 1px solid var(--border-subtle);
+}
+.model-provider-list {
+  min-height: 0;
+  padding: 8px;
+  border-right: 1px solid var(--border-subtle);
+}
+.model-list-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+.model-list-item > * {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-list-item small {
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.model-list-item:hover {
+  background: var(--surface-hover);
+}
+.model-list-item[aria-current='true'] {
+  background: var(--secondary);
+  color: var(--primary-solid);
+}
+.model-list-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.model-editor {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+}
+.model-section-title {
+  margin: 8px 0 -2px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+  font-weight: 600;
+}
+.model-provider-list nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.model-editor-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.model-editor-header h3,
+.model-editor-header h4 {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-row,
+.model-json {
+  border-top: 1px solid var(--border-subtle);
+}
+.model-row-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+.model-row-footer > :last-child {
+  margin-left: auto;
+}
+.model-json-text {
+  @apply font-mono;
+  font-size: var(--ui-caption-size);
+}
+@container settings-panel (max-width: 760px) {
+  .model-settings-layout {
+    grid-template-columns: 10rem minmax(0, 1fr);
+  }
+}
+@container settings-panel (max-width: 760px) {
+  .agent-form-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container settings-panel (max-width: 760px) {
+  .agent-settings-fields {
+    padding: 16px;
+  }
+}
+</style>

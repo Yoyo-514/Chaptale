@@ -101,3 +101,77 @@ function revokePermission(id: string) {
     </template>
   </section>
 </template>
+
+<style lang="scss">
+.agent-session-settings {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.agent-session-facts {
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  padding: 14px 16px 4px;
+  font-size: var(--ui-font-size);
+}
+.agent-session-facts dt {
+  color: var(--muted-foreground);
+}
+.agent-session-facts dd {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-session-scope {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 16px 10px;
+}
+.agent-session-permissions {
+  display: flex;
+  max-height: 8.5rem;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  margin: 4px 16px 8px;
+  padding: 0;
+  list-style: none;
+}
+.agent-session-permission-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-acrylic-subtle);
+}
+.agent-session-permission-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--ui-caption-size);
+}
+.agent-session-permission-copy > span {
+  color: var(--muted-foreground);
+}
+.agent-session-permission-copy > code {
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  overflow-wrap: anywhere;
+}
+.agent-session-settings > .agent-settings-scroll {
+  padding: 16px;
+  overflow: auto;
+}
+</style>

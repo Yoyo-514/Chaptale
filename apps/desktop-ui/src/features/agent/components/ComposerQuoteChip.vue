@@ -30,3 +30,32 @@ const preview = computed(() => (props.quote.selection ?? '').replace(/\s+/g, ' '
     </AppButton>
   </div>
 </template>
+
+<style lang="scss">
+.agent-quote-chip {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-quote-chip-label {
+  flex-shrink: 0;
+  color: var(--foreground);
+  font-weight: 500;
+}
+.agent-quote-chip-preview {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-quote-chip-remove {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+</style>

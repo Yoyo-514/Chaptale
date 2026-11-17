@@ -411,3 +411,156 @@ function confirmBranchAction() {
     </div>
   </section>
 </template>
+
+<style lang="scss">
+.agent-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  // 主区里消息和输入框共用一列，协作栏里自然铺满。
+  --agent-column: 46rem;
+}
+/* 标题栏：标题即会话切换入口，右侧只留新建和更多。 */
+.agent-header {
+  display: flex;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.agent-title-button {
+  display: flex;
+  min-width: 0;
+  max-width: calc(100% - 64px);
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-control-sm);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--ui-font-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+.agent-title-button:hover:not(:disabled),
+.agent-title-button[data-state='open'] {
+  background: var(--surface-hover);
+}
+.agent-title-button:focus-visible {
+  box-shadow: var(--input-focus-shadow);
+  outline: none;
+}
+.agent-title-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.agent-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-title-input {
+  min-width: 0;
+  flex: 1;
+}
+.agent-back {
+  flex-shrink: 0;
+}
+.agent-header-subtitle {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  margin: 0;
+  margin-left: 6px;
+  font-size: var(--ui-font-size);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-menu-heading {
+  margin: 0;
+  padding: 4px 10px 2px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-menu-item {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-width: 12rem;
+}
+.agent-menu-meta {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-menu-separator {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.agent-body > .agent-column {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+.agent-readonly {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+.agent-banner-dock {
+  flex-shrink: 0;
+  padding: 4px 16px 2px;
+}
+.agent-banner-dock.is-subpage {
+  padding: 4px 16px 10px;
+}
+.agent-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(var(--radius-overlay) * 2);
+  background: var(--popover);
+  box-shadow: var(--shadow-float);
+  font-size: var(--ui-caption-size);
+  line-height: 1.5;
+}
+.agent-banner.is-error {
+  border-color: color-mix(in srgb, var(--destructive) 36%, var(--border));
+  background: color-mix(in srgb, var(--destructive) 6%, var(--popover));
+}
+.agent-banner-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--muted-foreground);
+}
+.agent-banner.is-error .agent-banner-icon {
+  color: var(--destructive);
+}
+.agent-banner-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+</style>
