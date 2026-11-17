@@ -76,6 +76,8 @@ export interface SessionMcpBridge {
    * 未指定服务的资源工具会访问每台提供资源的服务，先等各共享连接建立或失败。
    */
   targets(toolName: string, input: unknown): Promise<McpCallTarget[] | undefined>;
+  /** 调用所属的服务名与短工具名，供界面显示；资源工具未指定服务时只有工具名，认不出的调用返回 undefined。 */
+  describeCall(toolName: string, input: unknown): { server?: string; tool: string } | undefined;
   dispose(): void;
 }
 
@@ -342,6 +344,14 @@ export class HostMcpService {
       register();
     };
     await sync();
+    const visible = () => [...entries.values()].filter(entry => entry.enabled && entry.exposure !== 'hidden');
+    /** 工具名经过规范化和截断，不能反推所属服务；按 pi 注册时记录的命名空间确定。 */
+    const serverTool = (toolName: string) => {
+      const namespace = api?.getAllTools().find(tool => tool.name === toolName)?.namespace?.name;
+      const server = visible().find(entry => mcpNamespace(entry.name) === namespace);
+      const prefix = `${namespace}__`;
+      return server && { server, toolName: toolName.startsWith(prefix) ? toolName.slice(prefix.length) : toolName };
+    };
 
     const record: BridgeRecord = { workId, sync };
     this.bridges.add(record);
@@ -358,8 +368,8 @@ export class HostMcpService {
         })
       ],
       targets: async (toolName, input) => {
-        const enabled = [...entries.values()].filter(entry => entry.enabled && entry.exposure !== 'hidden');
         if (RESOURCE_TOOL_NAMES.has(toolName)) {
+          const enabled = visible();
           const requested = (input as { server?: unknown } | null)?.server;
           if (typeof requested === 'string') {
             return enabled.filter(entry => entry.name === requested).map(server => ({ server, toolName }));
@@ -369,12 +379,17 @@ export class HostMcpService {
           return enabled.filter((_, index) => nodes[index]!.hasResources).map(server => ({ server, toolName }));
         }
         if (!toolName.startsWith(MCP_TOOL_PREFIX)) return undefined;
-        // 工具名经过规范化和截断，不能反推所属服务；按 pi 注册时记录的命名空间确定。
-        const namespace = api?.getAllTools().find(tool => tool.name === toolName)?.namespace?.name;
-        const server = enabled.find(entry => mcpNamespace(entry.name) === namespace);
-        if (!server) throw new Error('MCP 服务已停用或不存在');
-        const prefix = `${namespace}__`;
-        return [{ server, toolName: toolName.startsWith(prefix) ? toolName.slice(prefix.length) : toolName }];
+        const target = serverTool(toolName);
+        if (!target) throw new Error('MCP 服务已停用或不存在');
+        return [target];
+      },
+      describeCall: (toolName, input) => {
+        if (RESOURCE_TOOL_NAMES.has(toolName)) {
+          const server = (input as { server?: unknown } | null)?.server;
+          return { ...(typeof server === 'string' && { server }), tool: toolName };
+        }
+        const target = toolName.startsWith(MCP_TOOL_PREFIX) ? serverTool(toolName) : undefined;
+        return target && { server: target.server.name, tool: target.toolName };
       },
       dispose: () => {
         this.bridges.delete(record);

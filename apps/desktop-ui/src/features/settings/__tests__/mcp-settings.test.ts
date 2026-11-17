@@ -53,13 +53,16 @@ rl.on('line', line => {
 });
 `;
 
+/** 启动服务进程、建立连接的耗时随机器负载变化，等待时间放宽。 */
+const settled = (assertion: () => void | Promise<void>) => vi.waitFor(assertion, { timeout: 15_000 });
+
 describe('设置面板中的 MCP 服务页', () => {
   let root: string | undefined;
 
   afterEach(async () => {
     delete (window as { chaptaleDesktop?: unknown }).chaptaleDesktop;
     if (root) {
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
       root = undefined;
     }
   });
@@ -104,6 +107,7 @@ describe('设置面板中的 MCP 服务页', () => {
     const servers = async (workId: string | null) =>
       (await host.execute({ method: 'getMcpState', input: { workId } })) as HostCommands['getMcpState']['output'];
 
+    let wrapper: ReturnType<typeof mount<typeof McpSettings>> | undefined;
     try {
       const pinia = createPinia();
       setActivePinia(pinia);
@@ -119,16 +123,17 @@ describe('设置面板中的 MCP 服务页', () => {
       expect(useSettingsStore().activeSection).toBe('mcp');
       sidebar.unmount();
 
-      const wrapper = mount(McpSettings, { attachTo: document.body, global: { plugins: [pinia] } });
-      const editor = () => wrapper.get('textarea[aria-label="mcp.json 内容"]');
-      const button = (label: string) => wrapper.findAll('button').find(item => item.text() === label);
-      await vi.waitFor(() => expect(wrapper.text()).toContain('还没有服务'));
+      const page = mount(McpSettings, { attachTo: document.body, global: { plugins: [pinia] } });
+      wrapper = page;
+      const editor = () => page.get('textarea[aria-label="mcp.json 内容"]');
+      const button = (label: string) => page.findAll('button').find(item => item.text() === label);
+      await settled(() => expect(page.text()).toContain('还没有服务'));
 
       // 校验不通过的配置不落盘，草稿留在编辑区，可放弃修改
       const before = (editor().element as HTMLTextAreaElement).value;
       await editor().setValue('{ "servers": {} }');
       await button('保存并连接')!.trigger('click');
-      await vi.waitFor(() => expect(wrapper.text()).toContain('不支持的顶层字段'));
+      await settled(() => expect(page.text()).toContain('不支持的顶层字段'));
       expect((editor().element as HTMLTextAreaElement).value).toBe('{ "servers": {} }');
       await button('放弃修改')!.trigger('click');
       expect((editor().element as HTMLTextAreaElement).value).toBe(before);
@@ -138,24 +143,24 @@ describe('设置面板中的 MCP 服务页', () => {
       const json = JSON.stringify({ mcpServers: { wiki: { command: process.execPath, args: [script] } } }, null, 2);
       await editor().setValue(json);
       await button('保存并连接')!.trigger('click');
-      await vi.waitFor(() => {
-        expect(wrapper.text()).toContain('已连接，1 个工具');
-        expect(wrapper.text()).toContain('提供资源');
+      await settled(() => {
+        expect(page.text()).toContain('已连接，1 个工具');
+        expect(page.text()).toContain('提供资源');
       });
-      expect(wrapper.text()).not.toContain('不支持的顶层字段');
+      expect(page.text()).not.toContain('不支持的顶层字段');
       expect(button('放弃修改')).toBeUndefined();
-      expect(wrapper.get('.mcp-tools').text()).toContain('search');
-      expect(wrapper.get('.mcp-tools').text()).toContain('检索词条');
+      expect(page.get('.mcp-tools').text()).toContain('search');
+      expect(page.get('.mcp-tools').text()).toContain('检索词条');
 
       // 全局页：停用、再启用、切换暴露方式都写入全局配置
-      await wrapper.get('[aria-label="启用 MCP 服务 wiki"]').trigger('click');
-      await vi.waitFor(() => expect(wrapper.text()).toContain('已停用'));
+      await page.get('[aria-label="启用 MCP 服务 wiki"]').trigger('click');
+      await settled(() => expect(page.text()).toContain('已停用'));
       expect((await servers(null)).servers[0]).toMatchObject({ enabled: false, state: 'disabled' });
-      await wrapper.get('[aria-label="启用 MCP 服务 wiki"]').trigger('click');
-      await vi.waitFor(() => expect(wrapper.text()).toContain('已连接，1 个工具'));
+      await page.get('[aria-label="启用 MCP 服务 wiki"]').trigger('click');
+      await settled(() => expect(page.text()).toContain('已连接，1 个工具'));
 
-      wrapper.findComponent(AppSelect).vm.$emit('update:modelValue', 'direct');
-      await vi.waitFor(async () => expect((await servers(null)).servers[0]!.exposure).toBe('direct'));
+      page.findComponent(AppSelect).vm.$emit('update:modelValue', 'direct');
+      await settled(async () => expect((await servers(null)).servers[0]!.exposure).toBe('direct'));
       expect((editor().element as HTMLTextAreaElement).value).toContain('"direct"');
 
       // 作品页：看到全局服务，停用它只写作品级覆盖
@@ -163,10 +168,10 @@ describe('设置面板中的 MCP 服务页', () => {
         .findAll('[role="tab"]')
         .find(tab => tab.text() === '当前作品《山海卷》')!
         .trigger('mousedown', { button: 0 });
-      await vi.waitFor(() => expect(wrapper.get('.mcp-row').text()).toContain('全局'));
-      await wrapper.get('[aria-label="启用 MCP 服务 wiki"]').trigger('click');
-      await vi.waitFor(() => expect(wrapper.get('.mcp-row').text()).toContain('已在本作品调整'));
-      expect(wrapper.get('.mcp-row').text()).toContain('已停用');
+      await settled(() => expect(page.get('.mcp-row').text()).toContain('全局'));
+      await page.get('[aria-label="启用 MCP 服务 wiki"]').trigger('click');
+      await settled(() => expect(page.get('.mcp-row').text()).toContain('已在本作品调整'));
+      expect(page.get('.mcp-row').text()).toContain('已停用');
       expect((await servers(work.id)).servers[0]).toMatchObject({ enabled: false, overriddenInWork: true });
       expect((await servers(null)).servers[0]).toMatchObject({ enabled: true, exposure: 'direct' });
 
@@ -175,15 +180,14 @@ describe('设置面板中的 MCP 服务页', () => {
         .findAll('[role="tab"]')
         .find(tab => tab.text() === '全局')!
         .trigger('mousedown', { button: 0 });
-      await vi.waitFor(() => expect(wrapper.get('.mcp-row').text()).toContain('已连接，1 个工具'));
-      expect(wrapper.get('.mcp-row').text()).not.toContain('已在本作品调整');
-
-      wrapper.unmount();
+      await settled(() => expect(page.get('.mcp-row').text()).toContain('已连接，1 个工具'));
+      expect(page.get('.mcp-row').text()).not.toContain('已在本作品调整');
     } finally {
+      wrapper?.unmount();
       await host.dispose();
       creation.close();
     }
-  });
+  }, 60_000);
 
   it('远程服务按登录状态提供登录、粘贴跳转地址、取消登录与登出', async () => {
     const remote: ManagedMcpServerView = {

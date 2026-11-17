@@ -66,7 +66,12 @@ function object(value: unknown): Record<string, unknown> | undefined {
 /** 从 SDK 原生 toolResult.details 提取可读标题、字数与计数摘要。 */
 export function toolResultInfo(details: unknown): ToolResultInfo | undefined {
   const result = object(details);
-  if (!result || !('ok' in result)) return undefined;
+  if (!result) return undefined;
+  // pi 的 MCP 工具结果自带服务名与工具名；服务被移除后，历史记录仍能显示调用对象。
+  if (typeof result.server === 'string' && typeof result.tool === 'string') {
+    return { ...(result.server && { mcpServer: result.server }), mcpTool: result.tool };
+  }
+  if (!('ok' in result)) return undefined;
   if (result.ok === false) {
     const error = object(result.error);
     return typeof error?.message === 'string' ? { error: error.message } : undefined;

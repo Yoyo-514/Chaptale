@@ -154,6 +154,65 @@ describe('buildTranscript', () => {
     expect(rows[3]!.result).toEqual({ text: '文稿修订已变化', error: true });
   });
 
+  it('MCP 调用写明服务与工具，资源工具带上指定的服务，失败与进行中的调用同样可辨认', () => {
+    const [assistant] = buildTranscript([
+      message({
+        role: 'assistant',
+        tools: [
+          { id: 'cm-1', name: 'codemode', input: { code: 'return 1;' } },
+          {
+            id: 'direct-1',
+            name: 'mcp__wiki__search',
+            input: { q: '洛阳' },
+            info: { mcpServer: 'wiki', mcpTool: 'search' }
+          }
+        ]
+      }),
+      message({
+        role: 'toolResult',
+        toolCallId: 'cm-1',
+        toolName: 'codemode',
+        text: 'Script completed',
+        nestedToolsComplete: true,
+        nestedTools: [
+          {
+            id: 'cm-1/1',
+            name: 'mcp__wiki__search',
+            input: { q: '长安' },
+            status: 'ok',
+            info: { mcpServer: 'wiki', mcpTool: 'search' }
+          },
+          {
+            id: 'cm-1/2',
+            name: 'mcp__wiki__mutate',
+            input: { title: '新词条' },
+            status: 'error',
+            error: '作者拒绝了这次调用',
+            info: { mcpServer: 'wiki', mcpTool: 'mutate' }
+          },
+          {
+            id: 'cm-1/3',
+            name: 'read_mcp_resource',
+            input: { server: 'wiki', uri: 'wiki://doc-1' },
+            status: 'ok',
+            info: { mcpServer: 'wiki', mcpTool: 'read_mcp_resource' }
+          },
+          { id: 'cm-1/4', name: 'list_mcp_resources', input: {}, status: 'ok', info: { mcpTool: 'list_mcp_resources' } }
+        ]
+      })
+    ]);
+    if (!assistant || assistant.kind !== 'assistant') throw new Error('缺少助手块');
+    expect(summarizeTools(assistant.tools)).toBe('调用 MCP 工具 3 次 · 读取 MCP 资源 1 份 · 查看 MCP 资源 1 次');
+    expect(toolRows(assistant.tools).map(row => row.summary)).toEqual([
+      '执行脚本',
+      '调用 MCP 服务 wiki 的 search',
+      '未能调用 MCP 服务 wiki 的 mutate',
+      '读取 MCP 资源 · wiki',
+      '查看 MCP 资源',
+      '调用 MCP 服务 wiki 的 search'
+    ]);
+  });
+
   it('连续工具调用后的空正文报错或主动停止合并入同一助手块并保留最新下标', () => {
     const items = buildTranscript([
       message({ role: 'user', entryId: 'u-1', text: '分析第一章' }),

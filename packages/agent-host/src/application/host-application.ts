@@ -374,7 +374,8 @@ export class HostApplication {
     const live = new LiveSession(session, applied, mode, change => this.emit(change), {
       workId: work?.id ?? null,
       creation: this.options.creation,
-      skills: skillsState
+      skills: skillsState,
+      mcp
     });
     return this.attach({ view: live.view, live, mcp });
   }
@@ -573,7 +574,8 @@ export class HostApplication {
     const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change), {
       workId,
       creation: this.options.creation,
-      skills: opened.skills
+      skills: opened.skills,
+      mcp: opened.mcp
     });
     return this.attach({ view: live.view, live, mcp: opened.mcp });
   }

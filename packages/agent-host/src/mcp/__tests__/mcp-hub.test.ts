@@ -485,4 +485,54 @@ describe('HostMcpService 进程级连接共享、即时断连与 OAuth 2.1 登�
     const toolRes = await client.callTool('whoami', {});
     expect((toolRes.content[0] as { text: string }).text).toBe('authenticated-author');
   });
+
+  it('作品级服务的登录凭据与全局同名服务分开保存，取消后的登录不再接受回跳地址，永久清空作品只清除它的凭据', async () => {
+    const fx = await setupFixture();
+    const oauthSrv = await startLocalOAuthMcpServer();
+    cleanups.push(() => oauthSrv.close());
+    const json = JSON.stringify({ mcpServers: { remote: { url: oauthSrv.mcpUrl } } });
+    await saveValidatedMcpConfig(globalMcpConfigFile(fx.agentDir), 'global', json);
+    await saveValidatedMcpConfig(workMcpConfigFile(fx.workFilesDir), 'work', json);
+
+    const service = new HostMcpService({
+      agentDir: fx.agentDir,
+      defaultGlobalCwd: fx.globalCwd,
+      resolveWorkFilesDir: workId => (workId === 'w1' ? fx.workFilesDir : null)
+    });
+    cleanups.push(() => service.close());
+    const remote = async (workId: string | null) => (await service.getSnapshot(workId)).servers[0]!;
+    const signIn = async (workId: string | null) => {
+      const started = await service.startSignIn({ workId, name: 'remote' });
+      const location = (await fetch(started.authorizationUrl!, { redirect: 'manual' })).headers.get('location')!;
+      return { workId, name: 'remote', redirectUrl: location };
+    };
+
+    // 全局服务登录后，作品里同名的服务仍是未登录
+    await service.submitRedirectUrl(await signIn(null));
+    expect(await remote(null)).toMatchObject({ definedIn: 'global', state: 'connected', hasStoredAuth: true });
+    await waitFor(
+      () => remote('w1'),
+      view => view.state === 'needs-auth'
+    );
+    expect(await remote('w1')).toMatchObject({ definedIn: 'work', state: 'needs-auth', hasStoredAuth: false });
+
+    // 取消登录后，之前拿到的回跳地址不再生效
+    const cancelled = await signIn('w1');
+    expect((await remote('w1')).signingIn).toBeDefined();
+    expect((await service.cancelSignIn({ workId: 'w1', name: 'remote' })).servers[0]!.signingIn).toBeUndefined();
+    await expect(service.submitRedirectUrl(cancelled)).rejects.toThrow('没有正在等待回调的 OAuth 登录');
+    expect(await remote('w1')).toMatchObject({ state: 'needs-auth', hasStoredAuth: false });
+
+    await service.submitRedirectUrl(await signIn('w1'));
+    expect(await remote('w1')).toMatchObject({ state: 'connected', hasStoredAuth: true });
+
+    // 永久清空作品：作品的凭据清除，全局服务不受影响
+    await service.closeWork('w1', { purgeCredentials: true });
+    const afterPurge = await waitFor(
+      () => remote('w1'),
+      view => view.state === 'needs-auth'
+    );
+    expect(afterPurge).toMatchObject({ state: 'needs-auth', hasStoredAuth: false });
+    expect(await remote(null)).toMatchObject({ state: 'connected', hasStoredAuth: true });
+  }, 20_000);
 });

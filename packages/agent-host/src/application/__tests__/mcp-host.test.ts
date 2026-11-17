@@ -217,6 +217,8 @@ describe('HostApplication MCP 接入', () => {
   const declared = (context: Context) => getCurrentTools(context.messages).map(tool => tool.name);
   const view = (id: string) => app.snapshot().sessions.find(item => item.id === id)!;
   const transcript = (id: string) => JSON.stringify(view(id).messages);
+  /** 会话里按顺序出现过的脚本内子调用。 */
+  const nested = (id: string) => view(id).messages.flatMap(message => message.nestedTools ?? []);
 
   /** 发送一轮脚本并等到出现一条授权请求。 */
   async function promptUntilApproval(id: string, ...turns: ScriptTurn[]) {
@@ -259,6 +261,12 @@ describe('HostApplication MCP 接入', () => {
     });
     await waitIdle(id);
     expect(transcript(id)).toContain('wiki-v1:search');
+    // 界面据此显示“哪台服务的哪个工具”，不从工具名拆前缀。
+    expect(nested(id).at(-1)).toMatchObject({
+      name: 'mcp__wiki__search',
+      status: 'ok',
+      info: { mcpServer: 'wiki', mcpTool: 'search' }
+    });
     expect(app.snapshot().settings.toolPermissions).toMatchObject([
       { scope: { kind: 'session' }, capability: 'mcp', serverName: 'wiki', toolName: 'search' }
     ]);
@@ -292,6 +300,11 @@ describe('HostApplication MCP 接入', () => {
     await waitIdle(id);
     expect(transcript(id)).not.toContain('notes-v1 文档');
     expect(transcript(id)).not.toContain('wiki-v1 文档');
+    // 被拒绝的调用没有结果元数据，仍能认出是哪个资源工具；指定了服务的读取带上服务名。
+    expect(nested(id).slice(-2)).toMatchObject([
+      { name: 'read_mcp_resource', status: 'ok', info: { mcpServer: 'wiki', mcpTool: 'read_mcp_resource' } },
+      { name: 'list_mcp_resources', status: 'error', info: { mcpTool: 'list_mcp_resources' } }
+    ]);
   }, 30_000);
 
   it('保存配置后已打开的会话换用新连接：改为 direct 的工具直接声明给模型，命令变化使旧授权失效', async () => {
@@ -336,5 +349,9 @@ describe('HostApplication MCP 接入', () => {
     expect(app.snapshot().approvals).toEqual([]);
     expect(view(id).messages.find(message => message.toolCallId === 'c3')).toMatchObject({ error: true });
     expect(transcript(id)).not.toContain('wiki-v2:search:{\\"q\\":\\"停用后');
+    // 服务停用后，之前的调用仍按 pi 保存的结果元数据显示服务与工具。
+    expect(view(id).messages.find(message => message.toolCallId === 'c2')).toMatchObject({
+      toolInfo: { mcpServer: 'wiki', mcpTool: 'search' }
+    });
   }, 30_000);
 });

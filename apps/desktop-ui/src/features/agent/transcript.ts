@@ -136,8 +136,14 @@ function toolAction(name: string, input: unknown, info?: ToolResultInfo): [strin
       return ['执行脚本', '次'];
     case 'tool_search':
       return ['查找工具', '次'];
+    case 'list_mcp_resources':
+      return ['查看 MCP 资源', '次'];
+    case 'list_mcp_resource_templates':
+      return ['查看 MCP 资源模板', '次'];
+    case 'read_mcp_resource':
+      return ['读取 MCP 资源', '份'];
     default:
-      return ['调用工具', '次'];
+      return [info?.mcpTool ? '调用 MCP 工具' : '调用工具', '次'];
   }
 }
 
@@ -152,6 +158,14 @@ export function describeTool(
   const [action] = toolAction(name, input, info);
   if (info?.skillName) {
     return `${failed ? '未能' : ''}${action}《${info.skillName}》`;
+  }
+  if (info?.mcpTool) {
+    // 跨服务的资源工具以原名注册，只在指定了服务时带上服务名；服务自己的工具写明是哪台服务的哪个工具。
+    const what =
+      name === info.mcpTool
+        ? `${action}${info.mcpServer ? ` · ${info.mcpServer}` : ''}`
+        : `调用 MCP 服务 ${info.mcpServer} 的 ${info.mcpTool}`;
+    return `${failed ? '未能' : ''}${what}`;
   }
   if (name.startsWith('work_')) {
     const fields = input as Record<string, unknown> | undefined;

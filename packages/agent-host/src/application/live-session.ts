@@ -3,6 +3,7 @@ import type { AgentSession, AgentSessionEvent, ToolCallEvent, ToolResultEvent } 
 import type { CreationApplication } from '@chaptale/creation/application';
 
 import { prefixMessages, systemPrompt } from '../instructions/instructions.ts';
+import type { SessionMcpBridge } from '../mcp/index.ts';
 import {
   type AgentInstructions,
   type EditMode,
@@ -51,6 +52,7 @@ export class LiveSession {
   private readonly reviewResults?: SessionReviewResults;
   private readonly creation?: CreationApplication;
   private readonly skills?: SessionSkillsState;
+  private readonly mcp?: SessionMcpBridge;
   private appliedGuidelines: string;
 
   constructor(
@@ -58,19 +60,21 @@ export class LiveSession {
     applied: AppliedInstructions,
     mode: EditMode,
     emit: (change: HostChange) => void,
-    options: { workId: string | null; creation?: CreationApplication; skills?: SessionSkillsState }
+    options: {
+      workId: string | null;
+      creation?: CreationApplication;
+      skills?: SessionSkillsState;
+      mcp?: SessionMcpBridge;
+    }
   ) {
     this.session = session;
     this.applied = applied;
     this.emit = emit;
     this.creation = options.creation;
     this.skills = options.skills;
+    this.mcp = options.mcp;
     this.appliedGuidelines = this.currentGuidelines(options.workId);
-    const initialTargets = composeToolTargetLookup(
-      options.creation && toolTargetLookup(options.creation, session.sessionId, mode),
-      options.skills &&
-        ((input, toolName) => options.skills!.matchToolTarget(session.sessionManager.getCwd(), toolName, input))
-    );
+    const initialTargets = this.toolTargets(mode);
     this.view = {
       id: session.sessionId,
       sessionId: session.sessionId,
@@ -424,11 +428,16 @@ export class LiveSession {
     this.emit({ kind: 'tool', id: this.view.id, index: parent.index, parentCallId: parent.tool.id, call });
   }
 
-  private toolTargets() {
+  private toolTargets(mode = this.view.mode!) {
     return composeToolTargetLookup(
-      this.creation && toolTargetLookup(this.creation, this.session.sessionId, this.view.mode!),
+      this.creation && toolTargetLookup(this.creation, this.session.sessionId, mode),
       this.skills &&
-        ((input, toolName) => this.skills!.matchToolTarget(this.session.sessionManager.getCwd(), toolName, input))
+        ((input, toolName) => this.skills!.matchToolTarget(this.session.sessionManager.getCwd(), toolName, input)),
+      this.mcp &&
+        ((input, toolName) => {
+          const call = toolName === undefined ? undefined : this.mcp!.describeCall(toolName, input);
+          return call && { ...(call.server && { mcpServer: call.server }), mcpTool: call.tool };
+        })
     );
   }
 
