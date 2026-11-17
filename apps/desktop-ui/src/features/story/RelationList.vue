@@ -10,7 +10,6 @@ import {
 
 import { AppButton } from '@/components/AppButton';
 import { requestCreation, useCreationStore } from '@/features/creation';
-import { toErrorMessage } from '@/utils/desktop-api';
 
 import DraftSourceHint from './DraftSourceHint.vue';
 import {
@@ -25,6 +24,7 @@ import {
 import RelationForm from './RelationForm.vue';
 import { relationDiff, relationOverlaps, relationVisibility, type RelationItem } from './relations';
 import StorySection from './StorySection.vue';
+import { useStoryCommand } from './use-story-command';
 
 /**
  * 资料涉及的关系，每条一行：对方称呼、对方名称、起止章节与截至查看进度的状态，点击展开详情。
@@ -52,10 +52,8 @@ const creation = useCreationStore();
 const adding = ref(false);
 const editingId = ref<string | null>(null);
 const expandedId = ref<string | null>(null);
-const saving = ref(false);
-const error = ref('');
 const list = ref<HTMLElement | null>(null);
-const locked = computed(() => saving.value || Boolean(props.busy));
+const { error, locked, run } = useStoryCommand(() => props.busy);
 
 const types = computed(() => relationTypes([...creation.relations, ...props.items.map(item => item.relation)]));
 const formalCount = computed(() => props.items.filter(item => item.revisionId !== null).length);
@@ -120,20 +118,6 @@ async function locate(relationId: string) {
 }
 defineExpose({ locate });
 
-async function run(operation: () => Promise<unknown>) {
-  if (locked.value) return false;
-  saving.value = true;
-  error.value = '';
-  try {
-    await operation();
-    return true;
-  } catch (cause) {
-    error.value = toErrorMessage(cause);
-    return false;
-  } finally {
-    saving.value = false;
-  }
-}
 async function create(input: RelationInput) {
   const done = await run(() =>
     requestCreation('createRelation', { commandId: crypto.randomUUID(), workId: props.workId, ...input })

@@ -5,12 +5,12 @@ import { groupByPlacement, type RecordChange, type RecordFields, type StoryRecor
 
 import { AppButton } from '@/components/AppButton';
 import { requestCreation, useCreationStore } from '@/features/creation';
-import { toErrorMessage } from '@/utils/desktop-api';
 
 import DraftSourceHint from './DraftSourceHint.vue';
 import { chapterTitles, placementLabel, placementValue, resourceTitle, sourceLabel, type MilestoneRow } from './labels';
 import RecordForm from './RecordForm.vue';
 import StorySection from './StorySection.vue';
+import { useStoryCommand } from './use-story-command';
 
 /**
  * 资料涉及的事件，按发生位置分组；关系的建立与结束排在同一位置的事件之后，标“关系变化”。
@@ -40,10 +40,8 @@ const emit = defineEmits<{
 const creation = useCreationStore();
 const adding = ref(false);
 const editingId = ref<string | null>(null);
-const saving = ref(false);
-const error = ref('');
 const reviewing = computed(() => props.candidates !== undefined);
-const locked = computed(() => saving.value || Boolean(props.busy));
+const { error, locked, run } = useStoryCommand(() => props.busy);
 
 const formal = computed(() => creation.records.filter(record => record.resourceIds.includes(props.resourceId)));
 const changes = computed(() => new Map((props.candidates ?? []).map(change => [change.targetId, change])));
@@ -122,20 +120,6 @@ function fieldsOf(record: StoryRecord): RecordFields {
   };
 }
 
-async function run(operation: () => Promise<unknown>) {
-  if (locked.value) return false;
-  saving.value = true;
-  error.value = '';
-  try {
-    await operation();
-    return true;
-  } catch (cause) {
-    error.value = toErrorMessage(cause);
-    return false;
-  } finally {
-    saving.value = false;
-  }
-}
 async function create(fields: RecordFields) {
   if (
     await run(() =>
