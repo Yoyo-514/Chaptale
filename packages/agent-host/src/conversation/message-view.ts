@@ -1,9 +1,9 @@
 import { type AgentSession, type SessionManager, sessionEntryToContextMessages } from '@earendil-works/pi-coding-agent';
 
-import { type ChatMessage, reviewResultsMessageType } from '../protocol.ts';
-import { decodeUserPrompt } from '../skills/index.ts';
+import { type ChatMessage, reviewResultsMessageType } from '../protocol/index.ts';
 import { branchMap } from './session-tree.ts';
 import { nestedToolError, toolResultInfo, type ToolTargetLookup } from './tool-result-info.ts';
+import { decodeUserPrompt } from './user-prompt.ts';
 
 export type SdkMessage = AgentSession['messages'][number];
 

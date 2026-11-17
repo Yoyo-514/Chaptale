@@ -15,13 +15,14 @@ import {
   instructionsEntryType,
   modeEntryType,
   type SessionView
-} from '../protocol.ts';
-import { decodeUserPrompt, encodeUserPrompt, type SessionSkillsState } from '../skills/index.ts';
+} from '../protocol/index.ts';
+import type { SessionSkillsState } from '../skills/index.ts';
+import { SessionReviewResults, withdrawBranchPendingChanges } from '../work/review-results.ts';
+import { workWriteToolNames } from '../work/tools/index.ts';
 import { messageView, transcriptView } from './message-view.ts';
-import { SessionReviewResults, withdrawBranchPendingChanges } from './review-results.ts';
 import { navigateToBranchLeaf, rewindForMessageEdit } from './session-tree.ts';
 import { composeToolTargetLookup, previewToolInput, toolResultInfo, toolTargetLookup } from './tool-result-info.ts';
-import { workWriteToolNames } from './work-tools/index.ts';
+import { decodeUserPrompt, encodeUserPrompt } from './user-prompt.ts';
 
 /** 当前请求使用的指令；创建会话前交给 SDK 回调，之后在每次发送前更新。 */
 export interface AppliedInstructions {

@@ -20,7 +20,7 @@ import {
   type InstructionEntry,
   instructionsEntryType,
   modeEntryType
-} from '../../protocol.ts';
+} from '../../protocol/index.ts';
 import { HostModelConfiguration } from '../../runtime/model-configuration.ts';
 import { createHostApplication, HostApplication, type HostApplicationOptions } from '../index.ts';
 

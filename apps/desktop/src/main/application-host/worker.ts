@@ -7,7 +7,6 @@ import type { ApplicationBootstrapOptions, ApplicationPacket, ApplicationRequest
 // ParentPort 是 Electron 进程 IPC；消息与 DOM Window.postMessage 无关。
 const parent = process.parentPort!;
 function send(packet: ApplicationPacket) {
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin
   parent.postMessage(packet);
 }
 

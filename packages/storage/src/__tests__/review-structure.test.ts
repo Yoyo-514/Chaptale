@@ -109,7 +109,6 @@ it('会话内排序重排其他同级位置，正文改名不带入别的候选�
     })
   );
   const entries = value(app.executeAgent(context, { method: 'listEntries', input: { workId: work.id } }));
-  // oxlint-disable-next-line unicorn/no-array-sort
   entries.sort((a, b) => a.position - b.position);
   expect(entries.map(entry => entry.id)).toEqual([siblings[0]!.id, siblings[1]!.id, document.id]);
   expect(entries.map(entry => entry.position)).toEqual([0, 1, 2]);

@@ -26,7 +26,6 @@ export async function readWorkDisabledSkills(workSkillsRoot: string): Promise<st
   try {
     const parsed = JSON.parse(raw) as WorkDisabledPayload;
     if (!Array.isArray(parsed.disabled)) throw new Error('invalid');
-    // oxlint-disable-next-line unicorn/no-array-sort
     return [
       ...new Set(
         parsed.disabled.map(name => {
@@ -43,7 +42,6 @@ export async function readWorkDisabledSkills(workSkillsRoot: string): Promise<st
 
 export async function writeWorkDisabledSkills(workSkillsRoot: string, names: readonly string[]): Promise<void> {
   await mkdir(workSkillsRoot, { recursive: true });
-  // oxlint-disable-next-line unicorn/no-array-sort
   const normalized = [...new Set(names.map(name => name.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const target = join(workSkillsRoot, workDisabledFileName);
   const temp = `${target}.tmp`;

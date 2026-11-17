@@ -64,7 +64,6 @@ export function listTrash(database: Database.Database): TrashBatch[] {
     .all() as Omit<TrashBatch, 'roots' | 'records' | 'relations' | 'milestoneCount'>[];
   for (const batch of [...records.recordTrashBatches(database), ...relations.relationTrashBatches(database)])
     if (!batches.some(item => item.id === batch.id)) batches.push({ ...batch, entryCount: 0 });
-  // oxlint-disable-next-line unicorn/no-array-sort
   return batches
     .map(batch => ({
       ...batch,

@@ -70,7 +70,12 @@
       }
     },
     {
-      "files": ["packages/creation/src/contracts.ts", "packages/contracts/src/**/*.ts", "packages/ui/src/client/*.ts"],
+      "files": [
+        "packages/creation/src/contracts.ts",
+        "packages/contracts/src/**/*.ts",
+        "packages/ui/src/client/*.ts",
+        "packages/agent-host/src/protocol/**/*.ts"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",

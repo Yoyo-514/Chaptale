@@ -1,6 +1,6 @@
 import type { ContextEvent, ExtensionContext } from '@earendil-works/pi-coding-agent';
 
-import { type AgentInstructions, type EditMode, editModes } from '../protocol.ts';
+import { type AgentInstructions, type EditMode, editModes } from '../protocol/index.ts';
 
 type ContextMessage = ContextEvent['messages'][number];
 type ContextModel = NonNullable<ExtensionContext['model']>;

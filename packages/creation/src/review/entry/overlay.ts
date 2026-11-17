@@ -4,7 +4,6 @@ import type { EntryReviewView } from '../../contracts/review.ts';
 /** 按结构修改的先后构造会话目录；正文修改不携带其他候选造成的位置变化。 */
 export function overlayEntries(formal: Entry[], views: EntryReviewView[]): Entry[] {
   const entries = new Map(formal.map(entry => [entry.id, { ...entry }]));
-  // oxlint-disable-next-line unicorn/no-array-sort
   const ordered = [...views].sort((a, b) => a.change.order - b.change.order);
   for (const { change, candidate } of ordered) {
     if (change.deleted) {
@@ -42,7 +41,6 @@ export function overlayEntries(formal: Entry[], views: EntryReviewView[]): Entry
   return [...entries.values()];
 }
 function siblings(entries: Map<string, Entry>, section: Entry['section'], parentId: string | null, except: string) {
-  // oxlint-disable-next-line unicorn/no-array-sort
   return [...entries.values()]
     .filter(entry => entry.section === section && entry.parentId === parentId && entry.id !== except)
     .sort((a, b) => a.position - b.position);

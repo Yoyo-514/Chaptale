@@ -11,7 +11,7 @@ const rendererRoot = path.resolve(desktopRoot, '../desktop-ui');
 
 const agentHostRoot = path.resolve(desktopRoot, '../../packages/agent-host/src');
 const workspaceAliases = [
-  { find: '@chaptale/agent-host/protocol', replacement: path.join(agentHostRoot, 'protocol.ts') },
+  { find: '@chaptale/agent-host/protocol', replacement: path.join(agentHostRoot, 'protocol/index.ts') },
   { find: '@chaptale/ui/client', replacement: path.resolve(desktopRoot, '../../packages/ui/src/client/connection.ts') },
   { find: '@chaptale/agent-host/application', replacement: path.join(agentHostRoot, 'application/index.ts') },
   { find: '@chaptale/agent-host', replacement: path.join(agentHostRoot, 'index.ts') },

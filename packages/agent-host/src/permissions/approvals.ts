@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { McpCallTarget } from '../mcp/index.ts';
-import type { Approval, ApprovalRememberOption, HostChange } from '../protocol.ts';
+import type { Approval, ApprovalRememberOption, HostChange } from '../protocol/index.ts';
 import type { HostToolDecision, HostToolRequest } from '../tools/tool-access.ts';
 
 export interface PendingApprovalEntry {

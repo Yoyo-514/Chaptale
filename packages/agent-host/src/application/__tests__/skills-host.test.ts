@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { EditorContext, ManagedSkillView, ManagedSkillsSnapshot, SessionSkillItem } from '../../protocol.ts';
+import type { EditorContext, ManagedSkillView, ManagedSkillsSnapshot, SessionSkillItem } from '../../protocol/index.ts';
 import { HostModelConfiguration } from '../../runtime/model-configuration.ts';
 import { HostApplication } from '../index.ts';
 

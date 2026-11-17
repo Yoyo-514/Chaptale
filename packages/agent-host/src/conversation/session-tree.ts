@@ -8,7 +8,7 @@ import {
   instructionsEntryType,
   type MessageBranch,
   modeEntryType
-} from '../protocol.ts';
+} from '../protocol/index.ts';
 
 /** 当前分支上最近一次的指令与模式记录；记录内容无效时抛错。 */
 export function sessionRecords(branch: SessionEntry[]): {

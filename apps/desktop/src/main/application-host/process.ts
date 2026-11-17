@@ -115,7 +115,6 @@ export class DesktopApplicationProcess {
       stderrTail = (stderrTail + chunk.toString()).slice(-stderrTailLength);
     });
     const send = (request: ApplicationRequest) => {
-      // oxlint-disable-next-line unicorn/require-post-message-target-origin
       child.postMessage(request);
     };
     const clients: Connections = {
@@ -181,7 +180,6 @@ ${detail}`
       await this.exited;
       return;
     }
-    // oxlint-disable-next-line unicorn/require-post-message-target-origin
     child.postMessage({ type: 'shutdown' } satisfies ApplicationRequest);
     await this.exited;
   }

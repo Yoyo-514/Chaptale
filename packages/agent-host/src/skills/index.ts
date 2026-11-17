@@ -8,7 +8,6 @@ export {
   type SkillReadScope
 } from './discovery.ts';
 export { createSkillTemplate, importSkillSource, removeManagedSkill, validateSkillTemplateInput } from './manage.ts';
-export { decodeUserPrompt, encodeUserPrompt, formatSkillCommand } from './prompt.ts';
 export {
   globalSkillsDir,
   readWorkDisabledSkills,

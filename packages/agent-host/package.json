@@ -6,8 +6,8 @@
   "types": "./dist/index.d.ts",
   "exports": {
     "./protocol": {
-      "types": "./dist/protocol.d.ts",
-      "default": "./src/protocol.ts"
+      "types": "./dist/protocol/index.d.ts",
+      "default": "./src/protocol/index.ts"
     },
     "./application": {
       "types": "./dist/application/index.d.ts",

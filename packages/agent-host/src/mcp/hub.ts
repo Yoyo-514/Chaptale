@@ -26,7 +26,7 @@ import {
 } from '@earendil-works/pi-mcp/oauth';
 import { resolve } from 'node:path';
 
-import type { McpServerState, McpToolSummary } from '../protocol.ts';
+import type { McpServerState, McpToolSummary } from '../protocol/index.ts';
 import type { ResolvedMcpServerEntry } from './config.ts';
 import { type HostMcpOAuthCoordinator, toOAuthSettings } from './oauth-store.ts';
 

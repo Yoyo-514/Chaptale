@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 
-import type { NativeProvider } from '../../protocol.ts';
+import type { NativeProvider } from '../../protocol/index.ts';
 import { HostModelConfiguration } from '../model-configuration.ts';
 import { createHostModelRuntime } from '../model-runtime.ts';
 

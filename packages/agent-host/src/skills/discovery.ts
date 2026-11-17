@@ -2,6 +2,7 @@ import { loadSkillsFromDir, type ResourceDiagnostic, type Skill } from '@earendi
 import { realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import { matchesFsReadPermission, sameFsPath } from '../permissions/fs-read.ts';
 import type {
   ManagedSkillsSnapshot,
   ManagedSkillView,
@@ -9,8 +10,7 @@ import type {
   SkillDiagnosticView,
   SkillScope,
   ToolResultInfo
-} from '../protocol.ts';
-import { matchesFsReadPermission, sameFsPath } from '../tools/cwd-paths.ts';
+} from '../protocol/index.ts';
 
 export interface ScanManagedSkillsOptions {
   globalDir: string;

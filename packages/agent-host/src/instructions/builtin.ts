@@ -1,4 +1,4 @@
-import type { AgentInstructions } from '../protocol.ts';
+import type { AgentInstructions } from '../protocol/index.ts';
 
 /** 应用初次启动的默认值；已有全局设置与会话使用各自保存的指令。 */
 export const builtinWritingInstructions: AgentInstructions = [

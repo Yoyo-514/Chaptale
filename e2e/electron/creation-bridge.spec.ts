@@ -219,7 +219,6 @@ test('renderer 作品 API 保留保存结果与冲突，订阅可解除，重启
   const result = await page.evaluate(async () => {
     const client = (window as DesktopWindow).chaptaleDesktop.creation;
     // evaluate 会序列化到 renderer，辅助函数必须在浏览器作用域内定义。
-    // oxlint-disable-next-line unicorn/consistent-function-scoping
     function value<T>(response: CreationResult<T>): T {
       if (!response.ok) throw new Error(JSON.stringify(response.error));
       return response.value;
@@ -374,7 +373,6 @@ test('renderer 预览并导入真实文件，导出保留原文和同名原件�
     async ({ source: sourcePath, directory: outputDirectory }) => {
       const client = (window as DesktopWindow).chaptaleDesktop.creation;
       // 辅助函数随 evaluate 一起进入浏览器执行。
-      // oxlint-disable-next-line unicorn/consistent-function-scoping
       function value<T>(response: CreationResult<T>): T {
         if (!response.ok) throw new Error(response.error.message);
         return response.value;

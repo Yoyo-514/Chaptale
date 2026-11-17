@@ -14,7 +14,7 @@ import type {
   McpSelectableExposure,
   McpToolPermission,
   ToolPermission
-} from '../protocol.ts';
+} from '../protocol/index.ts';
 import {
   globalMcpConfigFile,
   loadMergedMcpConfig,

@@ -192,7 +192,6 @@ export class ReviewService {
         if (input.decision === 'accept') {
           const conflicted = views.filter(view => view.conflicts.length > 0);
           if (conflicted.length) throw new Error(`以下修改有冲突，请先逐项处理：${titles(conflicted)}`);
-          // oxlint-disable-next-line unicorn/no-array-sort
           const ordered = [...views].sort((a, b) => a.change.order - b.change.order);
           const work = this.repository.work(input.workId);
           this.creation.commit(input.workId, input.commandId, parameters, { kind: 'entries' }, () =>

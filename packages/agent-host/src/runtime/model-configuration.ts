@@ -2,7 +2,7 @@ import type { ModelRuntime } from '@earendil-works/pi-coding-agent';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { DiscoveredModel, ModelDiscovery, NativeProvider, ProviderSave, ProviderView } from '../protocol.ts';
+import type { DiscoveredModel, ModelDiscovery, NativeProvider, ProviderSave, ProviderView } from '../protocol/index.ts';
 
 type StoredProvider = NativeProvider & { apiKey?: string };
 type NativeModels = { providers: Record<string, StoredProvider>; [field: string]: unknown };

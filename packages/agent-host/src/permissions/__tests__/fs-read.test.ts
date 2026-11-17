@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { inspectFsReadTarget, matchesFsReadPermission } from '../cwd-paths.ts';
+import { inspectFsReadTarget, matchesFsReadPermission } from '../fs-read.ts';
 
 let root: string;
 let cwd: string;

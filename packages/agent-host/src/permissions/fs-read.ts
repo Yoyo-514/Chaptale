@@ -2,7 +2,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-import type { FsReadToolPermission } from '../protocol.ts';
+import type { FsReadToolPermission } from '../protocol/index.ts';
 
 /** 原生 read、ls、find、grep 的目标路径参数；ls、find、grep 省略时为工作目录。 */
 const pathTools = new Set(['read', 'ls', 'find', 'grep']);
@@ -100,9 +100,4 @@ export function matchesFsReadPermission(
   target: string
 ): boolean {
   return rule.pathKind === 'file' ? sameFsPath(rule.path, target) : inside(rule.path, target);
-}
-
-/** 原生文件工具的目标是否落在工作目录内，落在目录内的调用不逐次询问。 */
-export async function targetsCwd(toolName: string, input: unknown, cwd: string): Promise<boolean> {
-  return (await inspectFsReadTarget(toolName, input, cwd))?.inCwd === true;
 }

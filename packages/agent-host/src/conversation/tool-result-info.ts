@@ -1,7 +1,7 @@
 import type { CreationApplication } from '@chaptale/creation/application';
 import type { Entry } from '@chaptale/creation/contracts';
 
-import type { EditMode, ToolResultInfo } from '../protocol.ts';
+import type { EditMode, ToolResultInfo } from '../protocol/index.ts';
 
 /** 运行中的子调用摘要只取定位字段；整章正文和脚本代码沿用 SDK 最终记录。 */
 export function previewToolInput(input: Record<string, unknown>): Record<string, unknown> {

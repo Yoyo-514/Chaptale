@@ -2,7 +2,7 @@ import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 
 import type { CreationApplication } from '@chaptale/creation/application';
 
-import type { EditMode } from '../../protocol.ts';
+import type { EditMode } from '../../protocol/index.ts';
 import { entryTools } from './entries.ts';
 import { recordTools } from './records.ts';
 import { relationTools } from './relations.ts';

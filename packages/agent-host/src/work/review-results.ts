@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult, ReviewResultContent } from '@chaptale/creation/contracts';
 
-import { reviewResultsMessageType } from '../protocol.ts';
+import { reviewResultsMessageType } from '../protocol/index.ts';
 
 export interface ReviewResultsDetails {
   resultIds: string[];

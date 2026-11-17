@@ -14,7 +14,7 @@ import type {
   RelationSnapshot
 } from '@chaptale/creation/contracts';
 
-import type { EditMode } from '../../protocol.ts';
+import type { EditMode } from '../../protocol/index.ts';
 
 export const id = Type.String({ minLength: 1 });
 export const nullableId = Type.Union([id, Type.Null()]);

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import type { McpConfigScope, McpExposureView, McpSelectableExposure } from '../protocol.ts';
+import type { McpConfigScope, McpExposureView, McpSelectableExposure } from '../protocol/index.ts';
 
 export const EMPTY_MCP_JSON = '{\n  "mcpServers": {}\n}\n';
 

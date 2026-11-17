@@ -1,6 +1,6 @@
 import type { SessionManager } from '@earendil-works/pi-coding-agent';
 
-import type { AgentInstructions, ChatMessage, EditMode, ReadonlyHistory } from '../protocol.ts';
+import type { AgentInstructions, ChatMessage, EditMode, ReadonlyHistory } from '../protocol/index.ts';
 import { type DamagedHistory, readDamagedHistory } from '../session/session-storage.ts';
 import { messageView, type SdkMessage, transcriptView } from './message-view.ts';
 import { sessionRecords } from './session-tree.ts';
@@ -34,7 +34,6 @@ function damagedMessages(history: DamagedHistory): { messages: ChatMessage[]; li
     else lines.push(line);
   }
   // lines 是本函数内的副本，原地排序不影响调用方；当前 lib 不提供 toSorted。
-  // oxlint-disable-next-line unicorn/no-array-sort
   return { messages, lines: lines.sort((a, b) => a - b) };
 }
 

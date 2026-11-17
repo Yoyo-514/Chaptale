@@ -95,7 +95,6 @@ export async function prepareImport(paths: string[]): Promise<ImportPlan> {
       const index = plan.entries.length;
       plan.entries.push({ sourcePath: path, parentIndex, title: basename(path), kind: 'directory', format: null });
       // readdir 返回本次独占的数组；项目 ES2022 类型库使用原地排序。
-      // oxlint-disable-next-line unicorn/no-array-sort
       const names = (await readdir(path)).sort(collator.compare);
       for (const name of names) await visit(join(path, name), index);
     } else if (stat.isFile() && format) {

@@ -1,15 +1,15 @@
 import type { Skill } from '@earendil-works/pi-coding-agent';
 import { resolve } from 'node:path';
 
+import { matchesFsReadPermission, sameFsPath } from '../permissions/fs-read.ts';
 import type {
   ManagedSkillsSnapshot,
   ManagedSkillView,
   SessionSkillItem,
   SkillScope,
   ToolResultInfo
-} from '../protocol.ts';
+} from '../protocol/index.ts';
 import type { AppSettingsStore } from '../settings/app-settings.ts';
-import { matchesFsReadPermission, sameFsPath } from '../tools/cwd-paths.ts';
 import { resolveSkillReadScopes, scanManagedSkills, type SkillReadScope, targetsEnabledSkill } from './discovery.ts';
 import { createSkillTemplate, importSkillSource, removeManagedSkill } from './manage.ts';
 import { globalSkillsDir, readWorkDisabledSkills, setWorkSkillEnabled, workSkillsDir } from './store.ts';
@@ -129,7 +129,6 @@ export class HostSkillsService {
   }
 
   async sessionItems(workId: string | null): Promise<SessionSkillItem[]> {
-    // oxlint-disable-next-line unicorn/no-array-sort
     return [...(await this.scan(workId)).sessionItems].sort((a, b) => a.name.localeCompare(b.name));
   }
 

@@ -62,7 +62,6 @@ export class SqliteLibraryRepository implements LibraryRepository {
     for (const work of works)
       work.updatedAt = Math.max(work.updatedAt, this.latestEntryUpdate(work.id) ?? work.createdAt);
     // 本次查询独占的数组，按最近编辑排序。
-    // oxlint-disable-next-line unicorn/no-array-sort
     return works.sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id));
   }
 

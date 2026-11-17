@@ -8,7 +8,7 @@ import { setImmediate } from 'node:timers/promises';
 import { Type } from 'typebox';
 import { describe, expect, it } from 'vitest';
 
-import { sessionHistory } from '../../application/history.ts';
+import { sessionHistory } from '../../conversation/history.ts';
 import {
   createHostSession,
   defaultCodemodeTimeoutMs,
@@ -18,7 +18,7 @@ import {
   type HostToolDecision,
   type HostToolRequest
 } from '../../index.ts';
-import { instructionsEntryType, modeEntryType } from '../../protocol.ts';
+import { instructionsEntryType, modeEntryType } from '../../protocol/index.ts';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

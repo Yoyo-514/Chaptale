@@ -45,7 +45,6 @@ async function verifyChild(runDir, phase) {
     const result = await verifyHostPhase(runDir, phase);
     if (process.type === 'utility') {
       // Electron ParentPort 是进程 IPC，不是需要 targetOrigin 的 Window.postMessage。
-      // oxlint-disable-next-line unicorn/require-post-message-target-origin
       process.parentPort.postMessage({ type: 'host-verified', result });
     } else console.log(JSON.stringify(result));
     return;
@@ -256,7 +255,6 @@ try {
   process.exitCode = 1;
   if (process.type === 'utility') {
     // Electron ParentPort 没有 targetOrigin 参数。
-    // oxlint-disable-next-line unicorn/require-post-message-target-origin
     process.parentPort.postMessage({ type: 'host-verification-failed' });
   }
 }

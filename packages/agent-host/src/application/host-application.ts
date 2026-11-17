@@ -1,47 +1,29 @@
-import { type ModelRuntime, SessionManager, type ToolDefinition } from '@earendil-works/pi-coding-agent';
-import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, rename, stat } from 'node:fs/promises';
-import { basename, dirname, join, relative } from 'node:path';
+import type { ModelRuntime, ToolDefinition } from '@earendil-works/pi-coding-agent';
+import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import type { CreationApplication } from '@chaptale/creation/application';
 import type { ImportWorkPackageInput } from '@chaptale/creation/contracts';
 
+import { HostSessions } from '../conversation/host-sessions.ts';
+import type { LiveSession } from '../conversation/live-session.ts';
 import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
-import {
-  HostMcpService,
-  matchesMcpPermission,
-  type McpCallTarget,
-  mcpServerIdentity,
-  type SessionMcpBridge
-} from '../mcp/index.ts';
-import {
-  type AgentInstructions,
-  type ApprovalScope,
-  type HostChange,
-  type HostCommand,
-  type HostEvent,
-  type HistoryItem,
-  type HostState,
-  instructionsEntryType,
-  type McpApprovalRememberTarget,
-  type ModelChoice,
-  type ModelRef,
-  modeEntryType,
-  type SessionView,
-  type ToolPermissionScope
-} from '../protocol.ts';
+import { HostMcpService } from '../mcp/index.ts';
+import { ToolAuthorizer } from '../permissions/tool-authorizer.ts';
+import type {
+  AgentInstructions,
+  HostChange,
+  HostCommand,
+  HostEvent,
+  HostState,
+  ModelChoice,
+  ModelRef
+} from '../protocol/index.ts';
 import type { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
-import { HostSessionOpenError } from '../session/session-storage.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
-import { HostSkillsService, type SessionSkillsState } from '../skills/index.ts';
-import { inspectFsReadTarget, matchesFsReadPermission } from '../tools/cwd-paths.ts';
-import type { HostToolDecision, HostToolRequest } from '../tools/tool-access.ts';
-import { ToolApprovals, type PendingApprovalEntry } from './approvals.ts';
-import { damagedHistory, sessionHistory, type SessionHistory } from './history.ts';
-import { type AppliedInstructions, instructionCallbacks, LiveSession } from './live-session.ts';
-import { rejectPendingChanges } from './review-results.ts';
-import { createWorkTools, deferredWorkToolsPrompt, workToolNames, workWriteToolNames } from './work-tools/index.ts';
+import { HostSkillsService } from '../skills/index.ts';
+import { SessionWorks } from '../work/session-work.ts';
 
 export interface HostApplicationOptions {
   /** 未归属作品的会话使用的空工作目录。 */
@@ -60,61 +42,67 @@ export interface HostApplicationOptions {
   creation?: CreationApplication;
 }
 
-/** 会话归属的作品；未归属或作品已在回收站时为 null。 */
-type SessionWork = { id: string; title: string } | null;
-
-/** 未归属会话所在的子目录；作品 ID 不会与它重名。 */
-const unassignedFolder = 'unassigned';
-
-/** 已打开的会话；只读历史只有视图，没有可继续的会话。 */
-interface OpenSession {
-  view: SessionView;
-  live?: LiveSession;
-  mcp?: SessionMcpBridge;
-}
-
 /**
- * 正式宿主的有限命令入口与界面投影。
+ * 正式宿主的有限命令入口：装配各领域服务、分发命令、向界面广播变化。
  * 会话/工具执行仍由原生 SDK 持有；重连读取快照，不重发 prompt。
  */
 export class HostApplication {
-  private readonly sessions = new Map<string, OpenSession>();
-  private readonly opening = new Map<string, Promise<string>>();
   private readonly listeners = new Set<(event: HostEvent) => void>();
-  private readonly approvals = new ToolApprovals(change => this.emit(change));
   private cursor = 0;
   private stopping = false;
 
   private readonly options: HostApplicationOptions;
-  private readonly pool: HostSessionPool;
   private readonly settings: AppSettingsStore;
+  private readonly works: SessionWorks;
   private readonly skills: HostSkillsService;
   private readonly mcp: HostMcpService;
+  private readonly authorizer: ToolAuthorizer;
+  private readonly sessions: HostSessions;
 
   private constructor(options: HostApplicationOptions, pool: HostSessionPool, settings: AppSettingsStore) {
     this.options = options;
-    this.pool = pool;
     this.settings = settings;
+    this.works = new SessionWorks(options.creation, options.cwd);
     this.skills = new HostSkillsService({
       agentDir: options.agentDir,
       settings,
       resolveWorkFilesDir: async workId => {
-        if (!this.options.creation) throw new Error('未装配作品应用，不支持作品级技能');
-        const work = this.findWork(workId);
+        const work = this.works.find(workId);
         if (!work) throw new Error('目标作品不存在');
-        return this.workingDirectory(work);
+        return this.works.directory(work);
       }
     });
     this.mcp = new HostMcpService({
       agentDir: options.agentDir,
       defaultGlobalCwd: options.cwd,
       resolveWorkFilesDir: async workId => {
-        const work = this.options.creation ? this.findWork(workId) : null;
-        return work ? this.workingDirectory(work) : null;
+        const work = this.works.find(workId);
+        return work ? this.works.directory(work) : null;
       },
       onChange: () => {
         if (!this.stopping) this.emit({ kind: 'mcp' });
       }
+    });
+    this.authorizer = new ToolAuthorizer({
+      rules: settings,
+      emit: change => this.emit(change),
+      onRulesChanged: () => this.emitSettings(),
+      workExists: workId => this.works.find(workId) !== null
+    });
+    this.sessions = new HostSessions({
+      sessionDir: options.sessionDir,
+      cwd: options.cwd,
+      tools: options.tools,
+      creation: options.creation,
+      pool,
+      settings,
+      skills: this.skills,
+      mcp: this.mcp,
+      works: this.works,
+      authorizer: this.authorizer,
+      emit: change => this.emit(change),
+      rememberModel: model => this.rememberModel(model),
+      onSettingsChanged: () => this.emitSettings()
     });
   }
 
@@ -142,9 +130,9 @@ export class HostApplication {
       cursor: this.cursor,
       settings: this.settings.view(),
       models: this.models(),
-      sessions: [...this.sessions.values()].map(({ view }) => view),
-      approvals: this.approvals.list(),
-      tools: this.tools(this.options.cwd).map(tool => tool.name)
+      sessions: this.sessions.views(),
+      approvals: this.authorizer.pending(),
+      tools: this.sessions.toolNames()
     });
   }
 
@@ -154,41 +142,45 @@ export class HostApplication {
       case 'state':
         return this.snapshot();
       case 'create':
-        return this.create(command.input.model, command.input.instructions, command.input.workId);
+        return this.sessions.create(command.input.model, command.input.instructions, command.input.workId);
       case 'open':
-        return this.open(command.input.file);
+        return this.sessions.openFile(command.input.file);
       case 'history':
-        return this.history();
+        return this.sessions.history();
       case 'assignSession':
-        return this.assignSession(command.input.sessionId, command.input.workId);
+        return this.sessions.assign(command.input.sessionId, command.input.workId);
       case 'prompt':
-        return this.live(command.input.id).prompt(
-          command.input.text,
-          command.input.editorContext && structuredClone(command.input.editorContext),
-          command.input.delivery
-        );
+        return this.sessions
+          .live(command.input.id)
+          .prompt(
+            command.input.text,
+            command.input.editorContext && structuredClone(command.input.editorContext),
+            command.input.delivery
+          );
       case 'dequeue':
-        return this.live(command.input.id).dequeue(command.input.delivery, command.input.index);
+        return this.sessions.live(command.input.id).dequeue(command.input.delivery, command.input.index);
       case 'editMessage':
-        return this.live(command.input.id).editMessage(
-          command.input.entryId,
-          command.input.text,
-          command.input.editorContext && structuredClone(command.input.editorContext),
-          command.input.discardPending
-        );
+        return this.sessions
+          .live(command.input.id)
+          .editMessage(
+            command.input.entryId,
+            command.input.text,
+            command.input.editorContext && structuredClone(command.input.editorContext),
+            command.input.discardPending
+          );
       case 'switchBranch':
-        return this.live(command.input.id).switchBranch(command.input.leafId, command.input.discardPending);
+        return this.sessions.live(command.input.id).switchBranch(command.input.leafId, command.input.discardPending);
       case 'cancel':
-        return this.live(command.input.id).stop();
+        return this.sessions.live(command.input.id).stop();
       case 'compact':
-        return this.live(command.input.id).compact();
+        return this.sessions.live(command.input.id).compact();
       case 'dismissError':
-        this.sessions.get(command.input.id)?.live?.clearError();
+        this.sessions.find(command.input.id)?.clearError();
         return;
       case 'close':
-        return this.close(command.input.id);
+        return this.sessions.close(command.input.id);
       case 'deleteSessions':
-        return this.deleteSessions(command.input.sessionIds);
+        return this.sessions.delete(command.input.sessionIds);
       case 'trashWork':
         return this.trashWork(command.input);
       case 'purgeWork':
@@ -198,14 +190,14 @@ export class HostApplication {
       case 'restoreWorkSnapshot':
         return this.restoreWorkSnapshot(command.input);
       case 'approve':
-        return this.approveTool(command.input);
+        return this.authorizer.approve(command.input);
       case 'revokeToolPermission':
         await this.settings.revokeToolPermission(command.input.id);
         return this.emitSettings();
       case 'rename':
-        return this.live(command.input.id).rename(command.input.name);
+        return this.sessions.live(command.input.id).rename(command.input.name);
       case 'model': {
-        const live = this.live(command.input.id);
+        const live = this.sessions.live(command.input.id);
         const model = this.options.modelRuntime.getModel(command.input.model.provider, command.input.model.id);
         if (!model) throw new Error('所选模型不可用');
         // 先记下作者的选择，设置写入失败时不切换。
@@ -213,9 +205,9 @@ export class HostApplication {
         return live.setModel(model);
       }
       case 'instructions':
-        return this.live(command.input.id).setInstructions(normalizeInstructions(command.input.entries));
+        return this.sessions.live(command.input.id).setInstructions(normalizeInstructions(command.input.entries));
       case 'mode':
-        return this.live(command.input.id).setMode(normalizeMode(command.input.mode));
+        return this.sessions.live(command.input.id).setMode(normalizeMode(command.input.mode));
       case 'defaultInstructions':
         await this.settings.setDefaultInstructions(command.input.entries);
         return this.emitSettings();
@@ -238,11 +230,8 @@ export class HostApplication {
         return this.skills.import(command.input);
       case 'removeSkill':
         return this.skills.remove(command.input);
-      case 'sessionSkills': {
-        const record = this.get(command.input.id);
-        const work = record.view.workId && this.options.creation ? this.findWork(record.view.workId) : null;
-        return this.skills.sessionItems(work?.id ?? null);
-      }
+      case 'sessionSkills':
+        return this.skills.sessionItems(this.works.find(this.sessions.view(command.input.id).workId)?.id ?? null);
       case 'getMcpState':
         return this.mcp.getSnapshot(command.input.workId);
       case 'saveMcpConfig':
@@ -278,14 +267,14 @@ export class HostApplication {
 
   /** 正在生成内容的模型不能被移除；removed 判断该供应商下的模型是否会被移除。 */
   private assertIdle(provider: string, removed: (model: string) => boolean): void {
-    for (const { view } of this.sessions.values())
+    for (const view of this.sessions.views())
       if (view.running && view.model?.provider === provider && removed(view.model.id))
         throw new Error('模型正在生成内容，结束后再删除');
   }
 
   /** 按会话 id 取原生会话，供平台宿主在命令之外直接使用 SDK 能力；不新建也不取消执行者。 */
   liveSession(id: string): LiveSession['session'] | undefined {
-    return this.sessions.get(id)?.live?.session;
+    return this.sessions.find(id)?.session;
   }
 
   private async rememberModel(model: ModelRef): Promise<void> {
@@ -296,437 +285,50 @@ export class HostApplication {
     this.emit({ kind: 'settings', settings: this.settings.view() });
   }
 
-  private get(id: string): OpenSession {
-    const record = this.sessions.get(id);
-    if (!record) throw new Error('会话未打开，请重新选择历史会话');
-    return record;
-  }
-
-  private live(id: string): LiveSession {
-    const { live } = this.get(id);
-    if (!live) throw new Error('该会话为只读历史，不能继续，请新建会话');
-    return live;
-  }
-
-  /** 作品文件目录；未归属的会话使用应用的空工作目录。 */
-  private async workingDirectory(work: SessionWork): Promise<string> {
-    if (!work) return this.options.cwd;
-    const prepared = await this.options.creation!.execute({ method: 'prepareWorkFiles', input: { workId: work.id } });
-    if (!prepared.ok) throw new Error(prepared.error.message);
-    return prepared.value;
-  }
-
-  private findWork(workId: string | null): SessionWork {
-    if (workId === null) return null;
-    const works = this.options.creation!.executeAuthor({ method: 'listWorks', input: {} });
-    if (!works.ok) throw new Error(works.error.message);
-    const work = works.value.find(item => item.id === workId);
-    return work ? { id: work.id, title: work.title } : null;
-  }
-
-  /** 历史文件所在子目录对应的作品 ID；未归属为 null。 */
-  private workIdOf(file: string): string | null {
-    const folder = relative(this.options.sessionDir, dirname(file));
-    return folder === unassignedFolder ? null : folder;
-  }
-
-  /** 按子目录汇总全部历史；排列顺序由界面决定。 */
-  private async history(): Promise<HistoryItem[]> {
-    const folders = (await readdir(this.options.sessionDir, { withFileTypes: true })).filter(item =>
-      item.isDirectory()
-    );
-    const lists = await Promise.all(
-      folders.map(async folder =>
-        (await SessionManager.listAll(join(this.options.sessionDir, folder.name))).map(item => ({
-          id: item.id,
-          file: item.path,
-          workId: folder.name === unassignedFolder ? null : folder.name,
-          title: item.name || item.firstMessage || '未命名会话',
-          modified: item.modified.toISOString()
-        }))
-      )
-    );
-    return lists.flat();
-  }
-
-  /** 新会话复制一份指令与默认模式，之后与设置各自独立；指定作品时先归入作品再交给界面。 */
-  private async create(model: ModelRef, name: string | undefined, workId: string | null): Promise<string> {
-    const work = this.findWork(workId);
-    if (workId !== null && !work) throw new Error('目标作品不存在');
-    const cwd = await this.workingDirectory(work);
-    const applied = { entries: this.settings.instructionsFor(name) };
-    const mode = this.settings.defaultMode;
-    const skillsState = await this.skills.createSessionState(work?.id ?? null);
-    // 先记下作者的选择，设置写入失败时不创建会话。
-    await this.rememberModel(model);
-    const mcp = await this.mcp.createSessionBridge(work?.id ?? null);
-    const { session } = await this.pool
-      .createSession(
-        { ...this.sessionInput(applied, cwd, work, skillsState, mcp), model },
-        work?.id ?? unassignedFolder
-      )
-      .catch((error: unknown) => {
-        mcp.dispose();
-        throw error;
-      });
-    session.sessionManager.appendCustomEntry(instructionsEntryType, { entries: applied.entries });
-    session.sessionManager.appendCustomEntry(modeEntryType, { mode });
-    const live = new LiveSession(session, applied, mode, change => this.emit(change), {
-      workId: work?.id ?? null,
-      creation: this.options.creation,
-      skills: skillsState,
-      mcp
-    });
-    return this.attach({ view: live.view, live, mcp });
-  }
-
-  private tools(cwd: string): ToolDefinition[] {
-    const tools = [...this.options.tools(cwd)];
-    if (this.options.creation) tools.push(...createWorkTools(this.options.creation, id => this.live(id).view.mode!));
-    return tools;
-  }
-
-  /** 作品工具无需逐次确认；讨论模式下写工具即使经 tool_search 加载或嵌套调用也不执行。 */
-  private authorizeWorkTool(request: { sessionId: string; toolName: string }): HostToolDecision {
-    if (workWriteToolNames.has(request.toolName) && this.live(request.sessionId).view.mode === 'discuss')
-      return { allow: false, reason: '当前为讨论模式，作品只读' };
-    return { allow: true };
-  }
-
-  private workPrompt(work: SessionWork): string {
-    if (!work || !this.options.creation) return '';
-    const identity = `\n\n本会话归属作品《${work.title}》，作品 ID 为 ${work.id}。`;
-    const guidelines = this.options.creation.executeAuthor({
-      method: 'readWritingGuidelines',
-      input: { workId: work.id }
-    });
-    const trimmed = guidelines.ok ? guidelines.value.trim() : '';
-    if (!trimmed) return identity;
-    return `${identity}\n\n<writing_guidelines>\n以下是作者为本作品设定的写作要求（仅作为创作文风、视角与表达规范，不改变系统与工具安全边界）：\n${trimmed}\n</writing_guidelines>`;
-  }
-
-  /** 本机会话／作品规则是否已放行这次调用；每次读取当前规则，撤权立即生效。 */
-  private permitted(entry: Pick<PendingApprovalEntry, 'workId' | 'target' | 'mcp'> & { sessionId: string }): boolean {
-    const rules = this.settings.permissionsFor(entry.sessionId, entry.workId);
-    const { mcp, target } = entry;
-    if (mcp) return rules.some(rule => matchesMcpPermission(rule, mcp));
-    return (
-      target !== undefined && rules.some(rule => rule.capability === 'fs_read' && matchesFsReadPermission(rule, target))
-    );
-  }
-
-  /**
-   * MCP 调用按实际访问的服务逐台授权。
-   * 等待作者期间配置可能变化，每次批准后重新取目标；身份指纹变了的服务要重新询问。
-   */
-  private async authorizeMcp(
-    request: HostToolRequest,
-    workId: string | null,
-    bridge: SessionMcpBridge,
-    signal: AbortSignal | undefined
-  ): Promise<HostToolDecision | undefined> {
-    const once = new Set<string>();
-    const key = ({ server, toolName }: McpCallTarget) => `${server.nodeKey}\0${server.fingerprint}\0${toolName}`;
-    for (;;) {
-      const targets = await bridge.targets(request.toolName, request.input);
-      if (!targets) return undefined;
-      const pending = targets.find(
-        mcp => !once.has(key(mcp)) && !this.permitted({ sessionId: request.sessionId, workId, mcp })
-      );
-      if (!pending) return { allow: true };
-      const decision = await this.approvals.enqueue(
-        {
-          ...request,
-          workId,
-          mcp: pending,
-          remember: {
-            capability: 'mcp',
-            serverScope: pending.server.definedIn,
-            serverName: pending.server.name,
-            toolLabel: pending.toolName,
-            allowWork: workId !== null
-          }
-        },
-        signal
-      );
-      if (!decision.allow) return decision;
-      once.add(key(pending));
-    }
-  }
-
-  private sessionInput(
-    applied: AppliedInstructions,
-    cwd: string,
-    work: SessionWork,
-    skillsState: SessionSkillsState,
-    mcp: SessionMcpBridge
-  ) {
-    const callbacks = instructionCallbacks(applied);
-    return {
-      cwd,
-      ...callbacks,
-      ...(this.options.creation && {
-        systemPrompt: () => `${callbacks.systemPrompt()}\n\n${deferredWorkToolsPrompt}${this.workPrompt(work)}`
-      }),
-      skills: () => skillsState.currentSkills(),
-      toolAccess: {
-        tools: this.tools(cwd),
-        mcpExtensions: mcp.extensions,
-        // 原生文件工具在工作目录与已启用技能目录内不逐次询问，目录外先匹配本机会话／作品放行规则，未命中则由作者授权。
-        authorize: async (request: HostToolRequest, signal: AbortSignal | undefined) => {
-          if (this.options.creation && workToolNames.has(request.toolName)) return this.authorizeWorkTool(request);
-          const workId = work && (!this.options.creation || this.findWork(work.id)) ? work.id : null;
-          const mcpDecision = await this.authorizeMcp(request, workId, mcp, signal);
-          if (mcpDecision) return mcpDecision;
-          const fsRead = await inspectFsReadTarget(request.toolName, request.input, request.cwd);
-          if (fsRead) {
-            if (fsRead.inCwd || skillsState.allowsTarget(fsRead.target)) return { allow: true } as const;
-            if (this.permitted({ sessionId: request.sessionId, workId, target: fsRead.target })) {
-              return { allow: true } as const;
-            }
-          }
-          return this.approvals.enqueue(
-            {
-              ...request,
-              workId,
-              target: fsRead?.target,
-              remember: fsRead?.remember && { ...fsRead.remember, allowWork: workId !== null }
-            },
-            signal
-          );
-        },
-        onToolsLoaded: (sessionId: string) => this.live(sessionId).syncWorkTools(),
-        onToolActivity: (sessionId: string, event: Parameters<LiveSession['toolActivity']>[0]) =>
-          this.sessions.get(sessionId)?.live?.toolActivity(event)
-      }
-    };
-  }
-
-  private open(file: string): Promise<string> {
-    const existing = [...this.sessions.values()].find(record => record.view.file === file);
-    if (existing) return Promise.resolve(existing.view.id);
-    const pending = this.opening.get(file);
-    if (pending) return pending;
-    const operation = this.openFile(file);
-    this.opening.set(file, operation);
-    const finished = () => {
-      this.opening.delete(file);
-    };
-    void operation.then(finished, finished);
-    return operation;
-  }
-
-  /** 完整历史继续对话；损坏或缺少记录的历史只读打开，不修复、不套用当前默认值。 */
-  private async openFile(file: string): Promise<string> {
-    const applied: AppliedInstructions = { entries: [] };
-    const opened: {
-      history?: SessionHistory;
-      work?: SessionWork;
-      cwd?: string;
-      skills?: SessionSkillsState;
-      mcp?: SessionMcpBridge;
-    } = {};
-    const workId = this.workIdOf(file);
-    const cwd = async () => {
-      opened.work = this.findWork(workId);
-      opened.cwd = await this.workingDirectory(opened.work);
-      opened.skills = await this.skills.createSessionState(opened.work?.id ?? null);
-      opened.mcp = await this.mcp.createSessionBridge(opened.work?.id ?? null);
-      return opened.cwd;
-    };
-    let result: Awaited<ReturnType<HostSessionPool['openWith']>>;
-    try {
-      result = await this.pool.openWith({ file, cwd }, manager => {
-        const history = sessionHistory(manager);
-        opened.history = history;
-        if (history.kind === 'readonly') return undefined;
-        applied.entries = history.instructions;
-        // SAFETY: 预检通过后才交给 prepare，工作目录、归属、技能快照与 MCP 接入已经确定。
-        return this.sessionInput(applied, opened.cwd!, opened.work!, opened.skills!, opened.mcp!);
-      });
-    } catch (error) {
-      opened.mcp?.dispose();
-      // 需迁移或路径错误的历史仍然报错。
-      if (!(error instanceof HostSessionOpenError) || error.code !== 'recovery-required') throw error;
-      opened.history = await damagedHistory(file);
-    }
-    // SAFETY: openWith 成功时 prepare 必已执行，损坏分支也已赋值；可继续的历史必然创建了会话。
-    const history = opened.history!;
-    if (history.kind === 'readonly') {
-      opened.mcp?.dispose();
-      // 只读视图使用新的随机 id，避免与同一会话 id 的可写副本冲突。
-      const { readonly, messages, sessionId, name } = history;
-      return this.attach({
-        view: {
-          id: randomUUID(),
-          sessionId,
-          name,
-          file,
-          workId,
-          running: false,
-          compacting: false,
-          instructions: [],
-          messages,
-          readonly
-        }
-      });
-    }
-    const live = new LiveSession(result!.session, applied, history.mode, change => this.emit(change), {
-      workId,
-      creation: this.options.creation,
-      skills: opened.skills,
-      mcp: opened.mcp
-    });
-    return this.attach({ view: live.view, live, mcp: opened.mcp });
-  }
-
-  private attach(record: OpenSession): string {
-    this.sessions.set(record.view.id, record);
-    this.emit({ kind: 'session', session: record.view });
-    return record.view.id;
-  }
-
-  private async close(id: string): Promise<void> {
-    const { live, mcp } = this.get(id);
-    this.sessions.delete(id);
-    mcp?.dispose();
-    if (live) {
-      await live.stop();
-      await this.pool.close(id);
-      live.detach();
-    }
-    this.emit({ kind: 'closed', id });
-  }
-
-  private async deleteSessions(sessionIds: string[]): Promise<{ files: string[] }> {
-    const ids = new Set(sessionIds);
-    const open = [...this.sessions].filter(([, { view }]) => view.sessionId !== null && ids.has(view.sessionId));
-    if (open.some(([, { view }]) => view.running || view.compacting)) throw new Error('有会话正在运行，停止后才能删除');
-    const files = (await this.history()).filter(item => ids.has(item.id)).map(item => item.file);
-    const { creation } = this.options;
-    if (creation) {
-      for (const id of ids) rejectPendingChanges(creation, id);
-      const forgotten = creation.executeAuthor({ method: 'forgetSessions', input: { sessionIds: [...ids] } });
-      if (!forgotten.ok) throw new Error(forgotten.error.message);
-    }
-    for (const [id] of open) await this.close(id);
-    if (await this.settings.clearSessionPermissions(ids)) this.emitSettings();
-    return { files };
-  }
-
-  private async approveTool(input: {
-    id: string;
-    allow: boolean;
-    scope?: ApprovalScope;
-    mcpTarget?: McpApprovalRememberTarget;
-  }): Promise<void> {
-    const pending = this.approvals.peek(input.id);
-    if (!pending) throw new Error('授权请求已结束，请查看当前状态');
-    if (!input.allow) {
-      this.approvals.finish(input.id, { allow: false });
-      return;
-    }
-    const scope = input.scope ?? 'once';
-    if (scope === 'once') {
-      this.approvals.finish(input.id, { allow: true });
-      return;
-    }
-    const remember = pending.value.remember;
-    if (!remember) throw new Error('该调用仅支持单次允许');
-    let ruleScope: ToolPermissionScope = { kind: 'session', sessionId: pending.value.sessionId };
-    if (scope === 'work') {
-      if (!remember.allowWork || !pending.workId || (this.options.creation && !this.findWork(pending.workId))) {
-        throw new Error('当前会话不支持保存作品级授权');
-      }
-      ruleScope = { kind: 'work', workId: pending.workId };
-    }
-    const saved = await this.settings.addToolPermission(
-      remember.capability === 'fs_read'
-        ? { scope: ruleScope, capability: 'fs_read', path: remember.path, pathKind: remember.pathKind }
-        : {
-            scope: ruleScope,
-            // SAFETY: MCP 的记住选项只由 authorizeMcp 生成，同时带有调用目标。
-            ...mcpServerIdentity(pending.mcp!.server),
-            ...(input.mcpTarget !== 'server' && { toolName: pending.mcp!.toolName })
-          }
-    );
-    if (saved) this.emitSettings();
-    const resolved = this.approvals.finish(input.id, { allow: true });
-    this.approvals.allowMatching(entry => this.permitted({ ...entry, sessionId: entry.value.sessionId }));
-    if (!resolved) throw new Error('授权请求已结束，请查看当前状态');
-  }
-
-  /** 未归属会话的历史文件移入作品目录；已打开的先关闭，移动后重新打开。 */
-  private async assignSession(sessionId: string, workId: string): Promise<string | null> {
-    if (!this.findWork(workId)) throw new Error('目标作品不存在');
-    const item = (await this.history()).find(candidate => candidate.id === sessionId);
-    if (!item) throw new Error('会话还没有内容，发送消息后再归入作品');
-    if (item.workId !== null) throw new Error('会话已归属作品');
-    const open = [...this.sessions].filter(([, { view }]) => view.sessionId === sessionId);
-    if (open.some(([, { view }]) => view.running || view.compacting))
-      throw new Error('会话正在运行，停止后才能归入作品');
-    for (const [id] of open) await this.close(id);
-    const target = join(this.options.sessionDir, workId, basename(item.file));
-    await mkdir(dirname(target), { recursive: true });
-    await rename(item.file, target);
-    const forgotten = this.options.creation!.executeAuthor({
-      method: 'forgetSessions',
-      input: { sessionIds: [sessionId] }
-    });
-    if (!forgotten.ok) throw new Error(forgotten.error.message);
-    return open.length > 0 ? this.open(target) : null;
-  }
-
-  /** 属于作品的已打开会话；任一在运行时用 action 说明被拒绝的操作。 */
-  private idleWorkSessions(workId: string, action: string): string[] {
-    const open = [...this.sessions].filter(([, { view }]) => view.workId === workId);
-    if (open.some(([, { view }]) => view.running || view.compacting))
-      throw new Error(`有会话正在运行，停止后才能${action}`);
-    return open.map(([id]) => id);
-  }
-
   private async importWorkPackage(input: ImportWorkPackageInput) {
     const creation = this.options.creation!;
     let open: string[] = [];
     if (!input.asCopy) {
       const info = await creation.execute({ method: 'inspectWorkPackage', input: { path: input.path } });
       if (!info.ok) throw new Error(info.error.message);
-      if (info.value.exists) open = this.idleWorkSessions(info.value.work.id, '覆盖作品');
+      if (info.value.exists) open = this.sessions.idleOfWork(info.value.work.id, '覆盖作品');
     }
     const imported = await creation.execute({ method: 'importWorkPackage', input });
     if (!imported.ok) throw new Error(imported.error.message);
-    for (const id of open) await this.close(id);
+    for (const id of open) await this.sessions.close(id);
     if (!input.asCopy) await this.mcp.closeWork(imported.value.work.id);
     return imported.value;
   }
 
   private async restoreWorkSnapshot(input: { commandId: string; workId: string }) {
-    const open = this.idleWorkSessions(input.workId, '恢复作品');
+    const open = this.sessions.idleOfWork(input.workId, '恢复作品');
     const restored = await this.options.creation!.execute({ method: 'restoreWorkSnapshot', input });
     if (!restored.ok) throw new Error(restored.error.message);
-    for (const id of open) await this.close(id);
+    for (const id of open) await this.sessions.close(id);
     return restored.value;
   }
 
   private async trashWork(input: { commandId: string; workId: string }) {
     const creation = this.options.creation!;
-    const open = this.idleWorkSessions(input.workId, '删除作品');
+    const open = this.sessions.idleOfWork(input.workId, '删除作品');
     const trashed = creation.executeAuthor({ method: 'trashWork', input });
     if (!trashed.ok) throw new Error(trashed.error.message);
-    for (const id of open) await this.close(id);
+    for (const id of open) await this.sessions.close(id);
     await this.mcp.closeWork(input.workId);
     return trashed.value;
   }
 
   /** 永久删除作品；其会话目录随作品目录交给平台移入回收站。 */
   private async purgeWork(input: { commandId: string; workId: string }): Promise<{ files: string[] }> {
-    const open = this.idleWorkSessions(input.workId, '永久删除作品');
+    const open = this.sessions.idleOfWork(input.workId, '永久删除作品');
     const purged = this.options.creation!.executeAuthor({ method: 'purgeWork', input });
     if (!purged.ok) throw new Error(purged.error.message);
-    for (const id of open) await this.close(id);
+    for (const id of open) await this.sessions.close(id);
     // 作品目录随后交给平台删除，先结束以它为工作目录的服务进程。
     await this.mcp.closeWork(input.workId, { purgeCredentials: true });
-    const workSessionIds = (await this.history()).filter(item => item.workId === input.workId).map(item => item.id);
+    const workSessionIds = (await this.sessions.history())
+      .filter(item => item.workId === input.workId)
+      .map(item => item.id);
     if (await this.settings.clearWorkPermissions(input.workId, workSessionIds)) this.emitSettings();
     const sessions = join(this.options.sessionDir, input.workId);
     const exists = await stat(sessions).then(
@@ -738,13 +340,10 @@ export class HostApplication {
 
   async dispose(): Promise<void> {
     this.stopping = true;
-    this.approvals.cancelAll();
-    const lives = [...this.sessions.values()].flatMap(({ live }) => (live ? [live] : []));
-    await Promise.all(lives.map(live => live.stop()));
-    await this.pool.dispose();
+    this.authorizer.cancelAll();
+    await this.sessions.stop();
     await this.mcp.close();
-    for (const live of lives) live.detach();
-    this.sessions.clear();
+    this.sessions.release();
     this.listeners.clear();
   }
 }

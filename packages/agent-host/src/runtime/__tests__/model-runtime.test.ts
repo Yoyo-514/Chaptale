@@ -78,7 +78,6 @@ describe('应用模型运行时装配', () => {
     expect(result.selected).toEqual(testModel);
     // SDK 只在显式配置目录内初始化凭据存储与目录缓存，且不改写已有凭据。
     // 包的目标为 ES2022；排序仅修改 readdir 刚创建的数组。
-    // oxlint-disable-next-line unicorn/no-array-sort
     expect((await readdir(input.configDir)).sort()).toEqual(['auth.json', 'models-store.json', 'models.json']);
     expect(JSON.parse(await readFile(join(input.configDir, 'auth.json'), 'utf8'))).toEqual(authConfig);
     // 作品与资源目录保持干净。
@@ -119,7 +118,6 @@ describe('应用模型运行时装配', () => {
     expect(result.available).toEqual([]);
     expect(result.selected).not.toEqual(testModel);
     // 凭据文件缺失被接受，并由 SDK 在配置目录内初始化自有存储。
-    // oxlint-disable-next-line unicorn/no-array-sort
     expect((await readdir(input.configDir)).sort()).toEqual(['auth.json', 'models-store.json']);
   });
 

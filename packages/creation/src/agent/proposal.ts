@@ -86,7 +86,6 @@ export function proposeEntry(
       if (input.beforeEntryId === snapshot.id && input.parentId !== visible.parentId)
         throw new Error('排序目标不存在或不属于目标目录');
       if (input.beforeEntryId !== snapshot.id) {
-        // oxlint-disable-next-line unicorn/no-array-sort
         const siblings = entries
           .filter(
             entry => entry.section === snapshot.section && entry.parentId === input.parentId && entry.id !== snapshot.id

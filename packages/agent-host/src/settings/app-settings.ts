@@ -2,21 +2,21 @@ import { randomUUID } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 
 import { normalizeInstructions, normalizeMode } from '../instructions/instructions.ts';
+import {
+  normalizeToolPermission,
+  permissionsFor,
+  samePermission,
+  type ToolPermissionDraft,
+  withoutPermissions
+} from '../permissions/rules.ts';
 import type {
   AgentInstructions,
   EditMode,
-  FsReadToolPermission,
   HostSettings,
-  McpToolPermission,
   ModelRef,
   NamedInstructions,
-  ToolPermission,
-  ToolPermissionScope
-} from '../protocol.ts';
-import { sameFsPath } from '../tools/cwd-paths.ts';
-
-/** 待保存的放行规则；ID 由设置存储分配。 */
-export type ToolPermissionDraft = Omit<FsReadToolPermission, 'id'> | Omit<McpToolPermission, 'id'>;
+  ToolPermission
+} from '../protocol/index.ts';
 
 /**
  * 设置文件内容；defaultInstructions 为 null 表示作者尚未设置，新会话使用应用内置指令。
@@ -51,71 +51,6 @@ function normalizeNamed(value: NamedInstructions): NamedInstructions {
   return { name: value.name, entries: normalizeInstructions(value.entries) };
 }
 
-function normalizePermissionScope(scope: ToolPermissionScope): ToolPermissionScope {
-  if (scope.kind === 'session' && typeof scope.sessionId === 'string' && scope.sessionId.trim()) {
-    return { kind: 'session', sessionId: scope.sessionId };
-  }
-  if (scope.kind === 'work' && typeof scope.workId === 'string' && scope.workId.trim()) {
-    return { kind: 'work', workId: scope.workId };
-  }
-  throw new Error('工具授权作用域无效');
-}
-
-function normalizeToolPermission(value: ToolPermission): ToolPermission {
-  if (typeof value.id !== 'string' || !value.id.trim()) throw new Error('工具授权需要稳定 ID');
-  const scope = normalizePermissionScope(value.scope);
-  if (value.capability === 'fs_read') {
-    if (typeof value.path !== 'string' || !value.path.trim()) throw new Error('工具授权需要路径');
-    if (value.pathKind !== 'directory' && value.pathKind !== 'file') throw new Error('工具授权路径类型无效');
-    return { id: value.id, scope, capability: 'fs_read', path: value.path, pathKind: value.pathKind };
-  }
-  if (value.capability === 'mcp') {
-    const { serverScope, serverWorkId, serverName, serverFingerprint, toolName } = value;
-    const text = (item: unknown) => typeof item === 'string' && item.trim() !== '';
-    if (
-      !(serverScope === 'global' ? serverWorkId === null : serverScope === 'work' && text(serverWorkId)) ||
-      !text(serverName) ||
-      !text(serverFingerprint) ||
-      (toolName !== undefined && !text(toolName))
-    ) {
-      throw new Error('MCP 工具授权无效');
-    }
-    return {
-      id: value.id,
-      scope,
-      capability: 'mcp',
-      serverScope,
-      serverWorkId,
-      serverName,
-      serverFingerprint,
-      ...(toolName !== undefined && { toolName })
-    };
-  }
-  throw new Error('工具授权能力无效');
-}
-
-function sameScope(left: ToolPermissionScope, right: ToolPermissionScope): boolean {
-  if (left.kind !== right.kind) return false;
-  return left.kind === 'session'
-    ? left.sessionId === (right as { kind: 'session'; sessionId: string }).sessionId
-    : left.workId === (right as { kind: 'work'; workId: string }).workId;
-}
-
-function samePermission(left: ToolPermission, right: ToolPermission): boolean {
-  if (!sameScope(left.scope, right.scope)) return false;
-  if (left.capability === 'fs_read') {
-    return right.capability === 'fs_read' && left.pathKind === right.pathKind && sameFsPath(left.path, right.path);
-  }
-  return (
-    right.capability === 'mcp' &&
-    left.serverScope === right.serverScope &&
-    left.serverWorkId === right.serverWorkId &&
-    left.serverName === right.serverName &&
-    left.serverFingerprint === right.serverFingerprint &&
-    left.toolName === right.toolName
-  );
-}
-
 function parseSettings(value: AppSettings): AppSettings {
   const namedInstructions = value.namedInstructions.map(normalizeNamed);
   if (new Set(namedInstructions.map(item => item.name)).size !== namedInstructions.length) {
@@ -125,7 +60,6 @@ function parseSettings(value: AppSettings): AppSettings {
   if (new Set(toolPermissions.map(item => item.id)).size !== toolPermissions.length) {
     throw new Error('工具授权 ID 重复');
   }
-  // oxlint-disable-next-line unicorn/no-array-sort
   const disabledGlobalSkills = Array.isArray(value.disabledGlobalSkills)
     ? [
         ...new Set(
@@ -204,7 +138,6 @@ export class AppSettingsStore {
     const set = new Set(this.value.disabledGlobalSkills);
     const changed = enabled ? set.delete(trimmed) : !set.has(trimmed) && Boolean(set.add(trimmed));
     if (!changed) return false;
-    // oxlint-disable-next-line unicorn/no-array-sort
     await this.save({ ...this.value, disabledGlobalSkills: [...set].sort((a, b) => a.localeCompare(b)) });
     return true;
   }
@@ -222,11 +155,7 @@ export class AppSettingsStore {
   }
 
   permissionsFor(sessionId: string, workId: string | null): ToolPermission[] {
-    return this.value.toolPermissions.filter(item =>
-      item.scope.kind === 'session'
-        ? item.scope.sessionId === sessionId
-        : workId !== null && item.scope.workId === workId
-    );
+    return permissionsFor(this.value.toolPermissions, sessionId, workId);
   }
 
   setDefaultInstructions(entries: AgentInstructions): Promise<void> {
@@ -276,24 +205,18 @@ export class AppSettingsStore {
     await this.save({ ...this.value, toolPermissions: list.filter(item => item.id !== id) });
   }
 
-  async clearSessionPermissions(sessionIds: Iterable<string>): Promise<boolean> {
-    const ids = new Set(sessionIds);
-    if (ids.size === 0) return false;
-    const next = this.value.toolPermissions.filter(
-      item => !(item.scope.kind === 'session' && ids.has(item.scope.sessionId))
-    );
-    if (next.length === this.value.toolPermissions.length) return false;
-    await this.save({ ...this.value, toolPermissions: next });
-    return true;
+  /** 删除会话时清掉它们的规则。 */
+  clearSessionPermissions(sessionIds: Iterable<string>): Promise<boolean> {
+    return this.replacePermissions(withoutPermissions(this.value.toolPermissions, new Set(sessionIds)));
   }
 
-  async clearWorkPermissions(workId: string, sessionIds: Iterable<string> = []): Promise<boolean> {
-    const ids = new Set(sessionIds);
-    const next = this.value.toolPermissions.filter(
-      item =>
-        !(item.scope.kind === 'work' && item.scope.workId === workId) &&
-        !(item.scope.kind === 'session' && ids.has(item.scope.sessionId))
-    );
+  /** 永久清空作品时清掉作品规则和它名下会话的规则。 */
+  clearWorkPermissions(workId: string, sessionIds: Iterable<string> = []): Promise<boolean> {
+    return this.replacePermissions(withoutPermissions(this.value.toolPermissions, new Set(sessionIds), workId));
+  }
+
+  /** 没有规则被去掉时不写文件。 */
+  private async replacePermissions(next: ToolPermission[]): Promise<boolean> {
     if (next.length === this.value.toolPermissions.length) return false;
     await this.save({ ...this.value, toolPermissions: next });
     return true;
