@@ -27,6 +27,11 @@ const sections: { id: SettingsSection; title: string; icon: string }[] = [
     icon: 'i-mingcute-sparkles-line'
   },
   {
+    id: 'mcp',
+    title: 'MCP 服务',
+    icon: 'i-mingcute-plugin-2-line'
+  },
+  {
     id: 'permissions',
     title: '工具授权',
     icon: 'i-mingcute-shield-line'

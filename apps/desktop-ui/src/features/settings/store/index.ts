@@ -7,7 +7,7 @@ import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import { applyTheme, cacheTheme } from '../theme';
 
-export type SettingsSection = 'writing' | 'llm' | 'prompt' | 'skills' | 'permissions' | 'cloudSync' | 'files';
+export type SettingsSection = 'writing' | 'llm' | 'prompt' | 'skills' | 'mcp' | 'permissions' | 'cloudSync' | 'files';
 
 /** 设置快照是主题的事实源；每次拿到新快照都据此校准界面与启动期缓存。 */
 function syncTheme(state: ChaptaleSettingsState) {

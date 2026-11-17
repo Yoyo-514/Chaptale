@@ -48,6 +48,11 @@ export class DesktopApplicationProcess {
           await rm(dirname(file), { recursive: true, force: true });
         }
       }
+      // 登录地址来自远程服务的 OAuth 元数据，只把 http、https 交给系统浏览器。
+      if (method === 'startMcpSignIn') {
+        const url = (output as { authorizationUrl?: string }).authorizationUrl;
+        if (url && ['http:', 'https:'].includes(new URL(url).protocol)) await shell.openExternal(url);
+      }
       return output;
     },
     subscribe: listener => {

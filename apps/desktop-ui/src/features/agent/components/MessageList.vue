@@ -5,11 +5,13 @@ import type {
   Approval,
   ApprovalScope,
   EditorContext,
+  McpApprovalRememberTarget,
   QueuedDelivery,
   SessionView
 } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
+import { AppCheckbox } from '@/components/AppCheckbox';
 import { clearStreamingMarkdownCache, renderMarkdown, renderStreamingMarkdown } from '@/utils/markdown';
 
 import { formatAgentError, formatRetryStatus } from '../error-format';
@@ -25,7 +27,7 @@ import UserMessageItem from './UserMessageItem.vue';
 
 const props = defineProps<{ session: SessionView; approvals: Approval[]; outgoing: OutgoingMessage[] }>();
 const emit = defineEmits<{
-  approve: [id: string, allow: boolean, scope?: ApprovalScope];
+  approve: [id: string, allow: boolean, scope?: ApprovalScope, mcpTarget?: McpApprovalRememberTarget];
   retry: [key: string];
   discard: [key: string];
   recallQueued: [delivery: QueuedDelivery, index: number];
@@ -33,6 +35,14 @@ const emit = defineEmits<{
   switchBranch: [leafId: string];
   openModelSettings: [];
 }>();
+
+/** 作者在 MCP 授权卡片上勾选了“整台服务”的请求；未勾选时只记住这次调用的工具。 */
+const serverWide = ref<Record<string, boolean>>({});
+function remember(approval: Approval, scope: 'session' | 'work') {
+  if (approval.remember?.capability === 'mcp')
+    emit('approve', approval.id, true, scope, serverWide.value[approval.id] ? 'server' : 'tool');
+  else emit('approve', approval.id, true, scope);
+}
 
 const items = computed(() => buildTranscript(props.session.messages));
 const lastIndex = computed(() => props.session.messages.length - 1);
@@ -273,35 +283,39 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
     >
       <p class="agent-approval-title">
         <span class="i-mingcute-shield-line size-4 shrink-0" aria-hidden="true" />
-        <span>助手想要{{ describeTool(approval.toolName, approval.input, false) }}</span>
+        <span v-if="approval.remember?.capability === 'mcp'"
+          >助手想要调用 MCP 服务 {{ approval.remember.serverName }} 的 {{ approval.remember.toolLabel }}</span
+        >
+        <span v-else>助手想要{{ describeTool(approval.toolName, approval.input, false) }}</span>
       </p>
       <p v-if="approval.remember?.capability === 'fs_read'" class="agent-approval-scope">
         记住后允许读取{{ approval.remember.pathKind === 'file' ? '文件' : '目录' }}：<code>{{
           approval.remember.path
         }}</code>
       </p>
-      <p v-else-if="approval.remember" class="agent-approval-scope">
-        记住后允许调用 MCP 服务 <code>{{ approval.remember.serverName }}</code> 的
-        <code>{{ approval.remember.toolLabel }}</code>
-      </p>
+      <template v-else-if="approval.remember">
+        <p class="agent-approval-scope">
+          <template v-if="serverWide[approval.id]">记住后允许调用该服务的全部工具</template>
+          <template v-else> 记住后允许调用 <code>{{ approval.remember.toolLabel }}</code></template>
+        </p>
+        <label class="agent-approval-option">
+          <AppCheckbox
+            :model-value="serverWide[approval.id] === true"
+            @update:model-value="serverWide[approval.id] = $event === true"
+          />
+          <span>记住时放行该服务的全部调用</span>
+        </label>
+      </template>
       <details class="agent-approval-detail">
         <summary>查看参数</summary>
         <pre>{{ format(approval.input) }}</pre>
       </details>
       <div class="agent-row agent-approval-actions">
         <AppButton size="sm" variant="primary" @click="emit('approve', approval.id, true, 'once')">仅此次</AppButton>
-        <AppButton
-          v-if="approval.remember"
-          size="sm"
-          variant="outline"
-          @click="emit('approve', approval.id, true, 'session')"
+        <AppButton v-if="approval.remember" size="sm" variant="outline" @click="remember(approval, 'session')"
           >本会话允许</AppButton
         >
-        <AppButton
-          v-if="approval.remember?.allowWork"
-          size="sm"
-          variant="outline"
-          @click="emit('approve', approval.id, true, 'work')"
+        <AppButton v-if="approval.remember?.allowWork" size="sm" variant="outline" @click="remember(approval, 'work')"
           >为这部作品记住</AppButton
         >
         <AppButton size="sm" variant="ghost" @click="emit('approve', approval.id, false)">拒绝</AppButton>

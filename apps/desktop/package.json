@@ -34,6 +34,7 @@
     "@chaptale/storage": "workspace:*",
     "@chaptale/ui": "workspace:*",
     "@earendil-works/pi-coding-agent": "catalog:",
+    "@earendil-works/pi-mcp": "catalog:",
     "@node-rs/jieba": "catalog:",
     "atomically": "catalog:",
     "better-sqlite3": "catalog:",

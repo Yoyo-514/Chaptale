@@ -618,6 +618,49 @@ it('授权卡片按可记住范围展示对应档位并派发 scope 参数', asy
   ]);
 });
 
+it('MCP 授权卡片默认只记住本次调用的工具，勾选后改为记住整台服务', async () => {
+  wrapper = mount(MessageList, {
+    props: {
+      session: session([]),
+      outgoing: [],
+      approvals: [
+        {
+          id: 'mcp-call',
+          sessionId: 'session',
+          toolName: 'mcp__wiki__search',
+          input: { q: '职官' },
+          cwd: 'F:\\work',
+          remember: {
+            capability: 'mcp',
+            serverScope: 'global',
+            serverName: 'wiki',
+            toolLabel: 'search',
+            allowWork: true
+          }
+        }
+      ]
+    }
+  });
+
+  const card = wrapper.get('.agent-approval');
+  const actions = () => card.findAll('.agent-approval-actions button');
+  expect(actions().map(btn => btn.text())).toEqual(['仅此次', '本会话允许', '为这部作品记住', '拒绝']);
+  expect(card.get('.agent-approval-title').text()).toBe('助手想要调用 MCP 服务 wiki 的 search');
+  expect(card.get('.agent-approval-scope').text()).toMatch(/记住后允许调用\s*search/);
+
+  await actions()[1]!.trigger('click');
+  await card.get('[role="checkbox"]').trigger('click');
+  expect(card.get('.agent-approval-scope').text()).toBe('记住后允许调用该服务的全部工具');
+  await actions()[2]!.trigger('click');
+  await actions()[0]!.trigger('click');
+
+  expect(wrapper.emitted('approve')).toEqual([
+    ['mcp-call', true, 'session', 'tool'],
+    ['mcp-call', true, 'work', 'server'],
+    ['mcp-call', true, 'once']
+  ]);
+});
+
 it('助手流式报错保留正文不标红，内嵌错误卡片提供主因、原始详情折叠复制、重试与模型设置入口', async () => {
   let clipboardText = '';
   Object.defineProperty(navigator, 'clipboard', {

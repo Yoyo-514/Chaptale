@@ -9,6 +9,7 @@ import { CloudSyncSettings } from '@/features/cloud-sync';
 import SettingsSidebar from './components/SettingsSidebar.vue';
 import DataDirectorySettings from './sections/DataDirectorySettings.vue';
 import InstructionSettings from './sections/InstructionSettings.vue';
+import McpSettings from './sections/McpSettings.vue';
 import ModelSettings from './sections/ModelSettings.vue';
 import SkillSettings from './sections/SkillSettings.vue';
 import ToolPermissionSettings from './sections/ToolPermissionSettings.vue';
@@ -108,6 +109,7 @@ onMounted(() => {
                 <ModelSettings v-else-if="settingsStore.activeSection === 'llm'" />
                 <InstructionSettings v-else-if="settingsStore.activeSection === 'prompt'" />
                 <SkillSettings v-else-if="settingsStore.activeSection === 'skills'" />
+                <McpSettings v-else-if="settingsStore.activeSection === 'mcp'" />
                 <ToolPermissionSettings v-else-if="settingsStore.activeSection === 'permissions'" />
                 <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
                 <DataDirectorySettings v-else />

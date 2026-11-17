@@ -316,7 +316,8 @@ export async function patchMcpServerInFile(
     root = { ...parsed };
   } catch (cause) {
     throw new Error(
-      `当前 mcp.json 存在语法错误，请先修复后再操作：${cause instanceof Error ? cause.message : String(cause)}`, { cause: cause }
+      `当前 mcp.json 存在语法错误，请先修复后再操作：${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause }
     );
   }
 
