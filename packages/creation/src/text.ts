@@ -1,11 +1,8 @@
 /** 汉字逐字计数，其他字母数字连续段计一个词；插图行不计，标题与资料属性由调用方分开。 */
 export function countDocumentWords(content: string): number {
-  let count = 0;
-  for (const _match of content
-    .replace(illustrationLine, '')
-    .matchAll(/\p{Script=Han}|(?:(?!\p{Script=Han})[\p{L}\p{N}])+/gu))
-    count += 1;
-  return count;
+  return (
+    content.replace(illustrationLine, '').match(/\p{Script=Han}|(?:(?!\p{Script=Han})[\p{L}\p{N}])+/gu)?.length ?? 0
+  );
 }
 
 /** 插图独占一行：`![说明](entry:<图片文件条目ID>)`，只在 Markdown 文稿中生效；行尾的 \r 留在原文中。 */

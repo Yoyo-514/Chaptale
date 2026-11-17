@@ -158,7 +158,7 @@ async function discover() {
       headers: config.value.headers && plain(config.value.headers),
       apiKey: apiKey.value || undefined
     });
-    selectedModels.value = selectedModels.value.filter(id => candidates.value.some(item => item.id === id));
+    selectedModels.value = selectedModels.value.filter(modelId => candidates.value.some(item => item.id === modelId));
     if (!candidates.value.length) status.value = '没有可添加的新模型。';
   });
   // 请求结束后表单解除禁用，再打开下拉让搜索输入框获得焦点。

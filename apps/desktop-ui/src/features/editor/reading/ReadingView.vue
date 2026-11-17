@@ -150,9 +150,9 @@ watch(
 );
 watch(
   () => editor.bufferVersions,
-  (versions, previous) => {
+  (versions, before) => {
     const currentId = chapter.value?.id;
-    if (currentId && versions[currentId] !== previous[currentId] && position.value) {
+    if (currentId && versions[currentId] !== before[currentId] && position.value) {
       void load(currentId, position.value.offset);
     }
   }

@@ -108,6 +108,12 @@
     "no-await-in-loop": "off",
     "eslint/no-await-in-loop": "off",
     "import/no-unassigned-import": "off",
+    "oxc/no-map-spread": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/require-post-message-target-origin": "off",
+    "no-underscore-dangle": ["warn", { "allow": ["_meta"] }],
     "typescript/no-extraneous-class": [
       "error",
       {

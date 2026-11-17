@@ -27,9 +27,9 @@ async function openLibrary() {
 
 /** 系统对话框无法自动操作，在主进程中让保存与打开对话框直接返回指定文件。 */
 async function answerDialogs(file: string) {
-  await workbench.application.evaluate(({ dialog }, file) => {
-    dialog.showSaveDialog = (async () => ({ canceled: false, filePath: file })) as typeof dialog.showSaveDialog;
-    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [file] })) as typeof dialog.showOpenDialog;
+  await workbench.application.evaluate(({ dialog }, target) => {
+    dialog.showSaveDialog = (async () => ({ canceled: false, filePath: target })) as typeof dialog.showSaveDialog;
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [target] })) as typeof dialog.showOpenDialog;
   }, file);
 }
 

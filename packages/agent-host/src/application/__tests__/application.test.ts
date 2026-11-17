@@ -458,7 +458,7 @@ it('重命名写入原生记录，历史与重开均使用新名称，只读历�
   await app.execute({ method: 'rename', input: { id: opened, name: '人物小传' } });
   await app.execute({ method: 'close', input: { id: opened } });
   const items = (await app.execute({ method: 'history', input: undefined })) as { file: string; title: string }[];
-  expect(items.find(entry => entry.file === item.file)?.title).toBe('人物小传');
+  expect(items.find(candidate => candidate.file === item.file)?.title).toBe('人物小传');
   expect(view(await open(item)).name).toBe('人物小传');
   const readonly = await open(history(['旧历史'], {}));
   await expect(app.execute({ method: 'rename', input: { id: readonly, name: '新名' } })).rejects.toThrow('只读');

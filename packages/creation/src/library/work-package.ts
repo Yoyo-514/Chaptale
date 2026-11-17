@@ -61,17 +61,17 @@ export class WorkPackageService {
             undo = this.repository.installStagedWork(workId, null);
             return copy;
           }
-          const work = { ...packaged, updatedAt: now };
+          const imported = { ...packaged, updatedAt: now };
           const previous = this.repository.library.listWorks().find(item => item.id === workId);
           if (!previous) {
-            this.repository.library.insertWork(work);
+            this.repository.library.insertWork(imported);
             undo = this.repository.installStagedWork(workId, null);
-            return work;
+            return imported;
           }
           this.replaceContent(workId);
-          this.repository.library.updateWork(work);
+          this.repository.library.updateWork(imported);
           undo = this.repository.installStagedWork(workId, previous);
-          return work;
+          return imported;
         }
       );
       return { work, files: this.repository.pruneWorkSnapshots(work.id) };
@@ -98,11 +98,11 @@ export class WorkPackageService {
         { kind: 'library' },
         () => {
           if (!this.repository.library.hasWork(input.workId)) throw new Error('作品不存在');
-          const work = this.repository.readWorkSnapshot(input.workId);
+          const snapshot = this.repository.readWorkSnapshot(input.workId);
           this.replaceContent(input.workId);
-          this.repository.library.updateWork(work);
+          this.repository.library.updateWork(snapshot);
           replaced = this.repository.restoreWorkSnapshot(input.workId);
-          return work;
+          return snapshot;
         }
       );
       return { work, files: replaced ? [replaced.replaced] : [] };

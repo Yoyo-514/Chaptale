@@ -35,11 +35,11 @@ function entryLabel(item: Extract<ReviewItem, { title: string }>) {
   if (item.created) return item.kind === 'directory' ? '新建目录' : '新建';
   return item.section === 'resource' ? '资料' : '文稿';
 }
-function rows(items: ReviewItem[]): ReviewRow[] {
+function rows(list: ReviewItem[]): ReviewRow[] {
   const grouped = new Map<string, ReviewRow>();
-  const titles = new Map(items.flatMap(item => ('title' in item ? [[item.targetId, item.title] as const] : [])));
+  const titles = new Map(list.flatMap(item => ('title' in item ? [[item.targetId, item.title] as const] : [])));
   // 事件归第一份涉及的资料；关系在双方资料下各计一条。
-  const placements = items.flatMap((item): { item: ReviewItem; entryId: string }[] =>
+  const placements = list.flatMap((item): { item: ReviewItem; entryId: string }[] =>
     item.kind === 'record'
       ? [{ item, entryId: item.record.resourceIds[0] }]
       : item.kind === 'relation'

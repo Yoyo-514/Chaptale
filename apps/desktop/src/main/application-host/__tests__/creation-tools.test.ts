@@ -262,8 +262,8 @@ it('Markdown 插图对 Agent 显示为占位，编辑时还原，不能新建插
       }
     })
   );
-  const read = await call('work_read', { workId, entryId: chapter.id });
-  expect(read.result.structuredContent).toMatchObject({ content: '开头。\n[插图：城门 entry:img-1]\n结尾。' });
+  const reread = await call('work_read', { workId, entryId: chapter.id });
+  expect(reread.result.structuredContent).toMatchObject({ content: '开头。\n[插图：城门 entry:img-1]\n结尾。' });
   const moved = await call('work_edit', {
     workId,
     entryId: chapter.id,

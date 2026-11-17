@@ -29,7 +29,11 @@ async function story() {
   const gu = entry('resource', '顾长风');
   const lin = entry('resource', '林晚');
   const chapter = fixture.document;
-  const from = (entry: Entry): RecordSource => ({ kind: 'chapter', chapterId: entry.id, revisionId: entry.revisionId });
+  const from = (source: Entry): RecordSource => ({
+    kind: 'chapter',
+    chapterId: source.id,
+    revisionId: source.revisionId
+  });
   const record = value(
     fixture.app.executeAuthor({
       method: 'createRecord',
@@ -119,7 +123,7 @@ it('出处章节保存新正文后记录待复核，改标题不触发；整章�
       input: { workId, resourceId: null, sourceId: chapter.id, asOf: null }
     })
   );
-  expect(listed.map(record => record.sourceChanged)).toEqual([true]);
+  expect(listed.map(item => item.sourceChanged)).toEqual([true]);
   const relations = value(
     fixture.app.executeAgent(fixture.context, {
       method: 'listRelations',

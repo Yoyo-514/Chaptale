@@ -13,7 +13,7 @@ import { prepareSchema, type SchemaPlan } from '../schema.ts';
 
 const roots: string[] = [];
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
 async function root() {
   const dir = await mkdtemp(join(tmpdir(), 'chaptale-schema-'));

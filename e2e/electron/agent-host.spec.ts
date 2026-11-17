@@ -101,12 +101,12 @@ test('未保存修改先提示保存再发送，附带当前标签与选区并�
     await page.keyboard.insertText('这句需要润色\n未选中的完整稿件内容');
     await body.press('Control+Home');
     await body.press('Shift+End');
-    await page.evaluate(async port => {
+    await page.evaluate(async localPort => {
       await window.chaptaleDesktop.agentHost.request('saveProvider', {
         id: 'editor-context-local',
         apiKey: 'offline-local',
         config: {
-          baseUrl: `http://127.0.0.1:${port}/v1`,
+          baseUrl: `http://127.0.0.1:${localPort}/v1`,
           api: 'openai-completions',
           models: [{ id: 'capture', name: '离线编辑快照', contextWindow: 8192, maxTokens: 512 }]
         }

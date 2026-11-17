@@ -52,13 +52,15 @@ function create() {
   name.value = '';
   saved.value = false;
 }
-async function save(entries: AgentInstructions) {
+async function save(next: AgentInstructions) {
   if (!library.value) {
-    await operation(() => getDesktopApi().agentHost.request('defaultInstructions', { entries }));
+    await operation(() => getDesktopApi().agentHost.request('defaultInstructions', { entries: next }));
     return;
   }
   const selectedName = creating.value ? name.value.trim() : target.value!;
-  if (await operation(() => getDesktopApi().agentHost.request('namedInstructions', { name: selectedName, entries }))) {
+  if (
+    await operation(() => getDesktopApi().agentHost.request('namedInstructions', { name: selectedName, entries: next }))
+  ) {
     target.value = selectedName;
     creating.value = false;
   }
@@ -67,8 +69,9 @@ function mode(value: string) {
   void operation(() => getDesktopApi().agentHost.request('defaultMode', { mode: value as EditMode }));
 }
 async function remove() {
-  const name = target.value!;
-  if (await operation(() => getDesktopApi().agentHost.request('deleteNamedInstructions', { name }))) openLibrary();
+  const selected = target.value!;
+  if (await operation(() => getDesktopApi().agentHost.request('deleteNamedInstructions', { name: selected })))
+    openLibrary();
 }
 </script>
 

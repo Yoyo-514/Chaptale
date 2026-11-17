@@ -188,8 +188,8 @@ it('全部接受按当前会话快照提交并关闭标签', async () => {
   expect(review.tabs).toEqual([]);
 });
 function agent<T>(method: string, input: Record<string, unknown>): T {
-  const input_ = { commandId: crypto.randomUUID(), workId, ...input };
-  return value(author.executeAgent(context, { method, input: input_ } as never) as CreationResult<T>);
+  const command = { method, input: { commandId: crypto.randomUUID(), workId, ...input } };
+  return value(author.executeAgent(context, command as never) as CreationResult<T>);
 }
 function createResource(title: string, by: 'author' | 'agent') {
   const input = { parentId: null, section: 'resource', kind: 'document', title, format: 'markdown', content: '' };

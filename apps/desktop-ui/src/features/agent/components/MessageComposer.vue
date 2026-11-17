@@ -171,9 +171,10 @@ function model(value: string) {
   else agent.selectedModel = chosen;
 }
 function mode(value: string) {
-  const mode = value as EditMode;
-  if (agent.active) void agent.perform(() => getDesktopApi().agentHost.request('mode', { id: agent.activeId!, mode }));
-  else agent.composeMode = mode;
+  const next = value as EditMode;
+  if (agent.active)
+    void agent.perform(() => getDesktopApi().agentHost.request('mode', { id: agent.activeId!, mode: next }));
+  else agent.composeMode = next;
 }
 </script>
 
