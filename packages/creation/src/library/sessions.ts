@@ -1,4 +1,4 @@
-import type { SessionSelection, SessionState } from '../contracts.ts';
+import type { SessionSelection, SessionState } from '../contracts/index.ts';
 import type { LibraryRepository } from '../repository.ts';
 
 /** 查看位置按范围记录；会话归属由宿主按会话文件所在目录确定。 */

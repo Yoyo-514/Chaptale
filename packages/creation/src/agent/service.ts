@@ -12,7 +12,7 @@ import type {
   EntryChange,
   EntryReviewView,
   EntrySnapshot
-} from '../contracts.ts';
+} from '../contracts/index.ts';
 import { assertNotTrashed, RevisionConflictError } from '../errors.ts';
 import type { CreationRepository } from '../repository.ts';
 import { overlayEntries } from '../review/entry/overlay.ts';

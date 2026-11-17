@@ -12,7 +12,7 @@ import type {
   PendingChange,
   ReviewTarget,
   UpdateReviewInput
-} from '../../contracts.ts';
+} from '../../contracts/index.ts';
 import type { CreationRepository, WorkRepository } from '../../repository.ts';
 import type { CreationService } from '../../service.ts';
 import { isStoryView, type ChangeLedger } from '../ledger.ts';

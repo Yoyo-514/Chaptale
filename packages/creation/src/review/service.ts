@@ -12,7 +12,7 @@ import type {
   UpdateRecordReviewInput,
   UpdateRelationReviewInput,
   UpdateReviewInput
-} from '../contracts.ts';
+} from '../contracts/index.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
 import { draftChapters } from './draft-sources.ts';

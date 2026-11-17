@@ -71,7 +71,7 @@
     },
     {
       "files": [
-        "packages/creation/src/contracts.ts",
+        "packages/creation/src/contracts/**/*.ts",
         "packages/contracts/src/**/*.ts",
         "packages/ui/src/client/*.ts",
         "packages/agent-host/src/protocol/**/*.ts"
@@ -94,11 +94,9 @@
               "@chaptale/agent-host*",
               "@chaptale/agent-host/**",
               "@earendil-works/**",
-              "./service*",
-              "./drafts*",
-              "./errors*",
-              "./repository*",
-              "./storage/**"
+              "../service*",
+              "../errors*",
+              "../repository*"
             ]
           }
         ]

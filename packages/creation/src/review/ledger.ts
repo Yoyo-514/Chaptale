@@ -9,7 +9,7 @@ import type {
   RelationReviewView,
   ReviewTarget,
   ReviewView
-} from '../contracts.ts';
+} from '../contracts/index.ts';
 import type { CreationRepository } from '../repository.ts';
 import { mergeCandidate } from './entry/merge.ts';
 import { advanceChange, assertReviewTarget } from './pending-change.ts';

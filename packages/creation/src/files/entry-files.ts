@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { copyFile, mkdir, rm, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join } from 'node:path';
 
-import type { AddFilesInput, AddFilesReport, FileLocation } from '../contracts.ts';
+import type { AddFilesInput, AddFilesReport, FileLocation } from '../contracts/index.ts';
 import type { CreationService } from '../service.ts';
 
 /** 逐个复制到作品目录再登记条目；登记失败或重试命中旧回执时删除本次复制。 */

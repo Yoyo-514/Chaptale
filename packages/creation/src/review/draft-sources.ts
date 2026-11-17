@@ -1,4 +1,4 @@
-import type { PendingChange, RecordSource } from '../contracts.ts';
+import type { PendingChange, RecordSource } from '../contracts/index.ts';
 import type { WorkRepository } from '../repository.ts';
 import { storySources } from './removal.ts';
 

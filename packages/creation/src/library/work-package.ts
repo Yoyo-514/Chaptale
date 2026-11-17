@@ -7,7 +7,7 @@ import type {
   WorkPackageInfo,
   WorkReplacement,
   WorkSnapshot
-} from '../contracts.ts';
+} from '../contracts/index.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';

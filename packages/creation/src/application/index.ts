@@ -1,8 +1,7 @@
-import { AgentRecordService } from './agent/records.ts';
-import { AgentRelationService } from './agent/relations.ts';
-import { CreationAgentService } from './agent/service.ts';
-import { authorValidator, agentValidator } from './application/schema.ts';
-import { TrashService } from './content/trash.ts';
+import { AgentRecordService } from '../agent/records.ts';
+import { AgentRelationService } from '../agent/relations.ts';
+import { CreationAgentService } from '../agent/service.ts';
+import { TrashService } from '../content/trash.ts';
 import type {
   CreationAgentCommand,
   CreationAgentCommands,
@@ -11,19 +10,20 @@ import type {
   CreationAuthorCommands,
   CreationCommands,
   CreationResult
-} from './contracts.ts';
-import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from './errors.ts';
-import { addFiles, locateFile, prepareWorkFiles } from './files/entry-files.ts';
-import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from './files/exchange.ts';
-import { WorkPackageService } from './library/work-package.ts';
-import { WorkTrashService } from './library/work-trash.ts';
-import { RecordService } from './records/service.ts';
-import { RelationService } from './relations/service.ts';
-import type { CreationRepository } from './repository.ts';
-import { ReviewService } from './review/service.ts';
-import { CreationService } from './service.ts';
+} from '../contracts/index.ts';
+import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from '../errors.ts';
+import { addFiles, locateFile, prepareWorkFiles } from '../files/entry-files.ts';
+import { exportFiles, fileCommandValidator, importFiles, prepareImport, type FileCommand } from '../files/exchange.ts';
+import { WorkPackageService } from '../library/work-package.ts';
+import { WorkTrashService } from '../library/work-trash.ts';
+import { RecordService } from '../records/service.ts';
+import { RelationService } from '../relations/service.ts';
+import type { CreationRepository } from '../repository.ts';
+import { ReviewService } from '../review/service.ts';
+import { CreationService } from '../service.ts';
+import { authorValidator, agentValidator } from './schema.ts';
 
-export { agentInputs } from './application/schema.ts';
+export { agentInputs } from './schema.ts';
 type AuthorValue = Extract<CreationAuthorCommands[keyof CreationAuthorCommands]['output'], { ok: true }>['value'];
 type CreationValue = Extract<CreationCommands[keyof CreationCommands]['output'], { ok: true }>['value'];
 type AgentValue = Extract<CreationAgentCommands[keyof CreationAgentCommands]['output'], { ok: true }>['value'];

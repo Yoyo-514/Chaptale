@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 
-import type { Document, Entry, TrashBatch, TrashBatchInput, TrashEntriesInput, TrashImpact } from '../contracts.ts';
+import type {
+  Document,
+  Entry,
+  TrashBatch,
+  TrashBatchInput,
+  TrashEntriesInput,
+  TrashImpact
+} from '../contracts/index.ts';
 import type { StoryRelation } from '../contracts/relations.ts';
 import { chapterRemoval, trashChapterStory } from '../records/chapter-removal.ts';
 import type { CreationRepository } from '../repository.ts';

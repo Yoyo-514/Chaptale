@@ -10,8 +10,8 @@ import type {
   RecordFields,
   RecordSnapshot,
   StoryRecord
-} from '../contracts.ts';
-import { groupRecords } from '../contracts.ts';
+} from '../contracts/index.ts';
+import { groupRecords } from '../contracts/index.ts';
 import { RevisionConflictError } from '../errors.ts';
 import { applyRecordSnapshot, assertRecord, normalizeRecord } from '../records/commit.ts';
 import { sourceChecker } from '../records/sources.ts';

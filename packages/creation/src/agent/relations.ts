@@ -11,14 +11,19 @@ import type {
   RelationInput,
   RelationSnapshot,
   StoryRelation
-} from '../contracts.ts';
-import { relationState, relationTypes } from '../contracts.ts';
+} from '../contracts/index.ts';
+import { relationState, relationTypes } from '../contracts/index.ts';
 import { RevisionConflictError } from '../errors.ts';
 import { sourceChecker } from '../records/sources.ts';
-import { applyRelationSnapshot, assertRelation, normalizeRelation, relationSnapshot } from '../relations/commit.ts';
+import {
+  applyRelationSnapshot,
+  assertRelation,
+  normalizeRelation,
+  buildRelationSnapshot
+} from '../relations/commit.ts';
 import type { CreationRepository } from '../repository.ts';
 import { overlayEntries } from '../review/entry/overlay.ts';
-import { mergeRelation, relationSnapshot as snapshotOf } from '../review/relation/merge.ts';
+import { mergeRelation, relationSnapshot } from '../review/relation/merge.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
 
@@ -115,7 +120,7 @@ export class AgentRelationService {
     if (command.method === 'createRelation')
       return applyRelationSnapshot(work, {
         base: null,
-        candidate: relationSnapshot(randomUUID(), fields(command.input), null),
+        candidate: buildRelationSnapshot(randomUUID(), fields(command.input), null),
         source: 'agent'
       });
     const current = work.getRelation(command.input.relationId);
@@ -128,7 +133,7 @@ export class AgentRelationService {
     }
     return applyRelationSnapshot(work, {
       base: current,
-      candidate: patchRelation(snapshotOf(current), command.input),
+      candidate: patchRelation(relationSnapshot(current), command.input),
       source: 'agent'
     });
   }
@@ -141,7 +146,7 @@ export class AgentRelationService {
     const order = Math.max(0, ...changes.map(item => item.order)) + 1;
     const basis = command.input.basis.trim();
     if (command.method === 'createRelation') {
-      const candidate = relationSnapshot(randomUUID(), fields(command.input), null);
+      const candidate = buildRelationSnapshot(randomUUID(), fields(command.input), null);
       assertRelation(work, candidate, null, entries, relations);
       return this.put(newChange(workId, sessionId, order, null, candidate, basis));
     }
@@ -157,10 +162,10 @@ export class AgentRelationService {
     if (existing && mergeRelation(existing, current).conflicts.length)
       throw new Error('候选与正式内容存在冲突，请等待作者处理');
     const id = existing?.id ?? randomUUID();
-    const base = existing ? existing.base : snapshotOf(current!);
+    const base = existing ? existing.base : relationSnapshot(current!);
     if (command.method === 'removeRelation') {
       if (existing?.base === null) return this.review.withdraw(existing) as RelationChange;
-      const formal = snapshotOf(current!);
+      const formal = relationSnapshot(current!);
       return this.put({
         ...newChange(workId, sessionId, existing?.order ?? order, formal, formal, basis),
         id,
@@ -168,7 +173,7 @@ export class AgentRelationService {
         deleted: true
       });
     }
-    const previous = existing?.candidate ?? snapshotOf(current!);
+    const previous = existing?.candidate ?? relationSnapshot(current!);
     const candidate = patchRelation(previous, command.input);
     assertRelation(work, candidate, previous, entries, relations);
     return this.put({

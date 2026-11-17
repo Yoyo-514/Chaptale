@@ -1,4 +1,4 @@
-import type { CreationError } from './contracts.ts';
+import type { CreationError } from './contracts/index.ts';
 import type { WorkRepository } from './repository.ts';
 
 export class RevisionConflictError extends Error {

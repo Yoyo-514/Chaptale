@@ -1,7 +1,7 @@
 import { Type, type TSchema } from 'typebox';
 import { Compile } from 'typebox/compile';
 
-import type { CreationAgentCommands, CreationAuthorCommands } from '../contracts.ts';
+import type { CreationAgentCommands, CreationAuthorCommands } from '../contracts/index.ts';
 
 const id = Type.String({ minLength: 1 });
 const parentId = Type.Union([id, Type.Null()]);

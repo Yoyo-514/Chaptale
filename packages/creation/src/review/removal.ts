@@ -1,4 +1,4 @@
-import type { PendingChange, RecordSource } from '../contracts.ts';
+import type { PendingChange, RecordSource } from '../contracts/index.ts';
 
 /** 判断某个候选所在作品中，哪些条目、事件、关系已被删除，哪些资料已无从接受。 */
 export interface Removal {

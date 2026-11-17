@@ -1,4 +1,4 @@
-import type { DraftState, Entry, RecoveryDraft, WriteDraftInput } from '../contracts.ts';
+import type { DraftState, Entry, RecoveryDraft, WriteDraftInput } from '../contracts/index.ts';
 import { assertNotTrashed, DraftConflictError } from '../errors.ts';
 import type { CreationRepository, WorkRepository } from '../repository.ts';
 import { saveParameters } from './mutations.ts';

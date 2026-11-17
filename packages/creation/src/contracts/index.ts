@@ -23,7 +23,7 @@ import type {
   WorkCommandInput,
   Work,
   WriteWritingGuidelinesInput
-} from './contracts/content.ts';
+} from './content.ts';
 import type {
   CreateRecordInput,
   MoveRecordInput,
@@ -32,22 +32,17 @@ import type {
   SourceReview,
   StoryRecord,
   UpdateRecordInput
-} from './contracts/records.ts';
-import type {
-  CreateRelationInput,
-  RemoveRelationInput,
-  StoryRelation,
-  UpdateRelationInput
-} from './contracts/relations.ts';
-import type { PendingChange, ReviewCommands } from './contracts/review.ts';
+} from './records.ts';
+import type { CreateRelationInput, RemoveRelationInput, StoryRelation, UpdateRelationInput } from './relations.ts';
+import type { PendingChange, ReviewCommands } from './review.ts';
 
-export type * from './contracts/content.ts';
-export { isImageFile } from './contracts/content.ts';
-export type * from './contracts/review.ts';
-export type * from './contracts/records.ts';
-export { chapterOrder, groupByPlacement, groupRecords } from './contracts/records.ts';
-export type * from './contracts/relations.ts';
-export { relationPresets, relationState, relationTypes } from './contracts/relations.ts';
+export type * from './content.ts';
+export { isImageFile } from './content.ts';
+export type * from './review.ts';
+export type * from './records.ts';
+export { chapterOrder, groupByPlacement, groupRecords } from './records.ts';
+export type * from './relations.ts';
+export { relationPresets, relationState, relationTypes } from './relations.ts';
 
 export interface RecoveryDraft extends Omit<SaveDocumentInput, 'commandId'> {
   /** 此快照正式保存时沿用该 ID 作为命令 ID。 */

@@ -14,7 +14,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@chaptale/agent-host/protocol": ["../../packages/agent-host/src/protocol/index.ts"],
-      "@chaptale/creation/contracts": ["../../packages/creation/src/contracts.ts"]
+      "@chaptale/creation/contracts": ["../../packages/creation/src/contracts/index.ts"]
     }
   },
   "include": ["src", "build", "vite.config.ts", "uno.config.ts"],

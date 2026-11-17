@@ -12,7 +12,7 @@ import type {
   ImportFilesInput,
   ImportPlan,
   ImportReport
-} from '../contracts.ts';
+} from '../contracts/index.ts';
 import type { CreationService } from '../service.ts';
 import { parseIllustration } from '../text.ts';
 

@@ -9,9 +9,9 @@ import type {
   RelinkResourceInput,
   UpdateRecordReviewInput,
   UpdateRelationReviewInput
-} from '../contracts.ts';
+} from '../contracts/index.ts';
 import { applyRecordSnapshot, normalizeRecord } from '../records/commit.ts';
-import { applyRelationSnapshot, assertRelationShape, relationSnapshot } from '../relations/commit.ts';
+import { applyRelationSnapshot, assertRelationShape, buildRelationSnapshot } from '../relations/commit.ts';
 import type { CreationRepository, WorkRepository } from '../repository.ts';
 import type { CreationService } from '../service.ts';
 import { bindDraftSources, draftChapters } from './draft-sources.ts';
@@ -19,7 +19,7 @@ import type { ReviewDecision } from './entry/decisions.ts';
 import { isStoryView, type ChangeLedger, type StoryChange, type StoryView } from './ledger.ts';
 import { advanceChange } from './pending-change.ts';
 import { recordSnapshot } from './record/merge.ts';
-import { relationSnapshot as snapshotOf } from './relation/merge.ts';
+import { relationSnapshot } from './relation/merge.ts';
 
 const label = { record: '事件', relation: '关系' } as const;
 
@@ -54,10 +54,10 @@ export class StoryReview {
   /** 新增的建立／结束不带 ID；已有的须来自当前候选。引用在接受时校验。 */
   updateRelation(input: UpdateRelationReviewInput): PendingChange {
     const view = this.checked(input, 'relation');
-    const candidate = relationSnapshot(view.change.targetId, input, view.candidate);
+    const candidate = buildRelationSnapshot(view.change.targetId, input, view.candidate);
     assertRelationShape(candidate, this.repository.work(view.change.workId).hasTrashedStart(candidate.id));
     return this.edited(view.change, {
-      base: view.current ? snapshotOf(view.current) : null,
+      base: view.current ? relationSnapshot(view.current) : null,
       candidate,
       conflicts: input.resolveConflicts ? [] : view.conflicts
     });

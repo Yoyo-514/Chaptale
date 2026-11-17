@@ -27,7 +27,7 @@ import type {
   Work,
   WorkbenchState,
   WorkSnapshot
-} from './contracts.ts';
+} from './contracts/index.ts';
 
 /** 回执中的事件描述复用结果元数据，避免重复保存条目。 */
 export type CommitEffect =

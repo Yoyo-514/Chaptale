@@ -46,7 +46,7 @@ export function normalizeRelation<T extends RelationFields | RelationInput>(fiel
 }
 
 /** 为新增的建立／结束分配 ID；已有 ID 须属于 previous。 */
-export function relationSnapshot(
+export function buildRelationSnapshot(
   id: string,
   input: RelationInput,
   previous: Pick<RelationFields, 'milestones'> | null

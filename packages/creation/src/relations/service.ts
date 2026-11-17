@@ -10,7 +10,7 @@ import { RevisionConflictError } from '../errors.ts';
 import type { CreationRepository } from '../repository.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
-import { applyRelationSnapshot, relationSnapshot } from './commit.ts';
+import { applyRelationSnapshot, buildRelationSnapshot } from './commit.ts';
 
 /** 作者直接维护关系：新建、整条修改与移入回收站，每次提交生成回执。 */
 export class RelationService {
@@ -34,7 +34,7 @@ export class RelationService {
       () =>
         applyRelationSnapshot(this.repository.work(workId), {
           base: null,
-          candidate: relationSnapshot(randomUUID(), fields, null),
+          candidate: buildRelationSnapshot(randomUUID(), fields, null),
           source: 'author'
         })
     );
@@ -51,7 +51,7 @@ export class RelationService {
         const base = this.current(workId, relationId, expectedRevisionId);
         return applyRelationSnapshot(this.repository.work(workId), {
           base,
-          candidate: relationSnapshot(relationId, fields, base),
+          candidate: buildRelationSnapshot(relationId, fields, base),
           source: 'author'
         });
       }

@@ -14,12 +14,12 @@
       "default": "./src/text.ts"
     },
     "./contracts": {
-      "types": "./dist/contracts.d.ts",
-      "default": "./src/contracts.ts"
+      "types": "./dist/contracts/index.d.ts",
+      "default": "./src/contracts/index.ts"
     },
     "./application": {
-      "types": "./dist/application.d.ts",
-      "default": "./src/application.ts"
+      "types": "./dist/application/index.d.ts",
+      "default": "./src/application/index.ts"
     }
   },
   "scripts": {

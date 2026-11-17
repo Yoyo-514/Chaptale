@@ -26,7 +26,7 @@ import type {
   WorkbenchState,
   WriteDraftInput,
   WriteWritingGuidelinesInput
-} from './contracts.ts';
+} from './contracts/index.ts';
 import { assertNotTrashed } from './errors.ts';
 import * as sessions from './library/sessions.ts';
 import type { CommitEffect, CommitResult, CreationRepository } from './repository.ts';

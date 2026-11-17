@@ -9,7 +9,7 @@ import type {
   ReviewResultContent,
   ReviewResultValue,
   ReviewView
-} from '../contracts.ts';
+} from '../contracts/index.ts';
 import type { CreationRepository } from '../repository.ts';
 import { sameContent } from './entry/blocks.ts';
 import { isStoryView } from './ledger.ts';
