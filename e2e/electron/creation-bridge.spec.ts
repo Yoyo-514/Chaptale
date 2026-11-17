@@ -197,7 +197,9 @@ test('同名文稿切换、编辑、关闭与重启始终恢复对应正文', as
       page.evaluate(async workId => {
         const result = await (window as DesktopWindow).chaptaleDesktop.creation.request('readWorkbench', {});
         if (!result.ok) throw new Error(result.error.message);
-        return result.value.works.find(work => work.workId === workId)?.tabs.map(tab => tab.documentId);
+        return result.value.works
+          .find(work => work.workId === workId)
+          ?.groups.flatMap(group => group.tabs.map(tab => tab.documentId));
       }, created.workId)
     )
     .toEqual([created.secondId]);

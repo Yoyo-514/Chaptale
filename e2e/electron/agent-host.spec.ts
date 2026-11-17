@@ -444,7 +444,8 @@ test('会话用量可用键盘查看，手动压缩走真实宿主且保留草�
   await page.getByLabel('消息', { exact: true }).fill('压缩操作保留草稿');
   await page.getByRole('button', { name: '更多会话操作', exact: true }).click();
   await page.getByRole('menuitem', { name: '压缩对话', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('对话内容较少，暂时无需压缩');
+  // 无需压缩是一条普通提示，不按错误播报。
+  await expect(page.getByRole('status').filter({ hasText: '对话内容较少，暂时无需压缩' })).toBeVisible();
   await expect(page.getByLabel('消息', { exact: true })).toHaveValue('压缩操作保留草稿');
   await expect(usage).toHaveText('上下文约 32%');
   // 刷新后回到作品库，从会话菜单重新打开同一会话。
