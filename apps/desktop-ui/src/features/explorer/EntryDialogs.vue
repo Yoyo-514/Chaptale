@@ -8,12 +8,9 @@ import { AppAlertDialog, AppDialog } from '@/components/AppDialog';
 import { AppForm, AppFormActions } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { requestCreation, useCreationStore, useTrashStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
-
-import { requestCreation } from '../request';
-import { useCreationStore } from '../store';
-import { useTrashStore } from '../trash/store';
 
 const emit = defineEmits<{ error: [message: string] }>();
 const creation = useCreationStore();

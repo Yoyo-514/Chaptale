@@ -97,4 +97,34 @@ describe('feature 公共 API 守卫', () => {
 
     expect(violations).toEqual([]);
   });
+
+  it('feature 之间的依赖不成环', async () => {
+    const names = await listFeatureNames();
+    const uses = new Map<string, Set<string>>(names.map(name => [name, new Set()]));
+
+    for (const file of await listSourceFiles(FEATURES_ROOT)) {
+      const owner = ownerFeature(file);
+      if (!owner || file.includes(`${path.sep}__tests__${path.sep}`)) continue;
+
+      for (const specifier of extractImportSpecifiers(await readFile(file, 'utf8'))) {
+        const target = /^@\/features\/([\w-]+)$/.exec(specifier)?.[1];
+        if (target && target !== owner) uses.get(owner)!.add(target);
+      }
+    }
+
+    // 反复摘掉不再被依赖方引用的 feature，剩下的是环上的成员和依赖它们的 feature。
+    const remaining = new Set(names);
+    for (let removed = true; removed;) {
+      removed = false;
+      for (const name of remaining) {
+        if ([...uses.get(name)!].some(target => remaining.has(target))) continue;
+        remaining.delete(name);
+        removed = true;
+      }
+    }
+
+    expect(
+      [...remaining].map(name => `${name} -> ${[...uses.get(name)!].filter(t => remaining.has(t)).join(', ')}`)
+    ).toEqual([]);
+  });
 });

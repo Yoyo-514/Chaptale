@@ -13,10 +13,9 @@ import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
 import { openCreationStorage } from '@chaptale/storage';
 
 import { useCreationStore } from '@/features/creation';
+import { SettingsSidebar, useSettingsStore } from '@/features/settings';
 
-import SettingsSidebar from '../components/SettingsSidebar.vue';
-import SkillSettings from '../sections/SkillSettings.vue';
-import { useSettingsStore } from '../store';
+import SkillSettings from '../settings/SkillSettings.vue';
 
 describe('设置面板中的技能管理页', () => {
   let root: string | undefined;

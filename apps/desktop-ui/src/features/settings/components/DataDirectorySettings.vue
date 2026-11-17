@@ -4,10 +4,10 @@ import { onMounted } from 'vue';
 import { AppButton } from '@/components/AppButton';
 import { AppNotice } from '@/components/AppNotice';
 
-import SettingsPathCard from '../components/SettingsPathCard.vue';
-import SettingsSection from '../components/SettingsSection.vue';
 import { useSettingsStore } from '../store';
 import { useDataDirectoryStore } from '../store/data-directory';
+import SettingsPathCard from './SettingsPathCard.vue';
+import SettingsSection from './SettingsSection.vue';
 
 const settings = useSettingsStore();
 const directory = useDataDirectoryStore();

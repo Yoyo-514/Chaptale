@@ -2,8 +2,8 @@
 import { onMounted, ref, watch } from 'vue';
 
 import { useCreationStore } from '@/features/creation';
-import { SettingsPanel, useSettingsStore } from '@/features/settings';
-import { ActivityBar, StatusBar, TextContextMenu, TitleBar } from '@/features/shell';
+import { useSettingsStore } from '@/features/settings';
+import { ActivityBar, SettingsPanel, StatusBar, TextContextMenu, TitleBar } from '@/features/shell';
 import { useWorkbenchStore } from '@/features/workbench';
 
 import WorkbenchLayout from './WorkbenchLayout.vue';

@@ -6,12 +6,11 @@ import { isImageFile, type Entry, type StoryRelationRef, type TrashBatch } from 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
+import { useCreationStore, useTrashStore } from '@/features/creation';
 import { toErrorMessage } from '@/utils/desktop-api';
 
-import EntryThumbnail from '../explorer/EntryThumbnail.vue';
-import { entryIcon } from '../explorer/tree-rows';
-import { useCreationStore } from '../store';
-import { useTrashStore } from './store';
+import EntryThumbnail from './EntryThumbnail.vue';
+import { entryIcon } from './tree-rows';
 
 const trash = useTrashStore();
 const creation = useCreationStore();

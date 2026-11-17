@@ -13,10 +13,10 @@ import { AppNotice } from '@/components/AppNotice';
 import { AppTabs } from '@/components/AppTabs';
 import { AppTextarea } from '@/components/AppTextarea';
 import { useCreationStore } from '@/features/creation';
+import { SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
-import SettingsSection from '../components/SettingsSection.vue';
-import McpServerRow from './mcp/McpServerRow.vue';
+import McpServerRow from './McpServerRow.vue';
 
 const creation = useCreationStore();
 /** 当前查看的配置层级：全局页只看全局服务，作品页看全局与本作品合并后的结果。 */

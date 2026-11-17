@@ -14,11 +14,10 @@ import { openCreationStorage } from '@chaptale/storage';
 
 import { AppSelect } from '@/components/AppSelect';
 import { useCreationStore } from '@/features/creation';
+import { SettingsSidebar, useSettingsStore } from '@/features/settings';
 
-import SettingsSidebar from '../components/SettingsSidebar.vue';
-import McpServerRow from '../sections/mcp/McpServerRow.vue';
-import McpSettings from '../sections/McpSettings.vue';
-import { useSettingsStore } from '../store';
+import McpServerRow from '../settings/McpServerRow.vue';
+import McpSettings from '../settings/McpSettings.vue';
 
 /** 只应答握手、工具列表的最小 stdio MCP 服务；声明资源能力。 */
 const MCP_SERVER_SCRIPT = `

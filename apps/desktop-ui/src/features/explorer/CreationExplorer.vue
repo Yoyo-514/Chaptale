@@ -7,15 +7,13 @@ import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
+import { canChooseOpener, FilePreview, runFileAction, useCreationStore } from '@/features/creation';
 import { useEditorStore, useHistoryStore, useReviewStore } from '@/features/editor';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
-import FilePreview from '../files/FilePreview.vue';
-import { canChooseOpener, runFileAction } from '../files/files';
-import { useCreationStore } from '../store';
-import TrashPanel from '../trash/TrashPanel.vue';
 import EntryDialogs from './EntryDialogs.vue';
 import EntryThumbnail from './EntryThumbnail.vue';
+import TrashPanel from './TrashPanel.vue';
 import { useTreeDrop } from './tree-drop';
 import { buildRows, entryIcon, fileType, rowLabel } from './tree-rows';
 

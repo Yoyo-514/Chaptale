@@ -4,21 +4,19 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { AppButton } from '@/components/AppButton';
 import { SessionPanel, useAgentStore } from '@/features/agent';
-import {
-  useCreationStore,
-  CreationExplorer,
-  CreationDialogs,
-  FileExchangeDialog,
-  WorksLibrary
-} from '@/features/creation';
-import { EditorGroup, useEditorContext } from '@/features/editor';
+import { useCreationStore, WorksLibrary } from '@/features/creation';
+import { EditorGroup, useEditorContext, useEditorStore } from '@/features/editor';
+import { CreationDialogs, CreationExplorer, FileExchangeDialog } from '@/features/explorer';
 import { useWorkbenchStore } from '@/features/workbench';
 import { hasDesktopApi } from '@/utils/desktop-api';
 
 const creation = useCreationStore();
 const navigation = useWorkbenchStore();
 const agent = useAgentStore();
+const editor = useEditorStore();
+// 对话与编辑器互相需要对方的能力，在这里接上，两个 feature 之间保持单向依赖。
 agent.setEditorContextSource(useEditorContext());
+editor.setChat(agent);
 const sidebar = ref<InstanceType<typeof SplitterPanel>>();
 const auxiliary = ref<InstanceType<typeof SplitterPanel>>();
 const showSidebar = computed(
@@ -45,6 +43,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', keydown);
   agent.setEditorContextSource(undefined);
+  editor.setChat(undefined);
 });
 </script>
 

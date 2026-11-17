@@ -2,10 +2,10 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { useAgentStore } from '@/features/agent';
 import { useCreationStore } from '@/features/creation';
 
-import ToolPermissionSettings from '../sections/ToolPermissionSettings.vue';
+import ToolPermissionSettings from '../settings/ToolPermissionSettings.vue';
+import { useAgentStore } from '../store';
 
 afterEach(() => {
   delete window.chaptaleDesktop;

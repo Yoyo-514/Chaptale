@@ -14,11 +14,9 @@ import { AppButton } from '@/components/AppButton';
 import { AppDialog } from '@/components/AppDialog';
 import { AppFormActions } from '@/components/AppForm';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { requestCreation, useCreationStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
-
-import { requestCreation } from '../request';
-import { useCreationStore } from '../store';
 
 const creation = useCreationStore();
 const editor = useEditorStore();

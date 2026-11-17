@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { useEditorStore } from '@/features/editor';
+import { SettingsSectionView as SettingsSection, SettingsToggleField, useSettingsStore } from '@/features/settings';
 
-import SettingsSection from '../components/SettingsSection.vue';
-import SettingsToggleField from '../components/SettingsToggleField.vue';
-import { useSettingsStore } from '../store';
+import { useEditorStore } from '../store';
 const settings = useSettingsStore();
 const editor = useEditorStore();
 const autoSave = computed(() => settings.state?.settings.editor?.autoSave ?? false);

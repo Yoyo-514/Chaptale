@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import type { Entry } from '@chaptale/creation/contracts';
 
-import { useFileImage } from '../files/files';
+import { useFileImage } from '@/features/creation';
 
 /** 图片缩略图：滚动到可见时才读取文件，读取失败时显示图标；trashed 读取回收站中的文件。 */
 const props = defineProps<{ workId: string; entry: Entry; trashed?: boolean }>();

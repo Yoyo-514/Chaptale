@@ -368,7 +368,7 @@ it('本章提取新建作品审阅会话，携带资料规则并保留作者已�
   navigation.agentInMain = true;
   navigation.agentView = 'settings';
   navigation.focusMode = true;
-  await navigation.extractChapter(chapter);
+  await agent.extractChapter(chapter);
   expect(agent.error).toBe('');
   await started;
   const current = agent.active!;

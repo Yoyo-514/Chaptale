@@ -126,7 +126,7 @@ it('引用到对话显示待发选区芯片并聚焦输入框，移除或发送�
     section: 'manuscript' as const,
     selection: '北风卷起残雪，灯火微摇。'
   };
-  agent.quoteSelection(quote);
+  agent.quoteToChat(quote);
   await flushPromises();
 
   expect(wrapper.get('[aria-label="文稿《第三回》选区"]').text()).toContain('北风卷起残雪，灯火微摇。');
@@ -135,7 +135,7 @@ it('引用到对话显示待发选区芯片并聚焦输入框，移除或发送�
   await wrapper.get('button[aria-label="移除引用"]').trigger('click');
   expect(wrapper.find('[aria-label="文稿《第三回》选区"]').exists()).toBe(false);
 
-  agent.quoteSelection(quote);
+  agent.quoteToChat(quote);
   await flushPromises();
   expect(wrapper.find('[aria-label="文稿《第三回》选区"]').exists()).toBe(true);
   agent.clearQuote();
@@ -259,7 +259,7 @@ it('生成中支持快捷键与按钮分别发送插话或稍后处理，并可�
       section: 'manuscript' as const,
       selection: '残月如钩'
     };
-    agent.quoteSelection(quote);
+    agent.quoteToChat(quote);
     agent.draft = '写完后补人物设定';
     await flushPromises();
     await wrapper.get('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true, shiftKey: true });

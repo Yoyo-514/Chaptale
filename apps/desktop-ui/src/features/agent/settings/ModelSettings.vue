@@ -14,8 +14,9 @@ import { AppNumberInput } from '@/components/AppNumberInput';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextarea } from '@/components/AppTextarea';
-import { useAgentStore } from '@/features/agent';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
+
+import { useAgentStore } from '../store';
 
 const apis = [
   { value: 'openai-completions', label: 'OpenAI Chat Completions' },

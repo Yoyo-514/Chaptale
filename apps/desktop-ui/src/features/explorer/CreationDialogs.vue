@@ -7,10 +7,9 @@ import { AppForm, AppFormActions } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextarea } from '@/components/AppTextarea';
+import { useCreationStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { toErrorMessage } from '@/utils/desktop-api';
-
-import { useCreationStore } from '../store';
 
 const creation = useCreationStore();
 const editor = useEditorStore();

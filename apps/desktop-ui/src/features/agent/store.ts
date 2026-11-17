@@ -13,8 +13,10 @@ import type {
 import type { SessionState } from '@chaptale/creation/contracts';
 
 import { requestCreation, useCreationStore } from '@/features/creation';
+import { useWorkbenchStore } from '@/features/workbench';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
+import { chapterExtractionPrompt } from './session/chapter-extraction';
 import { applyHostEvent } from './session/host-events';
 import { type SessionEntry, sessionEntries, sessionTitle } from './session/list';
 import { enqueueMessage, type OutgoingMessage, unsentMessages } from './session/outgoing';
@@ -257,12 +259,18 @@ export const useAgentStore = defineStore('agent', () => {
     await dispatch(id, text, prepared.context, queuing);
   }
 
-  /** 新建归属当前作品的审阅模式会话并发送作者可见的指令。 */
-  async function startReview(prompt: string) {
+  /** 提取本章交代的资料、事件与关系：新建归属当前作品的审阅模式会话，发送作者可见的指令。 */
+  async function extractChapter(chapter: { id: string; title: string }) {
+    useWorkbenchStore().showAgent();
     await newDraft();
     composeMode.value = 'review';
-    draft.value = prompt;
+    draft.value = chapterExtractionPrompt(chapter);
     await send();
+  }
+  /** 把编辑器选区挂到输入框上方，并切到会话视图。 */
+  function quoteToChat(context: EditorContext) {
+    useWorkbenchStore().showAgent();
+    quotes.set(context);
   }
 
   function liveSession(id: string) {
@@ -454,7 +462,7 @@ export const useAgentStore = defineStore('agent', () => {
     draft,
     quotedSelection: quotes.current,
     composerFocusVersion: quotes.focusVersion,
-    quoteSelection: quotes.set,
+    quoteToChat,
     clearQuote: quotes.clear,
     selectedModel,
     history,
@@ -468,7 +476,7 @@ export const useAgentStore = defineStore('agent', () => {
     send,
     editMessage,
     switchBranch,
-    startReview,
+    extractChapter,
     deleteSessions,
     activeOutgoing,
     retryOutgoing,

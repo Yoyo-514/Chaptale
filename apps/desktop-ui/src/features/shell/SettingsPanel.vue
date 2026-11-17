@@ -1,21 +1,19 @@
 <script setup lang="ts">
 import { DialogContent, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
-import { defineAsyncComponent, onMounted, watch } from 'vue';
+import { onMounted, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { useDraggablePanel, type ResizeDirection } from '@/composables';
+import {
+  InstructionSettings,
+  McpSettings,
+  ModelSettings,
+  SkillSettings,
+  ToolPermissionSettings
+} from '@/features/agent';
 import { CloudSyncSettings } from '@/features/cloud-sync';
-
-import SettingsSidebar from './components/SettingsSidebar.vue';
-import DataDirectorySettings from './sections/DataDirectorySettings.vue';
-import InstructionSettings from './sections/InstructionSettings.vue';
-import McpSettings from './sections/McpSettings.vue';
-import ModelSettings from './sections/ModelSettings.vue';
-import SkillSettings from './sections/SkillSettings.vue';
-import ToolPermissionSettings from './sections/ToolPermissionSettings.vue';
-import { useSettingsStore } from './store';
-
-const WritingSettings = defineAsyncComponent(() => import('./sections/WritingSettings.vue'));
+import { WritingSettings } from '@/features/editor';
+import { DataDirectorySettings, SettingsSidebar, useSettingsStore } from '@/features/settings';
 
 const resizeDirections: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 

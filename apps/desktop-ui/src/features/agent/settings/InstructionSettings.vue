@@ -7,9 +7,10 @@ import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
-import { InstructionsEditor } from '@/features/agent';
-import { useAgentStore } from '@/features/agent';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
+
+import InstructionsEditor from '../components/InstructionsEditor.vue';
+import { useAgentStore } from '../store';
 
 const agent = useAgentStore();
 const library = ref(false);

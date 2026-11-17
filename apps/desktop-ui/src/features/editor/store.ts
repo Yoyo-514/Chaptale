@@ -35,6 +35,12 @@ import { reviewDone, useReviewStore } from './review/store';
 import { writingTiming } from './timing';
 import type { DocumentViewState, EditorTab } from './types';
 
+/** 编辑器里发起、由对话完成的操作；对话在编辑器上层，由工作台布局接入。 */
+interface EditorChat {
+  extractChapter(chapter: { id: string; title: string }): Promise<void>;
+  quoteToChat(context: EditorContext): void;
+}
+
 function isDirty(tab: EditorTab, buffer: DocumentBuffer) {
   return (
     buffer.dirty ||
@@ -507,13 +513,17 @@ export const useEditorStore = defineStore('editor', () => {
     decision = undefined;
     unsavedPrompt.value = null;
   }
+  let chat: EditorChat | undefined;
+  function setChat(value: EditorChat | undefined) {
+    chat = value;
+  }
   /** 从章节提取事件读取正式稿；打开的章节有未保存修改时先询问保存。 */
   async function extractChapter(chapter: { id: string; title: string }) {
     if (find(chapter.id) && !(await confirmClose([chapter.id], false))) return;
-    await useWorkbenchStore().extractChapter(chapter);
+    await chat!.extractChapter(chapter);
   }
   function quoteToChat(context: EditorContext) {
-    useWorkbenchStore().quoteToChat(JSON.parse(JSON.stringify(context)) as EditorContext);
+    chat!.quoteToChat(JSON.parse(JSON.stringify(context)) as EditorContext);
   }
   async function closeTab(id: string, groupIndex?: EditorGroupIndex) {
     const tab = find(id);
@@ -665,6 +675,7 @@ export const useEditorStore = defineStore('editor', () => {
     unsavedPrompt,
     isSpecialActiveInGroup,
     focusGroup,
+    setChat,
     extractChapter,
     quoteToChat,
     getBuffer: (id: string) => buffers.get(id),

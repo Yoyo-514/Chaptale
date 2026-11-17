@@ -8,8 +8,7 @@ import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppForm } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
 import { AppTextarea } from '@/components/AppTextarea';
-
-import SettingsToggleField from '../../components/SettingsToggleField.vue';
+import { SettingsToggleField } from '@/features/settings';
 
 const props = defineProps<{
   scope: SkillScope;

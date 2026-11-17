@@ -7,10 +7,10 @@ import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppNotice } from '@/components/AppNotice';
 import { useCreationStore } from '@/features/creation';
+import { SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
-import SettingsSection from '../components/SettingsSection.vue';
-import SkillGroupSection from './skills/SkillGroupSection.vue';
+import SkillGroupSection from './SkillGroupSection.vue';
 
 const creation = useCreationStore();
 const snapshot = ref<ManagedSkillsSnapshot | null>(null);

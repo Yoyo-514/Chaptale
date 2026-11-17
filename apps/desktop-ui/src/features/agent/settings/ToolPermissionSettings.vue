@@ -6,11 +6,11 @@ import type { TrashedWork } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
 import { AppNotice } from '@/components/AppNotice';
-import { useAgentStore } from '@/features/agent';
 import { requestCreation, useCreationStore } from '@/features/creation';
+import { SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
-import SettingsSection from '../components/SettingsSection.vue';
+import { useAgentStore } from '../store';
 
 interface WorkPermissionGroup {
   workId: string;
