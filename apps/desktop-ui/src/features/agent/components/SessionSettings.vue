@@ -63,13 +63,19 @@ function revokePermission(id: string) {
         <dt>所属作品</dt>
         <dd>{{ workTitle }}</dd>
         <dt>本会话授权</dt>
-        <dd>{{ sessionPermissions.length ? `已允许 ${sessionPermissions.length} 处` : '未保存目录外授权' }}</dd>
+        <dd>{{ sessionPermissions.length ? `已允许 ${sessionPermissions.length} 处` : '未保存授权' }}</dd>
       </dl>
-      <ul v-if="sessionPermissions.length" class="agent-session-permissions" aria-label="本会话已允许的目录外权限">
+      <ul v-if="sessionPermissions.length" class="agent-session-permissions" aria-label="本会话已保存的授权">
         <li v-for="item in sessionPermissions" :key="item.id" class="agent-session-permission-item">
           <div class="agent-session-permission-copy">
-            <span>{{ item.pathKind === 'file' ? '读取文件' : '读取目录' }}</span>
-            <code>{{ item.path }}</code>
+            <template v-if="item.capability === 'fs_read'">
+              <span>{{ item.pathKind === 'file' ? '读取文件' : '读取目录' }}</span>
+              <code>{{ item.path }}</code>
+            </template>
+            <template v-else>
+              <span>{{ item.toolName ? '调用 MCP 工具' : '调用 MCP 服务的全部工具' }}</span>
+              <code>{{ item.toolName ? `${item.serverName} / ${item.toolName}` : item.serverName }}</code>
+            </template>
           </div>
           <AppButton
             type="button"

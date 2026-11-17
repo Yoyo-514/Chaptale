@@ -72,7 +72,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
   const bindings = options.toolAccess ? bindHostTools(options.toolAccess) : undefined;
   const settingsManager = SettingsManager.inMemory({ cacheWarming: 'off' });
   const extensionFactories: ExtensionFactory[] = [writingCompaction(settingsManager, sessionManager, modelRuntime)];
-  if (bindings) extensionFactories.push(bindings.guard);
+  if (bindings) extensionFactories.push(...bindings.extensions);
   const { prefixMessages } = options;
   if (prefixMessages) {
     extensionFactories.push(pi => {
@@ -121,5 +121,7 @@ export async function createHostSession(options: CreateHostSessionOptions): Prom
       created.session.getActiveToolNames().filter(name => !bindings.deferred.has(name) || loaded.has(name))
     );
   }
+  // session_start 触发后 pi 的 MCP 扩展才接入服务。
+  if (options.toolAccess?.mcpExtensions) await created.session.bindExtensions({});
   return created;
 }

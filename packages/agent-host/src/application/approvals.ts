@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
+import type { McpCallTarget } from '../mcp/index.ts';
 import type { Approval, ApprovalRememberOption, HostChange } from '../protocol.ts';
 import type { HostToolDecision, HostToolRequest } from '../tools/tool-access.ts';
 
 export interface PendingApprovalEntry {
   value: Approval;
   workId: string | null;
+  /** 文件读取的真实目标路径。 */
   target?: string;
+  /** MCP 调用在请求时对应的服务与工具；记住时按这份身份保存规则。 */
+  mcp?: McpCallTarget;
 }
 
 /**
@@ -22,7 +26,12 @@ export class ToolApprovals {
   }
 
   enqueue(
-    request: HostToolRequest & { workId?: string | null; target?: string; remember?: ApprovalRememberOption },
+    request: HostToolRequest & {
+      workId?: string | null;
+      target?: string;
+      mcp?: McpCallTarget;
+      remember?: ApprovalRememberOption;
+    },
     signal: AbortSignal | undefined
   ): Promise<HostToolDecision> {
     return new Promise(resolve => {
@@ -51,6 +60,7 @@ export class ToolApprovals {
         value,
         workId: request.workId ?? null,
         target: request.target,
+        mcp: request.mcp,
         finish
       });
       this.emit({ kind: 'approval', approval: value });
@@ -60,7 +70,7 @@ export class ToolApprovals {
   peek(id: string): PendingApprovalEntry | undefined {
     const entry = this.pending.get(id);
     if (!entry) return undefined;
-    return { value: entry.value, workId: entry.workId, target: entry.target };
+    return { value: entry.value, workId: entry.workId, target: entry.target, mcp: entry.mcp };
   }
 
   finish(id: string, decision: HostToolDecision): boolean {

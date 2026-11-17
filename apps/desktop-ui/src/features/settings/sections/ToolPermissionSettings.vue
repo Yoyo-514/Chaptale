@@ -74,12 +74,12 @@ async function revoke(id: string) {
   <SettingsSection
     title="工具授权"
     title-id="settings-permissions-title"
-    description="管理为作品记住的目录外读取权限。撤销后，助手再次访问该位置时会重新询问。本机授权不会随作品包导出。"
+    description="管理为作品记住的目录外读取与 MCP 调用权限。撤销后，助手再次访问时会重新询问。本机授权不会随作品包导出。"
   >
     <div class="permission-settings">
       <AppNotice v-if="error" tone="error">{{ error }}</AppNotice>
       <div v-if="!groups.length" class="settings-empty-card">
-        还没有为任何作品记住目录外读取权限。在对话授权卡片中选择“为这部作品记住”后会显示在这里。
+        还没有为任何作品记住授权。在对话授权卡片中选择“为这部作品记住”后会显示在这里。
       </div>
       <div v-else class="permission-work-groups">
         <section
@@ -95,8 +95,14 @@ async function revoke(id: string) {
           <ul class="permission-rule-list">
             <li v-for="item in group.items" :key="item.id" class="permission-rule-row">
               <div class="settings-model-copy">
-                <span>{{ item.pathKind === 'file' ? '允许读取文件' : '允许读取目录' }}</span>
-                <code>{{ item.path }}</code>
+                <template v-if="item.capability === 'fs_read'">
+                  <span>{{ item.pathKind === 'file' ? '允许读取文件' : '允许读取目录' }}</span>
+                  <code>{{ item.path }}</code>
+                </template>
+                <template v-else>
+                  <span>{{ item.toolName ? '允许调用 MCP 工具' : '允许调用 MCP 服务的全部工具' }}</span>
+                  <code>{{ item.toolName ? `${item.serverName} / ${item.toolName}` : item.serverName }}</code>
+                </template>
               </div>
               <AppButton
                 type="button"

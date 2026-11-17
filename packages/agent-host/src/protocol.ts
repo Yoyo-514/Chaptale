@@ -28,20 +28,47 @@ export interface NamedInstructions {
 }
 export type ApprovalScope = 'once' | 'session' | 'work';
 export type ToolPermissionScope = { kind: 'session'; sessionId: string } | { kind: 'work'; workId: string };
-export interface ToolPermission {
+export type McpConfigScope = 'global' | 'work';
+export type McpSelectableExposure = 'codemode' | 'deferred' | 'direct';
+export type McpExposureView = McpSelectableExposure | 'hidden';
+export type McpServerState = 'disabled' | 'connecting' | 'connected' | 'needs-auth' | 'failed';
+export type McpApprovalRememberTarget = 'tool' | 'server';
+export interface FsReadToolPermission {
   id: string;
   scope: ToolPermissionScope;
   capability: 'fs_read';
   path: string;
   pathKind: 'directory' | 'file';
 }
-export interface ApprovalRememberOption {
+export interface McpToolPermission {
+  id: string;
+  scope: ToolPermissionScope;
+  capability: 'mcp';
+  serverScope: McpConfigScope;
+  serverWorkId: string | null;
+  serverName: string;
+  serverFingerprint: string;
+  /** 省略表示放行该服务的全部调用；指定时仅放行对应工具（如 `search` 或 `read_mcp_resource`）。 */
+  toolName?: string;
+}
+export type ToolPermission = FsReadToolPermission | McpToolPermission;
+export interface FsReadApprovalRememberOption {
   capability: 'fs_read';
   path: string;
   pathKind: 'directory' | 'file';
   /** 会话归属有效作品时为 true，允许保存为本机作品级授权。 */
   allowWork: boolean;
 }
+export interface McpApprovalRememberOption {
+  capability: 'mcp';
+  serverScope: McpConfigScope;
+  serverName: string;
+  /** 授权卡片中展示的被调用工具或资源操作名。 */
+  toolLabel: string;
+  /** 会话归属有效作品时为 true，允许保存为本机作品级授权。 */
+  allowWork: boolean;
+}
+export type ApprovalRememberOption = FsReadApprovalRememberOption | McpApprovalRememberOption;
 /** 本机应用设置；不进入作品备份。 */
 export interface HostSettings {
   defaultInstructions: AgentInstructions;
@@ -83,6 +110,45 @@ export interface SessionSkillItem {
 }
 export interface SkillInvocationView {
   name: string;
+}
+export interface McpToolSummary {
+  name: string;
+  description?: string;
+}
+export interface McpSignInPendingView {
+  authorizationUrl: string;
+}
+export interface ManagedMcpServerView {
+  name: string;
+  /** 定义该服务底层连接参数的文件层级。 */
+  definedIn: McpConfigScope;
+  /** 当前作品是否通过轻量覆盖修改了全局服务的 enabled 或 exposure。 */
+  overriddenInWork?: boolean;
+  transport: 'stdio' | 'http';
+  /** 连接目标摘要（命令或 URL，不含密钥）。 */
+  endpoint: string;
+  description?: string;
+  enabled: boolean;
+  exposure: McpExposureView;
+  state: McpServerState;
+  error?: string;
+  tools: McpToolSummary[];
+  hasResources: boolean;
+  usesOAuth: boolean;
+  hasStoredAuth: boolean;
+  /** 正在等待浏览器回调或手动粘贴重定向 URL 时存在。 */
+  signingIn?: McpSignInPendingView;
+}
+export interface ManagedMcpSnapshot {
+  globalFile: string;
+  globalJson: string;
+  globalErrors: string[];
+  workId: string | null;
+  workFile: string | null;
+  workJson: string | null;
+  workErrors: string[];
+  /** 合并后的有效服务列表（未指定作品时为全局服务；指定作品时为全局与作品合并结果）。 */
+  servers: ManagedMcpServerView[];
 }
 /** 只读历史的原因；lines 是无法解析的 JSONL 行号（从 1 开始）。 */
 export interface ReadonlyHistory {
@@ -160,6 +226,9 @@ export interface ToolResultInfo {
   description?: string;
   /** 原生只读工具命中已启用技能目录时标记技能名，供界面显示“加载技能《…》”。 */
   skillName?: string;
+  /** MCP 工具或资源调用所属服务与短工具名，供界面展示。 */
+  mcpServer?: string;
+  mcpTool?: string;
   error?: string;
 }
 /** pi 原生保存的有界子调用记录；详细输出仍属于外层脚本。 */
@@ -340,7 +409,10 @@ export interface HostCommands {
   /** 换回导入前快照，会话规则同覆盖导入。files 由平台移入回收站。 */
   restoreWorkSnapshot: { input: { commandId: string; workId: string }; output: WorkReplacement };
   model: { input: { id: string; model: ModelRef }; output: void };
-  approve: { input: { id: string; allow: boolean; scope?: ApprovalScope }; output: void };
+  approve: {
+    input: { id: string; allow: boolean; scope?: ApprovalScope; mcpTarget?: McpApprovalRememberTarget };
+    output: void;
+  };
   revokeToolPermission: { input: { id: string }; output: void };
   /** 只读历史不能重命名。 */
   rename: { input: { id: string; name: string }; output: void };
@@ -388,6 +460,40 @@ export interface HostCommands {
   };
   /** 查询指定打开会话当前可用的已启用技能（含仅手动调用项），供输入框 `/` 补全。 */
   sessionSkills: { input: { id: string }; output: SessionSkillItem[] };
+  /** 读取全局与可选作品级 mcp.json 文本、校验错误及当前共享连接状态。 */
+  getMcpState: { input: { workId: string | null }; output: ManagedMcpSnapshot };
+  /** 校验并保存全局或作品级 mcp.json 文本，立即刷新受影响连接。 */
+  saveMcpConfig: {
+    input: { scope: McpConfigScope; workId: string | null; json: string };
+    output: ManagedMcpSnapshot;
+  };
+  /** 在全局或作品级 mcp.json 中快速切换服务启停或三档暴露方式。 */
+  patchMcpServer: {
+    input: {
+      targetScope: McpConfigScope;
+      workId: string | null;
+      name: string;
+      enabled?: boolean;
+      exposure?: McpSelectableExposure;
+    };
+    output: ManagedMcpSnapshot;
+  };
+  /** 立即断开并重新连接指定服务。 */
+  reconnectMcpServer: { input: { workId: string | null; name: string }; output: ManagedMcpSnapshot };
+  /** 发起远程 MCP 的 OAuth 2.1 登录（可刷新既有令牌时直接完成，否则返回浏览器授权地址）。 */
+  startMcpSignIn: {
+    input: { workId: string | null; name: string };
+    output: { authorized: boolean; authorizationUrl?: string; snapshot: ManagedMcpSnapshot };
+  };
+  /** 当浏览器无法回跳本机端口时，提交地址栏重定向 URL 完成 OAuth 换牌。 */
+  submitMcpRedirectUrl: {
+    input: { workId: string | null; name: string; redirectUrl: string };
+    output: ManagedMcpSnapshot;
+  };
+  /** 取消正在等待回调的 OAuth 登录。 */
+  cancelMcpSignIn: { input: { workId: string | null; name: string }; output: ManagedMcpSnapshot };
+  /** 清除指定服务已保存的 OAuth 凭据并断开连接。 */
+  signOutMcpServer: { input: { workId: string | null; name: string }; output: ManagedMcpSnapshot };
 }
 export type HostCommand = RpcCommand<HostCommands>;
 export type HostChange =
@@ -410,7 +516,8 @@ export type HostChange =
   | { kind: 'approval'; approval: Approval }
   | { kind: 'approval-closed'; id: string }
   | { kind: 'models'; models: ModelChoice[] }
-  | { kind: 'settings'; settings: HostSettings };
+  | { kind: 'settings'; settings: HostSettings }
+  | { kind: 'mcp' };
 export type HostEvent = HostChange & { cursor: number };
 export type HostRequest = RpcRequest<HostCommands>;
 export type HostReply = RpcReply;

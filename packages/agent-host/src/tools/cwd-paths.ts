@@ -2,7 +2,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-import type { ToolPermission } from '../protocol.ts';
+import type { FsReadToolPermission } from '../protocol.ts';
 
 /** 原生 read、ls、find、grep 的目标路径参数；ls、find、grep 省略时为工作目录。 */
 const pathTools = new Set(['read', 'ls', 'find', 'grep']);
@@ -95,7 +95,10 @@ export async function inspectFsReadTarget(
   }
 }
 
-export function matchesFsReadPermission(rule: Pick<ToolPermission, 'path' | 'pathKind'>, target: string): boolean {
+export function matchesFsReadPermission(
+  rule: Pick<FsReadToolPermission, 'path' | 'pathKind'>,
+  target: string
+): boolean {
   return rule.pathKind === 'file' ? sameFsPath(rule.path, target) : inside(rule.path, target);
 }
 

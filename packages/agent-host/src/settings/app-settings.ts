@@ -5,13 +5,18 @@ import { normalizeInstructions, normalizeMode } from '../instructions/instructio
 import type {
   AgentInstructions,
   EditMode,
+  FsReadToolPermission,
   HostSettings,
+  McpToolPermission,
   ModelRef,
   NamedInstructions,
   ToolPermission,
   ToolPermissionScope
 } from '../protocol.ts';
 import { sameFsPath } from '../tools/cwd-paths.ts';
+
+/** 待保存的放行规则；ID 由设置存储分配。 */
+export type ToolPermissionDraft = Omit<FsReadToolPermission, 'id'> | Omit<McpToolPermission, 'id'>;
 
 /**
  * 设置文件内容；defaultInstructions 为 null 表示作者尚未设置，新会话使用应用内置指令。
@@ -58,16 +63,35 @@ function normalizePermissionScope(scope: ToolPermissionScope): ToolPermissionSco
 
 function normalizeToolPermission(value: ToolPermission): ToolPermission {
   if (typeof value.id !== 'string' || !value.id.trim()) throw new Error('工具授权需要稳定 ID');
-  if (value.capability !== 'fs_read') throw new Error('工具授权能力无效');
-  if (typeof value.path !== 'string' || !value.path.trim()) throw new Error('工具授权需要路径');
-  if (value.pathKind !== 'directory' && value.pathKind !== 'file') throw new Error('工具授权路径类型无效');
-  return {
-    id: value.id,
-    scope: normalizePermissionScope(value.scope),
-    capability: 'fs_read',
-    path: value.path,
-    pathKind: value.pathKind
-  };
+  const scope = normalizePermissionScope(value.scope);
+  if (value.capability === 'fs_read') {
+    if (typeof value.path !== 'string' || !value.path.trim()) throw new Error('工具授权需要路径');
+    if (value.pathKind !== 'directory' && value.pathKind !== 'file') throw new Error('工具授权路径类型无效');
+    return { id: value.id, scope, capability: 'fs_read', path: value.path, pathKind: value.pathKind };
+  }
+  if (value.capability === 'mcp') {
+    const { serverScope, serverWorkId, serverName, serverFingerprint, toolName } = value;
+    const text = (item: unknown) => typeof item === 'string' && item.trim() !== '';
+    if (
+      !(serverScope === 'global' ? serverWorkId === null : serverScope === 'work' && text(serverWorkId)) ||
+      !text(serverName) ||
+      !text(serverFingerprint) ||
+      (toolName !== undefined && !text(toolName))
+    ) {
+      throw new Error('MCP 工具授权无效');
+    }
+    return {
+      id: value.id,
+      scope,
+      capability: 'mcp',
+      serverScope,
+      serverWorkId,
+      serverName,
+      serverFingerprint,
+      ...(toolName !== undefined && { toolName })
+    };
+  }
+  throw new Error('工具授权能力无效');
 }
 
 function sameScope(left: ToolPermissionScope, right: ToolPermissionScope): boolean {
@@ -75,6 +99,21 @@ function sameScope(left: ToolPermissionScope, right: ToolPermissionScope): boole
   return left.kind === 'session'
     ? left.sessionId === (right as { kind: 'session'; sessionId: string }).sessionId
     : left.workId === (right as { kind: 'work'; workId: string }).workId;
+}
+
+function samePermission(left: ToolPermission, right: ToolPermission): boolean {
+  if (!sameScope(left.scope, right.scope)) return false;
+  if (left.capability === 'fs_read') {
+    return right.capability === 'fs_read' && left.pathKind === right.pathKind && sameFsPath(left.path, right.path);
+  }
+  return (
+    right.capability === 'mcp' &&
+    left.serverScope === right.serverScope &&
+    left.serverWorkId === right.serverWorkId &&
+    left.serverName === right.serverName &&
+    left.serverFingerprint === right.serverFingerprint &&
+    left.toolName === right.toolName
+  );
 }
 
 function parseSettings(value: AppSettings): AppSettings {
@@ -224,16 +263,9 @@ export class AppSettingsStore {
   }
 
   /** 已存在完全相同的放行规则时不重复写盘。 */
-  async addToolPermission(draft: Omit<ToolPermission, 'id'>): Promise<boolean> {
+  async addToolPermission(draft: ToolPermissionDraft): Promise<boolean> {
     const normalized = normalizeToolPermission({ id: randomUUID(), ...draft });
-    const exists = this.value.toolPermissions.some(
-      item =>
-        sameScope(item.scope, normalized.scope) &&
-        item.capability === normalized.capability &&
-        item.pathKind === normalized.pathKind &&
-        sameFsPath(item.path, normalized.path)
-    );
-    if (exists) return false;
+    if (this.value.toolPermissions.some(item => samePermission(item, normalized))) return false;
     await this.save({ ...this.value, toolPermissions: [...this.value.toolPermissions, normalized] });
     return true;
   }

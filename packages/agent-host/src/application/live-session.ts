@@ -314,15 +314,20 @@ export class LiveSession {
   /** 讨论模式撤下全部作品写工具（包括 tool_search 加载的）；其他模式补回常驻写工具，保留已加载的工具。 */
   syncWorkTools(): void {
     const active = this.session.getActiveToolNames();
-    if (this.view.mode === 'discuss') {
-      this.session.setActiveToolsByName(active.filter(name => !workWriteToolNames.has(name)));
-      return;
-    }
-    const direct = this.session
-      .getAllTools()
-      .filter(tool => workWriteToolNames.has(tool.name) && tool.exposure !== 'deferred')
-      .map(tool => tool.name);
-    this.session.setActiveToolsByName([...new Set([...active, ...direct])]);
+    const next =
+      this.view.mode === 'discuss'
+        ? active.filter(name => !workWriteToolNames.has(name))
+        : [
+            ...new Set([
+              ...active,
+              ...this.session
+                .getAllTools()
+                .filter(tool => workWriteToolNames.has(tool.name) && tool.exposure !== 'deferred')
+                .map(tool => tool.name)
+            ])
+          ];
+    // 每次请求前都会校正，没有变化时不让 pi 重建提示词。
+    if (next.length !== active.length) this.session.setActiveToolsByName(next);
   }
 
   async setModel(model: Parameters<AgentSession['setModel']>[0]): Promise<void> {

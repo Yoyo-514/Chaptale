@@ -275,10 +275,14 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
         <span class="i-mingcute-shield-line size-4 shrink-0" aria-hidden="true" />
         <span>助手想要{{ describeTool(approval.toolName, approval.input, false) }}</span>
       </p>
-      <p v-if="approval.remember" class="agent-approval-scope">
+      <p v-if="approval.remember?.capability === 'fs_read'" class="agent-approval-scope">
         记住后允许读取{{ approval.remember.pathKind === 'file' ? '文件' : '目录' }}：<code>{{
           approval.remember.path
         }}</code>
+      </p>
+      <p v-else-if="approval.remember" class="agent-approval-scope">
+        记住后允许调用 MCP 服务 <code>{{ approval.remember.serverName }}</code> 的
+        <code>{{ approval.remember.toolLabel }}</code>
       </p>
       <details class="agent-approval-detail">
         <summary>查看参数</summary>
