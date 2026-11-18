@@ -6,10 +6,6 @@ import { useWorkbenchStore } from '@/features/workbench';
 
 const settings = useSettingsStore();
 const navigation = useWorkbenchStore();
-function toggleAgent() {
-  if (navigation.agentInMain) navigation.showAgent();
-  else navigation.toggleAuxiliary();
-}
 </script>
 
 <template>
@@ -36,9 +32,9 @@ function toggleAgent() {
           variant="ghost"
           type="button"
           aria-label="会话"
-          :aria-pressed="(navigation.auxiliaryOpen || navigation.agentInMain) && !navigation.focusMode"
-          :selected="(navigation.auxiliaryOpen || navigation.agentInMain) && !navigation.focusMode"
-          @click="toggleAgent"
+          :aria-pressed="navigation.auxiliaryOpen && !navigation.focusMode"
+          :selected="navigation.auxiliaryOpen && !navigation.focusMode"
+          @click="navigation.toggleAuxiliary()"
         >
           <span class="i-mingcute-chat-3-line activity-icon" aria-hidden="true" />
         </AppButton>
@@ -94,10 +90,6 @@ function toggleAgent() {
   width: 2px;
   border-radius: 1px;
   background: var(--primary-solid);
-}
-.activity-bar .activity-button:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
 }
 .activity-icon {
   width: 22px;

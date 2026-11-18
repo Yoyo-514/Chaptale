@@ -130,7 +130,7 @@ function view(row: ReviewRow) {
   border-radius: calc(var(--radius-overlay) * 2);
   background: var(--popover);
   box-shadow: var(--shadow-float);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .review-count {
   flex-shrink: 0;
@@ -157,10 +157,6 @@ function view(row: ReviewRow) {
   font: inherit;
   text-align: left;
   cursor: pointer;
-}
-.review-summary:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
 }
 .review-heading {
   overflow: hidden;

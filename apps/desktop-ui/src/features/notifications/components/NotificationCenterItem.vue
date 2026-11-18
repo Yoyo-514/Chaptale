@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 
 import type { NotificationItem, NotificationPanelMode } from '../store';
 import { formatNotificationTime, getNotificationIcon } from '../utils/notification-display';
@@ -22,17 +23,18 @@ const emit = defineEmits<{
         {{ props.notification.title }}
       </strong>
       <div class="notification-item-toolbar">
-        <AppButton
-          icon
-          variant="ghost"
-          size="xs"
-          type="button"
-          aria-label="移除通知"
-          title="移除通知"
-          @click="emit('dismiss', props.notification.id)"
-        >
-          <span class="i-mingcute-close-line size-4" aria-hidden="true" />
-        </AppButton>
+        <AppTooltip text="移除通知">
+          <AppButton
+            icon
+            variant="ghost"
+            size="xs"
+            type="button"
+            aria-label="移除通知"
+            @click="emit('dismiss', props.notification.id)"
+          >
+            <span class="i-mingcute-close-line size-4" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
       </div>
     </div>
 

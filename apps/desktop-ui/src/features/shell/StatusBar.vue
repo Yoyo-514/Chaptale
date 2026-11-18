@@ -56,7 +56,7 @@ const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : ed
   border-top: 1px solid var(--border-subtle);
   background: var(--surface-muted);
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
 }
 .status-spacer {
   flex: 1;

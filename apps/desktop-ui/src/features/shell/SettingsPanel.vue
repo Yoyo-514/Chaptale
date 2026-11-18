@@ -3,6 +3,7 @@ import { DialogContent, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui';
 import { onMounted, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useDraggablePanel, type ResizeDirection } from '@/composables';
 import {
   InstructionSettings,
@@ -74,29 +75,18 @@ onMounted(() => {
               <div>
                 <DialogTitle as-child><h2 id="settings-panel-title" class="settings-panel-title">设置</h2></DialogTitle>
               </div>
-              <div class="settings-panel-window-actions">
-                <AppButton
-                  icon
-                  variant="ghost"
-                  size="sm"
-                  aria-label="居中设置面板"
-                  title="居中设置面板"
-                  @click="centerPanel"
-                >
-                  <span class="i-mingcute-align-center-line size-4" aria-hidden="true" />
-                </AppButton>
+              <AppTooltip text="关闭设置">
                 <AppButton
                   icon
                   variant="ghost"
                   size="sm"
                   type="button"
                   aria-label="关闭设置"
-                  title="关闭设置"
                   @click="settingsStore.closePanel()"
                 >
                   <span class="i-mingcute-close-line size-4" aria-hidden="true" />
                 </AppButton>
-              </div>
+              </AppTooltip>
             </header>
 
             <div class="settings-panel-shell">
@@ -158,12 +148,8 @@ onMounted(() => {
 .settings-panel-title {
   @apply m-0 text-base font-semibold;
 }
-.settings-panel-window-actions {
-  @apply flex shrink-0 items-center gap-1;
-}
-
 .settings-panel-shell {
-  @apply grid min-h-0 flex-1 grid-cols-[10.5rem_minmax(0,1fr)];
+  @apply grid min-h-0 flex-1 grid-cols-[11rem_minmax(0,1fr)];
 }
 
 .settings-panel-content {

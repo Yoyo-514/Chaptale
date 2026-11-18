@@ -106,10 +106,6 @@
   background: var(--surface-hover);
   color: var(--foreground);
 }
-.agent-activity-row:focus-visible {
-  box-shadow: var(--input-focus-shadow);
-  outline: none;
-}
 .agent-activity-icon {
   /* 图标尺寸为 1em，width/height 会被图标工具类覆盖，用字号控制 */
   font-size: 16px;
@@ -214,22 +210,6 @@
 .agent-field-help {
   margin: -4px 0 0;
 }
-.agent-settings-heading {
-  flex-shrink: 0;
-  padding: 20px 20px 14px;
-}
-.agent-settings-heading h2,
-.agent-settings-heading h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-.agent-settings-heading p {
-  margin: 6px 0 0;
-  color: var(--muted-foreground);
-  font-size: var(--ui-font-size);
-  line-height: 1.6;
-}
 .agent-settings-scroll {
   min-height: 0;
   min-width: 0;
@@ -242,9 +222,4 @@
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-}
-@container settings-panel (max-width: 760px) {
-  .agent-settings-heading {
-    padding: 16px 16px 12px;
-  }
 }

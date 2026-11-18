@@ -237,7 +237,7 @@ watch(
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   border-bottom: 1px solid var(--border-subtle);
 }
 .document-message.is-error {

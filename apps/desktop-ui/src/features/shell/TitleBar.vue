@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
-import { useAgentStore } from '@/features/agent';
 import { useCreationStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
-import { useWorkbenchStore } from '@/features/workbench';
 import { APP_ICON_URL } from '@/utils/app-icon';
 
 import TitleBarMenu from './TitleBarMenu.vue';
@@ -13,17 +11,10 @@ import { useWindowControls } from './useWindowControls';
 const appIconUrl = APP_ICON_URL;
 const creation = useCreationStore();
 const editor = useEditorStore();
-const agent = useAgentStore();
-const navigation = useWorkbenchStore();
 const documentTitle = computed(() =>
   creation.libraryOpen
     ? '作品库'
-    : [
-        navigation.agentInMain ? (agent.active ? agent.title(agent.active) : '新建会话') : editor.activeTab?.title,
-        creation.work?.title
-      ]
-        .filter(Boolean)
-        .join(' - ') || 'Chaptale'
+    : [editor.activeTab?.title, creation.work?.title].filter(Boolean).join(' - ') || 'Chaptale'
 );
 
 /**

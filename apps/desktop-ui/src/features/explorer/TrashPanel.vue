@@ -6,6 +6,7 @@ import { isImageFile, type Entry, type StoryRelationRef, type TrashBatch } from 
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useCreationStore, useTrashStore } from '@/features/creation';
 import { toErrorMessage } from '@/utils/desktop-api';
 
@@ -179,26 +180,28 @@ const purgeCount = computed(() => {
             >
           </span>
           <span v-if="first" class="trash-actions">
-            <AppButton
-              icon
-              size="xs"
-              variant="ghost"
-              :disabled="busy"
-              aria-label="恢复"
-              title="恢复"
-              @click.stop="run(() => trash.restore(batch.id))"
-              ><span class="i-mingcute-back-2-line size-3.5" aria-hidden="true"
-            /></AppButton>
-            <AppButton
-              icon
-              size="xs"
-              variant="ghost"
-              :disabled="busy"
-              aria-label="永久删除"
-              title="永久删除"
-              @click.stop="askPurge(batch)"
-              ><span class="i-mingcute-close-line size-3.5" aria-hidden="true"
-            /></AppButton>
+            <AppTooltip text="恢复">
+              <AppButton
+                icon
+                size="xs"
+                variant="ghost"
+                :disabled="busy"
+                aria-label="恢复"
+                @click.stop="run(() => trash.restore(batch.id))"
+                ><span class="i-mingcute-back-2-line size-3.5" aria-hidden="true"
+              /></AppButton>
+            </AppTooltip>
+            <AppTooltip text="永久删除">
+              <AppButton
+                icon
+                size="xs"
+                variant="ghost"
+                :disabled="busy"
+                aria-label="永久删除"
+                @click.stop="askPurge(batch)"
+                ><span class="i-mingcute-close-line size-3.5" aria-hidden="true"
+              /></AppButton>
+            </AppTooltip>
           </span>
         </div>
       </AppContextMenu>
@@ -244,13 +247,12 @@ const purgeCount = computed(() => {
   background: transparent;
   color: var(--muted-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   cursor: pointer;
 }
 .trash-toggle:hover {
   color: var(--foreground);
 }
-.trash-toggle:focus-visible,
 .trash-row:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
@@ -307,13 +309,13 @@ const purgeCount = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .trash-meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   font-variant-numeric: tabular-nums;
 }
 .trash-actions {
@@ -329,7 +331,7 @@ const purgeCount = computed(() => {
 .trash-error {
   margin: 0;
   padding: 6px 12px 10px 28px;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   line-height: 1.5;
   color: var(--muted-foreground);
 }

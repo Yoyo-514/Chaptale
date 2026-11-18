@@ -120,7 +120,7 @@ watch(
         <div class="app-image-lightbox-stage" @click.self="close">
           <button
             v-if="props.items.length > 1"
-            class="app-image-lightbox-button app-image-lightbox-nav"
+            class="app-image-lightbox-button"
             type="button"
             aria-label="上一张图片"
             @click="move(-1)"
@@ -157,7 +157,7 @@ watch(
 
           <button
             v-if="props.items.length > 1"
-            class="app-image-lightbox-button app-image-lightbox-nav"
+            class="app-image-lightbox-button"
             type="button"
             aria-label="下一张图片"
             @click="move(1)"

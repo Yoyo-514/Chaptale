@@ -82,7 +82,7 @@ async function finishRename(save: boolean) {
   if (save && name && name !== title.value) await agent.rename(agent.activeId!, name);
 }
 watch(
-  () => navigation.auxiliaryOpen || navigation.agentInMain,
+  () => navigation.auxiliaryOpen,
   visible => {
     if (visible) void agent.connect();
   },
@@ -90,10 +90,7 @@ watch(
 );
 // 作者正在查看的会话：交付摘要随之刷新，新写入的待审修改可切到前台。
 watch(
-  () =>
-    (navigation.auxiliaryOpen || navigation.agentInMain) && navigation.agentView === 'chat'
-      ? (agent.active?.sessionId ?? null)
-      : null,
+  () => (navigation.auxiliaryOpen && navigation.agentView === 'chat' ? (agent.active?.sessionId ?? null) : null),
   id => {
     review.viewingSessionId = id;
   },
@@ -147,14 +144,6 @@ function createIndependent() {
 function select(entry: SessionEntry) {
   void agent.view(entry);
   navigation.agentView = 'chat';
-}
-function closeView() {
-  navigation.agentInMain = false;
-  navigation.auxiliaryOpen = false;
-}
-function move() {
-  navigation.agentInMain = !navigation.agentInMain;
-  navigation.auxiliaryOpen = true;
 }
 function approve(id: string, allow: boolean, scope?: ApprovalScope, mcpTarget?: McpApprovalRememberTarget) {
   void agent.perform(() =>
@@ -302,15 +291,8 @@ function confirmBranchAction() {
         >
           <span class="i-mingcute-minimize-line size-4 shrink-0" aria-hidden="true" />压缩对话
         </AppDropdownMenuItem>
-        <AppDropdownMenuItem density="sm" item-class="agent-menu-item" @select="move">
-          <span
-            :class="navigation.agentInMain ? 'i-mingcute-layout-right-line' : 'i-mingcute-fullscreen-line'"
-            class="size-4 shrink-0"
-            aria-hidden="true"
-          />{{ navigation.agentInMain ? '移到协作栏' : '移到主区' }}
-        </AppDropdownMenuItem>
         <hr class="agent-menu-separator" />
-        <AppDropdownMenuItem density="sm" item-class="agent-menu-item" @select="closeView">
+        <AppDropdownMenuItem density="sm" item-class="agent-menu-item" @select="navigation.auxiliaryOpen = false">
           <span class="i-mingcute-close-line size-4 shrink-0" aria-hidden="true" />关闭会话视图
         </AppDropdownMenuItem>
       </AppDropdownMenu>
@@ -423,7 +405,7 @@ function confirmBranchAction() {
   background: var(--surface);
   color: var(--foreground);
   font-size: var(--ui-font-size);
-  // 主区里消息和输入框共用一列，协作栏里自然铺满。
+  // 消息和输入框共用一列；协作栏拖宽后内容居中，不随栏宽无限拉长。
   --agent-column: 46rem;
 }
 /* 标题栏：标题即会话切换入口，右侧只留新建和更多。 */
@@ -455,10 +437,6 @@ function confirmBranchAction() {
 .agent-title-button:hover:not(:disabled),
 .agent-title-button[data-state='open'] {
   background: var(--surface-hover);
-}
-.agent-title-button:focus-visible {
-  box-shadow: var(--input-focus-shadow);
-  outline: none;
 }
 .agent-title-button:disabled {
   cursor: default;

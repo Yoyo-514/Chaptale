@@ -1,7 +1,10 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createGenerator } from 'unocss';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'vue/compiler-sfc';
+
+import unoConfig from '../../../uno.config';
 
 const root = path.resolve(import.meta.dirname, '../..');
 function nativeFields(node: unknown): string[] {
@@ -22,6 +25,17 @@ function templateStyleValues(node: unknown): string[] {
   });
   const children = 'children' in node && Array.isArray(node.children) ? node.children : [];
   return [...values, ...children.flatMap(templateStyleValues)];
+}
+
+/** 模板里写死的类名；动态绑定的类名由各组件自己的行为测试覆盖。 */
+function staticClasses(node: unknown): string[] {
+  if (!node || typeof node !== 'object') return [];
+  const props = 'props' in node && Array.isArray(node.props) ? node.props : [];
+  const own = props.flatMap(prop =>
+    prop.type === 6 && prop.name === 'class' && prop.value ? prop.value.content.split(/\s+/).filter(Boolean) : []
+  );
+  const children = 'children' in node && Array.isArray(node.children) ? node.children : [];
+  return [...own, ...children.flatMap(staticClasses)];
 }
 
 function undersizedFonts(source: string): string[] {
@@ -91,5 +105,35 @@ describe('UI 一致性约束', () => {
     }
     expect(scanned).toBeGreaterThan(0);
     expect(violations).toEqual([]);
+  });
+
+  it('只收集模板里写死的类名', () => {
+    const { descriptor } = parse(
+      '<template><div class="card  card-title" :class="{ active }"><span class="i-mingcute-add-line" /></div></template>'
+    );
+    expect(staticClasses(descriptor.template?.ast)).toEqual(['card', 'card-title', 'i-mingcute-add-line']);
+  });
+
+  it('业务模板里写死的类名都有样式：来自某个样式块，或是 UnoCSS 工具类', async () => {
+    const defined = new Set<string>();
+    const used = new Map<string, string>();
+    for (const directory of ['components', 'features', 'layouts', 'styles']) {
+      const filenames = await readdir(path.join(root, directory), { recursive: true });
+      for (const filename of filenames.filter(name => /\.(vue|s?css)$/.test(name))) {
+        const file = path.join(root, directory, filename);
+        const source = await readFile(file, 'utf8');
+        const { descriptor } = filename.endsWith('.vue') ? parse(source, { filename: file }) : { descriptor: null };
+        const styles = descriptor ? descriptor.styles.map(style => style.content) : [source];
+        for (const [, name] of styles.join('\n').matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) defined.add(name!);
+        if (directory === 'styles') continue;
+        for (const name of staticClasses(descriptor?.template?.ast)) {
+          if (!used.has(name)) used.set(name, `${directory}/${filename}`);
+        }
+      }
+    }
+    const candidates = [...used.keys()].filter(name => !defined.has(name));
+    const { matched } = await (await createGenerator(unoConfig)).generate(candidates.join(' '), { preflights: false });
+    expect(used.size).toBeGreaterThan(0);
+    expect(candidates.filter(name => !matched.has(name)).map(name => `${used.get(name)}: ${name}`)).toEqual([]);
   });
 });

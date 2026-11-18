@@ -8,6 +8,7 @@ import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppCombobox } from '@/components/AppCombobox';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useCreationStore } from '@/features/creation';
 
 import { placementFrom, placementValue, resourceTitle } from './labels';
@@ -212,35 +213,33 @@ function keydown(event: KeyboardEvent) {
           }}</AppSelectItem>
         </AppSelect>
         <span class="relation-form-tools">
-          <button
-            type="button"
-            class="relation-form-tool"
-            :disabled="index === 0"
-            aria-label="上移"
-            title="同一位置内的先后"
-            @click="move(index, -1)"
-          >
-            <span class="i-mingcute-arrow-up-line size-3.5" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class="relation-form-tool"
-            :disabled="index === milestones.length - 1"
-            aria-label="下移"
-            title="同一位置内的先后"
-            @click="move(index, 1)"
-          >
-            <span class="i-mingcute-arrow-down-line size-3.5" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class="relation-form-tool"
-            aria-label="移除"
-            title="移除"
-            @click="milestones.splice(index, 1)"
-          >
-            <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
-          </button>
+          <AppTooltip text="上移（同一位置内的先后）">
+            <button
+              type="button"
+              class="relation-form-tool"
+              :disabled="index === 0"
+              aria-label="上移"
+              @click="move(index, -1)"
+            >
+              <span class="i-mingcute-arrow-up-line size-3.5" aria-hidden="true" />
+            </button>
+          </AppTooltip>
+          <AppTooltip text="下移（同一位置内的先后）">
+            <button
+              type="button"
+              class="relation-form-tool"
+              :disabled="index === milestones.length - 1"
+              aria-label="下移"
+              @click="move(index, 1)"
+            >
+              <span class="i-mingcute-arrow-down-line size-3.5" aria-hidden="true" />
+            </button>
+          </AppTooltip>
+          <AppTooltip text="移除">
+            <button type="button" class="relation-form-tool" aria-label="移除" @click="milestones.splice(index, 1)">
+              <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
+            </button>
+          </AppTooltip>
         </span>
       </div>
       <div class="relation-form-row">

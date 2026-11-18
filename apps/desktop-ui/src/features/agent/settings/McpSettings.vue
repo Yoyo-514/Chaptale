@@ -9,11 +9,12 @@ import type {
 } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { AppNotice } from '@/components/AppNotice';
 import { AppTabs } from '@/components/AppTabs';
 import { AppTextarea } from '@/components/AppTextarea';
 import { useCreationStore } from '@/features/creation';
-import { SettingsSectionView as SettingsSection } from '@/features/settings';
+import { SettingsList, SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import McpServerRow from './McpServerRow.vue';
@@ -212,7 +213,7 @@ function submitRedirect(server: ManagedMcpServerView, redirectUrl: string) {
               >
             </p>
           </header>
-          <ul v-if="snapshot?.servers.length" class="mcp-list">
+          <SettingsList v-if="snapshot?.servers.length">
             <McpServerRow
               v-for="server in snapshot.servers"
               :key="`${server.definedIn}:${server.name}`"
@@ -227,8 +228,8 @@ function submitRedirect(server: ManagedMcpServerView, redirectUrl: string) {
               @cancel-sign-in="run('cancelMcpSignIn', server)"
               @sign-out="run('signOutMcpServer', server)"
             />
-          </ul>
-          <div v-else-if="snapshot" class="settings-empty-card">还没有服务。在上面的配置文件里添加后保存。</div>
+          </SettingsList>
+          <AppEmptyState v-else-if="snapshot" title="还没有服务" description="在上面的配置文件里添加后保存。" />
         </section>
       </div>
     </AppTabs>
@@ -279,12 +280,5 @@ function submitRedirect(server: ManagedMcpServerView, redirectUrl: string) {
 
 .mcp-json-actions {
   @apply flex items-center justify-end gap-2;
-}
-
-.mcp-list {
-  @apply m-0 flex list-none flex-col divide-y border p-0;
-  background: var(--surface-acrylic-strong);
-  border-color: var(--border-subtle);
-  border-radius: var(--radius-control);
 }
 </style>

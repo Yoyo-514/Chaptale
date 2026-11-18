@@ -144,7 +144,7 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
           </div>
         </div>
         <div v-if="item.text" class="agent-assistant-text markdown-body" v-html="html(item.index, item.text)" />
-        <section v-if="item.tools.length" class="agent-activity agent-tool-group" aria-label="工具调用">
+        <section v-if="item.tools.length" class="agent-activity" aria-label="工具调用">
           <button
             type="button"
             class="agent-activity-row"
@@ -377,11 +377,6 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
 .agent-queue-recall:hover {
   color: var(--primary);
 }
-.agent-queue-recall:focus-visible {
-  outline: none;
-  border-radius: var(--radius-control-sm);
-  box-shadow: var(--input-focus-shadow);
-}
 .agent-user-failure {
   display: flex;
   align-items: center;
@@ -449,10 +444,6 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
     }
     &:hover {
       color: var(--foreground);
-    }
-    &:focus-visible {
-      outline: 2px solid var(--ring);
-      outline-offset: 2px;
     }
   }
   &[open] .agent-notice-chevron {

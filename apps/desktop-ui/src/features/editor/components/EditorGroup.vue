@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
   min-height: 36px;
   padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .trash-preview-icon {
   width: 14px;
@@ -187,7 +187,7 @@ onBeforeUnmount(() => {
 }
 .trash-preview-note {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   color: var(--muted-foreground);
 }
 .trash-preview-text {

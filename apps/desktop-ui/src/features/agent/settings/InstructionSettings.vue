@@ -7,6 +7,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import InstructionsEditor from '../components/InstructionsEditor.vue';
@@ -77,11 +78,12 @@ async function remove() {
 </script>
 
 <template>
-  <section class="instruction-settings">
-    <header class="agent-settings-heading">
-      <h2>写作指令</h2>
-      <p>约定助手如何协作。每个会话保存自己的指令。</p>
-    </header>
+  <SettingsSection
+    title="写作指令"
+    title-id="settings-instructions-title"
+    description="约定助手如何协作。每个会话保存自己的指令。"
+    flush
+  >
     <template v-if="agent.state">
       <div class="agent-settings-toolbar">
         <div class="agent-subnav" aria-label="指令范围">
@@ -158,18 +160,10 @@ async function remove() {
     </template>
     <p v-else class="agent-empty-small">{{ agent.connecting ? '正在读取指令…' : agent.error }}</p>
     <p v-if="error" role="alert" class="agent-error agent-settings-status">{{ error }}</p>
-  </section>
+  </SettingsSection>
 </template>
 
 <style lang="scss">
-.instruction-settings {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
 .agent-settings-toolbar {
   display: flex;
   flex-shrink: 0;
@@ -177,7 +171,7 @@ async function remove() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 20px 12px;
+  padding: 0 16px 12px;
 }
 .agent-subnav {
   display: flex;
@@ -196,13 +190,13 @@ async function remove() {
 .agent-settings-status {
   flex-shrink: 0;
   margin: 0;
-  padding: 6px 20px;
+  padding: 6px 16px;
   font-size: var(--ui-caption-size);
 }
 .instruction-scope {
   flex-shrink: 0;
   margin: 0;
-  padding: 0 20px 12px;
+  padding: 0 16px 12px;
   color: var(--muted-foreground);
   font-size: var(--ui-caption-size);
   line-height: 1.6;
@@ -212,16 +206,11 @@ async function remove() {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: flex-end;
-  padding: 0 20px 12px;
+  padding: 0 16px 12px;
 }
 .instruction-library-toolbar > .app-select-trigger,
 .instruction-library-toolbar > label {
   min-width: 10rem;
   flex: 1;
-}
-@container settings-panel (max-width: 760px) {
-  .agent-settings-toolbar {
-    padding-inline: 16px;
-  }
 }
 </style>

@@ -5,9 +5,10 @@ import type { ManagedSkillsSnapshot, ManagedSkillView, SkillScope } from '@chapt
 
 import { AppButton } from '@/components/AppButton';
 import { AppAlertDialog } from '@/components/AppDialog';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { AppNotice } from '@/components/AppNotice';
 import { useCreationStore } from '@/features/creation';
-import { SettingsSectionView as SettingsSection } from '@/features/settings';
+import { SettingsList, SettingsListRow, SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import SkillGroupSection from './SkillGroupSection.vue';
@@ -152,28 +153,17 @@ function confirmRemove() {
           <span class="i-mingcute-warning-line size-4 shrink-0" aria-hidden="true" />
           <span>有 {{ snapshot.diagnostics.length }} 个技能文件存在格式问题，请修正后点击刷新：</span>
         </header>
-        <ul class="skill-diagnostics-list">
-          <li
-            v-for="(diag, index) in snapshot.diagnostics"
-            :key="`${diag.path}:${index}`"
-            class="skill-diagnostics-row"
-          >
-            <div class="settings-model-copy">
-              <span>{{ diag.message }}</span>
-              <code v-if="diag.path">{{ diag.path }}</code>
-            </div>
-            <AppButton
-              v-if="canRevealPath && diag.path"
-              type="button"
-              size="sm"
-              variant="ghost"
-              :disabled="busy"
-              @click="handleReveal(diag.path)"
-            >
-              定位文件
-            </AppButton>
-          </li>
-        </ul>
+        <SettingsList>
+          <SettingsListRow v-for="(diag, index) in snapshot.diagnostics" :key="`${diag.path}:${index}`">
+            <span>{{ diag.message }}</span>
+            <code v-if="diag.path">{{ diag.path }}</code>
+            <template v-if="canRevealPath && diag.path" #trailing>
+              <AppButton type="button" size="sm" variant="ghost" :disabled="busy" @click="handleReveal(diag.path)">
+                定位文件
+              </AppButton>
+            </template>
+          </SettingsListRow>
+        </SettingsList>
       </section>
 
       <SkillGroupSection
@@ -193,7 +183,7 @@ function confirmRemove() {
         @reveal-path="handleReveal"
         @request-remove="requestRemove"
       />
-      <div v-else class="settings-empty-card">打开具体作品后，可在此管理该作品专属的技能。</div>
+      <AppEmptyState v-else title="没有打开作品" description="打开一部作品后，可以在这里管理它专属的技能。" />
 
       <SkillGroupSection
         scope="global"
@@ -230,23 +220,11 @@ function confirmRemove() {
 }
 
 .skill-diagnostics {
-  @apply flex flex-col gap-2 border p-3;
-  background: var(--surface);
-  border-color: var(--border);
-  border-radius: var(--radius-control);
+  @apply flex flex-col gap-2;
 }
 
 .skill-diagnostics-title {
   @apply flex items-center gap-1.5 text-xs font-medium;
   color: var(--warning);
-}
-
-.skill-diagnostics-list {
-  @apply m-0 flex list-none flex-col divide-y p-0;
-}
-
-.skill-diagnostics-row {
-  @apply flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0;
-  border-color: var(--border-subtle);
 }
 </style>

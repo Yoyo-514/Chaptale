@@ -3,6 +3,7 @@ import { TabsTrigger } from 'reka-ui';
 import { computed } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 
 /** 编辑区的一个标签：正式文稿、审阅或历史，关闭按钮在未保存时显示圆点。 */
 const props = defineProps<{
@@ -44,17 +45,18 @@ const label = computed(
       <span v-if="kind.icon" class="tab-kind-icon" :class="kind.icon" aria-hidden="true" />
       <span class="tab-title">{{ title }}</span>
     </TabsTrigger>
-    <AppButton
-      icon
-      size="xs"
-      variant="ghost"
-      class="editor-tab-close"
-      :class="{ 'is-dirty': dirty }"
-      :aria-label="`关闭${kind.name} ${title}`"
-      :title="dirty ? `关闭（${kind.dirtyNote}）` : '关闭'"
-      @click="emit('close')"
-      ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
-    /></AppButton>
+    <AppTooltip :text="dirty ? `关闭（${kind.dirtyNote}）` : '关闭'">
+      <AppButton
+        icon
+        size="xs"
+        variant="ghost"
+        class="editor-tab-close"
+        :class="{ 'is-dirty': dirty }"
+        :aria-label="`关闭${kind.name} ${title}`"
+        @click="emit('close')"
+        ><span class="i-mingcute-close-line tab-close-icon" aria-hidden="true"
+      /></AppButton>
+    </AppTooltip>
   </div>
 </template>
 
@@ -86,12 +88,8 @@ const label = computed(
   border: 0;
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
   cursor: pointer;
-}
-.editor-tab:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
 }
 .tab-title {
   overflow: hidden;

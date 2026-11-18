@@ -9,9 +9,12 @@ const props = withDefaults(
     titleId?: string;
     description?: string;
     scrollable?: boolean;
+    /** 内容自带分栏和底栏时使用：正文贴到分区边缘，不套滚动区，内边距由内容自己决定。 */
+    flush?: boolean;
   }>(),
   {
-    scrollable: true
+    scrollable: true,
+    flush: false
   }
 );
 
@@ -21,7 +24,7 @@ const hasHeadingExtra = computed(() => Boolean(slots.badge || slots.actions || s
 </script>
 
 <template>
-  <section class="settings-section" :aria-labelledby="props.titleId">
+  <section class="settings-section" :class="{ 'is-flush': props.flush }" :aria-labelledby="props.titleId">
     <div class="settings-section-heading">
       <h3 :id="props.titleId" class="settings-section-title">{{ props.title }}</h3>
       <div v-if="hasHeadingExtra" class="settings-section-heading-extra">
@@ -36,7 +39,7 @@ const hasHeadingExtra = computed(() => Boolean(slots.badge || slots.actions || s
     </p>
 
     <AppScrollArea
-      v-if="props.scrollable"
+      v-if="props.scrollable && !props.flush"
       class="settings-section-scroll"
       viewport-class="settings-section-scroll-viewport"
     >
@@ -52,6 +55,18 @@ const hasHeadingExtra = computed(() => Boolean(slots.badge || slots.actions || s
   @apply flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-4;
 
   background: var(--surface-elevated);
+}
+
+.settings-section.is-flush {
+  @apply p-0;
+}
+
+.settings-section.is-flush > .settings-section-heading {
+  @apply px-4 pt-4;
+}
+
+.settings-section.is-flush > .settings-section-description {
+  @apply px-4;
 }
 
 .settings-section-heading {

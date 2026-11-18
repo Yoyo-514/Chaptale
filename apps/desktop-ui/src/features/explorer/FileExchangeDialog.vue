@@ -283,7 +283,7 @@ function depth(index: number) {
   display: grid;
   gap: 12px;
   padding: 12px 0 0;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .exchange-form label {
   display: grid;

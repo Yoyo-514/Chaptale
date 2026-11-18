@@ -4,7 +4,6 @@ import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { CreationEvent, SourceReview } from '@chaptale/creation/contracts';
 
 import { requestCreation, useCreationStore, useTrashStore } from '@/features/creation';
-import { useWorkbenchStore } from '@/features/workbench';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { useHistoryStore } from '../history/store';
@@ -77,7 +76,6 @@ export const useCheckStore = defineStore('check', () => {
     tabs.value = tabs.value.map(tab => (tab.chapterId === chapterId ? { ...tab, ...fields } : tab));
   }
   function open(chapterId: string) {
-    useWorkbenchStore().focusEditor();
     if (!find(chapterId)) {
       const chapter = creation.entries.find(entry => entry.id === chapterId)!;
       tabs.value = [

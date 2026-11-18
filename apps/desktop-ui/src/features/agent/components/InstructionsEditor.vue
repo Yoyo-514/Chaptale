@@ -4,11 +4,11 @@ import { computed, ref, useId, watch } from 'vue';
 import type { AgentInstructions } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
-import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppForm } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppSwitch } from '@/components/AppSwitch';
 import { AppTextarea } from '@/components/AppTextarea';
 
 const props = withDefaults(
@@ -55,21 +55,33 @@ function remove() {
     "
   >
     <div class="instruction-editor-layout" :class="`is-${props.layout}`">
+      <!-- 堆叠布局里排在指令之前、随整页一起滚动的内容。 -->
+      <slot name="lead" />
       <AppScrollArea class="instruction-list"
         ><nav aria-label="指令条目">
-          <button
+          <div
             v-for="(entry, index) in entries"
             :key="index"
-            type="button"
-            class="instruction-list-item"
-            :aria-label="`编辑${entry.name || '未命名指令'}`"
-            :aria-current="selected === index ? 'true' : undefined"
-            @click="selected = index"
+            class="instruction-list-row"
+            :class="{ 'is-selected': selected === index, 'is-off': !entry.enabled }"
           >
-            <span class="instruction-order">{{ index + 1 }}</span>
-            <span class="instruction-list-name">{{ entry.name || '未命名指令' }}</span>
-            <span v-if="!entry.enabled" class="instruction-off">已停用</span>
-          </button>
+            <button
+              type="button"
+              class="instruction-list-item"
+              :aria-label="`编辑${entry.name || '未命名指令'}`"
+              :aria-current="selected === index ? 'true' : undefined"
+              @click="selected = index"
+            >
+              <span class="instruction-order">{{ index + 1 }}</span>
+              <span class="instruction-list-name">{{ entry.name || '未命名指令' }}</span>
+            </button>
+            <AppSwitch
+              :model-value="entry.enabled"
+              :disabled="disabled"
+              :aria-label="`启用${entry.name || '未命名指令'}`"
+              @update:model-value="entry.enabled = $event"
+            />
+          </div>
           <AppButton type="button" variant="ghost" :disabled="disabled" @click="add">
             <span class="i-mingcute-add-line size-4" aria-hidden="true" />添加指令
           </AppButton>
@@ -77,39 +89,29 @@ function remove() {
       >
       <fieldset v-if="current" :disabled="disabled" class="instruction-detail agent-form">
         <div class="agent-row instruction-actions">
-          <label class="agent-check"
-            ><AppCheckbox
-              :model-value="current.enabled"
-              :disabled="disabled"
-              aria-label="启用这条指令"
-              @update:model-value="current.enabled = $event === true"
-            />启用这条指令</label
-          >
-          <div class="agent-row">
-            <AppButton
-              type="button"
-              icon
-              size="sm"
-              variant="ghost"
-              aria-label="上移指令"
-              :disabled="selected === 0"
-              @click="move(-1)"
-              ><span class="i-mingcute-arrow-up-line size-4" aria-hidden="true"
-            /></AppButton>
-            <AppButton
-              type="button"
-              icon
-              size="sm"
-              variant="ghost"
-              aria-label="下移指令"
-              :disabled="selected === entries.length - 1"
-              @click="move(1)"
-              ><span class="i-mingcute-arrow-down-line size-4" aria-hidden="true"
-            /></AppButton>
-            <AppButton type="button" icon size="sm" variant="ghost" aria-label="删除指令" @click="remove"
-              ><span class="i-mingcute-delete-2-line size-4" aria-hidden="true"
-            /></AppButton>
-          </div>
+          <AppButton
+            type="button"
+            icon
+            size="sm"
+            variant="ghost"
+            aria-label="上移指令"
+            :disabled="selected === 0"
+            @click="move(-1)"
+            ><span class="i-mingcute-arrow-up-line size-4" aria-hidden="true"
+          /></AppButton>
+          <AppButton
+            type="button"
+            icon
+            size="sm"
+            variant="ghost"
+            aria-label="下移指令"
+            :disabled="selected === entries.length - 1"
+            @click="move(1)"
+            ><span class="i-mingcute-arrow-down-line size-4" aria-hidden="true"
+          /></AppButton>
+          <AppButton type="button" icon size="sm" variant="ghost" aria-label="删除指令" @click="remove"
+            ><span class="i-mingcute-delete-2-line size-4" aria-hidden="true"
+          /></AppButton>
         </div>
         <label :for="`${prefix}-name`">名称</label>
         <AppInput
@@ -161,7 +163,7 @@ function remove() {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 10px 20px;
+  padding: 10px 16px;
   border-top: 1px solid var(--border-subtle);
 }
 .instruction-save > span {
@@ -169,16 +171,25 @@ function remove() {
   color: var(--muted-foreground);
   font-size: var(--ui-caption-size);
 }
-.instruction-list-item:hover {
+.instruction-list-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+  border-radius: var(--radius-control-sm);
+}
+.instruction-list-row:hover {
   background: var(--surface-hover);
 }
-.instruction-list-item[aria-current='true'] {
+.instruction-list-row.is-selected {
   background: var(--secondary);
+}
+.instruction-list-row.is-selected .instruction-list-item {
   color: var(--primary-solid);
 }
-.instruction-list-item:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
+.instruction-list-row.is-off .instruction-list-name {
+  color: var(--muted-foreground);
 }
 .instruction-editor {
   display: flex;
@@ -201,8 +212,8 @@ function remove() {
 }
 .instruction-list-item {
   display: flex;
-  width: 100%;
   min-width: 0;
+  flex: 1;
   align-items: center;
   gap: 8px;
   padding: 10px 8px;
@@ -227,10 +238,6 @@ function remove() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.instruction-off {
-  color: var(--muted-foreground);
-  font-size: var(--ui-caption-size);
-}
 .instruction-detail {
   min-height: 0;
   overflow: auto;
@@ -240,7 +247,7 @@ function remove() {
   gap: 8px;
 }
 .instruction-actions {
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 .instruction-content {
   min-height: 8rem;
@@ -259,19 +266,24 @@ function remove() {
 .instruction-advanced label {
   margin-block: 8px 4px;
 }
-/* 窄栏里的指令：条目列表在上、编辑区在下。 */
+/* 窄栏里的指令：条目列表在上、编辑区在下，整列一起滚动，保存栏留在底部。 */
 .instruction-editor-layout.is-stacked {
   display: flex;
   flex-direction: column;
+  overflow: auto;
+  border-top: 0;
 }
 .instruction-editor-layout.is-stacked > .instruction-list {
-  max-height: 11rem;
   flex-shrink: 0;
   border-right: 0;
-  border-bottom: 1px solid var(--border-subtle);
+  border-block: 1px solid var(--border-subtle);
 }
 .instruction-editor-layout.is-stacked > .instruction-detail {
-  flex: 1;
+  flex: 1 0 auto;
+  overflow: visible;
+}
+.instruction-editor-layout.is-stacked .instruction-content {
+  min-height: 12rem;
 }
 .instruction-editor-layout.is-stacked .instruction-list-item {
   padding-block: 6px;

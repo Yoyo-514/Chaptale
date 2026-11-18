@@ -71,7 +71,10 @@ describe('会话设置内的本会话工具授权撤销', () => {
     };
 
     const wrapper = mount(SessionSettings, { global: { plugins: [pinia] } });
-    expect(wrapper.text()).toContain('已允许 1 处');
+    // 授权列表默认收起，只显示一行摘要。
+    expect(wrapper.findAll('.agent-session-permission-item')).toHaveLength(0);
+    const summary = wrapper.findAll('button').find(button => button.text().includes('已允许 1 处'))!;
+    await summary.trigger('click');
     const items = wrapper.findAll('.agent-session-permission-item');
     expect(items).toHaveLength(1);
     expect(items[0]!.text()).toContain('读取目录');

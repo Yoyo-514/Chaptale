@@ -148,12 +148,8 @@ onBeforeUnmount(() => clearTimeout(copyTimer));
   background: var(--surface-hover);
   color: var(--foreground);
 }
-.agent-turn-error-toggle:focus-visible {
-  box-shadow: var(--input-focus-shadow);
-  outline: none;
-}
 .agent-turn-error-chevron {
-  font-size: 13px;
+  font-size: var(--ui-font-size);
   transition: transform 150ms ease-out;
 }
 .agent-turn-error-toggle[aria-expanded='true'] .agent-turn-error-chevron {

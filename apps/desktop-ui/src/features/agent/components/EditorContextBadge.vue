@@ -45,10 +45,6 @@ const label = computed(() => `${props.context.section === 'resource' ? '资料' 
 .agent-editor-context > summary:hover {
   color: var(--foreground);
 }
-.agent-editor-context > summary:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
 .agent-editor-context-title {
   min-width: 0;
   overflow: hidden;

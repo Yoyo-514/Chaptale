@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 
 /** 关系与事件块内的一节：小标题、待接受与正式条数，右侧为新增按钮。 */
 defineProps<{ title: string; count: number; pending: number; addLabel?: string; addDisabled?: boolean }>();
@@ -12,18 +13,18 @@ const emit = defineEmits<{ add: [] }>();
       <h3 class="story-section-title">{{ title }}</h3>
       <span v-if="pending" class="story-section-pending">{{ pending }} 条待接受</span>
       <span class="story-section-count">{{ count ? `${count} 条` : '' }}</span>
-      <AppButton
-        v-if="addLabel"
-        icon
-        size="xs"
-        variant="ghost"
-        :aria-label="`添加${addLabel}`"
-        :title="`添加${addLabel}`"
-        :disabled="addDisabled"
-        @click="emit('add')"
-      >
-        <span class="i-mingcute-add-line size-3.5" aria-hidden="true" />
-      </AppButton>
+      <AppTooltip v-if="addLabel" :text="`添加${addLabel}`">
+        <AppButton
+          icon
+          size="xs"
+          variant="ghost"
+          :aria-label="`添加${addLabel}`"
+          :disabled="addDisabled"
+          @click="emit('add')"
+        >
+          <span class="i-mingcute-add-line size-3.5" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
     </header>
     <slot />
   </section>

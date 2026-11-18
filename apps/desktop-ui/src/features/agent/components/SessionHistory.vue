@@ -9,6 +9,7 @@ import { AppAlertDialog } from '@/components/AppDialog';
 import { AppInput } from '@/components/AppInput';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppTooltip } from '@/components/AppTooltip';
 import { requestCreation, useCreationStore } from '@/features/creation';
 
 import { type SessionEntry, useAgentStore } from '../store';
@@ -223,17 +224,18 @@ async function assign(entry: SessionEntry) {
               </PopoverContent>
             </PopoverPortal>
           </PopoverRoot>
-          <AppButton
-            v-if="sessionId(entry)"
-            variant="ghost"
-            size="xs"
-            class="session-delete"
-            :disabled="running(entry)"
-            :title="running(entry) ? '运行中，停止后才能删除' : '删除会话'"
-            :aria-label="`删除${entry.title}`"
-            @click="askRemove(targetsOf(entry))"
-            ><span class="i-mingcute-delete-2-line size-3.5" aria-hidden="true"
-          /></AppButton>
+          <AppTooltip v-if="sessionId(entry)" text="删除会话">
+            <AppButton
+              variant="ghost"
+              size="xs"
+              class="session-delete"
+              :disabled="running(entry)"
+              :title="running(entry) ? '运行中，停止后才能删除' : undefined"
+              :aria-label="`删除${entry.title}`"
+              @click="askRemove(targetsOf(entry))"
+              ><span class="i-mingcute-delete-2-line size-3.5" aria-hidden="true"
+            /></AppButton>
+          </AppTooltip>
         </div>
         <p v-if="!visible.length" class="agent-empty-small">
           {{ query.trim() ? '没有匹配的会话。' : '这里还没有会话。' }}
@@ -359,10 +361,6 @@ async function assign(entry: SessionEntry) {
 .agent-session-link[aria-current='page'] {
   background: var(--secondary);
   color: var(--primary-solid);
-}
-.agent-session-link:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
 }
 .agent-subpage-toolbar {
   flex-shrink: 0;

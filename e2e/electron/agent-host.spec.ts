@@ -335,10 +335,6 @@ test('界面管理多个模型、直接聊天与切换会话，移动视图保�
   await page.getByLabel('消息', { exact: true }).fill('保留这份草稿');
   await page.getByRole('combobox', { name: '修改模式', exact: true }).click();
   await page.getByRole('option', { name: '讨论', exact: true }).click();
-  await sessionAction('移到主区');
-  await expect(page.getByLabel('消息', { exact: true })).toHaveValue('保留这份草稿');
-  await expect(page.getByLabel('消息', { exact: true })).toHaveCount(1);
-  await sessionAction('移到协作栏');
   await switchSession('会话 2');
   await page.getByLabel('消息', { exact: true }).fill('第二份独立草稿');
   await switchSession('会话 1');
@@ -454,8 +450,6 @@ test('会话用量可用键盘查看，手动压缩走真实宿主且保留草�
   await page.getByRole('button', { name: '切换会话', exact: true }).click();
   await page.getByRole('menuitem', { name: '查看用量验收历史', exact: true }).click();
   await expect(usage).toHaveText('上下文约 32%');
-  await page.getByRole('button', { name: '更多会话操作', exact: true }).click();
-  await page.getByRole('menuitem', { name: '移到主区', exact: true }).click();
   await usage.click();
   await expect(details).toBeVisible();
   await page.keyboard.press('Escape');

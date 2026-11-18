@@ -22,9 +22,7 @@ const auxiliary = ref<InstanceType<typeof SplitterPanel>>();
 const showSidebar = computed(
   () => Boolean(creation.workId) && !creation.libraryOpen && navigation.sidebarOpen && !navigation.focusMode
 );
-const showAuxiliary = computed(
-  () => !creation.libraryOpen && navigation.auxiliaryOpen && !navigation.agentInMain && !navigation.focusMode
-);
+const showAuxiliary = computed(() => !creation.libraryOpen && navigation.auxiliaryOpen && !navigation.focusMode);
 function syncPanels() {
   if (showSidebar.value) sidebar.value?.expand();
   else sidebar.value?.collapse();
@@ -75,10 +73,7 @@ onBeforeUnmount(() => {
       </SplitterPanel>
       <SplitterResizeHandle v-show="showSidebar" class="workbench-resize-handle" aria-label="调整作品导航宽度" />
       <SplitterPanel :order="2" :default-size="48" :min-size="35" class="workbench-panel">
-        <main class="workbench-editor" aria-label="主要工作区">
-          <EditorGroup v-show="!navigation.agentInMain" />
-          <div id="main-agent-host" v-show="navigation.agentInMain" class="workbench-agent-host" />
-        </main>
+        <main class="workbench-editor" aria-label="主要工作区"><EditorGroup /></main>
       </SplitterPanel>
       <SplitterResizeHandle v-show="showAuxiliary" class="workbench-resize-handle" aria-label="调整 Agent 侧栏宽度" />
       <SplitterPanel
@@ -91,11 +86,10 @@ onBeforeUnmount(() => {
         collapsible
         class="workbench-panel"
         :inert="!showAuxiliary"
-        ><aside id="side-agent-host" v-show="showAuxiliary" class="workbench-agent-host" aria-label="Agent 侧栏"
-      /></SplitterPanel>
+        ><aside v-show="showAuxiliary" class="workbench-agent-host" aria-label="Agent 侧栏"><SessionPanel /></aside
+      ></SplitterPanel>
     </SplitterGroup>
   </div>
-  <Teleport defer :to="navigation.agentInMain ? '#main-agent-host' : '#side-agent-host'"><SessionPanel /></Teleport>
   <CreationDialogs /><FileExchangeDialog />
 </template>
 
@@ -150,6 +144,6 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 6px 12px;
   color: var(--destructive);
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
 }
 </style>

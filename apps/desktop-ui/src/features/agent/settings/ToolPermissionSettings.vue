@@ -4,10 +4,12 @@ import { computed, onMounted, ref } from 'vue';
 import type { ToolPermission } from '@chaptale/agent-host/protocol';
 import type { TrashedWork } from '@chaptale/creation/contracts';
 
+import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { AppNotice } from '@/components/AppNotice';
 import { requestCreation, useCreationStore } from '@/features/creation';
-import { SettingsSectionView as SettingsSection } from '@/features/settings';
+import { SettingsList, SettingsListRow, SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
 import { useAgentStore } from '../store';
@@ -78,9 +80,11 @@ async function revoke(id: string) {
   >
     <div class="permission-settings">
       <AppNotice v-if="error" tone="error">{{ error }}</AppNotice>
-      <div v-if="!groups.length" class="settings-empty-card">
-        还没有为任何作品记住授权。在对话授权卡片中选择“为这部作品记住”后会显示在这里。
-      </div>
+      <AppEmptyState
+        v-if="!groups.length"
+        title="还没有为任何作品记住授权"
+        description="在对话的授权卡片中选择“为这部作品记住”后，会显示在这里。"
+      />
       <div v-else class="permission-work-groups">
         <section
           v-for="group in groups"
@@ -90,31 +94,31 @@ async function revoke(id: string) {
         >
           <header class="permission-work-header">
             <h4 class="permission-work-title">{{ group.title }}</h4>
-            <span v-if="group.trashed" class="settings-dropdown-item-badge">回收站</span>
+            <AppBadge v-if="group.trashed">回收站</AppBadge>
           </header>
-          <ul class="permission-rule-list">
-            <li v-for="item in group.items" :key="item.id" class="permission-rule-row">
-              <div class="settings-model-copy">
-                <template v-if="item.capability === 'fs_read'">
-                  <span>{{ item.pathKind === 'file' ? '允许读取文件' : '允许读取目录' }}</span>
-                  <code>{{ item.path }}</code>
-                </template>
-                <template v-else>
-                  <span>{{ item.toolName ? '允许调用 MCP 工具' : '允许调用 MCP 服务的全部工具' }}</span>
-                  <code>{{ item.toolName ? `${item.serverName} / ${item.toolName}` : item.serverName }}</code>
-                </template>
-              </div>
-              <AppButton
-                type="button"
-                size="sm"
-                variant="outline"
-                :disabled="revokingId === item.id"
-                @click="revoke(item.id)"
-              >
-                撤销
-              </AppButton>
-            </li>
-          </ul>
+          <SettingsList>
+            <SettingsListRow v-for="item in group.items" :key="item.id">
+              <template v-if="item.capability === 'fs_read'">
+                <span>{{ item.pathKind === 'file' ? '允许读取文件' : '允许读取目录' }}</span>
+                <code>{{ item.path }}</code>
+              </template>
+              <template v-else>
+                <span>{{ item.toolName ? '允许调用 MCP 工具' : '允许调用 MCP 服务的全部工具' }}</span>
+                <code>{{ item.toolName ? `${item.serverName} / ${item.toolName}` : item.serverName }}</code>
+              </template>
+              <template #trailing>
+                <AppButton
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  :disabled="revokingId === item.id"
+                  @click="revoke(item.id)"
+                >
+                  撤销
+                </AppButton>
+              </template>
+            </SettingsListRow>
+          </SettingsList>
         </section>
       </div>
     </div>
@@ -142,19 +146,5 @@ async function revoke(id: string) {
   @apply m-0 font-semibold;
   font-size: var(--ui-font-size);
   overflow-wrap: anywhere;
-}
-
-.permission-rule-list {
-  @apply m-0 flex list-none flex-col divide-y border p-0;
-
-  background: var(--surface-acrylic-strong);
-  border-color: var(--border-subtle);
-  border-radius: var(--radius-control);
-}
-
-.permission-rule-row {
-  @apply flex items-center justify-between gap-4 px-3.5 py-2.5;
-
-  border-color: var(--border-subtle);
 }
 </style>

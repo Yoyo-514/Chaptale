@@ -76,6 +76,6 @@ const next = computed(() => (done.value ? review.nextResource(props.tab) : null)
   margin: 0;
   padding: 6px 16px;
   color: var(--destructive);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 </style>

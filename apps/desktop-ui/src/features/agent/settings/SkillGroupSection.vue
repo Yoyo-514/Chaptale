@@ -3,12 +3,16 @@ import { ref } from 'vue';
 
 import type { ManagedSkillView, SkillScope } from '@chaptale/agent-host/protocol';
 
+import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
-import { AppCheckbox } from '@/components/AppCheckbox';
+import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
+import { AppEmptyState } from '@/components/AppEmptyState';
 import { AppForm } from '@/components/AppForm';
 import { AppInput } from '@/components/AppInput';
+import { AppSwitch } from '@/components/AppSwitch';
 import { AppTextarea } from '@/components/AppTextarea';
-import { SettingsToggleField } from '@/features/settings';
+import { AppTooltip } from '@/components/AppTooltip';
+import { SettingsList, SettingsListRow, SettingsToggleField } from '@/features/settings';
 
 const props = defineProps<{
   scope: SkillScope;
@@ -67,37 +71,33 @@ function submitCreate() {
         <p class="skill-group-hint">{{ hint }}</p>
       </div>
       <div class="skill-group-actions">
-        <AppButton type="button" size="sm" variant="outline" :disabled="busy" @click="startCreate">新建技能</AppButton>
-        <AppButton
-          v-if="canSelectSource"
-          type="button"
-          size="sm"
-          variant="outline"
-          :disabled="busy"
-          @click="emit('importSource', scope, 'directory')"
-        >
-          导入文件夹
-        </AppButton>
-        <AppButton
-          v-if="canSelectSource"
-          type="button"
-          size="sm"
-          variant="outline"
-          :disabled="busy"
-          @click="emit('importSource', scope, 'file')"
-        >
-          导入 .md 文件
-        </AppButton>
-        <AppButton
-          v-if="canRevealPath && dirPath"
-          type="button"
-          size="sm"
-          variant="ghost"
-          :disabled="busy"
-          @click="emit('revealPath', dirPath)"
-        >
-          打开目录
-        </AppButton>
+        <AppDropdownMenu align="end" content-size="sm">
+          <template #trigger>
+            <AppButton type="button" size="sm" variant="outline" :disabled="busy">
+              <span class="i-mingcute-add-line size-4" aria-hidden="true" />添加
+            </AppButton>
+          </template>
+          <AppDropdownMenuItem density="sm" @select="startCreate">新建技能</AppDropdownMenuItem>
+          <AppDropdownMenuItem v-if="canSelectSource" density="sm" @select="emit('importSource', scope, 'directory')">
+            导入文件夹…
+          </AppDropdownMenuItem>
+          <AppDropdownMenuItem v-if="canSelectSource" density="sm" @select="emit('importSource', scope, 'file')">
+            导入 .md 文件…
+          </AppDropdownMenuItem>
+        </AppDropdownMenu>
+        <AppTooltip v-if="canRevealPath && dirPath" text="打开目录">
+          <AppButton
+            type="button"
+            icon
+            size="sm"
+            variant="ghost"
+            :disabled="busy"
+            :aria-label="`打开${title}的目录`"
+            @click="emit('revealPath', dirPath)"
+          >
+            <span class="i-mingcute-folder-open-line size-4" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
       </div>
     </header>
 
@@ -140,49 +140,63 @@ function submitCreate() {
       </div>
     </AppForm>
 
-    <div v-if="!skills.length && !creating" class="settings-empty-card">
-      {{ scope === 'work' ? '当前作品还没有专属技能。' : '还没有添加全局技能。' }}
-    </div>
+    <AppEmptyState
+      v-if="!skills.length && !creating"
+      :title="scope === 'work' ? '当前作品还没有专属技能' : '还没有全局技能'"
+      description="从“添加”新建一项，或导入已有的 SKILL.md。"
+    />
 
-    <ul v-else-if="skills.length" class="skill-list">
-      <li
+    <SettingsList v-else-if="skills.length">
+      <SettingsListRow
         v-for="skill in skills"
         :key="`${skill.scope}:${skill.filePath}`"
-        class="skill-row"
-        :class="{ 'is-muted': !skill.enabled || skill.overriddenByWork }"
+        :title="skill.name"
+        :muted="!skill.enabled || skill.overriddenByWork"
       >
-        <AppCheckbox
-          class="skill-row-check"
-          :model-value="skill.enabled"
-          :disabled="busy"
-          :aria-label="`启用技能 ${skill.name}`"
-          @update:model-value="emit('toggleEnabled', skill, $event === true)"
-        />
-        <div class="settings-model-copy skill-row-copy">
-          <div class="skill-row-title">
-            <strong>{{ skill.name }}</strong>
-            <span v-if="skill.disableModelInvocation" class="settings-dropdown-item-badge">仅手动</span>
-            <span v-if="skill.overriddenByWork" class="settings-dropdown-item-badge">已被当前作品接管</span>
-          </div>
-          <span class="skill-description">{{ skill.description }}</span>
-        </div>
-        <div class="skill-row-actions">
-          <AppButton
-            v-if="canRevealPath"
-            type="button"
-            size="sm"
-            variant="ghost"
+        <template #badges>
+          <AppBadge v-if="skill.disableModelInvocation">仅手动</AppBadge>
+          <AppBadge v-if="skill.overriddenByWork">已被当前作品接管</AppBadge>
+        </template>
+        <span class="skill-description">{{ skill.description }}</span>
+        <template #actions>
+          <AppTooltip v-if="canRevealPath" text="定位文件">
+            <AppButton
+              type="button"
+              icon
+              size="sm"
+              variant="ghost"
+              :disabled="busy"
+              :aria-label="`定位技能 ${skill.name} 的文件`"
+              @click="emit('revealPath', skill.filePath)"
+            >
+              <span class="i-mingcute-file-search-line size-4" aria-hidden="true" />
+            </AppButton>
+          </AppTooltip>
+          <AppTooltip text="移除">
+            <AppButton
+              type="button"
+              icon
+              size="sm"
+              variant="ghost"
+              :disabled="busy"
+              :aria-label="`移除技能 ${skill.name}`"
+              @click="emit('requestRemove', skill)"
+            >
+              <span class="i-mingcute-delete-2-line size-4" aria-hidden="true" />
+            </AppButton>
+          </AppTooltip>
+        </template>
+        <template #trailing>
+          <AppSwitch
+            class="skill-switch"
+            :model-value="skill.enabled"
             :disabled="busy"
-            @click="emit('revealPath', skill.filePath)"
-          >
-            定位文件
-          </AppButton>
-          <AppButton type="button" size="sm" variant="ghost" :disabled="busy" @click="emit('requestRemove', skill)">
-            移除
-          </AppButton>
-        </div>
-      </li>
-    </ul>
+            :aria-label="`启用技能 ${skill.name}`"
+            @update:model-value="emit('toggleEnabled', skill, $event)"
+          />
+        </template>
+      </SettingsListRow>
+    </SettingsList>
   </section>
 </template>
 
@@ -238,35 +252,7 @@ function submitCreate() {
   @apply flex items-center justify-end gap-2;
 }
 
-.skill-list {
-  @apply m-0 flex list-none flex-col divide-y border p-0;
-  background: var(--surface-acrylic-strong);
-  border-color: var(--border-subtle);
-  border-radius: var(--radius-control);
-}
-
-.skill-row {
-  @apply flex items-start gap-3 px-3.5 py-2.5;
-  border-color: var(--border-subtle);
-}
-
-.skill-row.is-muted .skill-row-copy {
-  opacity: 0.65;
-}
-
-.skill-row-check {
-  @apply mt-0.5 shrink-0;
-}
-
-.skill-row-copy {
-  @apply flex-1;
-}
-
-.skill-row-title {
-  @apply flex flex-wrap items-center gap-2;
-}
-
-.skill-row-actions {
-  @apply flex shrink-0 items-center gap-1;
+.skill-switch {
+  @apply ml-2;
 }
 </style>

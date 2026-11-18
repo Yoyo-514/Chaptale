@@ -239,7 +239,7 @@ const busy = computed(() => saving.value || props.tab.busy);
   margin: 0;
   padding: 6px 16px;
   color: var(--destructive);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .check-body {
   flex: 1;

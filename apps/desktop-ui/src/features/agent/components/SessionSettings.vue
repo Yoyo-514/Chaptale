@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
@@ -29,6 +29,8 @@ const sessionPermissions = computed(() => {
     item => item.scope.kind === 'session' && item.scope.sessionId === sessionId
   );
 });
+/** 授权列表默认收起，只占一行摘要，把高度留给指令。 */
+const permissionsOpen = ref(false);
 function revokePermission(id: string) {
   void agent.perform(() => getDesktopApi().agentHost.request('revokeToolPermission', { id }));
 }
@@ -59,35 +61,6 @@ function revokePermission(id: string) {
       </div>
     </template>
     <template v-else>
-      <dl class="agent-session-facts">
-        <dt>所属作品</dt>
-        <dd>{{ workTitle }}</dd>
-        <dt>本会话授权</dt>
-        <dd>{{ sessionPermissions.length ? `已允许 ${sessionPermissions.length} 处` : '未保存授权' }}</dd>
-      </dl>
-      <ul v-if="sessionPermissions.length" class="agent-session-permissions" aria-label="本会话已保存的授权">
-        <li v-for="item in sessionPermissions" :key="item.id" class="agent-session-permission-item">
-          <div class="agent-session-permission-copy">
-            <template v-if="item.capability === 'fs_read'">
-              <span>{{ item.pathKind === 'file' ? '读取文件' : '读取目录' }}</span>
-              <code>{{ item.path }}</code>
-            </template>
-            <template v-else>
-              <span>{{ item.toolName ? '调用 MCP 工具' : '调用 MCP 服务的全部工具' }}</span>
-              <code>{{ item.toolName ? `${item.serverName} / ${item.toolName}` : item.serverName }}</code>
-            </template>
-          </div>
-          <AppButton
-            type="button"
-            size="xs"
-            variant="ghost"
-            :disabled="!agent.connected"
-            @click="revokePermission(item.id)"
-            >撤销</AppButton
-          >
-        </li>
-      </ul>
-      <p class="agent-field-help agent-session-scope">指令修改只作用于当前会话。</p>
       <InstructionsEditor
         :entries="agent.active.instructions"
         :disabled="!editable"
@@ -97,7 +70,59 @@ function revokePermission(id: string) {
           entries =>
             agent.perform(() => getDesktopApi().agentHost.request('instructions', { id: agent.activeId!, entries }))
         "
-      />
+      >
+        <template #lead>
+          <div class="agent-session-summary">
+            <span class="agent-session-work">
+              <span class="i-mingcute-book-2-line size-4 shrink-0" aria-hidden="true" />
+              <span class="agent-session-work-title">{{ workTitle }}</span>
+            </span>
+            <AppButton
+              v-if="sessionPermissions.length"
+              type="button"
+              size="xs"
+              variant="ghost"
+              :aria-expanded="permissionsOpen"
+              @click="permissionsOpen = !permissionsOpen"
+            >
+              已允许 {{ sessionPermissions.length }} 处
+              <span
+                class="i-mingcute-down-line agent-session-chevron size-3.5"
+                :class="{ 'is-open': permissionsOpen }"
+                aria-hidden="true"
+              />
+            </AppButton>
+            <span v-else class="agent-session-none">未保存授权</span>
+          </div>
+          <ul
+            v-if="permissionsOpen && sessionPermissions.length"
+            class="agent-session-permissions"
+            aria-label="本会话已保存的授权"
+          >
+            <li v-for="item in sessionPermissions" :key="item.id" class="agent-session-permission-item">
+              <div class="agent-session-permission-copy">
+                <template v-if="item.capability === 'fs_read'">
+                  <span>{{ item.pathKind === 'file' ? '读取文件' : '读取目录' }}</span>
+                  <code>{{ item.path }}</code>
+                </template>
+                <template v-else>
+                  <span>{{ item.toolName ? '调用 MCP 工具' : '调用 MCP 服务的全部工具' }}</span>
+                  <code>{{ item.toolName ? `${item.serverName} / ${item.toolName}` : item.serverName }}</code>
+                </template>
+              </div>
+              <AppButton
+                type="button"
+                size="xs"
+                variant="ghost"
+                :disabled="!agent.connected"
+                @click="revokePermission(item.id)"
+                >撤销</AppButton
+              >
+            </li>
+          </ul>
+          <p class="agent-field-help agent-session-scope">指令修改只作用于当前会话。</p>
+        </template>
+      </InstructionsEditor>
     </template>
   </section>
 </template>
@@ -111,23 +136,37 @@ function revokePermission(id: string) {
   flex-direction: column;
   overflow: hidden;
 }
-.agent-session-facts {
-  display: grid;
+.agent-session-summary {
+  display: flex;
   flex-shrink: 0;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 4px 12px;
-  margin: 0;
-  padding: 14px 16px 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 6px 16px;
   font-size: var(--ui-font-size);
 }
-.agent-session-facts dt {
-  color: var(--muted-foreground);
+.agent-session-work {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
 }
-.agent-session-facts dd {
+.agent-session-work-title {
   overflow: hidden;
-  margin: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.agent-session-none {
+  flex-shrink: 0;
+  padding-right: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--ui-caption-size);
+}
+.agent-session-chevron {
+  transition: transform var(--motion-duration) ease-out;
+}
+.agent-session-chevron.is-open {
+  transform: rotate(180deg);
 }
 .agent-session-scope {
   flex-shrink: 0;
@@ -136,12 +175,10 @@ function revokePermission(id: string) {
 }
 .agent-session-permissions {
   display: flex;
-  max-height: 8.5rem;
   flex-shrink: 0;
   flex-direction: column;
   gap: 6px;
-  overflow: auto;
-  margin: 4px 16px 8px;
+  margin: 0 16px 8px;
   padding: 0;
   list-style: none;
 }

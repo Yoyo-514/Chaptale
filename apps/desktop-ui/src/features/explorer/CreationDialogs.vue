@@ -169,7 +169,7 @@ function closeGuidelines() {
 label {
   display: grid;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 p {
   margin: 0;

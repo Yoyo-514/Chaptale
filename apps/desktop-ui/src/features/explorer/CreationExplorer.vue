@@ -7,6 +7,7 @@ import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
+import { AppTooltip } from '@/components/AppTooltip';
 import { canChooseOpener, FilePreview, runFileAction, useCreationStore } from '@/features/creation';
 import { useEditorStore, useHistoryStore, useReviewStore } from '@/features/editor';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
@@ -273,9 +274,11 @@ const treeDrop = useTreeDrop({
       <span class="work-name" :title="creation.work?.title">{{ creation.work?.title }}</span>
       <AppDropdownMenu align="end" content-size="sm">
         <template #trigger>
-          <AppButton icon size="xs" variant="ghost" aria-label="作品操作" title="作品操作">
-            <span class="i-mingcute-more-1-line work-menu-icon" aria-hidden="true" />
-          </AppButton>
+          <AppTooltip text="作品操作">
+            <AppButton icon size="xs" variant="ghost" aria-label="作品操作">
+              <span class="i-mingcute-more-1-line work-menu-icon" aria-hidden="true" />
+            </AppButton>
+          </AppTooltip>
         </template>
         <AppDropdownMenuItem density="sm" @select="creation.newEntry = { kind: 'document', parentId: null }">
           {{ creation.view?.section === 'resource' ? '新建资料' : '新建文稿' }}
@@ -431,7 +434,7 @@ const treeDrop = useTreeDrop({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
   color: var(--foreground);
 }
 .work-menu-icon {
@@ -453,17 +456,12 @@ const treeDrop = useTreeDrop({
   background: transparent;
   color: var(--muted-foreground);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
   cursor: pointer;
 }
 .section-tabs button[aria-selected='true'] {
   background: var(--accent);
   color: var(--accent-foreground);
-}
-.section-tabs button:focus-visible,
-.tree-entry:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
 }
 .tree-scroll {
   flex: 1;
@@ -535,7 +533,7 @@ const treeDrop = useTreeDrop({
   display: flex;
   align-items: center;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .entry-name {
   overflow: hidden;
@@ -565,7 +563,7 @@ const treeDrop = useTreeDrop({
   gap: 8px;
   overflow: hidden;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   font-variant-numeric: tabular-nums;
   color: var(--muted-foreground);
 }
@@ -575,14 +573,14 @@ const treeDrop = useTreeDrop({
 }
 .tree-empty {
   padding: 8px 16px;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   color: var(--muted-foreground);
   line-height: 1.6;
 }
 .tree-error {
   margin: 0;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   color: var(--destructive);
 }
 </style>

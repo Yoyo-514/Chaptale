@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { flushPromises, mount, type DOMWrapper } from '@vue/test-utils';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,6 +16,17 @@ import { useCreationStore } from '@/features/creation';
 import { SettingsSidebar, useSettingsStore } from '@/features/settings';
 
 import SkillSettings from '../settings/SkillSettings.vue';
+
+/** 打开分组标题右侧的“添加”菜单并选择一项；菜单内容挂在 body 下。 */
+async function chooseAddAction(section: Pick<DOMWrapper<Element>, 'get'>, label: string) {
+  await section.get('button[aria-haspopup="menu"]').trigger('keydown', { key: 'Enter' });
+  await flushPromises();
+  const item = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    element => element.textContent?.trim() === label
+  )!;
+  item.click();
+  await flushPromises();
+}
 
 describe('设置面板中的技能管理页', () => {
   let root: string | undefined;
@@ -124,10 +135,7 @@ describe('设置面板中的技能管理页', () => {
 
       // 在当前作品下新建同名 polish 技能 → 自动接管全局同名项
       const workSection = wrapper.get('section[aria-label="当前作品《山海卷》技能"]');
-      await workSection
-        .findAll('button')
-        .find(btn => btn.text() === '新建技能')!
-        .trigger('click');
+      await chooseAddAction(workSection, '新建技能');
       await workSection.get('input[aria-label="技能标识"]').setValue('polish');
       await workSection
         .get('textarea[aria-label="用途说明"]')
@@ -145,10 +153,7 @@ describe('设置面板中的技能管理页', () => {
       });
 
       // 导入外部 .md 文件到全局技能
-      await globalSection
-        .findAll('button')
-        .find(btn => btn.text() === '导入 .md 文件')!
-        .trigger('click');
+      await chooseAddAction(globalSection, '导入 .md 文件…');
       await vi.waitFor(() => {
         expect(selectSkillSource).toHaveBeenCalledWith('file');
         expect(globalSection.text()).toContain('timeline-check');
@@ -158,24 +163,18 @@ describe('设置面板中的技能管理页', () => {
       // 停用作品级 polish
       await workSection.get('[aria-label="启用技能 polish"]').trigger('click');
       await vi.waitFor(() => {
-        expect(workSection.get('[aria-label="启用技能 polish"]').attributes('data-state')).toBe('unchecked');
+        expect(workSection.get('[aria-label="启用技能 polish"]').attributes('aria-checked')).toBe('false');
       });
 
       // 定位文件调用桥接
-      await workSection
-        .findAll('button')
-        .find(btn => btn.text() === '定位文件')!
-        .trigger('click');
+      await workSection.get('[aria-label="定位技能 polish 的文件"]').trigger('click');
       await vi.waitFor(() => {
         expect(revealSkillPath).toHaveBeenCalledTimes(1);
       });
 
       // 移除全局 timeline-check（经确认弹窗移入回收站）
       const timelineRow = globalSection.findAll('li').find(row => row.text().includes('timeline-check'))!;
-      await timelineRow
-        .findAll('button')
-        .find(btn => btn.text() === '移除')!
-        .trigger('click');
+      await timelineRow.get('[aria-label="移除技能 timeline-check"]').trigger('click');
       await flushPromises();
       const confirmBtn = document.body.querySelector('[data-slot="app-alert-dialog-confirm"]') as HTMLButtonElement;
       expect(confirmBtn).not.toBeNull();

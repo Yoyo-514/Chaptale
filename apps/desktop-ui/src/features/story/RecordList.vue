@@ -4,6 +4,7 @@ import { computed, ref } from 'vue';
 import { groupByPlacement, type RecordChange, type RecordFields, type StoryRecord } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 import { requestCreation, useCreationStore } from '@/features/creation';
 
 import DraftSourceHint from './DraftSourceHint.vue';
@@ -196,11 +197,11 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
     <p v-if="!groups.length && !adding" class="records-empty">
       {{ asOf === null ? '还没有事件' : '截至这一章还没有事件' }}
     </p>
-    <section v-for="group in groups" :key="placementValue(group.placement)" class="records-group">
+    <section v-for="group in groups" :key="placementValue(group.placement)">
       <h4 class="records-group-title">{{ placementLabel(group.placement, creation.entries) }}</h4>
       <ul class="records-list">
         <template v-for="row in group.rows" :key="row.kind === 'record' ? row.record.id : row.milestone.key">
-          <li v-if="row.kind === 'milestone'" class="record record-milestone">
+          <li v-if="row.kind === 'milestone'" class="record">
             <button type="button" class="record-locate" @click="emit('locate', row.milestone.relationId)">
               <span class="record-change">关系变化</span>
               <span class="record-text">{{ row.milestone.text }}</span>
@@ -299,46 +300,50 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
               <div class="record-main">
                 <span class="record-text">{{ row.record.text }}</span>
                 <span v-if="!reviewing" class="record-tools">
-                  <button
-                    type="button"
-                    class="record-tool"
-                    :disabled="locked"
-                    aria-label="修改"
-                    title="修改"
-                    @click="editingId = row.record.id"
-                  >
-                    <span class="i-mingcute-edit-2-line size-3.5" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    class="record-tool"
-                    :disabled="locked || group.records.indexOf(row.record) === 0"
-                    aria-label="上移"
-                    title="上移"
-                    @click="move(row.record, group.records, -1)"
-                  >
-                    <span class="i-mingcute-arrow-up-line size-3.5" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    class="record-tool"
-                    :disabled="locked || group.records.indexOf(row.record) === group.records.length - 1"
-                    aria-label="下移"
-                    title="下移"
-                    @click="move(row.record, group.records, 1)"
-                  >
-                    <span class="i-mingcute-arrow-down-line size-3.5" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    class="record-tool"
-                    :disabled="locked"
-                    aria-label="删除"
-                    title="删除，可在回收站恢复"
-                    @click="remove(row.record)"
-                  >
-                    <span class="i-mingcute-delete-2-line size-3.5" aria-hidden="true" />
-                  </button>
+                  <AppTooltip text="修改">
+                    <button
+                      type="button"
+                      class="record-tool"
+                      :disabled="locked"
+                      aria-label="修改"
+                      @click="editingId = row.record.id"
+                    >
+                      <span class="i-mingcute-edit-2-line size-3.5" aria-hidden="true" />
+                    </button>
+                  </AppTooltip>
+                  <AppTooltip text="上移">
+                    <button
+                      type="button"
+                      class="record-tool"
+                      :disabled="locked || group.records.indexOf(row.record) === 0"
+                      aria-label="上移"
+                      @click="move(row.record, group.records, -1)"
+                    >
+                      <span class="i-mingcute-arrow-up-line size-3.5" aria-hidden="true" />
+                    </button>
+                  </AppTooltip>
+                  <AppTooltip text="下移">
+                    <button
+                      type="button"
+                      class="record-tool"
+                      :disabled="locked || group.records.indexOf(row.record) === group.records.length - 1"
+                      aria-label="下移"
+                      @click="move(row.record, group.records, 1)"
+                    >
+                      <span class="i-mingcute-arrow-down-line size-3.5" aria-hidden="true" />
+                    </button>
+                  </AppTooltip>
+                  <AppTooltip text="删除，可在回收站恢复">
+                    <button
+                      type="button"
+                      class="record-tool"
+                      :disabled="locked"
+                      aria-label="删除"
+                      @click="remove(row.record)"
+                    >
+                      <span class="i-mingcute-delete-2-line size-3.5" aria-hidden="true" />
+                    </button>
+                  </AppTooltip>
                 </span>
               </div>
               <p class="record-meta">

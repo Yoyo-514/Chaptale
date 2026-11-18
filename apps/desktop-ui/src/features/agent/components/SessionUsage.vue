@@ -52,10 +52,6 @@ const label = computed(() => {
   &[data-state='open'] {
     background: var(--surface-hover);
   }
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--input-focus-shadow);
-  }
 }
 .agent-usage-details {
   z-index: var(--z-popover);

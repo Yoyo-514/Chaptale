@@ -14,6 +14,7 @@ import {
 import { computed, inject, nextTick, ref, useAttrs, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useOverlayLayer } from '@/composables';
 import { cn } from '@/utils';
 
@@ -132,17 +133,11 @@ function choose(value: unknown) {
         @update:model-value="emit('update:modelValue', $event)"
       />
       <ComboboxTrigger as-child>
-        <AppButton
-          icon
-          size="xs"
-          variant="ghost"
-          tabindex="-1"
-          :disabled="disabled"
-          aria-label="显示选项"
-          title="显示选项"
-        >
-          <span class="i-mingcute-down-line size-4" aria-hidden="true" />
-        </AppButton>
+        <AppTooltip text="显示选项">
+          <AppButton icon size="xs" variant="ghost" tabindex="-1" :disabled="disabled" aria-label="显示选项">
+            <span class="i-mingcute-down-line size-4" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
       </ComboboxTrigger>
     </ComboboxAnchor>
     <ComboboxPortal>

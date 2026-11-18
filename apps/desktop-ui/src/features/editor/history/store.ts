@@ -4,7 +4,6 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import type { Document, RevisionSummary } from '@chaptale/creation/contracts';
 
 import { requestCreation, useCreationStore, useTrashStore } from '@/features/creation';
-import { useWorkbenchStore } from '@/features/workbench';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { useCheckStore } from '../check/store';
@@ -91,7 +90,6 @@ export const useHistoryStore = defineStore('history', () => {
     patch(documentId, { selectedId: revisionId });
   }
   function open(documentId: string) {
-    useWorkbenchStore().focusEditor();
     const entry = creation.entries.find(item => item.id === documentId)!;
     if (!find(documentId)) {
       tabs.value = [

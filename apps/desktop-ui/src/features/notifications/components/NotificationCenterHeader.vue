@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 
 const props = defineProps<{
   title: string;
@@ -16,29 +17,24 @@ const emit = defineEmits<{
   <header class="notification-center-header">
     <h2 class="notification-center-title">{{ props.title }}</h2>
     <div class="notification-center-actions">
-      <AppButton
-        icon
-        variant="ghost"
-        size="sm"
-        type="button"
-        :disabled="!props.canClear"
-        aria-label="清空通知"
-        title="清空通知"
-        @click="emit('clear')"
-      >
-        <span class="i-mingcute-delete-2-line size-4" aria-hidden="true" />
-      </AppButton>
-      <AppButton
-        icon
-        variant="ghost"
-        size="sm"
-        type="button"
-        aria-label="隐藏通知中心"
-        title="隐藏通知中心"
-        @click="emit('close')"
-      >
-        <span class="i-mingcute-down-line size-4" aria-hidden="true" />
-      </AppButton>
+      <AppTooltip text="清空通知">
+        <AppButton
+          icon
+          variant="ghost"
+          size="sm"
+          type="button"
+          :disabled="!props.canClear"
+          aria-label="清空通知"
+          @click="emit('clear')"
+        >
+          <span class="i-mingcute-delete-2-line size-4" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip text="隐藏通知中心">
+        <AppButton icon variant="ghost" size="sm" type="button" aria-label="隐藏通知中心" @click="emit('close')">
+          <span class="i-mingcute-down-line size-4" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
     </div>
   </header>
 </template>

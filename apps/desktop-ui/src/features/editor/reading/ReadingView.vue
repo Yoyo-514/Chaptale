@@ -258,7 +258,7 @@ watch(
 .reading-error {
   margin: 0;
   padding: 8px 16px;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   color: var(--destructive);
 }
 .reading-context-host {
@@ -313,7 +313,7 @@ watch(
   left: 0;
   padding: 2px 8px;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   line-height: 20px;
   color: #fff;
   white-space: nowrap;
@@ -328,7 +328,7 @@ watch(
 .reading-illustration-missing {
   display: block;
   padding: 12px;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   color: var(--muted-foreground);
   border: 1px dashed var(--border);
   border-radius: 4px;

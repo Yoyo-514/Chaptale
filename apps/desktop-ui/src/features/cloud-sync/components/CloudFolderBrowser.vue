@@ -41,7 +41,7 @@ function browse(parentId: string | null) {
     </div>
     <p v-if="cloud.isListingLoading" class="cloud-muted" role="status">正在读取云端目录…</p>
     <template v-else-if="cloud.listing">
-      <p class="cloud-path">
+      <p>
         {{ cloud.listing.current.name }}
         <span v-if="cloud.listing.current.root" class="cloud-muted">· 应用最顶层</span>
       </p>

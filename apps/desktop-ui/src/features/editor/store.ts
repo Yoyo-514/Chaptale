@@ -7,7 +7,6 @@ import type { EditorGroupIndex, EditorGroupState } from '@chaptale/creation/cont
 
 import { requestCreation, useCreationStore, useTrashStore } from '@/features/creation';
 import { useSettingsStore } from '@/features/settings';
-import { useWorkbenchStore } from '@/features/workbench';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { useCheckStore } from './check/store';
@@ -99,8 +98,7 @@ export const useEditorStore = defineStore('editor', () => {
     return true;
   }
 
-  async function openDocument(id: string, reveal = true, groupIndex: EditorGroupIndex = activeGroup.value) {
-    if (reveal) useWorkbenchStore().focusEditor();
+  async function openDocument(id: string, groupIndex: EditorGroupIndex = activeGroup.value) {
     useTrashStore().preview = null;
     const alreadyLoaded = Boolean(find(id));
     if (!ensureTabRecord(id)) return;
@@ -111,7 +109,6 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   async function openToSide(id: string) {
-    useWorkbenchStore().focusEditor();
     useTrashStore().preview = null;
     const alreadyLoaded = Boolean(find(id));
     if (!ensureTabRecord(id)) return;

@@ -238,12 +238,12 @@ h1 {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
   text-align: left;
 }
 th {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   font-weight: 500;
   padding: 12px 8px;
 }
@@ -288,10 +288,6 @@ tbody tr:focus-within {
 }
 tbody tr[aria-disabled='true'] {
   cursor: wait;
-}
-.work-title:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 .trashed-title {
   cursor: default;

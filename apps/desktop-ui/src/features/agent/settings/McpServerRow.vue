@@ -3,10 +3,13 @@ import { computed, ref } from 'vue';
 
 import type { ManagedMcpServerView, McpConfigScope, McpSelectableExposure } from '@chaptale/agent-host/protocol';
 
+import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
-import { AppCheckbox } from '@/components/AppCheckbox';
 import { AppInput } from '@/components/AppInput';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
+import { AppSwitch } from '@/components/AppSwitch';
+import { AppTooltip } from '@/components/AppTooltip';
+import { SettingsListRow } from '@/features/settings';
 
 const props = defineProps<{
   server: ManagedMcpServerView;
@@ -64,75 +67,66 @@ function submitRedirect() {
 </script>
 
 <template>
-  <li class="mcp-row" :class="{ 'is-muted': !server.enabled }">
-    <AppCheckbox
-      class="mcp-row-check"
-      :model-value="server.enabled"
-      :disabled="busy"
-      :aria-label="`启用 MCP 服务 ${server.name}`"
-      @update:model-value="emit('toggle', $event === true)"
-    />
-    <div class="mcp-row-body">
-      <div class="mcp-row-main">
-        <div class="settings-model-copy mcp-row-copy">
-          <div class="mcp-row-title">
-            <strong>{{ server.name }}</strong>
-            <span v-if="level === 'work'" class="settings-dropdown-item-badge">{{
-              server.definedIn === 'work' ? '本作品' : '全局'
-            }}</span>
-            <span v-if="server.overriddenInWork" class="settings-dropdown-item-badge">已在本作品调整</span>
-            <span v-if="server.hasResources" class="settings-dropdown-item-badge">提供资源</span>
-          </div>
-          <span v-if="server.description">{{ server.description }}</span>
-          <code>{{ server.endpoint }}</code>
-          <span class="mcp-status" :class="`is-${status.tone}`">{{ status.text }}</span>
-        </div>
-        <div class="mcp-row-actions">
-          <AppSelect
-            trigger-class="mcp-exposure"
-            :model-value="server.exposure"
-            :disabled="busy"
-            :aria-label="`${server.name} 的暴露方式`"
-            @update:model-value="selectExposure($event as string)"
-          >
-            <AppSelectItem v-if="server.exposure === 'hidden'" value="hidden">不提供给助手</AppSelectItem>
-            <AppSelectItem v-for="item in exposures" :key="item.value" :value="item.value">{{
-              item.label
-            }}</AppSelectItem>
-          </AppSelect>
-          <AppButton
-            v-if="canSignIn"
-            type="button"
-            size="sm"
-            variant="outline"
-            :disabled="busy"
-            @click="emit('signIn')"
-          >
-            登录
-          </AppButton>
-          <AppButton
-            v-if="server.hasStoredAuth"
-            type="button"
-            size="sm"
-            variant="ghost"
-            :disabled="busy"
-            @click="emit('signOut')"
-          >
-            登出
-          </AppButton>
-          <AppButton
-            v-if="server.enabled"
-            type="button"
-            size="sm"
-            variant="ghost"
-            :disabled="busy"
-            @click="emit('reconnect')"
-          >
-            重连
-          </AppButton>
-        </div>
-      </div>
-
+  <SettingsListRow :title="server.name" :muted="!server.enabled">
+    <template #badges>
+      <AppBadge v-if="level === 'work'">{{ server.definedIn === 'work' ? '本作品' : '全局' }}</AppBadge>
+      <AppBadge v-if="server.overriddenInWork">已在本作品调整</AppBadge>
+      <AppBadge v-if="server.hasResources">提供资源</AppBadge>
+    </template>
+    <span v-if="server.description">{{ server.description }}</span>
+    <code>{{ server.endpoint }}</code>
+    <span class="mcp-status" :class="`is-${status.tone}`">{{ status.text }}</span>
+    <template #actions>
+      <AppTooltip v-if="server.hasStoredAuth" text="登出">
+        <AppButton
+          type="button"
+          icon
+          size="sm"
+          variant="ghost"
+          :disabled="busy"
+          :aria-label="`登出 MCP 服务 ${server.name}`"
+          @click="emit('signOut')"
+        >
+          <span class="i-mingcute-exit-line size-4" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip v-if="server.enabled" text="重连">
+        <AppButton
+          type="button"
+          icon
+          size="sm"
+          variant="ghost"
+          :disabled="busy"
+          :aria-label="`重连 MCP 服务 ${server.name}`"
+          @click="emit('reconnect')"
+        >
+          <span class="i-mingcute-refresh-2-line size-4" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+    </template>
+    <template #trailing>
+      <AppButton v-if="canSignIn" type="button" size="sm" variant="outline" :disabled="busy" @click="emit('signIn')">
+        登录
+      </AppButton>
+      <AppSelect
+        trigger-class="mcp-exposure"
+        :model-value="server.exposure"
+        :disabled="busy"
+        :aria-label="`${server.name} 的暴露方式`"
+        @update:model-value="selectExposure($event as string)"
+      >
+        <AppSelectItem v-if="server.exposure === 'hidden'" value="hidden">不提供给助手</AppSelectItem>
+        <AppSelectItem v-for="item in exposures" :key="item.value" :value="item.value">{{ item.label }}</AppSelectItem>
+      </AppSelect>
+      <AppSwitch
+        class="mcp-switch"
+        :model-value="server.enabled"
+        :disabled="busy"
+        :aria-label="`启用 MCP 服务 ${server.name}`"
+        @update:model-value="emit('toggle', $event)"
+      />
+    </template>
+    <template #extra>
       <div v-if="server.signingIn" class="mcp-sign-in">
         <p class="mcp-sign-in-hint">
           登录页已在浏览器打开。登录后页面没有跳回 Chaptale 时，把浏览器地址栏里的完整地址粘贴到这里。
@@ -167,43 +161,13 @@ function submitRedirect() {
           </li>
         </ul>
       </details>
-    </div>
-  </li>
+    </template>
+  </SettingsListRow>
 </template>
 
 <style scoped lang="scss">
-.mcp-row {
-  @apply flex items-start gap-3 px-3.5 py-2.5;
-  border-color: var(--border-subtle);
-}
-
-.mcp-row.is-muted .mcp-row-copy {
-  opacity: 0.65;
-}
-
-.mcp-row-check {
-  @apply mt-0.5 shrink-0;
-}
-
-.mcp-row-body {
-  @apply flex min-w-0 flex-1 flex-col gap-2;
-}
-
-.mcp-row-main {
-  @apply flex flex-wrap items-start justify-between gap-x-3 gap-y-2;
-}
-
-.mcp-row-copy {
-  @apply flex-1;
-  min-width: 14rem;
-}
-
-.mcp-row-title {
-  @apply flex flex-wrap items-center gap-2;
-}
-
-.mcp-row-actions {
-  @apply flex shrink-0 flex-wrap items-center gap-1;
+.mcp-switch {
+  @apply ml-2;
 }
 
 :deep(.mcp-exposure) {

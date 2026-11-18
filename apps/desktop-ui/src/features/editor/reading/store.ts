@@ -99,7 +99,7 @@ export const useReadingStore = defineStore('reading', () => {
     const { documentId, offset } = positions.value[slot]!;
     stop(slot);
     reveal.value = { groupIndex, id: documentId, offset };
-    await editor.openDocument(documentId, true, groupIndex);
+    await editor.openDocument(documentId, groupIndex);
   }
   /** 文档视图挂载后取走属于自己所在编辑组的定位请求。 */
   function takeReveal(documentId: string, groupIndex: EditorGroupIndex = 0) {

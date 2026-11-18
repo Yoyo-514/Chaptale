@@ -404,7 +404,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 6px 12px 6px 16px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .review-row > span {
   flex: 1;
@@ -446,7 +446,7 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: 6px 16px;
   color: var(--destructive);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
   white-space: pre-line;
 }
 .review-context-host {

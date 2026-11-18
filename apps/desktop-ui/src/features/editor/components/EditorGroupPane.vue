@@ -7,6 +7,7 @@ import type { EditorGroupIndex } from '@chaptale/creation/contracts';
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu } from '@/components/AppContextMenu';
 import { AppScrollArea } from '@/components/AppScrollArea';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useCreationStore } from '@/features/creation';
 
 import CheckPane from '../check/CheckPane.vue';
@@ -191,37 +192,39 @@ function openCheck() {
           ><span class="i-mingcute-alert-line check-chip-icon" aria-hidden="true" />本章
           {{ checkCount }} 条记录待核对</AppButton
         >
-        <AppButton
-          icon
-          size="xs"
-          variant="ghost"
-          :disabled="!activeDoc || activeDoc.status !== 'ready' || isReading || specialActive"
-          aria-label="阅读"
-          title="阅读"
-          @click="reading.start(activeDoc!.id, groupIndex)"
-          ><span class="i-mingcute-book-6-line" aria-hidden="true"
-        /></AppButton>
-        <AppButton
-          icon
-          size="xs"
-          variant="ghost"
-          :disabled="!activeDoc || specialActive"
-          aria-label="查看历史"
-          title="查看历史"
-          @click="openHistory"
-          ><span class="i-mingcute-history-line" aria-hidden="true"
-        /></AppButton>
-        <AppButton
-          v-if="!isSplit || groupIndex === 0"
-          icon
-          size="xs"
-          variant="ghost"
-          :disabled="!activeDoc || specialActive"
-          aria-label="向右拆分"
-          title="向右拆分"
-          @click="editor.splitRight(activeDoc!.id, groupIndex)"
-          ><span class="i-mingcute-layout-right-line" aria-hidden="true"
-        /></AppButton>
+        <AppTooltip text="阅读">
+          <AppButton
+            icon
+            size="xs"
+            variant="ghost"
+            :disabled="!activeDoc || activeDoc.status !== 'ready' || isReading || specialActive"
+            aria-label="阅读"
+            @click="reading.start(activeDoc!.id, groupIndex)"
+            ><span class="i-mingcute-book-6-line" aria-hidden="true"
+          /></AppButton>
+        </AppTooltip>
+        <AppTooltip text="查看历史">
+          <AppButton
+            icon
+            size="xs"
+            variant="ghost"
+            :disabled="!activeDoc || specialActive"
+            aria-label="查看历史"
+            @click="openHistory"
+            ><span class="i-mingcute-history-line" aria-hidden="true"
+          /></AppButton>
+        </AppTooltip>
+        <AppTooltip v-if="!isSplit || groupIndex === 0" text="向右拆分">
+          <AppButton
+            icon
+            size="xs"
+            variant="ghost"
+            :disabled="!activeDoc || specialActive"
+            aria-label="向右拆分"
+            @click="editor.splitRight(activeDoc!.id, groupIndex)"
+            ><span class="i-mingcute-layout-right-line" aria-hidden="true"
+          /></AppButton>
+        </AppTooltip>
       </div>
 
       <div v-if="specialActive && review.activeTab" class="editor-pane-host">

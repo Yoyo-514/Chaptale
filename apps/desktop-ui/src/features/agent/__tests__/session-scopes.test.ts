@@ -365,7 +365,6 @@ it('本章提取新建作品审阅会话，携带资料规则并保留作者已�
     })
   );
   const navigation = useWorkbenchStore();
-  navigation.agentInMain = true;
   navigation.agentView = 'settings';
   navigation.focusMode = true;
   await agent.extractChapter(chapter);
@@ -379,7 +378,6 @@ it('本章提取新建作品审阅会话，携带资料规则并保留作者已�
   expect(host.snapshot().settings.defaultInstructions).toEqual(instructions);
   expect(host.snapshot().sessions.find(session => session.id === previous)?.mode).toBe('direct');
   expect(navigation.auxiliaryOpen).toBe(true);
-  expect(navigation.agentInMain).toBe(false);
   expect(navigation.agentView).toBe('chat');
   expect(navigation.focusMode).toBe(false);
   const messages = current.messages.filter(message => message.role === 'user');

@@ -36,7 +36,7 @@ const { zoom } = useInterfaceZoom();
 const editTarget = shallowRef<ReturnType<typeof captureEditingTarget>>();
 /** 会话只在作品内打开，作品库不提供会话入口。 */
 const sessionsAvailable = computed(() => Boolean(creation.workId) && !creation.libraryOpen);
-const activeDocument = computed(() => (!navigation.agentInMain ? editor.activeTab : undefined));
+const activeDocument = computed(() => editor.activeTab);
 const menus = computed<readonly AppMenubarMenu[]>(() => [
   {
     id: 'file',
@@ -80,7 +80,7 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         id: 'file.close-editor',
         label: '关闭标签',
         shortcut: 'Ctrl+W',
-        disabled: !navigation.agentInMain && !editor.activeId
+        disabled: !editor.activeId
       },
       { id: 'file.settings', label: '设置…' }
     ]
@@ -170,7 +170,6 @@ function handleSelect(id: string) {
       creation.newWorkOpen = true;
       break;
     case 'file.library':
-      navigation.agentInMain = false;
       void creation.showLibrary();
       break;
     case 'file.new-document':
@@ -187,7 +186,6 @@ function handleSelect(id: string) {
       break;
     case 'file.import-package':
       // 导入结果与同作品的选择框显示在作品库。
-      navigation.agentInMain = false;
       void creation.showLibrary().then(() => packages.chooseImport());
       break;
     case 'file.export-package':
@@ -203,8 +201,7 @@ function handleSelect(id: string) {
       void editor.setAutoSave(!editor.autoSave);
       break;
     case 'file.close-editor':
-      if (navigation.agentInMain) navigation.agentInMain = false;
-      else void editor.closeTab(editor.activeId, editor.activeGroup);
+      void editor.closeTab(editor.activeId, editor.activeGroup);
       break;
     case 'file.settings':
       settings.openPanel();

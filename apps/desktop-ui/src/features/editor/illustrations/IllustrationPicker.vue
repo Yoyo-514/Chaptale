@@ -69,7 +69,7 @@ function select(entry: Entry) {
 }
 .illustration-picker-empty {
   padding: 16px 12px;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   color: var(--muted-foreground);
 }
 </style>

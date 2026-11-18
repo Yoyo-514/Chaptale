@@ -265,10 +265,6 @@ function openEntry(target: ToolEntryTarget | undefined) {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.agent-activity-target:focus-visible {
-  box-shadow: var(--input-focus-shadow);
-  outline: none;
-}
 .agent-activity-tail {
   display: flex;
   flex: 1;
@@ -399,12 +395,8 @@ function openEntry(target: ToolEntryTarget | undefined) {
   background: var(--surface-hover);
   color: var(--foreground);
 }
-.agent-tool-raw-toggle:focus-visible {
-  box-shadow: var(--input-focus-shadow);
-  outline: none;
-}
 .agent-tool-raw-chevron {
-  font-size: 13px;
+  font-size: var(--ui-font-size);
   transition: transform 150ms ease-out;
 }
 .agent-tool-raw-toggle[aria-expanded='true'] .agent-tool-raw-chevron {

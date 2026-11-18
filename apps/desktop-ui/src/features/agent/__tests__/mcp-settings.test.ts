@@ -167,10 +167,10 @@ describe('设置面板中的 MCP 服务页', () => {
         .findAll('[role="tab"]')
         .find(tab => tab.text() === '当前作品《山海卷》')!
         .trigger('mousedown', { button: 0 });
-      await settled(() => expect(page.get('.mcp-row').text()).toContain('全局'));
+      await settled(() => expect(page.get('.settings-list-row').text()).toContain('全局'));
       await page.get('[aria-label="启用 MCP 服务 wiki"]').trigger('click');
-      await settled(() => expect(page.get('.mcp-row').text()).toContain('已在本作品调整'));
-      expect(page.get('.mcp-row').text()).toContain('已停用');
+      await settled(() => expect(page.get('.settings-list-row').text()).toContain('已在本作品调整'));
+      expect(page.get('.settings-list-row').text()).toContain('已停用');
       expect((await servers(work.id)).servers[0]).toMatchObject({ enabled: false, overriddenInWork: true });
       expect((await servers(null)).servers[0]).toMatchObject({ enabled: true, exposure: 'direct' });
 
@@ -179,8 +179,8 @@ describe('设置面板中的 MCP 服务页', () => {
         .findAll('[role="tab"]')
         .find(tab => tab.text() === '全局')!
         .trigger('mousedown', { button: 0 });
-      await settled(() => expect(page.get('.mcp-row').text()).toContain('已连接，1 个工具'));
-      expect(page.get('.mcp-row').text()).not.toContain('已在本作品调整');
+      await settled(() => expect(page.get('.settings-list-row').text()).toContain('已连接，1 个工具'));
+      expect(page.get('.settings-list-row').text()).not.toContain('已在本作品调整');
     } finally {
       wrapper?.unmount();
       await host.dispose();
@@ -206,7 +206,7 @@ describe('设置面板中的 MCP 服务页', () => {
     const button = (label: string) => wrapper.findAll('button').find(item => item.text() === label);
 
     expect(wrapper.text()).toContain('需要登录');
-    expect(button('登出')).toBeUndefined();
+    expect(wrapper.find('[aria-label="登出 MCP 服务 docs"]').exists()).toBe(false);
     await button('登录')!.trigger('click');
     expect(wrapper.emitted('signIn')).toHaveLength(1);
 
@@ -226,8 +226,8 @@ describe('设置面板中的 MCP 服务页', () => {
     await wrapper.setProps({ server: { ...remote, state: 'connected', hasStoredAuth: true } });
     await flushPromises();
     expect(button('登录')).toBeUndefined();
-    await button('登出')!.trigger('click');
-    await button('重连')!.trigger('click');
+    await wrapper.get('[aria-label="登出 MCP 服务 docs"]').trigger('click');
+    await wrapper.get('[aria-label="重连 MCP 服务 docs"]').trigger('click');
     expect(wrapper.emitted('signOut')).toHaveLength(1);
     expect(wrapper.emitted('reconnect')).toHaveLength(1);
     wrapper.unmount();

@@ -47,7 +47,11 @@ const hasSharedProvider = injectTooltipProviderContext(null) !== null;
 const ProviderComponent = hasSharedProvider ? PassThrough : TooltipProvider;
 const providerProps = hasSharedProvider
   ? {}
-  : { delayDuration: TOOLTIP_DELAY_DURATION_MS, skipDelayDuration: TOOLTIP_SKIP_DELAY_DURATION_MS };
+  : {
+      delayDuration: TOOLTIP_DELAY_DURATION_MS,
+      skipDelayDuration: TOOLTIP_SKIP_DELAY_DURATION_MS,
+      ignoreNonKeyboardFocus: true
+    };
 </script>
 
 <template>

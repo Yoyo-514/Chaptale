@@ -196,7 +196,7 @@ defineExpose({ rename, move, remove });
   border-radius: var(--radius-control-sm);
   background: var(--surface-muted);
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
   line-height: 1.6;
   list-style: none;
 }
@@ -208,11 +208,11 @@ defineExpose({ rename, move, remove });
 .entry-form label {
   display: grid;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .entry-error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ui-caption-size);
   color: var(--destructive);
 }
 </style>

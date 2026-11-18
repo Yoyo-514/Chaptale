@@ -128,7 +128,7 @@ onBeforeUnmount(() => view?.destroy());
   min-height: 36px;
   padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 13px;
+  font-size: var(--ui-font-size);
 }
 .history-caption {
   flex: 1;
