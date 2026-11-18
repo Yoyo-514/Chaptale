@@ -17,6 +17,7 @@ const groups: { title: string; sections: { id: SettingsSection; title: string; i
       { id: 'prompt', title: '写作指令', icon: 'i-mingcute-edit-3-line' },
       { id: 'skills', title: '技能', icon: 'i-mingcute-sparkles-line' },
       { id: 'mcp', title: 'MCP 服务', icon: 'i-mingcute-plugin-2-line' },
+      { id: 'retrieval', title: '检索', icon: 'i-mingcute-database-search-line' },
       { id: 'permissions', title: '工具授权', icon: 'i-mingcute-shield-line' }
     ]
   },

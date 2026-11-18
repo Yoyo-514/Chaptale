@@ -114,11 +114,12 @@ export class HostRetrievalService {
       connection && { model: connection.model, dimensions: connection.dimensions }
     );
     const error = this.errors.get(workId);
+    const job = this.jobs.get(workId);
     return {
       workId,
       ...state,
       state: connection ? state.state : 'unconfigured',
-      running: null,
+      running: job ? { done: job.done, total: job.total } : null,
       ...(error !== undefined && { error })
     };
   }

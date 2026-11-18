@@ -22,6 +22,7 @@ import { type SessionEntry, sessionEntries, sessionTitle } from './session/list'
 import { enqueueMessage, type OutgoingMessage, unsentMessages } from './session/outgoing';
 import { useComposerQuotes } from './session/quotes';
 import { formatSkillPrompt } from './skills';
+import { useVectorIndexStore } from './vector-index';
 
 export type { OutgoingMessage } from './session/outgoing';
 export type { SessionEntry } from './session/list';
@@ -118,6 +119,7 @@ export const useAgentStore = defineStore('agent', () => {
 
   function apply(event: HostEvent) {
     applyHostEvent(state.value!, event);
+    if (event.kind === 'vector-index') useVectorIndexStore().apply(event.status);
   }
 
   function connect(): Promise<void> {

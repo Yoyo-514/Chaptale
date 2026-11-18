@@ -16,6 +16,7 @@ import { useAgentStore } from '../store';
 import ComposerQuoteChip from './ComposerQuoteChip.vue';
 import ComposerSkillMenu from './ComposerSkillMenu.vue';
 import SessionUsage from './SessionUsage.vue';
+import VectorIndexEntry from './VectorIndexEntry.vue';
 
 const agent = useAgentStore();
 const settings = useSettingsStore();
@@ -287,9 +288,11 @@ function mode(value: string) {
         </div>
       </div>
     </div>
-    <div v-if="agent.active" class="agent-composer-meta agent-column">
-      <span v-if="agent.active.compacting" role="status">正在压缩…</span>
-      <SessionUsage :key="agent.active.id" :usage="agent.active.usage" />
+    <div v-if="agent.active || agent.scope" class="agent-composer-meta agent-column">
+      <VectorIndexEntry v-if="agent.scope" :work-id="agent.scope" />
+      <span v-if="agent.active?.compacting" role="status">正在压缩…</span>
+      <span class="flex-1" />
+      <SessionUsage v-if="agent.active" :key="agent.active.id" :usage="agent.active.usage" />
     </div>
   </AppForm>
 </template>
@@ -304,14 +307,10 @@ function mode(value: string) {
 .agent-composer-meta {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
   padding-top: 4px;
   color: var(--muted-foreground);
   font-size: var(--ui-caption-size);
-}
-.agent-composer-meta [role='status'] {
-  margin-right: auto;
 }
 .agent-composer-anchor {
   position: relative;

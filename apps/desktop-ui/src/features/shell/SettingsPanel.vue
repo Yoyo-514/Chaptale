@@ -9,6 +9,7 @@ import {
   InstructionSettings,
   McpSettings,
   ModelSettings,
+  RetrievalSettings,
   SkillSettings,
   ToolPermissionSettings
 } from '@/features/agent';
@@ -98,6 +99,7 @@ onMounted(() => {
                 <InstructionSettings v-else-if="settingsStore.activeSection === 'prompt'" />
                 <SkillSettings v-else-if="settingsStore.activeSection === 'skills'" />
                 <McpSettings v-else-if="settingsStore.activeSection === 'mcp'" />
+                <RetrievalSettings v-else-if="settingsStore.activeSection === 'retrieval'" />
                 <ToolPermissionSettings v-else-if="settingsStore.activeSection === 'permissions'" />
                 <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
                 <DataDirectorySettings v-else />

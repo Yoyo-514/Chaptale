@@ -414,11 +414,6 @@ function setInput(model: NativeModel, image: boolean) {
 </template>
 
 <style lang="scss">
-.agent-form-pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
 .agent-settings-fields {
   box-sizing: border-box;
   padding: 16px;

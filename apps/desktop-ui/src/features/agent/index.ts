@@ -5,6 +5,7 @@ export { default as InstructionsEditor } from './components/InstructionsEditor.v
 export { default as InstructionSettings } from './settings/InstructionSettings.vue';
 export { default as McpSettings } from './settings/McpSettings.vue';
 export { default as ModelSettings } from './settings/ModelSettings.vue';
+export { default as RetrievalSettings } from './settings/RetrievalSettings.vue';
 export { default as SkillSettings } from './settings/SkillSettings.vue';
 export { default as ToolPermissionSettings } from './settings/ToolPermissionSettings.vue';
 export { useAgentStore } from './store';

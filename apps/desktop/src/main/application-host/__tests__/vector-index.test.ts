@@ -231,6 +231,7 @@ it('取消建立保留已算好的段落，之后可以继续；保存检索设�
   let release = server.hold(1);
   await build();
   await vi.waitFor(() => expect(server.requests).toHaveLength(2));
+  expect(await status()).toMatchObject({ indexed: 10, running: { done: 10, total: 13 } });
   const cancelled = (await host.execute({ method: 'cancelVectorIndex', input: { workId } })) as VectorIndexStatus;
   release();
   expect(cancelled).toMatchObject({ state: 'ready', indexed: 10, running: null });

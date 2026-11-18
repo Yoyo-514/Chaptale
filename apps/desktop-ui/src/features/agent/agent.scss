@@ -202,6 +202,11 @@
   font-size: 14px;
   font-weight: 600;
 }
+.agent-form-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
 .agent-form .agent-check {
   flex-direction: row;
   align-items: center;
