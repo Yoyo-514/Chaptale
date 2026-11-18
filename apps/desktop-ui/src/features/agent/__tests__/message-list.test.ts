@@ -387,10 +387,9 @@ it('支持作者消息原地编辑重发、助手回复重试与分支切换器�
   const textarea = wrapper.get('textarea[aria-label="编辑消息"]');
   expect((textarea.element as HTMLTextAreaElement).value).toBe('润色这一句');
   await textarea.setValue('改为冷峻克制的语气');
-  await wrapper
-    .findAll('.agent-user-edit-actions button')
-    .find(button => button.text() === '发送')!
-    .trigger('click');
+  await textarea.trigger('keydown', { key: 'Enter', shiftKey: true });
+  expect(wrapper.emitted('editMessage')).toBeUndefined();
+  await textarea.trigger('keydown', { key: 'Enter' });
   expect(wrapper.emitted('editMessage')?.[0]).toEqual([
     { entryId: 'entry-u1', text: '改为冷峻克制的语气', editorContext }
   ]);

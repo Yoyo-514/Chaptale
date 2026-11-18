@@ -39,8 +39,8 @@ const placeholder = computed(() => {
   if (agent.active?.readonly) return '只读历史不能继续对话';
   if (agent.active?.compacting) return '正在压缩，可以先写下下一条消息';
   return agent.active?.running
-    ? 'Ctrl + Enter 插话，Ctrl + Shift + Enter 稍后处理'
-    : '写下想讨论或推进的事，Ctrl + Enter 发送';
+    ? 'Enter 插话，Ctrl + Shift + Enter 稍后处理'
+    : '写下想讨论或推进的事，Enter 发送，Shift + Enter 换行';
 });
 const canQueueWhileRunning = computed(() =>
   Boolean(agent.active?.running && !agent.active.compacting && editable.value && agent.draft.trim())
@@ -151,7 +151,8 @@ function onKeydown(event: KeyboardEvent) {
       }
     }
   }
-  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+  // Enter 发送或插话，Ctrl + Shift + Enter 稍后处理；Shift + Enter 留给换行。
+  if (event.key !== 'Enter' || event.altKey || (event.ctrlKey || event.metaKey) !== event.shiftKey) return;
   event.preventDefault();
   void agent.send(event.shiftKey ? 'followUp' : 'steer');
 }
@@ -245,7 +246,7 @@ function mode(value: string) {
                   <span class="i-mingcute-time-line size-4" aria-hidden="true" />
                 </AppButton>
               </AppTooltip>
-              <AppTooltip text="立即插话 (Ctrl+Enter)">
+              <AppTooltip text="立即插话 (Enter)">
                 <AppButton
                   class="agent-send-button"
                   type="submit"
@@ -270,7 +271,7 @@ function mode(value: string) {
               /></AppButton>
             </AppTooltip>
           </template>
-          <AppTooltip v-else text="发送">
+          <AppTooltip v-else text="发送 (Enter)">
             <AppButton
               class="agent-send-button"
               type="submit"

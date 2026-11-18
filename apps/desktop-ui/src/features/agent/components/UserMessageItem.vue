@@ -52,6 +52,14 @@ function submitEdit() {
   emit('editMessage', { entryId: props.entryId, text: next, editorContext: props.editorContext });
 }
 
+/** 与输入框一致：Enter 发送，Shift + Enter 换行，输入法选字时的 Enter 不发送。 */
+function onEditKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || event.isComposing) return;
+  if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+  event.preventDefault();
+  submitEdit();
+}
+
 function retry() {
   if (!props.entryId || props.busy) return;
   emit('editMessage', { entryId: props.entryId, text: rawPrompt.value, editorContext: props.editorContext });
@@ -69,7 +77,7 @@ function retry() {
         :rows="2"
         variant="plain"
         resize="auto"
-        @keydown.ctrl.enter.prevent="submitEdit"
+        @keydown="onEditKeydown"
         @keydown.esc.prevent="cancelEdit"
       />
       <div class="agent-user-edit-actions">

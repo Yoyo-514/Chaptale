@@ -526,7 +526,7 @@ test('生成时停止原位替换发送，快捷键插话不另起请求且停�
     expect(Math.abs(before!.x - during!.x)).toBeLessThan(1);
     expect(Math.abs(before!.width - during!.width)).toBeLessThan(1);
     await input.fill('补充写作要求');
-    await input.press('Control+Enter');
+    await input.press('Enter');
     await expect(input).toHaveValue('');
     expect(requests).toBe(1);
     await input.fill('停止后保留的草稿');

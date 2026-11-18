@@ -62,7 +62,7 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
   expect(wrapper.get('button[aria-label="停止压缩"]').attributes('disabled')).toBeUndefined();
   expect(wrapper.find('button[type="submit"]').exists()).toBe(false);
   expect(wrapper.get('[aria-label="会话模型"]').attributes('disabled')).toBeDefined();
-  await wrapper.get('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true });
+  await wrapper.get('textarea').trigger('keydown', { key: 'Enter' });
   await flushPromises();
   expect(agent.draft).toBe('继续创作的草稿');
   agent.state.sessions[0].compacting = false;
@@ -70,7 +70,7 @@ it('压缩期间保留草稿并禁用发送和切换模型，停止按钮明确�
   expect(wrapper.find('button[aria-label="稍后处理"]').exists()).toBe(true);
   expect(wrapper.find('button[aria-label="立即插话"]').exists()).toBe(true);
   expect(wrapper.find('button[aria-label="停止生成"]').exists()).toBe(true);
-  expect(wrapper.get('textarea').attributes('placeholder')).toContain('Ctrl + Enter 插话');
+  expect(wrapper.get('textarea').attributes('placeholder')).toContain('Enter 插话');
   expect(wrapper.get('textarea').attributes('placeholder')).toContain('Ctrl + Shift + Enter 稍后处理');
   agent.draft = '';
   await flushPromises();
@@ -248,7 +248,16 @@ it('生成中支持快捷键与按钮分别发送插话或稍后处理，并可�
     wrapper = mount(MessageComposer, { attachTo: document.body, global: { plugins: [pinia] } });
     agent.draft = '先改这一段语气';
     await flushPromises();
-    await wrapper.get('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true });
+    // Shift + Enter 换行、输入法选字时的 Enter 和 Ctrl + Enter 都不发送。
+    for (const keys of [{ shiftKey: true }, { isComposing: true }, { ctrlKey: true }]) {
+      const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, ...keys });
+      wrapper.get('textarea').element.dispatchEvent(event);
+      await flushPromises();
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(agent.draft).toBe('先改这一段语气');
+    expect(agent.active?.queued).toEqual([]);
+    await wrapper.get('textarea').trigger('keydown', { key: 'Enter' });
     await flushPromises();
     expect(agent.active?.queued).toEqual([{ delivery: 'steer', text: '先改这一段语气', editorContext: undefined }]);
 
