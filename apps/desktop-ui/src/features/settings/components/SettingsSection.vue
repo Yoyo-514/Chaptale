@@ -90,11 +90,12 @@ const hasHeadingExtra = computed(() => Boolean(slots.badge || slots.actions || s
 }
 
 .settings-section-scroll {
-  @apply min-h-0 min-w-0 flex-1 -mx-1 px-1;
+  @apply min-h-0 min-w-0 flex-1 -m-1;
 }
 
+/* 留白放在视口上：视口负责裁剪，贴边控件的焦点环要落在它的内边距里。 */
 .settings-section-scroll :deep(.settings-section-scroll-viewport) {
-  @apply flex flex-col;
+  @apply flex flex-col p-1;
 }
 .settings-section-footer {
   @apply mt-3 shrink-0 border-t pt-3;
