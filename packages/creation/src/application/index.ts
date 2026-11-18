@@ -1,5 +1,6 @@
 import { AgentRecordService } from '../agent/records.ts';
 import { AgentRelationService } from '../agent/relations.ts';
+import { formalVectorTexts } from '../agent/search.ts';
 import { CreationAgentService } from '../agent/service.ts';
 import { TrashService } from '../content/trash.ts';
 import type {
@@ -20,10 +21,12 @@ import { RecordService } from '../records/service.ts';
 import { RelationService } from '../relations/service.ts';
 import type { CreationRepository } from '../repository.ts';
 import { ReviewService } from '../review/service.ts';
+import { VectorIndexService } from '../search/vector-index.ts';
 import { CreationService } from '../service.ts';
 import { authorValidator, agentValidator } from './schema.ts';
 
 export { agentInputs } from './schema.ts';
+export type { StoredVector, VectorIndexState, VectorIndexTarget, VectorText } from '../search/vector-index.ts';
 type AuthorValue = Extract<CreationAuthorCommands[keyof CreationAuthorCommands]['output'], { ok: true }>['value'];
 type CreationValue = Extract<CreationCommands[keyof CreationCommands]['output'], { ok: true }>['value'];
 type AgentValue = Extract<CreationAgentCommands[keyof CreationAgentCommands]['output'], { ok: true }>['value'];
@@ -38,6 +41,8 @@ export class CreationApplication {
   private readonly workPackages: WorkPackageService;
   private readonly records: RecordService;
   private readonly relations: RelationService;
+  /** 向量索引只供同一进程里调用 embedding 服务的宿主使用，不经请求入口。 */
+  readonly vectorIndex: VectorIndexService;
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
@@ -47,13 +52,18 @@ export class CreationApplication {
     this.workPackages = new WorkPackageService(repository, this.service, this.review);
     this.records = new RecordService(repository, this.service, this.review);
     this.relations = new RelationService(repository, this.service, this.review);
+    const agentRecords = new AgentRecordService(repository, this.service, this.review);
+    const agentRelations = new AgentRelationService(repository, this.service, this.review);
     this.agent = new CreationAgentService(
       repository,
       this.service,
       this.review,
       this.trash,
-      new AgentRecordService(repository, this.service, this.review),
-      new AgentRelationService(repository, this.service, this.review)
+      agentRecords,
+      agentRelations
+    );
+    this.vectorIndex = new VectorIndexService(repository, workId =>
+      formalVectorTexts({ repository, review: this.review, records: agentRecords, relations: agentRelations }, workId)
     );
   }
 

@@ -10,6 +10,8 @@ export type {
   RecordRevision,
   RelationRevision,
   SearchNote,
+  StoredVector,
+  VectorIndexTarget,
   WorkSearchMatches,
   WorkSearchQuery
 } from './repository.ts';

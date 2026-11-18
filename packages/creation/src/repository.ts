@@ -60,6 +60,17 @@ export interface SearchNote {
   text: string;
 }
 
+/** 向量索引对应的 embedding 模型；dimensions 为 null 时用模型的默认维度。 */
+export interface VectorIndexTarget {
+  model: string;
+  dimensions: number | null;
+}
+
+export interface StoredVector {
+  hash: string;
+  vector: Float32Array;
+}
+
 /** 关键词检索的范围：正式条目索引，加上覆盖正式正文的 candidates 和 notes，去掉 hidden 中的条目。 */
 export interface WorkSearchQuery {
   query: string;
@@ -169,6 +180,15 @@ export interface WorkRepository {
   /** 文件条目独占的目录，存放添加时复制的文件。 */
   entryFileDir(entryId: string): string;
   searchWork(query: WorkSearchQuery): WorkSearchMatches;
+  /** 向量索引用的模型；作者还没为这部作品启动过建立时为 undefined。 */
+  vectorTarget(): VectorIndexTarget | undefined;
+  startVectorIndex(target: VectorIndexTarget): void;
+  /** 已有向量的文字。 */
+  vectorHashes(): Set<string>;
+  /** 向量长度须与索引里已有的一致。 */
+  saveVectors(vectors: readonly StoredVector[]): void;
+  /** 删除整个向量索引，作品回到没有启动过的状态。 */
+  clearVectorIndex(): void;
   getRevision(revisionId: string): Revision | undefined;
   /** 正文与前一修订不同的修订，最新在前。 */
   listRevisions(entryId: string): RevisionSummary[];

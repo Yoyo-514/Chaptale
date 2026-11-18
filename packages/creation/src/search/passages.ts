@@ -6,7 +6,7 @@ const passageSize = 400;
 const passagesPerEntry = 3;
 
 /** 正文按行切成段落：相邻的行累积到目标长度为一段，首尾的空行不计入。 */
-function splitPassages(content: string): SearchPassage[] {
+export function splitPassages(content: string): SearchPassage[] {
   const passages: SearchPassage[] = [];
   const lines = content.split('\n');
   let start = -1;

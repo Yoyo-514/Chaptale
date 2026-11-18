@@ -5,7 +5,9 @@ import type {
   RelationRevision,
   WorkRepository,
   WorkSearchMatches,
-  WorkSearchQuery
+  WorkSearchQuery,
+  StoredVector,
+  VectorIndexTarget
 } from '@chaptale/creation';
 import type {
   Document,
@@ -26,6 +28,7 @@ import * as records from './records.ts';
 import * as relations from './relations.ts';
 import { searchWork } from './search.ts';
 import * as trash from './trash.ts';
+import * as vectors from './vectors.ts';
 
 /** 一部作品的 work.sqlite；连接由组装入口按需打开，每次读写时取用。 */
 export class SqliteWorkRepository implements WorkRepository {
@@ -92,6 +95,23 @@ export class SqliteWorkRepository implements WorkRepository {
   }
   searchWork(query: WorkSearchQuery): WorkSearchMatches {
     return searchWork(this.connect(), query);
+  }
+  vectorTarget(): VectorIndexTarget | undefined {
+    return vectors.readVectorTarget(this.rootDir, this.workId);
+  }
+  startVectorIndex(target: VectorIndexTarget): void {
+    // 先取作品库连接：确认作品存在，作品目录也随之建好。
+    this.connect();
+    vectors.startVectorIndex(this.rootDir, this.workId, target);
+  }
+  vectorHashes(): Set<string> {
+    return vectors.readVectorHashes(this.rootDir, this.workId);
+  }
+  saveVectors(stored: readonly StoredVector[]): void {
+    vectors.saveVectors(this.rootDir, this.workId, stored);
+  }
+  clearVectorIndex(): void {
+    vectors.clearVectorIndex(this.rootDir, this.workId);
   }
   getRevision(revisionId: string): Revision | undefined {
     return entries.getRevision(this.connect(), revisionId);
