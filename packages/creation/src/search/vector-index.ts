@@ -10,7 +10,8 @@ export interface VectorIndexState {
   /** 正式内容里要算向量的段数，和其中已经算好的段数。 */
   total: number;
   indexed: number;
-  /** 还没算的文字总长，建立前告诉作者要发送多少。 */
+  /** 全部文字和其中还没算的文字的总长，建立或重建前告诉作者要发送多少。 */
+  characters: number;
   pendingCharacters: number;
 }
 
@@ -37,17 +38,21 @@ export class VectorIndexService {
     return stored !== undefined && sameTarget(stored, target);
   }
 
-  status(workId: string, target: VectorIndexTarget): VectorIndexState {
+  /** target 为 null 表示还没有设置检索服务，此时已有的向量都不算数。 */
+  status(workId: string, target: VectorIndexTarget | null): VectorIndexState {
     const work = this.repository.work(workId);
     const stored = work.vectorTarget();
     const texts = this.formalTexts(workId);
-    const known = stored && sameTarget(stored, target) ? work.vectorHashes() : new Set<string>();
+    const current = stored !== undefined && target !== null && sameTarget(stored, target);
+    const known = current ? work.vectorHashes() : new Set<string>();
     const pending = texts.filter(text => !known.has(text.hash));
+    const length = (items: readonly VectorText[]) => items.reduce((sum, text) => sum + text.text.length, 0);
     return {
-      state: stored === undefined ? 'none' : sameTarget(stored, target) ? 'ready' : 'stale',
+      state: stored === undefined ? 'none' : current ? 'ready' : 'stale',
       total: texts.length,
       indexed: texts.length - pending.length,
-      pendingCharacters: pending.reduce((sum, text) => sum + text.text.length, 0)
+      characters: length(texts),
+      pendingCharacters: length(pending)
     };
   }
 

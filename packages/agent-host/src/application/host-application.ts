@@ -19,6 +19,8 @@ import type {
   ModelChoice,
   ModelRef
 } from '../protocol/index.ts';
+import type { EmbeddingConfiguration } from '../retrieval/config.ts';
+import { HostRetrievalService } from '../retrieval/service.ts';
 import type { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { HostSessionPool } from '../session/session-pool.ts';
 import { AppSettingsStore } from '../settings/app-settings.ts';
@@ -37,6 +39,7 @@ export interface HostApplicationOptions {
   builtinInstructions: AgentInstructions;
   modelRuntime: ModelRuntime;
   modelConfiguration: HostModelConfiguration;
+  embeddingConfiguration: EmbeddingConfiguration;
   tools: (cwd: string) => ToolDefinition[];
   /** 作品应用与 Agent 共用宿主，直接注入既有应用入口。 */
   creation?: CreationApplication;
@@ -57,6 +60,7 @@ export class HostApplication {
   private readonly skills: HostSkillsService;
   private readonly mcp: HostMcpService;
   private readonly authorizer: ToolAuthorizer;
+  private readonly retrieval: HostRetrievalService;
   private readonly sessions: HostSessions;
 
   private constructor(options: HostApplicationOptions, pool: HostSessionPool, settings: AppSettingsStore) {
@@ -88,6 +92,13 @@ export class HostApplication {
       emit: change => this.emit(change),
       onRulesChanged: () => this.emitSettings(),
       workExists: workId => this.works.find(workId) !== null
+    });
+    this.retrieval = new HostRetrievalService({
+      configuration: options.embeddingConfiguration,
+      creation: options.creation,
+      emit: change => {
+        if (!this.stopping) this.emit(change);
+      }
     });
     this.sessions = new HostSessions({
       sessionDir: options.sessionDir,
@@ -262,6 +273,18 @@ export class HostApplication {
         return this.emit({ kind: 'models', models: this.models() });
       case 'discoverModels':
         return this.options.modelConfiguration.discover(command.input);
+      case 'embeddingSettings':
+        return this.retrieval.settings();
+      case 'saveEmbeddingSettings':
+        return this.retrieval.saveSettings(command.input);
+      case 'testEmbedding':
+        return this.retrieval.test(command.input);
+      case 'vectorIndex':
+        return this.retrieval.status(command.input.workId);
+      case 'buildVectorIndex':
+        return this.retrieval.build(command.input.workId, command.input.rebuild);
+      case 'cancelVectorIndex':
+        return this.retrieval.cancel(command.input.workId);
     }
   }
 
@@ -291,7 +314,10 @@ export class HostApplication {
     if (!input.asCopy) {
       const info = await creation.execute({ method: 'inspectWorkPackage', input: { path: input.path } });
       if (!info.ok) throw new Error(info.error.message);
-      if (info.value.exists) open = this.sessions.idleOfWork(info.value.work.id, '覆盖作品');
+      if (info.value.exists) {
+        open = this.sessions.idleOfWork(info.value.work.id, '覆盖作品');
+        await this.retrieval.stop(info.value.work.id);
+      }
     }
     const imported = await creation.execute({ method: 'importWorkPackage', input });
     if (!imported.ok) throw new Error(imported.error.message);
@@ -302,6 +328,7 @@ export class HostApplication {
 
   private async restoreWorkSnapshot(input: { commandId: string; workId: string }) {
     const open = this.sessions.idleOfWork(input.workId, '恢复作品');
+    await this.retrieval.stop(input.workId);
     const restored = await this.options.creation!.execute({ method: 'restoreWorkSnapshot', input });
     if (!restored.ok) throw new Error(restored.error.message);
     for (const id of open) await this.sessions.close(id);
@@ -311,6 +338,7 @@ export class HostApplication {
   private async trashWork(input: { commandId: string; workId: string }) {
     const creation = this.options.creation!;
     const open = this.sessions.idleOfWork(input.workId, '删除作品');
+    await this.retrieval.stop(input.workId);
     const trashed = creation.executeAuthor({ method: 'trashWork', input });
     if (!trashed.ok) throw new Error(trashed.error.message);
     for (const id of open) await this.sessions.close(id);
@@ -321,6 +349,7 @@ export class HostApplication {
   /** 永久删除作品；其会话目录随作品目录交给平台移入回收站。 */
   private async purgeWork(input: { commandId: string; workId: string }): Promise<{ files: string[] }> {
     const open = this.sessions.idleOfWork(input.workId, '永久删除作品');
+    await this.retrieval.stop(input.workId);
     const purged = this.options.creation!.executeAuthor({ method: 'purgeWork', input });
     if (!purged.ok) throw new Error(purged.error.message);
     for (const id of open) await this.sessions.close(id);
@@ -342,6 +371,7 @@ export class HostApplication {
     this.stopping = true;
     this.authorizer.cancelAll();
     await this.sessions.stop();
+    await this.retrieval.close();
     await this.mcp.close();
     this.sessions.release();
     this.listeners.clear();

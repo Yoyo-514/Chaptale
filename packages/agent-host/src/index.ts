@@ -1,6 +1,7 @@
 export { createHostSession, type CreateHostSessionOptions } from './session/session.ts';
 export { createHostModelRuntime, type CreateHostModelRuntimeOptions } from './runtime/model-runtime.ts';
 export { HostModelConfiguration } from './runtime/model-configuration.ts';
+export { EmbeddingConfiguration } from './retrieval/config.ts';
 export { builtinWritingInstructions } from './instructions/builtin.ts';
 export {
   openHostSessionManager,

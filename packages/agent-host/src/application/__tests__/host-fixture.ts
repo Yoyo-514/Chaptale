@@ -12,6 +12,7 @@ import {
   instructionsEntryType,
   modeEntryType
 } from '../../protocol/index.ts';
+import { EmbeddingConfiguration } from '../../retrieval/config.ts';
 import { HostModelConfiguration } from '../../runtime/model-configuration.ts';
 import { HostApplication, type HostApplicationOptions } from '../index.ts';
 
@@ -136,6 +137,7 @@ export function setupHost() {
       builtinInstructions: builtin,
       modelRuntime: runtime,
       modelConfiguration: new HostModelConfiguration(join(root, 'config'), runtime),
+      embeddingConfiguration: new EmbeddingConfiguration(join(root, 'config')),
       tools: () => []
     };
     app = await HostApplication.create(options);

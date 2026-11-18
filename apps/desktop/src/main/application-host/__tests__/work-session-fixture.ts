@@ -6,7 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect } from 'vitest';
 
-import { builtinWritingInstructions, createHostModelRuntime, HostModelConfiguration } from '@chaptale/agent-host';
+import {
+  builtinWritingInstructions,
+  createHostModelRuntime,
+  EmbeddingConfiguration,
+  HostModelConfiguration
+} from '@chaptale/agent-host';
 import { createHostApplication, HostApplication } from '@chaptale/agent-host/application';
 import { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult, EntrySnapshot } from '@chaptale/creation/contracts';
@@ -71,6 +76,7 @@ export async function restartWithTools(tools: ToolDefinition[], history?: { file
     builtinInstructions: builtinWritingInstructions,
     modelRuntime: runtime,
     modelConfiguration: new HostModelConfiguration(configDir, runtime),
+    embeddingConfiguration: new EmbeddingConfiguration(configDir),
     creation,
     tools: () => tools
   });

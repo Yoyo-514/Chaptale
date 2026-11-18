@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { ManagedMcpSnapshot } from '../../protocol/index.ts';
+import { EmbeddingConfiguration } from '../../retrieval/config.ts';
 import { HostModelConfiguration } from '../../runtime/model-configuration.ts';
 import { HostApplication } from '../index.ts';
 
@@ -184,6 +185,7 @@ describe('HostApplication MCP 接入', () => {
       builtinInstructions: [{ name: '主创', role: 'system', text: '你是小说创作助手。', enabled: true }],
       modelRuntime: runtime,
       modelConfiguration: new HostModelConfiguration(join(root, 'data'), runtime),
+      embeddingConfiguration: new EmbeddingConfiguration(join(root, 'data')),
       tools: cwd => [defineTool(createReadToolDefinition(cwd))]
     });
   });

@@ -7,7 +7,7 @@ import type { DiscoveredModel, ModelDiscovery, NativeProvider, ProviderSave, Pro
 type StoredProvider = NativeProvider & { apiKey?: string };
 type NativeModels = { providers: Record<string, StoredProvider>; [field: string]: unknown };
 
-function httpUrl(value: string): URL {
+export function httpUrl(value: string): URL {
   const url = URL.parse(value);
   if (url?.protocol !== 'http:' && url?.protocol !== 'https:')
     throw new Error('服务地址必须为有效的 HTTP 或 HTTPS 地址');

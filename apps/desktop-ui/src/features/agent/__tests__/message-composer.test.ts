@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, expect, it } from 'vitest';
 
-import { HostModelConfiguration } from '@chaptale/agent-host';
+import { EmbeddingConfiguration, HostModelConfiguration } from '@chaptale/agent-host';
 import { HostApplication } from '@chaptale/agent-host/application';
 import type { HostCommand, HostCommands, SessionView } from '@chaptale/agent-host/protocol';
 import { CreationApplication } from '@chaptale/creation/application';
@@ -214,6 +214,7 @@ it('生成中支持快捷键与按钮分别发送插话或稍后处理，并可�
     builtinInstructions: [{ name: '默认', role: 'system', text: '离线测试指令', enabled: true }],
     modelRuntime: runtime,
     modelConfiguration: new HostModelConfiguration(join(root, 'config'), runtime),
+    embeddingConfiguration: new EmbeddingConfiguration(join(root, 'config')),
     creation: author,
     tools: () => []
   });
@@ -341,6 +342,7 @@ it('输入 / 搜索当前范围已启用技能（含仅手动调用项），支�
     builtinInstructions: [{ name: '默认', role: 'system', text: '离线测试指令', enabled: true }],
     modelRuntime: runtime,
     modelConfiguration: new HostModelConfiguration(join(root, 'config'), runtime),
+    embeddingConfiguration: new EmbeddingConfiguration(join(root, 'config')),
     creation: author,
     tools: () => []
   });

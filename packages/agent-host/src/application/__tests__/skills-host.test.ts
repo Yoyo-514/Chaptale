@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { EditorContext, ManagedSkillView, ManagedSkillsSnapshot, SessionSkillItem } from '../../protocol/index.ts';
+import { EmbeddingConfiguration } from '../../retrieval/config.ts';
 import { HostModelConfiguration } from '../../runtime/model-configuration.ts';
 import { HostApplication } from '../index.ts';
 
@@ -104,6 +105,7 @@ describe('HostApplication skills integration', () => {
       builtinInstructions: [{ name: '主创', role: 'system', text: '主创系统指令', enabled: true }],
       modelRuntime: runtime,
       modelConfiguration: new HostModelConfiguration(join(root, 'data'), runtime),
+      embeddingConfiguration: new EmbeddingConfiguration(join(root, 'data')),
       tools: cwd => [defineTool(createReadToolDefinition(cwd)), defineTool(createLsToolDefinition(cwd))]
     });
   });

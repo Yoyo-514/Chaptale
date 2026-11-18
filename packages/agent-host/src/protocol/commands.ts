@@ -17,6 +17,7 @@ import type { AgentInstructions, EditMode, NamedInstructions } from './instructi
 import type { ManagedMcpSnapshot, McpConfigScope, McpSelectableExposure } from './mcp.ts';
 import type { DiscoveredModel, ModelChoice, ModelDiscovery, ModelRef, ProviderSave, ProviderView } from './models.ts';
 import type { Approval, ApprovalScope, McpApprovalRememberTarget, ToolPermission } from './permissions.ts';
+import type { EmbeddingSettingsSave, EmbeddingSettingsView, VectorIndexStatus } from './retrieval.ts';
 import type { ManagedSkillView, ManagedSkillsSnapshot, SessionSkillItem, SkillScope } from './skills.ts';
 
 /** 本机应用设置；不进入作品备份。 */
@@ -169,6 +170,20 @@ export interface HostCommands {
   cancelMcpSignIn: { input: { workId: string | null; name: string }; output: ManagedMcpSnapshot };
   /** 清除指定服务已保存的 OAuth 凭据并断开连接。 */
   signOutMcpServer: { input: { workId: string | null; name: string }; output: ManagedMcpSnapshot };
+  /** 检索服务设置；还没有设置时为 null。 */
+  embeddingSettings: { input: undefined; output: EmbeddingSettingsView | null };
+  /** 保存检索服务设置，并停止正在建立的向量索引。 */
+  saveEmbeddingSettings: { input: EmbeddingSettingsSave; output: EmbeddingSettingsView };
+  /** 按表单中的设置发送一段固定的短文字，返回服务给出的向量维度。 */
+  testEmbedding: { input: EmbeddingSettingsSave; output: { dimensions: number } };
+  vectorIndex: { input: { workId: string }; output: VectorIndexStatus };
+  /**
+   * 在后台为还没算的段落计算向量，进度经 vector-index 事件送达；已经算好的段落不重算。
+   * rebuild 为 true 时先清空已有索引；索引用的是另一个模型或维度时必须重建。
+   */
+  buildVectorIndex: { input: { workId: string; rebuild: boolean }; output: VectorIndexStatus };
+  /** 停止建立，保留已经算好的段落。 */
+  cancelVectorIndex: { input: { workId: string }; output: VectorIndexStatus };
 }
 
 export type HostCommand = RpcCommand<HostCommands>;
@@ -194,7 +209,9 @@ export type HostChange =
   | { kind: 'approval-closed'; id: string }
   | { kind: 'models'; models: ModelChoice[] }
   | { kind: 'settings'; settings: HostSettings }
-  | { kind: 'mcp' };
+  | { kind: 'mcp' }
+  /** 向量索引建立的进度，以及建立完成、失败或停止后的状态。 */
+  | { kind: 'vector-index'; status: VectorIndexStatus };
 
 export type HostEvent = HostChange & { cursor: number };
 

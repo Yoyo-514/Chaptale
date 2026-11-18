@@ -10,6 +10,7 @@ import { mkdir } from 'node:fs/promises';
 import type { CreationApplication } from '@chaptale/creation/application';
 
 import { builtinWritingInstructions } from '../instructions/builtin.ts';
+import { EmbeddingConfiguration } from '../retrieval/config.ts';
 import { HostModelConfiguration } from '../runtime/model-configuration.ts';
 import { createHostModelRuntime } from '../runtime/model-runtime.ts';
 import { HostApplication } from './host-application.ts';
@@ -37,6 +38,7 @@ export async function createHostApplication(options: HostBootstrapOptions): Prom
     builtinInstructions: builtinWritingInstructions,
     modelRuntime: runtime,
     modelConfiguration: new HostModelConfiguration(options.configDir, runtime),
+    embeddingConfiguration: new EmbeddingConfiguration(options.configDir),
     // 文件工具仍逐次请求授权；作品工具由 HostApplication 装配并复核会话模式。
     tools: cwd => [
       defineTool(createReadToolDefinition(cwd)),

@@ -61,7 +61,13 @@ it('作者启动前没有索引；启动后按段保存向量，改过的段落�
   document('第二回', '雪落了一夜。');
   const index = app.vectorIndex;
 
-  expect(index.status(workId, qwen)).toEqual({ state: 'none', total: 2, indexed: 0, pendingCharacters: 32 });
+  expect(index.status(workId, qwen)).toEqual({
+    state: 'none',
+    total: 2,
+    indexed: 0,
+    characters: 32,
+    pendingCharacters: 32
+  });
   expect(index.usable(workId, qwen)).toBe(false);
   expect(() => index.save(workId, vectors(index.pending(workId)))).toThrow('这部作品还没有建立向量索引');
 
@@ -73,7 +79,13 @@ it('作者启动前没有索引；启动后按段保存向量，改过的段落�
     '第二回\n雪落了一夜。'
   ]);
   index.save(workId, vectors(pending.slice(0, 1)));
-  expect(index.status(workId, qwen)).toMatchObject({ state: 'ready', total: 2, indexed: 1, pendingCharacters: 10 });
+  expect(index.status(workId, qwen)).toMatchObject({
+    state: 'ready',
+    total: 2,
+    indexed: 1,
+    characters: 32,
+    pendingCharacters: 10
+  });
   index.save(workId, vectors(pending.slice(1)));
   expect(index.status(workId, qwen)).toMatchObject({ state: 'ready', total: 2, indexed: 2, pendingCharacters: 0 });
   expect(index.usable(workId, qwen)).toBe(true);

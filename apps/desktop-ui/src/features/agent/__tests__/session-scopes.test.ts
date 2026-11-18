@@ -7,7 +7,7 @@ import { basename, dirname, join } from 'node:path';
 import { createPinia, disposePinia, setActivePinia, type Pinia } from 'pinia';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
-import { HostModelConfiguration } from '@chaptale/agent-host';
+import { EmbeddingConfiguration, HostModelConfiguration } from '@chaptale/agent-host';
 import { HostApplication, type HostApplicationOptions } from '@chaptale/agent-host/application';
 import {
   instructionsEntryType,
@@ -130,6 +130,7 @@ beforeEach(async () => {
     builtinInstructions: instructions,
     modelRuntime: runtime,
     modelConfiguration: new HostModelConfiguration(join(root, 'config'), runtime),
+    embeddingConfiguration: new EmbeddingConfiguration(join(root, 'config')),
     creation: author,
     tools: () => []
   };

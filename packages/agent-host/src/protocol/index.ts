@@ -5,4 +5,5 @@ export * from './instructions.ts';
 export * from './mcp.ts';
 export * from './models.ts';
 export * from './permissions.ts';
+export * from './retrieval.ts';
 export * from './skills.ts';
