@@ -2,6 +2,7 @@
 import { CLOUD_PROVIDER_LABELS } from '@chaptale/desktop/bridge';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 
 import { useCloudSyncStore } from '../store';
 
@@ -16,27 +17,33 @@ function browse(parentId: string | null) {
     <div class="cloud-heading">
       <h4 id="cloud-browser-title">云端目录 · {{ CLOUD_PROVIDER_LABELS[cloud.browseProvider] }}</h4>
       <div class="cloud-actions">
-        <AppButton
-          v-if="cloud.listing && !cloud.listing.current.root"
-          icon
-          variant="ghost"
-          aria-label="上一级云端目录"
-          @click="browse(cloud.listing.parentId)"
-        >
-          <span class="i-mingcute-arrow-left-line size-4" aria-hidden="true" />
-        </AppButton>
-        <AppButton
-          icon
-          variant="ghost"
-          aria-label="刷新云端目录"
-          :disabled="cloud.isListingLoading"
-          @click="browse(cloud.listing?.current.id ?? null)"
-        >
-          <span class="i-mingcute-refresh-3-line size-4" aria-hidden="true" />
-        </AppButton>
-        <AppButton icon variant="ghost" aria-label="收起云端目录" @click="cloud.closeFolder()">
-          <span class="i-mingcute-close-line size-4" aria-hidden="true" />
-        </AppButton>
+        <AppTooltip text="上一级云端目录">
+          <AppButton
+            v-if="cloud.listing && !cloud.listing.current.root"
+            icon
+            variant="ghost"
+            aria-label="上一级云端目录"
+            @click="browse(cloud.listing.parentId)"
+          >
+            <span class="i-mingcute-arrow-left-line size-4" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
+        <AppTooltip text="刷新云端目录">
+          <AppButton
+            icon
+            variant="ghost"
+            aria-label="刷新云端目录"
+            :disabled="cloud.isListingLoading"
+            @click="browse(cloud.listing?.current.id ?? null)"
+          >
+            <span class="i-mingcute-refresh-3-line size-4" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
+        <AppTooltip text="收起云端目录">
+          <AppButton icon variant="ghost" aria-label="收起云端目录" @click="cloud.closeFolder()">
+            <span class="i-mingcute-close-line size-4" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
       </div>
     </div>
     <p v-if="cloud.isListingLoading" class="cloud-muted" role="status">正在读取云端目录…</p>

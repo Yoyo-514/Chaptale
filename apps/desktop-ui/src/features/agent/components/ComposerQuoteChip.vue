@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import type { EditorContext } from '@chaptale/agent-host/protocol';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 
 const props = defineProps<{ quote: EditorContext }>();
 const emit = defineEmits<{ remove: [] }>();
@@ -17,17 +18,19 @@ const preview = computed(() => (props.quote.selection ?? '').replace(/\s+/g, ' '
     <span class="i-mingcute-quote-left-line size-3.5 shrink-0" aria-hidden="true" />
     <span class="agent-quote-chip-label">{{ label }}</span>
     <span v-if="preview" class="agent-quote-chip-preview">{{ preview }}</span>
-    <AppButton
-      type="button"
-      icon
-      size="xs"
-      variant="ghost"
-      class="agent-quote-chip-remove"
-      aria-label="移除引用"
-      @click="emit('remove')"
-    >
-      <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
-    </AppButton>
+    <AppTooltip text="移除引用">
+      <AppButton
+        type="button"
+        icon
+        size="xs"
+        variant="ghost"
+        class="agent-quote-chip-remove"
+        aria-label="移除引用"
+        @click="emit('remove')"
+      >
+        <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
+      </AppButton>
+    </AppTooltip>
   </div>
 </template>
 

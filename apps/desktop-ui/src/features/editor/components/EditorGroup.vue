@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 
 import { AppButton } from '@/components/AppButton';
 import { AppTextView } from '@/components/AppTextView';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useCreationStore, useTrashStore } from '@/features/creation';
 import { getDesktopApi, hasDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
@@ -86,9 +87,11 @@ onBeforeUnmount(() => {
         <span class="trash-preview-title">{{ trash.preview.document.title }}</span>
         <span class="trash-preview-note">在回收站中 · 只读</span>
         <AppButton size="xs" @click="restorePreview">恢复</AppButton>
-        <AppButton icon size="xs" variant="ghost" aria-label="关闭预览" @click="trash.preview = null"
-          ><span class="i-mingcute-close-line size-3.5" aria-hidden="true"
-        /></AppButton>
+        <AppTooltip text="关闭预览">
+          <AppButton icon size="xs" variant="ghost" aria-label="关闭预览" @click="trash.preview = null"
+            ><span class="i-mingcute-close-line size-3.5" aria-hidden="true"
+          /></AppButton>
+        </AppTooltip>
       </header>
       <AppTextView
         :key="trash.preview.document.id"

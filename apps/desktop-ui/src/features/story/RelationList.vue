@@ -9,6 +9,7 @@ import {
 } from '@chaptale/creation/contracts';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 import { requestCreation, useCreationStore } from '@/features/creation';
 
 import DraftSourceHint from './DraftSourceHint.vue';
@@ -276,20 +277,23 @@ function remove(item: RelationItem) {
                 @click="editingId = row.relation.id"
                 >修改</AppButton
               >
-              <AppButton
-                size="xs"
-                variant="primary"
-                :disabled="locked || row.change.conflicts.length > 0 || waiting?.has(row.change.id)"
-                :title="
+              <AppTooltip
+                :text="
                   row.change.conflicts.length
                     ? '请先处理冲突'
                     : waiting?.has(row.change.id)
                       ? `先处理${chapterTitles(waiting.get(row.change.id)!, creation.entries, creation.pendingEntries)}`
                       : undefined
                 "
-                @click="emit('decide', row.change, 'accept')"
-                >接受</AppButton
               >
+                <AppButton
+                  size="xs"
+                  variant="primary"
+                  :disabled="locked || row.change.conflicts.length > 0 || waiting?.has(row.change.id)"
+                  @click="emit('decide', row.change, 'accept')"
+                  >接受</AppButton
+                >
+              </AppTooltip>
             </div>
           </template>
         </template>

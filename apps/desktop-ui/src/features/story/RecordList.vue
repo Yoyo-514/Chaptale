@@ -276,24 +276,27 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
                   @click="editingId = row.record.id"
                   >修改</AppButton
                 >
-                <AppButton
-                  size="xs"
-                  variant="primary"
-                  :disabled="
-                    locked ||
-                    changes.get(row.record.id)!.conflicts.length > 0 ||
-                    waiting?.has(changes.get(row.record.id)!.id)
-                  "
-                  :title="
+                <AppTooltip
+                  :text="
                     changes.get(row.record.id)!.conflicts.length
                       ? '请先处理冲突'
                       : waiting?.has(changes.get(row.record.id)!.id)
                         ? `先处理${chapterTitles(waiting.get(changes.get(row.record.id)!.id)!, creation.entries, creation.pendingEntries)}`
                         : undefined
                   "
-                  @click="emit('decide', changes.get(row.record.id)!, 'accept')"
-                  >接受</AppButton
                 >
+                  <AppButton
+                    size="xs"
+                    variant="primary"
+                    :disabled="
+                      locked ||
+                      changes.get(row.record.id)!.conflicts.length > 0 ||
+                      waiting?.has(changes.get(row.record.id)!.id)
+                    "
+                    @click="emit('decide', changes.get(row.record.id)!, 'accept')"
+                    >接受</AppButton
+                  >
+                </AppTooltip>
               </div>
             </template>
             <template v-else>

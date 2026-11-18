@@ -18,13 +18,15 @@ defineOptions({
 
 withDefaults(
   defineProps<{
-    text: string;
+    /** 没有文字时不弹出，用于只在特定状态下才有说明的控件。 */
+    text?: string;
     side?: 'top' | 'right' | 'bottom' | 'left';
     align?: 'start' | 'center' | 'end';
     sideOffset?: number;
     withArrow?: boolean;
   }>(),
   {
+    text: undefined,
     side: 'top',
     align: 'center',
     sideOffset: 4,
@@ -56,7 +58,7 @@ const providerProps = hasSharedProvider
 
 <template>
   <component :is="ProviderComponent" v-bind="providerProps">
-    <TooltipRoot>
+    <TooltipRoot :disabled="!text">
       <TooltipTrigger v-bind="attrs" as-child data-slot="app-tooltip-trigger">
         <slot />
       </TooltipTrigger>

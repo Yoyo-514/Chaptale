@@ -18,6 +18,7 @@ import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContext
 import { AppAlertDialog } from '@/components/AppDialog';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextView } from '@/components/AppTextView';
+import { AppTooltip } from '@/components/AppTooltip';
 import { useCreationStore } from '@/features/creation';
 import { captureEditingTarget } from '@/utils/editing-target';
 
@@ -230,28 +231,30 @@ onBeforeUnmount(() => {
       <AppButton size="sm" variant="ghost" :disabled="locked" @click="reject">{{
         deleted ? '拒绝删除' : '全部拒绝'
       }}</AppButton>
-      <AppButton
-        size="sm"
-        variant="primary"
-        :disabled="locked || conflicted"
-        :title="conflicted ? '请先处理冲突' : undefined"
-        @click="review.decide(tab.key, 'accept')"
-        >{{ deleted ? '接受删除' : '全部接受' }}</AppButton
-      >
+      <AppTooltip :text="conflicted ? '请先处理冲突' : undefined">
+        <AppButton
+          size="sm"
+          variant="primary"
+          :disabled="locked || conflicted"
+          @click="review.decide(tab.key, 'accept')"
+          >{{ deleted ? '接受删除' : '全部接受' }}</AppButton
+        >
+      </AppTooltip>
     </header>
     <div v-if="renamed && !deleted" class="review-row">
       <span>标题：<del>{{ current!.title }}</del> → {{ candidate.title }}</span>
       <AppButton size="xs" variant="ghost" :disabled="locked" @click="review.decide(tab.key, 'reject', 'title')"
         >保留原标题</AppButton
       >
-      <AppButton
-        size="xs"
-        variant="ghost"
-        :disabled="locked || titleConflicted"
-        :title="titleConflicted ? '标题有冲突，请先处理冲突' : undefined"
-        @click="review.decide(tab.key, 'accept', 'title')"
-        >接受改名</AppButton
-      >
+      <AppTooltip :text="titleConflicted ? '标题有冲突，请先处理冲突' : undefined">
+        <AppButton
+          size="xs"
+          variant="ghost"
+          :disabled="locked || titleConflicted"
+          @click="review.decide(tab.key, 'accept', 'title')"
+          >接受改名</AppButton
+        >
+      </AppTooltip>
     </div>
     <section v-if="attributeRows.length && !deleted" class="review-attributes" aria-label="资料属性修改">
       <div class="review-row">
@@ -264,14 +267,15 @@ onBeforeUnmount(() => {
             @click="review.decide(tab.key, 'reject', 'attributes')"
             >保留原属性</AppButton
           >
-          <AppButton
-            size="xs"
-            variant="ghost"
-            :disabled="locked || attributesConflicted"
-            :title="attributesConflicted ? '资料属性有冲突，请先处理冲突' : undefined"
-            @click="review.decide(tab.key, 'accept', 'attributes')"
-            >接受属性</AppButton
-          >
+          <AppTooltip :text="attributesConflicted ? '资料属性有冲突，请先处理冲突' : undefined">
+            <AppButton
+              size="xs"
+              variant="ghost"
+              :disabled="locked || attributesConflicted"
+              @click="review.decide(tab.key, 'accept', 'attributes')"
+              >接受属性</AppButton
+            >
+          </AppTooltip>
         </template>
       </div>
       <dl class="review-attribute-fields">

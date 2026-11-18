@@ -10,6 +10,7 @@ import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppSwitch } from '@/components/AppSwitch';
 import { AppTextarea } from '@/components/AppTextarea';
+import { AppTooltip } from '@/components/AppTooltip';
 
 const props = withDefaults(
   defineProps<{ entries: AgentInstructions; disabled?: boolean; label: string; layout?: 'split' | 'stacked' }>(),
@@ -89,29 +90,35 @@ function remove() {
       >
       <fieldset v-if="current" :disabled="disabled" class="instruction-detail agent-form">
         <div class="agent-row instruction-actions">
-          <AppButton
-            type="button"
-            icon
-            size="sm"
-            variant="ghost"
-            aria-label="上移指令"
-            :disabled="selected === 0"
-            @click="move(-1)"
-            ><span class="i-mingcute-arrow-up-line size-4" aria-hidden="true"
-          /></AppButton>
-          <AppButton
-            type="button"
-            icon
-            size="sm"
-            variant="ghost"
-            aria-label="下移指令"
-            :disabled="selected === entries.length - 1"
-            @click="move(1)"
-            ><span class="i-mingcute-arrow-down-line size-4" aria-hidden="true"
-          /></AppButton>
-          <AppButton type="button" icon size="sm" variant="ghost" aria-label="删除指令" @click="remove"
-            ><span class="i-mingcute-delete-2-line size-4" aria-hidden="true"
-          /></AppButton>
+          <AppTooltip text="上移指令">
+            <AppButton
+              type="button"
+              icon
+              size="sm"
+              variant="ghost"
+              aria-label="上移指令"
+              :disabled="selected === 0"
+              @click="move(-1)"
+              ><span class="i-mingcute-arrow-up-line size-4" aria-hidden="true"
+            /></AppButton>
+          </AppTooltip>
+          <AppTooltip text="下移指令">
+            <AppButton
+              type="button"
+              icon
+              size="sm"
+              variant="ghost"
+              aria-label="下移指令"
+              :disabled="selected === entries.length - 1"
+              @click="move(1)"
+              ><span class="i-mingcute-arrow-down-line size-4" aria-hidden="true"
+            /></AppButton>
+          </AppTooltip>
+          <AppTooltip text="删除指令">
+            <AppButton type="button" icon size="sm" variant="ghost" aria-label="删除指令" @click="remove"
+              ><span class="i-mingcute-delete-2-line size-4" aria-hidden="true"
+            /></AppButton>
+          </AppTooltip>
         </div>
         <label :for="`${prefix}-name`">名称</label>
         <AppInput

@@ -14,6 +14,7 @@ import { AppNumberInput } from '@/components/AppNumberInput';
 import { AppScrollArea } from '@/components/AppScrollArea';
 import { AppSelect, AppSelectItem } from '@/components/AppSelect';
 import { AppTextarea } from '@/components/AppTextarea';
+import { AppTooltip } from '@/components/AppTooltip';
 import { SettingsSectionView as SettingsSection } from '@/features/settings';
 import { getDesktopApi, toErrorMessage } from '@/utils/desktop-api';
 
@@ -233,13 +234,10 @@ function setInput(model: NativeModel, image: boolean) {
                 confirm-label="删除"
                 @confirm="removeProvider"
                 ><template #trigger
-                  ><AppButton
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    :disabled="providerBusy || !!pending"
-                    :title="providerBusy ? '有模型正在生成内容，结束后再删除' : undefined"
-                    >删除供应商</AppButton
+                  ><AppTooltip :text="providerBusy ? '有模型正在生成内容，结束后再删除' : undefined"
+                    ><AppButton type="button" variant="ghost" size="sm" :disabled="providerBusy || !!pending"
+                      >删除供应商</AppButton
+                    ></AppTooltip
                   ></template
                 ></AppAlertDialog
               >
@@ -372,13 +370,10 @@ function setInput(model: NativeModel, image: boolean) {
                     confirm-label="删除"
                     @confirm="removeModel(model)"
                     ><template #trigger
-                      ><AppButton
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        :disabled="modelBusy(model) || !!pending"
-                        :title="modelBusy(model) ? '正在生成内容，结束后再删除' : undefined"
-                        >删除模型</AppButton
+                      ><AppTooltip :text="modelBusy(model) ? '正在生成内容，结束后再删除' : undefined"
+                        ><AppButton type="button" variant="ghost" size="sm" :disabled="modelBusy(model) || !!pending"
+                          >删除模型</AppButton
+                        ></AppTooltip
                       ></template
                     ></AppAlertDialog
                   >

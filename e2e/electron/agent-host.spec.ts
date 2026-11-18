@@ -280,7 +280,7 @@ test('真实宿主保存模型、创建独立会话，刷新界面后读取同�
   expect(await readFile(file, 'utf8')).toBe(original);
 });
 
-test('界面管理多个模型、直接聊天与切换会话，移动视图保留草稿，长指令可滚动', async () => {
+test('界面管理多个模型、直接聊天与切换会话，各会话草稿独立，长指令可滚动', async () => {
   await createWork();
   /** 标题即会话切换入口；其余会话操作在「更多」菜单里。 */
   async function switchSession(title: string) {
@@ -371,6 +371,19 @@ test('界面管理多个模型、直接聊天与切换会话，移动视图保�
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
   await settings.getByRole('button', { name: '写作指令', exact: true }).click();
   await expect(settings.getByLabel('指令内容', { exact: true })).toHaveValue(long);
+});
+
+test('禁用的按钮悬停时仍显示说明', async () => {
+  await createWork();
+  await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  const settings = page.getByRole('dialog');
+  await settings.getByRole('button', { name: '写作指令', exact: true }).click();
+  // 只有一条指令时不能上移。
+  const up = settings.getByRole('button', { name: '上移指令', exact: true });
+  await expect(up).toBeDisabled();
+  const box = (await up.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.getByRole('tooltip')).toHaveText('上移指令');
 });
 
 test('会话用量可用键盘查看，手动压缩走真实宿主且保留草稿', async () => {

@@ -38,6 +38,20 @@ function staticClasses(node: unknown): string[] {
   return [...own, ...children.flatMap(staticClasses)];
 }
 
+/** 悬停提示的两种写错：图标按钮没包 AppTooltip；提示的触发节点又写了原生 title，悬停时会出现两个提示。 */
+function tooltipIssues(node: unknown, parent = ''): string[] {
+  if (!node || typeof node !== 'object') return [];
+  const tag = 'tag' in node && typeof node.tag === 'string' ? node.tag : '';
+  const props = 'props' in node && Array.isArray(node.props) ? node.props : [];
+  const names = new Set(props.map(prop => (prop.type === 6 ? prop.name : prop.arg?.content)));
+  const issues = [
+    ...(tag === 'AppButton' && names.has('icon') && parent !== 'AppTooltip' ? ['图标按钮没有 AppTooltip'] : []),
+    ...(parent === 'AppTooltip' && names.has('title') ? [`<${tag}> 同时有 AppTooltip 和 title`] : [])
+  ];
+  const children = 'children' in node && Array.isArray(node.children) ? node.children : [];
+  return [...issues, ...children.flatMap(child => tooltipIssues(child, tag))];
+}
+
 function undersizedFonts(source: string): string[] {
   // 根字号沿用浏览器的 16px；这里只检查明确的字号声明，不把间距、图标尺寸或正文算进去。
   return [...source.matchAll(/(?:font-size\s*:\s*|text-\[(?:length:)?)(\d*\.?\d+)(px|rem)\b/g)]
@@ -105,6 +119,30 @@ describe('UI 一致性约束', () => {
     }
     expect(scanned).toBeGreaterThan(0);
     expect(violations).toEqual([]);
+  });
+
+  it('提示守卫识别没包提示的图标按钮和重复的原生 title', () => {
+    const issues = (template: string) =>
+      tooltipIssues(parse(`<template>${template}</template>`).descriptor.template?.ast);
+    expect(issues('<AppTooltip text="删除"><AppButton icon aria-label="删除" /></AppTooltip>')).toEqual([]);
+    expect(issues('<AppButton title="完整标题">保存</AppButton>')).toEqual([]);
+    expect(issues('<div><AppButton icon aria-label="删除" /></div>')).toEqual(['图标按钮没有 AppTooltip']);
+    expect(issues('<AppTooltip text="删除"><button :title="reason" /></AppTooltip>')).toEqual([
+      '<button> 同时有 AppTooltip 和 title'
+    ]);
+  });
+
+  it('图标按钮的名称由 AppTooltip 显示，提示的触发节点不再写原生 title', async () => {
+    const issues: string[] = [];
+    for (const directory of ['components', 'features', 'layouts']) {
+      const filenames = await readdir(path.join(root, directory), { recursive: true });
+      for (const filename of filenames.filter(name => name.endsWith('.vue'))) {
+        const file = path.join(root, directory, filename);
+        const { descriptor } = parse(await readFile(file, 'utf8'), { filename: file });
+        issues.push(...tooltipIssues(descriptor.template?.ast).map(issue => `${directory}/${filename}: ${issue}`));
+      }
+    }
+    expect(issues).toEqual([]);
   });
 
   it('只收集模板里写死的类名', () => {

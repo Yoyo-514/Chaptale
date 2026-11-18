@@ -33,8 +33,7 @@ const props = withDefaults(
 const attrs = useAttrs();
 const rootAttrs = computed(() => {
   const { class: _class, ...rest } = attrs;
-  const title = rest.title ?? (props.icon ? rest['aria-label'] : undefined);
-  return { ...rest, title: typeof title === 'string' ? title : undefined };
+  return rest;
 });
 const buttonClassName = computed(() =>
   cn(
@@ -64,7 +63,7 @@ const buttonClassName = computed(() =>
 
 <style lang="scss">
 .app-button {
-  @apply inline-flex min-w-0 shrink-0 items-center justify-center gap-2 border font-medium outline-none transition-colors duration-150 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex min-w-0 shrink-0 items-center justify-center gap-2 border font-medium outline-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60;
 
   border-radius: var(--radius-control);
   font-size: var(--ui-font-size);

@@ -260,9 +260,11 @@ function confirmBranchAction() {
       </template>
       <AppDropdownMenu align="end" content-size="sm" @close-auto-focus="focusRename">
         <template #trigger>
-          <AppButton icon size="sm" variant="ghost" aria-label="更多会话操作">
-            <span class="i-mingcute-more-1-line size-4" aria-hidden="true" />
-          </AppButton>
+          <AppTooltip text="更多会话操作">
+            <AppButton icon size="sm" variant="ghost" aria-label="更多会话操作">
+              <span class="i-mingcute-more-1-line size-4" aria-hidden="true" />
+            </AppButton>
+          </AppTooltip>
         </template>
         <AppDropdownMenuItem
           density="sm"
@@ -360,9 +362,11 @@ function confirmBranchAction() {
             @click="openModelSettings"
             >模型设置</AppButton
           >
-          <AppButton type="button" icon size="xs" variant="ghost" aria-label="关闭提示" @click="agent.dismissError">
-            <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
-          </AppButton>
+          <AppTooltip text="关闭提示">
+            <AppButton type="button" icon size="xs" variant="ghost" aria-label="关闭提示" @click="agent.dismissError">
+              <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
+            </AppButton>
+          </AppTooltip>
         </div>
       </div>
       <MessageComposer />
@@ -386,9 +390,11 @@ function confirmBranchAction() {
           aria-hidden="true"
         />
         <span class="agent-banner-text">{{ banner.formatted.summary }}</span>
-        <AppButton type="button" icon size="xs" variant="ghost" aria-label="关闭提示" @click="agent.dismissError">
-          <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
-        </AppButton>
+        <AppTooltip text="关闭提示">
+          <AppButton type="button" icon size="xs" variant="ghost" aria-label="关闭提示" @click="agent.dismissError">
+            <span class="i-mingcute-close-line size-3.5" aria-hidden="true" />
+          </AppButton>
+        </AppTooltip>
       </div>
     </div>
   </section>

@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { CLOUD_PROVIDER_LABELS, type CloudProvider } from '@chaptale/desktop/bridge';
 
 import { AppButton } from '@/components/AppButton';
+import { AppTooltip } from '@/components/AppTooltip';
 
 import { useCloudSyncStore } from '../store';
 
@@ -27,9 +28,11 @@ const providers = computed(() =>
   <section class="cloud-section" aria-labelledby="cloud-accounts-title">
     <div class="cloud-heading">
       <h4 id="cloud-accounts-title">账户</h4>
-      <AppButton icon variant="ghost" aria-label="刷新云端账户" :disabled="cloud.isLoading" @click="cloud.load()">
-        <span class="i-mingcute-refresh-3-line size-4" aria-hidden="true" />
-      </AppButton>
+      <AppTooltip text="刷新云端账户">
+        <AppButton icon variant="ghost" aria-label="刷新云端账户" :disabled="cloud.isLoading" @click="cloud.load()">
+          <span class="i-mingcute-refresh-3-line size-4" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
     </div>
     <p v-if="cloud.isLoading && !cloud.state" class="cloud-muted" role="status">正在读取登录状态…</p>
     <ul v-else class="cloud-providers">

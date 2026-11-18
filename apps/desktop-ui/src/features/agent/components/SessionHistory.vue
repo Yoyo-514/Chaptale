@@ -224,13 +224,12 @@ async function assign(entry: SessionEntry) {
               </PopoverContent>
             </PopoverPortal>
           </PopoverRoot>
-          <AppTooltip v-if="sessionId(entry)" text="删除会话">
+          <AppTooltip v-if="sessionId(entry)" :text="running(entry) ? '运行中，停止后才能删除' : '删除会话'">
             <AppButton
               variant="ghost"
               size="xs"
               class="session-delete"
               :disabled="running(entry)"
-              :title="running(entry) ? '运行中，停止后才能删除' : undefined"
               :aria-label="`删除${entry.title}`"
               @click="askRemove(targetsOf(entry))"
               ><span class="i-mingcute-delete-2-line size-3.5" aria-hidden="true"

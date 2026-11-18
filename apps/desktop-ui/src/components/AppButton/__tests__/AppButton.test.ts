@@ -30,6 +30,13 @@ describe('AppButton', () => {
     expect(wrapper.attributes()).toHaveProperty('disabled');
   });
 
+  it('keeps the accessible name of an icon button without adding a native title', () => {
+    const wrapper = mount(AppButton, { props: { icon: true }, attrs: { 'aria-label': '删除' } });
+
+    expect(wrapper.attributes('aria-label')).toBe('删除');
+    expect(wrapper.attributes('title')).toBeUndefined();
+  });
+
   it('merges variant classes with external class attrs', () => {
     const wrapper = mount(AppButton, {
       props: {
