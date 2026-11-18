@@ -31,6 +31,10 @@ agent-host 子路径入口：`.`（会话池与模型运行时）、`./applicati
 
 creation 子路径入口：`.`（作品服务与仓储接口）、`./contracts`（纯数据契约）、`./application`（作者请求入口）。`@chaptale/storage` 导出 `openCreationStorage`，实现 creation 定义的 `CreationRepository`，由启动代码注入。Renderer 只使用业务纯契约与应用客户端；依赖方向与循环依赖由 oxlint 检查。
 
+agent-host 内部按领域分目录：`protocol/`、`application/`、`conversation/`、`permissions/`、`work/`、`instructions/`、`skills/`、`mcp/`、`runtime/`、`session/`、`settings/`、`tools/`。`protocol/` 只放纯类型与持久化常量。
+
+desktop-ui 的 feature 依赖自下而上：`notifications` → `settings`、`creation`、`workbench` → `story`、`cloud-sync` → `editor` → `explorer`、`agent` → `shell`。设置页分区放在拥有数据的 feature，面板外壳在 `shell`；下层需要上层能力时由 `layouts/` 接入，不反向导入。
+
 桌面 preload、主进程与 Renderer 共用 `apps/desktop/src/bridge/`：`@chaptale/desktop/bridge` 入口只导出纯类型与无 Electron 依赖的常量、守卫；参数校验器（`bridge/schemas`、`app.ts`、`window.ts` 中的 Validator）只给 main 与 preload；Electron 通道归 `bridge/channels.ts`，主进程桥接归 `application-host/ipc.ts`。
 
 ## 环境与命令
@@ -173,7 +177,7 @@ pnpm test:unit                     # 全仓单测，较慢
 - **风险机制**：业务组件绕过公共控件或导入内部文件会破坏界面和依赖约束；导入了错误的包入口、或夹具缺少系统指令，会在到达被测行为前失败。
 - **实施要求**：
   - 业务表单使用 `AppInput` 等通用控件；`ui-consistency.test.ts` 检查原生 `input`、`select` 和 `textarea`。需要聚焦原生输入时，按组件实际结构获取内部节点。
-  - 跨 feature 只使用目标的 `index.ts` 公共出口，由 `feature-public-api.test.ts` 检查。`HostModelConfiguration` 从 `@chaptale/agent-host` 导出；桌面测试客户端类型从 `@chaptale/desktop/bridge` 导入。
+  - 跨 feature 只使用目标的 `index.ts` 公共出口，feature 之间的依赖不成环，均由 `feature-public-api.test.ts` 检查。`HostModelConfiguration` 从 `@chaptale/agent-host` 导出；桌面测试客户端类型从 `@chaptale/desktop/bridge` 导入。
   - 创建 SDK 会话的夹具提供非空 system 指令。经过会吞入错误状态的 store 入口后，先检查 `agent.error`，再断言业务结果。
 - **核查重点**：公共出口、控件守卫、夹具创建结果，以及失败实际发生在哪个入口。
 
