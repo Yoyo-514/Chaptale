@@ -103,14 +103,10 @@ export function editDetail({ tool, input, value }: WorkToolCall): ToolDetailCont
   return { meta, ...(edits && { edits }) };
 }
 
-/** work_ls、work_find、work_search：条目或作品列表。 */
+/** work_ls、work_find：条目或作品列表。 */
 export function entryListDetail({ tool, value }: WorkToolCall): ToolDetailContent {
-  const meta: string[] = [];
-  const searchObj = tool.name === 'work_search' ? asRecord(value) : undefined;
-  const list = Array.isArray(value) ? value : Array.isArray(searchObj?.entries) ? searchObj.entries : undefined;
-  if (searchObj?.hasMore === true) meta.push('还有更多结果');
-  if (!list) return { meta };
-  const items = asRecords(list).map((item, idx): ToolDetailItem => {
+  if (!Array.isArray(value)) return { meta: [] };
+  const items = asRecords(value).map((item, idx): ToolDetailItem => {
     if (!('entryId' in item) && !('section' in item) && typeof item.workId === 'string') {
       return {
         key: item.workId,
@@ -120,7 +116,7 @@ export function entryListDetail({ tool, value }: WorkToolCall): ToolDetailConten
     }
     return mapEntryItem(item, idx);
   });
-  return listContent(meta, items, tool.name === 'work_ls' ? '目录为空' : '无匹配条目');
+  return listContent([], items, tool.name === 'work_ls' ? '目录为空' : '无匹配条目');
 }
 
 /** work_grep：命中的行。 */

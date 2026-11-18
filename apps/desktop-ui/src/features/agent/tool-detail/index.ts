@@ -1,5 +1,6 @@
 import type { ToolActivity } from '../transcript';
 import { editDetail, entryChangeDetail, entryListDetail, grepDetail, readDetail, writeDetail } from './entries';
+import { searchDetail } from './search';
 import { asRecord, extractEdits } from './shared';
 import { recordListDetail, recordWriteDetail, relationListDetail, relationWriteDetail } from './story';
 import type { EntryLookup, ParsedToolDetail, ToolDetailContent, WorkToolCall } from './types';
@@ -53,7 +54,7 @@ const workTools = new Map<string, (call: WorkToolCall) => ToolDetailContent>([
   ['work_edit', editDetail],
   ['work_ls', entryListDetail],
   ['work_find', entryListDetail],
-  ['work_search', entryListDetail],
+  ['work_search', searchDetail],
   ['work_grep', grepDetail],
   ['work_mkdir', entryChangeDetail],
   ['work_mv', entryChangeDetail],

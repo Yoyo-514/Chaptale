@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@chaptale/creation": "workspace:*",
-    "@node-rs/jieba": "catalog:",
     "better-sqlite3": "catalog:"
   },
   "devDependencies": {

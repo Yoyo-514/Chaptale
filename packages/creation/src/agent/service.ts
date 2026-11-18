@@ -23,6 +23,7 @@ import { illustrationIds } from '../text.ts';
 import { proposeEntry, type EntryWriteCommand } from './proposal.ts';
 import type { AgentRecordService } from './records.ts';
 import type { AgentRelationService } from './relations.ts';
+import { searchWork } from './search.ts';
 
 type AgentValue = Extract<CreationAgentCommands[keyof CreationAgentCommands]['output'], { ok: true }>['value'];
 
@@ -85,20 +86,12 @@ export class CreationAgentService {
           pending: true
         };
       }
-      case 'searchDocuments': {
-        if (context.mode !== 'review') return this.creation.searchDocuments(command.input);
-        const { workId } = command.input;
-        const changes = this.review.list(workId, context.sessionId);
-        const candidates = changes
-          .filter(change => change.target === 'entry' && !change.deleted)
-          .map(change => (this.review.read(change.id) as EntryReviewView).candidate);
-        const visible = new Set(this.entries(workId, context.sessionId).map(entry => entry.id));
-        const hidden = this.creation
-          .listEntries(workId)
-          .filter(entry => !visible.has(entry.id))
-          .map(entry => entry.id);
-        return this.repository.work(command.input.workId).searchDocuments(command.input, candidates, hidden);
-      }
+      case 'searchWork':
+        return searchWork(
+          { repository: this.repository, review: this.review, records: this.records, relations: this.relations },
+          context,
+          command.input
+        );
       case 'listRecords':
         return this.records.list(context, command.input);
       case 'createRecord':

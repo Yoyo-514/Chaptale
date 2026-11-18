@@ -81,7 +81,7 @@ export function toolResultInfo(details: unknown): ToolResultInfo | undefined {
   const entry = object(value.entry) ?? value;
   const record = object(value.record);
   const relation = object(value.relation);
-  const entries = value.entries ?? value.relations;
+  const entries = value.entries ?? value.relations ?? value.hits;
   return {
     ...(typeof entry.workId === 'string' && { workId: entry.workId }),
     ...(typeof entry.entryId === 'string' && { entryId: entry.entryId }),

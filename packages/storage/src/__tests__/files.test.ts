@@ -9,6 +9,7 @@ import { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult, Entry } from '@chaptale/creation/contracts';
 
 import { openCreationStorage } from '../index.ts';
+import { searchWork } from './fixtures/search.ts';
 
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -127,13 +128,10 @@ it('改名、移动记录修订且文件名不变，检索按名称命中', asyn
   );
   expect(moved.parentId).toBe(folder.id);
   expect(value(await locate(entry!)).path.endsWith('lin.png')).toBe(true);
-  const page = value(
-    app().executeAuthor({
-      method: 'searchDocuments',
-      input: { workId: work.id, query: '立绘', offset: 0, limit: 10 }
-    })
-  );
-  expect(page.entries.map(item => item.id)).toEqual([entry!.id]);
+  // 文件条目只按名称匹配，没有可返回的段落。
+  expect(searchWork(app(), { workId: work.id, query: '立绘' }).hits).toMatchObject([
+    { kind: 'entry', entry: { id: entry!.id }, passages: [] }
+  ]);
 });
 
 it('移入回收站时保留文件，恢复后可用，永久清空时删除文件', async () => {

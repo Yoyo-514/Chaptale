@@ -215,6 +215,110 @@ describe('parseToolDetail', () => {
     ]);
   });
 
+  it('work_search 把段落、事件和关系按命中顺序列出，标明行号、进度截断与不随进度的资料', () => {
+    const lookup = (id: string) =>
+      ({
+        r1: { workId: 'w1', entryId: 'r1', title: '贾母', kind: 'document' as const },
+        r2: { workId: 'w1', entryId: 'r2', title: '林黛玉', kind: 'document' as const },
+        c3: { workId: 'w1', entryId: 'c3', title: '第三回', kind: 'document' as const }
+      })[id];
+    const entry = { workId: 'w1', kind: 'document', section: 'manuscript' };
+    const detail = parseToolDetail(
+      activity({
+        name: 'work_search',
+        input: { workId: 'w1', query: '黛玉', offset: 0, limit: 10, asOf: 'c3' },
+        result: {
+          error: false,
+          text: JSON.stringify({
+            ok: true,
+            value: {
+              hits: [
+                {
+                  kind: 'entry',
+                  entry: { ...entry, entryId: 'c3', title: '第三回' },
+                  pending: true,
+                  ignoresAsOf: false,
+                  passages: [
+                    { startLine: 4, endLine: 6, text: '黛玉方进入房时。' },
+                    { startLine: 12, endLine: 12, text: '黛玉一一拜见过。' }
+                  ]
+                },
+                {
+                  kind: 'record',
+                  record: {
+                    recordId: 'rec-1',
+                    resourceIds: ['r2'],
+                    text: '黛玉初进荣国府',
+                    placement: { kind: 'chapter', chapterId: 'c3' },
+                    storyTime: ''
+                  }
+                },
+                {
+                  kind: 'relation',
+                  relation: {
+                    relationId: 'rel-1',
+                    resourceIds: ['r1', 'r2'],
+                    type: '祖孙',
+                    directed: true,
+                    titles: ['外祖母', '外孙女'],
+                    state: 'active',
+                    milestones: []
+                  }
+                },
+                {
+                  kind: 'entry',
+                  entry: { ...entry, entryId: 'r2', title: '林黛玉', section: 'resource' },
+                  pending: false,
+                  ignoresAsOf: true,
+                  passages: []
+                },
+                {
+                  kind: 'entry',
+                  entry: { ...entry, entryId: 'f1', title: '黛玉立绘', section: 'resource', kind: 'file' },
+                  pending: false,
+                  ignoresAsOf: true,
+                  passages: []
+                }
+              ],
+              hasMore: true
+            }
+          })
+        }
+      }),
+      lookup
+    );
+
+    expect(detail.meta).toEqual(['只到《第三回》', '还有更多结果']);
+    const chapter = { workId: 'w1', entryId: 'c3', title: '第三回' };
+    expect(detail.items).toEqual([
+      { key: 'c3:4', target: chapter, meta: '第 4–6 行 · 待审', snippet: '黛玉方进入房时。' },
+      { key: 'c3:12', target: chapter, meta: '第 12 行 · 待审', snippet: '黛玉一一拜见过。' },
+      { key: 'rec-1', label: '黛玉初进荣国府', meta: '林黛玉 · 发生于《第三回》' },
+      {
+        key: 'rel-1',
+        target: { workId: 'w1', entryId: 'r1', title: '贾母' },
+        connector: '→',
+        secondaryTarget: { workId: 'w1', entryId: 'r2', title: '林黛玉' },
+        meta: '祖孙（外祖母 / 外孙女） · 持续中'
+      },
+      {
+        key: 'r2',
+        target: { workId: 'w1', entryId: 'r2', title: '林黛玉' },
+        meta: '资料 · 名称命中 · 不随进度'
+      },
+      { key: 'f1', label: '黛玉立绘', meta: '文件 · 名称命中 · 不随进度' }
+    ]);
+
+    const empty = parseToolDetail(
+      activity({
+        name: 'work_search',
+        input: { workId: 'w1', query: '宝钗', offset: 0, limit: 10 },
+        result: { error: false, text: JSON.stringify({ ok: true, value: { hits: [], hasMore: false } }) }
+      })
+    );
+    expect(empty).toMatchObject({ meta: [], items: [], emptyText: '无匹配内容' });
+  });
+
   it('codemode 拆出执行耗时与标准输出，失败 CreationResult 提取可读错误消息', () => {
     const cm = parseToolDetail(
       activity({

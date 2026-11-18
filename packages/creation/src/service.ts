@@ -11,8 +11,6 @@ import type {
   CreationEvent,
   CreationSnapshot,
   Document,
-  DocumentSearchPage,
-  SearchDocumentsInput,
   DraftState,
   Entry,
   MoveEntryInput,
@@ -119,9 +117,6 @@ export class CreationService {
   }
   readDocument(workId: string, documentId: string): Document {
     return content.readDocument(this.repository.work(workId), documentId);
-  }
-  searchDocuments(input: SearchDocumentsInput): DocumentSearchPage {
-    return this.repository.work(input.workId).searchDocuments(input);
   }
 
   createEntry(input: CreateEntryInput): Entry {

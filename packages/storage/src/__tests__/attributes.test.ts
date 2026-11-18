@@ -8,6 +8,7 @@ import { CreationApplication } from '@chaptale/creation/application';
 import type { CreationResult, Entry, ResourceAttributes } from '@chaptale/creation/contracts';
 
 import { openCreationStorage } from '../index.ts';
+import { searchEntries } from './fixtures/search.ts';
 
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -91,11 +92,5 @@ it('搜别名能找到资料', async () => {
   const { app, work, create, save } = await workspace();
   const resource = create('resource', '林晚');
   value(save(resource, { type: '人物', aliases: ['青鸟'], tags: [], cover: null }));
-  const page = value(
-    app().executeAuthor({
-      method: 'searchDocuments',
-      input: { workId: work.id, query: '青鸟', offset: 0, limit: 10 }
-    })
-  );
-  expect(page.entries.map(entry => entry.id)).toEqual([resource.id]);
+  expect(searchEntries(app(), { workId: work.id, query: '青鸟' }).map(entry => entry.id)).toEqual([resource.id]);
 });

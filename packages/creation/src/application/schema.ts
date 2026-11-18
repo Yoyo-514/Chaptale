@@ -111,13 +111,6 @@ const inputs = {
   listEntries: object({ workId: id }),
   readWritingGuidelines: object({ workId: id }),
   writeWritingGuidelines: object({ commandId: id, workId: id, writingGuidelines: text }),
-  searchDocuments: object({
-    workId: id,
-    query: Type.String({ minLength: 1, pattern: '\\S' }),
-    section: Type.Optional(entryInput.section),
-    offset,
-    limit: Type.Integer({ minimum: 1 })
-  }),
   readSessionState: object({}),
   selectSession: object({ sessionId: parentId, workId: parentId }),
   forgetSessions: object({ sessionIds: Type.Array(id) }),
@@ -214,7 +207,14 @@ export const agentInputs = {
   listWorks: inputs.listWorks,
   listEntries: inputs.listEntries,
   readDocument: inputs.readDocument,
-  searchDocuments: inputs.searchDocuments,
+  searchWork: object({
+    workId: id,
+    query: Type.String({ minLength: 1, pattern: '\\S' }),
+    section: Type.Optional(entryInput.section),
+    asOf: Type.Optional(id),
+    offset,
+    limit: Type.Integer({ minimum: 1 })
+  }),
   createEntry: Type.Union([
     object({ ...entryInput, kind: Type.Literal('directory') }),
     object({

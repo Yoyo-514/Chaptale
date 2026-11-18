@@ -7,8 +7,6 @@ import type {
   CreationEvent,
   CreationSnapshot,
   Document,
-  DocumentSearchPage,
-  SearchDocumentsInput,
   DraftState,
   Entry,
   EntrySnapshot,
@@ -53,6 +51,32 @@ export type CommitResult =
   | StoryRecord
   | StoryRelation
   | { count: number };
+
+/** 一并参与检索的事件或关系；涉及资料的标题与别名也能搜到它。 */
+export interface SearchNote {
+  kind: 'record' | 'relation';
+  id: string;
+  resourceIds: readonly string[];
+  text: string;
+}
+
+/** 关键词检索的范围：正式条目索引，加上覆盖正式正文的 candidates 和 notes，去掉 hidden 中的条目。 */
+export interface WorkSearchQuery {
+  query: string;
+  section?: Entry['section'];
+  offset: number;
+  limit: number;
+  candidates: readonly EntrySnapshot[];
+  hidden: readonly string[];
+  notes: readonly SearchNote[];
+}
+
+/** 按相关度排列的命中；terms 为查询切出的词，供挑选命中段落。 */
+export interface WorkSearchMatches {
+  terms: string[];
+  matches: { kind: 'entry' | SearchNote['kind']; id: string }[];
+  hasMore: boolean;
+}
 
 /** 事件的一次修订；顺序不进入修订。 */
 export interface RecordRevision {
@@ -144,12 +168,7 @@ export interface WorkRepository {
   filesDir(): string;
   /** 文件条目独占的目录，存放添加时复制的文件。 */
   entryFileDir(entryId: string): string;
-  /** candidates 覆盖正式正文，hidden 为会话中待删除、不参与检索的条目。 */
-  searchDocuments(
-    input: SearchDocumentsInput,
-    candidates?: readonly EntrySnapshot[],
-    hidden?: readonly string[]
-  ): DocumentSearchPage;
+  searchWork(query: WorkSearchQuery): WorkSearchMatches;
   getRevision(revisionId: string): Revision | undefined;
   /** 正文与前一修订不同的修订，最新在前。 */
   listRevisions(entryId: string): RevisionSummary[];

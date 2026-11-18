@@ -7,6 +7,7 @@ import { expect, it } from 'vitest';
 import type { EntryReviewView, ResourceAttributePatch, ResourceAttributes } from '@chaptale/creation/contracts';
 
 import { application, target, value } from './fixtures/review.ts';
+import { searchEntries } from './fixtures/search.ts';
 
 type Fixture = Awaited<ReturnType<typeof application>>;
 
@@ -120,13 +121,8 @@ it('Agent 新建资料时属性与正文一起保存为修订，重开后保留�
     content: '守城的将军。',
     attributes: { type: '人物', aliases: ['阿霁'], tags: ['主角'], cover: null }
   });
-  const page = value(
-    fixture.app.executeAuthor({
-      method: 'searchDocuments',
-      input: { workId: fixture.work.id, query: '阿霁', offset: 0, limit: 10 }
-    })
-  );
-  expect(page.entries.map(entry => entry.id)).toEqual([created.entry.id]);
+  const found = searchEntries(fixture.app, { workId: fixture.work.id, query: '阿霁' });
+  expect(found.map(entry => entry.id)).toEqual([created.entry.id]);
 });
 
 it('Agent 单独更新传入的属性，数组整体替换并可清空；命令重试保持同一修订', async () => {
@@ -279,17 +275,10 @@ it('属性候选与别名检索只在本会话可见，接受后进入正式检�
   const fixture = await application();
   const document = resource(fixture);
   const change = proposeAttributes(fixture, document.id, { aliases: ['青鸟'] });
-  const command = {
-    method: 'searchDocuments' as const,
-    input: { workId: fixture.work.id, query: '青鸟', offset: 0, limit: 10 }
-  };
-  expect(
-    value(fixture.app.executeAgent<'searchDocuments'>(fixture.context, command)).entries.map(entry => entry.id)
-  ).toEqual([document.id]);
-  expect(value(fixture.app.executeAuthor<'searchDocuments'>(command)).entries).toEqual([]);
-  expect(
-    value(fixture.app.executeAgent<'searchDocuments'>({ ...fixture.context, sessionId: 'session-b' }, command)).entries
-  ).toEqual([]);
+  const query = { workId: fixture.work.id, query: '青鸟' };
+  expect(searchEntries(fixture.app, query, fixture.context).map(entry => entry.id)).toEqual([document.id]);
+  expect(searchEntries(fixture.app, query)).toEqual([]);
+  expect(searchEntries(fixture.app, query, { ...fixture.context, sessionId: 'session-b' })).toEqual([]);
   await fixture.reopen();
   expect(
     value(
@@ -304,9 +293,7 @@ it('属性候选与别名检索只在本会话可见，接受后进入正式检�
       })
     ).status
   ).toBe('accepted');
-  expect(value(fixture.app.executeAuthor<'searchDocuments'>(command)).entries.map(entry => entry.id)).toEqual([
-    document.id
-  ]);
+  expect(searchEntries(fixture.app, query).map(entry => entry.id)).toEqual([document.id]);
 });
 
 it('属性候选保留作者后选的封面，Agent 不能提交封面字段', async () => {

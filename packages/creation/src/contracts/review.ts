@@ -301,10 +301,11 @@ export interface CreationAgentCommands extends CreationReadCommands {
     input: { workId: string; documentId: string };
     output: CreationResult<Document & { pending: boolean }>;
   };
+  searchWork: { input: SearchWorkInput; output: CreationResult<WorkSearchPage> };
   /** 审阅模式包含本会话候选（pending 为 true）；asOf 为章节 ID 时只返回截至该章发生的事件和待定事件；sourceChanged 表示出处章节正文在核对后改过。 */
   listRecords: {
     input: { workId: string; resourceId: string | null; sourceId: string | null; asOf: string | null };
-    output: CreationResult<(StoryRecord & { sourceChanged: boolean; pending: boolean })[]>;
+    output: CreationResult<AgentRecord[]>;
   };
   createRecord: { input: CreateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
   updateRecord: { input: UpdateRecordInput & { basis: string }; output: CreationResult<AgentWriteResult> };
@@ -312,20 +313,52 @@ export interface CreationAgentCommands extends CreationReadCommands {
   /** 审阅模式包含本会话候选（pending 为 true）；state 按 asOf 计算，types 为可选关系类型。 */
   listRelations: {
     input: { workId: string; resourceId: string | null; asOf: string | null };
-    output: CreationResult<{
-      relations: (Omit<StoryRelation, 'milestones'> & {
-        milestones: (RelationMilestone & { sourceChanged: boolean })[];
-        state: RelationState;
-        pending: boolean;
-      })[];
-      types: RelationType[];
-    }>;
+    output: CreationResult<{ relations: AgentRelation[]; types: RelationType[] }>;
   };
   createRelation: { input: CreateRelationInput & { basis: string }; output: CreationResult<AgentWriteResult> };
   /** 只提交改动：省略的关系字段保持不变，未列出的建立或结束保持不变。 */
   updateRelation: { input: AgentRelationUpdate; output: CreationResult<AgentWriteResult> };
   removeRelation: { input: RemoveRelationInput & { basis: string }; output: CreationResult<AgentWriteResult> };
 }
+/** Agent 看到的事件与关系：pending 为本会话待接受的修改，sourceChanged 表示出处章节正文在核对后改过。 */
+export type AgentRecord = StoryRecord & { sourceChanged: boolean; pending: boolean };
+export type AgentRelation = Omit<StoryRelation, 'milestones'> & {
+  milestones: (RelationMilestone & { sourceChanged: boolean })[];
+  state: RelationState;
+  pending: boolean;
+};
+
+/** 检索正文、资料、事件和关系；section 只留该分区的条目，asOf 为章节 ID 时只到该章。 */
+export interface SearchWorkInput {
+  workId: string;
+  query: string;
+  section?: Entry['section'];
+  asOf?: string;
+  offset: number;
+  limit: number;
+}
+
+/** 命中的一段原文；行号从 1 开始，与按行读取正文一致。 */
+export interface SearchPassage {
+  startLine: number;
+  endLine: number;
+  text: string;
+}
+
+/**
+ * 条目命中附最相关的几段原文，文件条目或只命中标题、别名时为空；pending 表示读到的是本会话待接受的修改。
+ * 资料不随进度，指定 asOf 时资料条目的 ignoresAsOf 为 true。
+ */
+export type WorkSearchHit =
+  | { kind: 'entry'; entry: Entry; pending: boolean; ignoresAsOf: boolean; passages: SearchPassage[] }
+  | { kind: 'record'; record: AgentRecord }
+  | { kind: 'relation'; relation: AgentRelation };
+
+export interface WorkSearchPage {
+  hits: WorkSearchHit[];
+  hasMore: boolean;
+}
+
 /** 建立或结束的改动：新增 id 为 null，修改给出整条内容，移除只需 id。 */
 export type MilestonePatch = MilestoneInput | { id: string; remove: true };
 export interface AgentRelationUpdate extends Partial<Omit<RelationInput, 'milestones'>> {
@@ -339,7 +372,7 @@ export interface AgentRelationUpdate extends Partial<Omit<RelationInput, 'milest
 export type CreationAgentCommand = RpcCommand<CreationAgentCommands>;
 export type AgentWriteCommand = Exclude<
   CreationAgentCommand,
-  { method: keyof CreationReadCommands | 'listRecords' | 'listRelations' }
+  { method: keyof CreationReadCommands | 'searchWork' | 'listRecords' | 'listRelations' }
 >;
 
 export interface ReviewCommands {

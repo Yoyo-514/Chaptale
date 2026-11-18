@@ -26,7 +26,7 @@ const milestoneOutputSchema = object({
   placement: recordPlacementSchema,
   storyTime: Type.String()
 });
-const relationSnapshotSchema = object({
+export const relationSnapshotSchema = object({
   relationId: id,
   revisionId: Type.Optional(nullableId),
   resourceIds: pair(id),

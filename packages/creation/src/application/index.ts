@@ -141,8 +141,6 @@ export class CreationApplication {
         return this.service.writeWritingGuidelines(command.input);
       case 'listEntries':
         return this.service.listEntries(command.input.workId);
-      case 'searchDocuments':
-        return this.service.searchDocuments(command.input);
       case 'readSessionState':
         return this.service.readSessionState();
       case 'selectSession':

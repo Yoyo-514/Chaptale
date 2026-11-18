@@ -47,9 +47,7 @@ export default defineConfig(async () => ({
                 // 与 pi-coding-agent 共用同一份模块实例，连接错误类型才能互相识别。
                 '@earendil-works/pi-mcp',
                 '@earendil-works/pi-mcp/oauth',
-                'better-sqlite3',
-                '@node-rs/jieba',
-                '@node-rs/jieba/dict.js'
+                'better-sqlite3'
               ]
             }
           }

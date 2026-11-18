@@ -6,6 +6,7 @@ import { receiptSchema } from '../commands.ts';
 import { prepareSchema, type SchemaPlan } from '../schema.ts';
 import { recordSchema } from './records.ts';
 import { relationSchema } from './relations.ts';
+import { searchSchema } from './search.ts';
 import { trashSchema } from './trash.ts';
 
 /** 一个作品一个目录：作品库与资料文件条目都放在这里。 */
@@ -77,8 +78,8 @@ export const workSchema: SchemaPlan = {
       tags TEXT NOT NULL,
       cover TEXT
     ) STRICT;
-    CREATE VIRTUAL TABLE document_search USING fts5(entryId UNINDEXED, title, content);
   `);
+    database.exec(searchSchema);
     database.exec(recordSchema);
     database.exec(relationSchema);
     database.exec(trashSchema);

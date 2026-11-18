@@ -8,5 +8,8 @@ export type {
   CommitEffect,
   CommitResult,
   RecordRevision,
-  RelationRevision
+  RelationRevision,
+  SearchNote,
+  WorkSearchMatches,
+  WorkSearchQuery
 } from './repository.ts';

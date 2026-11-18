@@ -1,18 +1,21 @@
 import type Database from 'better-sqlite3';
 
-import type { RecordRevision, RelationRevision, WorkRepository } from '@chaptale/creation';
+import type {
+  RecordRevision,
+  RelationRevision,
+  WorkRepository,
+  WorkSearchMatches,
+  WorkSearchQuery
+} from '@chaptale/creation';
 import type {
   Document,
-  DocumentSearchPage,
   Entry,
-  EntrySnapshot,
   RecordSnapshot,
   RelationSnapshot,
   StoryRelation,
   StoryRecord,
   Revision,
   RevisionSummary,
-  SearchDocumentsInput,
   TrashBatch
 } from '@chaptale/creation/contracts';
 
@@ -21,7 +24,7 @@ import { entryFileDir, workFilesDir } from './database.ts';
 import * as entries from './entries.ts';
 import * as records from './records.ts';
 import * as relations from './relations.ts';
-import { searchDocuments } from './search.ts';
+import { searchWork } from './search.ts';
 import * as trash from './trash.ts';
 
 /** 一部作品的 work.sqlite；连接由组装入口按需打开，每次读写时取用。 */
@@ -87,12 +90,8 @@ export class SqliteWorkRepository implements WorkRepository {
   entryFileDir(entryId: string): string {
     return entryFileDir(this.rootDir, this.workId, entryId);
   }
-  searchDocuments(
-    input: SearchDocumentsInput,
-    candidates?: readonly EntrySnapshot[],
-    hidden?: readonly string[]
-  ): DocumentSearchPage {
-    return searchDocuments(this.connect(), input, candidates, hidden);
+  searchWork(query: WorkSearchQuery): WorkSearchMatches {
+    return searchWork(this.connect(), query);
   }
   getRevision(revisionId: string): Revision | undefined {
     return entries.getRevision(this.connect(), revisionId);

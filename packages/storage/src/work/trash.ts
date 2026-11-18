@@ -5,7 +5,7 @@ import type { Document, Entry, TrashBatch } from '@chaptale/creation/contracts';
 import { entryColumns, readSnapshot } from './entries.ts';
 import * as records from './records.ts';
 import * as relations from './relations.ts';
-import { indexDocument } from './search.ts';
+import { indexDocument, unindexDocument } from './search.ts';
 
 /** 原父目录被永久清空的条目改挂根层级，恢复时排到末尾。 */
 const rootTail = 2_147_483_647;
@@ -43,10 +43,9 @@ export function trashEntries(database: Database.Database, rootIds: readonly stri
         .all(rootId) as { id: string }[]
     ).map(row => row.id);
     const insert = database.prepare('INSERT INTO trash (entryId, batchId, deletedAt) VALUES (?, ?, ?)');
-    const unindex = database.prepare('DELETE FROM document_search WHERE entryId = ?');
     for (const id of ids) {
       insert.run(id, batchId, now);
-      unindex.run(id);
+      unindexDocument(database, id);
     }
     database
       .prepare(

@@ -7,6 +7,7 @@ import type { EntrySnapshot } from '@chaptale/creation/contracts';
 import type { CreationResult, Entry } from '@chaptale/creation/contracts';
 
 import { application, value } from './fixtures/review.ts';
+import { searchEntries, searchWork } from './fixtures/search.ts';
 
 async function setup() {
   const fixture = await application();
@@ -54,8 +55,7 @@ describe('作品回收站', () => {
     ]);
     const read = t.app.executeAuthor({ method: 'readDocument', input: { workId: t.work.id, documentId: chapter.id } });
     expect(read).toMatchObject({ ok: false, error: { message: '条目在回收站中' } });
-    const found = t.author('searchDocuments', { workId: t.work.id, query: '雪夜', limit: 10, offset: 0 });
-    expect(found).toEqual({ entries: [], hasMore: false });
+    expect(searchWork(t.app, { workId: t.work.id, query: '雪夜' })).toEqual({ hits: [], hasMore: false });
     expect(t.author('readTrashedDocument', { workId: t.work.id, documentId: chapter.id })).toMatchObject({
       content: '雪夜的正文'
     });
@@ -72,8 +72,7 @@ describe('作品回收站', () => {
 
     expect(t.titles(null)).toEqual(['序章', '第二章', '第三章']);
     expect(t.batches()).toEqual([]);
-    const found = t.author('searchDocuments', { workId: t.work.id, query: '第二章', limit: 10, offset: 0 });
-    expect(found).toMatchObject({ entries: [expect.objectContaining({ id: second.id })] });
+    expect(searchEntries(t.app, { workId: t.work.id, query: '第二章' })).toMatchObject([{ id: second.id }]);
 
     const last = t.create('第四章', null);
     t.trash(last.id);
@@ -199,12 +198,9 @@ describe('Agent 删除', () => {
     const session = value(t.app.executeAgent(t.context, { method: 'listEntries', input: { workId: t.work.id } }));
     expect(session).toEqual([]);
     const search = (mode: 'review' | 'direct') =>
-      value(
-        t.app.executeAgent(
-          { sessionId: t.context.sessionId, mode },
-          { method: 'searchDocuments', input: { workId: t.work.id, query: '序章', offset: 0, limit: 10 } }
-        )
-      ).entries.map(entry => entry.id);
+      searchEntries(t.app, { workId: t.work.id, query: '序章' }, { sessionId: t.context.sessionId, mode }).map(
+        entry => entry.id
+      );
     expect(search('review')).toEqual([]);
     expect(search('direct')).toEqual([t.document.id]);
 

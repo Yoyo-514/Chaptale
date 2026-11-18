@@ -15,7 +15,7 @@ import {
   type WorkToolKit
 } from './shared.ts';
 
-const recordSnapshotSchema = object({
+export const recordSnapshotSchema = object({
   recordId: id,
   revisionId: Type.Optional(nullableId),
   resourceIds: Type.Array(id),

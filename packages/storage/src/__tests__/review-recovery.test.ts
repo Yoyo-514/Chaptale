@@ -7,6 +7,7 @@ import type { EntrySnapshot } from '@chaptale/creation/contracts';
 import type { DecideReviewInput } from '@chaptale/creation/contracts';
 
 import { application, target, value } from './fixtures/review.ts';
+import { searchEntries } from './fixtures/search.ts';
 
 it.each([false, true])('正式修订提交后本机进度失败，重启凭回执恢复；逐块=%s', async partial => {
   const fixture = await application();
@@ -73,14 +74,7 @@ it('作品提交失败后重启只保留候选，不恢复尚未执行的接受�
       value(fixture.app.executeAuthor({ method: 'listPendingChanges', input: { workId: work.id, sessionId: null } }))
     ).toHaveLength(1);
     expect(fixture.read()).toEqual(before);
-    expect(
-      value(
-        fixture.app.executeAuthor({
-          method: 'searchDocuments',
-          input: { workId: work.id, query: '出征', offset: 0, limit: 10 }
-        })
-      ).entries
-    ).toEqual([]);
+    expect(searchEntries(fixture.app, { workId: work.id, query: '出征' })).toEqual([]);
   } finally {
     fault.close();
   }

@@ -4,6 +4,7 @@ import { expect, it } from 'vitest';
 import type { EntrySnapshot } from '@chaptale/creation/contracts';
 
 import { application, target, value } from './fixtures/review.ts';
+import { searchEntries, searchWork } from './fixtures/search.ts';
 
 it('审阅改稿按会话隔离，接受后生成正式修订', async () => {
   const fixture = await application();
@@ -37,20 +38,21 @@ it('审阅改稿按会话隔离，接受后生成正式修订', async () => {
 it('审阅搜索叠加自己的改稿，其他会话和正式检索保留原文，拒绝后恢复', async () => {
   const { app, work, context, propose } = await application();
   const change = propose('将军出征。\n公主远行。');
-  const search = {
-    method: 'searchDocuments' as const,
-    input: { workId: work.id, query: '出征', offset: 0, limit: 10 }
-  };
-  expect(value(app.executeAgent<'searchDocuments'>(context, search)).entries.map(entry => entry.id)).toEqual([
-    change.targetId
+  const marching = { workId: work.id, query: '出征' };
+  const guarding = { workId: work.id, query: '守城' };
+  // 命中的是候选正文：修订为候选版本，段落取自改稿。
+  expect(searchWork(app, marching, context).hits).toEqual([
+    {
+      kind: 'entry',
+      entry: expect.objectContaining({ id: change.targetId, revisionId: change.version }),
+      pending: true,
+      ignoresAsOf: false,
+      passages: [{ startLine: 1, endLine: 2, text: '将军出征。\n公主远行。' }]
+    }
   ]);
-  expect(value(app.executeAuthor<'searchDocuments'>(search)).entries).toEqual([]);
-  expect(value(app.executeAgent<'searchDocuments'>({ ...context, sessionId: 'session-b' }, search)).entries).toEqual(
-    []
-  );
-  expect(value(app.executeAgent(context, { ...search, input: { ...search.input, query: '守城' } })).entries).toEqual(
-    []
-  );
+  expect(searchEntries(app, marching)).toEqual([]);
+  expect(searchEntries(app, marching, { ...context, sessionId: 'session-b' })).toEqual([]);
+  expect(searchEntries(app, guarding, context)).toEqual([]);
   const view = value(app.executeAuthor({ method: 'readReview', input: { changeId: change.id } }));
   value(
     app.executeAuthor({
@@ -58,10 +60,10 @@ it('审阅搜索叠加自己的改稿，其他会话和正式检索保留原文�
       input: { commandId: randomUUID(), ...target(view), decision: 'reject' }
     })
   );
-  expect(value(app.executeAgent<'searchDocuments'>(context, search)).entries).toEqual([]);
-  expect(
-    value(app.executeAgent(context, { ...search, input: { ...search.input, query: '守城' } })).entries
-  ).toHaveLength(1);
+  expect(searchEntries(app, marching, context)).toEqual([]);
+  expect(searchWork(app, guarding, context).hits).toMatchObject([
+    { kind: 'entry', pending: false, passages: [{ startLine: 1, endLine: 2, text: '将军守城。\n公主远行。' }] }
+  ]);
 });
 
 it('讨论拒绝写入，直接修改生成 Agent 修订并按命令身份重试', async () => {

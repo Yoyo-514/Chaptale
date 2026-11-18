@@ -200,20 +200,6 @@ export interface FileLocation {
   modifiedAt: number;
 }
 
-/** 检索只返回正式条目元数据；正文按文档身份和修订另行读取。 */
-export interface SearchDocumentsInput {
-  workId: string;
-  query: string;
-  section?: Entry['section'];
-  offset: number;
-  limit: number;
-}
-
-export interface DocumentSearchPage {
-  entries: Entry[];
-  hasMore: boolean;
-}
-
 export type CreationResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: CreationError | { code: 'invalid-request' | 'failed'; message: string } };
@@ -228,5 +214,4 @@ export interface CreationReadCommands {
   listEntries: { input: { workId: string }; output: CreationResult<Entry[]> };
   readDocument: { input: { workId: string; documentId: string }; output: CreationResult<Document> };
   readWritingGuidelines: { input: { workId: string }; output: CreationResult<string> };
-  searchDocuments: { input: SearchDocumentsInput; output: CreationResult<DocumentSearchPage> };
 }

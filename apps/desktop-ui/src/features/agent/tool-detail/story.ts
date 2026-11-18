@@ -1,5 +1,5 @@
 import { asRecord, asRecords, entryTarget, listContent, writeStatusLabel } from './shared';
-import type { EntryLookup, ToolDetailContent, ToolDetailItem, WorkToolCall } from './types';
+import type { EntryLookup, JsonRecord, ToolDetailContent, ToolDetailItem, WorkToolCall } from './types';
 
 function formatPlacement(placement: unknown, lookup?: EntryLookup): string | undefined {
   if (placement === 'opening') return '开篇之前';
@@ -43,27 +43,33 @@ function relationEnds(resourceIds: unknown[], lookup?: EntryLookup) {
   return { left, right, pair };
 }
 
+/** 一条事件：文本，附涉及资料、发生位置与故事时间。 */
+export function recordItem(rec: JsonRecord, idx: number, lookup?: EntryLookup): ToolDetailItem {
+  const parts: string[] = [];
+  if (Array.isArray(rec.resourceIds) && lookup) {
+    const names = resourceNames(rec.resourceIds, lookup);
+    if (names.length) parts.push(names.join('、'));
+  }
+  const place = formatPlacement(rec.placement, lookup);
+  if (place) parts.push(place);
+  if (typeof rec.storyTime === 'string' && rec.storyTime) parts.push(rec.storyTime);
+  if (rec.pending === true) parts.push('待审');
+  if (rec.sourceChanged === true) parts.push('出处已更新');
+  return {
+    key: typeof rec.recordId === 'string' ? rec.recordId : String(idx),
+    label: typeof rec.text === 'string' ? rec.text : '',
+    ...(parts.length && { meta: parts.join(' · ') })
+  };
+}
+
 /** work_record_ls：事件列表。 */
 export function recordListDetail({ value, lookup }: WorkToolCall): ToolDetailContent {
   if (!Array.isArray(value)) return { meta: [] };
-  const items = asRecords(value).map((rec, idx): ToolDetailItem => {
-    const parts: string[] = [];
-    if (Array.isArray(rec.resourceIds) && lookup) {
-      const names = resourceNames(rec.resourceIds, lookup);
-      if (names.length) parts.push(names.join('、'));
-    }
-    const place = formatPlacement(rec.placement, lookup);
-    if (place) parts.push(place);
-    if (typeof rec.storyTime === 'string' && rec.storyTime) parts.push(rec.storyTime);
-    if (rec.pending === true) parts.push('待审');
-    if (rec.sourceChanged === true) parts.push('出处已更新');
-    return {
-      key: typeof rec.recordId === 'string' ? rec.recordId : String(idx),
-      label: typeof rec.text === 'string' ? rec.text : '',
-      ...(parts.length && { meta: parts.join(' · ') })
-    };
-  });
-  return listContent([], items, '暂无事件记录');
+  return listContent(
+    [],
+    asRecords(value).map((rec, idx) => recordItem(rec, idx, lookup)),
+    '暂无事件记录'
+  );
 }
 
 /** work_record_write：写入的事件及其依据。 */
@@ -91,28 +97,34 @@ export function recordWriteDetail({ input, value, lookup }: WorkToolCall): ToolD
   return { meta, ...(body && { body }), ...(basis && { basis }) };
 }
 
+/** 一条关系：双方资料，附类型、两端称呼与是否持续。 */
+export function relationItem(rel: JsonRecord, idx: number, lookup?: EntryLookup): ToolDetailItem {
+  const { left, right, pair } = relationEnds(Array.isArray(rel.resourceIds) ? rel.resourceIds : [], lookup);
+  const connector = rel.directed === false ? '↔' : '→';
+  const typeText = typeof rel.type === 'string' ? rel.type : '关系';
+  const parts = [`${typeText}${rolePair(Array.isArray(rel.titles) ? rel.titles : [])}`];
+  if (rel.state === 'active') parts.push('持续中');
+  else if (rel.state === 'ended') parts.push('已结束');
+  if (rel.pending === true) parts.push('待审');
+  const key = typeof rel.relationId === 'string' ? rel.relationId : String(idx);
+  if (pair)
+    return { key, target: pair.target, connector, secondaryTarget: pair.secondaryTarget, meta: parts.join(' · ') };
+  return {
+    key,
+    label: left || right ? `《${left?.title ?? '资料'}》 ${connector} 《${right?.title ?? '资料'}》` : typeText,
+    meta: parts.join(' · ')
+  };
+}
+
 /** work_relation_ls：关系列表。 */
 export function relationListDetail({ value, lookup }: WorkToolCall): ToolDetailContent {
   const res = asRecord(value);
   if (!Array.isArray(res?.relations)) return { meta: [] };
-  const items = asRecords(res.relations).map((rel, idx): ToolDetailItem => {
-    const { left, right, pair } = relationEnds(Array.isArray(rel.resourceIds) ? rel.resourceIds : [], lookup);
-    const connector = rel.directed === false ? '↔' : '→';
-    const typeText = typeof rel.type === 'string' ? rel.type : '关系';
-    const parts = [`${typeText}${rolePair(Array.isArray(rel.titles) ? rel.titles : [])}`];
-    if (rel.state === 'active') parts.push('持续中');
-    else if (rel.state === 'ended') parts.push('已结束');
-    if (rel.pending === true) parts.push('待审');
-    const key = typeof rel.relationId === 'string' ? rel.relationId : String(idx);
-    if (pair)
-      return { key, target: pair.target, connector, secondaryTarget: pair.secondaryTarget, meta: parts.join(' · ') };
-    return {
-      key,
-      label: left || right ? `《${left?.title ?? '资料'}》 ${connector} 《${right?.title ?? '资料'}》` : typeText,
-      meta: parts.join(' · ')
-    };
-  });
-  return listContent([], items, '暂无关系记录');
+  return listContent(
+    [],
+    asRecords(res.relations).map((rel, idx) => relationItem(rel, idx, lookup)),
+    '暂无关系记录'
+  );
 }
 
 /** work_relation_write：写入的关系及其依据。 */
