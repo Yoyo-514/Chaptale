@@ -31,7 +31,7 @@ agent-host 子路径入口：`.`（会话池与模型运行时）、`./applicati
 
 creation 子路径入口：`.`（作品服务与仓储接口）、`./contracts`（纯数据契约）、`./application`（作者请求入口）。`@chaptale/storage` 导出 `openCreationStorage`，实现 creation 定义的 `CreationRepository`，由启动代码注入。Renderer 只使用业务纯契约与应用客户端；依赖方向与循环依赖由 oxlint 检查。
 
-agent-host 内部按领域分目录：`protocol/`、`application/`、`conversation/`、`permissions/`、`work/`、`instructions/`、`skills/`、`mcp/`、`runtime/`、`session/`、`settings/`、`tools/`。`protocol/` 只放纯类型与持久化常量。
+agent-host 内部按领域分目录：`protocol/`、`application/`、`conversation/`、`permissions/`、`work/`、`instructions/`、`skills/`、`mcp/`、`retrieval/`、`runtime/`、`session/`、`settings/`、`tools/`。`protocol/` 只放纯类型与持久化常量。
 
 desktop-ui 的 feature 依赖自下而上：`notifications` → `settings`、`creation`、`workbench` → `story`、`cloud-sync` → `editor` → `explorer`、`agent` → `shell`。设置页分区放在拥有数据的 feature，面板外壳在 `shell`；下层需要上层能力时由 `layouts/` 接入，不反向导入。
 
@@ -187,7 +187,8 @@ pnpm test:unit                     # 全仓单测，较慢
 - **风险机制**：工具使用的 shell 与 Git Bash 可能不同；LSP 和规则缓存可能保留编辑中间态。格式化工具的忽略规则也可能使单文件命令跳过目标。
 - **实施要求**：
   - 使用 context-mode 时核实执行 shell；本机 `ctx_execute` 的 shell 为 PowerShell，调用 pnpm 可经 `cmd.exe /d /s /c`。格式化单文件被忽略时改传所属目录，并核对实际覆盖范围。
-  - 类型诊断指向旧签名时，主动读取当前位置和类型，再运行实际编译；怀疑增量缓存时使用项目的强制构建检查。根目录未直接依赖 TypeScript 时，使用受影响包的 `typecheck` 脚本。
+  - 类型诊断指向旧签名时，主动读取当前位置和类型，再运行实际编译；怀疑增量缓存时使用项目的强制构建检查。
+  - 工具输出超过约 4 KB 会被截断并转入索引，读代码时按行号分段读取。含反斜杠、反引号或多行文本的替换写成脚本文件再执行，或直接用编辑工具；写在 `node -e "…"` 里会被 shell 再转义一层。根目录未直接依赖 TypeScript 时，使用受影响包的 `typecheck` 脚本。
   - 标记误报前查清调用链和现有错误边界。仓储自己写入的 JSON 解析失败应交由应用入口报告，保留损坏信息；不要为静态规则增加吞错或默认值。
 - **核查重点**：当前源码与告警位置、工具退出码、检查覆盖范围，以及异常是否已经由上层处理。
 
@@ -200,6 +201,52 @@ pnpm test:unit                     # 全仓单测，较慢
   - 使用独立临时用户目录，只关闭本轮测试启动的 Electron 实例。`mobile-virtual` 的设备与进程保持原状。
   - 自动化验证公共行为，界面表现按本文件的人工验收约定交给用户。
 - **核查重点**：实际构建版本、用户数据目录、进程归属和测试入口。
+
+### 11. 检索索引、向量与 embedding 服务
+
+- **适用范围**：作品库的 FTS5 索引、`vectors.sqlite`、`agent-host/retrieval` 与相关测试。
+- **风险机制**：FTS5 的表选项决定哪些影子表存在，换选项后删除或清空会报 `table ... may not be dropped`。better-sqlite3 把超出 int32 的整数按浮点数绑定，返回的 BLOB 起始位置不保证按 4 字节对齐。后台建立在服务繁忙或连不上时按 1、2、4 秒重试，这期间状态仍是“正在建立”。
+- **实施要求**：
+  - 正式索引用 `content=''` 加 `contentless_delete=1`，条目与索引行的对应关系存在 `indexed_entries`，删除条目走 `unindexDocument`。应用未发布，索引结构变化不写迁移，本机测试数据用 `temp/migrate-search-index.mjs` 转换。
+  - 需要“取全部”时给出范围内的实际上限（如条目数加事件、关系数），不传超大整数作 `LIMIT`。读向量时先把 BLOB 拷进自己分配的缓冲再按 `Float32Array` 读。
+  - 向量按文字的 SHA-256 保存，连接只在一次操作内打开。删除、覆盖、恢复作品和宿主停止前先 `retrieval.stop`，否则 Windows 上作品目录被占用。
+  - 测试失败路径时用 401 这类不重试的回复；用 503 或断开连接会让用例等满 7 秒重试。检索时的补算和问题向量不重试。
+  - 测试用本机 HTTP 服务（`application-host/__tests__/embedding-server.ts`）按文字算固定向量，只验证协议、补算、缓存、排名和降级；语义质量要用真实模型另行验收。
+- **核查重点**：换模型或维度后的状态、取消与失败后续算、作品目录能否整体移走、两路合并后的分页是否首尾相接。
+
+### 12. 滚动区裁剪与焦点环
+
+- **适用范围**：`AppScrollArea`、设置分区及其他带 `overflow` 的容器里贴边的输入框和按钮。
+- **风险机制**：焦点环用 `box-shadow` 画在控件外 3px。reka 的滚动视口自身带 `overflow`，由它裁剪内容；留白加在滚动区根节点上不起作用，贴边控件的焦点环左右会被切掉。
+- **实施要求**：留白加在视口上（`viewport-class`），根节点用等量负外边距抵消，见 `SettingsSection.vue`。排查时逐个聚焦控件，比较控件边缘到最近裁剪祖先内边缘的距离与焦点环宽度。
+- **核查重点**：设置各分区最左、最右的输入框，弹层和侧栏里贴边的控件。
+
+### 13. 接入 pi MCP
+
+- **适用范围**：`agent-host/mcp`、会话工具清单、桌面构建与 MCP 相关测试。
+- **实施要求**：
+  - `mcpNamespace('wiki')` 的返回值是 `mcp__wiki`，已带前缀，不要再拼一次。工具所属服务按 pi 注册工具的 `namespace.name` 判断，不从工具名拆前缀（工具名会规范化、截断，服务 `a` 的工具 `b__c` 会和服务 `a__b` 撞名）。
+  - pi 的 MCP 扩展在 `session_start` 里加载，会话创建后必须 `await session.bindExtensions({})`；`createTransport` 要同步返回 transport。
+  - `options.tools` 里要有 `mcp__*` 条目，MCP 工具才过 pi 的 allowlist；`direct` 暴露的工具也靠它声明。
+  - pi 注册 MCP 工具时会重新激活名单内工具，所以讨论模式下要再撤一次作品写工具（`conversation/live-session.ts` 的 `syncWorkTools()`，由 `tools/tool-access.ts` 的 `onToolsLoaded` 触发）。
+  - 守卫扩展排在 MCP 扩展前面，授权先于 pi 的连接等待。
+  - 桌面构建必须把 `@earendil-works/pi-mcp` 设为外部依赖（`apps/desktop/vite.config.ts`），否则宿主脚本和 `pi-coding-agent` 各用一份，连接错误类型的 `instanceof` 对不上。
+  - 测试里读模型拿到的工具声明用 `getCurrentTools(context.messages)`，`context.tools` 是空的。断言“工具没执行”要看工具结果里的错误或服务器输出缺失，工具输入本身会出现在消息记录里。
+  - stdio 服务继承宿主进程的环境变量，而宿主进程只带 `process.ts` 白名单里的几项（`PATH`、`TEMP`、`USERPROFILE` 等）。服务需要别的变量时，要写在 `mcp.json` 的 `env` 里。
+  - 起了 stdio 服务的测试，清理临时目录时给 `rm` 加 `maxRetries`：Windows 上进程刚退出时目录可能还被占用。
+  - 界面测试里 reka 的标签页用 `trigger('mousedown', { button: 0 })` 切换；`AppCheckbox` 渲染成 `button[role="checkbox"]`，按文本找按钮时要排除它。
+- **核查重点**：工具归属的服务、讨论模式下的写工具、授权先后顺序，以及打包后依赖是否只有一份。
+
+### 14. AppTooltip 与界面测试写法
+
+- **适用范围**：给按钮加悬停提示，以及用 Vue Test Utils 测 reka 组件。
+- **实施要求**：
+  - 只在键盘聚焦时因焦点弹出（`ignoreNonKeyboardFocus`），鼠标点击带来的焦点不弹。原因：给菜单触发按钮加提示后，用鼠标关菜单时焦点回到按钮，提示会跟着冒出来。Electron 里实测过，改前会弹、改后不弹，键盘关闭仍然弹。
+  - 可以直接包在 `AppDropdownMenu` 的 `#trigger` 槽、`AppAlertDialog` 的 `#trigger` 槽里的按钮外面。
+  - 单测里让它弹出：给触发按钮派发 `focus`，并让 `matches` 返回 `true`（测试环境里派发的焦点不会命中 `:focus-visible`），见 `components/AppTooltip/__tests__/AppTooltip.test.ts`。
+  - 界面测试里的几个写法：`AppDropdownMenu` 的菜单内容挂在 `body` 下，用 `trigger('keydown', { key: 'Enter' })` 打开，再到 `document.body` 里找 `[role="menuitem"]`（见 `skill-settings.test.ts` 的 `chooseAddAction`）；`AppSwitch` 的状态断言 `aria-checked`；悬停才显示的图标按钮按 `aria-label` 找。
+  - 同一个按钮只留一种提示：用了 `AppTooltip` 就去掉原生 `title`，否则两个提示同时出现。
+- **核查重点**：鼠标关闭菜单后提示是否冒出、禁用按钮的提示、键盘聚焦时的提示。
 
 ## 敏感信息
 
