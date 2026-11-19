@@ -44,6 +44,7 @@ it('审阅搜索叠加自己的改稿，其他会话和正式检索保留原文�
   expect(searchWork(app, marching, context).hits).toEqual([
     {
       kind: 'entry',
+      matchedBy: 'keyword',
       entry: expect.objectContaining({ id: change.targetId, revisionId: change.version }),
       pending: true,
       ignoresAsOf: false,

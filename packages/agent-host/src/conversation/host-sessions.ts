@@ -15,6 +15,7 @@ import {
   modeEntryType,
   type SessionView
 } from '../protocol/index.ts';
+import type { HostRetrievalService } from '../retrieval/service.ts';
 import type { HostSessionPool } from '../session/session-pool.ts';
 import { HostSessionOpenError } from '../session/session-storage.ts';
 import type { AppSettingsStore } from '../settings/app-settings.ts';
@@ -43,6 +44,7 @@ export interface HostSessionsOptions {
   cwd: string;
   tools: (cwd: string) => ToolDefinition[];
   creation?: CreationApplication;
+  retrieval: HostRetrievalService;
   pool: HostSessionPool;
   settings: AppSettingsStore;
   skills: HostSkillsService;
@@ -317,7 +319,8 @@ export class HostSessions {
 
   private tools(cwd: string): ToolDefinition[] {
     const tools = [...this.options.tools(cwd)];
-    if (this.options.creation) tools.push(...createWorkTools(this.options.creation, id => this.live(id).view.mode!));
+    if (this.options.creation)
+      tools.push(...createWorkTools(this.options.creation, this.options.retrieval, id => this.live(id).view.mode!));
     return tools;
   }
 

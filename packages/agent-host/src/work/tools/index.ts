@@ -3,6 +3,7 @@ import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
 import type { CreationApplication } from '@chaptale/creation/application';
 
 import type { EditMode } from '../../protocol/index.ts';
+import type { HostRetrievalService } from '../../retrieval/service.ts';
 import { entryTools } from './entries.ts';
 import { recordTools } from './records.ts';
 import { relationTools } from './relations.ts';
@@ -38,9 +39,10 @@ export const deferredWorkToolsPrompt =
 /** 作品工具只转换公共参数；身份、内容与候选规则由宿主和 creation 持有。 */
 export function createWorkTools(
   application: CreationApplication,
+  retrieval: HostRetrievalService,
   mode: (sessionId: string) => EditMode
 ): ToolDefinition[] {
-  const kit = workToolKit(application, mode);
+  const kit = workToolKit(application, retrieval, mode);
   const deferred = [...recordTools(kit), ...relationTools(kit)];
   for (const tool of deferred) tool.exposure = 'deferred';
   return [...entryTools(kit), ...deferred];

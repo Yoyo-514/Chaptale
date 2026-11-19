@@ -319,6 +319,62 @@ describe('parseToolDetail', () => {
     expect(empty).toMatchObject({ meta: [], items: [], emptyText: '无匹配内容' });
   });
 
+  it('work_search 带问题时逐条标明来自关键词、语义还是两者及相似度，并显示语义检索没做的原因', () => {
+    const entry = { workId: 'w1', kind: 'document', section: 'manuscript' };
+    const passage = { startLine: 1, endLine: 1, text: '黛玉方进入房时。' };
+    const search = (input: Record<string, unknown>, value: Record<string, unknown>) =>
+      parseToolDetail(
+        activity({
+          name: 'work_search',
+          input: { workId: 'w1', offset: 0, limit: 10, ...input },
+          result: { error: false, text: JSON.stringify({ ok: true, value: { hasMore: false, ...value } }) }
+        })
+      );
+    const detail = search(
+      { query: '黛玉', question: '黛玉初到贾府时见了谁' },
+      {
+        hits: [
+          {
+            kind: 'entry',
+            matchedBy: 'both',
+            similarity: 0.816,
+            entry: { ...entry, entryId: 'c3', title: '第三回' },
+            pending: false,
+            ignoresAsOf: false,
+            passages: [passage]
+          },
+          {
+            kind: 'record',
+            matchedBy: 'semantic',
+            similarity: 0.5,
+            record: { recordId: 'rec-1', resourceIds: [], text: '黛玉初进荣国府', storyTime: '' }
+          },
+          {
+            kind: 'entry',
+            matchedBy: 'keyword',
+            entry: { ...entry, entryId: 'r2', title: '林黛玉', section: 'resource' },
+            pending: false,
+            ignoresAsOf: false,
+            passages: []
+          }
+        ]
+      }
+    );
+    expect(detail.meta).toEqual(['问题：黛玉初到贾府时见了谁']);
+    expect(detail.items?.map(item => item.meta)).toEqual([
+      '第 1 行 · 两者 · 相似度 0.82',
+      '语义 · 相似度 0.50',
+      '资料 · 名称命中 · 关键词'
+    ]);
+
+    const notice = '没有做语义检索：还没有设置检索服务。';
+    expect(search({ question: '黛玉初到贾府时见了谁' }, { hits: [], notice })).toMatchObject({
+      meta: [notice],
+      items: [],
+      emptyText: '无匹配内容'
+    });
+  });
+
   it('codemode 拆出执行耗时与标准输出，失败 CreationResult 提取可读错误消息', () => {
     const cm = parseToolDetail(
       activity({

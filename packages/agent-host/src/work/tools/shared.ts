@@ -15,6 +15,7 @@ import type {
 } from '@chaptale/creation/contracts';
 
 import type { EditMode } from '../../protocol/index.ts';
+import type { HostRetrievalService } from '../../retrieval/service.ts';
 
 export const id = Type.String({ minLength: 1 });
 export const nullableId = Type.Union([id, Type.Null()]);
@@ -105,6 +106,7 @@ export function mapResult<T, U>(result: CreationResult<T>, map: (value: T) => U)
 /** 各领域工具共用的宿主能力：会话上下文、写入命令与结果呈现。 */
 export interface WorkToolKit {
   application: CreationApplication;
+  retrieval: HostRetrievalService;
   mode: (sessionId: string) => EditMode;
   written: (workId: string, result: CreationResult<AgentWriteResult>) => CreationResult<JsonValue>;
   executeWrite: (
@@ -120,12 +122,17 @@ export interface WorkToolKit {
     execute: (
       input: Parameters<ToolDefinition<S>['execute']>[1],
       context: CreationAgentContext,
-      commandId: string
+      commandId: string,
+      signal: AbortSignal | undefined
     ) => CreationResult<JsonValue> | Promise<CreationResult<JsonValue>>
   ) => ToolDefinition;
 }
 
-export function workToolKit(application: CreationApplication, mode: (sessionId: string) => EditMode): WorkToolKit {
+export function workToolKit(
+  application: CreationApplication,
+  retrieval: HostRetrievalService,
+  mode: (sessionId: string) => EditMode
+): WorkToolKit {
   function written(workId: string, result: CreationResult<AgentWriteResult>) {
     return mapResult(result, (value): JsonValue => {
       if (value.kind === 'trashed')
@@ -165,7 +172,8 @@ export function workToolKit(application: CreationApplication, mode: (sessionId: 
     execute: (
       input: Parameters<ToolDefinition<S>['execute']>[1],
       context: CreationAgentContext,
-      commandId: string
+      commandId: string,
+      signal: AbortSignal | undefined
     ) => CreationResult<JsonValue> | Promise<CreationResult<JsonValue>>
   ): ToolDefinition {
     return defineTool({
@@ -178,11 +186,11 @@ export function workToolKit(application: CreationApplication, mode: (sessionId: 
         signal?.throwIfAborted();
         const sessionId = ctx.sessionManager.getSessionId();
         return toolResult(
-          await execute(input, { sessionId, mode: mode(sessionId) }, JSON.stringify([sessionId, toolCallId]))
+          await execute(input, { sessionId, mode: mode(sessionId) }, JSON.stringify([sessionId, toolCallId]), signal)
         );
       }
     });
   }
 
-  return { application, mode, written, executeWrite, tool };
+  return { application, retrieval, mode, written, executeWrite, tool };
 }

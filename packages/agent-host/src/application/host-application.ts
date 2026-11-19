@@ -105,6 +105,7 @@ export class HostApplication {
       cwd: options.cwd,
       tools: options.tools,
       creation: options.creation,
+      retrieval: this.retrieval,
       pool,
       settings,
       skills: this.skills,

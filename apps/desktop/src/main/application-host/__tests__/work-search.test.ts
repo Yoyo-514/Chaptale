@@ -235,6 +235,7 @@ it('检索返回段落、事件和关系，插图显示为占位，asOf 只到�
       expect.objectContaining({ kind: 'entry', entry: expect.objectContaining({ entryId: general.id }), passages: [] }),
       {
         kind: 'record',
+        matchedBy: 'keyword',
         record: expect.objectContaining({
           recordId: record.id,
           revisionId: record.revisionId,
@@ -245,6 +246,7 @@ it('检索返回段落、事件和关系，插图显示为占位，asOf 只到�
       },
       {
         kind: 'relation',
+        matchedBy: 'keyword',
         relation: expect.objectContaining({
           relationId: relation.id,
           resourceIds: [general.id, scout.id],

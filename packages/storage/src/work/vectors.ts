@@ -77,6 +77,37 @@ export function saveVectors(rootDir: string, workId: string, vectors: readonly S
   if (!saved) throw new Error('这部作品还没有建立向量索引');
 }
 
+/** 逐行读出向量算余弦相似度，不把整个索引留在内存里。 */
+export function scoreVectors(rootDir: string, workId: string, question: Float32Array): Map<string, number> {
+  const scores = new Map<string, number>();
+  use(rootDir, workId, database => {
+    const width = database.prepare('SELECT width FROM target').pluck().get() as number | null;
+    if (width === null) return;
+    if (question.length !== width) throw new Error('问题的向量长度与索引里已有的不一致');
+    let questionSquare = 0;
+    for (const value of question) questionSquare += value * value;
+    // BLOB 在内存里的起始位置不一定按 4 字节对齐，逐行拷进同一块缓冲后再按浮点数读。
+    const vector = new Float32Array(width);
+    const bytes = new Uint8Array(vector.buffer);
+    const rows = database.prepare('SELECT hash, vector FROM vectors').iterate() as IterableIterator<{
+      hash: string;
+      vector: Buffer;
+    }>;
+    for (const row of rows) {
+      bytes.set(row.vector);
+      let dot = 0;
+      let square = 0;
+      for (let index = 0; index < width; index++) {
+        dot += vector[index]! * question[index]!;
+        square += vector[index]! * vector[index]!;
+      }
+      const norm = Math.sqrt(square * questionSquare);
+      scores.set(row.hash, norm === 0 ? 0 : dot / norm);
+    }
+  });
+  return scores;
+}
+
 export function clearVectorIndex(rootDir: string, workId: string): void {
   rmSync(vectorFile(rootDir, workId), { force: true });
 }

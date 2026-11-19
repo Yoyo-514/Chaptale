@@ -199,12 +199,13 @@ it('正文命中返回段落原文与行号，只命中标题时没有段落', a
     expect.arrayContaining([
       {
         kind: 'entry',
+        matchedBy: 'keyword',
         entry: night,
         pending: false,
         ignoresAsOf: false,
         passages: [{ startLine: 2, endLine: 4, text: '将军在城门等候。\n\n将军没有等到人。' }]
       },
-      { kind: 'entry', entry: resource, pending: false, ignoresAsOf: false, passages: [] }
+      { kind: 'entry', matchedBy: 'keyword', entry: resource, pending: false, ignoresAsOf: false, passages: [] }
     ])
   );
   // 行号与按行读取正文一致。
@@ -312,6 +313,7 @@ it('事件和关系按文本、涉及资料的标题与别名检索，返回记�
   expect(searchWork(app, { workId: work.id, query: '救下' }).hits).toEqual([
     {
       kind: 'record',
+      matchedBy: 'keyword',
       record: { ...rescue, sourceChanged: false, pending: false }
     }
   ]);

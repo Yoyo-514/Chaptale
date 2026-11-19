@@ -187,6 +187,8 @@ export interface WorkRepository {
   vectorHashes(): Set<string>;
   /** 向量长度须与索引里已有的一致。 */
   saveVectors(vectors: readonly StoredVector[]): void;
+  /** 索引里每段文字的向量与 question 的余弦相似度；question 的长度须与索引里的向量一致。 */
+  vectorScores(question: Float32Array): Map<string, number>;
   /** 删除整个向量索引，作品回到没有启动过的状态。 */
   clearVectorIndex(): void;
   getRevision(revisionId: string): Revision | undefined;

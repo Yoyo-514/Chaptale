@@ -1,6 +1,6 @@
 import { AgentRecordService } from '../agent/records.ts';
 import { AgentRelationService } from '../agent/relations.ts';
-import { formalVectorTexts } from '../agent/search.ts';
+import { formalVectorTexts, searchVectorTexts, searchWork, type SearchServices } from '../agent/search.ts';
 import { CreationAgentService } from '../agent/service.ts';
 import { TrashService } from '../content/trash.ts';
 import type {
@@ -10,7 +10,9 @@ import type {
   CreationAuthorCommand,
   CreationAuthorCommands,
   CreationCommands,
-  CreationResult
+  CreationResult,
+  SearchWorkInput,
+  WorkSearchPage
 } from '../contracts/index.ts';
 import { DraftConflictError, EntryLocationConflictError, RevisionConflictError } from '../errors.ts';
 import { addFiles, locateFile, prepareWorkFiles } from '../files/entry-files.ts';
@@ -21,7 +23,7 @@ import { RecordService } from '../records/service.ts';
 import { RelationService } from '../relations/service.ts';
 import type { CreationRepository } from '../repository.ts';
 import { ReviewService } from '../review/service.ts';
-import { VectorIndexService } from '../search/vector-index.ts';
+import { VectorIndexService, type VectorText } from '../search/vector-index.ts';
 import { CreationService } from '../service.ts';
 import { authorValidator, agentValidator } from './schema.ts';
 
@@ -43,6 +45,7 @@ export class CreationApplication {
   private readonly relations: RelationService;
   /** 向量索引只供同一进程里调用 embedding 服务的宿主使用，不经请求入口。 */
   readonly vectorIndex: VectorIndexService;
+  private readonly search: SearchServices;
 
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
@@ -62,9 +65,36 @@ export class CreationApplication {
       agentRecords,
       agentRelations
     );
-    this.vectorIndex = new VectorIndexService(repository, workId =>
-      formalVectorTexts({ repository, review: this.review, records: agentRecords, relations: agentRelations }, workId)
-    );
+    this.search = { repository, review: this.review, records: agentRecords, relations: agentRelations };
+    this.vectorIndex = new VectorIndexService(repository, workId => formalVectorTexts(this.search, workId));
+  }
+
+  /**
+   * 语义检索的两步只供同一进程里调用 embedding 服务的宿主使用，不经请求入口。
+   * 第一步：这次检索范围里还没有向量的文字，宿主算好后用 vectorIndex.save 保存。
+   */
+  missingSearchVectors(context: CreationAgentContext, input: SearchWorkInput): CreationResult<VectorText[]> {
+    try {
+      return {
+        ok: true,
+        value: this.vectorIndex.missing(input.workId, searchVectorTexts(this.search, context, input))
+      };
+    } catch (error) {
+      return creationFailure(error);
+    }
+  }
+
+  /** 第二步：带 input.question 的向量检索，结果与关键词命中合并排名。 */
+  searchWork(
+    context: CreationAgentContext,
+    input: SearchWorkInput,
+    question: Float32Array
+  ): CreationResult<WorkSearchPage> {
+    try {
+      return { ok: true, value: searchWork(this.search, context, input, question) };
+    } catch (error) {
+      return creationFailure(error);
+    }
   }
 
   subscribe(listener: Parameters<CreationService['subscribe']>[0]): () => void {

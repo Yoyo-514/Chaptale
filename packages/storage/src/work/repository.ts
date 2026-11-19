@@ -110,6 +110,9 @@ export class SqliteWorkRepository implements WorkRepository {
   saveVectors(stored: readonly StoredVector[]): void {
     vectors.saveVectors(this.rootDir, this.workId, stored);
   }
+  vectorScores(question: Float32Array): Map<string, number> {
+    return vectors.scoreVectors(this.rootDir, this.workId, question);
+  }
   clearVectorIndex(): void {
     vectors.clearVectorIndex(this.rootDir, this.workId);
   }

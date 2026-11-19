@@ -328,10 +328,14 @@ export type AgentRelation = Omit<StoryRelation, 'milestones'> & {
   pending: boolean;
 };
 
-/** 检索正文、资料、事件和关系；section 只留该分区的条目，asOf 为章节 ID 时只到该章。 */
+/**
+ * 检索正文、资料、事件和关系；section 只留该分区的条目，asOf 为章节 ID 时只到该章。
+ * query 是空格分隔的关键词，按字面匹配；question 是一句话，按意思查找。两者至少给一个，都给时合并两边的排名。
+ */
 export interface SearchWorkInput {
   workId: string;
-  query: string;
+  query?: string;
+  question?: string;
   section?: Entry['section'];
   asOf?: string;
   offset: number;
@@ -349,10 +353,18 @@ export interface SearchPassage {
  * 条目命中附最相关的几段原文，文件条目或只命中标题、别名时为空；pending 表示读到的是本会话待接受的修改。
  * 资料不随进度，指定 asOf 时资料条目的 ignoresAsOf 为 true。
  */
-export type WorkSearchHit =
+export type WorkSearchHit = (
   | { kind: 'entry'; entry: Entry; pending: boolean; ignoresAsOf: boolean; passages: SearchPassage[] }
   | { kind: 'record'; record: AgentRecord }
-  | { kind: 'relation'; relation: AgentRelation };
+  | { kind: 'relation'; relation: AgentRelation }
+) &
+  SearchMatchSource;
+
+/** 命中来自关键词、语义还是两者；语义命中附与问题的余弦相似度，条目取最接近的一段。 */
+export interface SearchMatchSource {
+  matchedBy: 'keyword' | 'semantic' | 'both';
+  similarity?: number;
+}
 
 export interface WorkSearchPage {
   hits: WorkSearchHit[];

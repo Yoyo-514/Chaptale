@@ -3,7 +3,7 @@ import type { SearchPassage } from '../contracts/index.ts';
 /** 一段的目标长度；整行切分，单行超过时独立成段。 */
 const passageSize = 400;
 /** 每个条目最多返回的段落数。 */
-const passagesPerEntry = 3;
+export const passagesPerEntry = 3;
 
 /** 正文按行切成段落：相邻的行累积到目标长度为一段，首尾的空行不计入。 */
 export function splitPassages(content: string): SearchPassage[] {

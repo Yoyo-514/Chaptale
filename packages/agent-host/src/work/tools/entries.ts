@@ -82,21 +82,27 @@ const workGrepOutputSchema = Type.Array(
     text: Type.String()
   })
 );
+const matchSource = {
+  matchedBy: Type.Union([Type.Literal('keyword'), Type.Literal('semantic'), Type.Literal('both')]),
+  similarity: Type.Optional(Type.Number())
+};
 const workSearchOutputSchema = object({
   hits: Type.Array(
     Type.Union([
       object({
         kind: Type.Literal('entry'),
+        ...matchSource,
         entry: locatedEntrySchema,
         pending: Type.Boolean(),
         ignoresAsOf: Type.Boolean(),
         passages: Type.Array(object({ startLine: Type.Integer(), endLine: Type.Integer(), text: Type.String() }))
       }),
-      object({ kind: Type.Literal('record'), record: recordSnapshotSchema }),
-      object({ kind: Type.Literal('relation'), relation: relationSnapshotSchema })
+      object({ kind: Type.Literal('record'), ...matchSource, record: recordSnapshotSchema }),
+      object({ kind: Type.Literal('relation'), ...matchSource, relation: relationSnapshotSchema })
     ])
   ),
-  hasMore: Type.Boolean()
+  hasMore: Type.Boolean(),
+  notice: Type.Optional(Type.String())
 });
 const workRmOutputSchema = Type.Union([
   entrySavedOutputSchema,
@@ -109,7 +115,14 @@ function agentText(document: { format: 'txt' | 'markdown'; content: string }) {
 }
 
 /** 作品、目录与正文条目的浏览、读取、检索与写入。 */
-export function entryTools({ application, mode, written, executeWrite, tool }: WorkToolKit): ToolDefinition[] {
+export function entryTools({
+  application,
+  retrieval,
+  mode,
+  written,
+  executeWrite,
+  tool
+}: WorkToolKit): ToolDefinition[] {
   /** 条目元数据；文件条目附带文件名、是否图片、当前大小与路径，供 Agent 用原始工具读取。 */
   async function describe(workId: string, entries: Entry[]): Promise<JsonValue[]> {
     const described: JsonValue[] = [];
@@ -298,9 +311,11 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       'work_search',
       '检索作品',
       [
-        '按关键词检索指定作品的文稿、资料、事件和关系，包含本会话待接受修改。',
-        'query 用空格分隔多个关键词：每个关键词按字面匹配，须在原文中连续出现、不跨标点和换行，全部出现才算命中；不要把几个词连写成一个。',
-        'hits 按相关度排列，kind 为 entry、record 或 relation。',
+        '检索指定作品的文稿、资料、事件和关系，包含本会话待接受修改。query 与 question 至少给一个。',
+        'query 按关键词查，用空格分隔多个关键词：每个关键词按字面匹配，须在原文中连续出现、不跨标点和换行，全部出现才算命中；不要把几个词连写成一个。适合人名、地名、原句。',
+        'question 按意思查，写成一句完整的话，例如“沈霁为什么离开师门”；适合记不清原文用词、或要找某类情节时用。只取最接近的 20 段，不保证相关，以 similarity（余弦相似度）和原文判断。',
+        '两者都给时合并两边的排名。语义检索没有做或做得不全时 notice 说明原因，此时结果只来自关键词；只给了 question 则没有结果，可改用 query。',
+        'hits 按相关度排列，kind 为 entry、record 或 relation；matchedBy 为 keyword、semantic 或 both，表示命中来自关键词、语义还是两者。',
         'entry 附条目元数据与 passages（命中的段落原文，startLine、endLine 为从 1 开始的行号，可作 work_read 的 offset）；文件条目只按名称匹配，只命中标题或别名时 passages 为空；pending 为 true 表示读到的是本会话待接受修改。',
         'record 与 relation 的字段同 work_record_ls、work_relation_ls，涉及资料的标题与别名也能搜到。',
         'asOf 为章节 ID 时只到该章：之后的章节不返回，事件和关系按发生位置截取、位置待定的照常返回；资料不随进度，始终返回并以 ignoresAsOf 标明。',
@@ -308,25 +323,32 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
       ].join(''),
       object({
         workId: id,
-        query: Type.String({ minLength: 1, pattern: '\\S' }),
+        query: Type.Optional(Type.String({ minLength: 1, pattern: '\\S' })),
+        question: Type.Optional(Type.String({ minLength: 1, pattern: '\\S' })),
         offset: Type.Integer({ minimum: 0 }),
         limit: Type.Integer({ minimum: 1 }),
         section: Type.Optional(sectionSchema),
         asOf: Type.Optional(id)
       }),
       workSearchOutputSchema,
-      async (input, context) => {
-        const result = application.executeAgent(context, { method: 'searchWork', input });
+      async (input, context, _commandId, signal) => {
+        const result = await retrieval.search(context, input, signal);
         if (!result.ok) return result;
         const hits: JsonValue[] = [];
         for (const hit of result.value.hits) {
-          if (hit.kind === 'record') hits.push({ kind: hit.kind, record: agentRecord(hit.record) });
-          else if (hit.kind === 'relation') hits.push({ kind: hit.kind, relation: agentRelation(hit.relation) });
+          const source = {
+            matchedBy: hit.matchedBy,
+            ...(hit.similarity !== undefined && { similarity: Math.round(hit.similarity * 1000) / 1000 })
+          };
+          if (hit.kind === 'record') hits.push({ kind: hit.kind, ...source, record: agentRecord(hit.record) });
+          else if (hit.kind === 'relation')
+            hits.push({ kind: hit.kind, ...source, relation: agentRelation(hit.relation) });
           else {
             const { entry, pending, ignoresAsOf } = hit;
             const [described] = await describe(input.workId, [entry]);
             hits.push({
               kind: hit.kind,
+              ...source,
               entry: described!,
               pending,
               ignoresAsOf,
@@ -338,7 +360,8 @@ export function entryTools({ application, mode, written, executeWrite, tool }: W
             });
           }
         }
-        return { ok: true, value: { hits, hasMore: result.value.hasMore } };
+        const { hasMore, notice } = result.value;
+        return { ok: true, value: { hits, hasMore, ...(notice !== undefined && { notice }) } };
       }
     ),
     tool(

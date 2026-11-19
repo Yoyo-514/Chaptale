@@ -209,7 +209,8 @@ export const agentInputs = {
   readDocument: inputs.readDocument,
   searchWork: object({
     workId: id,
-    query: Type.String({ minLength: 1, pattern: '\\S' }),
+    query: Type.Optional(Type.String({ minLength: 1, pattern: '\\S' })),
+    question: Type.Optional(Type.String({ minLength: 1, pattern: '\\S' })),
     section: Type.Optional(entryInput.section),
     asOf: Type.Optional(id),
     offset,

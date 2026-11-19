@@ -170,7 +170,7 @@ export function describeTool(
   if (name.startsWith('work_')) {
     const fields = input as Record<string, unknown> | undefined;
     const title = info?.title ?? (typeof fields?.title === 'string' ? fields.title : '');
-    const query = fields?.query ?? fields?.pattern;
+    const query = fields?.query ?? fields?.question ?? fields?.pattern;
     let summary = `${failed ? '未能' : ''}${action}${title ? `《${title}》` : ''}`;
     if (typeof query === 'string') summary += `“${query}”`;
     const metrics: string[] = [];

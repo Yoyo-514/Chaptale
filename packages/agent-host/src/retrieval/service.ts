@@ -1,6 +1,12 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import type { CreationApplication, VectorText } from '@chaptale/creation/application';
+import type {
+  CreationAgentContext,
+  CreationResult,
+  SearchWorkInput,
+  WorkSearchPage
+} from '@chaptale/creation/contracts';
 
 import type { EmbeddingSettingsSave, EmbeddingSettingsView, HostChange, VectorIndexStatus } from '../protocol/index.ts';
 import type { EmbeddingConfiguration } from './config.ts';
@@ -12,6 +18,11 @@ const batchSize = 10;
 const retryDelays = [1000, 2000, 4000];
 const longestRetryWait = 30_000;
 const connectionTestText = '测试连接';
+/** 一次检索最多现算这么多段还没有向量的文字，其余的留给后台建立。 */
+const searchFillLimit = 50;
+
+/** notice 说明语义检索没有做或做得不全的原因，交给 Agent 和作者看。 */
+export type RetrievalSearchPage = WorkSearchPage & { notice?: string };
 
 interface Job {
   controller: AbortController;
@@ -104,6 +115,46 @@ export class HostRetrievalService {
     return this.status(workId);
   }
 
+  /**
+   * Agent 检索作品。带 question 时先补上检索范围里没算的向量，再连同问题的向量交给作品检索；
+   * 语义检索做不了时只按关键词检索，并在 notice 里说明原因。
+   */
+  async search(
+    context: CreationAgentContext,
+    input: SearchWorkInput,
+    signal?: AbortSignal
+  ): Promise<CreationResult<RetrievalSearchPage>> {
+    // SAFETY: 作品工具只由接入了作品应用的宿主声明。
+    const creation = this.options.creation!;
+    const keyword = () => creation.executeAgent(context, { method: 'searchWork', input });
+    if (input.question === undefined) return keyword();
+
+    const noticed = (result: CreationResult<WorkSearchPage>, notice: string): CreationResult<RetrievalSearchPage> =>
+      result.ok ? { ok: true, value: { ...result.value, notice } } : result;
+    const connection = await this.options.configuration.connection();
+    if (!connection) return noticed(keyword(), '没有做语义检索：还没有设置检索服务。');
+    if (!this.index.usable(input.workId, { model: connection.model, dimensions: connection.dimensions }))
+      return noticed(keyword(), '没有做语义检索：这部作品还没有用当前的检索模型建立索引。');
+    const missing = creation.missingSearchVectors(context, input);
+    if (!missing.ok) return missing;
+
+    const fill = missing.value.slice(0, searchFillLimit);
+    let question: Float32Array;
+    try {
+      for (let offset = 0; offset < fill.length; offset += batchSize)
+        await this.save(input.workId, connection, fill.slice(offset, offset + batchSize), signal);
+      [question] = (await embed(connection, [input.question], signal)) as [Float32Array];
+    } catch (error) {
+      if (!(error instanceof EmbeddingRequestError)) throw error;
+      return noticed(keyword(), `没有做语义检索：${error.message}。`);
+    }
+    const result = creation.searchWork(context, input, question);
+    const left = missing.value.length - fill.length;
+    return left > 0
+      ? noticed(result, `还有 ${left} 段没有算向量，没有参与语义检索；在助手输入框下方接着建立索引后再查。`)
+      : result;
+  }
+
   async close(): Promise<void> {
     await Promise.all([...this.jobs.keys()].map(workId => this.stop(workId)));
   }
@@ -144,15 +195,7 @@ export class HostRetrievalService {
     try {
       for (let offset = 0; offset < pending.length; offset += batchSize) {
         const batch = pending.slice(offset, offset + batchSize);
-        const vectors = await this.embed(
-          connection,
-          batch.map(item => item.text),
-          signal
-        );
-        this.index.save(
-          workId,
-          batch.map(({ hash }, position) => ({ hash, vector: vectors[position]! }))
-        );
+        await this.save(workId, connection, batch, signal, true);
         job.done += batch.length;
         job.doneCharacters += batch.reduce((sum, item) => sum + item.text.length, 0);
         this.options.emit({ kind: 'vector-index', status: this.progress(workId, job) });
@@ -164,16 +207,25 @@ export class HostRetrievalService {
     this.options.emit({ kind: 'vector-index', status: this.read(workId, connection) });
   }
 
-  private async embed(
+  /** 为一批文字算向量并保存。后台建立在服务繁忙时等一等再试，检索时不等。 */
+  private async save(
+    workId: string,
     connection: EmbeddingConnection,
-    texts: readonly string[],
-    signal: AbortSignal
-  ): Promise<Float32Array[]> {
+    batch: readonly VectorText[],
+    signal: AbortSignal | undefined,
+    retry = false
+  ): Promise<void> {
+    const texts = batch.map(item => item.text);
     for (let attempt = 0; ; attempt++) {
       try {
-        return await embed(connection, texts, signal);
+        const vectors = await embed(connection, texts, signal);
+        this.index.save(
+          workId,
+          batch.map(({ hash }, position) => ({ hash, vector: vectors[position]! }))
+        );
+        return;
       } catch (error) {
-        const delay = retryDelays[attempt];
+        const delay = retry ? retryDelays[attempt] : undefined;
         if (!(error instanceof EmbeddingRequestError) || !error.retryable || delay === undefined) throw error;
         await sleep(Math.min(error.retryAfterMs ?? delay, longestRetryWait), undefined, { signal });
       }
