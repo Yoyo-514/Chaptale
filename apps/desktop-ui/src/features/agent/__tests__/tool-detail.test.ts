@@ -319,7 +319,7 @@ describe('parseToolDetail', () => {
     expect(empty).toMatchObject({ meta: [], items: [], emptyText: '无匹配内容' });
   });
 
-  it('work_search 带问题时逐条标明来自关键词、语义还是两者及相似度，并显示语义检索没做的原因', () => {
+  it('work_search 带问题时逐条标明来自关键词、语义还是两者及相似度，并显示补算段数和语义检索没做的原因', () => {
     const entry = { workId: 'w1', kind: 'document', section: 'manuscript' };
     const passage = { startLine: 1, endLine: 1, text: '黛玉方进入房时。' };
     const search = (input: Record<string, unknown>, value: Record<string, unknown>) =>
@@ -333,6 +333,7 @@ describe('parseToolDetail', () => {
     const detail = search(
       { query: '黛玉', question: '黛玉初到贾府时见了谁' },
       {
+        embedded: 3,
         hits: [
           {
             kind: 'entry',
@@ -360,7 +361,7 @@ describe('parseToolDetail', () => {
         ]
       }
     );
-    expect(detail.meta).toEqual(['问题：黛玉初到贾府时见了谁']);
+    expect(detail.meta).toEqual(['问题：黛玉初到贾府时见了谁', '补算了 3 段向量']);
     expect(detail.items?.map(item => item.meta)).toEqual([
       '第 1 行 · 两者 · 相似度 0.82',
       '语义 · 相似度 0.50',

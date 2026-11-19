@@ -49,6 +49,7 @@ export function searchDetail({ input, value, lookup }: WorkToolCall): ToolDetail
   if (asOf) meta.push(`只到《${asOf.title}》`);
   if (page?.hasMore === true) meta.push('还有更多结果');
   if (typeof page?.notice === 'string') meta.push(page.notice);
+  if (typeof page?.embedded === 'number') meta.push(`补算了 ${String(page.embedded)} 段向量`);
   if (!Array.isArray(page?.hits)) return { meta };
   const items = asRecords(page.hits).flatMap((hit, index): ToolDetailItem[] => {
     const source = semantic ? [sourceLabel(hit)] : [];

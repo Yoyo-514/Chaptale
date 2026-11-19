@@ -18,11 +18,8 @@ const batchSize = 10;
 const retryDelays = [1000, 2000, 4000];
 const longestRetryWait = 30_000;
 const connectionTestText = '测试连接';
-/** 一次检索最多现算这么多段还没有向量的文字，其余的留给后台建立。 */
-const searchFillLimit = 50;
-
-/** notice 说明语义检索没有做或做得不全的原因，交给 Agent 和作者看。 */
-export type RetrievalSearchPage = WorkSearchPage & { notice?: string };
+/** notice 说明语义检索没有做的原因，embedded 是这次检索前补算向量的段数；都交给 Agent 和作者看。 */
+export type RetrievalSearchPage = WorkSearchPage & { notice?: string; embedded?: number };
 
 interface Job {
   controller: AbortController;
@@ -116,7 +113,7 @@ export class HostRetrievalService {
   }
 
   /**
-   * Agent 检索作品。带 question 时先补上检索范围里没算的向量，再连同问题的向量交给作品检索；
+   * Agent 检索作品。带 question 时先补上检索范围里没算的向量（不设上限，停止生成可以中断），再连同问题的向量交给作品检索；
    * 语义检索做不了时只按关键词检索，并在 notice 里说明原因。
    */
   async search(
@@ -138,7 +135,7 @@ export class HostRetrievalService {
     const missing = creation.missingSearchVectors(context, input);
     if (!missing.ok) return missing;
 
-    const fill = missing.value.slice(0, searchFillLimit);
+    const fill = missing.value;
     let question: Float32Array;
     try {
       for (let offset = 0; offset < fill.length; offset += batchSize)
@@ -149,10 +146,7 @@ export class HostRetrievalService {
       return noticed(keyword(), `没有做语义检索：${error.message}。`);
     }
     const result = creation.searchWork(context, input, question);
-    const left = missing.value.length - fill.length;
-    return left > 0
-      ? noticed(result, `还有 ${left} 段没有算向量，没有参与语义检索；在助手输入框下方接着建立索引后再查。`)
-      : result;
+    return result.ok && fill.length > 0 ? { ok: true, value: { ...result.value, embedded: fill.length } } : result;
   }
 
   async close(): Promise<void> {

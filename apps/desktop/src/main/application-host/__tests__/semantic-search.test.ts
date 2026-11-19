@@ -281,28 +281,38 @@ it('检索服务出错时不重试，只按关键词检索并说明原因；恢�
   expect(server.requests.slice(before).map(request => request.input)).toEqual([['渡口\n艄公收了船。']]);
 });
 
-it('一次检索最多补算五十段并说明还剩多少；语义命中只取最接近的二十段', async () => {
+it('检索前补算全部没算的段落并报告段数，停止生成可以中断；语义命中只取最接近的二十段', async () => {
   await indexed();
   for (let index = 1; index <= 55; index++) author(`第${index}回`, `这是第${index}回的正文，写到第${index}天。`);
   const built = server.requests.length;
   const question = '第七天发生了什么';
 
-  const partial = await search({ question, limit: 30 });
-  expect(partial.notice).toBe('还有 5 段没有算向量，没有参与语义检索；在助手输入框下方接着建立索引后再查。');
-  expect(server.requests.slice(built).map(request => request.input.length)).toEqual([10, 10, 10, 10, 10, 1]);
-  expect(await status()).toMatchObject({ total: 56, indexed: 51 });
-  expect(partial.hits).toHaveLength(20);
-  expect(partial.hasMore).toBe(false);
-  const similarities = partial.hits.map(hit => hit.similarity!);
+  // 中断时已经算好的段落留在索引里。
+  const stop = new AbortController();
+  const release = server.hold(2);
+  const stopped = call('work_search', { workId, question, offset: 0, limit: 10 }, randomUUID(), stop.signal);
+  await vi.waitFor(() => expect(server.requests).toHaveLength(built + 3));
+  stop.abort();
+  release();
+  expect((await stopped).isError).toBe(true);
+  expect(await status()).toMatchObject({ total: 56, indexed: 21 });
+  const interrupted = server.requests.length;
+
+  const page = await search({ question, limit: 30 });
+  expect(page.notice).toBeUndefined();
+  expect(page).toMatchObject({ embedded: 35, hasMore: false });
+  expect(server.requests.slice(interrupted).map(request => request.input.length)).toEqual([10, 10, 10, 5, 1]);
+  expect(await status()).toMatchObject({ total: 56, indexed: 56 });
+  expect(page.hits).toHaveLength(20);
+  const similarities = page.hits.map(hit => hit.similarity!);
   expect(similarities).toEqual([...similarities].sort((a, b) => b - a));
 
   const first = await search({ question });
-  expect(first.notice).toBeUndefined();
-  expect(server.requests.slice(built + 6).map(request => request.input.length)).toEqual([5, 1]);
+  expect(first).not.toHaveProperty('embedded');
   expect(first.hits).toHaveLength(10);
   expect(first.hasMore).toBe(true);
   const second = await search({ question, offset: 10 });
   expect(second.hits).toHaveLength(10);
   expect(second.hasMore).toBe(false);
-  expect(new Set([...first.hits, ...second.hits].map(hitId)).size).toBe(20);
+  expect([...first.hits, ...second.hits].map(hitId)).toEqual(page.hits.map(hitId));
 });
