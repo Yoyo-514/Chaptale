@@ -116,7 +116,14 @@ export const useCheckStore = defineStore('check', () => {
   const offEvent = creation.onEvent((event: CreationEvent) => {
     if (event.cursor.workId !== creation.workId) return;
     const { kind } = event.change;
-    if (kind === 'record' || kind === 'records' || kind === 'relation' || kind === 'entries') void refresh();
+    if (
+      kind === 'record' ||
+      kind === 'records' ||
+      kind === 'relation' ||
+      kind === 'entries' ||
+      kind === 'textReplacement'
+    )
+      void refresh();
     else if (kind === 'entry' && event.change.entry.section === 'manuscript') void refresh();
   });
   watch(

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 import {
   chapterOrder,
@@ -79,10 +79,35 @@ const summary = computed(() =>
     .filter(Boolean)
     .join(' · ')
 );
+const panel = ref<HTMLElement>();
+const recordList = ref<InstanceType<typeof RecordList>>();
+const target = ref<{ kind: 'record' | 'relation'; id: string }>();
+function locate(kind: 'record' | 'relation', id: string) {
+  open.value = true;
+  asOf.value = 'all';
+  target.value = { kind, id };
+}
+// 折叠内容按需挂载；等列表就绪再滚动，首次从搜索打开资料也走同一入口。
+watch(
+  [target, recordList, relationList],
+  async ([request, records, relationRows]) => {
+    if (!request || !records || !relationRows) return;
+    target.value = undefined;
+    await nextTick();
+    if (request.kind === 'relation') await relationRows.locate(request.id);
+    else {
+      const row = panel.value?.querySelector<HTMLElement>(`[data-record-id="${CSS.escape(request.id)}"]`);
+      row?.focus({ preventScroll: true });
+      row?.scrollIntoView({ block: 'nearest' });
+    }
+  },
+  { flush: 'post' }
+);
+defineExpose({ locate });
 </script>
 
 <template>
-  <div class="story" role="region" aria-label="关系与事件">
+  <div ref="panel" class="story" role="region" aria-label="关系与事件">
     <AppCollapsible v-model="open" variant="plain">
       <template #trigger>
         <button type="button" class="story-trigger">
@@ -117,6 +142,7 @@ const summary = computed(() =>
           @source="id => emit('source', id)"
         />
         <RecordList
+          ref="recordList"
           :work-id="workId"
           :resource-id="resourceId"
           :as-of="progress"

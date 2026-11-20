@@ -93,7 +93,7 @@ export function createDocumentView(
       ...searchKeymap,
       ...defaultKeymap
     ]),
-    search({ top: true, createPanel: createSearchPanel }),
+    search({ top: true, literal: true, createPanel: createSearchPanel }),
     drawSelection(),
     lineNumbers(),
     highlightActiveLine(),
@@ -163,6 +163,14 @@ export function createDocumentView(
     });
   }
 
+  function goTo(from: number, to = from) {
+    view.dispatch({
+      selection: { anchor: Math.min(from, view.state.doc.length), head: Math.min(to, view.state.doc.length) },
+      scrollIntoView: true
+    });
+    view.focus();
+  }
+
   return {
     buffer,
     getState: () => view.state,
@@ -177,12 +185,11 @@ export function createDocumentView(
       const { from, to } = view.state.selection.main;
       return { from, to, text: view.state.sliceDoc(from, to) };
     },
-    goTo(from: number, to = from) {
-      view.dispatch({
-        selection: { anchor: Math.min(from, view.state.doc.length), head: Math.min(to, view.state.doc.length) },
-        scrollIntoView: true
-      });
-      view.focus();
+    goTo,
+    /** 选中某一行里的一段；正文已比搜索时短的话落在最后一行、行尾。 */
+    goToLine(line: number, from: number, to: number) {
+      const target = view.state.doc.line(Math.min(line, view.state.doc.lines));
+      goTo(Math.min(target.from + from, target.to), Math.min(target.from + to, target.to));
     },
     toggleHead() {
       const range = documentHeadRange(view.state);

@@ -157,6 +157,9 @@ export class SqliteWorkRepository implements WorkRepository {
   getRecord(recordId: string): StoryRecord | undefined {
     return records.getRecord(this.connect(), recordId);
   }
+  getRecordSnapshot(revisionId: string): RecordSnapshot | undefined {
+    return records.getRecordSnapshot(this.connect(), revisionId);
+  }
   saveRecord(snapshot: RecordSnapshot, revision: RecordRevision): StoryRecord {
     return records.saveRecord(this.connect(), snapshot, revision);
   }
@@ -175,6 +178,9 @@ export class SqliteWorkRepository implements WorkRepository {
   }
   getRelation(relationId: string): StoryRelation | undefined {
     return relations.getRelation(this.connect(), relationId);
+  }
+  getRelationSnapshot(revisionId: string): RelationSnapshot | undefined {
+    return relations.getRelationSnapshot(this.connect(), revisionId);
   }
   saveRelation(snapshot: RelationSnapshot, revision: RelationRevision): StoryRelation {
     return relations.saveRelation(this.connect(), snapshot, revision);

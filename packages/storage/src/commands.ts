@@ -84,6 +84,7 @@ function changeFrom(effect: CommitEffect, result: CommitResult): CreationEvent['
   if (effect.kind === 'reviewBatch') return { kind: 'reviewBatch', sessionId: effect.sessionId };
   if (effect.kind === 'entries') return { kind: 'entries', entries: result as Entry[] };
   if (effect.kind === 'record') return { kind: 'record', record: result as StoryRecord, removed: effect.removed };
+  if (effect.kind === 'textReplacement') return { kind: 'textReplacement' };
   if (effect.kind === 'records') return { kind: 'records' };
   if (effect.kind === 'relation')
     return { kind: 'relation', relation: result as StoryRelation, removed: effect.removed };

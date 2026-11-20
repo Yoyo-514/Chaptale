@@ -10,6 +10,8 @@ import type {
   DraftState,
   Entry,
   EntrySnapshot,
+  ReplaceTextReport,
+  UndoReplaceTextReport,
   RecoveryDraft,
   PendingChange,
   RecordSnapshot,
@@ -38,6 +40,7 @@ export type CommitEffect =
   | { kind: 'reviewBatch'; sessionId: string }
   | { kind: 'record'; removed: boolean }
   | { kind: 'records' }
+  | { kind: 'textReplacement' }
   | { kind: 'relation'; removed: boolean }
   | { kind: 'move'; from: { parentId: string | null; position: number } };
 
@@ -50,7 +53,9 @@ export type CommitResult =
   | { sessionId: string; count: number }
   | StoryRecord
   | StoryRelation
-  | { count: number };
+  | { count: number }
+  | ReplaceTextReport
+  | UndoReplaceTextReport;
 
 /** 一并参与检索的事件或关系；涉及资料的标题与别名也能搜到它。 */
 export interface SearchNote {
@@ -211,6 +216,8 @@ export interface WorkRepository {
   /** 不在回收站中的事件，按发生位置与顺序排列。 */
   listRecords(): StoryRecord[];
   getRecord(recordId: string): StoryRecord | undefined;
+  /** 事件某次修订保存的快照。 */
+  getRecordSnapshot(revisionId: string): RecordSnapshot | undefined;
   /**
    * 写入事件的新修订。新事件或发生位置改变时排到新位置末尾，原位置的后续事件前移；返回写入后的事件。
    */
@@ -224,6 +231,8 @@ export interface WorkRepository {
   /** 不在回收站中的关系。 */
   listRelations(): StoryRelation[];
   getRelation(relationId: string): StoryRelation | undefined;
+  /** 关系某次修订保存的快照。 */
+  getRelationSnapshot(revisionId: string): RelationSnapshot | undefined;
   /** 写入关系的新修订，建立／结束按快照整体替换；返回写入后的关系。 */
   saveRelation(snapshot: RelationSnapshot, revision: RelationRevision): StoryRelation;
   /** 单条关系移入回收站，自成一个删除批次。 */

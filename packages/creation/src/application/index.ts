@@ -23,6 +23,8 @@ import { RecordService } from '../records/service.ts';
 import { RelationService } from '../relations/service.ts';
 import type { CreationRepository } from '../repository.ts';
 import { ReviewService } from '../review/service.ts';
+import { replaceText, undoReplaceText } from '../search/replace-text.ts';
+import { searchText } from '../search/text-search.ts';
 import { VectorIndexService, type VectorText } from '../search/vector-index.ts';
 import { CreationService } from '../service.ts';
 import { authorValidator, agentValidator } from './schema.ts';
@@ -251,6 +253,28 @@ export class CreationApplication {
         return this.service.readDraftState(command.input.workId, command.input.documentId);
       case 'readRevision':
         return this.service.readRevision(command.input.workId, command.input.revisionId);
+      case 'replaceText': {
+        const { input } = command;
+        return this.service.commit(
+          input.workId,
+          input.commandId,
+          ['replaceText', input],
+          { kind: 'textReplacement' },
+          () => replaceText(this.search.repository, input)
+        );
+      }
+      case 'undoReplaceText': {
+        const { input } = command;
+        return this.service.commit(
+          input.workId,
+          input.commandId,
+          ['undoReplaceText', input],
+          { kind: 'textReplacement' },
+          () => undoReplaceText(this.search.repository, input)
+        );
+      }
+      case 'searchText':
+        return searchText(this.search.repository.work(command.input.workId), command.input);
       case 'listRevisions':
         return this.service.listRevisions(command.input.workId, command.input.documentId);
       case 'snapshot':

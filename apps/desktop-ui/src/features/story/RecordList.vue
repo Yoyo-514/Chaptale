@@ -212,6 +212,8 @@ function move(record: StoryRecord, records: StoryRecord[], step: -1 | 1) {
           <li
             v-else
             class="record"
+            :data-record-id="row.record.id"
+            tabindex="-1"
             :class="{ 'record-pending': changes.has(row.record.id), 'record-editing': editingId === row.record.id }"
           >
             <RecordForm

@@ -18,11 +18,28 @@ const navigation = useWorkbenchStore();
           variant="ghost"
           type="button"
           aria-label="作品"
-          :aria-pressed="navigation.sidebarOpen && !navigation.focusMode"
-          :selected="navigation.sidebarOpen && !navigation.focusMode"
+          :aria-pressed="navigation.sidebarOpen && navigation.sidebarView === 'explorer' && !navigation.focusMode"
+          :selected="navigation.sidebarOpen && navigation.sidebarView === 'explorer' && !navigation.focusMode"
           @click="navigation.toggleSidebar()"
         >
           <span class="i-mingcute-folder-2-line activity-icon" aria-hidden="true" />
+        </AppButton>
+      </AppTooltip>
+      <AppTooltip text="全作品搜索（Ctrl+Shift+F）" side="right" :side-offset="8">
+        <AppButton
+          class="activity-button"
+          icon
+          variant="ghost"
+          aria-label="全作品搜索"
+          :aria-pressed="navigation.sidebarOpen && navigation.sidebarView === 'search' && !navigation.focusMode"
+          :selected="navigation.sidebarOpen && navigation.sidebarView === 'search' && !navigation.focusMode"
+          @click="
+            navigation.sidebarView === 'search' && navigation.sidebarOpen && !navigation.focusMode
+              ? navigation.toggleSidebar('search')
+              : navigation.openSearch()
+          "
+        >
+          <span class="i-mingcute-search-line activity-icon" aria-hidden="true" />
         </AppButton>
       </AppTooltip>
       <AppTooltip text="会话" side="right" :side-offset="8">

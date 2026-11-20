@@ -90,6 +90,13 @@ export function getRecord(database: Database.Database, recordId: string): StoryR
   return row ? toRecord(database, row) : undefined;
 }
 
+export function getRecordSnapshot(database: Database.Database, revisionId: string): RecordSnapshot | undefined {
+  const row = database.prepare('SELECT snapshot FROM story_record_revisions WHERE id = ?').get(revisionId) as
+    | { snapshot: string }
+    | undefined;
+  return row && (JSON.parse(row.snapshot) as RecordSnapshot);
+}
+
 export function isRecordTrashed(database: Database.Database, recordId: string): boolean {
   return database.prepare('SELECT 1 FROM record_trash WHERE recordId = ?').get(recordId) !== undefined;
 }

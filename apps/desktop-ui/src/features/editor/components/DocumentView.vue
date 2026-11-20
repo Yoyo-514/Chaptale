@@ -20,7 +20,6 @@ import { createDocumentView } from '../codemirror/view';
 import { selectedText } from '../context';
 import IllustrationPicker from '../illustrations/IllustrationPicker.vue';
 import { useIllustrations } from '../illustrations/use-illustrations';
-import { useReadingStore } from '../reading/store';
 import { useReviewStore } from '../review/store';
 import { useEditorStore } from '../store';
 import type { EditorTab } from '../types';
@@ -29,7 +28,6 @@ const props = withDefaults(defineProps<{ tab: EditorTab; active: boolean; groupI
   groupIndex: 0
 });
 const editor = useEditorStore();
-const reading = useReadingStore();
 const check = useCheckStore();
 const review = useReviewStore();
 const creation = useCreationStore();
@@ -38,6 +36,7 @@ const pendingChange = computed(() =>
   creation.pendingEntries.find(change => change.targetId === props.tab.id && change.base !== null)
 );
 const host = ref<HTMLElement>();
+const story = ref<InstanceType<typeof StoryPanel>>();
 const compare = ref(false);
 let view: ReturnType<typeof createDocumentView> | undefined;
 let editingTarget: ReturnType<typeof captureEditingTarget>;
@@ -119,16 +118,21 @@ function render() {
   });
   editor.registerMountedState(props.groupIndex, props.tab.id, () => view!.getState());
 }
-/** 从阅读切回编辑：等恢复滚动位置的帧之后再定位到读到的正文。 */
+/** 取走给本视图的定位请求：等恢复滚动位置的帧之后再定位。 */
 function consumeReveal() {
-  const offset = view ? reading.takeReveal(props.tab.id, props.groupIndex) : null;
-  if (offset !== null) requestAnimationFrame(() => view?.goTo(offset));
+  const target = view ? editor.takeReveal(props.tab.id, props.groupIndex) : null;
+  if (!target) return;
+  requestAnimationFrame(() => {
+    if ('offset' in target) view?.goTo(target.offset);
+    else if ('kind' in target) void story.value?.locate(target.kind, target.id);
+    else view?.goToLine(target.line, target.from, target.to);
+  });
 }
 onMounted(() => {
   render();
   consumeReveal();
 });
-watch(() => reading.reveal, consumeReveal);
+watch(() => editor.reveal, consumeReveal);
 onBeforeUnmount(() => {
   editor.registerMountedState(props.groupIndex, props.tab.id, null);
   if (view) {
@@ -189,6 +193,7 @@ watch(
     </div>
     <AttributesPanel v-if="tab.attributes" :tab="tab" />
     <StoryPanel
+      ref="story"
       v-if="tab.attributes"
       :work-id="tab.workId"
       :resource-id="tab.id"

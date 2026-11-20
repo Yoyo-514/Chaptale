@@ -90,6 +90,7 @@ export type CreationChange =
   /** removed：事件移入回收站。调整顺序会改变同位置其他事件的序号，客户端重取快照。 */
   | { kind: 'record'; record: StoryRecord; removed: boolean }
   | { kind: 'records' }
+  | { kind: 'textReplacement' }
   /** removed：关系移入回收站。 */
   | { kind: 'relation'; relation: StoryRelation; removed: boolean };
 export interface CreationEvent {
@@ -155,6 +156,75 @@ export interface ExportFilesInput {
 export interface ExportReport {
   paths: string[];
   failure: { documentId: string | null; message: string } | null;
+}
+
+/** 作者的全作品搜索。unsaved 是开着且有未保存输入的文稿在编辑器里的当前文字，代替已保存内容参与搜索。 */
+export interface TextSearchInput {
+  workId: string;
+  pattern: string;
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  regexp: boolean;
+  unsaved: { documentId: string; content: string }[];
+  /** 给出时每处命中带上替换后的文字，供替换前预览；null 表示只搜索。 */
+  replacement: string | null;
+}
+/** 搜到的一个对象和搜索时它的正式修订；替换按它确认对象没有变过。 */
+export interface TextSearchTarget {
+  kind: 'entry' | 'record' | 'relation';
+  id: string;
+  revisionId: string;
+}
+/**
+ * 把 targets 里的对象按同样的搜索选项替换；targets 须对应正式内容，有未保存输入的文稿先保存再取。
+ * excluded 是作者划掉、保持原文的命中。
+ */
+export interface ReplaceTextInput extends Omit<TextSearchInput, 'unsaved' | 'replacement'> {
+  commandId: string;
+  replacement: string;
+  targets: TextSearchTarget[];
+  excluded: { id: string; field: 'content' | 'text' | RelationTextMatch['field']; line: number; from: number }[];
+}
+/** 撤销一次替换：revisions 取自那次替换的回执。 */
+export interface UndoReplaceTextInput {
+  commandId: string;
+  workId: string;
+  revisions: ReplaceTextReport['revisions'];
+}
+/** count 是还原的对象数；替换之后又变过的对象保持现状，列入 skipped。 */
+export interface UndoReplaceTextReport {
+  count: number;
+  skipped: string[];
+}
+/** count 是替换的处数；skipped 是有待接受修改而没动的对象；revisions 是改过的对象在替换前后的修订。 */
+export interface ReplaceTextReport {
+  count: number;
+  skipped: string[];
+  revisions: (TextSearchTarget & { previousRevisionId: string })[];
+}
+/** 一处命中：line 是从 1 开始的行号，from、to 是命中在这一行里的起止位置；excerpt 是命中附近的文字，excerptFrom 是命中在其中的起点。 */
+export interface TextMatch {
+  line: number;
+  from: number;
+  to: number;
+  excerpt: string;
+  excerptFrom: number;
+  /** 搜索带了 replacement 时，这一处替换后的文字。 */
+  replacement?: string;
+}
+/** 关系里命中的是类型，还是第一方、第二方的称呼。 */
+export type RelationTextMatch = TextMatch & { field: 'type' | 'firstTitle' | 'secondTitle' };
+/** 命中按目录顺序的文稿、资料，再到事件、关系排列；total 是全部命中数，超过返回上限时 truncated 为 true。 */
+export interface TextSearchResult {
+  /** 包括显示上限以外的命中对象，批量操作按搜索时的修订校验。 */
+  targets: TextSearchTarget[];
+  entries: { entryId: string; matches: TextMatch[] }[];
+  records: { recordId: string; matches: TextMatch[] }[];
+  relations: { relationId: string; matches: RelationTextMatch[] }[];
+  total: number;
+  documentCount: number;
+  recordCount: number;
+  truncated: boolean;
 }
 
 /** 本机工作台状态只保存身份和位置，正文仍由文档与恢复草稿持有。 */
@@ -246,6 +316,10 @@ export interface CreationAuthorCommands extends CreationReadCommands, ReviewComm
   discardDraft: { input: { workId: string; documentId: string; draftId: string }; output: CreationResult<DraftState> };
   readDraftState: { input: { workId: string; documentId: string }; output: CreationResult<DraftState> };
   readRevision: { input: { workId: string; revisionId: string }; output: CreationResult<Revision> };
+  /** 作者的全作品搜索，按字面或正则匹配。 */
+  searchText: { input: TextSearchInput; output: CreationResult<TextSearchResult> };
+  replaceText: { input: ReplaceTextInput; output: CreationResult<ReplaceTextReport> };
+  undoReplaceText: { input: UndoReplaceTextInput; output: CreationResult<UndoReplaceTextReport> };
   /** 文稿的正文版本，最新在前。 */
   listRevisions: { input: { workId: string; documentId: string }; output: CreationResult<RevisionSummary[]> };
   snapshot: { input: { workId: string | null }; output: CreationResult<CreationSnapshot> };

@@ -26,7 +26,7 @@ import { useHistoryStore } from './history/store';
 import { useReadingStore } from './reading/store';
 import { reviewDone, useReviewStore } from './review/store';
 import { useDocumentSaving } from './saving';
-import type { DocumentViewState, EditorTab } from './types';
+import type { DocumentViewState, EditorTab, RevealTarget } from './types';
 
 /** 编辑器里发起、由对话完成的操作；对话在编辑器上层，由工作台布局接入。 */
 interface EditorChat {
@@ -44,6 +44,8 @@ export const useEditorStore = defineStore('editor', () => {
   const specialGroup = ref<EditorGroupIndex>(0);
   const searchRequest = ref(0);
   const command = shallowRef<{ name: 'undo' | 'redo'; sequence: number } | null>(null);
+  /** 待定位的编辑组、文稿与正文位置，由对应文档视图挂载后取走。 */
+  const reveal = shallowRef<{ groupIndex: EditorGroupIndex; id: string; target: RevealTarget } | null>(null);
   const groups = computed<readonly EditorGroupState[]>(() => creation.view?.groups ?? createEmptyGroups());
   const activeGroup = computed<EditorGroupIndex>(() => {
     const current = creation.view;
@@ -106,6 +108,21 @@ export const useEditorStore = defineStore('editor', () => {
     activateTabInGroup(state, groupIndex, id);
     clearSpecialTabsForGroup(state.activeGroup);
     if (!alreadyLoaded) await load(id);
+  }
+
+  /** 在编辑状态打开文稿并定位到指定正文；这一栏正在阅读它时先结束阅读。 */
+  async function revealDocument(id: string, target: RevealTarget, groupIndex: EditorGroupIndex = activeGroup.value) {
+    const reading = useReadingStore();
+    reading.stop(reading.slotKey(groupIndex, id));
+    reveal.value = { groupIndex, id, target };
+    await openDocument(id, groupIndex);
+  }
+  /** 文档视图取走属于自己所在编辑组的定位请求。 */
+  function takeReveal(documentId: string, groupIndex: EditorGroupIndex): RevealTarget | null {
+    const request = reveal.value;
+    if (!request || request.id !== documentId || request.groupIndex !== groupIndex) return null;
+    reveal.value = null;
+    return request.target;
   }
 
   async function openToSide(id: string) {
@@ -336,6 +353,7 @@ export const useEditorStore = defineStore('editor', () => {
     autoSave,
     searchRequest,
     command,
+    reveal,
     unsavedPrompt: closeFlow.unsavedPrompt,
     isSpecialActiveInGroup,
     focusGroup,
@@ -348,6 +366,8 @@ export const useEditorStore = defineStore('editor', () => {
     updateBuffer: saving.updateBuffer,
     updateMetadata: saving.updateMetadata,
     openDocument,
+    revealDocument,
+    takeReveal,
     openToSide,
     splitRight,
     selectTab,

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, shallowRef, watch } from 'vue';
+import { ref, watch } from 'vue';
 
 import type { Document, EditorGroupIndex } from '@chaptale/creation/contracts';
 
@@ -36,9 +36,6 @@ export const useReadingStore = defineStore('reading', () => {
       ? selection.toString()
       : '';
   }
-  /** 切回编辑后待定位的编辑组、文稿与正文位置，由对应文档视图挂载后消费。 */
-  const reveal = shallowRef<{ groupIndex: EditorGroupIndex; id: string; offset: number } | null>(null);
-
   function stop(slot: string) {
     if (!(slot in positions.value)) return;
     const next = { ...positions.value };
@@ -98,20 +95,10 @@ export const useReadingStore = defineStore('reading', () => {
     const slot = readingSlotKey(groupIndex, tabId);
     const { documentId, offset } = positions.value[slot]!;
     stop(slot);
-    reveal.value = { groupIndex, id: documentId, offset };
-    await editor.openDocument(documentId, groupIndex);
+    await editor.revealDocument(documentId, { offset }, groupIndex);
   }
-  /** 文档视图挂载后取走属于自己所在编辑组的定位请求。 */
-  function takeReveal(documentId: string, groupIndex: EditorGroupIndex = 0) {
-    const target = reveal.value;
-    if (!target || target.id !== documentId || target.groupIndex !== groupIndex) return null;
-    reveal.value = null;
-    return target.offset;
-  }
-
   return {
     positions,
-    reveal,
     slotKey: readingSlotKey,
     start,
     stop,
@@ -120,7 +107,6 @@ export const useReadingStore = defineStore('reading', () => {
     bindViewport,
     selectedText,
     readChapter,
-    edit,
-    takeReveal
+    edit
   };
 });

@@ -161,6 +161,57 @@ const inputs = {
   discardDraft: object({ ...documentTarget, draftId: id }),
   readDraftState: object(documentTarget),
   readRevision: object({ workId: id, revisionId: id }),
+  searchText: object({
+    workId: id,
+    pattern: Type.String({ minLength: 1 }),
+    caseSensitive: Type.Boolean(),
+    wholeWord: Type.Boolean(),
+    regexp: Type.Boolean(),
+    unsaved: Type.Array(object({ documentId: id, content: Type.String() })),
+    replacement: Type.Union([text, Type.Null()])
+  }),
+  replaceText: object({
+    workId: id,
+    commandId: id,
+    pattern: id,
+    regexp: Type.Boolean(),
+    caseSensitive: Type.Boolean(),
+    wholeWord: Type.Boolean(),
+    replacement: text,
+    targets: Type.Array(
+      object({
+        kind: Type.Union([Type.Literal('entry'), Type.Literal('record'), Type.Literal('relation')]),
+        id,
+        revisionId: id
+      })
+    ),
+    excluded: Type.Array(
+      object({
+        id,
+        field: Type.Union([
+          Type.Literal('content'),
+          Type.Literal('text'),
+          Type.Literal('type'),
+          Type.Literal('firstTitle'),
+          Type.Literal('secondTitle')
+        ]),
+        line: Type.Integer({ minimum: 1 }),
+        from: offset
+      })
+    )
+  }),
+  undoReplaceText: object({
+    commandId: id,
+    workId: id,
+    revisions: Type.Array(
+      object({
+        kind: Type.Union([Type.Literal('entry'), Type.Literal('record'), Type.Literal('relation')]),
+        id,
+        revisionId: id,
+        previousRevisionId: id
+      })
+    )
+  }),
   listRevisions: object(documentTarget),
   snapshot: object({ workId: parentId }),
   readChanges: object({

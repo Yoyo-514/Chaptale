@@ -7,6 +7,7 @@ import { SessionPanel, useAgentStore } from '@/features/agent';
 import { useCreationStore, WorksLibrary } from '@/features/creation';
 import { EditorGroup, useEditorContext, useEditorStore } from '@/features/editor';
 import { CreationDialogs, CreationExplorer, FileExchangeDialog } from '@/features/explorer';
+import { WorkSearchPanel } from '@/features/search';
 import { useWorkbenchStore } from '@/features/workbench';
 import { hasDesktopApi } from '@/utils/desktop-api';
 
@@ -31,6 +32,17 @@ function syncPanels() {
 }
 watch([showSidebar, showAuxiliary], syncPanels, { flush: 'post' });
 function keydown(event: KeyboardEvent) {
+  if (
+    !creation.libraryOpen &&
+    creation.workId &&
+    (event.ctrlKey || event.metaKey) &&
+    event.shiftKey &&
+    !event.altKey &&
+    ['f', 'h'].includes(event.key.toLowerCase())
+  ) {
+    event.preventDefault();
+    navigation.openSearch(event.key.toLowerCase() === 'h');
+  }
   if (event.key === 'Escape') navigation.focusMode = false;
 }
 onMounted(() => {
@@ -69,7 +81,14 @@ onBeforeUnmount(() => {
         class="workbench-panel"
         :inert="!showSidebar"
       >
-        <CreationExplorer v-if="creation.workId" v-show="showSidebar" />
+        <CreationExplorer v-if="creation.workId" v-show="showSidebar && navigation.sidebarView === 'explorer'" />
+        <WorkSearchPanel
+          v-if="creation.workId && navigation.searchFocus"
+          v-show="showSidebar && navigation.sidebarView === 'search'"
+          :visible="showSidebar && navigation.sidebarView === 'search'"
+          :key="creation.workId"
+          :work-id="creation.workId"
+        />
       </SplitterPanel>
       <SplitterResizeHandle v-show="showSidebar" class="workbench-resize-handle" aria-label="调整作品导航宽度" />
       <SplitterPanel :order="2" :default-size="48" :min-size="35" class="workbench-panel">

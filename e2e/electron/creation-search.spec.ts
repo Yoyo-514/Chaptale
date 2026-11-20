@@ -68,6 +68,12 @@ test('查找替换按大小写和正则匹配，替换后可撤销', async () =>
 
     await body.press('Control+h');
     await expect(replace).toBeVisible();
+    // 不开正则时反斜杠按字面找，不会当成换行。
+    await search.fill('alice\\n小雨');
+    await replace.fill('夜');
+    await replace.press('Enter');
+    await replace.press('Enter');
+    await expect(body).toHaveText('Alice Alice alice\n小雨 大雨', { useInnerText: true });
     await search.fill('[');
     await page.getByRole('button', { name: '正则表达式', exact: true }).click();
     await expect(search).toHaveAttribute('aria-invalid', 'true');

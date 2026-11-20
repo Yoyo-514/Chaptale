@@ -12,12 +12,17 @@ beforeEach(() => {
 });
 
 describe('ActivityBar', () => {
-  it('保留作品与会话入口，作品导航默认选中', () => {
+  it('作品导航默认选中，打开全作品搜索后选中搜索入口', async () => {
     const wrapper = mount(ActivityBar);
-    const activityButtons = wrapper.get('[aria-label="创作视图"]').findAll('button');
-    expect(activityButtons.map(button => button.attributes('aria-label'))).toEqual(['作品', '会话']);
-    expect(activityButtons[0]?.attributes('aria-pressed')).toBe('true');
-    expect(activityButtons[1]?.attributes('aria-pressed')).toBe('false');
+    const explorer = wrapper.get('button[aria-label="作品"]');
+    const search = wrapper.get('button[aria-label="全作品搜索"]');
+    expect(explorer.attributes('aria-pressed')).toBe('true');
+    await search.trigger('click');
+    expect(search.attributes('aria-pressed')).toBe('true');
+    expect(explorer.attributes('aria-pressed')).toBe('false');
+    await explorer.trigger('click');
+    expect(explorer.attributes('aria-pressed')).toBe('true');
+    expect(search.attributes('aria-pressed')).toBe('false');
   });
 
   it('活动栏切换协作栏，选中状态随实际布局变化', async () => {

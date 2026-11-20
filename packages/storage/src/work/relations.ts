@@ -115,6 +115,13 @@ export function getRelation(database: Database.Database, relationId: string): St
   return row ? toRelation(database, row) : undefined;
 }
 
+export function getRelationSnapshot(database: Database.Database, revisionId: string): RelationSnapshot | undefined {
+  const row = database.prepare('SELECT snapshot FROM story_relation_revisions WHERE id = ?').get(revisionId) as
+    | { snapshot: string }
+    | undefined;
+  return row && (JSON.parse(row.snapshot) as RelationSnapshot);
+}
+
 export function isRelationTrashed(database: Database.Database, relationId: string): boolean {
   return database.prepare('SELECT 1 FROM relation_trash WHERE relationId = ?').get(relationId) !== undefined;
 }
