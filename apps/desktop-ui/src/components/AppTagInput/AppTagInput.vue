@@ -70,7 +70,7 @@ function onKeydown(event: KeyboardEvent) {
   border-color: var(--input-hover-border);
 }
 .app-tag-input:focus-within {
-  box-shadow: var(--input-focus-shadow);
+  border-color: var(--input-focus-border);
 }
 .app-tag-input-tag {
   display: inline-flex;

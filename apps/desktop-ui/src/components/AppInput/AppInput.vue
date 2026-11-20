@@ -124,8 +124,8 @@ function handleInput(event: Event) {
   min-height: var(--control-height-md);
 }
 
-.app-input:focus-within {
-  box-shadow: var(--input-focus-shadow);
+.app-input:not(.is-invalid):focus-within {
+  border-color: var(--input-focus-border);
 }
 
 .app-input.is-disabled {

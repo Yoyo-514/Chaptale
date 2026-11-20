@@ -220,6 +220,7 @@ pnpm test:unit                     # 全仓单测，较慢
 - **风险机制**：焦点环用 `box-shadow` 画在控件外 3px。reka 的滚动视口自身带 `overflow`，由它裁剪内容；留白加在滚动区根节点上不起作用，贴边控件的焦点环左右会被切掉。
 - **实施要求**：留白加在视口上（`viewport-class`），根节点用等量负外边距抵消，见 `SettingsSection.vue`。排查时逐个聚焦控件，比较控件边缘到最近裁剪祖先内边缘的距离与焦点环宽度。
 - **核查重点**：设置各分区最左、最右的输入框，弹层和侧栏里贴边的控件。
+- **补充**：带边框的输入类控件（`AppInput`、`AppTextarea`、`AppNumberInput`、`AppSelect`、`AppCombobox`、`AppTagInput`）聚焦时已改成只换边框色（`--input-focus-border`），不再外扩；外扩的焦点环只剩按钮、开关、复选框和无边框的下拉入口，贴边时仍按上面的办法留白。
 
 ### 13. 接入 pi MCP
 

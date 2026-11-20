@@ -209,12 +209,12 @@ function stepBy(direction: -1 | 1) {
   border-color: var(--border-subtle);
 }
 
-.app-number-input:not(.app-number-input-muted):not(.is-disabled):hover {
+.app-number-input:not(.app-number-input-muted):not(.is-disabled):not(:focus-within):hover {
   border-color: var(--input-hover-border);
 }
 
-.app-number-input:focus-within {
-  box-shadow: var(--input-focus-shadow);
+.app-number-input:not(.is-invalid):focus-within {
+  border-color: var(--input-focus-border);
 }
 
 .app-number-input.is-disabled {

@@ -201,7 +201,12 @@ const contentClassName = computed(() =>
   @apply cursor-not-allowed opacity-60;
 }
 
-.app-select-trigger:focus-visible {
+.app-select-trigger:not(.app-select-trigger-ghost):not([data-invalid='true']):focus-visible {
+  border-color: var(--input-focus-border);
+}
+
+// 无边框入口和按钮一样画外环。
+.app-select-trigger-ghost:focus-visible {
   box-shadow: var(--input-focus-shadow);
 }
 

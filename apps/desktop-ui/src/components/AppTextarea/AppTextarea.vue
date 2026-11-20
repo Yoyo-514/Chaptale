@@ -139,12 +139,8 @@ defineExpose<AppTextareaExpose>({
   @apply px-4 py-3 text-base leading-5;
 }
 
-.app-textarea:focus-visible {
-  box-shadow: var(--input-focus-shadow);
-}
-
-.app-textarea-plain:focus-visible {
-  box-shadow: none;
+.app-textarea:not(.app-textarea-plain):not(.is-invalid):focus-visible {
+  border-color: var(--input-focus-border);
 }
 
 .app-textarea.is-disabled {

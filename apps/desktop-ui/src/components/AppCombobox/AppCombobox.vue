@@ -182,8 +182,8 @@ function choose(value: unknown) {
   background: var(--input);
   color: var(--foreground);
 }
-.app-combobox-anchor:focus-within {
-  box-shadow: var(--input-focus-shadow);
+.app-combobox-anchor:not([data-invalid]):focus-within {
+  border-color: var(--input-focus-border);
 }
 .app-combobox-anchor[data-disabled] {
   opacity: 0.6;
