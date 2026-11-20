@@ -19,7 +19,9 @@ export class SettingsService {
   private settingsQueue: Promise<unknown> = Promise.resolve();
 
   constructor(options: SettingsServiceOptions = {}) {
-    this.rootDir = options.rootDir ?? path.join(os.homedir(), '.chaptale');
+    // 开发环境用独立目录，`pnpm dev` 不读写安装版的作品与配置。
+    const defaultDir = process.env.NODE_ENV === 'development' ? '.chaptale-dev' : '.chaptale';
+    this.rootDir = options.rootDir ?? path.join(os.homedir(), defaultDir);
     this.settingsPath = path.join(this.rootDir, 'settings.json');
   }
 
