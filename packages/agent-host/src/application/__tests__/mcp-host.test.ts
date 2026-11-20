@@ -356,4 +356,32 @@ describe('HostApplication MCP 接入', () => {
       toolInfo: { mcpServer: 'wiki', mcpTool: 'search' }
     });
   }, 30_000);
+
+  it('修改指令使会话重载后，MCP 工具仍能调用', async () => {
+    await saveGlobal({ wiki: server('wiki-v1') });
+    const id = (await app.execute({ method: 'create', input: { model: modelRef, workId: null } })) as string;
+    const first = await promptUntilApproval(id, codemode('c1', 'return await tools.mcp__wiki__search({ q: "长安" });'));
+    await app.execute({
+      method: 'approve',
+      input: { id: first.id, allow: true, scope: 'session', mcpTarget: 'server' }
+    });
+    await waitIdle(id);
+
+    await app.execute({
+      method: 'instructions',
+      input: { id, entries: [{ name: '主创', role: 'system', text: '你是剧本创作助手。', enabled: true }] }
+    });
+    scriptQueue.push(codemode('c2', 'return await tools.mcp__wiki__search({ q: "重载后" });'), {
+      kind: 'text',
+      text: '完成'
+    });
+    await app.execute({ method: 'prompt', input: { id, text: '继续' } });
+    await waitIdle(id);
+    expect(app.liveSession(id)!.systemPrompt).toContain('你是剧本创作助手。');
+    // 服务器的输出回到了这次调用的结果里，说明重载后连接还在。
+    const result = view(id).messages.find(message => message.toolCallId === 'c2')!;
+    expect(result.error).toBe(false);
+    expect(result.text).toContain('wiki-v1:search');
+    expect(nested(id).at(-1)).toMatchObject({ id: 'c2/1', name: 'mcp__wiki__search', status: 'ok' });
+  }, 30_000);
 });
