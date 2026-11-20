@@ -143,7 +143,8 @@ export class HostRetrievalService {
       [question] = (await embed(connection, [input.question], signal)) as [Float32Array];
     } catch (error) {
       if (!(error instanceof EmbeddingRequestError)) throw error;
-      return noticed(keyword(), `没有做语义检索：${error.message}。`);
+      // 服务给的说明常自带句号。
+      return noticed(keyword(), `没有做语义检索：${error.message.replace(/[.。]+$/, '')}。`);
     }
     const result = creation.searchWork(context, input, question);
     return result.ok && fill.length > 0 ? { ok: true, value: { ...result.value, embedded: fill.length } } : result;

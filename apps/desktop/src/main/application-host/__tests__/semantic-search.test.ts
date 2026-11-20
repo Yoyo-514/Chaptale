@@ -257,7 +257,7 @@ it('检索时只为没算过的文字补向量：本会话待接受的修改和�
 it('检索服务出错时不重试，只按关键词检索并说明原因；恢复后照常按意思检索', async () => {
   await indexed();
   const built = server.requests.length;
-  const busy = { status: 503, body: { error: { message: 'overloaded' } } };
+  const busy = { status: 503, body: { error: { message: 'overloaded.' } } };
   const notice = '没有做语义检索：检索服务返回 HTTP 503：overloaded。';
   const question = '谁在守城';
 
