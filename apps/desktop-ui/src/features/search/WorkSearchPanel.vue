@@ -94,20 +94,27 @@ watch(
   },
   { immediate: true }
 );
-const content = () => [
-  props.workId,
-  query.value,
-  ...Object.values(options),
-  editor.bufferVersions,
-  editor.tabs.map(tab => tab.dirty),
-  creation.entries,
-  creation.records,
-  creation.relations
+// 每一项都只在文字或条件真的变了时才变；打开标签、写入恢复草稿这类不动文字的状态更新不算。
+const content = [
+  () => props.workId,
+  query,
+  () => options.caseSensitive,
+  () => options.wholeWord,
+  () => options.regexp,
+  // 只有未保存的输入会让结果偏离正式稿；干净标签载入或重载正式稿不改变命中。
+  () =>
+    editor.tabs
+      .filter(tab => tab.dirty)
+      .map(tab => `${tab.id}:${editor.bufferVersions[tab.id]}`)
+      .join(),
+  () => creation.entries,
+  () => creation.records,
+  () => creation.relations
 ];
 // 文字或搜索条件变了，命中的位置跟着变，划掉的记号不再对得上。
 watch(content, () => kept.value.clear());
 watch(
-  () => [...content(), composing.value, navigation.searchReplace, replacement.value, props.visible],
+  [...content, composing, () => navigation.searchReplace, replacement, () => props.visible],
   (_, __, cleanup) => {
     if (!props.visible) return;
     error.value = '';

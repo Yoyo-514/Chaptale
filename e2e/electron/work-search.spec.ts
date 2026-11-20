@@ -129,6 +129,11 @@ test('全作品替换先保存当前输入，保留划掉的一处，撤销后�
     await expect(panel.getByRole('status')).toHaveText('2 篇文档中有 4 个结果');
     await panel.getByRole('button', { name: '这一处保持原文' }).nth(1).click();
     await expect(panel.getByRole('button', { name: '恢复替换这一处' })).toHaveAttribute('aria-pressed', 'true');
+    // 点开另一篇文稿查看命中，划掉的记号仍然保留。
+    await panel.getByRole('button', { name: /出城/ }).click();
+    await expect(page.getByRole('tab', { name: '第一章', exact: true })).toBeVisible();
+    await expect(panel.getByRole('button', { name: '恢复替换这一处' })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('tab', { name: '第二章（未保存）', exact: true }).click();
 
     await panel.getByRole('button', { name: '全部替换', exact: true }).click();
     const dialog = page.getByRole('alertdialog', { name: '替换全部 3 处？' });
