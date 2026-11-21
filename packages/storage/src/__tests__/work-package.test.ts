@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -254,6 +254,51 @@ it('永久删除作品时导入前快照一并交给平台', async () => {
     workDirs(rootDir, work.id)
   );
   expect(purged.files).toHaveLength(2);
+});
+
+it('另存副本时恢复作品技能、引用资料和停用设置，已移除的技能留在原设备', async () => {
+  const { rootDir, app, work } = await source();
+  const skills = join(rootDir, 'works', work.id, 'skills');
+  await mkdir(join(skills, '润色', 'references'), { recursive: true });
+  await writeFile(join(skills, '润色', 'SKILL.md'), '保留原意。');
+  await writeFile(join(skills, '润色', 'references', '例子.txt'), '改前与改后');
+  const disabled = JSON.stringify({ disabled: ['润色'] });
+  await writeFile(join(skills, '.disabled.json'), disabled);
+  await mkdir(join(skills, '.trash'));
+  await writeFile(join(skills, '.trash', '旧技能'), '已删除');
+  const targetDir = await temp();
+  const target = await open(targetDir);
+  const copy = ok(await importPackage(target, await exportPackage(app, work.id), true));
+  const restored = join(targetDir, 'works', copy.work.id, 'skills');
+  expect(await readFile(join(restored, '润色', 'SKILL.md'), 'utf8')).toBe('保留原意。');
+  expect(await readFile(join(restored, '润色', 'references', '例子.txt'), 'utf8')).toBe('改前与改后');
+  expect(await readFile(join(restored, '.disabled.json'), 'utf8')).toBe(disabled);
+  expect(existsSync(join(restored, '.trash'))).toBe(false);
+});
+
+it('包内技能路径越过技能目录时不覆盖原作品', async () => {
+  const { app, work } = await source();
+  const before = await contents(app, work.id);
+  const path = await exportPackage(app, work.id);
+  const database = new Database(path);
+  database.prepare('INSERT INTO package_skills VALUES (?, ?)').run('../work.sqlite', Buffer.from('损坏内容'));
+  database.close();
+  expect(await importPackage(app, path)).toMatchObject({
+    ok: false,
+    error: { message: '作品包内容无效：技能路径不合法' }
+  });
+  expect(await contents(app, work.id)).toEqual(before);
+});
+
+it('第一版作品包没有技能表也能恢复正文和资料', async () => {
+  const { app, work } = await source();
+  const path = await exportPackage(app, work.id);
+  const database = new Database(path);
+  database.exec('DROP TABLE IF EXISTS package_skills; UPDATE package_meta SET format = 1');
+  database.close();
+  const target = await open(await temp());
+  ok(await importPackage(target, path));
+  expect(await contents(target, work.id)).toEqual(await contents(app, work.id));
 });
 
 it('非作品包与版本更新的作品包拒绝导入，作品库不变', async () => {

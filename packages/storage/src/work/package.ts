@@ -1,5 +1,14 @@
 import Database from 'better-sqlite3';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import path from 'node:path';
 
 import type { Work, WorkSnapshot } from '@chaptale/creation/contracts';
@@ -8,14 +17,32 @@ import { prepareSchema, SchemaVersionError } from '../schema.ts';
 import { workDatabaseFile, workDir, workFilesDir, workSchema } from './database.ts';
 
 /** 作品包格式版本；包内作品库的结构版本另由 user_version 记录。 */
-const packageFormat = 1;
+const packageFormat = 2;
 const packageTables = `
+  CREATE TABLE package_skills (path TEXT PRIMARY KEY, data BLOB NOT NULL) STRICT;
   CREATE TABLE package_meta (format INTEGER NOT NULL, work TEXT NOT NULL) STRICT;
   CREATE TABLE package_files (entryId TEXT NOT NULL, fileName TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY (entryId, fileName)) STRICT;
 `;
 /** 覆盖导入前的作品目录：`<workId>.before-import-<时间>`，目录内 work.json 记录当时的作品信息。 */
 const snapshotMarker = '.before-import-';
 const snapshotWorkFile = 'work.json';
+
+/** 技能正文及其引用以相对路径归档；根目录只取技能目录和停用设置。 */
+function archiveSkills(database: Database.Database, root: string): void {
+  if (!existsSync(root)) return;
+  if (lstatSync(root).isSymbolicLink()) throw new Error('作品技能目录不能是符号链接');
+  const insert = database.prepare('INSERT INTO package_skills VALUES (?, ?)');
+  function visit(prefix: string): void {
+    for (const item of readdirSync(path.join(root, prefix), { withFileTypes: true })) {
+      if (!prefix && (item.name === '.trash' || (!item.isDirectory() && item.name !== '.disabled.json'))) continue;
+      const relative = prefix ? `${prefix}/${item.name}` : item.name;
+      if (item.isDirectory()) visit(relative);
+      else if (item.isFile()) insert.run(relative, readFileSync(path.join(root, relative)));
+      else throw new Error(`技能包含不支持的条目：${relative}`);
+    }
+  }
+  visit('');
+}
 
 /** 作品包是一个 SQLite 文件：作品库的一致快照，加上包信息与资料文件条目。先写临时文件，完成后再换上目标路径。 */
 export function exportWorkPackage(rootDir: string, database: Database.Database, work: Work, file: string): void {
@@ -31,6 +58,7 @@ export function exportWorkPackage(rootDir: string, database: Database.Database, 
       const insert = target.prepare('INSERT INTO package_files VALUES (?, ?, ?)');
       const filesDir = workFilesDir(rootDir, work.id);
       target.transaction(() => {
+        archiveSkills(target, path.join(workDir(rootDir, work.id), 'skills'));
         if (!existsSync(filesDir)) return;
         for (const entryId of readdirSync(filesDir))
           for (const fileName of readdirSync(path.join(filesDir, entryId)))
@@ -96,6 +124,21 @@ export function stageWorkPackage(rootDir: string, file: string, workId: string):
           const dir = path.join(staging, 'files', row.entryId);
           mkdirSync(dir, { recursive: true });
           writeFileSync(path.join(dir, row.fileName), row.data);
+        }
+        const { format } = source.prepare('SELECT format FROM package_meta').get() as { format: number };
+        if (format === 2) {
+          for (const skill of source.prepare('SELECT path, data FROM package_skills').iterate() as Iterable<{
+            path: string;
+            data: Buffer;
+          }>) {
+            const parts = skill.path.split('/');
+            if (parts.some(part => !part || part.includes('\\') || part.includes(':') || /[. ]$/.test(part)))
+              throw new Error('作品包内容无效：技能路径不合法');
+            const filePath = path.join(staging, 'skills', ...parts);
+            mkdirSync(path.dirname(filePath), { recursive: true });
+            writeFileSync(filePath, skill.data);
+          }
+          staged.exec('DROP TABLE package_skills');
         }
         staged.exec('DROP TABLE package_meta; DROP TABLE package_files; VACUUM');
         staged.pragma('foreign_keys = ON');
