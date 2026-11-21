@@ -290,15 +290,18 @@ it('包内技能路径越过技能目录时不覆盖原作品', async () => {
   expect(await contents(app, work.id)).toEqual(before);
 });
 
-it('第一版作品包没有技能表也能恢复正文和资料', async () => {
-  const { app, work } = await source();
-  const path = await exportPackage(app, work.id);
-  const database = new Database(path);
-  database.exec('DROP TABLE IF EXISTS package_skills; UPDATE package_meta SET format = 1');
-  database.close();
+it('升级前导出的作品包能在空作品库中恢复正文和图片', async () => {
+  // 用 6ad49ec 的导出器生成，独立于当前导出逻辑。
+  const path = join(import.meta.dirname, 'fixtures', 'work-v1.chaptale');
   const target = await open(await temp());
-  ok(await importPackage(target, path));
-  expect(await contents(target, work.id)).toEqual(await contents(app, work.id));
+  const { work } = ok(await importPackage(target, path));
+  const { text, titles, image } = await contents(target, work.id);
+  expect(work.title).toBe('雨夜');
+  expect(titles).toEqual(['第一章', '雨.png']);
+  expect(text).toBe('夜里下着雨。');
+  expect(Buffer.from(image).toString('base64')).toBe(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j2XkAAAAASUVORK5CYII='
+  );
 });
 
 it('非作品包与版本更新的作品包拒绝导入，作品库不变', async () => {
