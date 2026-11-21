@@ -1,6 +1,6 @@
 import { SessionManager, type ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, realpath, rename } from 'node:fs/promises';
+import { mkdir, readdir, rename } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import type { CreationApplication } from '@chaptale/creation/application';
@@ -157,6 +157,11 @@ export class HostSessions {
     this.options.emit({ kind: 'closed', id });
   }
 
+  /** 作品备份里恢复出来的会话历史，与作品技能目录同级。 */
+  private archiveDir(workId: string): string {
+    return join(dirname(this.options.creation!.workFilesDir(workId)), 'history');
+  }
+
   /** 按子目录汇总全部历史；排列顺序由界面决定。 */
   async history(): Promise<HistoryItem[]> {
     const { sessionDir } = this.options;
@@ -174,7 +179,7 @@ export class HostSessions {
     );
     const archives = await Promise.all(
       this.options.works.all().map(async work => {
-        const dir = join(dirname(this.options.creation!.workFilesDir(work.id)), 'history');
+        const dir = this.archiveDir(work.id);
         return (await SessionManager.listAll(dir)).map(item => ({
           id: archiveId(work.id, item.path),
           file: item.path,
@@ -278,8 +283,10 @@ export class HostSessions {
       skills?: SessionSkillsState;
       mcp?: SessionMcpBridge;
     } = {};
-    const archived = basename(dirname(file)) === 'history';
-    const workId = archived ? basename(dirname(dirname(file))) : this.workIdOf(file);
+    // 备份历史按所在目录认作品：只有列表给出的路径能对上，其余路径交给会话池校验。
+    const archive = works.all().find(work => this.archiveDir(work.id) === dirname(file));
+    const archived = archive !== undefined;
+    const workId = archive ? archive.id : this.workIdOf(file);
     const cwd = async () => {
       opened.work = works.find(workId);
       opened.cwd = await works.directory(opened.work);
@@ -289,13 +296,8 @@ export class HostSessions {
     };
     let result: Awaited<ReturnType<HostSessionPool['openWith']>>;
     try {
-      if (archived) {
-        const work = works.find(workId);
-        if (!work || !file.endsWith('.jsonl')) throw new HostSessionOpenError('invalid-path');
-        const directory = dirname(this.options.creation!.workFilesDir(work.id));
-        const expected = join(await realpath(directory), 'history', basename(file));
-        if ((await realpath(file)) !== expected) throw new HostSessionOpenError('invalid-path');
-        const manager = await openHostSessionManager({ file, cwd: async () => directory });
+      if (archive) {
+        const manager = await openHostSessionManager({ file, cwd: async () => dirname(dirname(file)) });
         opened.history = sessionHistory(manager, true);
       } else
         result = await this.options.pool.openWith({ file, cwd }, manager => {

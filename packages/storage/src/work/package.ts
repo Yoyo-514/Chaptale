@@ -1,14 +1,5 @@
 import Database from 'better-sqlite3';
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync
-} from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { Work, WorkSnapshot } from '@chaptale/creation/contracts';
@@ -31,15 +22,13 @@ const snapshotWorkFile = 'work.json';
 /** 技能正文及其引用以相对路径归档；根目录只取技能目录和停用设置。 */
 function archiveSkills(database: Database.Database, root: string): void {
   if (!existsSync(root)) return;
-  if (lstatSync(root).isSymbolicLink()) throw new Error('作品技能目录不能是符号链接');
   const insert = database.prepare('INSERT INTO package_skills VALUES (?, ?)');
   function visit(prefix: string): void {
     for (const item of readdirSync(path.join(root, prefix), { withFileTypes: true })) {
       if (!prefix && (item.name === '.trash' || (!item.isDirectory() && item.name !== '.disabled.json'))) continue;
       const relative = prefix ? `${prefix}/${item.name}` : item.name;
       if (item.isDirectory()) visit(relative);
-      else if (item.isFile()) insert.run(relative, readFileSync(path.join(root, relative)));
-      else throw new Error(`技能包含不支持的条目：${relative}`);
+      else insert.run(relative, readFileSync(path.join(root, relative)));
     }
   }
   visit('');
@@ -60,24 +49,12 @@ export function exportWorkPackage(rootDir: string, database: Database.Database, 
       const filesDir = workFilesDir(rootDir, work.id);
       target.transaction(() => {
         const insertSession = target.prepare('INSERT INTO package_sessions VALUES (?, ?)');
-        const lookup = target.prepare('SELECT data FROM package_sessions WHERE name = ?');
+        // 恢复时跳过仍在本机的会话，两个目录里没有同名历史。
         for (const dir of [path.join(workDir(rootDir, work.id), 'history'), path.join(rootDir, 'sessions', work.id)]) {
           if (!existsSync(dir)) continue;
-          for (const item of readdirSync(dir, { withFileTypes: true })) {
-            if (!item.isFile() || !item.name.endsWith('.jsonl')) continue;
-            const bytes = readFileSync(path.join(dir, item.name));
-            // 本机会话可能在上次备份后又写了消息；同名的两个时点分别保留。
-            let name = item.name;
-            for (let n = 1; ; n++) {
-              const prior = lookup.get(name) as { data: Buffer } | undefined;
-              if (!prior) {
-                insertSession.run(name, bytes);
-                break;
-              }
-              if (prior.data.equals(bytes)) break;
-              name = `${item.name.slice(0, -6)}-${n}.jsonl`;
-            }
-          }
+          for (const item of readdirSync(dir, { withFileTypes: true }))
+            if (item.isFile() && item.name.endsWith('.jsonl'))
+              insertSession.run(item.name, readFileSync(path.join(dir, item.name)));
         }
         archiveSkills(target, path.join(workDir(rootDir, work.id), 'skills'));
         if (!existsSync(filesDir)) return;
@@ -96,7 +73,7 @@ export function exportWorkPackage(rootDir: string, database: Database.Database, 
   }
 }
 
-/** 读取包信息；不是作品包、包格式或结构版本比当前应用新时报错。 */
+/** 读取包信息；不是作品包、包格式与当前不同或结构版本比当前应用新时报错。 */
 export function readWorkPackage(file: string): Work {
   const database = new Database(file, { readonly: true, fileMustExist: true });
   try {
@@ -105,6 +82,7 @@ export function readWorkPackage(file: string): Work {
       : undefined;
     if (!meta) throw new Error('所选文件不是 Chaptale 作品包');
     const version = database.pragma('user_version', { simple: true }) as number;
+    if (meta.format < packageFormat) throw new Error('作品包由旧版本的 Chaptale 导出，请用当前版本重新导出');
     if (meta.format > packageFormat || version > workSchema.migrations.length + 1)
       throw new SchemaVersionError('作品包由更新版本的 Chaptale 导出，请升级应用后导入');
     return JSON.parse(meta.work) as Work;
@@ -146,35 +124,32 @@ export function stageWorkPackage(rootDir: string, file: string, workId: string):
           mkdirSync(dir, { recursive: true });
           writeFileSync(path.join(dir, row.fileName), row.data);
         }
-        const { format } = source.prepare('SELECT format FROM package_meta').get() as { format: number };
-        if (format >= 3) {
-          for (const row of source.prepare('SELECT name, data FROM package_sessions').iterate() as Iterable<{
-            name: string;
-            data: Buffer;
-          }>) {
-            if (!row.name.endsWith('.jsonl') || /[\\/:]/.test(row.name))
-              throw new Error('作品包内容无效：历史名称不合法');
-            const dir = path.join(staging, 'history');
-            mkdirSync(dir, { recursive: true });
-            writeFileSync(path.join(dir, row.name), row.data);
-          }
-          staged.exec('DROP TABLE package_sessions');
+        for (const row of source.prepare('SELECT name, data FROM package_sessions').iterate() as Iterable<{
+          name: string;
+          data: Buffer;
+        }>) {
+          if (!row.name.endsWith('.jsonl') || /[\\/:]/.test(row.name))
+            throw new Error('作品包内容无效：历史名称不合法');
+          // 本机会话只追加，已经包含备份时刻的全部记录；同名副本不再恢复。
+          if (existsSync(path.join(rootDir, 'sessions', workId, row.name))) continue;
+          const dir = path.join(staging, 'history');
+          mkdirSync(dir, { recursive: true });
+          writeFileSync(path.join(dir, row.name), row.data);
         }
-        if (format >= 2) {
-          for (const skill of source.prepare('SELECT path, data FROM package_skills').iterate() as Iterable<{
-            path: string;
-            data: Buffer;
-          }>) {
-            const parts = skill.path.split('/');
-            if (parts.some(part => !part || part.includes('\\') || part.includes(':') || /[. ]$/.test(part)))
-              throw new Error('作品包内容无效：技能路径不合法');
-            const filePath = path.join(staging, 'skills', ...parts);
-            mkdirSync(path.dirname(filePath), { recursive: true });
-            writeFileSync(filePath, skill.data);
-          }
-          staged.exec('DROP TABLE package_skills');
+        for (const skill of source.prepare('SELECT path, data FROM package_skills').iterate() as Iterable<{
+          path: string;
+          data: Buffer;
+        }>) {
+          const parts = skill.path.split('/');
+          if (parts.some(part => !part || part.includes('\\') || part.includes(':') || /[. ]$/.test(part)))
+            throw new Error('作品包内容无效：技能路径不合法');
+          const filePath = path.join(staging, 'skills', ...parts);
+          mkdirSync(path.dirname(filePath), { recursive: true });
+          writeFileSync(filePath, skill.data);
         }
-        staged.exec('DROP TABLE package_meta; DROP TABLE package_files; VACUUM');
+        staged.exec(
+          'DROP TABLE package_sessions; DROP TABLE package_skills; DROP TABLE package_meta; DROP TABLE package_files; VACUUM'
+        );
         staged.pragma('foreign_keys = ON');
         prepareSchema(staged, stagedFile, workSchema);
       } finally {

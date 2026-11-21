@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { appendFile, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative } from 'node:path';
 import { expect, it } from 'vitest';
@@ -257,4 +257,32 @@ it('副本中的会话能只读回看并单独删除，原会话仍可继续', a
   const removed = await host.execute({ method: 'deleteSessions', input: { sessionIds: [archived.id] } });
   expect(removed).toEqual({ files: [archived.file] });
   expect(host.liveSession(id)).toBe(original);
+});
+
+it('在原设备覆盖恢复后，仍在本机的会话只列出一次，再次备份也只带一份', async () => {
+  await ownSession();
+  const file = host.liveSession(id)!.sessionFile!;
+  host
+    .liveSession(id)!
+    .sessionManager.appendMessage({ role: 'user', content: '记住雨夜的钟声', timestamp: Date.now() });
+  const path = join(root, '覆盖.chaptale');
+  value(await creation.execute({ method: 'exportWorkPackage', input: { workId, path } }));
+  await host.execute({ method: 'importWorkPackage', input: { commandId: randomUUID(), path, asCopy: false } });
+  const listed = async (target: string) =>
+    ((await host.execute({ method: 'history', input: undefined })) as HistoryItem[]).filter(
+      item => item.workId === target
+    );
+  expect((await listed(workId)).map(item => item.file)).toEqual([file]);
+
+  // 本机会话在备份之后又写了消息：再次备份带走的是本机这份完整记录。
+  await appendFile(file, `${JSON.stringify({ type: 'custom', customType: 'probe', id: 'later', parentId: null })}\n`);
+  const secondPath = join(root, '覆盖后再导出.chaptale');
+  value(await creation.execute({ method: 'exportWorkPackage', input: { workId, path: secondPath } }));
+  const copy = (await host.execute({
+    method: 'importWorkPackage',
+    input: { commandId: randomUUID(), path: secondPath, asCopy: true }
+  })) as WorkReplacement;
+  const copied = await listed(copy.work.id);
+  expect(copied).toHaveLength(1);
+  expect(await readFile(copied[0]!.file)).toEqual(await readFile(file));
 });
