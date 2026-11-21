@@ -71,7 +71,7 @@ export async function restartWithTools(tools: ToolDefinition[], history?: { file
   host = await HostApplication.create({
     cwd: join(root, 'work'),
     agentDir: join(root, 'agent'),
-    sessionDir: join(root, 'sessions'),
+    sessionDir: join(root, 'creation', 'sessions'),
     settingsFile: join(configDir, 'settings.json'),
     builtinInstructions: builtinWritingInstructions,
     modelRuntime: runtime,
@@ -219,7 +219,7 @@ export function setupWorkSession() {
       cwd: join(root, 'work'),
       agentDir: join(root, 'agent'),
       configDir: join(root, 'config'),
-      sessionDir: join(root, 'sessions'),
+      sessionDir: join(root, 'creation', 'sessions'),
       settingsFile: join(root, 'config', 'settings.json'),
       creation
     });

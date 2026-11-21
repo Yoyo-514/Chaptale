@@ -1,6 +1,6 @@
 import { SessionManager, type ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, rename } from 'node:fs/promises';
+import { mkdir, readdir, realpath, rename } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import type { CreationApplication } from '@chaptale/creation/application';
@@ -17,7 +17,7 @@ import {
 } from '../protocol/index.ts';
 import type { HostRetrievalService } from '../retrieval/service.ts';
 import type { HostSessionPool } from '../session/session-pool.ts';
-import { HostSessionOpenError } from '../session/session-storage.ts';
+import { HostSessionOpenError, openHostSessionManager } from '../session/session-storage.ts';
 import type { AppSettingsStore } from '../settings/app-settings.ts';
 import type { HostSkillsService, SessionSkillsState } from '../skills/index.ts';
 import type { HostToolDecision, HostToolRequest } from '../tools/tool-access.ts';
@@ -29,6 +29,9 @@ import { type AppliedInstructions, instructionCallbacks, LiveSession } from './l
 
 /** 未归属会话所在的子目录；作品 ID 不会与它重名。 */
 const unassignedFolder = 'unassigned';
+
+// 副本保留原生 JSONL 的会话 ID；历史列表和删除操作要能区分它与原会话。
+const archiveId = (workId: string, file: string) => `backup:${workId}:${basename(file)}`;
 
 /** 已打开的会话；只读历史只有视图，没有可继续的会话。 */
 interface OpenSession {
@@ -169,7 +172,19 @@ export class HostSessions {
         }))
       )
     );
-    return lists.flat();
+    const archives = await Promise.all(
+      this.options.works.all().map(async work => {
+        const dir = join(dirname(this.options.creation!.workFilesDir(work.id)), 'history');
+        return (await SessionManager.listAll(dir)).map(item => ({
+          id: archiveId(work.id, item.path),
+          file: item.path,
+          workId: work.id,
+          title: item.name || item.firstMessage || '未命名会话',
+          modified: item.modified.toISOString()
+        }));
+      })
+    );
+    return [...lists.flat(), ...archives.flat()];
   }
 
   /** 未归属会话的历史文件移入作品目录；已打开的先关闭，移动后重新打开。 */
@@ -263,7 +278,8 @@ export class HostSessions {
       skills?: SessionSkillsState;
       mcp?: SessionMcpBridge;
     } = {};
-    const workId = this.workIdOf(file);
+    const archived = basename(dirname(file)) === 'history';
+    const workId = archived ? basename(dirname(dirname(file))) : this.workIdOf(file);
     const cwd = async () => {
       opened.work = works.find(workId);
       opened.cwd = await works.directory(opened.work);
@@ -273,14 +289,23 @@ export class HostSessions {
     };
     let result: Awaited<ReturnType<HostSessionPool['openWith']>>;
     try {
-      result = await this.options.pool.openWith({ file, cwd }, manager => {
-        const history = sessionHistory(manager);
-        opened.history = history;
-        if (history.kind === 'readonly') return undefined;
-        applied.entries = history.instructions;
-        // SAFETY: 预检通过后才交给 prepare，工作目录、归属、技能快照与 MCP 接入已经确定。
-        return this.sessionInput(applied, opened.cwd!, opened.work!, opened.skills!, opened.mcp!);
-      });
+      if (archived) {
+        const work = works.find(workId);
+        if (!work || !file.endsWith('.jsonl')) throw new HostSessionOpenError('invalid-path');
+        const directory = dirname(this.options.creation!.workFilesDir(work.id));
+        const expected = join(await realpath(directory), 'history', basename(file));
+        if ((await realpath(file)) !== expected) throw new HostSessionOpenError('invalid-path');
+        const manager = await openHostSessionManager({ file, cwd: async () => directory });
+        opened.history = sessionHistory(manager, true);
+      } else
+        result = await this.options.pool.openWith({ file, cwd }, manager => {
+          const history = sessionHistory(manager);
+          opened.history = history;
+          if (history.kind === 'readonly') return undefined;
+          applied.entries = history.instructions;
+          // SAFETY: 预检通过后才交给 prepare，工作目录、归属、技能快照与 MCP 接入已经确定。
+          return this.sessionInput(applied, opened.cwd!, opened.work!, opened.skills!, opened.mcp!);
+        });
     } catch (error) {
       opened.mcp?.dispose();
       // 需迁移或路径错误的历史仍然报错。
@@ -296,7 +321,7 @@ export class HostSessions {
       return this.attach({
         view: {
           id: randomUUID(),
-          sessionId,
+          sessionId: archived ? archiveId(workId!, file) : sessionId,
           name,
           file,
           workId,

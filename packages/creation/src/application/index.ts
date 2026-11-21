@@ -49,6 +49,11 @@ export class CreationApplication {
   readonly vectorIndex: VectorIndexService;
   private readonly search: SearchServices;
 
+  /** 供宿主列出备份历史时定位作品目录；纯查询，不创建目录。 */
+  workFilesDir(workId: string): string {
+    return this.service.workFilesDir(workId);
+  }
+
   constructor(repository: CreationRepository) {
     this.service = new CreationService(repository);
     this.review = new ReviewService(repository, this.service);

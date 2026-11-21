@@ -49,7 +49,7 @@ function readonlyFrom(manager: SessionManager, reason: ReadonlyHistory['reason']
 }
 
 /** 根据会话池已读取的历史判定能否继续；不创建 AgentSession，不修复、不写入原文件。 */
-export function sessionHistory(manager: SessionManager): SessionHistory {
+export function sessionHistory(manager: SessionManager, archived = false): SessionHistory {
   let records: ReturnType<typeof sessionRecords>;
   try {
     records = sessionRecords(manager.getBranch());
@@ -58,6 +58,7 @@ export function sessionHistory(manager: SessionManager): SessionHistory {
   }
   const { instructions, mode } = records;
   if (!instructions || !mode) return readonlyFrom(manager, 'incomplete', readonlyMessages.incomplete);
+  if (archived) return readonlyFrom(manager, 'archived', '这是从作品备份恢复的会话，只能查看。');
   return { kind: 'live', instructions, mode };
 }
 

@@ -50,7 +50,7 @@ it('归属作品的会话以作品文件目录为工作目录，目录内读取�
   expect(cwd).not.toBe(join(root, 'work'));
   await writeFile(join(cwd, '设定.txt'), '城外下雪');
   expect(session.systemPrompt).toContain(`本会话归属作品《长夜行》，作品 ID 为 ${workId}`);
-  expect(dirname(session.sessionFile!)).toBe(join(root, 'sessions', workId));
+  expect(dirname(session.sessionFile!)).toBe(join(root, 'creation', 'sessions', workId));
   expect(host.snapshot().sessions.find(item => item.id === owned)?.workId).toBe(workId);
   await host.execute({ method: 'mode', input: { id: owned, mode: 'direct' } });
 

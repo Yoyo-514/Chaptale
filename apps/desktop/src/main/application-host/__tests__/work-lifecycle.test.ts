@@ -121,7 +121,7 @@ it('删除作品时属于它的会话在运行则拒绝；停止后移入作品�
 
 it('归入作品移动历史文件并重新打开；运行中拒绝，尚未写盘与已归属的会话不能归入', async () => {
   await observeRequests(await restartWithTools([]));
-  const sessions = join(root, 'sessions');
+  const sessions = join(root, 'creation', 'sessions');
   const draft = (await host.execute({
     method: 'create',
     input: { model: { provider: 'offline-tools', id: 'offline' }, workId: null }
@@ -172,7 +172,7 @@ it('永久删除作品时关闭其会话，作品目录与会话目录一并交�
     files: string[];
   };
   expect(purged.files.map(file => relative(root, file).replaceAll('\\', '/'))).toEqual(
-    expect.arrayContaining([`creation/works/${workId}`, `sessions/${workId}`])
+    expect.arrayContaining([`creation/works/${workId}`, `creation/sessions/${workId}`])
   );
   expect(purged.files).toHaveLength(2);
   expect(host.snapshot().sessions).toEqual([]);
@@ -221,4 +221,40 @@ it('覆盖导入与恢复导入前版本：属于作品的会话在运行则拒�
   })) as WorkReplacement;
   expect(restored.files).toHaveLength(1);
   expect(value(await creation.execute({ method: 'listWorkSnapshots', input: {} }))).toEqual([]);
+});
+
+it('副本中的会话能只读回看并单独删除，原会话仍可继续', async () => {
+  await ownSession();
+  const original = host.liveSession(id)!;
+  original.sessionManager.appendMessage({ role: 'user', content: '记住雨夜的钟声', timestamp: Date.now() });
+  const path = join(root, '含历史.chaptale');
+  value(await creation.execute({ method: 'exportWorkPackage', input: { workId, path } }));
+  const copy = (await host.execute({
+    method: 'importWorkPackage',
+    input: { commandId: randomUUID(), path, asCopy: true }
+  })) as WorkReplacement;
+  const list = (await host.execute({ method: 'history', input: undefined })) as HistoryItem[];
+  const archived = list.find(item => item.workId === copy.work.id)!;
+  expect(archived).toBeDefined();
+  const viewId = await host.execute({ method: 'open', input: { file: archived.file } });
+  const view = host.snapshot().sessions.find(item => item.id === viewId)!;
+  expect(view.readonly?.reason).toBe('archived');
+  expect(view.messages.map(message => message.text)).toContain('记住雨夜的钟声');
+  expect(await readFile(archived.file)).toEqual(await readFile(original.sessionFile!));
+  await expect(host.execute({ method: 'prompt', input: { id: view.id, text: '继续' } })).rejects.toThrow('只读');
+  // 换机后再备份一次，只有归档、没有本机会话的作品也要带走历史。
+  const secondPath = join(root, '再次导出.chaptale');
+  value(await creation.execute({ method: 'exportWorkPackage', input: { workId: copy.work.id, path: secondPath } }));
+  const next = (await host.execute({
+    method: 'importWorkPackage',
+    input: { commandId: randomUUID(), path: secondPath, asCopy: true }
+  })) as WorkReplacement;
+  const histories = (await host.execute({ method: 'history', input: undefined })) as HistoryItem[];
+  const again = histories.filter(item => item.workId === next.work.id);
+  expect(again).toHaveLength(1);
+  expect(await readFile(again[0]!.file)).toEqual(await readFile(original.sessionFile!));
+
+  const removed = await host.execute({ method: 'deleteSessions', input: { sessionIds: [archived.id] } });
+  expect(removed).toEqual({ files: [archived.file] });
+  expect(host.liveSession(id)).toBe(original);
 });

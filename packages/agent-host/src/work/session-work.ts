@@ -15,11 +15,16 @@ export class SessionWorks {
   }
 
   /** 未装配作品应用时没有作品。 */
-  find(workId: string | null): SessionWork {
-    if (workId === null || !this.creation) return null;
+  all() {
+    if (!this.creation) return [];
     const works = this.creation.executeAuthor({ method: 'listWorks', input: {} });
     if (!works.ok) throw new Error(works.error.message);
-    const work = works.value.find(item => item.id === workId);
+    return works.value;
+  }
+
+  find(workId: string | null): SessionWork {
+    if (workId === null) return null;
+    const work = this.all().find(item => item.id === workId);
     return work ? { id: work.id, title: work.title } : null;
   }
 

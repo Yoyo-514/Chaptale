@@ -1,6 +1,6 @@
 import { CURRENT_SESSION_VERSION, SessionManager } from '@earendil-works/pi-coding-agent';
 import { readFile, stat } from 'node:fs/promises';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, posix, win32 } from 'node:path';
 
 export interface OpenHostSessionManagerOptions {
   /** 应用管理的已有 JSONL；调用方负责单写者所有权。 */
@@ -59,7 +59,9 @@ function inspectHistory(bytes: Uint8Array): string {
     throw new HostSessionOpenError('recovery-required');
   }
   if (header.version !== CURRENT_SESSION_VERSION) throw new HostSessionOpenError('unsupported-version');
-  if (typeof header.cwd !== 'string' || !isAbsolute(header.cwd)) throw new HostSessionOpenError('recovery-required');
+  // 历史头保留原设备的路径；工作目录由调用方在本机重新指定。
+  if (typeof header.cwd !== 'string' || !(posix.isAbsolute(header.cwd) || win32.isAbsolute(header.cwd)))
+    throw new HostSessionOpenError('recovery-required');
 
   const ids = new Set<string>();
   for (const entry of records) {

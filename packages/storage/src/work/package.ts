@@ -17,8 +17,9 @@ import { prepareSchema, SchemaVersionError } from '../schema.ts';
 import { workDatabaseFile, workDir, workFilesDir, workSchema } from './database.ts';
 
 /** 作品包格式版本；包内作品库的结构版本另由 user_version 记录。 */
-const packageFormat = 2;
+const packageFormat = 3;
 const packageTables = `
+  CREATE TABLE package_sessions (name TEXT PRIMARY KEY, data BLOB NOT NULL) STRICT;
   CREATE TABLE package_skills (path TEXT PRIMARY KEY, data BLOB NOT NULL) STRICT;
   CREATE TABLE package_meta (format INTEGER NOT NULL, work TEXT NOT NULL) STRICT;
   CREATE TABLE package_files (entryId TEXT NOT NULL, fileName TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY (entryId, fileName)) STRICT;
@@ -58,6 +59,26 @@ export function exportWorkPackage(rootDir: string, database: Database.Database, 
       const insert = target.prepare('INSERT INTO package_files VALUES (?, ?, ?)');
       const filesDir = workFilesDir(rootDir, work.id);
       target.transaction(() => {
+        const insertSession = target.prepare('INSERT INTO package_sessions VALUES (?, ?)');
+        const lookup = target.prepare('SELECT data FROM package_sessions WHERE name = ?');
+        for (const dir of [path.join(workDir(rootDir, work.id), 'history'), path.join(rootDir, 'sessions', work.id)]) {
+          if (!existsSync(dir)) continue;
+          for (const item of readdirSync(dir, { withFileTypes: true })) {
+            if (!item.isFile() || !item.name.endsWith('.jsonl')) continue;
+            const bytes = readFileSync(path.join(dir, item.name));
+            // 本机会话可能在上次备份后又写了消息；同名的两个时点分别保留。
+            let name = item.name;
+            for (let n = 1; ; n++) {
+              const prior = lookup.get(name) as { data: Buffer } | undefined;
+              if (!prior) {
+                insertSession.run(name, bytes);
+                break;
+              }
+              if (prior.data.equals(bytes)) break;
+              name = `${item.name.slice(0, -6)}-${n}.jsonl`;
+            }
+          }
+        }
         archiveSkills(target, path.join(workDir(rootDir, work.id), 'skills'));
         if (!existsSync(filesDir)) return;
         for (const entryId of readdirSync(filesDir))
@@ -126,7 +147,20 @@ export function stageWorkPackage(rootDir: string, file: string, workId: string):
           writeFileSync(path.join(dir, row.fileName), row.data);
         }
         const { format } = source.prepare('SELECT format FROM package_meta').get() as { format: number };
-        if (format === 2) {
+        if (format >= 3) {
+          for (const row of source.prepare('SELECT name, data FROM package_sessions').iterate() as Iterable<{
+            name: string;
+            data: Buffer;
+          }>) {
+            if (!row.name.endsWith('.jsonl') || /[\\/:]/.test(row.name))
+              throw new Error('作品包内容无效：历史名称不合法');
+            const dir = path.join(staging, 'history');
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(path.join(dir, row.name), row.data);
+          }
+          staged.exec('DROP TABLE package_sessions');
+        }
+        if (format >= 2) {
           for (const skill of source.prepare('SELECT path, data FROM package_skills').iterate() as Iterable<{
             path: string;
             data: Buffer;

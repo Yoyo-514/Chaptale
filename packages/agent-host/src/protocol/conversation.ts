@@ -13,7 +13,7 @@ export const reviewResultsMessageType = 'chaptale-review-results';
 
 /** 只读历史的原因；lines 是无法解析的 JSONL 行号（从 1 开始）。 */
 export interface ReadonlyHistory {
-  reason: 'incomplete' | 'damaged';
+  reason: 'incomplete' | 'damaged' | 'archived';
   message: string;
   lines: number[];
 }
@@ -136,7 +136,7 @@ export interface QueuedMessage {
 export interface SessionView {
   /** 当前打开实例的操作句柄；只读副本具有独立句柄。 */
   id: string;
-  /** pi 原生会话身份；历史头损坏时为空。 */
+  /** 本机历史用 pi 原生会话 ID，备份历史按作品和历史名称区分；本机历史头损坏时为空。 */
   sessionId: string | null;
   /** 用户设置的会话名称，保存在 pi 原生 session_info 记录中。 */
   name?: string;

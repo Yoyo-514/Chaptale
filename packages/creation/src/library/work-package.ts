@@ -12,7 +12,7 @@ import type { CreationRepository } from '../repository.ts';
 import type { ReviewService } from '../review/service.ts';
 import type { CreationService } from '../service.ts';
 
-/** 作品包导出与导入：包内是正式作品数据与资料文件，不含会话与待接受修改。 */
+/** 作品包导出与导入：包内包含正式作品、附件、作品技能与会话历史；待接受修改留在本机。 */
 export class WorkPackageService {
   private readonly repository: CreationRepository;
   private readonly creation: CreationService;
