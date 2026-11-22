@@ -128,6 +128,9 @@ export interface ImportReport {
 /** 备份时的条目数。图片属于资料，目录不计入。 */
 export type WorkPackageSummary = { manuscripts: number; resources: number; images: number };
 
+/** 一部作品可归档内容的最近改动时间（毫秒）。 */
+export type WorkBackupSource = { workId: string; modifiedAt: number };
+
 export interface WorkPackageInfo {
   work: Work;
   exists: boolean;
@@ -335,6 +338,7 @@ export interface CreationCommands extends CreationAuthorCommands {
   exportFiles: { input: ExportFilesInput; output: CreationResult<ExportReport> };
   inspectWorkPackage: { input: { path: string }; output: CreationResult<WorkPackageInfo> };
   exportWorkPackage: { input: { workId: string; path: string }; output: CreationResult<null> };
+  listWorkBackupSources: { input: Record<string, never>; output: CreationResult<WorkBackupSource[]> };
   /** 覆盖已有作品时拒绝该作品全部待审修改，原内容留作导入前快照；运行中会话的检查由宿主完成。 */
   importWorkPackage: { input: ImportWorkPackageInput; output: CreationResult<WorkReplacement> };
   listWorkSnapshots: { input: Record<string, never>; output: CreationResult<WorkSnapshot[]> };

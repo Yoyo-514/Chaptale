@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -58,6 +58,26 @@ async function source() {
   );
   return { rootDir, app, work, chapter, author };
 }
+it('定时备份的改动时间跟踪作品资源目录里的删除，排除检索向量', async () => {
+  const { rootDir, app, work } = await source();
+  const readSources = () => app.execute({ method: 'listWorkBackupSources', input: {} });
+  const before = await readSources();
+  expect(before).toMatchObject({ ok: true, value: [{ workId: work.id, modifiedAt: expect.any(Number) }] });
+
+  const workDir = join(rootDir, 'works', work.id);
+  const vector = join(workDir, 'vectors.sqlite');
+  await writeFile(vector, '可以重建的向量');
+  const changedAt = new Date('2099-09-08T01:02:03Z');
+  await utimes(vector, changedAt, changedAt);
+  expect(await readSources()).toEqual(before);
+
+  const resources = join(workDir, 'files');
+  const [attachmentDir] = readdirSync(resources);
+  await rm(join(resources, attachmentDir!), { recursive: true });
+  await utimes(resources, changedAt, changedAt);
+  expect(await readSources()).toEqual({ ok: true, value: [{ workId: work.id, modifiedAt: changedAt.getTime() }] });
+});
+
 async function exportPackage(app: CreationApplication, workId: string) {
   const path = join(await temp(), '长夜行.chaptale');
   ok(await app.execute({ method: 'exportWorkPackage', input: { workId, path } }));

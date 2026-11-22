@@ -1,5 +1,14 @@
 import Database from 'better-sqlite3';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -40,6 +49,37 @@ function archiveSkills(database: Database.Database, root: string): void {
   visit('');
 }
 
+function packageDirectories(rootDir: string, workId: string) {
+  const dir = workDir(rootDir, workId);
+  return {
+    histories: [path.join(dir, 'history'), path.join(rootDir, 'sessions', workId)],
+    skills: path.join(dir, 'skills'),
+    files: workFilesDir(rootDir, workId)
+  };
+}
+
+function treeModifiedAt(file: string): number {
+  const stat = lstatSync(file, { throwIfNoEntry: false });
+  if (!stat) return 0;
+  let latest = stat.mtimeMs;
+  // 目录自己的时间也算：删掉最后一个附件或技能后，目录里可能已无文件可查。
+  if (stat.isDirectory()) {
+    for (const name of readdirSync(file)) latest = Math.max(latest, treeModifiedAt(path.join(file, name)));
+  }
+  return latest;
+}
+
+export function workPackageModifiedAt(rootDir: string, work: Work): number {
+  const { histories, skills, files } = packageDirectories(rootDir, work.id);
+  return Math.max(
+    work.updatedAt,
+    treeModifiedAt(workDatabaseFile(rootDir, work.id)),
+    ...histories.map(treeModifiedAt),
+    treeModifiedAt(skills),
+    treeModifiedAt(files)
+  );
+}
+
 /** 作品包是一个 SQLite 文件：作品库的一致快照，加上包信息与资料文件条目。先写临时文件，完成后再换上目标路径。 */
 export function exportWorkPackage(rootDir: string, database: Database.Database, work: Work, file: string): void {
   const partial = `${file}.partial`;
@@ -52,17 +92,17 @@ export function exportWorkPackage(rootDir: string, database: Database.Database, 
       target.exec(packageTables);
       target.prepare('INSERT INTO package_meta VALUES (?, ?)').run(packageFormat, JSON.stringify(work));
       const insert = target.prepare('INSERT INTO package_files VALUES (?, ?, ?)');
-      const filesDir = workFilesDir(rootDir, work.id);
+      const { files: filesDir, histories, skills } = packageDirectories(rootDir, work.id);
       target.transaction(() => {
         const insertSession = target.prepare('INSERT INTO package_sessions VALUES (?, ?)');
         // 恢复时跳过仍在本机的会话，两个目录里没有同名历史。
-        for (const dir of [path.join(workDir(rootDir, work.id), 'history'), path.join(rootDir, 'sessions', work.id)]) {
+        for (const dir of histories) {
           if (!existsSync(dir)) continue;
           for (const item of readdirSync(dir, { withFileTypes: true }))
             if (item.isFile() && item.name.endsWith('.jsonl'))
               insertSession.run(item.name, readFileSync(path.join(dir, item.name)));
         }
-        archiveSkills(target, path.join(workDir(rootDir, work.id), 'skills'));
+        archiveSkills(target, skills);
         if (!existsSync(filesDir)) return;
         for (const entryId of readdirSync(filesDir))
           for (const fileName of readdirSync(path.join(filesDir, entryId)))

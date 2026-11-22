@@ -23,6 +23,7 @@ import {
   readWorkSnapshot,
   restoreWorkSnapshot,
   stageWorkPackage,
+  workPackageModifiedAt,
   workSnapshotDirs
 } from './work/package.ts';
 import { SqliteWorkRepository } from './work/repository.ts';
@@ -93,6 +94,13 @@ class SqliteCreationRepository implements CreationRepository {
     const work = this.library.listWorks().find(item => item.id === workId);
     if (!work) throw new Error('作品不存在');
     exportWorkPackage(this.rootDir, this.useWork(workId), work, file);
+  }
+
+  listWorkBackupSources() {
+    return this.library.listWorks().map(work => ({
+      workId: work.id,
+      modifiedAt: workPackageModifiedAt(this.rootDir, work)
+    }));
   }
 
   readWorkPackage(file: string) {

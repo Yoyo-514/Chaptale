@@ -35,6 +35,10 @@ export class WorkPackageService {
     this.repository.exportWorkPackage(workId, path);
   }
 
+  listBackupSources() {
+    return this.repository.listWorkBackupSources();
+  }
+
   /**
    * 作品不存在时按原 ID 加入；asCopy 时另存为新作品；否则覆盖同一作品，原目录留作导入前快照。
    * 先在旁边展开并升级作品包，再在作品库事务内换上目录；提交失败时换回原目录。

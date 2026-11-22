@@ -131,6 +131,8 @@ export class CreationApplication {
         case 'exportWorkPackage':
           this.workPackages.export(file.input.workId, file.input.path);
           return { ok: true, value: null };
+        case 'listWorkBackupSources':
+          return { ok: true, value: this.workPackages.listBackupSources() };
         case 'importWorkPackage':
           return { ok: true, value: this.workPackages.import(file.input) };
         case 'listWorkSnapshots':

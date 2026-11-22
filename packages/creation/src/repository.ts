@@ -26,6 +26,7 @@ import type {
   TrashedWork,
   Work,
   WorkbenchState,
+  WorkBackupSource,
   WorkPackageInfo,
   WorkSnapshot
 } from './contracts/index.ts';
@@ -264,6 +265,8 @@ export interface CreationRepository {
   releaseWork(workId: string): string[];
   /** 把作品库快照与资料文件写成作品包。 */
   exportWorkPackage(workId: string, file: string): void;
+  /** 列出库中作品包涉及的正式数据、历史、技能与附件的改动时间。 */
+  listWorkBackupSources(): WorkBackupSource[];
   /** 读取作品包里的作品信息；不是作品包或版本过新时报错。 */
   readWorkPackage(file: string): Omit<WorkPackageInfo, 'exists'>;
   /** 在作品目录旁展开作品包并升级结构。 */
