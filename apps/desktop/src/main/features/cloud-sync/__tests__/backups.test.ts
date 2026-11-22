@@ -129,7 +129,7 @@ it('上传期间作品变化时，两家网盘仍收到同一份作品包，下�
   };
 
   const onUpload = vi.fn();
-  const uploaded = await backups.backupWork({ workId: work.id, title: work.title, target: 'all' }, onUpload);
+  const uploaded = await backups.backupWork({ workId: work.id, target: 'all' }, onUpload);
   if (!uploaded.ok) throw new Error(uploaded.message);
   const dropboxUpload = uploaded.uploads[0]!.result;
   if (!dropboxUpload.ok) throw new Error(dropboxUpload.message);
@@ -208,7 +208,7 @@ it('选择 Dropbox 时只上传到 Dropbox，OneDrive 也已连接', async () =>
     await store.saveAccount({ provider, displayName: '测试', credential: { refreshToken: 'offline' } });
   }
 
-  const result = await backups.backupWork({ workId: work.id, title: work.title, target: 'dropbox' }, () => {});
+  const result = await backups.backupWork({ workId: work.id, target: 'dropbox' }, () => {});
   expect(result).toEqual({
     ok: true,
     uploads: [{ provider: 'dropbox', result: { ok: true, name: expect.any(String) } }]
@@ -217,12 +217,12 @@ it('选择 Dropbox 时只上传到 Dropbox，OneDrive 也已连接', async () =>
 
 it('没有登录或作品导出失败时报告原因，云端不多出文件', async () => {
   const work = createWork();
-  expect(await backups.backupWork({ workId: work.id, title: work.title, target: 'all' }, () => {})).toMatchObject({
+  expect(await backups.backupWork({ workId: work.id, target: 'all' }, () => {})).toMatchObject({
     ok: false,
     code: 'not-signed-in'
   });
   await store.saveAccount({ provider: 'dropbox', displayName: '测试', credential: { refreshToken: 'offline' } });
-  expect(await backups.backupWork({ workId: randomUUID(), title: '不存在', target: 'all' }, () => {})).toMatchObject({
+  expect(await backups.backupWork({ workId: randomUUID(), target: 'all' }, () => {})).toMatchObject({
     ok: false,
     code: 'failed'
   });

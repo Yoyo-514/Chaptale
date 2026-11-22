@@ -17,11 +17,7 @@ export const CloudProviderArgsSchema = Type.Object({ provider: CloudProviderSche
 export const CloudProviderArgsValidator = Compile(Type.Tuple([CloudProviderArgsSchema]));
 
 export const CloudBackupWorkArgsSchema = Type.Object(
-  {
-    workId: Type.String({ minLength: 1 }),
-    title: Type.String({ minLength: 1 }),
-    target: Type.Union([CloudProviderSchema, Type.Literal('all')])
-  },
+  { workId: Type.String({ minLength: 1 }), target: Type.Union([CloudProviderSchema, Type.Literal('all')]) },
   { additionalProperties: false }
 );
 export const CloudBackupWorkArgsValidator = Compile(Type.Tuple([CloudBackupWorkArgsSchema]));

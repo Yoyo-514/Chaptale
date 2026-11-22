@@ -134,10 +134,7 @@ describe('云端账户与作品包备份', () => {
     expect(options.map(option => option.label)).toEqual(['Dropbox', 'OneDrive', '全部已登录网盘']);
     store.selectBackup(options[1]!.id, { id: 'w1', title: '雨夜' });
     await expect.poll(() => useNotificationStore().items[0]?.kind).toBe('success');
-    expect(backupWork).toHaveBeenCalledExactlyOnceWith(
-      { workId: 'w1', title: '雨夜', target: 'onedrive' },
-      expect.any(Function)
-    );
+    expect(backupWork).toHaveBeenCalledExactlyOnceWith({ workId: 'w1', target: 'onedrive' }, expect.any(Function));
 
     getState.mockResolvedValue(cloudState([account]));
     await store.load();
@@ -155,7 +152,7 @@ describe('云端账户与作品包备份', () => {
     const id = notices.items[0]?.id;
     expect(notices.items).toMatchObject([{ description: '正在生成作品包…', inProgress: true }]);
     const [[args, onUpload]] = backupWork.mock.calls;
-    expect(args).toEqual({ workId: 'w1', title: '雨夜', target: 'all' });
+    expect(args).toEqual({ workId: 'w1', target: 'all' });
     onUpload({ provider: 'onedrive', current: 2, total: 2 });
     expect(notices.items).toMatchObject([{ id, description: '正在上传到 OneDrive（2/2）', inProgress: true }]);
 
@@ -177,13 +174,13 @@ describe('云端账户与作品包备份', () => {
     ]);
   });
   it('没有登录云账号时，备份和恢复入口都打开云端账户设置', async () => {
-    const api = installApi({
-      backupWork: vi.fn().mockResolvedValue({ ok: false, code: 'not-signed-in', message: '请先登录云端账号' })
-    });
+    const api = installApi();
     const store = useCloudSyncStore();
     const settings = useSettingsStore();
 
-    await store.backupWork({ id: 'w1', title: '雨夜' }, 'all');
+    await store.load();
+    store.selectBackup(store.backupMenu.id, { id: 'w1', title: '雨夜' });
+    expect(api.backupWork).not.toHaveBeenCalled();
     expect(settings.isOpen).toBe(true);
     expect(settings.activeSection).toBe('cloudSync');
     settings.closePanel();

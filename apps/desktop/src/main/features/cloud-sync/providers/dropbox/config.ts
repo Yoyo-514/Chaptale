@@ -33,10 +33,8 @@ export const DROPBOX_ENDPOINTS = {
   authorize: 'https://www.dropbox.com/oauth2/authorize',
   token: 'https://api.dropboxapi.com/oauth2/token',
   currentAccount: 'https://api.dropboxapi.com/2/users/get_current_account',
-  spaceUsage: 'https://api.dropboxapi.com/2/users/get_space_usage',
   listFolder: 'https://api.dropboxapi.com/2/files/list_folder',
   listFolderContinue: 'https://api.dropboxapi.com/2/files/list_folder/continue',
-  createFolder: 'https://api.dropboxapi.com/2/files/create_folder_v2',
   upload: 'https://api.dropboxapi.com/2/files/upload',
   download: 'https://api.dropboxapi.com/2/files/download',
   remove: 'https://api.dropboxapi.com/2/files/delete_v2'

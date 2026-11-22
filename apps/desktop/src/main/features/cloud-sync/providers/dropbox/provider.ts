@@ -1,5 +1,5 @@
 import { binaryBody, formatMegabytes } from '../http';
-import type { CloudCredential, CloudProviderAdapter, CloudQuota, CloudRemoteEntry } from '../provider-port';
+import type { CloudCredential, CloudProviderAdapter, CloudRemoteEntry } from '../provider-port';
 import {
   DROPBOX_APP_KEY,
   DROPBOX_ENDPOINTS,
@@ -60,9 +60,6 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
 
   return {
     id: 'dropbox',
-    // App folder 接入：服务商返回的最顶层就是 /Apps/<AppName>/，绑定它不再套容器目录。
-    topLevelIsAppScoped: true,
-
     oauth: () => ({
       clientId: DROPBOX_APP_KEY,
       authorizeEndpoint: DROPBOX_ENDPOINTS.authorize,
@@ -100,12 +97,12 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
       return { credential: { refreshToken }, profile: { displayName: displayNameOf(account) } };
     },
 
-    async listEntries({ credential, parentId, signal }) {
+    async listEntries({ credential, signal }) {
       const token = await accessTokenFor(credential, signal);
-      const path = remotePath(parentId);
+      // App Folder 接入下，空路径就是应用专属目录。
       let payload = await listPage(
-        { path, recursive: false, include_deleted: false },
-        '列出 Dropbox 目录',
+        { path: '', recursive: false, include_deleted: false },
+        '列出 Dropbox 应用文件夹',
         token,
         signal
       );
@@ -113,29 +110,14 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
 
       // 退出条件写在循环头：分页游标取不到就结束，不靠循环体里的 break。
       for (let cursor = readCursor(payload); cursor; cursor = readCursor(payload)) {
-        payload = await listPage({ cursor }, '继续列出 Dropbox 目录', token, signal);
+        payload = await listPage({ cursor }, '继续列出 Dropbox 应用文件夹', token, signal);
         entries.push(...readEntries(payload));
       }
 
-      return { current: describeFolder(path), parentId: parentOf(path), entries: entries.map(toEntry) };
+      return entries.map(toEntry);
     },
 
-    async createFolder({ credential, parentId, name, signal }) {
-      const token = await accessTokenFor(credential, signal);
-      const payload = await postJson(
-        DROPBOX_ENDPOINTS.createFolder,
-        { path: remotePath(parentId, name), autorename: false },
-        '创建 Dropbox 目录',
-        send,
-        token,
-        signal
-      );
-      const metadata = (payload.metadata ?? {}) as DropboxEntry;
-
-      return toEntry({ ...metadata, '.tag': 'folder', name: metadata.name ?? name });
-    },
-
-    async upload({ credential, parentId, name, bytes, signal }) {
+    async upload({ credential, name, bytes, signal }) {
       if (bytes.byteLength > DROPBOX_SIMPLE_UPLOAD_LIMIT) {
         throw new Error(
           `归档 ${formatMegabytes(bytes.byteLength)} 超过 Dropbox 单次上传上限 ${formatMegabytes(DROPBOX_SIMPLE_UPLOAD_LIMIT)}；` +
@@ -150,7 +132,7 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
           authorization: `Bearer ${token}`,
           'content-type': 'application/octet-stream',
           'dropbox-api-arg': dropboxArg({
-            path: remotePath(parentId, name),
+            path: `/${name}`,
             // add + autorename：同秒重名时由服务商改名，绝不覆盖云端已有内容。
             mode: 'add',
             autorename: true,
@@ -170,7 +152,7 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
         method: 'POST',
         headers: {
           authorization: `Bearer ${token}`,
-          'dropbox-api-arg': dropboxArg({ path: remotePath(fileId) })
+          'dropbox-api-arg': dropboxArg({ path: fileId })
         },
         signal
       });
@@ -183,20 +165,10 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
       return new Uint8Array(await response.arrayBuffer());
     },
 
-    async quota({ credential, signal }): Promise<CloudQuota | null> {
-      const token = await accessTokenFor(credential, signal);
-      const payload = await postJson(DROPBOX_ENDPOINTS.spaceUsage, null, '读取 Dropbox 配额', send, token, signal);
-      const allocation = (payload.allocation ?? {}) as { allocated?: unknown };
-      const used = typeof payload.used === 'number' ? payload.used : null;
-      const total = typeof allocation.allocated === 'number' ? allocation.allocated : null;
-
-      return used === null || total === null ? null : { usedBytes: used, totalBytes: total };
-    },
-
     async remove({ credential, entryId, signal }) {
       const token = await accessTokenFor(credential, signal);
 
-      await postJson(DROPBOX_ENDPOINTS.remove, { path: remotePath(entryId) }, '删除云端归档', send, token, signal);
+      await postJson(DROPBOX_ENDPOINTS.remove, { path: entryId }, '删除云端归档', send, token, signal);
     }
   };
 
@@ -210,47 +182,6 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
 
     return postJson(url, body, action, send, token, signal);
   }
-}
-
-/**
- * 目录树用路径当标识，所以这里统一把父目录拼成远端路径；'' 表示最顶层。
- *
- * 名字里出现斜杠会被当成新的一层，直接拒绝：备份侧的命名规则已经清洗过，
- * 能走到这里说明调用方传了不该传的东西。
- */
-function remotePath(parentId: string | null | undefined, name?: string): string {
-  const base = parentId ?? '';
-
-  if (name === undefined) {
-    return base;
-  }
-
-  if (!name || name.includes('/')) {
-    throw new Error(`远端名称不合法：${name || '(空)'}`);
-  }
-
-  return `${base}/${name}`;
-}
-
-/**
- * 目录标识统一用路径而不是 Dropbox 的 id。
- *
- * 路径能自上而下推导（`/a/b` 的上一级就是 `/a`），面包屑与"返回上一级"不必额外维护父指针链；
- * 代价是目录改名会让已展开的列表失效——浏览目录的是一个正盯着屏幕的人，这个代价可以接受。
- */
-function describeFolder(path: string) {
-  if (!path) {
-    return { id: null, name: '应用文件夹', root: true };
-  }
-
-  return { id: path, name: path.slice(path.lastIndexOf('/') + 1), root: false };
-}
-
-/** 上一级；null 表示上一级就是最顶层。 */
-function parentOf(path: string): string | null {
-  const index = path.lastIndexOf('/');
-
-  return index <= 0 ? null : path.slice(0, index);
 }
 
 function toEntry(entry: DropboxEntry): CloudRemoteEntry {

@@ -48,7 +48,6 @@ export const useCloudSyncStore = defineStore('cloudSync', {
     backups: [] as CloudBackupItem[],
     backupsLoading: false,
     backupsError: '',
-    backupsRevision: 0,
     transferring: null as BackupTransfer | null
   }),
   getters: {
@@ -128,23 +127,18 @@ export const useCloudSyncStore = defineStore('cloudSync', {
       return true;
     },
     async backupWork(work: { id: string; title: string }, target: CloudBackupTarget) {
-      if (this.backingUp) return;
       this.backingUp = true;
       const notifications = useNotificationStore();
       const subject = `《${work.title}》`;
       const id = notifications.startProgress(`${subject}云备份`, '正在生成作品包…');
       const result = await attempt(() =>
-        getDesktopApi().cloudSync.backupWork(
-          { workId: work.id, title: work.title, target },
-          ({ provider, current, total }) => {
-            const position = total > 1 ? `（${current}/${total}）` : '';
-            notifications.updateProgress(id, `正在上传到 ${CLOUD_PROVIDER_LABELS[provider]}${position}`);
-          }
-        )
+        getDesktopApi().cloudSync.backupWork({ workId: work.id, target }, ({ provider, current, total }) => {
+          const position = total > 1 ? `（${current}/${total}）` : '';
+          notifications.updateProgress(id, `正在上传到 ${CLOUD_PROVIDER_LABELS[provider]}${position}`);
+        })
       );
       this.backingUp = false;
       if (!result.ok) {
-        if (result.code === 'not-signed-in') this.openAccountSettings();
         notifications.finishProgress(id, 'error', `${subject}备份失败`, result.message);
         return;
       }
@@ -172,7 +166,6 @@ export const useCloudSyncStore = defineStore('cloudSync', {
       if (!open && this.transferring?.action === 'download') this.transferring.abandoned = true;
     },
     async loadBackups() {
-      const revision = ++this.backupsRevision;
       this.backupsLoading = true;
       this.backupsError = '';
       const backups: CloudBackupItem[] = [];
@@ -182,7 +175,6 @@ export const useCloudSyncStore = defineStore('cloudSync', {
         if (result.ok) backups.push(...result.backups.map(item => ({ ...item, provider })));
         else errors.push(`${CLOUD_PROVIDER_LABELS[provider]}：${result.message}`);
       }
-      if (revision !== this.backupsRevision) return;
       this.backups = backups.sort((left, right) => (right.modifiedAt ?? '').localeCompare(left.modifiedAt ?? ''));
       this.backupsError = errors.join('；');
       this.backupsLoading = false;
@@ -206,12 +198,8 @@ export const useCloudSyncStore = defineStore('cloudSync', {
         this.transferring = null;
       }
     },
-    async discardDownload(path: string) {
-      try {
-        await getDesktopApi().cloudSync.discardDownload(path);
-      } catch (cause) {
-        useNotificationStore().error('清理临时作品包失败', toErrorMessage(cause));
-      }
+    discardDownload(path: string) {
+      return getDesktopApi().cloudSync.discardDownload(path);
     },
     async deleteBackup(item: CloudBackupItem) {
       this.transferring = { item, action: 'delete', abandoned: false };

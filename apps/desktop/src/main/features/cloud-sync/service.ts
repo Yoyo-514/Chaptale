@@ -12,19 +12,15 @@ import { CloudAccounts } from './accounts';
 import type { CloudCredential, CloudProviderAdapter, CloudRemoteEntry } from './providers/provider-port';
 import type { CloudSyncStore } from './store';
 
-const isBackup = (entry: CloudRemoteEntry) => entry.kind === 'file' && entry.name.toLowerCase().endsWith('.chaptale');
+const isBackup = (entry: CloudRemoteEntry) => entry.kind === 'file' && entry.name.endsWith('.chaptale');
 
 /** 只拆末尾的统计标记，保留网盘加上的重名编号。 */
 function describeBackupName(name: string): Pick<CloudBackup, 'name' | 'summary'> {
-  const match = /_m(\d+)-r(\d+)-i(\d+)( \(\d+\)| \d+)?(\.chaptale)$/i.exec(name);
+  const match = /_m(\d+)-r(\d+)-i(\d+)( \(\d+\)| \d+)?\.chaptale$/.exec(name);
   if (!match) return { name };
-  const manuscripts = Number(match[1]);
-  const resources = Number(match[2]);
-  const images = Number(match[3]);
-  if (![manuscripts, resources, images].every(Number.isSafeInteger) || images > resources) return { name };
   return {
-    name: `${name.slice(0, match.index)}${match[4] ?? ''}${match[5]}`,
-    summary: { manuscripts, resources, images }
+    name: `${name.slice(0, match.index)}${match[4] ?? ''}.chaptale`,
+    summary: { manuscripts: Number(match[1]), resources: Number(match[2]), images: Number(match[3]) }
   };
 }
 
@@ -67,22 +63,17 @@ export class CloudSyncService {
   uploadBackup(provider: CloudProvider, name: string, bytes: Uint8Array): Promise<CloudUploadBackupResult> {
     return this.withAccount(provider, async (adapter, credential) => ({
       ok: true,
-      name: (await adapter.upload({ credential, parentId: null, name, bytes })).name
+      name: (await adapter.upload({ credential, name, bytes })).name
     }));
   }
 
   listBackups(provider: CloudProvider): Promise<CloudListBackupsResult> {
-    return this.withAccount(provider, async (adapter, credential) => {
-      const { entries } = await adapter.listEntries({ credential, parentId: null });
-      return {
-        ok: true,
-        backups: entries
-          .filter(isBackup)
-          .flatMap(({ id, name, modifiedAt, size }) =>
-            id ? [{ id, ...describeBackupName(name), modifiedAt, size }] : []
-          )
-      };
-    });
+    return this.withAccount(provider, async (adapter, credential) => ({
+      ok: true,
+      backups: (await adapter.listEntries({ credential }))
+        .filter(isBackup)
+        .map(({ id, name, modifiedAt, size }) => ({ id, ...describeBackupName(name), modifiedAt, size }))
+    }));
   }
 
   downloadBackup(provider: CloudProvider, fileId: string): Promise<{ ok: true; bytes: Uint8Array } | CloudFailure> {
@@ -94,9 +85,6 @@ export class CloudSyncService {
 
   deleteBackup(provider: CloudProvider, fileId: string): Promise<CloudDeleteBackupResult> {
     return this.withAccount<CloudDeleteBackupResult>(provider, async (adapter, credential) => {
-      const { entries } = await adapter.listEntries({ credential, parentId: null });
-      const backup = entries.find(entry => entry.id === fileId && isBackup(entry));
-      if (!backup) return { ok: false, code: 'failed', message: '云端找不到这份作品包' };
       await adapter.remove({ credential, entryId: fileId });
       return { ok: true };
     });

@@ -53,7 +53,7 @@ describe('Dropbox 适配器', () => {
       })
     ).rejects.toThrow('token_access_type=offline');
   });
-  it('列目录同时给出文件与目录、按游标翻页，顶层用空路径而不是伪造的 id', async () => {
+  it('列出应用文件夹顶层的文件与目录，按游标翻页', async () => {
     const stub = createStubFetch([
       tokenReply,
       {
@@ -72,13 +72,11 @@ describe('Dropbox 适配器', () => {
       },
       { entries: [{ '.tag': 'folder', name: '旧稿', path_display: '/旧稿' }], has_more: false }
     ]);
-    const listing = await createDropboxAdapter({ fetch: stub.send }).listEntries({
+    const entries = await createDropboxAdapter({ fetch: stub.send }).listEntries({
       credential: { refreshToken: 'refresh-1' }
     });
 
-    expect(listing.current).toEqual({ id: null, name: '应用文件夹', root: true });
-    expect(listing.parentId).toBeNull();
-    expect(listing.entries).toEqual([
+    expect(entries).toEqual([
       { id: '/备份', name: '备份', kind: 'folder' },
       {
         id: '/拾光之城 pc 20260913-210405.zip',
@@ -96,20 +94,13 @@ describe('Dropbox 适配器', () => {
     });
     expect(JSON.parse(stub.calls[2]?.body ?? '')).toEqual({ cursor: 'cursor-1' });
   });
-  it('下钻用路径定位，上一级由路径推导；短票在有效期内不重复换取', async () => {
+  it('短票在有效期内不重复换取', async () => {
     const stub = createStubFetch([tokenReply, { entries: [], has_more: false }, { entries: [], has_more: false }]);
     const adapter = createDropboxAdapter({ fetch: stub.send });
 
-    const nested = await adapter.listEntries({ credential: { refreshToken: 'r' }, parentId: '/a/b' });
+    await adapter.listEntries({ credential: { refreshToken: 'r' } });
+    await adapter.listEntries({ credential: { refreshToken: 'r' } });
 
-    expect(nested.current).toEqual({ id: '/a/b', name: 'b', root: false });
-    expect(nested.parentId).toBe('/a');
-    expect(JSON.parse(stub.calls[1]?.body ?? '')).toMatchObject({ path: '/a/b' });
-
-    const topChild = await adapter.listEntries({ credential: { refreshToken: 'r' }, parentId: '/备份' });
-
-    expect(topChild.current.root).toBe(false);
-    expect(topChild.parentId).toBeNull();
     expect(stub.calls.filter(call => call.url.endsWith('/oauth2/token'))).toHaveLength(1);
   });
   it('凭据损坏与远端报错都带出可读原因，不返回空目录冒充成功', async () => {
@@ -135,7 +126,6 @@ describe('Dropbox 适配器', () => {
     ]);
     const entry = await createDropboxAdapter({ fetch: stub.send }).upload({
       credential: { refreshToken: 'r' },
-      parentId: null,
       name,
       bytes: new Uint8Array([1, 2, 3])
     });
@@ -179,30 +169,6 @@ describe('Dropbox 适配器', () => {
       })
     ).rejects.toThrow('not_found');
   });
-  it('建目录用完整远端路径，不交给服务商自动改名', async () => {
-    const stub = createStubFetch([tokenReply, { metadata: { '.tag': 'folder', name: '备份', path_display: '/备份' } }]);
-    const folder = await createDropboxAdapter({ fetch: stub.send }).createFolder({
-      credential: { refreshToken: 'r' },
-      parentId: null,
-      name: '备份'
-    });
-
-    expect(folder).toEqual({ id: '/备份', name: '备份', kind: 'folder' });
-    expect(JSON.parse(stub.calls[1]?.body ?? '')).toEqual({ path: '/备份', autorename: false });
-  });
-  it('配额读不出来时返回 null，界面显示“未提供”而不是编一个数', async () => {
-    const ok = createStubFetch([tokenReply, { used: 1024, allocation: { allocated: 4096 } }]);
-
-    await expect(
-      createDropboxAdapter({ fetch: ok.send }).quota({ credential: { refreshToken: 'r' } })
-    ).resolves.toEqual({ usedBytes: 1024, totalBytes: 4096 });
-
-    const partial = createStubFetch([tokenReply, { used: 1024 }]);
-
-    await expect(
-      createDropboxAdapter({ fetch: partial.send }).quota({ credential: { refreshToken: 'r' } })
-    ).resolves.toBeNull();
-  });
   it('超过单次上传上限时直接报错，连换票请求都不发', async () => {
     const stub = createStubFetch([tokenReply]);
     // 真分配一次超限缓冲：这是适配器自己声明的上限，只能拿真实尺寸去撞。
@@ -211,7 +177,6 @@ describe('Dropbox 适配器', () => {
     await expect(
       createDropboxAdapter({ fetch: stub.send }).upload({
         credential: { refreshToken: 'r' },
-        parentId: null,
         name: 'big.zip',
         bytes: oversized
       })

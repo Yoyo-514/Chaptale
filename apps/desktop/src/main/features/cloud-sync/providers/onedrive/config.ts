@@ -52,6 +52,5 @@ export const ONEDRIVE_ENDPOINTS = {
   /** 应用自己的文件夹：服务商按登录的账号给它建，第一次写入时创建。 */
   appRoot: 'https://graph.microsoft.com/v1.0/me/drive/special/approot',
   me: 'https://graph.microsoft.com/v1.0/me',
-  drive: 'https://graph.microsoft.com/v1.0/me/drive',
   items: 'https://graph.microsoft.com/v1.0/me/drive/items'
 } as const;

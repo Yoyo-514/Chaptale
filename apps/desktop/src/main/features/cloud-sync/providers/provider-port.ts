@@ -33,16 +33,10 @@ export type CloudAccountProfile = {
   displayName: string;
 };
 
-/**
- * 远端条目。
- *
- * `kind` 由适配器填，消费方按需要过滤：目录选择器只取 folder，备份清单只取 file。
- * 端口给出完整清单而不是两个专用方法，是因为远端只有"列目录"这一种操作——
- * 拆成两套只会让每个适配器各写一遍同样的分页与映射。
- */
+/** 应用专属目录顶层的一个条目。作者可能自己往里放目录，所以带 `kind`，备份清单只取 file。 */
 export type CloudRemoteEntry = {
-  /** 服务商侧标识；目录树里最顶层为 null。 */
-  id: string | null;
+  /** 服务商侧标识：Dropbox 用路径，OneDrive 用 id。 */
+  id: string;
   name: string;
   kind: 'file' | 'folder';
   /** 文件大小（字节）。目录不带此字段。 */
@@ -51,38 +45,9 @@ export type CloudRemoteEntry = {
   modifiedAt?: string;
 };
 
-/** 当前所在目录。与 IPC 面的 `CloudRemoteFolder` 同形，服务层直接透传。 */
-export type CloudFolderRef = {
-  id: string | null;
-  name: string;
-  root: boolean;
-};
-
-export type CloudEntryListing = {
-  current: CloudFolderRef;
-  /** 上一级；null 表示上一级就是最顶层。 */
-  parentId: string | null;
-  entries: CloudRemoteEntry[];
-};
-
-/** 服务商配额。查不到（服务商没有接口，或这次读失败）就返回 null，而不是编一个数。 */
-export type CloudQuota = {
-  usedBytes: number;
-  totalBytes: number;
-};
-
-/**
- * 服务商适配端口。
- *
- * 备份只上传新归档；remove 仅供作者明确确认的批量删除使用，自动备份不调用它。
- */
+/** 服务商适配端口。两家都按 App Folder 接入，所有操作只在应用专属目录的顶层。 */
 export type CloudProviderAdapter = {
   id: CloudProvider;
-  /**
-   * 服务商返回的最顶层是否已是本应用的专属区域（App Folder 接入）。
-   * 绑定最顶层时据此决定要不要再套一层容器目录。
-   */
-  readonly topLevelIsAppScoped: boolean;
   /** 未内置 clientId 时返回 null：界面只显示配置说明，不提供登录入口。 */
   oauth(): CloudOAuthConfig | null;
   /** 用授权码换凭据，并返回账号展示信息。 */
@@ -92,34 +57,16 @@ export type CloudProviderAdapter = {
     redirectUri: string;
     signal?: AbortSignal;
   }): Promise<{ credential: CloudCredential; profile: CloudAccountProfile }>;
-  /** 列一个目录下的直接子项；`parentId` 省略或 null 表示最顶层。 */
-  listEntries(input: {
-    credential: CloudCredential;
-    parentId?: string | null;
-    signal?: AbortSignal;
-  }): Promise<CloudEntryListing>;
-  /** 建目录；同名目录已存在时按失败处理，由调用方决定是否复用。 */
-  createFolder(input: {
-    credential: CloudCredential;
-    parentId: string | null;
-    name: string;
-    signal?: AbortSignal;
-  }): Promise<CloudRemoteEntry>;
+  /** 列出应用专属目录顶层的全部条目。 */
+  listEntries(input: { credential: CloudCredential; signal?: AbortSignal }): Promise<CloudRemoteEntry[]>;
   /** 上传单个文件；同名文件由服务商改名，不覆盖既有内容。 */
   upload(input: {
     credential: CloudCredential;
-    parentId: string | null;
     name: string;
     bytes: Uint8Array;
     signal?: AbortSignal;
   }): Promise<CloudRemoteEntry>;
   download(input: { credential: CloudCredential; fileId: string; signal?: AbortSignal }): Promise<Uint8Array>;
-  quota(input: { credential: CloudCredential; signal?: AbortSignal }): Promise<CloudQuota | null>;
-  /**
-   * 删除一个远端文件。
-   *
-   * **只服务于作者显式确认的清理动作**（删掉某个云备份）。应用不做任何自动清理，
-   * 所以这个方法只有一个人口：作者在面板上勾选并二次确认过的那一次。
-   */
+  /** 删除一个远端文件。 */
   remove(input: { credential: CloudCredential; entryId: string; signal?: AbortSignal }): Promise<void>;
 };

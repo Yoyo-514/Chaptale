@@ -27,11 +27,11 @@ describe('云同步契约', () => {
       expect(CloudProviderArgsValidator.Check(args)).toBe(false);
     }
   });
-  it('备份要带作品、标题与目标，下载要带云端文件标识', () => {
-    expect(CloudBackupWorkArgsValidator.Check([{ workId: 'w1', title: '雨夜', target: 'all' }])).toBe(true);
-    expect(CloudBackupWorkArgsValidator.Check([{ workId: 'w1', title: '雨夜', target: 'onedrive' }])).toBe(true);
-    expect(CloudBackupWorkArgsValidator.Check([{ workId: '', title: '雨夜', target: 'all' }])).toBe(false);
-    expect(CloudBackupWorkArgsValidator.Check([{ workId: 'w1', title: '雨夜' }])).toBe(false);
+  it('备份要带作品与目标，下载要带云端文件标识', () => {
+    expect(CloudBackupWorkArgsValidator.Check([{ workId: 'w1', target: 'all' }])).toBe(true);
+    expect(CloudBackupWorkArgsValidator.Check([{ workId: 'w1', target: 'onedrive' }])).toBe(true);
+    expect(CloudBackupWorkArgsValidator.Check([{ workId: '', target: 'all' }])).toBe(false);
+    expect(CloudBackupWorkArgsValidator.Check([{ workId: 'w1' }])).toBe(false);
     expect(CloudBackupFileArgsValidator.Check([{ provider: 'onedrive', fileId: '/雨夜.chaptale' }])).toBe(true);
     expect(CloudBackupFileArgsValidator.Check([{ provider: 'onedrive', fileId: '' }])).toBe(false);
     expect(CloudBackupFileArgsValidator.Check([{ provider: 'onedrive', fileId: 'x'.repeat(2049) }])).toBe(false);

@@ -60,19 +60,8 @@ export type CloudSyncState = {
   authorizing: CloudProvider | null;
 };
 
-/**
- * 云端操作的统一错误面。
- *
- * 界面只对少数几种分支（未配置 / 未登录 / 没有作品 / 未绑定），其余一律按文案呈现。
- */
-export type CloudErrorCode =
-  | 'not-configured'
-  | 'not-signed-in'
-  | 'no-workspace'
-  | 'no-binding'
-  | 'network'
-  | 'canceled'
-  | 'failed';
+/** 云端操作的统一错误面。界面按文案呈现，错误码只用来区分来源。 */
+export type CloudErrorCode = 'not-configured' | 'not-signed-in' | 'network' | 'canceled' | 'failed';
 
 /**
  * 授权结局。

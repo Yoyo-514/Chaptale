@@ -34,7 +34,7 @@ export class CloudBackups {
   ) {}
 
   async backupWork(
-    { workId, title, target }: CloudBackupWorkArgs,
+    { workId, target }: CloudBackupWorkArgs,
     onUpload: (progress: CloudBackupProgress) => void
   ): Promise<CloudBackupWorkResult> {
     const { accounts } = await this.cloud.getState();
@@ -48,7 +48,7 @@ export class CloudBackups {
       if (!exported.ok) return { ok: false, code: 'failed', message: exported.error.message };
       const info = await this.inspectPackage(path);
       if (!info.ok) return { ok: false, code: 'failed', message: info.error.message };
-      const name = backupName(title, new Date(), info.value.summary);
+      const name = backupName(info.value.work.title, new Date(), info.value.summary);
       const bytes = await readFile(path);
       const uploads = [];
       for (const [index, { provider }] of selected.entries()) {

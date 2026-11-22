@@ -1,5 +1,5 @@
 import { binaryBody, formatMegabytes } from '../http';
-import type { CloudCredential, CloudProviderAdapter, CloudQuota, CloudRemoteEntry } from '../provider-port';
+import type { CloudCredential, CloudProviderAdapter, CloudRemoteEntry } from '../provider-port';
 import {
   ONEDRIVE_CLIENT_ID,
   ONEDRIVE_ENDPOINTS,
@@ -15,16 +15,15 @@ type OneDriveCredential = { refreshToken: string };
 
 /** Graph 的 driveItem：我们只读这几项，其余字段一律不碰。 */
 type GraphItem = {
-  id?: string;
-  name?: string;
+  id: string;
+  name: string;
   size?: number;
   lastModifiedDateTime?: string;
   folder?: unknown;
   file?: unknown;
-  parentReference?: { id?: string };
 };
 
-/** 404 单独成一个类型：调用方要区分"还没建"与"真的失败了"。 */
+/** 404 单独成一个类型：列目录要区分“应用文件夹还没建”与真的失败。 */
 class GraphNotFoundError extends Error {
   constructor(message: string) {
     super(message);
@@ -41,13 +40,6 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
   const send = options.fetch ?? globalThis.fetch;
   /** 进程内短票缓存：同一个 refresh token 在有效期内不重复换票。 */
   const tokens = new Map<string, { token: string; expiresAt: number }>();
-  /**
-   * 应用文件夹的标识。
-   *
-   * 列目录时要靠它判断"上一级是不是最顶层"：应用文件夹就是我们这棵树的最顶层，
-   * 它自己的上一级（网盘根）不表示出来。它在服务端是稳定的，一次进程内取一次就够。
-   */
-  let appRootId: string | null = null;
 
   async function getJson(
     url: string,
@@ -57,23 +49,6 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
   ): Promise<Record<string, unknown>> {
     const response = await send(url, {
       headers: { authorization: `Bearer ${token}` },
-      signal
-    });
-
-    return readJson(response, action);
-  }
-
-  async function postJson(
-    url: string,
-    body: unknown,
-    action: string,
-    token: string,
-    signal?: AbortSignal
-  ): Promise<Record<string, unknown>> {
-    const response = await send(url, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify(body),
       signal
     });
 
@@ -112,60 +87,8 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
     return token;
   }
 
-  /** 应用文件夹本身；还没被服务端建出来时返回 null（第一次写入才会建）。 */
-  async function appRootFor(token: string, signal?: AbortSignal): Promise<GraphItem | null> {
-    try {
-      const item = await getJson(ONEDRIVE_ENDPOINTS.appRoot, '读取 OneDrive 应用文件夹', token, signal);
-
-      if (typeof item.id === 'string' && item.id) {
-        appRootId = item.id;
-      }
-
-      return item;
-    } catch (error) {
-      // 404 是"还没建"，不是故障：作者还没写过任何东西的账号就该走这条路。
-      if (error instanceof GraphNotFoundError) {
-        return null;
-      }
-
-      throw error;
-    }
-  }
-
-  /** 上一级：应用文件夹算最顶层，它下面的直接子项就没有上一级可回。 */
-  function parentOfItem(item: GraphItem): string | null {
-    const parent = item.parentReference?.id;
-
-    if (!parent || parent === appRootId) {
-      return null;
-    }
-
-    return parent;
-  }
-
-  /** 列一页拿一页，直到 `@odata.nextLink` 断掉；默认页大小 200，作品目录装得下。 */
-  async function listAllChildren(folderId: string, token: string, signal?: AbortSignal): Promise<GraphItem[]> {
-    const select = '$select=id,name,size,lastModifiedDateTime,folder,file,parentReference';
-    const items: GraphItem[] = [];
-    let next: string | null = `${ONEDRIVE_ENDPOINTS.items}/${folderId}/children?${select}&$top=200`;
-
-    while (next) {
-      const payload = await getJson(next, '列出 OneDrive 目录', token, signal);
-
-      items.push(...readValues(payload));
-
-      // 退出条件写在循环头：分页链接取不到就结束，不靠循环体里的 break。
-      next = typeof payload['@odata.nextLink'] === 'string' ? payload['@odata.nextLink'] : null;
-    }
-
-    return items;
-  }
-
   return {
     id: 'onedrive',
-    // App folder 接入：最顶层就是应用自己的文件夹，绑定它不再套容器目录。
-    topLevelIsAppScoped: true,
-
     oauth: () =>
       ONEDRIVE_CLIENT_ID
         ? {
@@ -217,61 +140,33 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
       return { credential: { refreshToken }, profile: { displayName: displayNameOf(account) } };
     },
 
-    async listEntries({ credential, parentId, signal }) {
+    async listEntries({ credential, signal }) {
       const token = await accessTokenFor(credential, signal);
-      const root = parentId ? null : await appRootFor(token, signal);
+      const items: GraphItem[] = [];
+      let next: string | null =
+        `${ONEDRIVE_ENDPOINTS.appRoot}/children?$select=id,name,size,lastModifiedDateTime,folder,file&$top=200`;
 
-      if (!parentId && !root) {
-        // 应用文件夹还没建：如实报一个空的顶层，而不是编一棵不存在的目录树。
-        return { current: { id: null, name: '应用文件夹', root: true }, parentId: null, entries: [] };
+      try {
+        // 第二页起必须走服务端给的链接：自己拼页码会在 $skip 上限处丢条目。
+        while (next) {
+          const payload = await getJson(next, '列出 OneDrive 应用文件夹', token, signal);
+
+          items.push(...readValues(payload));
+          next = typeof payload['@odata.nextLink'] === 'string' ? payload['@odata.nextLink'] : null;
+        }
+      } catch (error) {
+        // 应用文件夹在第一次写入时才建出来；404 表示这个账号还没有任何备份。
+        if (error instanceof GraphNotFoundError) {
+          return [];
+        }
+
+        throw error;
       }
 
-      const folder = parentId
-        ? await getJson(
-            `${ONEDRIVE_ENDPOINTS.items}/${parentId}?$select=id,name,parentReference`,
-            '读取 OneDrive 目录',
-            token,
-            signal
-          )
-        : root!;
-
-      // 只知道子目录、还不知道应用文件夹是哪一个时要先把它学出来：
-      // 不然“上一级是不是最顶层”判不出来，面包屑会指向一个作者没概念的条目。
-      if (parentId && !appRootId) {
-        await appRootFor(token, signal).catch(() => null);
-      }
-
-      const folderId = parentId ?? requireString(root?.id, 'OneDrive 未返回应用文件夹标识');
-      const entries = await listAllChildren(folderId, token, signal);
-
-      return {
-        current: parentId
-          ? { id: parentId, name: typeof folder.name === 'string' ? folder.name : '', root: false }
-          : { id: null, name: typeof folder.name === 'string' ? folder.name : '应用文件夹', root: true },
-        parentId: parentId ? parentOfItem(folder) : null,
-        entries: entries.map(toEntry)
-      };
+      return items.map(toEntry);
     },
 
-    async createFolder({ credential, parentId, name, signal }) {
-      const token = await accessTokenFor(credential, signal);
-      const payload = await postJson(
-        `${folderEndpoint(parentId)}/children`,
-        {
-          name,
-          folder: {},
-          // fail 而不是 rename：调用方总是先找同名目录，能走到这里说明它认为不该重名。
-          '@microsoft.graph.conflictBehavior': 'fail'
-        },
-        '创建 OneDrive 目录',
-        token,
-        signal
-      );
-
-      return toEntry(payload);
-    },
-
-    async upload({ credential, parentId, name, bytes, signal }) {
+    async upload({ credential, name, bytes, signal }) {
       if (bytes.byteLength > ONEDRIVE_SIMPLE_UPLOAD_LIMIT) {
         throw new Error(
           `归档 ${formatMegabytes(bytes.byteLength)} 超过 OneDrive 单次上传上限 ${formatMegabytes(ONEDRIVE_SIMPLE_UPLOAD_LIMIT)}；` +
@@ -286,7 +181,7 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
        * 而且它是**查询参数**、不是请求体字段；放进 body 会被忽略，服务端仍按 replace 走。
        */
       const url =
-        `${folderEndpoint(parentId)}:/${encodeURIComponent(name)}:/content` +
+        `${ONEDRIVE_ENDPOINTS.appRoot}:/${encodeURIComponent(name)}:/content` +
         '?@microsoft.graph.conflictBehavior=rename';
       const response = await send(url, {
         method: 'PUT',
@@ -295,7 +190,7 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
         signal: signal as AbortSignal | undefined
       });
 
-      return toEntry(await readJson(response, '上传归档'));
+      return toEntry((await readJson(response, '上传归档')) as GraphItem);
     },
 
     async download({ credential, fileId, signal }) {
@@ -316,16 +211,6 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
       return new Uint8Array(await response.arrayBuffer());
     },
 
-    async quota({ credential, signal }): Promise<CloudQuota | null> {
-      const token = await accessTokenFor(credential, signal);
-      const payload = await getJson(`${ONEDRIVE_ENDPOINTS.drive}?$select=quota`, '读取 OneDrive 配额', token, signal);
-      const quota = (payload.quota ?? {}) as { used?: unknown; total?: unknown };
-      const used = typeof quota.used === 'number' ? quota.used : null;
-      const total = typeof quota.total === 'number' ? quota.total : null;
-
-      return used === null || total === null ? null : { usedBytes: used, totalBytes: total };
-    },
-
     async remove({ credential, entryId, signal }) {
       const token = await accessTokenFor(credential, signal);
       const response = await send(`${ONEDRIVE_ENDPOINTS.items}/${entryId}`, {
@@ -342,22 +227,14 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
   };
 }
 
-/** 建目录与上传都要一个确定的父目录：应用文件夹还没建过就用它自己的路径式端点。 */
-function folderEndpoint(parentId: string | null): string {
-  return parentId ? `${ONEDRIVE_ENDPOINTS.items}/${parentId}` : ONEDRIVE_ENDPOINTS.appRoot;
-}
-
 function toEntry(item: GraphItem): CloudRemoteEntry {
-  const name = typeof item.name === 'string' ? item.name : '';
-  const id = typeof item.id === 'string' ? item.id : null;
-
   if (item.folder) {
-    return { id, name, kind: 'folder' };
+    return { id: item.id, name: item.name, kind: 'folder' };
   }
 
   return {
-    id,
-    name,
+    id: item.id,
+    name: item.name,
     kind: 'file',
     ...(typeof item.size === 'number' ? { size: item.size } : {}),
     ...(typeof item.lastModifiedDateTime === 'string' ? { modifiedAt: item.lastModifiedDateTime } : {})

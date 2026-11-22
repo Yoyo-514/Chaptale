@@ -5,8 +5,6 @@ import { ONEDRIVE_CLIENT_ID, ONEDRIVE_SIMPLE_UPLOAD_LIMIT } from '../config';
 import { createOneDriveAdapter } from '../provider';
 
 const tokenReply = { access_token: 'short-lived', refresh_token: 'refresh-1', expires_in: 3600 };
-const APP_ROOT_ID = 'APPS-ROOT';
-const CHILD_FOLDER_ID = 'FOLDER-正文';
 
 /** 应用文件夹还没被服务端建出来时的真实响应形状。 */
 function notFound(): Response {
@@ -15,8 +13,6 @@ function notFound(): Response {
     { status: 404 }
   );
 }
-
-const appRootItem = { id: APP_ROOT_ID, name: 'Chaptale' };
 
 describe('OneDrive 适配器', () => {
   it('凭据配好之前不给登录入口；配好后带齐 PKCE 与离线刷新所需字段', () => {
@@ -71,7 +67,7 @@ describe('OneDrive 适配器', () => {
   });
 
   it('同一次运行里只换一张票：几次调用共用一个 access token', async () => {
-    const stub = createStubFetch([tokenReply, appRootItem, { value: [] }, appRootItem, { value: [] }]);
+    const stub = createStubFetch([tokenReply, { value: [] }, { value: [] }]);
     const adapter = createOneDriveAdapter({ fetch: stub.send });
     const credential = { refreshToken: 'refresh-1' };
 
@@ -81,21 +77,18 @@ describe('OneDrive 适配器', () => {
     expect(stub.calls.filter(call => call.url.includes('/token'))).toHaveLength(1);
   });
 
-  it('应用文件夹还没建出来时给一个空顶层，而不是报错', async () => {
+  it('应用文件夹还没建出来时给空清单，而不是报错', async () => {
     const stub = createStubFetch([tokenReply, notFound()]);
-    const listing = await createOneDriveAdapter({ fetch: stub.send }).listEntries({
+    const entries = await createOneDriveAdapter({ fetch: stub.send }).listEntries({
       credential: { refreshToken: 'refresh-1' }
     });
 
-    expect(listing.current).toEqual({ id: null, name: '应用文件夹', root: true });
-    expect(listing.parentId).toBeNull();
-    expect(listing.entries).toEqual([]);
+    expect(entries).toEqual([]);
   });
 
-  it('列目录翻页取全，并把 driveItem 折成端口条目', async () => {
+  it('列出应用文件夹顶层并翻页取全，把 driveItem 折成端口条目', async () => {
     const stub = createStubFetch([
       tokenReply,
-      appRootItem,
       {
         value: [
           { id: 'file-1', name: '长夜 pc 2026.zip', size: 2048, lastModifiedDateTime: '2026-09-13T21:04:05Z', file: {} }
@@ -104,42 +97,17 @@ describe('OneDrive 适配器', () => {
       },
       { value: [{ id: 'folder-1', name: '灵感', folder: { childCount: 0 } }] }
     ]);
-    const listing = await createOneDriveAdapter({ fetch: stub.send }).listEntries({
+    const entries = await createOneDriveAdapter({ fetch: stub.send }).listEntries({
       credential: { refreshToken: 'refresh-1' }
     });
 
-    expect(listing.parentId).toBeNull();
-    expect(listing.current.root).toBe(true);
-    expect(listing.entries).toEqual([
+    expect(entries).toEqual([
       { id: 'file-1', name: '长夜 pc 2026.zip', kind: 'file', size: 2048, modifiedAt: '2026-09-13T21:04:05Z' },
       { id: 'folder-1', name: '灵感', kind: 'folder' }
     ]);
+    expect(stub.calls[1]?.url).toContain('/me/drive/special/approot/children');
     // 第二页必须走服务端给的那条链接：自己拼页码会在 $skip 上限处悄悄丢东西。
-    expect(stub.calls[3]?.url).toBe('https://graph.microsoft.com/v1.0/me/drive/items/next-page');
-  });
-
-  it('列出子目录时带上自己的名字与上一级；应用文件夹算最顶层', async () => {
-    const stub = createStubFetch([
-      tokenReply,
-      // 列子目录时先读目录自身，再去学一次应用文件夹是谁：判断“上一级是不是最顶层”要用到它。
-      { id: CHILD_FOLDER_ID, name: '正文', parentReference: { id: APP_ROOT_ID } },
-      appRootItem,
-      { value: [] },
-      { id: 'FOLDER-二稿', name: '二稿', parentReference: { id: CHILD_FOLDER_ID } },
-      { value: [] }
-    ]);
-    const adapter = createOneDriveAdapter({ fetch: stub.send });
-    const credential = { refreshToken: 'refresh-1' };
-
-    const direct = await adapter.listEntries({ credential, parentId: CHILD_FOLDER_ID });
-
-    // 应用文件夹下面的直接子项：上一级就是最顶层，不再往上爬到一个作者没概念的网盘根。
-    expect(direct.current).toEqual({ id: CHILD_FOLDER_ID, name: '正文', root: false });
-    expect(direct.parentId).toBeNull();
-
-    const deeper = await adapter.listEntries({ credential, parentId: 'FOLDER-二稿' });
-
-    expect(deeper.parentId).toBe(CHILD_FOLDER_ID);
+    expect(stub.calls[2]?.url).toBe('https://graph.microsoft.com/v1.0/me/drive/items/next-page');
   });
 
   it('上传显式要求重名改名，名字按 URL 编码——默认行为会静默覆盖', async () => {
@@ -147,7 +115,6 @@ describe('OneDrive 适配器', () => {
     const name = '长夜 pc 20260913-210405.zip';
     const entry = await createOneDriveAdapter({ fetch: stub.send }).upload({
       credential: { refreshToken: 'refresh-1' },
-      parentId: null,
       name,
       bytes: new Uint8Array([1, 2, 3])
     });
@@ -169,27 +136,10 @@ describe('OneDrive 适配器', () => {
     await expect(
       adapter.upload({
         credential: { refreshToken: 'refresh-1' },
-        parentId: null,
         name: '大附件.zip',
         bytes: new Uint8Array(ONEDRIVE_SIMPLE_UPLOAD_LIMIT + 1)
       })
     ).rejects.toThrow('超过 OneDrive 单次上传上限');
-  });
-
-  it('配额读不到就是未提供，不编一个数', async () => {
-    const adapter = createOneDriveAdapter({ fetch: createStubFetch([tokenReply, {}]).send });
-    const quota = await adapter.quota({ credential: { refreshToken: 'refresh-1' } });
-
-    expect(quota).toBeNull();
-  });
-
-  it('配额读得到就给字节数', async () => {
-    const adapter = createOneDriveAdapter({
-      fetch: createStubFetch([tokenReply, { quota: { used: 100, total: 1000 } }]).send
-    });
-    const quota = await adapter.quota({ credential: { refreshToken: 'refresh-1' } });
-
-    expect(quota).toEqual({ usedBytes: 100, totalBytes: 1000 });
   });
 
   it('删除成功是 204 空响应；失败如实报原因', async () => {
