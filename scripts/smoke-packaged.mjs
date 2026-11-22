@@ -19,12 +19,15 @@ function executable() {
 }
 
 const home = mkdtempSync(path.join(tmpdir(), 'chaptale-smoke-'));
-mkdirSync(path.join(home, '.chaptale'));
+const configDir = path.join(home, '.chaptale');
+const dataDir = path.join(configDir, 'data');
+// 预先选好空的数据目录，让解包产物直接启动宿主而不是停在位置选择页。
+mkdirSync(dataDir, { recursive: true });
 writeFileSync(
-  path.join(home, '.chaptale/settings.json'),
-  JSON.stringify({ version: 1, workspace: {}, checkUpdatesOnStartup: false })
+  path.join(configDir, 'settings.json'),
+  JSON.stringify({ version: 1, dataDir, checkUpdatesOnStartup: false })
 );
-const library = path.join(home, '.chaptale/creation/library.sqlite');
+const library = path.join(dataDir, 'library.sqlite');
 const args = [`--user-data-dir=${path.join(home, 'profile')}`];
 if (process.platform === 'linux') args.push('--no-sandbox');
 const child = spawn(executable(), args, {
