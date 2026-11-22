@@ -61,8 +61,8 @@ async function seedHistories(workbench: Workbench) {
             reply(session,[{ type:'text',text:'第一条带工具的回复' },{ type:'toolCall',id:'read-notes',name:'read',arguments:{path:'场景笔记.txt'} }],'toolUse');
             session.appendMessage({role:'toolResult',toolName:'read',toolCallId:'read-notes',isError:false,content:[{type:'text',text:'工具输出：旧信藏在门后'}],timestamp:Date.now()});
           } else {
-            const text = {type:'text',text:'助手回复 '+i+'\n\n'+('核对场景、人物动作与对白。'.repeat(24))};
-            reply(session, title === long && i === rounds
+            const text = {type:'text',text:'助手回复 '+i+'\n\n'+('核对场景、人物动作与对白。'.repeat(title === long ? 24 : 6))};
+            reply(session, i === rounds
               ? [{type:'thinking',thinking:'依次检查人物动机和线索。'.repeat(65)}, text] : [text]);
           }
         }
@@ -84,33 +84,34 @@ test('长会话按视口挂载，重开侧栏与切回会话保留阅读位置�
   const workbench = await Workbench.start('agent-transcript');
   const { page } = workbench;
   page.setDefaultTimeout(10000);
-  await page.evaluate(() => {
-    document.documentElement.dataset.transcriptResizeErrors = '0';
-    window.addEventListener('error', event => {
-      if (event.message.startsWith('ResizeObserver loop')) {
-        const root = document.documentElement;
-        root.dataset.transcriptResizeErrors = String(Number(root.dataset.transcriptResizeErrors) + 1);
-      }
-    });
-  });
   try {
+    await workbench.application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1024, 768));
+    await page.evaluate(() => {
+      document.documentElement.dataset.transcriptResizeErrors = '0';
+      window.addEventListener('error', event => {
+        if (event.message.startsWith('ResizeObserver loop')) {
+          const root = document.documentElement;
+          root.dataset.transcriptResizeErrors = String(Number(root.dataset.transcriptResizeErrors) + 1);
+        }
+      });
+    });
     await workbench.createWork('消息浏览');
     await expect(page.getByRole('complementary', { name: '作品导航' })).toBeVisible();
     await seedHistories(workbench);
     await openHistory(page, longTitle);
     const viewport = page.locator('.agent-message-scroll');
     const rows = viewport.locator('.agent-transcript-row');
-    const latest = viewport.getByText(`助手回复 ${turns}`, { exact: false });
+    // 回复可能比视口还高；用末尾操作按钮和滚动距离验证贴底。
+    const latestCopy = viewport
+      .getByRole('article', { name: '助手', exact: true })
+      .filter({ has: page.getByText(`助手回复 ${turns}`, { exact: true }) })
+      .getByRole('button', { name: '复制消息', exact: true });
     const firstReply = viewport.getByText('第一条带工具的回复', { exact: true });
-    await expect(latest).toBeInViewport();
+    await expect(latestCopy).toBeInViewport();
     await expect(firstReply).toHaveCount(0);
     expect(await rows.count()).toBeLessThan(2 * turns);
     const bottomGap = () =>
       viewport.evaluate(element => element.scrollHeight - element.clientHeight - element.scrollTop);
-    await expect.poll(bottomGap).toBeLessThanOrEqual(2);
-    const thinking = viewport.getByRole('button', { name: '思考过程' });
-    await thinking.click();
-    await expect(thinking).toHaveAttribute('aria-expanded', 'true');
     await expect.poll(bottomGap).toBeLessThanOrEqual(2);
 
     await viewport.evaluate(element => {
@@ -136,7 +137,7 @@ test('长会话按视口挂载，重开侧栏与切回会话保留阅读位置�
     await viewport.evaluate(element => {
       element.scrollTop = element.scrollHeight;
     });
-    await expect(latest).toBeInViewport();
+    await expect(latestCopy).toBeInViewport();
     await expect(firstReply).toHaveCount(0);
     await viewport.evaluate(element => {
       element.scrollTop = 36;
@@ -164,7 +165,11 @@ test('长会话按视口挂载，重开侧栏与切回会话保留阅读位置�
     await expect.poll(readingRow).toBeDefined();
     const anchor = await readingRow();
     await openHistory(page, shortTitle);
-    await expect(viewport.getByText('助手回复 1', { exact: false })).toBeInViewport();
+    await expect(viewport.getByText('助手回复 1', { exact: true })).toBeInViewport();
+    const thinking = viewport.getByRole('button', { name: '思考过程' });
+    await thinking.click();
+    await expect(thinking).toHaveAttribute('aria-expanded', 'true');
+    await expect.poll(bottomGap).toBeLessThanOrEqual(2);
     await openHistory(page, longTitle);
     await expect.poll(readingRow).toBe(anchor);
     await viewport.evaluate(element => {
@@ -177,7 +182,7 @@ test('长会话按视口挂载，重开侧栏与切回会话保留阅读位置�
     await viewport.evaluate(element => {
       element.scrollTop = element.scrollHeight;
     });
-    await expect(latest).toBeInViewport();
+    await expect(latestCopy).toBeInViewport();
     await expect.poll(bottomGap).toBeLessThanOrEqual(2);
     const approval = await page.evaluate(async title => {
       const state = await window.chaptaleDesktop.agentHost.request('state', undefined);
