@@ -13,7 +13,7 @@ import {
   SkillSettings,
   ToolPermissionSettings
 } from '@/features/agent';
-import { CloudSyncSettings } from '@/features/cloud-sync';
+import { CloudSyncSettings, ScheduledBackupSettings } from '@/features/cloud-sync';
 import { WritingSettings } from '@/features/editor';
 import { DataDirectorySettings, SettingsSidebar, useSettingsStore } from '@/features/settings';
 
@@ -102,6 +102,7 @@ onMounted(() => {
                 <RetrievalSettings v-else-if="settingsStore.activeSection === 'retrieval'" />
                 <ToolPermissionSettings v-else-if="settingsStore.activeSection === 'permissions'" />
                 <CloudSyncSettings v-else-if="settingsStore.activeSection === 'cloudSync'" />
+                <ScheduledBackupSettings v-else-if="settingsStore.activeSection === 'backup'" />
                 <DataDirectorySettings v-else />
               </main>
             </div>

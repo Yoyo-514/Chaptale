@@ -4,6 +4,9 @@ import type { CreationClient } from '@chaptale/creation/contracts';
 
 import { EditCommandValidator, type AppPlatformResult, type EditCommand } from '../../bridge/app';
 import { IPC_CHANNELS } from '../../bridge/channels';
+import type { ScheduledBackupEvent } from '../../bridge/scheduled-backup';
+import { registerScheduledBackupIpc } from '../features/backup/ipc';
+import { ScheduledWorkBackups } from '../features/backup/scheduled';
 import { CloudBackups } from '../features/cloud-sync/backups';
 import { registerCloudSyncIpc } from '../features/cloud-sync/ipc';
 import { registerDataDirectoryIpc } from '../features/settings/data-directory-ipc';
@@ -19,15 +22,27 @@ import type { AppContext } from './app-context';
  *
  * 所有模块共享同一个 AppContext 实例并只在应用启动时注册一次，避免服务状态分裂或频道重复注册。
  */
-export function registerApplicationIpc(context: AppContext, creation: CreationClient): void {
+export function registerApplicationIpc(context: AppContext, creation: CreationClient): ScheduledWorkBackups {
   const ui = new ElectronUiShell();
+  const device = async () => ({ name: hostname(), installId: await context.settingsService.installId() });
+  const emit = (event: ScheduledBackupEvent) => ui.broadcast(IPC_CHANNELS.scheduledBackup.event, event);
+  const scheduled = new ScheduledWorkBackups({
+    creation,
+    settings: context.settingsService,
+    dataDirectory: () => context.dataDirectory.resolve(),
+    cloud: context.cloudSyncService,
+    device,
+    onChange: () => emit({ kind: 'changed' }),
+    onFailure: failure => emit({ kind: 'failed', ...failure })
+  });
+  registerScheduledBackupIpc(scheduled, context.settingsService, ui);
   registerCloudSyncIpc(
     context.cloudSyncService,
     new CloudBackups(
       context.cloudSyncService,
       (workId, path) => creation.request('exportWorkPackage', { workId, path }),
       path => creation.request('inspectWorkPackage', { path }),
-      async () => ({ name: hostname(), installId: await context.settingsService.installId() })
+      device
     )
   );
   registerSettingsIpc(context.settingsService, ui);
@@ -46,4 +61,5 @@ export function registerApplicationIpc(context: AppContext, creation: CreationCl
       }) satisfies AppPlatformResult
   );
   registerWindowIpc();
+  return scheduled;
 }

@@ -22,6 +22,7 @@ export class DesktopApplicationProcess {
   private readonly resolve: () => Promise<ApplicationBootstrapOptions>;
   private readonly agentListeners = new Set<(event: HostEvent) => void>();
   private readonly creationListeners = new Set<(event: CreationEvent) => void>();
+  private readonly ready = new Set<() => void>();
   private readonly exits = new Set<(message: string) => void>();
   private child?: UtilityProcess;
   private connection?: Promise<Connections>;
@@ -68,6 +69,11 @@ export class DesktopApplicationProcess {
       return () => this.creationListeners.delete(listener);
     }
   };
+
+  onReady(listener: () => void): () => void {
+    this.ready.add(listener);
+    return () => this.ready.delete(listener);
+  }
 
   onExit(listener: (message: string) => void): () => void {
     this.exits.add(listener);
@@ -132,6 +138,7 @@ export class DesktopApplicationProcess {
         switch (message.type) {
           case 'ready':
             resolve(clients);
+            for (const listener of this.ready) listener();
             break;
           case 'failed':
             reject(new Error(message.error));

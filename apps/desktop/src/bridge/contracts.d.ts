@@ -15,6 +15,12 @@ import type {
   CloudSyncState
 } from './cloud-sync';
 import type { DataDirectoryStatus } from './data-directory';
+import type {
+  ScheduledBackupEvent,
+  ScheduledBackupPatch,
+  ScheduledBackupReport,
+  ScheduledBackupState
+} from './scheduled-backup';
 import type { ChaptaleSettingsState, UpdateChaptaleSettingsPayload } from './settings';
 import type { WindowStateResult, WindowZoomCommand } from './window';
 
@@ -100,6 +106,17 @@ export type ChaptaleDesktopApi = {
     select: () => Promise<string | null>;
     /** 校验并保存数据目录；文件夹不符合要求时报错。 */
     choose: (path: string) => Promise<DataDirectoryStatus>;
+  };
+  scheduledBackup: {
+    getState: () => Promise<ScheduledBackupState>;
+    update: (patch: ScheduledBackupPatch) => Promise<ScheduledBackupState>;
+    chooseDirectory: () => Promise<ScheduledBackupState>;
+    openDirectory: () => Promise<void>;
+    /** 定时备份关着也能用；还没选文件夹时先选，取消返回 null。不会打开定时备份。 */
+    backupNow: () => Promise<ScheduledBackupReport | null>;
+    /** 在备份文件夹里选一个作品包，取消返回 null。 */
+    pickBackup: () => Promise<string | null>;
+    subscribe: (listener: (event: ScheduledBackupEvent) => void) => () => void;
   };
   settings: {
     getState: () => Promise<ChaptaleSettingsState>;

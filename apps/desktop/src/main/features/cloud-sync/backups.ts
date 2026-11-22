@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -44,11 +44,11 @@ export class CloudBackups {
       if (!info.ok) return { ok: false, code: 'failed', message: info.error.message };
       const { work, summary } = info.value;
       const name = backupName(work, new Date(), 'manual', await this.device(), summary);
-      const bytes = await readFile(path);
-      const uploads = [];
+      const uploads: Extract<CloudBackupWorkResult, { ok: true }>['uploads'] = [];
       for (const [index, { provider }] of selected.entries()) {
         onUpload({ provider, current: index + 1, total: selected.length });
-        uploads.push({ provider, result: await this.cloud.uploadBackup(provider, name, bytes) });
+        const uploaded = await this.cloud.uploadBackup(provider, name, path);
+        uploads.push({ provider, result: uploaded.ok ? { ok: true } : uploaded });
       }
       return { ok: true, uploads };
     } finally {

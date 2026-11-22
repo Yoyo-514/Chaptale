@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { DEFAULT_SCHEDULED_BACKUP, type ScheduledBackupSettings } from '../../../bridge/scheduled-backup';
 import type { ChaptaleSettings, ChaptaleSettingsState, UpdateChaptaleSettingsPayload } from '../../../bridge/settings';
 import { readJsonFile, writeJsonFile } from '../../infra/filesystem/files';
 import { mergeSettings } from './defaults';
@@ -40,17 +41,26 @@ export class SettingsService {
     await this.enqueue(async () => {
       const current = await this.readSettingsUnsafe();
       const next: ChaptaleSettings = {
-        version: current.version,
+        ...current,
         editor: { autoSave: payload.editor?.autoSave ?? current.editor?.autoSave ?? false },
-        theme: payload.theme ?? current.theme,
-        ...(current.dataDir && { dataDir: current.dataDir }),
-        ...(current.installId && { installId: current.installId })
+        theme: payload.theme ?? current.theme
       };
 
       await writeJsonFile(this.settingsPath, next);
     });
 
     return this.getState();
+  }
+
+  async readScheduledBackup(): Promise<ScheduledBackupSettings> {
+    return (await this.readSettings()).scheduledBackup ?? { ...DEFAULT_SCHEDULED_BACKUP };
+  }
+
+  async setScheduledBackup(scheduledBackup: ScheduledBackupSettings): Promise<void> {
+    await this.enqueue(async () => {
+      await fs.mkdir(this.rootDir, { recursive: true });
+      await writeJsonFile(this.settingsPath, { ...(await this.readSettingsUnsafe()), scheduledBackup });
+    });
   }
 
   /** 数据目录只经数据目录流程写入，不随普通设置更新。 */

@@ -94,7 +94,13 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
       const token = requireString(payload.access_token, 'Dropbox 未返回访问令牌');
       const account = await postJson(DROPBOX_ENDPOINTS.currentAccount, null, '读取 Dropbox 账号', send, token, signal);
 
-      return { credential: { refreshToken }, profile: { displayName: displayNameOf(account) } };
+      return {
+        credential: { refreshToken },
+        profile: {
+          accountId: requireString(account.account_id, 'Dropbox 未返回账号标识'),
+          displayName: displayNameOf(account)
+        }
+      };
     },
 
     async listEntries({ credential, signal }) {
@@ -117,10 +123,10 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
       return entries.map(toEntry);
     },
 
-    async upload({ credential, name, bytes, signal }) {
-      if (bytes.byteLength > DROPBOX_SIMPLE_UPLOAD_LIMIT) {
+    async upload({ credential, name, size, readBytes, signal }) {
+      if (size > DROPBOX_SIMPLE_UPLOAD_LIMIT) {
         throw new Error(
-          `归档 ${formatMegabytes(bytes.byteLength)} 超过 Dropbox 单次上传上限 ${formatMegabytes(DROPBOX_SIMPLE_UPLOAD_LIMIT)}；` +
+          `归档 ${formatMegabytes(size)} 超过 Dropbox 单次上传上限 ${formatMegabytes(DROPBOX_SIMPLE_UPLOAD_LIMIT)}；` +
             '可在云端手动上传该文件，或在作品里分离大附件后重试'
         );
       }
@@ -139,7 +145,7 @@ export function createDropboxAdapter(options: DropboxAdapterOptions = {}): Cloud
             mute: true
           })
         },
-        body: binaryBody(bytes),
+        body: binaryBody(await readBytes()),
         signal: signal as AbortSignal | undefined
       });
 

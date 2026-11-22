@@ -165,7 +165,7 @@ function purge() {
         </tbody>
       </table>
     </div>
-    <CloudRestoreDialog @restore="packages.chooseImport($event)" />
+    <CloudRestoreDialog @restore="packages.chooseImport({ path: $event, downloaded: true })" />
     <AppAlertDialog
       v-model:open="restoreOpen"
       :title="`恢复《${restoring?.title}》导入前的版本？`"

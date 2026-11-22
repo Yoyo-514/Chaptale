@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createStubFetch } from '../../__tests__/stub-fetch';
 import { ONEDRIVE_CLIENT_ID, ONEDRIVE_SIMPLE_UPLOAD_LIMIT } from '../config';
@@ -36,7 +36,10 @@ describe('OneDrive 适配器', () => {
   });
 
   it('用授权码换到 refresh token 与账号显示名，短票不进凭据', async () => {
-    const stub = createStubFetch([tokenReply, { displayName: '张三', userPrincipalName: 'z@example.com' }]);
+    const stub = createStubFetch([
+      tokenReply,
+      { id: 'graph-test', displayName: '张三', userPrincipalName: 'z@example.com' }
+    ]);
     const result = await createOneDriveAdapter({ fetch: stub.send }).exchangeCode({
       code: 'auth-code',
       codeVerifier: 'verifier',
@@ -44,7 +47,7 @@ describe('OneDrive 适配器', () => {
     });
 
     expect(result.credential).toEqual({ refreshToken: 'refresh-1' });
-    expect(result.profile.displayName).toBe('张三');
+    expect(result.profile).toEqual({ accountId: 'graph-test', displayName: '张三' });
 
     const [token, account] = stub.calls;
 
@@ -116,7 +119,8 @@ describe('OneDrive 适配器', () => {
     const entry = await createOneDriveAdapter({ fetch: stub.send }).upload({
       credential: { refreshToken: 'refresh-1' },
       name,
-      bytes: new Uint8Array([1, 2, 3])
+      size: 3,
+      readBytes: async () => new Uint8Array([1, 2, 3])
     });
 
     expect(entry).toEqual({ id: 'file-1', name: '长夜 pc.zip', kind: 'file', size: 3 });
@@ -130,16 +134,19 @@ describe('OneDrive 适配器', () => {
     expect(call?.headers['content-type']).toBe('application/octet-stream');
   });
 
-  it('超过单次上传上限就如实拦住，不去开分片会话', async () => {
+  it('超过单次上传上限就如实拦住，不读作品包', async () => {
     const adapter = createOneDriveAdapter({ fetch: createStubFetch([]).send });
+    const readBytes = vi.fn(async () => new Uint8Array());
 
     await expect(
       adapter.upload({
         credential: { refreshToken: 'refresh-1' },
         name: '大附件.zip',
-        bytes: new Uint8Array(ONEDRIVE_SIMPLE_UPLOAD_LIMIT + 1)
+        size: ONEDRIVE_SIMPLE_UPLOAD_LIMIT + 1,
+        readBytes
       })
     ).rejects.toThrow('超过 OneDrive 单次上传上限');
+    expect(readBytes).not.toHaveBeenCalled();
   });
 
   it('删除成功是 204 空响应；失败如实报原因', async () => {

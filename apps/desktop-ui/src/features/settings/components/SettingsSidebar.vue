@@ -25,6 +25,7 @@ const groups: { title: string; sections: { id: SettingsSection; title: string; i
     title: '应用',
     sections: [
       { id: 'cloudSync', title: '云端账户', icon: 'i-mingcute-cloud-line' },
+      { id: 'backup', title: '备份', icon: 'i-mingcute-safe-box-line' },
       { id: 'files', title: '应用数据', icon: 'i-mingcute-file-info-line' }
     ]
   }

@@ -12,6 +12,7 @@ import {
   CloudProviderArgsValidator
 } from '../../../bridge/schemas/cloud-sync';
 import { ChooseDataDirectoryArgsValidator } from '../../../bridge/schemas/data-directory';
+import { ScheduledBackupUpdateArgsValidator } from '../../../bridge/schemas/scheduled-backup';
 import { UpdateChaptaleSettingsArgsValidator } from '../../../bridge/schemas/settings';
 import { WindowCompleteCloseArgsValidator, WindowZoomArgsValidator } from '../../../bridge/window';
 import type { AppContext } from '../app-context';
@@ -70,6 +71,12 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.cloudSync.downloadBackup, CloudBackupFileArgsValidator),
   validated(IPC_CHANNELS.cloudSync.deleteBackup, CloudBackupFileArgsValidator),
   validated(IPC_CHANNELS.cloudSync.discardDownload, CloudDiscardDownloadArgsValidator),
+  trusted(IPC_CHANNELS.scheduledBackup.getState),
+  validated(IPC_CHANNELS.scheduledBackup.update, ScheduledBackupUpdateArgsValidator),
+  trusted(IPC_CHANNELS.scheduledBackup.chooseDirectory),
+  trusted(IPC_CHANNELS.scheduledBackup.openDirectory),
+  trusted(IPC_CHANNELS.scheduledBackup.backupNow),
+  trusted(IPC_CHANNELS.scheduledBackup.pickBackup),
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),
   trusted(IPC_CHANNELS.window.close),
@@ -79,7 +86,8 @@ const expectedRegistrations: Registration[] = [
 
 const mainToRendererEvents = new Set<string>([
   IPC_CHANNELS.window.closeRequested,
-  IPC_CHANNELS.cloudSync.backupProgress
+  IPC_CHANNELS.cloudSync.backupProgress,
+  IPC_CHANNELS.scheduledBackup.event
 ]);
 
 function createContext(): AppContext {

@@ -27,6 +27,7 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
     // 落一个没有对应样式的类，界面会退化成没有任何语义色的裸样式。
     theme: value && isChaptaleTheme(value.theme) ? value.theme : DEFAULT_SETTINGS.theme,
     ...(typeof value?.dataDir === 'string' && { dataDir: value.dataDir }),
-    ...(typeof value?.installId === 'string' && { installId: value.installId })
+    ...(typeof value?.installId === 'string' && { installId: value.installId }),
+    ...(value?.scheduledBackup && { scheduledBackup: value.scheduledBackup })
   };
 }

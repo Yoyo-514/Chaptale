@@ -113,6 +113,7 @@ it('备份文件名带作品、时间、来源和条目数，读回来得到同�
   );
   const info = {
     workId: work.id,
+    installIdPrefix: '1a2b3c4d',
     title: '雨_夜__',
     at: at.toISOString(),
     kind: 'auto',
@@ -128,9 +129,19 @@ it('备份文件名带作品、时间、来源和条目数，读回来得到同�
 
 it('上传期间作品变化时，Dropbox 和 OneDrive 仍收到同一份作品包，下载后可以导入', async () => {
   const work = createWork();
-  await store.saveAccount({ provider: 'dropbox', displayName: '测试', credential: { refreshToken: 'offline' } });
+  await store.saveAccount({
+    provider: 'dropbox',
+    accountId: 'test-account',
+    displayName: '测试',
+    credential: { refreshToken: 'offline' }
+  });
 
-  await store.saveAccount({ provider: 'onedrive', displayName: '测试', credential: { refreshToken: 'offline' } });
+  await store.saveAccount({
+    provider: 'onedrive',
+    accountId: 'test-account',
+    displayName: '测试',
+    credential: { refreshToken: 'offline' }
+  });
   onDropboxUpload = () => {
     const changed = source.executeAuthor({
       method: 'createEntry',
@@ -201,7 +212,12 @@ it('上传期间作品变化时，Dropbox 和 OneDrive 仍收到同一份作品�
 });
 
 it('名字不是应用写的作品包照常列出，只是没有来源；不是作品包的文件不列', async () => {
-  await store.saveAccount({ provider: 'dropbox', displayName: '测试', credential: { refreshToken: 'offline' } });
+  await store.saveAccount({
+    provider: 'dropbox',
+    accountId: 'test-account',
+    displayName: '测试',
+    credential: { refreshToken: 'offline' }
+  });
   remote.set('旧包.chaptale', new ArrayBuffer(1));
   remote.set('旧包.chaptale.summary.json', new ArrayBuffer(1));
 
@@ -216,7 +232,12 @@ it('名字不是应用写的作品包照常列出，只是没有来源；不是�
 it('选择 Dropbox 时只上传到 Dropbox，OneDrive 也已连接', async () => {
   const work = createWork();
   for (const provider of ['dropbox', 'onedrive'] as const) {
-    await store.saveAccount({ provider, displayName: '测试', credential: { refreshToken: 'offline' } });
+    await store.saveAccount({
+      provider,
+      accountId: 'test-account',
+      displayName: '测试',
+      credential: { refreshToken: 'offline' }
+    });
   }
 
   const result = await backups.backupWork({ workId: work.id, target: 'dropbox' }, () => {});
@@ -232,7 +253,12 @@ it('没有登录或作品导出失败时报告原因，云端不多出文件', a
     ok: false,
     code: 'not-signed-in'
   });
-  await store.saveAccount({ provider: 'dropbox', displayName: '测试', credential: { refreshToken: 'offline' } });
+  await store.saveAccount({
+    provider: 'dropbox',
+    accountId: 'test-account',
+    displayName: '测试',
+    credential: { refreshToken: 'offline' }
+  });
   expect(await backups.backupWork({ workId: randomUUID(), target: 'all' }, () => {})).toMatchObject({
     ok: false,
     code: 'failed'

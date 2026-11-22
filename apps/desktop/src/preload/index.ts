@@ -9,6 +9,7 @@ import { createEditCommandApi, createGetPlatformApi } from './api/app';
 import { createCloudSyncApi } from './api/cloud-sync';
 import { createDataDirectoryApi } from './api/data-directory';
 import { createHostApi } from './api/host';
+import { createScheduledBackupApi } from './api/scheduled-backup';
 import { createSettingsApi } from './api/settings';
 import { createWindowControlApi } from './api/window';
 
@@ -28,6 +29,7 @@ const desktopApi: ChaptaleDesktopApi = {
     addFileData: input => ipcRenderer.invoke(APPLICATION_HOST_CHANNELS.creation.addFileData, input)
   },
   cloudSync: createCloudSyncApi(),
+  scheduledBackup: createScheduledBackupApi(),
   getPlatform: createGetPlatformApi(),
   editCommand: createEditCommandApi(),
   windowControl: createWindowControlApi(),

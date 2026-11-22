@@ -46,6 +46,10 @@ export function bootstrapDesktopApp(): void {
       };
     });
     registerApplicationHostIpc(host);
+    const scheduled = registerApplicationIpc(context, host.creation);
+    host.onReady(() => {
+      void scheduled.start();
+    });
     let stopping = false;
     let stopped = false;
     // 窗口关闭已获确认后再停止宿主；取消退出时，后台会话继续运行。
@@ -58,12 +62,15 @@ export function bootstrapDesktopApp(): void {
         stopped = true;
         app.quit();
       };
-      void host.dispose().then(finish, () => {
-        console.error('退出时资源释放失败');
-        finish();
-      });
+      void scheduled
+        .close()
+        .catch(error => console.error('退出时作品定时备份失败', error))
+        .then(() => host.dispose())
+        .then(finish, () => {
+          console.error('退出时资源释放失败');
+          finish();
+        });
     });
-    registerApplicationIpc(context, host.creation);
     // 主题要在建窗口之前读到：backgroundColor 决定首帧之前那一瞬露出的底色，
     // 建完再改就已经闪过去了。
     const { theme } = await context.settingsService.readSettings();

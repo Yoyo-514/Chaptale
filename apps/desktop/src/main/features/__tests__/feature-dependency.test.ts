@@ -12,7 +12,12 @@ const featuresRoot = path.join(mainRoot, 'features');
  * - 新增跨 feature 导入必须在此显式登记并通过评审；陈旧条目同样报错；
  * - 所有边必须保持无运行时环。共用代码归 core 或 infra。
  */
-const crossFeatureAllowlist: readonly string[] = [];
+const crossFeatureAllowlist: readonly string[] = [
+  // 定时备份沿用云端的包名、账户与上传；云端不反向依赖备份。
+  'backup -> cloud-sync/package-name',
+  'backup -> cloud-sync/service',
+  'backup -> cloud-sync/store'
+];
 
 describe('Main 跨 feature 依赖白名单', () => {
   it('features 生产代码的跨 feature 导入与白名单精确一致', async () => {

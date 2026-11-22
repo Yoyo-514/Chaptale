@@ -10,6 +10,15 @@ export async function pickDirectory(owner: BrowserWindow | null | undefined, tit
   return result.canceled ? undefined : result.filePaths[0];
 }
 
+/** 选择单个文件；用户取消时返回 undefined。 */
+export async function pickFile(
+  owner: BrowserWindow | null | undefined,
+  options: Pick<OpenDialogOptions, 'title' | 'defaultPath' | 'filters'>
+) {
+  const result = await showOpenDialog(owner, { ...options, properties: ['openFile'] });
+  return result.canceled ? undefined : result.filePaths[0];
+}
+
 /** 选择保存路径；用户取消时返回 undefined。 */
 export async function pickSavePath(options: SaveDialogOptions) {
   const result = await dialog.showSaveDialog(options);

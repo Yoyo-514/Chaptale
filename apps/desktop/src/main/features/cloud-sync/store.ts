@@ -12,10 +12,13 @@ import type { CloudCredential } from './providers/provider-port';
  */
 export type StoredCloudAccount = {
   provider: CloudProvider;
+  accountId: string;
   displayName: string;
   connectedAt: string;
   sealed: SealedSecret;
 };
+
+export type CloudBackupAccount = Pick<StoredCloudAccount, 'provider' | 'accountId'>;
 
 export type CloudSyncFile = {
   version: 1;
@@ -44,23 +47,32 @@ export class CloudSyncStore {
     );
   }
 
-  async readCredential(provider: CloudProvider): Promise<CloudCredential | null> {
-    return this.enqueue(async () => {
-      const account = (await this.readUnsafe()).accounts.find(item => item.provider === provider);
+  listBackupAccounts(): Promise<CloudBackupAccount[]> {
+    return this.enqueue(async () =>
+      (await this.readUnsafe()).accounts.map(({ provider, accountId }) => ({ provider, accountId }))
+    );
+  }
 
+  async readCredential(provider: CloudProvider, accountId?: string): Promise<CloudCredential | null> {
+    return this.enqueue(async () => {
+      const account = (await this.readUnsafe()).accounts.find(
+        item => item.provider === provider && (accountId === undefined || item.accountId === accountId)
+      );
       return account ? (JSON.parse(await this.vault.open(account.sealed)) as CloudCredential) : null;
     });
   }
 
-  async saveAccount(input: {
-    provider: CloudProvider;
-    displayName: string;
-    credential: CloudCredential;
-  }): Promise<CloudAccount> {
+  async saveAccount(
+    input: CloudBackupAccount & {
+      displayName: string;
+      credential: CloudCredential;
+    }
+  ): Promise<CloudAccount> {
     return this.enqueue(async () => {
       const file = await this.readUnsafe();
       const record: StoredCloudAccount = {
         provider: input.provider,
+        accountId: input.accountId,
         displayName: input.displayName,
         connectedAt: new Date().toISOString(),
         sealed: await this.vault.seal(JSON.stringify(input.credential))
@@ -116,12 +128,14 @@ function sanitizeAccounts(raw: unknown): StoredCloudAccount[] {
   for (const entry of raw) {
     if (!entry || typeof entry !== 'object') continue;
     if (!isCloudProvider(entry.provider)) continue;
+    if (typeof entry.accountId !== 'string' || !entry.accountId) continue;
     if (typeof entry.displayName !== 'string' || !entry.displayName) continue;
     if (typeof entry.connectedAt !== 'string' || !entry.connectedAt) continue;
     if (!isSealedSecret(entry.sealed)) continue;
 
     accounts.set(entry.provider, {
       provider: entry.provider,
+      accountId: entry.accountId,
       displayName: entry.displayName,
       connectedAt: entry.connectedAt,
       sealed: entry.sealed

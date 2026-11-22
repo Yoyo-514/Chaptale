@@ -1,32 +1,53 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import { CLOUD_PROVIDER_LABELS, isCloudProvider } from '@chaptale/desktop/bridge';
+
 import { AppButton } from '@/components/AppButton';
-import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
+import { AppDropdownMenu, AppDropdownMenuItem, AppDropdownMenuSeparator } from '@/components/AppDropdownMenu';
 import { AppTooltip } from '@/components/AppTooltip';
-import { useCloudSyncStore } from '@/features/cloud-sync';
-import { useCreationStore } from '@/features/creation';
+import { formatWhen, useCloudSyncStore, useScheduledBackupStore } from '@/features/cloud-sync';
+import { useCreationStore, useWorkPackageStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
+import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 
 const editor = useEditorStore();
 const creation = useCreationStore();
 const cloud = useCloudSyncStore();
-/** 状态栏菜单不分级：两家都登录时把备份目标平铺出来；没登录时只留下面的“云端账户…”。 */
-const backupItems = computed(() => {
+const backup = useScheduledBackupStore();
+const packages = useWorkPackageStore();
+const settings = useSettingsStore();
+/** 状态栏菜单不分级：两家都登录时把上传目标平铺出来；没登录时不显示。 */
+const uploadItems = computed(() => {
   if (!cloud.accounts.length) return [];
   const { items, ...single } = cloud.backupMenu;
-  const disabled = single.disabled || creation.libraryOpen || !creation.work;
-  return (items ?? [single]).map(item => ({
-    id: item.id,
-    label: !items ? item.label : item.id.endsWith(':all') ? '备份到全部云端账户' : `备份到 ${item.label}`,
-    disabled
-  }));
+  const work = creation.libraryOpen ? undefined : creation.work;
+  const subject = work ? `《${work.title}》` : '当前作品';
+  const disabled = single.disabled || !work;
+  if (cloud.backingUp !== null) return [{ id: single.id, label: single.label, disabled }];
+  return (items ?? [single]).map(item => {
+    const target = item.id.slice(item.id.indexOf(':') + 1);
+    const provider = isCloudProvider(target) ? ` ${CLOUD_PROVIDER_LABELS[target]}` : '全部云端账户';
+    return { id: item.id, label: `上传${subject}到${provider}`, disabled };
+  });
 });
-function restore() {
-  // 恢复列表与同作品的选择框显示在作品库。
+/** 失败时列出原因；否则给出最近一次本机备份的时间。 */
+const backupHint = computed(() => {
+  const state = backup.state;
+  if (!state) return '备份';
+  if (state.failures.length) return state.failures.map(({ title, message }) => `${title}：${message}`).join('；');
+  const last = state.lastBackupAt ? `上次备份 ${formatWhen(state.lastBackupAt)}` : '还没有备份';
+  return state.settings.enabled ? last : `${last}（定时备份已关闭）`;
+});
+// 恢复列表与同作品的选择框显示在作品库。
+function restoreFromCloud() {
   void creation.showLibrary().then(() => cloud.openRestore());
+}
+async function restoreFromLocal() {
+  const path = await backup.pickBackup();
+  if (path) await creation.showLibrary().then(() => packages.chooseImport({ path, downloaded: false }));
 }
 const notifications = useNotificationStore();
 const navigation = useWorkbenchStore();
@@ -37,22 +58,36 @@ const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : ed
   <footer class="status-bar" aria-label="状态栏">
     <AppDropdownMenu content-size="sm">
       <template #trigger>
-        <AppButton size="xs" variant="ghost">
-          <span class="i-mingcute-cloud-line size-4" aria-hidden="true" />
-          备份
-        </AppButton>
+        <AppTooltip :text="backupHint" side="top">
+          <AppButton size="xs" variant="ghost" :class="{ 'has-failure': backup.state?.failures.length }">
+            <span class="i-mingcute-cloud-line backup-icon" aria-hidden="true" />
+            备份
+          </AppButton>
+        </AppTooltip>
       </template>
+      <AppDropdownMenuItem density="sm" :disabled="!creation.connected || backup.backingUp" @select="backup.backupNow()"
+        >立即备份</AppDropdownMenuItem
+      >
+      <AppDropdownMenuItem density="sm" :disabled="!backup.state?.settings.directory" @select="backup.openDirectory()"
+        >打开备份文件夹</AppDropdownMenuItem
+      >
+      <AppDropdownMenuSeparator />
       <AppDropdownMenuItem
-        v-for="item in backupItems"
+        v-for="item in uploadItems"
         :key="item.id"
         density="sm"
         :disabled="item.disabled"
         @select="cloud.selectBackup(item.id, creation.work)"
         >{{ item.label }}</AppDropdownMenuItem
       >
-      <AppDropdownMenuItem density="sm" :disabled="!creation.connected" @select="restore"
+      <AppDropdownMenuItem density="sm" :disabled="!creation.connected" @select="restoreFromCloud"
         >从云端恢复…</AppDropdownMenuItem
       >
+      <AppDropdownMenuItem density="sm" :disabled="!creation.connected" @select="restoreFromLocal"
+        >从本机备份恢复…</AppDropdownMenuItem
+      >
+      <AppDropdownMenuSeparator />
+      <AppDropdownMenuItem density="sm" @select="settings.openPanel('backup')">备份设置…</AppDropdownMenuItem>
       <AppDropdownMenuItem density="sm" @select="cloud.openAccountSettings()">云端账户…</AppDropdownMenuItem>
     </AppDropdownMenu>
     <span v-if="!creation.connected" class="connection-status" role="status">{{
@@ -104,6 +139,13 @@ const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : ed
   align-items: center;
   gap: 16px;
   font-variant-numeric: tabular-nums;
+}
+.backup-icon {
+  width: 16px;
+  height: 16px;
+}
+.has-failure .backup-icon {
+  color: var(--warning);
 }
 .notification-icon {
   width: 16px;

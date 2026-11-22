@@ -37,6 +37,15 @@ export const IPC_CHANNELS = {
     deleteBackup: 'cloud-sync:delete-backup',
     discardDownload: 'cloud-sync:discard-download'
   },
+  scheduledBackup: {
+    getState: 'scheduled-backup:get-state',
+    update: 'scheduled-backup:update',
+    chooseDirectory: 'scheduled-backup:choose-directory',
+    openDirectory: 'scheduled-backup:open-directory',
+    backupNow: 'scheduled-backup:backup-now',
+    pickBackup: 'scheduled-backup:pick-backup',
+    event: 'scheduled-backup:event'
+  },
   app: {
     getPlatform: 'app:get-platform',
     editCommand: 'app:edit-command'

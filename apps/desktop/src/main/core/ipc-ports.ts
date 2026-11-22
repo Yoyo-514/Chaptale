@@ -12,6 +12,10 @@ export type IpcOwnerResolver = {
 
 export type NativeDialogPort = {
   pickDirectory(owner: unknown, title: string, defaultPath?: string): Promise<string | undefined>;
+  pickFile(
+    owner: unknown,
+    options: { title: string; defaultPath?: string; filters: Array<{ name: string; extensions: string[] }> }
+  ): Promise<string | undefined>;
   pickSavePath(options: {
     title: string;
     defaultPath?: string;

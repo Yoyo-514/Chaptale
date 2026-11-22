@@ -33,15 +33,31 @@ export function backupName(
 }
 
 const pattern =
-  /^(.*)_(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})_(manual|auto)_(.+)_[0-9a-f]{8}_([0-9a-f-]{36})_m(\d+)-r(\d+)-i(\d+)(?: \(\d+\)| \d+)?\.chaptale$/;
+  /^(.*)_(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})_(manual|auto)_(.+)_([0-9a-f]{8})_([0-9a-f-]{36})_m(\d+)-r(\d+)-i(\d+)(?: \(\d+\)| \d+)?\.chaptale$/;
 
-/** 读回 `backupName` 写进去的内容；网盘给重名文件加的编号不影响识别。别的命名返回 null。 */
-export function parseBackupName(name: string): CloudBackupInfo | null {
+/** 读回备份名；重名编号不影响识别。 */
+export function parseBackupName(name: string): (CloudBackupInfo & { installIdPrefix: string }) | null {
   const match = pattern.exec(name);
   if (!match) return null;
-  const [, title, year, month, day, hour, minute, kind, device, workId, manuscripts, resources, images] = match;
+  const [
+    ,
+    title,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    kind,
+    device,
+    installIdPrefix,
+    workId,
+    manuscripts,
+    resources,
+    images
+  ] = match;
   return {
     workId: workId!,
+    installIdPrefix: installIdPrefix!,
     title: title!,
     at: new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)).toISOString(),
     kind: kind as CloudBackupInfo['kind'],

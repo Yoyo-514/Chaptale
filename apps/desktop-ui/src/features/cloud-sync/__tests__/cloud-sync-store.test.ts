@@ -138,7 +138,7 @@ describe('云端账户与作品包备份', () => {
 
     getState.mockResolvedValue(cloudState([account]));
     await store.load();
-    expect(store.backupMenu.label).toBe('备份到 Dropbox');
+    expect(store.backupMenu.label).toBe('上传到 Dropbox');
     expect(store.backupMenu.items).toBeUndefined();
   });
 
@@ -150,7 +150,7 @@ describe('云端账户与作品包备份', () => {
     const store = useCloudSyncStore();
 
     const result = store.backupWork({ id: 'w1', title: '雨夜' }, 'all');
-    expect(store.backupMenu).toMatchObject({ label: '正在备份《雨夜》…', disabled: true });
+    expect(store.backupMenu).toMatchObject({ label: '正在上传《雨夜》…', disabled: true });
     const id = notices.items[0]?.id;
     expect(notices.items).toMatchObject([{ description: '正在生成作品包…', inProgress: true }]);
     const [[args, onUpload]] = backupWork.mock.calls;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 
-import { useCloudSyncStore } from '@/features/cloud-sync';
+import { useCloudSyncStore, useScheduledBackupStore } from '@/features/cloud-sync';
 import { useCreationStore } from '@/features/creation';
 import { useSettingsStore } from '@/features/settings';
 import { ActivityBar, SettingsPanel, StatusBar, TextContextMenu, TitleBar } from '@/features/shell';
@@ -14,7 +14,9 @@ const creation = useCreationStore();
 const settings = useSettingsStore();
 onMounted(() => {
   void settings.load();
-  if (hasDesktopApi()) void useCloudSyncStore().load();
+  if (!hasDesktopApi()) return;
+  void useCloudSyncStore().load();
+  useScheduledBackupStore().connect();
 });
 const settingsMounted = ref(false);
 watch(

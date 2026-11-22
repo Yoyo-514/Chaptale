@@ -28,8 +28,9 @@ export type CloudOAuthConfig = {
 /** 凭据载荷。字段由各服务商自定，只有对应适配器读得懂；落盘前整体加密。 */
 export type CloudCredential = Record<string, unknown>;
 
-/** 服务商侧账号标识，仅用于界面显示。 */
+/** 账号标识用于在重登后沿用定时备份回执；界面只使用显示名。 */
 export type CloudAccountProfile = {
+  accountId: string;
   displayName: string;
 };
 
@@ -63,7 +64,8 @@ export type CloudProviderAdapter = {
   upload(input: {
     credential: CloudCredential;
     name: string;
-    bytes: Uint8Array;
+    size: number;
+    readBytes: () => Promise<Uint8Array>;
     signal?: AbortSignal;
   }): Promise<CloudRemoteEntry>;
   download(input: { credential: CloudCredential; fileId: string; signal?: AbortSignal }): Promise<Uint8Array>;

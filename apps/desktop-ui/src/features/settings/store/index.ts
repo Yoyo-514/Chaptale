@@ -16,6 +16,7 @@ export type SettingsSection =
   | 'retrieval'
   | 'permissions'
   | 'cloudSync'
+  | 'backup'
   | 'files';
 
 /** 设置快照是主题的事实源；每次拿到新快照都据此校准界面与启动期缓存。 */

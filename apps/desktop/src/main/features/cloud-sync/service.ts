@@ -1,16 +1,19 @@
+import { readFile, stat } from 'node:fs/promises';
+
 import type {
   CloudAuthResult,
   CloudDeleteBackupResult,
   CloudFailure,
   CloudListBackupsResult,
   CloudProvider,
-  CloudSyncState,
-  CloudUploadBackupResult
+  CloudSyncState
 } from '../../../bridge/cloud-sync';
 import { CloudAccounts } from './accounts';
 import { parseBackupName } from './package-name';
 import type { CloudCredential, CloudProviderAdapter, CloudRemoteEntry } from './providers/provider-port';
-import type { CloudSyncStore } from './store';
+import type { CloudBackupAccount, CloudSyncStore } from './store';
+
+type CloudTarget = CloudProvider | CloudBackupAccount;
 
 const isBackup = (entry: CloudRemoteEntry) => entry.kind === 'file' && entry.name.endsWith('.chaptale');
 
@@ -49,21 +52,40 @@ export class CloudSyncService {
     return this.getState();
   }
 
-  /** 作品包放在应用专属目录顶层；云端已有同名文件时由服务商改名，不覆盖。 */
-  uploadBackup(provider: CloudProvider, name: string, bytes: Uint8Array): Promise<CloudUploadBackupResult> {
-    return this.withAccount<CloudUploadBackupResult>(provider, async (adapter, credential) => {
-      await adapter.upload({ credential, name, bytes });
-      return { ok: true };
+  listBackupAccounts(): Promise<CloudBackupAccount[]> {
+    return this.options.store.listBackupAccounts();
+  }
+
+  /** 适配器先按服务商上限检查大小，再读取作品包。 */
+  uploadBackup(
+    target: CloudTarget,
+    name: string,
+    path: string,
+    signal?: AbortSignal
+  ): Promise<{ ok: true; entry: CloudRemoteEntry } | CloudFailure> {
+    return this.withAccount(target, async (adapter, credential) => {
+      signal?.throwIfAborted();
+      const { size } = await stat(path);
+      const entry = await adapter.upload({
+        credential,
+        name,
+        size,
+        readBytes: () => readFile(path, { signal }),
+        signal
+      });
+      return { ok: true, entry };
     });
   }
 
-  listBackups(provider: CloudProvider): Promise<CloudListBackupsResult> {
-    return this.withAccount(provider, async (adapter, credential) => ({
+  listBackups(target: CloudTarget, signal?: AbortSignal): Promise<CloudListBackupsResult> {
+    return this.withAccount(target, async (adapter, credential) => ({
       ok: true,
-      backups: (await adapter.listEntries({ credential })).filter(isBackup).map(({ id, name, modifiedAt, size }) => {
-        const info = parseBackupName(name);
-        return { id, name, modifiedAt, size, ...(info && { info }) };
-      })
+      backups: (await adapter.listEntries({ credential, signal }))
+        .filter(isBackup)
+        .map(({ id, name, modifiedAt, size }) => {
+          const info = parseBackupName(name);
+          return { id, name, modifiedAt, size, ...(info && { info }) };
+        })
     }));
   }
 
@@ -74,19 +96,22 @@ export class CloudSyncService {
     }));
   }
 
-  deleteBackup(provider: CloudProvider, fileId: string): Promise<CloudDeleteBackupResult> {
-    return this.withAccount<CloudDeleteBackupResult>(provider, async (adapter, credential) => {
-      await adapter.remove({ credential, entryId: fileId });
+  deleteBackup(target: CloudTarget, fileId: string, signal?: AbortSignal): Promise<CloudDeleteBackupResult> {
+    return this.withAccount<CloudDeleteBackupResult>(target, async (adapter, credential) => {
+      await adapter.remove({ credential, entryId: fileId, signal });
       return { ok: true };
     });
   }
 
   /** 未登录按账户给出的原因返回；服务商请求失败统一报成网络错误，带上服务商的说明。 */
   private async withAccount<T>(
-    provider: CloudProvider,
+    target: CloudTarget,
     action: (adapter: CloudProviderAdapter, credential: CloudCredential) => Promise<T>
   ): Promise<T | CloudFailure> {
-    const ready = await this.accounts.requireCredential(provider);
+    const ready =
+      typeof target === 'string'
+        ? await this.accounts.requireCredential(target)
+        : await this.accounts.requireCredential(target.provider, target.accountId);
     if (!ready.ok) return ready;
     try {
       return await action(ready.adapter, ready.credential);

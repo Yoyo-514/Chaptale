@@ -131,13 +131,19 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
 
       const token = requireString(payload.access_token, 'OneDrive 未返回访问令牌');
       const account = await getJson(
-        `${ONEDRIVE_ENDPOINTS.me}?$select=displayName,userPrincipalName`,
+        `${ONEDRIVE_ENDPOINTS.me}?$select=id,displayName,userPrincipalName`,
         '读取 OneDrive 账号',
         token,
         signal
       );
 
-      return { credential: { refreshToken }, profile: { displayName: displayNameOf(account) } };
+      return {
+        credential: { refreshToken },
+        profile: {
+          accountId: requireString(account.id, 'OneDrive 未返回账号标识'),
+          displayName: displayNameOf(account)
+        }
+      };
     },
 
     async listEntries({ credential, signal }) {
@@ -166,10 +172,10 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
       return items.map(toEntry);
     },
 
-    async upload({ credential, name, bytes, signal }) {
-      if (bytes.byteLength > ONEDRIVE_SIMPLE_UPLOAD_LIMIT) {
+    async upload({ credential, name, size, readBytes, signal }) {
+      if (size > ONEDRIVE_SIMPLE_UPLOAD_LIMIT) {
         throw new Error(
-          `归档 ${formatMegabytes(bytes.byteLength)} 超过 OneDrive 单次上传上限 ${formatMegabytes(ONEDRIVE_SIMPLE_UPLOAD_LIMIT)}；` +
+          `归档 ${formatMegabytes(size)} 超过 OneDrive 单次上传上限 ${formatMegabytes(ONEDRIVE_SIMPLE_UPLOAD_LIMIT)}；` +
             '可在云端手动上传该文件，或在作品里分离大附件后重试'
         );
       }
@@ -186,7 +192,7 @@ export function createOneDriveAdapter(options: OneDriveAdapterOptions = {}): Clo
       const response = await send(url, {
         method: 'PUT',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
-        body: binaryBody(bytes),
+        body: binaryBody(await readBytes()),
         signal: signal as AbortSignal | undefined
       });
 

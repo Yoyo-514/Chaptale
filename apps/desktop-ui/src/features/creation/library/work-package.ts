@@ -95,12 +95,12 @@ export const useWorkPackageStore = defineStore('creation-work-package', () => {
     }
   }
 
-  /** 不给路径时让作者选本机的作品包；从云端恢复时传入下载的临时路径。 */
-  function chooseImport(downloadedPath?: string) {
+  /** 不给来源时让作者选作品包；云端恢复传入下载的临时包（导入后清理），本机备份传入原包（保留）。 */
+  function chooseImport(picked?: PackageSource) {
     return run(async () => {
-      const path = downloadedPath ?? (await getDesktopApi().creation.selectPaths('import-package'))?.[0];
+      const path = picked?.path ?? (await getDesktopApi().creation.selectPaths('import-package'))?.[0];
       if (!path) return;
-      const source = { path, downloaded: downloadedPath !== undefined };
+      const source = { path, downloaded: picked?.downloaded ?? false };
       let info: WorkPackageInfo;
       try {
         info = await requestCreation('inspectWorkPackage', { path });

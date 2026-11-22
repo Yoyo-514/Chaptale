@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Work } from '@chaptale/creation/contracts';
 
 import { useCreationStore } from '../../store';
+import { useWorkPackageStore } from '../work-package';
 import WorksLibrary from '../WorksLibrary.vue';
 
 const name = '雨夜_2026-11-21_0143.chaptale';
@@ -95,4 +96,13 @@ it('作品包检查失败时显示原因并清理下载包', async () => {
   expect(wrapper.get('[role="alert"]').text()).toContain('所选文件不是 Chaptale 作品包');
   expect(install).not.toHaveBeenCalled();
   expect(discardDownload).toHaveBeenCalledExactlyOnceWith(path);
+});
+
+it('从本机备份恢复时导入所选的包，导入后备份文件夹里的原包保留', async () => {
+  const local = 'D:/Chaptale 备份/雨夜.chaptale';
+  await useWorkPackageStore().chooseImport({ path: local, downloaded: false });
+  await flushPromises();
+
+  expect(install).toHaveBeenCalledWith('importWorkPackage', expect.objectContaining({ path: local, asCopy: false }));
+  expect(discardDownload).not.toHaveBeenCalled();
 });

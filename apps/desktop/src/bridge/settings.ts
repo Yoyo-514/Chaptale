@@ -1,5 +1,6 @@
 import type { Static } from 'typebox';
 
+import type { ScheduledBackupSettings } from './scheduled-backup';
 import type { ChaptaleThemeSchema, UpdateChaptaleSettingsPayloadSchema } from './schemas/settings';
 
 /** 界面主题；每个取值对应样式表里的一套语义色。 */
@@ -32,6 +33,7 @@ export type ChaptaleSettings = {
   dataDir?: string;
   /** 这份安装的随机标识，首次备份时生成；备份文件名用它区分同名电脑。 */
   installId?: string;
+  scheduledBackup?: ScheduledBackupSettings;
 };
 
 export type ChaptaleSettingsPaths = {

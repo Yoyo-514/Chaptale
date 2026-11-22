@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createStubFetch } from '../../__tests__/stub-fetch';
 import { DROPBOX_SIMPLE_UPLOAD_LIMIT } from '../config';
@@ -19,7 +19,10 @@ describe('Dropbox 适配器', () => {
     expect(oauth?.redirectUri(52475)).toBe('http://127.0.0.1:52475/');
   });
   it('用授权码换到 refresh token 与账号显示名，短票不进凭据', async () => {
-    const stub = createStubFetch([tokenReply, { name: { display_name: '张三' }, email: 'a@example.com' }]);
+    const stub = createStubFetch([
+      tokenReply,
+      { account_id: 'dbid:test', name: { display_name: '张三' }, email: 'a@example.com' }
+    ]);
     const result = await createDropboxAdapter({ fetch: stub.send }).exchangeCode({
       code: 'auth-code',
       codeVerifier: 'verifier',
@@ -27,7 +30,7 @@ describe('Dropbox 适配器', () => {
     });
 
     expect(result.credential).toEqual({ refreshToken: 'refresh-1' });
-    expect(result.profile.displayName).toBe('张三');
+    expect(result.profile).toEqual({ accountId: 'dbid:test', displayName: '张三' });
 
     const [token, account] = stub.calls;
     expect(token?.url).toBe('https://api.dropboxapi.com/oauth2/token');
@@ -127,7 +130,8 @@ describe('Dropbox 适配器', () => {
     const entry = await createDropboxAdapter({ fetch: stub.send }).upload({
       credential: { refreshToken: 'r' },
       name,
-      bytes: new Uint8Array([1, 2, 3])
+      size: 3,
+      readBytes: async () => new Uint8Array([1, 2, 3])
     });
 
     expect(entry).toEqual({ id: `/${name}`, name, kind: 'file', size: 3, modifiedAt: '2026-09-13T21:04:05Z' });
@@ -171,16 +175,17 @@ describe('Dropbox 适配器', () => {
   });
   it('超过单次上传上限时直接报错，连换票请求都不发', async () => {
     const stub = createStubFetch([tokenReply]);
-    // 真分配一次超限缓冲：这是适配器自己声明的上限，只能拿真实尺寸去撞。
-    const oversized = new Uint8Array(DROPBOX_SIMPLE_UPLOAD_LIMIT + 1);
+    const readBytes = vi.fn(async () => new Uint8Array());
 
     await expect(
       createDropboxAdapter({ fetch: stub.send }).upload({
         credential: { refreshToken: 'r' },
         name: 'big.zip',
-        bytes: oversized
+        size: DROPBOX_SIMPLE_UPLOAD_LIMIT + 1,
+        readBytes
       })
     ).rejects.toThrow('单次上传上限');
     expect(stub.calls).toHaveLength(0);
+    expect(readBytes).not.toHaveBeenCalled();
   });
 });

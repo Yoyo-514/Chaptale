@@ -1,7 +1,7 @@
 import { BrowserWindow, shell, type IpcMainInvokeEvent } from 'electron';
 
 import type { NativeDialogPort, UiShell } from '../../core/ipc-ports';
-import { pickDirectory, pickSavePath } from './dialog';
+import { pickDirectory, pickFile, pickSavePath } from './dialog';
 import { openPathOrThrow } from './shell';
 
 export class ElectronUiShell implements UiShell {
@@ -25,6 +25,10 @@ export class ElectronUiShell implements UiShell {
 
   pickDirectory(owner: unknown, title: string, defaultPath?: string): Promise<string | undefined> {
     return pickDirectory(owner as BrowserWindow | null | undefined, title, defaultPath);
+  }
+
+  pickFile(owner: unknown, options: Parameters<NativeDialogPort['pickFile']>[1]): Promise<string | undefined> {
+    return pickFile(owner as BrowserWindow | null | undefined, options);
   }
 
   pickSavePath(options: Parameters<NativeDialogPort['pickSavePath']>[0]): Promise<string | undefined> {

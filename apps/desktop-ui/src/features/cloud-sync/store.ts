@@ -56,17 +56,17 @@ export const useCloudSyncStore = defineStore('cloudSync', {
     accounts: state => state.state?.accounts ?? [],
     backupMenu(): BackupMenuItem {
       if (this.backingUp !== null) {
-        return { id: `${backupMenuPrefix}busy`, label: `正在备份《${this.backingUp}》…`, disabled: true };
+        return { id: `${backupMenuPrefix}busy`, label: `正在上传《${this.backingUp}》…`, disabled: true };
       }
       const disabled = this.isLoading;
       if (!this.accounts.length) return { id: `${backupMenuPrefix}settings`, label: '登录云端账户…', disabled };
       if (this.accounts.length === 1) {
         const { provider } = this.accounts[0]!;
-        return { id: backupMenuPrefix + provider, label: `备份到 ${CLOUD_PROVIDER_LABELS[provider]}`, disabled };
+        return { id: backupMenuPrefix + provider, label: `上传到 ${CLOUD_PROVIDER_LABELS[provider]}`, disabled };
       }
       return {
         id: `${backupMenuPrefix}menu`,
-        label: '备份到云端',
+        label: '上传到云端',
         disabled,
         items: [
           ...this.accounts.map(({ provider }) => ({

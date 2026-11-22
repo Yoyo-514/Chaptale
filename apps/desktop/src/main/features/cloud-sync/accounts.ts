@@ -61,7 +61,7 @@ export class CloudAccounts {
         signal: controller.signal
       });
       controller.signal.throwIfAborted();
-      const account = await this.options.store.saveAccount({ provider, displayName: profile.displayName, credential });
+      const account = await this.options.store.saveAccount({ provider, ...profile, credential });
       return { ok: true, account };
     } catch (error) {
       return controller.signal.aborted
@@ -81,13 +81,13 @@ export class CloudAccounts {
     this.controller?.abort();
   }
 
-  async requireCredential(provider: CloudProvider): Promise<CloudCredentialResult> {
+  async requireCredential(provider: CloudProvider, accountId?: string): Promise<CloudCredentialResult> {
     const label = CLOUD_PROVIDER_LABELS[provider];
     const adapter = this.adapter(provider);
     if (!adapter?.oauth()) {
       return { ok: false, code: 'not-configured', message: `本构建未内置 ${label} 的应用凭据` };
     }
-    const credential = await this.options.store.readCredential(provider);
+    const credential = await this.options.store.readCredential(provider, accountId);
     if (!credential) return { ok: false, code: 'not-signed-in', message: `请先登录 ${label}` };
     return { ok: true, adapter, credential };
   }
