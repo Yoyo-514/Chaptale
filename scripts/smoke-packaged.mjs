@@ -20,7 +20,10 @@ function executable() {
 
 const home = mkdtempSync(path.join(tmpdir(), 'chaptale-smoke-'));
 mkdirSync(path.join(home, '.chaptale'));
-writeFileSync(path.join(home, '.chaptale/settings.json'), JSON.stringify({ version: 1, workspace: {} }));
+writeFileSync(
+  path.join(home, '.chaptale/settings.json'),
+  JSON.stringify({ version: 1, workspace: {}, checkUpdatesOnStartup: false })
+);
 const library = path.join(home, '.chaptale/creation/library.sqlite');
 const args = [`--user-data-dir=${path.join(home, 'profile')}`];
 if (process.platform === 'linux') args.push('--no-sandbox');

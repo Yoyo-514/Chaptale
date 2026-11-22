@@ -12,6 +12,7 @@ import {
   MenubarSubTrigger,
   MenubarTrigger
 } from 'reka-ui';
+import { useTemplateRef } from 'vue';
 
 import type { AppMenubarMenu } from './types';
 
@@ -21,16 +22,29 @@ defineProps<{
 
 const emit = defineEmits<{
   select: [itemId: string];
+  closeAutoFocus: [menuId: string, trigger: HTMLElement];
 }>();
+
+const menubar = useTemplateRef<InstanceType<typeof MenubarRoot>>('menubar');
+function closeAutoFocus(menuId: string) {
+  const root = menubar.value?.$el as HTMLElement | undefined;
+  const trigger = root?.querySelector<HTMLElement>(`[data-menu-id="${menuId}"]`);
+  if (trigger) emit('closeAutoFocus', menuId, trigger);
+}
 </script>
 
 <template>
-  <MenubarRoot class="app-menubar" aria-label="应用菜单">
+  <MenubarRoot ref="menubar" class="app-menubar" aria-label="应用菜单">
     <MenubarMenu v-for="menu in menus" :key="menu.id">
-      <MenubarTrigger class="app-menubar-trigger">{{ menu.label }}</MenubarTrigger>
+      <MenubarTrigger class="app-menubar-trigger" :data-menu-id="menu.id">{{ menu.label }}</MenubarTrigger>
 
       <MenubarPortal>
-        <MenubarContent class="app-menubar-content" :side-offset="4" align="start">
+        <MenubarContent
+          class="app-menubar-content"
+          :side-offset="4"
+          align="start"
+          @close-auto-focus="closeAutoFocus(menu.id)"
+        >
           <template v-for="item in menu.items" :key="item.id">
             <MenubarSeparator v-if="item.separatorBefore" class="app-menubar-separator" />
 

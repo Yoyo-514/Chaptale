@@ -25,7 +25,8 @@ describe('SettingsService', () => {
     expect(JSON.parse(await readFile(service.settingsPath, 'utf8'))).toEqual({
       version: 1,
       editor: { autoSave: false },
-      theme: 'dark'
+      theme: 'dark',
+      checkUpdatesOnStartup: true
     });
   });
 
@@ -44,7 +45,12 @@ describe('SettingsService', () => {
 
     const state = await service.update({ theme: 'light' });
 
-    expect(state.settings).toEqual({ version: 1, theme: 'light', editor: { autoSave: true } });
+    expect(state.settings).toEqual({
+      version: 1,
+      theme: 'light',
+      editor: { autoSave: true },
+      checkUpdatesOnStartup: true
+    });
   });
 
   it('安装标识第一次用到时生成，之后保持不变，改别的设置也不丢', async () => {

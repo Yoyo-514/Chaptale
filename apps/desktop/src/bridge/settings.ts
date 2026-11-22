@@ -1,5 +1,6 @@
 import type { Static } from 'typebox';
 
+import type { AppRelease } from './help';
 import type { ScheduledBackupSettings } from './scheduled-backup';
 import type { ChaptaleThemeSchema, UpdateChaptaleSettingsPayloadSchema } from './schemas/settings';
 
@@ -34,6 +35,9 @@ export type ChaptaleSettings = {
   /** 这份安装的随机标识，首次备份时生成；备份文件名用它区分同名电脑。 */
   installId?: string;
   scheduledBackup?: ScheduledBackupSettings;
+  checkUpdatesOnStartup: boolean;
+  /** 上次发现的新版本；重启或离线时仍可查看，避免重复提醒。 */
+  knownAppUpdate?: AppRelease;
 };
 
 export type ChaptaleSettingsPaths = {

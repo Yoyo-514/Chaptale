@@ -10,7 +10,8 @@ export const DEFAULT_SETTINGS: ChaptaleSettings = {
   editor: { autoSave: false },
   // 与 Renderer 的 index.html 上那个静态主题类必须一致：
   // 两者不一致时每次冷启动都会先画一帧再跳色。
-  theme: 'dark'
+  theme: 'dark',
+  checkUpdatesOnStartup: true
 };
 
 /** 返回隔离的默认配置，避免调用方修改共享常量后污染后续初始化。 */
@@ -28,6 +29,8 @@ export function mergeSettings(value: Partial<ChaptaleSettings> | undefined): Cha
     theme: value && isChaptaleTheme(value.theme) ? value.theme : DEFAULT_SETTINGS.theme,
     ...(typeof value?.dataDir === 'string' && { dataDir: value.dataDir }),
     ...(typeof value?.installId === 'string' && { installId: value.installId }),
-    ...(value?.scheduledBackup && { scheduledBackup: value.scheduledBackup })
+    ...(value?.scheduledBackup && { scheduledBackup: value.scheduledBackup }),
+    checkUpdatesOnStartup: value?.checkUpdatesOnStartup !== false,
+    ...(value?.knownAppUpdate && { knownAppUpdate: value.knownAppUpdate })
   };
 }

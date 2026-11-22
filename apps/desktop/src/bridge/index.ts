@@ -4,5 +4,6 @@ export * from './scheduled-backup';
 export * from './settings';
 export type * from './data-directory';
 export type * from './app';
+export type * from './help';
 export type * from './window';
 export type * from './contracts';

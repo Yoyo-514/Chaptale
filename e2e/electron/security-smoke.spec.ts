@@ -39,7 +39,12 @@ test.beforeEach(async () => {
   await fs.writeFile(
     path.join(testHome, '.chaptale/settings.json'),
     // 预先选定数据目录，跳过首次启动的位置选择页。
-    JSON.stringify({ version: 1, workspace: {}, dataDir: path.join(testHome, '.chaptale/creation') })
+    JSON.stringify({
+      version: 1,
+      workspace: {},
+      dataDir: path.join(testHome, '.chaptale/creation'),
+      checkUpdatesOnStartup: false
+    })
   );
 
   electronApp = await electron.launch({

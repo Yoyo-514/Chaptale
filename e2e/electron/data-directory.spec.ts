@@ -37,7 +37,7 @@ async function launch(): Promise<Page> {
 const settingsFile = () => path.join(home, '.chaptale/settings.json');
 
 test('首次启动先选择数据位置，确认后作品库建在所选文件夹', async () => {
-  await writeFile(settingsFile(), JSON.stringify({ version: 1, workspace: {} }));
+  await writeFile(settingsFile(), JSON.stringify({ version: 1, workspace: {}, checkUpdatesOnStartup: false }));
   const page = await launch();
   await expect(page.getByRole('heading', { name: '选择数据存放位置' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: '数据存放位置' })).toHaveValue(path.join(home, '.chaptale', 'data'));
@@ -52,7 +52,10 @@ test('首次启动先选择数据位置，确认后作品库建在所选文件�
 
 test('记录的数据文件夹不存在时停在说明页，不新建目录；文件夹恢复后重试进入', async () => {
   const missing = path.join(home, '移动硬盘', 'Chaptale');
-  await writeFile(settingsFile(), JSON.stringify({ version: 1, workspace: {}, dataDir: missing }));
+  await writeFile(
+    settingsFile(),
+    JSON.stringify({ version: 1, workspace: {}, dataDir: missing, checkUpdatesOnStartup: false })
+  );
   const page = await launch();
   await expect(page.getByRole('heading', { name: '找不到数据文件夹' })).toBeVisible();
   await expect(page.getByText(missing, { exact: true })).toBeVisible();

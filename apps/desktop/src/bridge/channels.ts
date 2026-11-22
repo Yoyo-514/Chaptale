@@ -50,6 +50,12 @@ export const IPC_CHANNELS = {
     getPlatform: 'app:get-platform',
     editCommand: 'app:edit-command'
   },
+  help: {
+    getAbout: 'help:get-about',
+    reportIssue: 'help:report-issue',
+    getUpdateState: 'help:get-update-state',
+    checkUpdate: 'help:check-update'
+  },
   window: {
     zoom: 'window:zoom',
     minimize: 'window:minimize',
@@ -61,6 +67,7 @@ export const IPC_CHANNELS = {
   },
   dataDirectory: {
     status: 'data-directory:status',
+    open: 'data-directory:open',
     select: 'data-directory:select',
     choose: 'data-directory:choose'
   },

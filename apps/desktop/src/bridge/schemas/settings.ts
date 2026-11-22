@@ -8,7 +8,8 @@ export const ChaptaleThemeSchema = Type.Union([Type.Literal('light'), Type.Liter
 export const UpdateChaptaleSettingsPayloadSchema = Type.Object(
   {
     editor: Type.Optional(Type.Object({ autoSave: Type.Optional(Type.Boolean()) }, { additionalProperties: false })),
-    theme: Type.Optional(ChaptaleThemeSchema)
+    theme: Type.Optional(ChaptaleThemeSchema),
+    checkUpdatesOnStartup: Type.Optional(Type.Boolean())
   },
   { additionalProperties: false }
 );

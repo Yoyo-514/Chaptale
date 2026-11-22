@@ -4,7 +4,7 @@ import { onMounted, ref, watch } from 'vue';
 import { useCloudSyncStore, useScheduledBackupStore } from '@/features/cloud-sync';
 import { useCreationStore } from '@/features/creation';
 import { useSettingsStore } from '@/features/settings';
-import { ActivityBar, SettingsPanel, StatusBar, TextContextMenu, TitleBar } from '@/features/shell';
+import { ActivityBar, SettingsPanel, StatusBar, TextContextMenu, TitleBar, useAppUpdateStore } from '@/features/shell';
 import { useWorkbenchStore } from '@/features/workbench';
 import { hasDesktopApi } from '@/utils/desktop-api';
 
@@ -17,6 +17,7 @@ onMounted(() => {
   if (!hasDesktopApi()) return;
   void useCloudSyncStore().load();
   useScheduledBackupStore().connect();
+  useAppUpdateStore().start();
 });
 const settingsMounted = ref(false);
 watch(

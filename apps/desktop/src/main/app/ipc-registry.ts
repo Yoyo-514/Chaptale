@@ -9,6 +9,7 @@ import { registerScheduledBackupIpc } from '../features/backup/ipc';
 import { ScheduledWorkBackups } from '../features/backup/scheduled';
 import { CloudBackups } from '../features/cloud-sync/backups';
 import { registerCloudSyncIpc } from '../features/cloud-sync/ipc';
+import { registerHelpIpc } from '../features/help/ipc';
 import { registerDataDirectoryIpc } from '../features/settings/data-directory-ipc';
 import { registerSettingsIpc } from '../features/settings/ipc';
 import { ElectronUiShell } from '../infra/electron/ui-shell';
@@ -47,6 +48,7 @@ export function registerApplicationIpc(context: AppContext, creation: CreationCl
   );
   registerSettingsIpc(context.settingsService, ui);
   registerDataDirectoryIpc(context.dataDirectory, ui);
+  registerHelpIpc(context.settingsService);
   handleValidatedIpc(IPC_CHANNELS.app.editCommand, EditCommandValidator, (event, command: EditCommand) => {
     if (!event.sender.isDestroyed()) event.sender[command]();
   });

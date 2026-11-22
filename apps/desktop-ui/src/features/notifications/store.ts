@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 
 export type NotificationKind = 'error' | 'success' | 'info';
 export type NotificationPanelMode = 'auto' | 'manual';
+export type NotificationAction = { label: string; run: () => void };
 
 export type NotificationItem = {
   id: number;
@@ -11,6 +12,7 @@ export type NotificationItem = {
   createdAt: number;
   inProgress?: boolean;
   seen?: boolean;
+  action?: NotificationAction;
 };
 
 let nextNotificationId = 1;
@@ -48,9 +50,15 @@ export const useNotificationStore = defineStore('notification', {
     allItems: state => state.items.toReversed()
   },
   actions: {
-    push(kind: NotificationKind, title: string, description?: string, inProgress?: boolean) {
+    push(
+      kind: NotificationKind,
+      title: string,
+      description?: string,
+      inProgress?: boolean,
+      action?: NotificationAction
+    ) {
       const id = nextNotificationId++;
-      this.items.push({ id, kind, title, description, createdAt: Date.now(), inProgress });
+      this.items.push({ id, kind, title, description, createdAt: Date.now(), inProgress, ...(action && { action }) });
       this.trimHistory();
       this.preview();
       return id;
@@ -78,10 +86,16 @@ export const useNotificationStore = defineStore('notification', {
       this.items.find(item => item.id === id)!.description = description;
     },
 
-    finishProgress(id: number, kind: NotificationKind, title: string, description: string) {
+    finishProgress(
+      id: number,
+      kind: NotificationKind,
+      title: string,
+      description: string,
+      action?: NotificationAction
+    ) {
       const current = this.items.find(item => item.id === id)!;
       const viewing = this.isPanelOpen && this.panelMode === 'manual';
-      Object.assign(current, { kind, title, description, inProgress: false, seen: viewing });
+      Object.assign(current, { kind, title, description, inProgress: false, seen: viewing, ...(action && { action }) });
       if (!viewing) {
         // 同一条通知进入最新预览，完成结果算作未读。
         this.items = [...this.items.filter(item => item.id !== id), current];
@@ -144,8 +158,8 @@ export const useNotificationStore = defineStore('notification', {
       this.push('success', title, description);
     },
 
-    info(title: string, description?: string) {
-      this.push('info', title, description);
+    info(title: string, description?: string, action?: NotificationAction) {
+      this.push('info', title, description, undefined, action);
     }
   }
 });

@@ -13,7 +13,12 @@ test('查找替换按大小写和正则匹配，替换后可撤销', async () =>
   await writeFile(
     path.join(home, '.chaptale/settings.json'),
     // 预先选定数据目录，跳过首次启动的位置选择页。
-    JSON.stringify({ version: 1, workspace: {}, dataDir: path.join(home, '.chaptale/creation') })
+    JSON.stringify({
+      version: 1,
+      workspace: {},
+      dataDir: path.join(home, '.chaptale/creation'),
+      checkUpdatesOnStartup: false
+    })
   );
   const env = { ...process.env, HOME: home, USERPROFILE: home, NODE_ENV: 'production' };
   delete (env as Record<string, string | undefined>).VITE_DEV_SERVER_URL;

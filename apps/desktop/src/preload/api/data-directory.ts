@@ -6,6 +6,7 @@ import type { ChaptaleDesktopApi } from '../../bridge/contracts';
 export function createDataDirectoryApi(): ChaptaleDesktopApi['dataDirectory'] {
   return {
     status: () => ipcRenderer.invoke(IPC_CHANNELS.dataDirectory.status),
+    open: () => ipcRenderer.invoke(IPC_CHANNELS.dataDirectory.open),
     select: () => ipcRenderer.invoke(IPC_CHANNELS.dataDirectory.select),
     choose: path => ipcRenderer.invoke(IPC_CHANNELS.dataDirectory.choose, path)
   };

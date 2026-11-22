@@ -38,13 +38,14 @@ describe('设置初始化与更新', () => {
         service.getState(),
         service.ensureSettingsFile(),
         service.update({ theme: 'light' }),
-        service.update({ editor: { autoSave: true } })
+        service.update({ editor: { autoSave: true }, checkUpdatesOnStartup: false })
       ]);
 
       expect(JSON.parse(await readFile(service.settingsPath, 'utf8')), `第 ${index + 1} 次冷启动`).toEqual({
         version: 1,
         theme: 'light',
-        editor: { autoSave: true }
+        editor: { autoSave: true },
+        checkUpdatesOnStartup: false
       });
     }
   });

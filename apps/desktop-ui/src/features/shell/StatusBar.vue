@@ -13,7 +13,10 @@ import { useNotificationStore } from '@/features/notifications';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 
+import { useAppUpdateStore } from './help/updates';
+
 const editor = useEditorStore();
+const updates = useAppUpdateStore();
 const creation = useCreationStore();
 const cloud = useCloudSyncStore();
 const backup = useScheduledBackupStore();
@@ -102,6 +105,18 @@ const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : ed
     <AppButton v-if="navigation.focusMode" size="xs" variant="ghost" @click="navigation.focusMode = false"
       >退出专注</AppButton
     >
+    <AppTooltip v-if="updates.available" :text="`查看 ${updates.available.version} 的更新说明`" side="top">
+      <AppButton
+        size="xs"
+        variant="ghost"
+        class="update-status"
+        aria-label="有新版本，查看更新说明"
+        @click="updates.showDetails(updates.available!)"
+      >
+        <span class="i-mingcute-arrow-up-circle-line size-4" aria-hidden="true" />
+        有新版本
+      </AppButton>
+    </AppTooltip>
     <AppTooltip :text="notifications.unseenCount ? `${notifications.unseenCount} 条新通知` : '没有通知'" side="top"
       ><AppButton
         size="xs"
@@ -146,6 +161,12 @@ const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : ed
 }
 .has-failure .backup-icon {
   color: var(--warning);
+}
+.update-status {
+  white-space: nowrap;
+}
+.update-status span {
+  color: var(--primary);
 }
 .notification-icon {
   width: 16px;

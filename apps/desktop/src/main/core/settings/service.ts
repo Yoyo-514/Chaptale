@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import type { AppRelease } from '../../../bridge/help';
 import { DEFAULT_SCHEDULED_BACKUP, type ScheduledBackupSettings } from '../../../bridge/scheduled-backup';
 import type { ChaptaleSettings, ChaptaleSettingsState, UpdateChaptaleSettingsPayload } from '../../../bridge/settings';
 import { readJsonFile, writeJsonFile } from '../../infra/filesystem/files';
@@ -43,7 +44,8 @@ export class SettingsService {
       const next: ChaptaleSettings = {
         ...current,
         editor: { autoSave: payload.editor?.autoSave ?? current.editor?.autoSave ?? false },
-        theme: payload.theme ?? current.theme
+        theme: payload.theme ?? current.theme,
+        checkUpdatesOnStartup: payload.checkUpdatesOnStartup ?? current.checkUpdatesOnStartup
       };
 
       await writeJsonFile(this.settingsPath, next);
@@ -60,6 +62,12 @@ export class SettingsService {
     await this.enqueue(async () => {
       await fs.mkdir(this.rootDir, { recursive: true });
       await writeJsonFile(this.settingsPath, { ...(await this.readSettingsUnsafe()), scheduledBackup });
+    });
+  }
+
+  async setKnownAppUpdate(knownAppUpdate: AppRelease | undefined): Promise<void> {
+    await this.enqueue(async () => {
+      await writeJsonFile(this.settingsPath, { ...(await this.readSettingsUnsafe()), knownAppUpdate });
     });
   }
 

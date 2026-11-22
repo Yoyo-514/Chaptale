@@ -8,6 +8,7 @@ import { handleValidatedIpc } from '../../infra/security/validated-ipc';
 /** 数据目录的查询与选择；新位置在下次启动时生效。 */
 export function registerDataDirectoryIpc(dataDirectory: DataDirectory, ui: UiShell) {
   handleTrustedIpc(IPC_CHANNELS.dataDirectory.status, () => dataDirectory.status());
+  handleTrustedIpc(IPC_CHANNELS.dataDirectory.open, async () => ui.openPath(await dataDirectory.resolve()));
   handleTrustedIpc(
     IPC_CHANNELS.dataDirectory.select,
     async event => (await ui.pickDirectory(ui.resolveOwner(event), '选择数据存放位置')) ?? null

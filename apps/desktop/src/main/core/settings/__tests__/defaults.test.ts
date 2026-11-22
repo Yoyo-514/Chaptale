@@ -22,7 +22,8 @@ describe('settings defaults', () => {
     expect(partial({ workspace: { path: 'E:/Stories' }, backup: { auto: false }, theme: 'warm' })).toEqual({
       version: 1,
       editor: { autoSave: false },
-      theme: 'warm'
+      theme: 'warm',
+      checkUpdatesOnStartup: true
     });
   });
 

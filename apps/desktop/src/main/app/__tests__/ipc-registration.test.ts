@@ -40,6 +40,7 @@ vi.mock('../../infra/security/validated-ipc', () => ({
 }));
 
 vi.mock('electron', () => ({
+  app: { getVersion: () => '0.1.0' },
   BrowserWindow: {
     fromWebContents: vi.fn()
   }
@@ -60,6 +61,7 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.settings.update, UpdateChaptaleSettingsArgsValidator),
   trusted(IPC_CHANNELS.settings.openConfigDir),
   trusted(IPC_CHANNELS.dataDirectory.status),
+  trusted(IPC_CHANNELS.dataDirectory.open),
   trusted(IPC_CHANNELS.dataDirectory.select),
   validated(IPC_CHANNELS.dataDirectory.choose, ChooseDataDirectoryArgsValidator),
   validated(IPC_CHANNELS.cloudSync.getState, CloudNoArgsValidator),
@@ -77,6 +79,10 @@ const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.scheduledBackup.openDirectory),
   trusted(IPC_CHANNELS.scheduledBackup.backupNow),
   trusted(IPC_CHANNELS.scheduledBackup.pickBackup),
+  trusted(IPC_CHANNELS.help.getAbout),
+  trusted(IPC_CHANNELS.help.reportIssue),
+  trusted(IPC_CHANNELS.help.getUpdateState),
+  trusted(IPC_CHANNELS.help.checkUpdate),
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),
   trusted(IPC_CHANNELS.window.close),

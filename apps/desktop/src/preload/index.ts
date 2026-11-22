@@ -8,6 +8,7 @@ import type { ChaptaleDesktopApi } from '../bridge/contracts';
 import { createEditCommandApi, createGetPlatformApi } from './api/app';
 import { createCloudSyncApi } from './api/cloud-sync';
 import { createDataDirectoryApi } from './api/data-directory';
+import { createHelpApi } from './api/help';
 import { createHostApi } from './api/host';
 import { createScheduledBackupApi } from './api/scheduled-backup';
 import { createSettingsApi } from './api/settings';
@@ -32,6 +33,7 @@ const desktopApi: ChaptaleDesktopApi = {
   scheduledBackup: createScheduledBackupApi(),
   getPlatform: createGetPlatformApi(),
   editCommand: createEditCommandApi(),
+  help: createHelpApi(),
   windowControl: createWindowControlApi(),
   dataDirectory: createDataDirectoryApi(),
   settings: createSettingsApi()

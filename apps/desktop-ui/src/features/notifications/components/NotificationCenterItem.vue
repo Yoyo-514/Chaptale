@@ -55,6 +55,9 @@ const emit = defineEmits<{
       <time :datetime="new Date(props.notification.createdAt).toISOString()">
         {{ formatNotificationTime(props.notification.createdAt) }}
       </time>
+      <AppButton v-if="props.notification.action" variant="ghost" size="xs" @click="props.notification.action.run()">
+        {{ props.notification.action.label }}
+      </AppButton>
     </div>
   </div>
 </template>
@@ -143,7 +146,7 @@ const emit = defineEmits<{
 }
 
 .notification-item-details-row {
-  @apply mt-1 flex min-w-0 items-center;
+  @apply mt-1 flex min-w-0 items-center justify-between gap-2;
 }
 
 .notification-item-details-row time {

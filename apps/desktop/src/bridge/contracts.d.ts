@@ -15,6 +15,7 @@ import type {
   CloudSyncState
 } from './cloud-sync';
 import type { DataDirectoryStatus } from './data-directory';
+import type { AppAboutInfo, AppUpdateCheck, AppUpdateState } from './help';
 import type {
   ScheduledBackupEvent,
   ScheduledBackupPatch,
@@ -91,6 +92,12 @@ export type ChaptaleDesktopApi = {
   };
   getPlatform: () => Promise<AppPlatformResult>;
   editCommand: (command: EditCommand) => Promise<void>;
+  help: {
+    getAbout: () => Promise<AppAboutInfo>;
+    reportIssue: () => Promise<void>;
+    getUpdateState: () => Promise<AppUpdateState>;
+    checkUpdate: () => Promise<AppUpdateCheck>;
+  };
   windowControl: {
     zoom: (command: WindowZoomCommand) => Promise<number>;
     minimize: () => Promise<WindowStateResult>;
@@ -102,6 +109,7 @@ export type ChaptaleDesktopApi = {
   };
   dataDirectory: {
     status: () => Promise<DataDirectoryStatus>;
+    open: () => Promise<void>;
     /** 打开系统文件夹选择框；取消时为 null，不保存。 */
     select: () => Promise<string | null>;
     /** 校验并保存数据目录；文件夹不符合要求时报错。 */
