@@ -1,5 +1,8 @@
+import type { CreationClient } from '@chaptale/creation/contracts';
+
 import { EditCommandValidator, type AppPlatformResult, type EditCommand } from '../../bridge/app';
 import { IPC_CHANNELS } from '../../bridge/channels';
+import { CloudBackups } from '../features/cloud-sync/backups';
 import { registerCloudSyncIpc } from '../features/cloud-sync/ipc';
 import { registerDataDirectoryIpc } from '../features/settings/data-directory-ipc';
 import { registerSettingsIpc } from '../features/settings/ipc';
@@ -14,9 +17,16 @@ import type { AppContext } from './app-context';
  *
  * 所有模块共享同一个 AppContext 实例并只在应用启动时注册一次，避免服务状态分裂或频道重复注册。
  */
-export function registerApplicationIpc(context: AppContext): void {
+export function registerApplicationIpc(context: AppContext, creation: CreationClient): void {
   const ui = new ElectronUiShell();
-  registerCloudSyncIpc(context.cloudSyncService);
+  registerCloudSyncIpc(
+    context.cloudSyncService,
+    new CloudBackups(
+      context.cloudSyncService,
+      (workId, path) => creation.request('exportWorkPackage', { workId, path }),
+      path => creation.request('inspectWorkPackage', { path })
+    )
+  );
   registerSettingsIpc(context.settingsService, ui);
   registerDataDirectoryIpc(context.dataDirectory, ui);
   handleValidatedIpc(IPC_CHANNELS.app.editCommand, EditCommandValidator, (event, command: EditCommand) => {

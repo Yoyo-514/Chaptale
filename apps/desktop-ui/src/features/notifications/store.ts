@@ -9,6 +9,8 @@ export type NotificationItem = {
   title: string;
   description?: string;
   createdAt: number;
+  inProgress?: boolean;
+  seen?: boolean;
 };
 
 let nextNotificationId = 1;
@@ -31,47 +33,69 @@ export const useNotificationStore = defineStore('notification', {
   state: () => ({
     items: [] as NotificationItem[],
     isPanelOpen: false,
-    panelMode: 'auto' as NotificationPanelMode,
-    // 用户最后一次“点开看过”时的最大通知 id，之后的才算新通知。
-    seenThroughId: 0
+    panelMode: 'auto' as NotificationPanelMode
   }),
   getters: {
     unreadCount: state => state.items.length,
-    unseenCount: state => state.items.filter(item => item.id > state.seenThroughId).length,
-    /** 自动弹出面板只展示未看过的新通知，看过的不再重复打扰。 */
+    canClear: state => state.items.some(item => !item.inProgress),
+    unseenCount: state => state.items.filter(item => !item.seen).length,
+    /** 自动预览只展示最近的未读通知。 */
     recentUnseenItems: state =>
       state.items
-        .filter(item => item.id > state.seenThroughId)
+        .filter(item => !item.seen)
         .toReversed()
         .slice(0, 3),
     allItems: state => state.items.toReversed()
   },
   actions: {
-    push(kind: NotificationKind, title: string, description?: string) {
-      this.items.push({
-        id: nextNotificationId++,
-        kind,
-        title,
-        description,
-        createdAt: Date.now()
-      });
+    push(kind: NotificationKind, title: string, description?: string, inProgress?: boolean) {
+      const id = nextNotificationId++;
+      this.items.push({ id, kind, title, description, createdAt: Date.now(), inProgress });
+      this.trimHistory();
+      this.preview();
+      return id;
+    },
 
-      // 通知中心只保留最近消息，避免长期运行后无限增长。
-      if (this.items.length > 30) {
-        this.items.splice(0, this.items.length - 30);
-      }
-
+    preview() {
       this.panelMode = 'auto';
       this.isPanelOpen = true;
       this.schedulePanelAutoHide();
     },
 
+    trimHistory() {
+      // 归档保留最近 30 条；正在运行的任务要留到结束。
+      const completed = this.items.filter(item => !item.inProgress);
+      if (completed.length <= 30) return;
+      const keep = new Set(completed.slice(-30).map(item => item.id));
+      this.items = this.items.filter(item => item.inProgress || keep.has(item.id));
+    },
+
+    startProgress(title: string, description: string) {
+      return this.push('info', title, description, true);
+    },
+
+    updateProgress(id: number, description: string) {
+      this.items.find(item => item.id === id)!.description = description;
+    },
+
+    finishProgress(id: number, kind: NotificationKind, title: string, description: string) {
+      const current = this.items.find(item => item.id === id)!;
+      const viewing = this.isPanelOpen && this.panelMode === 'manual';
+      Object.assign(current, { kind, title, description, inProgress: false, seen: viewing });
+      if (!viewing) {
+        // 同一条通知进入最新预览，完成结果算作未读。
+        this.items = [...this.items.filter(item => item.id !== id), current];
+        this.preview();
+      }
+      this.trimHistory();
+    },
+
     dismiss(id: number) {
-      this.items = this.items.filter(item => item.id !== id);
+      this.items = this.items.filter(item => item.id !== id || item.inProgress);
     },
 
     clear() {
-      this.items = [];
+      this.items = this.items.filter(item => item.inProgress);
       this.closePanel();
     },
 
@@ -83,11 +107,7 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     markAllSeen() {
-      const lastItem = this.items.at(-1);
-
-      if (lastItem) {
-        this.seenThroughId = Math.max(this.seenThroughId, lastItem.id);
-      }
+      for (const item of this.items) item.seen = true;
     },
 
     closePanel() {

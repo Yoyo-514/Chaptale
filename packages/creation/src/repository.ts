@@ -26,6 +26,7 @@ import type {
   TrashedWork,
   Work,
   WorkbenchState,
+  WorkPackageInfo,
   WorkSnapshot
 } from './contracts/index.ts';
 
@@ -264,7 +265,7 @@ export interface CreationRepository {
   /** 把作品库快照与资料文件写成作品包。 */
   exportWorkPackage(workId: string, file: string): void;
   /** 读取作品包里的作品信息；不是作品包或版本过新时报错。 */
-  readWorkPackage(file: string): Work;
+  readWorkPackage(file: string): Omit<WorkPackageInfo, 'exists'>;
   /** 在作品目录旁展开作品包并升级结构。 */
   stageWorkPackage(file: string, workId: string): void;
   discardStagedWork(workId: string): void;

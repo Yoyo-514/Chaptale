@@ -26,8 +26,8 @@ export class WorkPackageService {
 
   inspect(path: string): WorkPackageInfo {
     absolutePath(path);
-    const work = this.repository.readWorkPackage(path);
-    return { work, exists: this.repository.library.hasWork(work.id) };
+    const info = this.repository.readWorkPackage(path);
+    return { ...info, exists: this.repository.library.hasWork(info.work.id) };
   }
 
   export(workId: string, path: string): void {
@@ -41,7 +41,7 @@ export class WorkPackageService {
    */
   import(input: ImportWorkPackageInput): WorkReplacement {
     absolutePath(input.path);
-    const packaged = this.repository.readWorkPackage(input.path);
+    const { work: packaged } = this.repository.readWorkPackage(input.path);
     const workId = input.asCopy ? randomUUID() : packaged.id;
     this.repository.stageWorkPackage(input.path, workId);
     let undo: (() => void) | undefined;

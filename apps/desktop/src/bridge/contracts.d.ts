@@ -4,8 +4,13 @@ import type { AddFilesReport, CreationClient } from '@chaptale/creation/contract
 import type { AppPlatformResult, EditCommand } from './app';
 import type {
   CloudAuthResult,
-  CloudListFoldersArgs,
-  CloudListFoldersResult,
+  CloudBackupProgress,
+  CloudBackupWorkArgs,
+  CloudBackupWorkResult,
+  CloudBackupFileArgs,
+  CloudDeleteBackupResult,
+  CloudDownloadBackupResult,
+  CloudListBackupsResult,
   CloudProviderArgs,
   CloudSyncState
 } from './cloud-sync';
@@ -69,7 +74,14 @@ export type ChaptaleDesktopApi = {
     cancelAuth: () => Promise<void>;
     /** 只清除本机凭据，不调用服务商撤销接口。 */
     signOut: (args: CloudProviderArgs) => Promise<CloudSyncState>;
-    listFolders: (args: CloudListFoldersArgs) => Promise<CloudListFoldersResult>;
+    backupWork: (
+      args: CloudBackupWorkArgs,
+      onUpload: (progress: CloudBackupProgress) => void
+    ) => Promise<CloudBackupWorkResult>;
+    listBackups: (args: CloudProviderArgs) => Promise<CloudListBackupsResult>;
+    downloadBackup: (args: CloudBackupFileArgs) => Promise<CloudDownloadBackupResult>;
+    deleteBackup: (args: CloudBackupFileArgs) => Promise<CloudDeleteBackupResult>;
+    discardDownload: (path: string) => Promise<void>;
   };
   getPlatform: () => Promise<AppPlatformResult>;
   editCommand: (command: EditCommand) => Promise<void>;

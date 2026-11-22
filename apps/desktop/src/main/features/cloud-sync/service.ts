@@ -1,13 +1,32 @@
 import type {
   CloudAuthResult,
-  CloudListFoldersArgs,
-  CloudListFoldersResult,
+  CloudBackup,
+  CloudDeleteBackupResult,
+  CloudFailure,
+  CloudListBackupsResult,
   CloudProvider,
-  CloudSyncState
+  CloudSyncState,
+  CloudUploadBackupResult
 } from '../../../bridge/cloud-sync';
 import { CloudAccounts } from './accounts';
-import type { CloudProviderAdapter } from './providers/provider-port';
+import type { CloudCredential, CloudProviderAdapter, CloudRemoteEntry } from './providers/provider-port';
 import type { CloudSyncStore } from './store';
+
+const isBackup = (entry: CloudRemoteEntry) => entry.kind === 'file' && entry.name.toLowerCase().endsWith('.chaptale');
+
+/** 只拆末尾的统计标记，保留网盘加上的重名编号。 */
+function describeBackupName(name: string): Pick<CloudBackup, 'name' | 'summary'> {
+  const match = /_m(\d+)-r(\d+)-i(\d+)( \(\d+\)| \d+)?(\.chaptale)$/i.exec(name);
+  if (!match) return { name };
+  const manuscripts = Number(match[1]);
+  const resources = Number(match[2]);
+  const images = Number(match[3]);
+  if (![manuscripts, resources, images].every(Number.isSafeInteger) || images > resources) return { name };
+  return {
+    name: `${name.slice(0, match.index)}${match[4] ?? ''}${match[5]}`,
+    summary: { manuscripts, resources, images }
+  };
+}
 
 export type CloudSyncServiceOptions = {
   /** 已接入的服务商适配器；未接入的不出现在这里，界面只显示配置说明。 */
@@ -17,7 +36,7 @@ export type CloudSyncServiceOptions = {
   openExternal: (url: string) => Promise<void>;
 };
 
-/** 云端账户入口：服务商可用性、授权、退出与目录浏览；作品备份随新存储另行接入。 */
+/** 云端账户入口：服务商可用性、授权、退出，以及应用专属目录里作品包的上传、列出与下载。 */
 export class CloudSyncService {
   private readonly accounts: CloudAccounts;
 
@@ -44,19 +63,54 @@ export class CloudSyncService {
     return this.getState();
   }
 
-  async listFolders(args: CloudListFoldersArgs): Promise<CloudListFoldersResult> {
-    const ready = await this.accounts.requireCredential(args.provider);
-    if (!ready.ok) return ready;
-    try {
-      const listing = await ready.adapter.listEntries({ credential: ready.credential, parentId: args.parentId });
+  /** 作品包放在应用专属目录顶层；云端已有同名文件时由服务商改名，不覆盖。 */
+  uploadBackup(provider: CloudProvider, name: string, bytes: Uint8Array): Promise<CloudUploadBackupResult> {
+    return this.withAccount(provider, async (adapter, credential) => ({
+      ok: true,
+      name: (await adapter.upload({ credential, parentId: null, name, bytes })).name
+    }));
+  }
+
+  listBackups(provider: CloudProvider): Promise<CloudListBackupsResult> {
+    return this.withAccount(provider, async (adapter, credential) => {
+      const { entries } = await adapter.listEntries({ credential, parentId: null });
       return {
         ok: true,
-        current: listing.current,
-        parentId: listing.parentId,
-        folders: listing.entries
-          .filter(entry => entry.kind === 'folder')
-          .map(entry => ({ id: entry.id, name: entry.name, root: false }))
+        backups: entries
+          .filter(isBackup)
+          .flatMap(({ id, name, modifiedAt, size }) =>
+            id ? [{ id, ...describeBackupName(name), modifiedAt, size }] : []
+          )
       };
+    });
+  }
+
+  downloadBackup(provider: CloudProvider, fileId: string): Promise<{ ok: true; bytes: Uint8Array } | CloudFailure> {
+    return this.withAccount(provider, async (adapter, credential) => ({
+      ok: true,
+      bytes: await adapter.download({ credential, fileId })
+    }));
+  }
+
+  deleteBackup(provider: CloudProvider, fileId: string): Promise<CloudDeleteBackupResult> {
+    return this.withAccount<CloudDeleteBackupResult>(provider, async (adapter, credential) => {
+      const { entries } = await adapter.listEntries({ credential, parentId: null });
+      const backup = entries.find(entry => entry.id === fileId && isBackup(entry));
+      if (!backup) return { ok: false, code: 'failed', message: '云端找不到这份作品包' };
+      await adapter.remove({ credential, entryId: fileId });
+      return { ok: true };
+    });
+  }
+
+  /** 未登录按账户给出的原因返回；服务商请求失败统一报成网络错误，带上服务商的说明。 */
+  private async withAccount<T>(
+    provider: CloudProvider,
+    action: (adapter: CloudProviderAdapter, credential: CloudCredential) => Promise<T>
+  ): Promise<T | CloudFailure> {
+    const ready = await this.accounts.requireCredential(provider);
+    if (!ready.ok) return ready;
+    try {
+      return await action(ready.adapter, ready.credential);
     } catch (error) {
       return { ok: false, code: 'network', message: error instanceof Error ? error.message : String(error) };
     }

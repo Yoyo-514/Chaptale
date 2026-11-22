@@ -22,7 +22,7 @@ const emit = defineEmits<{
       <strong class="notification-item-title" :title="props.notification.title">
         {{ props.notification.title }}
       </strong>
-      <div class="notification-item-toolbar">
+      <div v-if="!props.notification.inProgress" class="notification-item-toolbar">
         <AppTooltip text="移除通知">
           <AppButton
             icon
@@ -41,6 +41,15 @@ const emit = defineEmits<{
     <p v-if="props.notification.description" class="notification-item-description">
       {{ props.notification.description }}
     </p>
+    <div
+      v-if="props.notification.inProgress"
+      class="notification-item-progress"
+      role="progressbar"
+      :aria-label="props.notification.title"
+      :aria-valuetext="props.notification.description"
+    >
+      <span aria-hidden="true" />
+    </div>
 
     <div class="notification-item-details-row">
       <time :datetime="new Date(props.notification.createdAt).toISOString()">
@@ -96,14 +105,41 @@ const emit = defineEmits<{
 }
 
 .notification-item-description,
+.notification-item-progress,
 .notification-item-details-row {
   margin-left: 1.5rem;
 }
 
 .notification-item-description {
-  @apply mt-1 mb-0 break-words text-xs leading-4;
+  @apply mt-1 mb-0 whitespace-pre-line break-words text-xs leading-4;
 
   color: var(--popover-foreground);
+}
+
+.notification-item-progress {
+  @apply mt-2 h-1 overflow-hidden rounded-full;
+  background: var(--border-subtle);
+}
+
+.notification-item-progress span {
+  @apply block h-full w-1/3 rounded-full;
+  background: var(--primary-solid);
+  animation: notification-progress 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes notification-progress {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(200%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-item-progress span {
+    animation: none;
+  }
 }
 
 .notification-item-details-row {

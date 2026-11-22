@@ -95,7 +95,7 @@ class SqliteCreationRepository implements CreationRepository {
     exportWorkPackage(this.rootDir, this.useWork(workId), work, file);
   }
 
-  readWorkPackage(file: string): Work {
+  readWorkPackage(file: string) {
     return readWorkPackage(file);
   }
 

@@ -30,7 +30,7 @@ const isPanelVisible = computed(
         <NotificationCenterHeader
           v-if="isManualPanel"
           :title="panelTitle"
-          :can-clear="notificationStore.items.length > 0"
+          :can-clear="notificationStore.canClear"
           @clear="notificationStore.clear()"
           @close="notificationStore.closePanel()"
         />

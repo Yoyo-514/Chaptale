@@ -56,6 +56,43 @@ describe('notification store', () => {
     expect(store.items).toEqual([]);
   });
 
+  it('更新同一条进度通知，清除历史后仍可打开查看，完成后成为结果', () => {
+    const store = useNotificationStore();
+    store.info('旧通知');
+    const id = store.startProgress('《雨夜》云备份', '正在生成作品包…');
+    vi.advanceTimersByTime(5000);
+    expect(store.isPanelOpen).toBe(false);
+
+    store.clear();
+    store.updateProgress(id, '正在上传到 Dropbox（1/2）');
+    expect(store.isPanelOpen).toBe(false);
+    store.openPanel();
+    expect(store.allItems).toMatchObject([{ id, description: '正在上传到 Dropbox（1/2）', inProgress: true }]);
+
+    store.finishProgress(id, 'success', '《雨夜》已备份到云端', 'Dropbox：已备份');
+    expect(store.allItems).toMatchObject([{ id, title: '《雨夜》已备份到云端', kind: 'success', inProgress: false }]);
+    vi.advanceTimersByTime(5000);
+    expect(store.isPanelOpen).toBe(true);
+    expect(store.panelMode).toBe('manual');
+  });
+
+  it('即使进度已看过，结束后也重新弹出结果，历史仍只留一条', () => {
+    const store = useNotificationStore();
+    const id = store.startProgress('《雨夜》云备份', '正在上传到 Dropbox');
+    store.openPanel();
+    store.closePanel();
+    expect(store.unseenCount).toBe(0);
+
+    store.finishProgress(id, 'error', '《雨夜》已备份到部分网盘', 'OneDrive：空间不足');
+
+    expect(store.isPanelOpen).toBe(true);
+    expect(store.panelMode).toBe('auto');
+    expect(store.recentUnseenItems).toMatchObject([{ id, title: '《雨夜》已备份到部分网盘', inProgress: false }]);
+    expect(store.allItems).toHaveLength(1);
+    vi.advanceTimersByTime(5000);
+    expect(store.isPanelOpen).toBe(false);
+  });
+
   it('counts only notifications newer than the last manual open as unseen', () => {
     const store = useNotificationStore();
 

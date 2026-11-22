@@ -33,7 +33,7 @@ creation 子路径入口：`.`（作品服务与仓储接口）、`./contracts`�
 
 agent-host 内部按领域分目录：`protocol/`、`application/`、`conversation/`、`permissions/`、`work/`、`instructions/`、`skills/`、`mcp/`、`retrieval/`、`runtime/`、`session/`、`settings/`、`tools/`。`protocol/` 只放纯类型与持久化常量。
 
-desktop-ui 的 feature 依赖自下而上：`notifications` → `settings`、`creation`、`workbench` → `story`、`cloud-sync` → `editor` → `explorer`、`agent` → `shell`。设置页分区放在拥有数据的 feature，面板外壳在 `shell`；下层需要上层能力时由 `layouts/` 接入，不反向导入。
+desktop-ui 的 feature 依赖自下而上：`notifications` → `settings` → `cloud-sync` → `creation`、`workbench` → `story` → `editor` → `explorer`、`agent` → `shell`。设置页分区放在拥有数据的 feature，面板外壳在 `shell`；下层需要上层能力时由 `layouts/` 接入，不反向导入。
 
 桌面 preload、主进程与 Renderer 共用 `apps/desktop/src/bridge/`：`@chaptale/desktop/bridge` 入口只导出纯类型与无 Electron 依赖的常量、守卫；参数校验器（`bridge/schemas`、`app.ts`、`window.ts` 中的 Validator）只给 main 与 preload；Electron 通道归 `bridge/channels.ts`，主进程桥接归 `application-host/ipc.ts`。
 

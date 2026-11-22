@@ -5,6 +5,7 @@ import { isChaptaleTheme, type EditCommand } from '@chaptale/desktop/bridge';
 
 import { AppMenubar, type AppMenubarMenu } from '@/components/AppMenubar';
 import { useAgentStore } from '@/features/agent';
+import { useCloudSyncStore } from '@/features/cloud-sync';
 import { useCreationStore, useWorkPackageStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
@@ -21,6 +22,7 @@ const editor = useEditorStore();
 const navigation = useWorkbenchStore();
 const agent = useAgentStore();
 const packages = useWorkPackageStore();
+const cloud = useCloudSyncStore();
 
 async function exportPackage() {
   const work = creation.works.find(item => item.id === creation.workId);
@@ -67,6 +69,12 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
         label: '导出作品包…',
         disabled: creation.libraryOpen || !creation.workId || !creation.connected
       },
+      {
+        ...cloud.backupMenu,
+        disabled: cloud.backupMenu.disabled || creation.libraryOpen || !creation.workId || !creation.connected,
+        separatorBefore: true
+      },
+      { id: 'file.cloud-restore', label: '从云端恢复…', disabled: !creation.connected },
       {
         id: 'file.save',
         label: '保存',
@@ -165,6 +173,7 @@ function handleSelect(id: string) {
         .catch(cause => useNotificationStore().error('编辑操作失败', toErrorMessage(cause)));
     return;
   }
+  if (creation.work && cloud.selectBackup(id, creation.work)) return;
   switch (id) {
     case 'file.new-work':
       creation.newWorkOpen = true;
@@ -190,6 +199,10 @@ function handleSelect(id: string) {
       break;
     case 'file.export-package':
       void exportPackage();
+      break;
+    case 'file.cloud-restore':
+      // 恢复列表与同作品的选择框显示在作品库。
+      void creation.showLibrary().then(() => cloud.openRestore());
       break;
     case 'file.save':
       void editor.saveDocument();

@@ -125,9 +125,13 @@ export interface ImportReport {
   failure: { index: number; message: string } | null;
 }
 /** 作品包里的作品；exists 为作品库中已有同一部作品。 */
+/** 备份时的条目数。图片属于资料，目录不计入。 */
+export type WorkPackageSummary = { manuscripts: number; resources: number; images: number };
+
 export interface WorkPackageInfo {
   work: Work;
   exists: boolean;
+  summary: WorkPackageSummary;
 }
 /** 覆盖导入前保留的作品内容；每部作品只保留最新一份。 */
 export interface WorkSnapshot {

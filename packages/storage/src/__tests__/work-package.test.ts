@@ -89,7 +89,8 @@ it('导出的作品包导入到另一作品库时按原 ID 加入，正文与资
   const target = await open(await temp());
   expect(ok(await target.execute({ method: 'inspectWorkPackage', input: { path } }))).toMatchObject({
     work: { id: work.id, title: '长夜行', kind: 'novel' },
-    exists: false
+    exists: false,
+    summary: { manuscripts: 1, resources: 1, images: 1 }
   });
   expect(ok(await importPackage(target, path))).toMatchObject({
     work: { id: work.id, title: '长夜行', kind: 'novel' },

@@ -2,7 +2,13 @@ import Database from 'better-sqlite3';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import type { Work, WorkSnapshot } from '@chaptale/creation/contracts';
+import {
+  isImageFile,
+  type Entry,
+  type Work,
+  type WorkPackageInfo,
+  type WorkSnapshot
+} from '@chaptale/creation/contracts';
 
 import { prepareSchema, SchemaVersionError } from '../schema.ts';
 import { workDatabaseFile, workDir, workFilesDir, workSchema } from './database.ts';
@@ -74,7 +80,7 @@ export function exportWorkPackage(rootDir: string, database: Database.Database, 
 }
 
 /** 读取包信息；不是作品包、包格式与当前不同或结构版本比当前应用新时报错。 */
-export function readWorkPackage(file: string): Work {
+export function readWorkPackage(file: string): Omit<WorkPackageInfo, 'exists'> {
   const database = new Database(file, { readonly: true, fileMustExist: true });
   try {
     const meta = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'package_meta'").get()
@@ -85,7 +91,18 @@ export function readWorkPackage(file: string): Work {
     if (meta.format < packageFormat) throw new Error('作品包由旧版本的 Chaptale 导出，请用当前版本重新导出');
     if (meta.format > packageFormat || version > workSchema.migrations.length + 1)
       throw new SchemaVersionError('作品包由更新版本的 Chaptale 导出，请升级应用后导入');
-    return JSON.parse(meta.work) as Work;
+    const summary = { manuscripts: 0, resources: 0, images: 0 };
+    const entries = database
+      .prepare("SELECT section, kind, fileName FROM entries WHERE kind <> 'directory'")
+      .iterate() as Iterable<Pick<Entry, 'section' | 'kind' | 'fileName'>>;
+    for (const entry of entries) {
+      if (entry.section === 'manuscript') summary.manuscripts++;
+      else {
+        summary.resources++;
+        if (isImageFile(entry)) summary.images++;
+      }
+    }
+    return { work: JSON.parse(meta.work) as Work, summary };
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'SQLITE_NOTADB')
       throw new Error('所选文件不是 Chaptale 作品包', { cause: error });

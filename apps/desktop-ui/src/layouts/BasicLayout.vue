@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 
+import { useCloudSyncStore } from '@/features/cloud-sync';
 import { useCreationStore } from '@/features/creation';
 import { useSettingsStore } from '@/features/settings';
 import { ActivityBar, SettingsPanel, StatusBar, TextContextMenu, TitleBar } from '@/features/shell';
 import { useWorkbenchStore } from '@/features/workbench';
+import { hasDesktopApi } from '@/utils/desktop-api';
 
 import WorkbenchLayout from './WorkbenchLayout.vue';
 const navigation = useWorkbenchStore();
@@ -12,6 +14,7 @@ const creation = useCreationStore();
 const settings = useSettingsStore();
 onMounted(() => {
   void settings.load();
+  if (hasDesktopApi()) void useCloudSyncStore().load();
 });
 const settingsMounted = ref(false);
 watch(

@@ -30,7 +30,12 @@ export const IPC_CHANNELS = {
     beginAuth: 'cloud-sync:begin-auth',
     cancelAuth: 'cloud-sync:cancel-auth',
     signOut: 'cloud-sync:sign-out',
-    listFolders: 'cloud-sync:list-folders'
+    backupWork: 'cloud-sync:backup-work',
+    backupProgress: 'cloud-sync:backup-progress',
+    listBackups: 'cloud-sync:list-backups',
+    downloadBackup: 'cloud-sync:download-backup',
+    deleteBackup: 'cloud-sync:delete-backup',
+    discardDownload: 'cloud-sync:discard-download'
   },
   app: {
     getPlatform: 'app:get-platform',

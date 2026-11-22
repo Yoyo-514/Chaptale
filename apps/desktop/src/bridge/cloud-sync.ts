@@ -1,6 +1,13 @@
 import type { Static } from 'typebox';
 
-import type { CloudListFoldersArgsSchema, CloudProviderArgsSchema, CloudProviderSchema } from './schemas/cloud-sync';
+import type { WorkPackageSummary } from '@chaptale/creation/contracts';
+
+import type {
+  CloudBackupWorkArgsSchema,
+  CloudBackupFileArgsSchema,
+  CloudProviderArgsSchema,
+  CloudProviderSchema
+} from './schemas/cloud-sync';
 
 export type CloudProvider = Static<typeof CloudProviderSchema>;
 
@@ -78,32 +85,27 @@ export type CloudAuthResult =
 
 export type CloudAuthErrorCode = 'not-configured' | 'canceled' | 'timeout' | 'denied' | 'network' | 'failed';
 
-/**
- * 云端目录。
- *
- * `root` 为真表示已经是**服务商返回的最顶层**（不能再往上），此时 `id` 必为 null。
- * 最顶层的含义随服务商而变：Dropbox / OneDrive 的 App Folder 接入下，最顶层就是本应用的专属区域；
- * 没有专属区域的服务商（如自建 WebDAV），最顶层就是作者自己的网盘根。
- */
-export type CloudRemoteFolder = {
-  /** 服务商侧标识；最顶层为 null，与 `root` 一致。 */
-  id: string | null;
+/** 云端应用目录顶层的一份作品包。name 用于列表显示；下载和删除使用原始 id。 */
+export type CloudBackup = {
+  id: string;
   name: string;
-  root: boolean;
+  modifiedAt?: string;
+  size?: number;
+  summary?: WorkPackageSummary;
 };
 
-export type CloudListFoldersArgs = Static<typeof CloudListFoldersArgsSchema>;
-
-/** 只针对某个服务商的动作（授权 / 登出）的参数。 */
+export type CloudBackupWorkArgs = Static<typeof CloudBackupWorkArgsSchema>;
+export type CloudBackupFileArgs = Static<typeof CloudBackupFileArgsSchema>;
 export type CloudProviderArgs = Static<typeof CloudProviderArgsSchema>;
 
-export type CloudListFoldersResult =
-  | {
-      ok: true;
-      /** 当前所在目录；界面据此渲染面包屑，并据 `current.root` 决定要不要显示“上一级”。 */
-      current: CloudRemoteFolder;
-      /** 上一级标识；null 表示上一级就是最顶层。当前已在最顶层时此值无意义。 */
-      parentId: string | null;
-      folders: CloudRemoteFolder[];
-    }
-  | { ok: false; code: CloudErrorCode; message: string };
+export type CloudFailure = { ok: false; code: CloudErrorCode; message: string };
+export type CloudBackupTarget = CloudBackupWorkArgs['target'];
+export type CloudBackupProgress = { provider: CloudProvider; current: number; total: number };
+export type CloudUploadBackupResult = { ok: true; name: string } | CloudFailure;
+export type CloudBackupWorkResult =
+  | { ok: true; uploads: { provider: CloudProvider; result: CloudUploadBackupResult }[] }
+  | CloudFailure;
+export type CloudListBackupsResult = { ok: true; backups: CloudBackup[] } | CloudFailure;
+export type CloudDeleteBackupResult = { ok: true } | CloudFailure;
+/** path 是下载到本机临时目录的作品包，交给作品包导入流程。 */
+export type CloudDownloadBackupResult = { ok: true; path: string } | CloudFailure;

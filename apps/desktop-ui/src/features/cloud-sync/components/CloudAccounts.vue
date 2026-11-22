@@ -59,9 +59,6 @@ const providers = computed(() =>
           <AppButton v-else-if="item.configured" :disabled="cloud.busy !== null" @click="cloud.signIn(item.provider)">
             <span class="i-mingcute-lock-line size-4" aria-hidden="true" />登录
           </AppButton>
-          <AppButton v-if="item.account" variant="ghost" @click="cloud.openFolder(item.provider, null)">
-            <span class="i-mingcute-folder-open-2-line size-4" aria-hidden="true" />云端目录
-          </AppButton>
         </div>
       </li>
     </ul>

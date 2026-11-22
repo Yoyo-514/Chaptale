@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { CreationClient } from '@chaptale/creation/contracts';
+
 import { EditCommandValidator } from '../../../bridge/app';
 import { IPC_CHANNELS } from '../../../bridge/channels';
 import {
-  CloudListFoldersArgsValidator,
+  CloudBackupWorkArgsValidator,
+  CloudBackupFileArgsValidator,
+  CloudDiscardDownloadArgsValidator,
   CloudNoArgsValidator,
   CloudProviderArgsValidator
 } from '../../../bridge/schemas/cloud-sync';
@@ -61,7 +65,11 @@ const expectedRegistrations: Registration[] = [
   validated(IPC_CHANNELS.cloudSync.beginAuth, CloudProviderArgsValidator),
   validated(IPC_CHANNELS.cloudSync.cancelAuth, CloudNoArgsValidator),
   validated(IPC_CHANNELS.cloudSync.signOut, CloudProviderArgsValidator),
-  validated(IPC_CHANNELS.cloudSync.listFolders, CloudListFoldersArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.backupWork, CloudBackupWorkArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.listBackups, CloudProviderArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.downloadBackup, CloudBackupFileArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.deleteBackup, CloudBackupFileArgsValidator),
+  validated(IPC_CHANNELS.cloudSync.discardDownload, CloudDiscardDownloadArgsValidator),
   trusted(IPC_CHANNELS.window.minimize),
   trusted(IPC_CHANNELS.window.toggleMaximize),
   trusted(IPC_CHANNELS.window.close),
@@ -69,7 +77,10 @@ const expectedRegistrations: Registration[] = [
   trusted(IPC_CHANNELS.window.isMaximized)
 ];
 
-const mainToRendererEvents = new Set<string>([IPC_CHANNELS.window.closeRequested]);
+const mainToRendererEvents = new Set<string>([
+  IPC_CHANNELS.window.closeRequested,
+  IPC_CHANNELS.cloudSync.backupProgress
+]);
 
 function createContext(): AppContext {
   return {
@@ -97,7 +108,7 @@ describe('renderer → main IPC 注册边界', () => {
   it('调用应用注册表时为每个频道选择 trusted 或对应 validator', () => {
     const context = createContext();
 
-    registerApplicationIpc(context);
+    registerApplicationIpc(context, {} as CreationClient);
 
     const actualByChannel = new Map(
       registrationMock.registrations.map(registration => [registration.channel, registration])

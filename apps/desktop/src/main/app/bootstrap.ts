@@ -63,7 +63,7 @@ export function bootstrapDesktopApp(): void {
         finish();
       });
     });
-    registerApplicationIpc(context);
+    registerApplicationIpc(context, host.creation);
     // 主题要在建窗口之前读到：backgroundColor 决定首帧之前那一瞬露出的底色，
     // 建完再改就已经闪过去了。
     const { theme } = await context.settingsService.readSettings();

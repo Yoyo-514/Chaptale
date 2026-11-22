@@ -6,6 +6,7 @@ import type { TrashedWork, Work } from '@chaptale/creation/contracts';
 import { AppButton } from '@/components/AppButton';
 import { AppContextMenu, type AppContextMenuItem } from '@/components/AppContextMenu';
 import { AppAlertDialog } from '@/components/AppDialog';
+import { CloudRestoreDialog, useCloudSyncStore } from '@/features/cloud-sync';
 import { toErrorMessage } from '@/utils/desktop-api';
 
 import { useCreationStore } from '../store';
@@ -15,10 +16,12 @@ import { useWorkTrashStore } from './work-trash';
 const creation = useCreationStore();
 const trash = useWorkTrashStore();
 const packages = useWorkPackageStore();
+const cloud = useCloudSyncStore();
 const date = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
 function workMenu(work: Work): AppContextMenuItem[] {
   return [
     { id: 'export', label: '导出作品包' },
+    cloud.backupMenu,
     ...(packages.snapshots.some(item => item.workId === work.id) ? [{ id: 'restore', label: '恢复导入前的版本' }] : []),
     { id: 'delete', label: '删除作品', separatorBefore: true }
   ];
@@ -42,6 +45,7 @@ async function run(action: () => Promise<unknown>) {
   }
 }
 function selectWorkAction(id: string, work: Work) {
+  if (cloud.selectBackup(id, work)) return;
   if (id === 'delete') askRemove(work);
   else if (id === 'export') void packages.exportFromLibrary(work);
   else {
@@ -80,6 +84,7 @@ function purge() {
         <AppButton variant="ghost" :disabled="!creation.connected" @click="packages.chooseImport()"
           >导入作品包</AppButton
         >
+        <AppButton variant="ghost" :disabled="!creation.connected" @click="cloud.openRestore()">从云端恢复</AppButton>
         <AppButton variant="primary" :disabled="!creation.connected" @click="creation.newWorkOpen = true"
           >新建作品</AppButton
         >
@@ -160,6 +165,7 @@ function purge() {
         </tbody>
       </table>
     </div>
+    <CloudRestoreDialog @restore="packages.chooseImport($event)" />
     <AppAlertDialog
       v-model:open="restoreOpen"
       :title="`恢复《${restoring?.title}》导入前的版本？`"

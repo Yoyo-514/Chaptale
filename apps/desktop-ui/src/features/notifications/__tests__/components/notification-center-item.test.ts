@@ -29,6 +29,27 @@ describe('NotificationCenterItem', () => {
     expect(time.text()).not.toBe('');
   });
 
+  it('shows a stage with an indeterminate progress bar until the result arrives', async () => {
+    const wrapper = mount(NotificationCenterItem, {
+      props: {
+        notification: {
+          ...notification,
+          kind: 'info',
+          title: '《雨夜》云备份',
+          description: '正在打包',
+          inProgress: true
+        },
+        mode: 'manual'
+      }
+    });
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuetext')).toBe('正在打包');
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBeUndefined();
+    await wrapper.setProps({ notification: { ...notification, title: '《雨夜》已备份', inProgress: false } });
+    expect(wrapper.find('[role="progressbar"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('《雨夜》已备份');
+    wrapper.unmount();
+  });
+
   it('keeps the details row when no description is provided and emits dismiss from the toolbar', async () => {
     const wrapper = mount(NotificationCenterItem, {
       props: {

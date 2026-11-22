@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import { CLOUD_PROVIDER_LABELS } from '@chaptale/desktop/bridge';
+
 import { AppButton } from '@/components/AppButton';
 import { AppTooltip } from '@/components/AppTooltip';
+import { useCloudSyncStore } from '@/features/cloud-sync';
 import { useCreationStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 import { useNotificationStore } from '@/features/notifications';
@@ -10,6 +13,10 @@ import { useWorkbenchStore } from '@/features/workbench';
 
 const editor = useEditorStore();
 const creation = useCreationStore();
+const cloud = useCloudSyncStore();
+const connectedDrives = computed(() =>
+  cloud.accounts.map(({ provider }) => CLOUD_PROVIDER_LABELS[provider]).join('、')
+);
 const notifications = useNotificationStore();
 const navigation = useWorkbenchStore();
 const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : editor.activeTab?.saveError ? '保存失败' : ''));
@@ -17,8 +24,14 @@ const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : ed
 
 <template>
   <footer class="status-bar" aria-label="状态栏">
-    <span class="connection-status">{{
-      creation.connected ? '本机存储' : creation.busy ? '正在连接…' : '存储已断开'
+    <AppTooltip :text="connectedDrives ? `已连接：${connectedDrives}` : '打开云端账户设置'" side="top">
+      <AppButton size="xs" variant="ghost" @click="cloud.openAccountSettings()">
+        <span class="i-mingcute-cloud-line size-4" aria-hidden="true" />
+        {{ cloud.state && !cloud.accounts.length ? '尚未设置云备份' : '云备份' }}
+      </AppButton>
+    </AppTooltip>
+    <span v-if="!creation.connected" class="connection-status" role="status">{{
+      creation.busy ? '正在连接作品库…' : '作品库已断开'
     }}</span>
     <div class="status-spacer" />
     <div v-if="editor.activeTab && !creation.libraryOpen" class="document-status">
