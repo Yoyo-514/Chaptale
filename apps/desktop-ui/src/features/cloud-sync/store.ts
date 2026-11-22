@@ -43,7 +43,8 @@ export const useCloudSyncStore = defineStore('cloudSync', {
     isLoading: false,
     error: '',
     busy: null as CloudProvider | null,
-    backingUp: false,
+    /** 正在备份的作品标题；同一时间只备份一部。 */
+    backingUp: null as string | null,
     restoreOpen: false,
     backups: [] as CloudBackupItem[],
     backupsLoading: false,
@@ -54,22 +55,27 @@ export const useCloudSyncStore = defineStore('cloudSync', {
     availability: state => state.state?.availability ?? [],
     accounts: state => state.state?.accounts ?? [],
     backupMenu(): BackupMenuItem {
-      const disabled = this.backingUp || this.isLoading;
+      if (this.backingUp !== null) {
+        return { id: `${backupMenuPrefix}busy`, label: `正在备份《${this.backingUp}》…`, disabled: true };
+      }
+      const disabled = this.isLoading;
+      if (!this.accounts.length) return { id: `${backupMenuPrefix}settings`, label: '登录云端账户…', disabled };
       if (this.accounts.length === 1) {
         const { provider } = this.accounts[0]!;
         return { id: backupMenuPrefix + provider, label: `备份到 ${CLOUD_PROVIDER_LABELS[provider]}`, disabled };
       }
-      const menu: BackupMenuItem = { id: `${backupMenuPrefix}settings`, label: '备份到云端', disabled };
-      if (this.accounts.length > 1) {
-        menu.items = [
+      return {
+        id: `${backupMenuPrefix}menu`,
+        label: '备份到云端',
+        disabled,
+        items: [
           ...this.accounts.map(({ provider }) => ({
             id: backupMenuPrefix + provider,
             label: CLOUD_PROVIDER_LABELS[provider]
           })),
-          { id: `${backupMenuPrefix}all`, label: '全部已登录网盘', separatorBefore: true }
-        ];
-      }
-      return menu;
+          { id: `${backupMenuPrefix}all`, label: '全部云端账户', separatorBefore: true }
+        ]
+      };
     }
   },
   actions: {
@@ -119,25 +125,25 @@ export const useCloudSyncStore = defineStore('cloudSync', {
     openAccountSettings() {
       useSettingsStore().openPanel('cloudSync');
     },
-    selectBackup(id: string, work: { id: string; title: string }): boolean {
+    selectBackup(id: string, work: { id: string; title: string } | undefined): boolean {
       if (!id.startsWith(backupMenuPrefix)) return false;
       const target = id.slice(backupMenuPrefix.length);
       if (target === 'settings') this.openAccountSettings();
-      else if (target === 'all' || isCloudProvider(target)) void this.backupWork(work, target);
+      else if (work && (target === 'all' || isCloudProvider(target))) void this.backupWork(work, target);
       return true;
     },
     async backupWork(work: { id: string; title: string }, target: CloudBackupTarget) {
-      this.backingUp = true;
+      this.backingUp = work.title;
       const notifications = useNotificationStore();
       const subject = `《${work.title}》`;
-      const id = notifications.startProgress(`${subject}云备份`, '正在生成作品包…');
+      const id = notifications.startProgress(`${subject}云端备份`, '正在生成作品包…');
       const result = await attempt(() =>
         getDesktopApi().cloudSync.backupWork({ workId: work.id, target }, ({ provider, current, total }) => {
           const position = total > 1 ? `（${current}/${total}）` : '';
           notifications.updateProgress(id, `正在上传到 ${CLOUD_PROVIDER_LABELS[provider]}${position}`);
         })
       );
-      this.backingUp = false;
+      this.backingUp = null;
       if (!result.ok) {
         notifications.finishProgress(id, 'error', `${subject}备份失败`, result.message);
         return;
@@ -145,19 +151,15 @@ export const useCloudSyncStore = defineStore('cloudSync', {
       const successful = result.uploads.filter(({ result: upload }) => upload.ok).length;
       const complete = successful === result.uploads.length;
       const details = result.uploads.map(
-        ({ provider, result: upload }) =>
-          `${CLOUD_PROVIDER_LABELS[provider]}：${upload.ok ? upload.name : upload.message}`
+        ({ provider, result: upload }) => `${CLOUD_PROVIDER_LABELS[provider]}：${upload.ok ? '已上传' : upload.message}`
       );
-      const outcome = complete ? '已备份到云端' : successful ? '已备份到部分网盘' : '备份失败';
+      const outcome = complete ? '已备份到云端' : successful ? '只备份到部分云端账户' : '备份失败';
       notifications.finishProgress(id, complete ? 'success' : 'error', `${subject}${outcome}`, details.join('\n'));
     },
+    /** 没登录时也打开，列表里给出登录入口。 */
     async openRestore() {
-      if (!this.state) await this.load();
-      if (!this.accounts.length) {
-        this.openAccountSettings();
-        return;
-      }
       this.restoreOpen = true;
+      if (!this.state) await this.load();
       await this.loadBackups();
     },
     setRestoreOpen(open: boolean) {
@@ -175,7 +177,8 @@ export const useCloudSyncStore = defineStore('cloudSync', {
         if (result.ok) backups.push(...result.backups.map(item => ({ ...item, provider })));
         else errors.push(`${CLOUD_PROVIDER_LABELS[provider]}：${result.message}`);
       }
-      this.backups = backups.sort((left, right) => (right.modifiedAt ?? '').localeCompare(left.modifiedAt ?? ''));
+      const when = (item: CloudBackupItem) => item.info?.at ?? item.modifiedAt ?? '';
+      this.backups = backups.sort((left, right) => when(right).localeCompare(when(left)));
       this.backupsError = errors.join('；');
       this.backupsLoading = false;
     },

@@ -71,7 +71,10 @@ const menus = computed<readonly AppMenubarMenu[]>(() => [
       },
       {
         ...cloud.backupMenu,
-        disabled: cloud.backupMenu.disabled || creation.libraryOpen || !creation.workId || !creation.connected,
+        // 没登录时这一项是“登录云端账户…”，不依赖当前作品。
+        disabled:
+          cloud.backupMenu.disabled ||
+          (cloud.accounts.length > 0 && (creation.libraryOpen || !creation.workId || !creation.connected)),
         separatorBefore: true
       },
       { id: 'file.cloud-restore', label: '从云端恢复…', disabled: !creation.connected },
@@ -173,7 +176,7 @@ function handleSelect(id: string) {
         .catch(cause => useNotificationStore().error('编辑操作失败', toErrorMessage(cause)));
     return;
   }
-  if (creation.work && cloud.selectBackup(id, creation.work)) return;
+  if (cloud.selectBackup(id, creation.work)) return;
   switch (id) {
     case 'file.new-work':
       creation.newWorkOpen = true;

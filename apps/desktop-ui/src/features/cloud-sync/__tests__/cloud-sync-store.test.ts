@@ -123,7 +123,7 @@ describe('云端账户与作品包备份', () => {
   it('两家已连接时提供一家或全部的选择。只选 OneDrive 时把目标原样交给宿主', async () => {
     const backupWork = vi.fn<CloudSyncApi['backupWork']>().mockResolvedValue({
       ok: true,
-      uploads: [{ provider: 'onedrive', result: { ok: true, name: newer.name } }]
+      uploads: [{ provider: 'onedrive', result: { ok: true } }]
     });
     const getState = vi.fn<CloudSyncApi['getState']>().mockResolvedValue(cloudState([account, second]));
     installApi({ getState, backupWork });
@@ -131,7 +131,7 @@ describe('云端账户与作品包备份', () => {
     await store.load();
 
     const options = store.backupMenu.items!;
-    expect(options.map(option => option.label)).toEqual(['Dropbox', 'OneDrive', '全部已登录网盘']);
+    expect(options.map(option => option.label)).toEqual(['Dropbox', 'OneDrive', '全部云端账户']);
     store.selectBackup(options[1]!.id, { id: 'w1', title: '雨夜' });
     await expect.poll(() => useNotificationStore().items[0]?.kind).toBe('success');
     expect(backupWork).toHaveBeenCalledExactlyOnceWith({ workId: 'w1', target: 'onedrive' }, expect.any(Function));
@@ -142,13 +142,15 @@ describe('云端账户与作品包备份', () => {
     expect(store.backupMenu.items).toBeUndefined();
   });
 
-  it('选全部后在同一条通知显示上传阶段和各家结果', async () => {
+  it('选全部后在同一条通知显示上传阶段和各家结果；备份期间菜单项写明正在备份哪一部', async () => {
     const pending = Promise.withResolvers<Awaited<ReturnType<CloudSyncApi['backupWork']>>>();
     const backupWork = vi.fn<CloudSyncApi['backupWork']>().mockReturnValue(pending.promise);
     installApi({ backupWork });
     const notices = useNotificationStore();
+    const store = useCloudSyncStore();
 
-    const result = useCloudSyncStore().backupWork({ id: 'w1', title: '雨夜' }, 'all');
+    const result = store.backupWork({ id: 'w1', title: '雨夜' }, 'all');
+    expect(store.backupMenu).toMatchObject({ label: '正在备份《雨夜》…', disabled: true });
     const id = notices.items[0]?.id;
     expect(notices.items).toMatchObject([{ description: '正在生成作品包…', inProgress: true }]);
     const [[args, onUpload]] = backupWork.mock.calls;
@@ -159,7 +161,7 @@ describe('云端账户与作品包备份', () => {
     pending.resolve({
       ok: true,
       uploads: [
-        { provider: 'dropbox', result: { ok: true, name: '雨夜_2026-11-21_0143.chaptale' } },
+        { provider: 'dropbox', result: { ok: true } },
         { provider: 'onedrive', result: { ok: false, code: 'network', message: '上传归档失败（HTTP 507）' } }
       ]
     });
@@ -169,26 +171,27 @@ describe('云端账户与作品包备份', () => {
         id,
         kind: 'error',
         inProgress: false,
-        description: 'Dropbox：雨夜_2026-11-21_0143.chaptale\nOneDrive：上传归档失败（HTTP 507）'
+        description: 'Dropbox：已上传\nOneDrive：上传归档失败（HTTP 507）'
       }
     ]);
+    expect(store.backupMenu.disabled).toBeFalsy();
   });
-  it('没有登录云账号时，备份和恢复入口都打开云端账户设置', async () => {
+  it('没有登录云端账户时，菜单项是登录入口；恢复列表照常打开，不读取云端', async () => {
     const api = installApi();
     const store = useCloudSyncStore();
     const settings = useSettingsStore();
 
     await store.load();
-    store.selectBackup(store.backupMenu.id, { id: 'w1', title: '雨夜' });
+    expect(store.backupMenu.label).toBe('登录云端账户…');
+    store.selectBackup(store.backupMenu.id, undefined);
     expect(api.backupWork).not.toHaveBeenCalled();
     expect(settings.isOpen).toBe(true);
     expect(settings.activeSection).toBe('cloudSync');
     settings.closePanel();
     await store.openRestore();
     expect(api.listBackups).not.toHaveBeenCalled();
-    expect(store.restoreOpen).toBe(false);
-    expect(useSettingsStore().isOpen).toBe(true);
-    expect(useSettingsStore().activeSection).toBe('cloudSync');
+    expect(store.restoreOpen).toBe(true);
+    expect(settings.isOpen).toBe(false);
   });
   it('恢复列表里新的包排在前面；读不到的账号写明是哪一家', async () => {
     installApi({

@@ -74,13 +74,24 @@ export type CloudAuthResult =
 
 export type CloudAuthErrorCode = 'not-configured' | 'canceled' | 'timeout' | 'denied' | 'network' | 'failed';
 
-/** 云端应用目录顶层的一份作品包。name 用于列表显示；下载和删除使用原始 id。 */
+/** 从备份文件名读回的来源：哪部作品、何时、手动还是自动、哪台电脑，以及备份时的条目数。 */
+export type CloudBackupInfo = {
+  workId: string;
+  title: string;
+  /** 备份时刻（ISO 8601），精确到分钟。 */
+  at: string;
+  kind: 'manual' | 'auto';
+  device: string;
+  summary: WorkPackageSummary;
+};
+
+/** 云端应用目录顶层的一份作品包。文件名不是应用写的格式时没有 info，列表按 name 显示。 */
 export type CloudBackup = {
   id: string;
   name: string;
   modifiedAt?: string;
   size?: number;
-  summary?: WorkPackageSummary;
+  info?: CloudBackupInfo;
 };
 
 export type CloudBackupWorkArgs = Static<typeof CloudBackupWorkArgsSchema>;
@@ -90,7 +101,7 @@ export type CloudProviderArgs = Static<typeof CloudProviderArgsSchema>;
 export type CloudFailure = { ok: false; code: CloudErrorCode; message: string };
 export type CloudBackupTarget = CloudBackupWorkArgs['target'];
 export type CloudBackupProgress = { provider: CloudProvider; current: number; total: number };
-export type CloudUploadBackupResult = { ok: true; name: string } | CloudFailure;
+export type CloudUploadBackupResult = { ok: true } | CloudFailure;
 export type CloudBackupWorkResult =
   | { ok: true; uploads: { provider: CloudProvider; result: CloudUploadBackupResult }[] }
   | CloudFailure;

@@ -1,6 +1,5 @@
 import type {
   CloudAuthResult,
-  CloudBackup,
   CloudDeleteBackupResult,
   CloudFailure,
   CloudListBackupsResult,
@@ -9,20 +8,11 @@ import type {
   CloudUploadBackupResult
 } from '../../../bridge/cloud-sync';
 import { CloudAccounts } from './accounts';
+import { parseBackupName } from './package-name';
 import type { CloudCredential, CloudProviderAdapter, CloudRemoteEntry } from './providers/provider-port';
 import type { CloudSyncStore } from './store';
 
 const isBackup = (entry: CloudRemoteEntry) => entry.kind === 'file' && entry.name.endsWith('.chaptale');
-
-/** 只拆末尾的统计标记，保留网盘加上的重名编号。 */
-function describeBackupName(name: string): Pick<CloudBackup, 'name' | 'summary'> {
-  const match = /_m(\d+)-r(\d+)-i(\d+)( \(\d+\)| \d+)?\.chaptale$/.exec(name);
-  if (!match) return { name };
-  return {
-    name: `${name.slice(0, match.index)}${match[4] ?? ''}.chaptale`,
-    summary: { manuscripts: Number(match[1]), resources: Number(match[2]), images: Number(match[3]) }
-  };
-}
 
 export type CloudSyncServiceOptions = {
   /** 已接入的服务商适配器；未接入的不出现在这里，界面只显示配置说明。 */
@@ -61,18 +51,19 @@ export class CloudSyncService {
 
   /** 作品包放在应用专属目录顶层；云端已有同名文件时由服务商改名，不覆盖。 */
   uploadBackup(provider: CloudProvider, name: string, bytes: Uint8Array): Promise<CloudUploadBackupResult> {
-    return this.withAccount(provider, async (adapter, credential) => ({
-      ok: true,
-      name: (await adapter.upload({ credential, name, bytes })).name
-    }));
+    return this.withAccount<CloudUploadBackupResult>(provider, async (adapter, credential) => {
+      await adapter.upload({ credential, name, bytes });
+      return { ok: true };
+    });
   }
 
   listBackups(provider: CloudProvider): Promise<CloudListBackupsResult> {
     return this.withAccount(provider, async (adapter, credential) => ({
       ok: true,
-      backups: (await adapter.listEntries({ credential }))
-        .filter(isBackup)
-        .map(({ id, name, modifiedAt, size }) => ({ id, ...describeBackupName(name), modifiedAt, size }))
+      backups: (await adapter.listEntries({ credential })).filter(isBackup).map(({ id, name, modifiedAt, size }) => {
+        const info = parseBackupName(name);
+        return { id, name, modifiedAt, size, ...(info && { info }) };
+      })
     }));
   }
 

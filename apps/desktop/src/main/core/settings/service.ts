@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -42,7 +43,8 @@ export class SettingsService {
         version: current.version,
         editor: { autoSave: payload.editor?.autoSave ?? current.editor?.autoSave ?? false },
         theme: payload.theme ?? current.theme,
-        ...(current.dataDir && { dataDir: current.dataDir })
+        ...(current.dataDir && { dataDir: current.dataDir }),
+        ...(current.installId && { installId: current.installId })
       };
 
       await writeJsonFile(this.settingsPath, next);
@@ -56,6 +58,18 @@ export class SettingsService {
     await this.enqueue(async () => {
       await fs.mkdir(this.rootDir, { recursive: true });
       await writeJsonFile(this.settingsPath, { ...(await this.readSettingsUnsafe()), dataDir });
+    });
+  }
+
+  /** 这份安装的标识；第一次用到时生成并写入设置文件。 */
+  installId(): Promise<string> {
+    return this.enqueue(async () => {
+      const current = await this.readSettingsUnsafe();
+      if (current.installId) return current.installId;
+      const installId = randomUUID();
+      await fs.mkdir(this.rootDir, { recursive: true });
+      await writeJsonFile(this.settingsPath, { ...current, installId });
+      return installId;
     });
   }
 

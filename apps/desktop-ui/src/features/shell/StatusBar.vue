@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { CLOUD_PROVIDER_LABELS } from '@chaptale/desktop/bridge';
-
 import { AppButton } from '@/components/AppButton';
+import { AppDropdownMenu, AppDropdownMenuItem } from '@/components/AppDropdownMenu';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useCloudSyncStore } from '@/features/cloud-sync';
 import { useCreationStore } from '@/features/creation';
@@ -14,9 +13,21 @@ import { useWorkbenchStore } from '@/features/workbench';
 const editor = useEditorStore();
 const creation = useCreationStore();
 const cloud = useCloudSyncStore();
-const connectedDrives = computed(() =>
-  cloud.accounts.map(({ provider }) => CLOUD_PROVIDER_LABELS[provider]).join('、')
-);
+/** 状态栏菜单不分级：两家都登录时把备份目标平铺出来；没登录时只留下面的“云端账户…”。 */
+const backupItems = computed(() => {
+  if (!cloud.accounts.length) return [];
+  const { items, ...single } = cloud.backupMenu;
+  const disabled = single.disabled || creation.libraryOpen || !creation.work;
+  return (items ?? [single]).map(item => ({
+    id: item.id,
+    label: !items ? item.label : item.id.endsWith(':all') ? '备份到全部云端账户' : `备份到 ${item.label}`,
+    disabled
+  }));
+});
+function restore() {
+  // 恢复列表与同作品的选择框显示在作品库。
+  void creation.showLibrary().then(() => cloud.openRestore());
+}
 const notifications = useNotificationStore();
 const navigation = useWorkbenchStore();
 const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : editor.activeTab?.saveError ? '保存失败' : ''));
@@ -24,12 +35,26 @@ const status = computed(() => (editor.activeTab?.saving ? '正在保存…' : ed
 
 <template>
   <footer class="status-bar" aria-label="状态栏">
-    <AppTooltip :text="connectedDrives ? `已连接：${connectedDrives}` : '打开云端账户设置'" side="top">
-      <AppButton size="xs" variant="ghost" @click="cloud.openAccountSettings()">
-        <span class="i-mingcute-cloud-line size-4" aria-hidden="true" />
-        {{ cloud.state && !cloud.accounts.length ? '尚未设置云备份' : '云备份' }}
-      </AppButton>
-    </AppTooltip>
+    <AppDropdownMenu content-size="sm">
+      <template #trigger>
+        <AppButton size="xs" variant="ghost">
+          <span class="i-mingcute-cloud-line size-4" aria-hidden="true" />
+          备份
+        </AppButton>
+      </template>
+      <AppDropdownMenuItem
+        v-for="item in backupItems"
+        :key="item.id"
+        density="sm"
+        :disabled="item.disabled"
+        @select="cloud.selectBackup(item.id, creation.work)"
+        >{{ item.label }}</AppDropdownMenuItem
+      >
+      <AppDropdownMenuItem density="sm" :disabled="!creation.connected" @select="restore"
+        >从云端恢复…</AppDropdownMenuItem
+      >
+      <AppDropdownMenuItem density="sm" @select="cloud.openAccountSettings()">云端账户…</AppDropdownMenuItem>
+    </AppDropdownMenu>
     <span v-if="!creation.connected" class="connection-status" role="status">{{
       creation.busy ? '正在连接作品库…' : '作品库已断开'
     }}</span>

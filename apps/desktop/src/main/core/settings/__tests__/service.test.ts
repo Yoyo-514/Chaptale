@@ -46,4 +46,14 @@ describe('SettingsService', () => {
 
     expect(state.settings).toEqual({ version: 1, theme: 'light', editor: { autoSave: true } });
   });
+
+  it('安装标识第一次用到时生成，之后保持不变，改别的设置也不丢', async () => {
+    const service = new SettingsService({ rootDir });
+    const installId = await service.installId();
+
+    await service.update({ theme: 'light' });
+
+    expect(await service.installId()).toBe(installId);
+    expect(await new SettingsService({ rootDir }).installId()).toBe(installId);
+  });
 });

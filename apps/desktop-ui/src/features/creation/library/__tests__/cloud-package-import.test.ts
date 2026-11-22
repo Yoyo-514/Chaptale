@@ -56,7 +56,7 @@ async function restoreFromCloud() {
     .find(button => button.text() === '从云端恢复')!
     .trigger('click');
   await flushPromises();
-  document.body.querySelector<HTMLButtonElement>(`button[aria-label="恢复 ${name}（Dropbox）"]`)!.click();
+  document.body.querySelector<HTMLButtonElement>(`button[aria-label="恢复 其他作品包 ${name}（Dropbox）"]`)!.click();
   await flushPromises();
 }
 

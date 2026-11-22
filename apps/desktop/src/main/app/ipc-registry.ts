@@ -1,3 +1,5 @@
+import { hostname } from 'node:os';
+
 import type { CreationClient } from '@chaptale/creation/contracts';
 
 import { EditCommandValidator, type AppPlatformResult, type EditCommand } from '../../bridge/app';
@@ -24,7 +26,8 @@ export function registerApplicationIpc(context: AppContext, creation: CreationCl
     new CloudBackups(
       context.cloudSyncService,
       (workId, path) => creation.request('exportWorkPackage', { workId, path }),
-      path => creation.request('inspectWorkPackage', { path })
+      path => creation.request('inspectWorkPackage', { path }),
+      async () => ({ name: hostname(), installId: await context.settingsService.installId() })
     )
   );
   registerSettingsIpc(context.settingsService, ui);

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import type { CreationResult, WorkPackageInfo, WorkPackageSummary } from '@chaptale/creation/contracts';
+import type { CreationResult, WorkPackageInfo } from '@chaptale/creation/contracts';
 
 import type {
   CloudBackupProgress,
@@ -11,15 +11,8 @@ import type {
   CloudBackupFileArgs,
   CloudDownloadBackupResult
 } from '../../../bridge/cloud-sync';
+import { backupName, type BackupDevice } from './package-name';
 import type { CloudSyncService } from './service';
-
-/** 云端文件名：作品标题加本机备份时间；标题里服务商不接受的字符换成下划线。 */
-export function backupName(title: string, at: Date, { manuscripts, resources, images }: WorkPackageSummary): string {
-  const two = (value: number) => String(value).padStart(2, '0');
-  const day = `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
-  const stem = `${title.replace(/[\\/:*?"<>|]/g, '_')}_${day}_${two(at.getHours())}${two(at.getMinutes())}`;
-  return `${stem}_m${manuscripts}-r${resources}-i${images}.chaptale`;
-}
 
 /** 作品与云端之间的往返：备份时先导出作品包再上传，恢复时把云端的包下载到临时目录交给导入流程。 */
 export class CloudBackups {
@@ -30,7 +23,8 @@ export class CloudBackups {
     private readonly cloud: CloudSyncService,
     /** 把作品导出成本机路径上的作品包。 */
     private readonly exportWork: (workId: string, path: string) => Promise<CreationResult<null>>,
-    private readonly inspectPackage: (path: string) => Promise<CreationResult<WorkPackageInfo>>
+    private readonly inspectPackage: (path: string) => Promise<CreationResult<WorkPackageInfo>>,
+    private readonly device: () => Promise<BackupDevice>
   ) {}
 
   async backupWork(
@@ -48,7 +42,8 @@ export class CloudBackups {
       if (!exported.ok) return { ok: false, code: 'failed', message: exported.error.message };
       const info = await this.inspectPackage(path);
       if (!info.ok) return { ok: false, code: 'failed', message: info.error.message };
-      const name = backupName(info.value.work.title, new Date(), info.value.summary);
+      const { work, summary } = info.value;
+      const name = backupName(work, new Date(), 'manual', await this.device(), summary);
       const bytes = await readFile(path);
       const uploads = [];
       for (const [index, { provider }] of selected.entries()) {

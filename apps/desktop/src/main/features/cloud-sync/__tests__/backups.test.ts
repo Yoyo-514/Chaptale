@@ -9,7 +9,8 @@ import { CreationApplication } from '@chaptale/creation/application';
 import { openCreationStorage } from '@chaptale/storage';
 
 import { TokenVault, type SafeStorageLike } from '../../../infra/security/token-vault';
-import { backupName, CloudBackups } from '../backups';
+import { CloudBackups } from '../backups';
+import { backupName, parseBackupName } from '../package-name';
 import { createDropboxAdapter } from '../providers/dropbox/provider';
 import { createOneDriveAdapter } from '../providers/onedrive/provider';
 import { CloudSyncService } from '../service';
@@ -31,6 +32,7 @@ let oneDrivePackage: ArrayBuffer;
 let onDropboxUpload: () => void;
 let backups: CloudBackups;
 let service: CloudSyncService;
+const device = { name: 'DESKTOP-7F3K', installId: '1a2b3c4d-0000-4000-8000-000000000000' };
 
 beforeEach(async () => {
   dir = await mkdtemp(path.join(os.tmpdir(), 'chaptale-cloud-backups-'));
@@ -82,7 +84,8 @@ beforeEach(async () => {
   backups = new CloudBackups(
     service,
     (workId, file) => source.execute({ method: 'exportWorkPackage', input: { workId, path: file } }),
-    file => source.execute({ method: 'inspectWorkPackage', input: { path: file } })
+    file => source.execute({ method: 'inspectWorkPackage', input: { path: file } }),
+    async () => device
   );
 });
 afterEach(async () => {
@@ -100,13 +103,30 @@ function createWork() {
   return created.value;
 }
 
-it('云端文件名带作品标题与备份时间，标题里不能用作文件名的字符换成下划线', () => {
-  expect(backupName('雨/夜\\?', new Date(2026, 0, 5, 9, 7), { manuscripts: 24, resources: 8, images: 3 })).toBe(
-    '雨_夜___2026-01-05_0907_m24-r8-i3.chaptale'
+it('备份文件名带作品、时间、来源和条目数，读回来得到同样的内容；别的命名认不出', () => {
+  const work = { id: '3f2504e0-4f89-41d3-9a0c-0305e82c3301', title: '雨/夜_?' };
+  const at = new Date(2026, 0, 5, 9, 7);
+  const name = backupName(work, at, 'auto', device, { manuscripts: 24, resources: 8, images: 3 });
+
+  expect(name).toBe(
+    '雨_夜___2026-01-05_0907_auto_DESKTOP-7F3K_1a2b3c4d_3f2504e0-4f89-41d3-9a0c-0305e82c3301_m24-r8-i3.chaptale'
   );
+  const info = {
+    workId: work.id,
+    title: '雨_夜__',
+    at: at.toISOString(),
+    kind: 'auto',
+    device: 'DESKTOP-7F3K',
+    summary: { manuscripts: 24, resources: 8, images: 3 }
+  };
+  expect(parseBackupName(name)).toEqual(info);
+  // 云端给重名文件加的编号不影响识别。
+  expect(parseBackupName(name.replace('.chaptale', ' (1).chaptale'))).toEqual(info);
+  expect(parseBackupName(name.replace('.chaptale', ' 1.chaptale'))).toEqual(info);
+  expect(parseBackupName('雨夜_2026-01-05_0907_m24-r8-i3.chaptale')).toBeNull();
 });
 
-it('上传期间作品变化时，两家网盘仍收到同一份作品包，下载后可以导入', async () => {
+it('上传期间作品变化时，Dropbox 和 OneDrive 仍收到同一份作品包，下载后可以导入', async () => {
   const work = createWork();
   await store.saveAccount({ provider: 'dropbox', displayName: '测试', credential: { refreshToken: 'offline' } });
 
@@ -131,14 +151,9 @@ it('上传期间作品变化时，两家网盘仍收到同一份作品包，下�
   const onUpload = vi.fn();
   const uploaded = await backups.backupWork({ workId: work.id, target: 'all' }, onUpload);
   if (!uploaded.ok) throw new Error(uploaded.message);
-  const dropboxUpload = uploaded.uploads[0]!.result;
-  if (!dropboxUpload.ok) throw new Error(dropboxUpload.message);
   expect(uploaded.uploads).toEqual([
-    {
-      provider: 'dropbox',
-      result: { ok: true, name: expect.stringMatching(/^雨夜_\d{4}-\d{2}-\d{2}_\d{4}_m0-r0-i0\.chaptale$/) }
-    },
-    { provider: 'onedrive', result: { ok: true, name: dropboxUpload.name.replace(/\.chaptale$/, ' 1.chaptale') } }
+    { provider: 'dropbox', result: { ok: true } },
+    { provider: 'onedrive', result: { ok: true } }
   ]);
 
   expect(onUpload.mock.calls).toEqual([
@@ -149,13 +164,20 @@ it('上传期间作品变化时，两家网盘仍收到同一份作品包，下�
   const listing = await service.listBackups('dropbox');
   if (!listing.ok) throw new Error(listing.message);
   expect(listing.backups).toHaveLength(1);
-  expect([...remote.keys()]).toEqual(['笔记.txt', dropboxUpload.name]);
+  const [, uploadedName] = [...remote.keys()];
+  expect(remote.size).toBe(2);
   expect(listing.backups[0]).toMatchObject({
-    id: `/${dropboxUpload.name}`,
-    name: dropboxUpload.name.replace('_m0-r0-i0', ''),
-    summary: { manuscripts: 0, resources: 0, images: 0 }
+    id: `/${uploadedName}`,
+    name: uploadedName,
+    info: {
+      workId: work.id,
+      title: '雨夜',
+      kind: 'manual',
+      device: 'DESKTOP-7F3K',
+      summary: { manuscripts: 0, resources: 0, images: 0 }
+    }
   });
-  expect(Buffer.from(oneDrivePackage).equals(Buffer.from(remote.get(dropboxUpload.name)!))).toBe(true);
+  expect(Buffer.from(oneDrivePackage).equals(Buffer.from(remote.get(uploadedName!)!))).toBe(true);
 
   const first = await backups.downloadBackup({ provider: 'dropbox', fileId: listing.backups[0]!.id });
   if (!first.ok) throw new Error(first.message);
@@ -178,25 +200,14 @@ it('上传期间作品变化时，两家网盘仍收到同一份作品包，下�
   expect([...remote.keys()]).toEqual(['笔记.txt']);
 });
 
-it('恢复列表从英文后缀提取摘要，保留重名编号，旧包仍可列出', async () => {
+it('名字不是应用写的作品包照常列出，只是没有来源；不是作品包的文件不列', async () => {
   await store.saveAccount({ provider: 'dropbox', displayName: '测试', credential: { refreshToken: 'offline' } });
-  const renamed = '雨夜_m24-r8-i3 (1).chaptale';
-  remote.set(renamed, new ArrayBuffer(1));
-  remote.set('雨夜_m24-r8-i3 1.chaptale', new ArrayBuffer(1));
   remote.set('旧包.chaptale', new ArrayBuffer(1));
   remote.set('旧包.chaptale.summary.json', new ArrayBuffer(1));
 
-  expect(await service.listBackups('dropbox')).toMatchObject({
+  expect(await service.listBackups('dropbox')).toEqual({
     ok: true,
-    backups: [
-      { id: `/${renamed}`, name: '雨夜 (1).chaptale', summary: { manuscripts: 24, resources: 8, images: 3 } },
-      {
-        id: '/雨夜_m24-r8-i3 1.chaptale',
-        name: '雨夜 1.chaptale',
-        summary: { manuscripts: 24, resources: 8, images: 3 }
-      },
-      { id: '/旧包.chaptale', name: '旧包.chaptale' }
-    ]
+    backups: [{ id: '/旧包.chaptale', name: '旧包.chaptale' }]
   });
   expect(await service.deleteBackup('dropbox', '/旧包.chaptale')).toEqual({ ok: true });
   expect(remote.has('旧包.chaptale.summary.json')).toBe(true);
@@ -211,7 +222,7 @@ it('选择 Dropbox 时只上传到 Dropbox，OneDrive 也已连接', async () =>
   const result = await backups.backupWork({ workId: work.id, target: 'dropbox' }, () => {});
   expect(result).toEqual({
     ok: true,
-    uploads: [{ provider: 'dropbox', result: { ok: true, name: expect.any(String) } }]
+    uploads: [{ provider: 'dropbox', result: { ok: true } }]
   });
 });
 

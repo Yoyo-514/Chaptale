@@ -59,7 +59,7 @@ describe('notification store', () => {
   it('更新同一条进度通知，清除历史后仍可打开查看，完成后成为结果', () => {
     const store = useNotificationStore();
     store.info('旧通知');
-    const id = store.startProgress('《雨夜》云备份', '正在生成作品包…');
+    const id = store.startProgress('《雨夜》云端备份', '正在生成作品包…');
     vi.advanceTimersByTime(5000);
     expect(store.isPanelOpen).toBe(false);
 
@@ -78,16 +78,16 @@ describe('notification store', () => {
 
   it('即使进度已看过，结束后也重新弹出结果，历史仍只留一条', () => {
     const store = useNotificationStore();
-    const id = store.startProgress('《雨夜》云备份', '正在上传到 Dropbox');
+    const id = store.startProgress('《雨夜》云端备份', '正在上传到 Dropbox');
     store.openPanel();
     store.closePanel();
     expect(store.unseenCount).toBe(0);
 
-    store.finishProgress(id, 'error', '《雨夜》已备份到部分网盘', 'OneDrive：空间不足');
+    store.finishProgress(id, 'error', '《雨夜》只备份到部分云端账户', 'OneDrive：空间不足');
 
     expect(store.isPanelOpen).toBe(true);
     expect(store.panelMode).toBe('auto');
-    expect(store.recentUnseenItems).toMatchObject([{ id, title: '《雨夜》已备份到部分网盘', inProgress: false }]);
+    expect(store.recentUnseenItems).toMatchObject([{ id, title: '《雨夜》只备份到部分云端账户', inProgress: false }]);
     expect(store.allItems).toHaveLength(1);
     vi.advanceTimersByTime(5000);
     expect(store.isPanelOpen).toBe(false);

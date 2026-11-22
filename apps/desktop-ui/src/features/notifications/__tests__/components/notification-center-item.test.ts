@@ -35,7 +35,7 @@ describe('NotificationCenterItem', () => {
         notification: {
           ...notification,
           kind: 'info',
-          title: '《雨夜》云备份',
+          title: '《雨夜》云端备份',
           description: '正在打包',
           inProgress: true
         },

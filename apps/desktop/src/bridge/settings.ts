@@ -30,6 +30,8 @@ export type ChaptaleSettings = {
   theme: ChaptaleTheme;
   /** 作品与会话历史所在的数据目录；未选择时为空，由启动流程询问作者。 */
   dataDir?: string;
+  /** 这份安装的随机标识，首次备份时生成；备份文件名用它区分同名电脑。 */
+  installId?: string;
 };
 
 export type ChaptaleSettingsPaths = {
