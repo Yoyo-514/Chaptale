@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 
 import type {
   Approval,
@@ -18,6 +18,7 @@ import { formatAgentError, formatRetryStatus } from '../error-format';
 import { splitOutgoingSkillPrompt } from '../skills';
 import type { OutgoingMessage } from '../store';
 import { buildTranscript, describeTool, hasRunningTools, summarizeTools, toolRows } from '../transcript';
+import { useTranscriptViewport, type TranscriptMemory } from '../transcript-viewport';
 import EditorContextBadge from './EditorContextBadge.vue';
 import MessageActions from './MessageActions.vue';
 import SkillBadge from './SkillBadge.vue';
@@ -25,7 +26,14 @@ import ToolCallRow from './ToolCallRow.vue';
 import TurnErrorCard from './TurnErrorCard.vue';
 import UserMessageItem from './UserMessageItem.vue';
 
-const props = defineProps<{ session: SessionView; approvals: Approval[]; outgoing: OutgoingMessage[] }>();
+const props = defineProps<{
+  session: SessionView;
+  approvals: Approval[];
+  outgoing: OutgoingMessage[];
+  visible: boolean;
+  viewport: HTMLElement | undefined;
+  memory: TranscriptMemory;
+}>();
 const emit = defineEmits<{
   approve: [id: string, allow: boolean, scope?: ApprovalScope, mcpTarget?: McpApprovalRememberTarget];
   retry: [key: string];
@@ -56,13 +64,35 @@ const waiting = computed(() => {
 const waitingText = computed(() =>
   props.session.retrying ? formatRetryStatus(props.session.retrying) : '正在等待回复…'
 );
-const expanded = ref(new Set<string>());
+const liveStart = computed(() => {
+  if (!props.session.running || props.session.compacting) return items.value.length;
+  const lastUser = items.value.findLastIndex(item => item.kind === 'user');
+  return lastUser === -1 ? Math.max(0, items.value.length - 1) : lastUser + 1;
+});
+const content = useTemplateRef<HTMLElement>('content');
+const lane = useTemplateRef<HTMLElement>('lane');
+const { height, rows, margin, measure } = useTranscriptViewport(
+  props,
+  content,
+  lane,
+  items,
+  liveStart,
+  () => props.outgoing.length + (props.session.queued?.length ?? 0)
+);
+const rendered = computed(() => rows.value.map(row => ({ row, item: items.value[row.index]! })));
+const expanded = computed(() => props.memory.expanded);
 const streamKey = (index: number) => `${props.session.id}:${index}`;
 
+function setExpanded(key: string, open: boolean) {
+  if (open) expanded.value.add(key);
+  else expanded.value.delete(key);
+}
 function toggle(key: string) {
-  const next = new Set(expanded.value);
-  if (!next.delete(key)) next.add(key);
-  expanded.value = next;
+  setExpanded(key, !expanded.value.has(key));
+}
+function setDraft(key: string, draft: string | null) {
+  if (draft === null) props.memory.drafts.delete(key);
+  else props.memory.drafts.set(key, draft);
 }
 function html(index: number, text: string) {
   return props.session.running && index === lastIndex.value
@@ -83,125 +113,150 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
 </script>
 
 <template>
-  <div class="agent-transcript">
-    <template v-for="(item, itemIndex) in items" :key="item.key">
-      <UserMessageItem
-        v-if="item.kind === 'user'"
-        :entry-id="item.entryId"
-        :text="item.text"
-        :compacted="item.compacted"
-        :editor-context="item.editorContext"
-        :skill="item.skill"
-        :branch="item.branch"
-        :readonly="Boolean(session.readonly)"
-        :busy="session.running"
-        :always-show-actions="itemIndex === items.length - 1 && !session.running && !outgoing.length"
-        @edit-message="emit('editMessage', $event)"
-        @switch-branch="emit('switchBranch', $event)"
-      />
-      <details v-else-if="item.kind === 'notice'" class="agent-notice">
-        <summary>
-          <span class="i-mingcute-check-circle-line size-3.5 shrink-0" aria-hidden="true" />{{ item.text }}
-          <span class="agent-notice-chevron i-mingcute-down-line size-3.5 shrink-0" aria-hidden="true" />
-        </summary>
-        <ul>
-          <li v-for="outcome in item.outcomes" :key="outcome.id">{{ outcome.text }}</li>
-        </ul>
-      </details>
-      <section v-else-if="item.kind === 'summary'" class="agent-activity agent-summary" aria-label="压缩总结">
-        <button
-          type="button"
-          class="agent-activity-row"
-          :aria-expanded="expanded.has(item.key)"
-          @click="toggle(item.key)"
-        >
-          <span class="i-mingcute-archive-line agent-activity-icon" aria-hidden="true" />
-          <span class="agent-activity-summary">之前的对话已压缩为总结</span>
-          <span class="i-mingcute-right-line agent-activity-chevron" aria-hidden="true" />
-        </button>
-        <div
-          v-if="expanded.has(item.key)"
-          class="agent-activity-detail agent-summary-text markdown-body"
-          v-html="renderMarkdown(item.text)"
+  <div ref="content" class="agent-transcript">
+    <div v-if="visible && items.length" ref="lane" class="agent-transcript-lane" :style="{ height: `${height}px` }">
+      <div
+        v-for="{ row, item } in rendered"
+        :key="item.key"
+        :ref="element => measure(element as HTMLElement | null)"
+        class="agent-transcript-row"
+        :data-index="row.index"
+        :data-first-row="row.index === 0 ? '' : undefined"
+        :style="{ top: `${row.start - margin}px` }"
+      >
+        <UserMessageItem
+          v-if="item.kind === 'user'"
+          :entry-id="item.entryId"
+          :text="item.text"
+          :compacted="item.compacted"
+          :editor-context="item.editorContext"
+          :skill="item.skill"
+          :branch="item.branch"
+          :readonly="Boolean(session.readonly)"
+          :busy="session.running"
+          :always-show-actions="row.index === items.length - 1 && !session.running && !outgoing.length"
+          :draft="memory.drafts.get(item.key) ?? null"
+          @update:draft="setDraft(item.key, $event)"
+          @edit-message="emit('editMessage', $event)"
+          @switch-branch="emit('switchBranch', $event)"
         />
-      </section>
-      <article v-else class="agent-assistant" :class="{ 'is-compacted': item.compacted }" aria-label="助手">
-        <div v-if="item.thinking" class="agent-activity">
+        <details
+          v-else-if="item.kind === 'notice'"
+          class="agent-notice"
+          :open="expanded.has(item.key)"
+          @toggle="setExpanded(item.key, ($event.currentTarget as HTMLDetailsElement).open)"
+        >
+          <summary>
+            <span class="i-mingcute-check-circle-line size-3.5 shrink-0" aria-hidden="true" />{{ item.text }}
+            <span class="agent-notice-chevron i-mingcute-down-line size-3.5 shrink-0" aria-hidden="true" />
+          </summary>
+          <ul>
+            <li v-for="outcome in item.outcomes" :key="outcome.id">{{ outcome.text }}</li>
+          </ul>
+        </details>
+        <section v-else-if="item.kind === 'summary'" class="agent-activity agent-summary" aria-label="压缩总结">
           <button
             type="button"
             class="agent-activity-row"
-            :aria-expanded="expanded.has(item.thinking.key)"
-            @click="toggle(item.thinking.key)"
+            :aria-expanded="expanded.has(item.key)"
+            @click="toggle(item.key)"
           >
-            <span class="i-mingcute-bulb-line agent-activity-icon" aria-hidden="true" />
-            <span class="agent-activity-summary">{{
-              session.running && item.index === lastIndex && !item.text ? '正在思考…' : '思考过程'
-            }}</span>
+            <span class="i-mingcute-archive-line agent-activity-icon" aria-hidden="true" />
+            <span class="agent-activity-summary">之前的对话已压缩为总结</span>
             <span class="i-mingcute-right-line agent-activity-chevron" aria-hidden="true" />
           </button>
-          <div v-if="expanded.has(item.thinking.key)" class="agent-activity-detail agent-thinking">
-            {{ item.thinking.text }}
+          <div
+            v-if="expanded.has(item.key)"
+            class="agent-activity-detail agent-summary-text markdown-body"
+            v-html="renderMarkdown(item.text)"
+          />
+        </section>
+        <article v-else class="agent-assistant" :class="{ 'is-compacted': item.compacted }" aria-label="助手">
+          <div v-if="item.thinking" class="agent-activity">
+            <button
+              type="button"
+              class="agent-activity-row"
+              :aria-expanded="expanded.has(item.thinking.key)"
+              @click="toggle(item.thinking.key)"
+            >
+              <span class="i-mingcute-bulb-line agent-activity-icon" aria-hidden="true" />
+              <span class="agent-activity-summary">{{
+                session.running && item.index === lastIndex && !item.text ? '正在思考…' : '思考过程'
+              }}</span>
+              <span class="i-mingcute-right-line agent-activity-chevron" aria-hidden="true" />
+            </button>
+            <div v-if="expanded.has(item.thinking.key)" class="agent-activity-detail agent-thinking">
+              {{ item.thinking.text }}
+            </div>
           </div>
-        </div>
-        <div v-if="item.text" class="agent-assistant-text markdown-body" v-html="html(item.index, item.text)" />
-        <section v-if="item.tools.length" class="agent-activity" aria-label="工具调用">
-          <button
-            type="button"
-            class="agent-activity-row"
-            :aria-expanded="expanded.has(`tools:${item.key}`)"
-            @click="toggle(`tools:${item.key}`)"
-          >
-            <span
-              v-if="session.running && hasRunningTools(item.tools)"
-              class="i-mingcute-loading-line agent-activity-icon animate-spin"
-              aria-label="进行中"
-            />
-            <span v-else class="i-mingcute-tool-line agent-activity-icon" aria-hidden="true" />
-            <span class="agent-activity-summary agent-tool-counts">{{ summarizeTools(item.tools) }}</span>
-            <span class="i-mingcute-right-line agent-activity-chevron" aria-hidden="true" />
-          </button>
-          <p v-if="item.tools.some(tool => tool.incomplete)" class="agent-activity-empty">部分调用记录</p>
-          <div v-if="expanded.has(`tools:${item.key}`)" class="agent-tool-steps">
+          <div v-if="item.text" class="agent-assistant-text markdown-body" v-html="html(item.index, item.text)" />
+          <section v-if="item.tools.length" class="agent-activity" aria-label="工具调用">
+            <button
+              type="button"
+              class="agent-activity-row"
+              :aria-expanded="expanded.has(`tools:${item.tools[0]!.id}`)"
+              @click="toggle(`tools:${item.tools[0]!.id}`)"
+            >
+              <span
+                v-if="session.running && hasRunningTools(item.tools)"
+                class="i-mingcute-loading-line agent-activity-icon animate-spin"
+                aria-label="进行中"
+              />
+              <span v-else class="i-mingcute-tool-line agent-activity-icon" aria-hidden="true" />
+              <span class="agent-activity-summary agent-tool-counts">{{ summarizeTools(item.tools) }}</span>
+              <span class="i-mingcute-right-line agent-activity-chevron" aria-hidden="true" />
+            </button>
+            <p v-if="item.tools.some(tool => tool.incomplete)" class="agent-activity-empty">部分调用记录</p>
+            <div v-if="expanded.has(`tools:${item.tools[0]!.id}`)" class="agent-tool-steps">
+              <ToolCallRow
+                v-for="tool in toolRows(item.tools).filter(tool => !tool.result?.error)"
+                :key="tool.key"
+                :tool="tool"
+                :expanded="expanded.has(`tool:${tool.id}`)"
+                :raw-expanded="expanded.has(`raw:${tool.id}`)"
+                @update:expanded="setExpanded(`tool:${tool.id}`, $event)"
+                @update:raw-expanded="setExpanded(`raw:${tool.id}`, $event)"
+                :running="session.running"
+                :session-id="session.sessionId"
+                :session-work-id="session.workId"
+              />
+            </div>
             <ToolCallRow
-              v-for="tool in toolRows(item.tools).filter(tool => !tool.result?.error)"
+              v-for="tool in toolRows(item.tools).filter(tool => tool.result?.error)"
               :key="tool.key"
               :tool="tool"
-              :running="session.running"
+              :expanded="expanded.has(`tool:${tool.id}`)"
+              :raw-expanded="expanded.has(`raw:${tool.id}`)"
+              @update:expanded="setExpanded(`tool:${tool.id}`, $event)"
+              @update:raw-expanded="setExpanded(`raw:${tool.id}`, $event)"
+              :running="false"
               :session-id="session.sessionId"
               :session-work-id="session.workId"
             />
-          </div>
-          <ToolCallRow
-            v-for="tool in toolRows(item.tools).filter(tool => tool.result?.error)"
-            :key="tool.key"
-            :tool="tool"
-            :running="false"
-            :session-id="session.sessionId"
-            :session-work-id="session.workId"
+          </section>
+          <TurnErrorCard
+            v-if="item.error && (!session.running || item.index !== lastIndex)"
+            :error-message="item.errorMessage"
+            :can-retry="!session.readonly && Boolean(item.retryTarget)"
+            :disabled="session.running || Boolean(session.readonly)"
+            @retry="emit('editMessage', item.retryTarget!)"
+            @open-model-settings="emit('openModelSettings')"
           />
-        </section>
-        <TurnErrorCard
-          v-if="item.error && (!session.running || item.index !== lastIndex)"
-          :error-message="item.errorMessage"
-          :can-retry="!session.readonly && Boolean(item.retryTarget)"
-          :disabled="session.running || Boolean(session.readonly)"
-          @retry="emit('editMessage', item.retryTarget!)"
-          @open-model-settings="emit('openModelSettings')"
-        />
-        <p v-else-if="item.aborted && (!session.running || item.index !== lastIndex)" class="agent-turn-aborted">
-          已停止生成
-        </p>
-        <MessageActions
-          v-if="!session.running || item.index !== lastIndex"
-          align="start"
-          :copy-text="item.text || undefined"
-          :can-retry="!item.error && !session.readonly && Boolean(item.retryTarget)"
-          :disabled="session.running || Boolean(session.readonly)"
-          :always-visible="Boolean(item.aborted && !item.text && !item.tools.length)"
-          @retry="emit('editMessage', item.retryTarget!)"
-        />
-      </article>
-    </template>
+          <p v-else-if="item.aborted && (!session.running || item.index !== lastIndex)" class="agent-turn-aborted">
+            已停止生成
+          </p>
+          <MessageActions
+            v-if="!session.running || item.index !== lastIndex"
+            align="start"
+            :copy-text="item.text || undefined"
+            :can-retry="!item.error && !session.readonly && Boolean(item.retryTarget)"
+            :disabled="session.running || Boolean(session.readonly)"
+            :always-visible="Boolean(item.aborted && !item.text && !item.tools.length)"
+            @retry="emit('editMessage', item.retryTarget!)"
+          />
+        </article>
+      </div>
+    </div>
     <article
       v-for="(queuedItem, queueIndex) in session.queued"
       :key="`queued:${queuedItem.delivery}:${queueIndex}`"
@@ -331,6 +386,17 @@ onBeforeUnmount(() => clearStreamingMarkdownCache(streamKey(lastIndex.value)));
   flex-direction: column;
   gap: 4px;
   padding-bottom: 8px;
+}
+.agent-transcript-lane {
+  position: relative;
+}
+.agent-transcript-row {
+  position: absolute;
+  inset-inline: 0;
+  display: flow-root;
+}
+.agent-transcript-row:not([data-first-row]) > .agent-user {
+  margin-top: 16px;
 }
 .agent-assistant {
   display: flex;

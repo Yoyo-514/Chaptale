@@ -28,27 +28,26 @@ const emit = defineEmits<{
   switchBranch: [leafId: string];
 }>();
 
-const editing = ref(false);
-const draft = ref('');
+const draft = defineModel<string | null>('draft', { default: null });
+const editing = computed(() => draft.value !== null);
 const editor = ref<InstanceType<typeof AppTextarea>>();
 const rawPrompt = computed(() => formatSkillPrompt(props.text, props.skill));
 
 async function startEdit() {
   if (!props.entryId || props.readonly || props.busy) return;
   draft.value = rawPrompt.value;
-  editing.value = true;
   await nextTick();
   editor.value?.focus();
 }
 
 function cancelEdit() {
-  editing.value = false;
+  draft.value = null;
 }
 
 function submitEdit() {
-  const next = draft.value.trim();
+  const next = draft.value!.trim();
   if (!next || !props.entryId || props.busy) return;
-  editing.value = false;
+  draft.value = null;
   emit('editMessage', { entryId: props.entryId, text: next, editorContext: props.editorContext });
 }
 
@@ -72,8 +71,9 @@ function retry() {
       <EditorContextBadge v-if="editorContext" :context="editorContext" />
       <AppTextarea
         ref="editor"
-        v-model="draft"
+        :model-value="draft!"
         aria-label="编辑消息"
+        @update:model-value="draft = $event"
         :rows="2"
         variant="plain"
         resize="auto"
@@ -82,7 +82,7 @@ function retry() {
       />
       <div class="agent-user-edit-actions">
         <AppButton type="button" size="xs" variant="ghost" @click="cancelEdit">取消</AppButton>
-        <AppButton type="button" size="xs" variant="primary" :disabled="!draft.trim() || busy" @click="submitEdit">
+        <AppButton type="button" size="xs" variant="primary" :disabled="!draft!.trim() || busy" @click="submitEdit">
           发送
         </AppButton>
       </div>

@@ -1,4 +1,4 @@
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, type VueWrapper } from '@vue/test-utils';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,8 +12,8 @@ import { openCreationStorage } from '@chaptale/storage';
 import { useCreationStore } from '@/features/creation';
 import { useEditorStore } from '@/features/editor';
 
-import MessageList from '../components/MessageList.vue';
 import { applyHostEvent } from '../session/host-events';
+import { mountMessageList } from './mount-message-list';
 
 let wrapper: VueWrapper | undefined;
 afterEach(() => wrapper?.unmount());
@@ -67,7 +67,7 @@ it('原生子调用增量到达时刷新动作计数，完成记录替换临时�
     parentCallId: 'script',
     call: { id: 'script/1', name: 'work_write', preview: { section: 'resource', title: '沈霁' }, status: 'running' }
   });
-  wrapper = mount(MessageList, { props: { session: state.sessions[0]!, approvals: [], outgoing: [] } });
+  wrapper = mountMessageList({ props: { session: state.sessions[0]!, approvals: [], outgoing: [] } });
   expect(wrapper.text()).toContain('新建资料 1 份');
   applyHostEvent(state, {
     cursor: 2,
@@ -102,7 +102,7 @@ it('原生子调用增量到达时刷新动作计数，完成记录替换临时�
 });
 
 it('作者消息仅在有选区时于气泡上方显示引用块，普通整章关联不占空间', async () => {
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([
         message({
@@ -143,7 +143,7 @@ it('作者消息仅在有选区时于气泡上方显示引用块，普通整章�
 });
 
 it('连续读取合为一行，完成后折叠，先展开动作再查看原始参数和结果', async () => {
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([
         message({ role: 'assistant', tools: [{ id: 'a', name: 'read', input: { path: '正文/第一章.md' } }] }),
@@ -172,7 +172,7 @@ it('连续读取合为一行，完成后折叠，先展开动作再查看原始�
 });
 
 it('同名工具乱序返回时，失败项对应实际调用并在折叠组下方显示', () => {
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([
         message({
@@ -195,7 +195,7 @@ it('同名工具乱序返回时，失败项对应实际调用并在折叠组下�
 });
 
 it('业务动作按类型计数，展开后用标题与字数展示，原始身份只在详情中出现', async () => {
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([
         message({
@@ -268,7 +268,7 @@ it('业务动作按类型计数，展开后用标题与字数展示，原始身�
 });
 
 it('脚本里的原生子调用按实际动作计数，失败单列，脚本保留原始输出', async () => {
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([
         message({ role: 'assistant', tools: [{ id: 'script', name: 'codemode', input: { code: '执行业务操作' } }] }),
@@ -324,7 +324,7 @@ it('脚本里的原生子调用按实际动作计数，失败单列，脚本保�
 
 it('运行中仅当组内仍有未完成调用时转圈，助手正文划分新组，停止后收起的调用可查看', async () => {
   const messages = [message({ role: 'assistant', tools: [{ id: 'a', name: 'read', input: { path: '一.txt' } }] })];
-  wrapper = mount(MessageList, { props: { session: session(messages, true), approvals: [], outgoing: [] } });
+  wrapper = mountMessageList({ props: { session: session(messages, true), approvals: [], outgoing: [] } });
   expect(wrapper.text()).toContain('读取 1 份');
   expect(wrapper.find('[aria-label="进行中"]').exists()).toBe(true);
   messages.push(message({ role: 'toolResult', toolCallId: 'a', toolName: 'read', text: '一的原文' }));
@@ -358,7 +358,7 @@ it('支持作者消息原地编辑重发、助手回复重试与分支切换器�
     section: 'manuscript' as const,
     selection: '风雪夜归人'
   };
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([
         message({
@@ -514,7 +514,7 @@ it('展开工具步骤后点击本作品有效文档标题直接在当前编辑�
       ]
     };
 
-    wrapper = mount(MessageList, {
+    wrapper = mountMessageList({
       props: { session: viewSession, approvals: [], outgoing: [] },
       global: { plugins: [pinia] }
     });
@@ -547,7 +547,7 @@ it('展开工具步骤后点击本作品有效文档标题直接在当前编辑�
 });
 
 it('授权卡片按可记住范围展示对应档位并派发 scope 参数', async () => {
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([]),
       outgoing: [],
@@ -618,7 +618,7 @@ it('授权卡片按可记住范围展示对应档位并派发 scope 参数', asy
 });
 
 it('MCP 授权卡片默认只记住本次调用的工具，勾选后改为记住整台服务', async () => {
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([]),
       outgoing: [],
@@ -671,7 +671,7 @@ it('助手流式报错保留正文不标红，内嵌错误卡片提供主因、�
     }
   });
   const rawError = '401 {"error":{"message":"Incorrect API key provided"}}';
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([
         message({ role: 'user', entryId: 'u-err', text: '续写潇湘馆夜谈' }),
@@ -727,14 +727,14 @@ it('自动退避重试显示原因与次数；主动停止不标红且空输出�
     delayMs: 2000,
     errorMessage: '429 rate limit exceeded'
   };
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: { session: retryingSession, approvals: [], outgoing: [] }
   });
   expect(wrapper.get('.agent-waiting').text()).toContain('请求过快或触发供应商限流（429），正在自动重试（1/3）…');
   wrapper.unmount();
 
   // 2. 主动停止生成：显示浅色“已停止生成”，无错误卡片，空输出时重发操作常驻可见
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([
         message({ role: 'user', entryId: 'u-2', text: '写第二段' }),
@@ -750,7 +750,7 @@ it('自动退避重试显示原因与次数；主动停止不标红且空输出�
   wrapper.unmount();
 
   // 3. 发送前缺密钥被宿主拒收：作者气泡附带“模型设置”“移除”“重试”
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: session([]),
       approvals: [],
@@ -791,7 +791,7 @@ it('作者气泡与排队消息展示紧凑技能标签，编辑与重发无损�
   ]);
   queuedSession.queued = [{ delivery: 'followUp', text: '核对年表', skill: { name: 'timeline' } }];
 
-  wrapper = mount(MessageList, {
+  wrapper = mountMessageList({
     props: {
       session: queuedSession,
       approvals: [],

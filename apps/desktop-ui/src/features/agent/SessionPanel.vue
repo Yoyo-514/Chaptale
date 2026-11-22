@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 
 import type { ApprovalScope, EditorContext, McpApprovalRememberTarget } from '@chaptale/agent-host/protocol';
 
@@ -20,14 +20,21 @@ import SessionHistory from './components/SessionHistory.vue';
 import SessionSettings from './components/SessionSettings.vue';
 import { formatAgentError } from './error-format';
 import { type SessionEntry, useAgentStore } from './store';
+import { createTranscriptMemory, type TranscriptMemory } from './transcript-viewport';
 
+const props = defineProps<{ visible: boolean }>();
 const agent = useAgentStore();
 const navigation = useWorkbenchStore();
 const settings = useSettingsStore();
 const review = useReviewStore();
 const body = ref<HTMLElement>();
-const positions = new Map<string, { top: number; follow: boolean }>();
-const following = ref(true);
+const transcripts = new Map<string, TranscriptMemory>();
+
+function transcriptMemory(id: string) {
+  let memory = transcripts.get(id);
+  if (!memory) transcripts.set(id, (memory = createTranscriptMemory()));
+  return memory;
+}
 const approvals = computed(() => agent.state?.approvals.filter(item => item.sessionId === agent.activeId) ?? []);
 const banner = computed(() => {
   const text = agent.error || agent.active?.error;
@@ -95,43 +102,6 @@ watch(
     review.viewingSessionId = id;
   },
   { immediate: true }
-);
-function trackScroll() {
-  const element = body.value!;
-  following.value = element.scrollHeight - element.scrollTop - element.clientHeight < 2;
-  positions.set(agent.activeId ?? 'new', { top: element.scrollTop, follow: following.value });
-}
-watch(
-  () => [agent.activeId, navigation.agentView],
-  async () => {
-    await nextTick();
-    const position = positions.get(agent.activeId ?? 'new');
-    following.value = position?.follow ?? true;
-    body.value?.scrollTo({ top: position ? position.top : body.value.scrollHeight });
-  }
-);
-watch(
-  () => [
-    agent.active?.messages.length,
-    agent.active?.messages.at(-1)?.text,
-    agent.active?.messages.at(-1)?.thinking,
-    approvals.value.length
-  ],
-  async () => {
-    if (!following.value) return;
-    await nextTick();
-    body.value?.scrollTo({ top: body.value.scrollHeight });
-  }
-);
-// 作者刚发出或入队消息时总是滚到底部，让乐观显示或排队中的消息可见。
-watch(
-  () => agent.activeOutgoing.length + (agent.active?.queued?.length ?? 0),
-  async (count, was) => {
-    if (count <= was) return;
-    following.value = true;
-    await nextTick();
-    body.value?.scrollTo({ top: body.value.scrollHeight });
-  }
 );
 function create() {
   agent.newDraft();
@@ -306,7 +276,7 @@ function confirmBranchAction() {
     <SessionHistory v-else-if="navigation.agentView === 'history'" @select="navigation.agentView = 'chat'" />
     <SessionSettings v-else-if="navigation.agentView === 'settings'" />
     <template v-else>
-      <div ref="body" class="agent-body" @scroll="trackScroll">
+      <div ref="body" class="agent-body agent-message-scroll">
         <div class="agent-column">
           <p v-if="agent.active?.readonly" role="status" class="agent-readonly">
             <span class="i-mingcute-lock-line size-4 shrink-0" aria-hidden="true" />
@@ -328,7 +298,11 @@ function confirmBranchAction() {
           </div>
           <MessageList
             v-if="agent.active"
+            :key="agent.active.id"
             :session="agent.active"
+            :visible="props.visible"
+            :viewport="body"
+            :memory="transcriptMemory(agent.active.id)"
             :approvals="approvals"
             :outgoing="agent.activeOutgoing"
             @approve="approve"
@@ -493,6 +467,9 @@ function confirmBranchAction() {
   margin: 4px 0;
   border: 0;
   border-top: 1px solid var(--border-subtle);
+}
+.agent-message-scroll {
+  overflow-anchor: none;
 }
 .agent-body > .agent-column {
   display: flex;

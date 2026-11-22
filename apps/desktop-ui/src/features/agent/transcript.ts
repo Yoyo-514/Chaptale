@@ -279,7 +279,7 @@ export function buildTranscript(messages: ChatMessage[]): TranscriptItem[] {
     }
   }
   messages.forEach((message, index) => {
-    const key = String(index);
+    const key = message.entryId ? `entry:${message.entryId}` : String(index);
     if (message.role === 'user') {
       currentTurnUser = message.entryId
         ? {

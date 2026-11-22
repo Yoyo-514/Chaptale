@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, getCurrentInstance, ref } from 'vue';
+import { computed, getCurrentInstance } from 'vue';
 
 import { useCreationStore } from '@/features/creation';
 import { useEditorStore, useReviewStore } from '@/features/editor';
@@ -14,8 +14,8 @@ const props = defineProps<{
   sessionWorkId?: string | null;
 }>();
 
-const expanded = ref(false);
-const rawExpanded = ref(false);
+const expanded = defineModel<boolean>('expanded', { default: false });
+const rawExpanded = defineModel<boolean>('rawExpanded', { default: false });
 
 // 单测独立挂载 MessageList 且未安装 Pinia 时保持降级，不中断纯视图渲染。
 const hasPinia = Boolean(getCurrentInstance()?.appContext.config.globalProperties.$pinia);

@@ -25,9 +25,9 @@ import { useEditorContext, useEditorStore } from '@/features/editor';
 import { useSettingsStore } from '@/features/settings';
 import { useWorkbenchStore } from '@/features/workbench';
 
-import MessageList from '../components/MessageList.vue';
 import SessionPanel from '../SessionPanel.vue';
 import { useAgentStore } from '../store';
+import { mountMessageList } from './mount-message-list';
 
 let root: string;
 let host: HostApplication;
@@ -313,7 +313,7 @@ it('失败重试与历史标记沿用原消息发送时的标签与选区', asyn
     section: 'manuscript',
     selection: '正式'
   });
-  const transcript = mount(MessageList, { props: { session, approvals: [], outgoing: [] } });
+  const transcript = mountMessageList({ props: { session, approvals: [], outgoing: [] } });
   wrappers.push(transcript);
   expect(transcript.get('[aria-label="编辑上下文"]').text()).toContain('文稿《第三回》选区');
 });
@@ -514,7 +514,7 @@ it('输入框上方提示条区分中性提示与错误、支持关闭同步宿�
   const id = await agent.create();
   expect(id).toEqual(expect.any(String));
 
-  const panel = mount(SessionPanel, { global: { plugins: [pinia] } });
+  const panel = mount(SessionPanel, { props: { visible: true }, global: { plugins: [pinia] } });
   wrappers.push(panel);
   await flushPromises();
 

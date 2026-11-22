@@ -15,8 +15,8 @@ import type { ChaptaleDesktopApi } from '@chaptale/desktop/bridge';
 import { openCreationStorage } from '@chaptale/storage';
 
 import MessageComposer from '../components/MessageComposer.vue';
-import MessageList from '../components/MessageList.vue';
 import { useAgentStore } from '../store';
+import { mountMessageList } from './mount-message-list';
 
 let wrapper: ReturnType<typeof mount>;
 afterEach(() => {
@@ -280,7 +280,7 @@ it('生成中支持快捷键与按钮分别发送插话或稍后处理，并可�
     ]);
     expect(agent.activeOutgoing).toEqual([]);
 
-    const listWrapper = mount(MessageList, {
+    const listWrapper = mountMessageList({
       props: { session: agent.active!, approvals: [], outgoing: agent.activeOutgoing },
       global: { plugins: [pinia] }
     });

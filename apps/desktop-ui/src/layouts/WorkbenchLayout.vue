@@ -105,7 +105,8 @@ onBeforeUnmount(() => {
         collapsible
         class="workbench-panel"
         :inert="!showAuxiliary"
-        ><aside v-show="showAuxiliary" class="workbench-agent-host" aria-label="Agent 侧栏"><SessionPanel /></aside
+        ><aside v-show="showAuxiliary" class="workbench-agent-host" aria-label="Agent 侧栏">
+          <SessionPanel :visible="showAuxiliary" /></aside
       ></SplitterPanel>
     </SplitterGroup>
   </div>
