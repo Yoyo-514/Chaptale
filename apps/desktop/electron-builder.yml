@@ -41,15 +41,10 @@ nsis:
 mac:
   icon: resources/icon.icns
   category: public.app-category.productivity
+  # 架构由打包命令指定，CI 每个 runner 只构建对应架构。
   target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
-    - target: zip
-      arch:
-        - x64
-        - arm64
+    - dmg
+    - zip
 
 linux:
   executableName: chaptale

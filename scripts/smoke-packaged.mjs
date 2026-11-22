@@ -1,7 +1,7 @@
 // 打包产物启动检查：用临时用户目录启动解包后的应用，等应用宿主建好作品库且进程仍在运行，再结束进程。
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -11,17 +11,19 @@ const startupTimeoutMs = 60_000;
 const exitTimeoutMs = 3_000;
 
 function executable() {
-  for (const dir of readdirSync(release)) {
-    const root = path.join(release, dir);
-    if (process.platform === 'win32' && dir === 'win-unpacked') return path.join(root, 'Chaptale.exe');
-    if (process.platform === 'linux' && dir === 'linux-unpacked') return path.join(root, 'chaptale');
-    if (process.platform === 'darwin' && dir.startsWith('mac') && existsSync(path.join(root, 'Chaptale.app')))
-      return path.join(root, 'Chaptale.app/Contents/MacOS/Chaptale');
-  }
-  throw new Error(`${release} 中没有当前平台的解包产物`);
+  const unpackedExecutable = {
+    win32: 'win-unpacked/Chaptale.exe',
+    linux: 'linux-unpacked/chaptale',
+    darwin: `${process.arch === 'arm64' ? 'mac-arm64' : 'mac'}/Chaptale.app/Contents/MacOS/Chaptale`
+  }[process.platform];
+  if (!unpackedExecutable) throw new Error(`不支持在 ${process.platform} 上检查打包产物`);
+  const file = path.join(release, unpackedExecutable);
+  if (!existsSync(file)) throw new Error(`找不到 ${process.platform}/${process.arch} 的解包产物：${file}`);
+  return file;
 }
 
 const executablePath = executable();
+console.log(`启动 ${process.platform}/${process.arch} 打包产物：${executablePath}`);
 const home = mkdtempSync(path.join(tmpdir(), 'chaptale-smoke-'));
 const configDir = path.join(home, '.chaptale');
 const dataDir = path.join(configDir, 'data');
