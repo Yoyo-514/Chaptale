@@ -15,22 +15,70 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  quality:
-    name: Checks and Electron tests
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+      packaging: ${{ steps.classify.outputs.packaging }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # PR 检出的是合并提交，第一父提交就是目标分支；手动触发和发版不比较，全部作业都跑。
+      - id: classify
+        shell: bash
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event_name == 'push' && github.ref_type == 'branch' && github.event.before || '' }}
+        run: node scripts/ci-changes.mjs "$BASE"
+
+  static:
+    name: Static checks
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm format:check
+      - run: pnpm docs:build
+      - if: needs.changes.outputs.code == 'true'
+        run: pnpm lint
+      - if: needs.changes.outputs.code == 'true'
+        run: pnpm typecheck
+      - if: needs.changes.outputs.code == 'true'
+        run: pnpm test:release
+
+  unit:
+    name: Unit tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm install:electron
-      - run: pnpm format:check
-      - run: pnpm lint
-      - run: pnpm typecheck
       - run: pnpm test:unit
-      - run: pnpm test:release
-      - run: pnpm docs:build
+
+  electron:
+    name: Electron tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm install:electron
       - run: pnpm build
       - run: pnpm exec playwright test --config playwright.electron.config.ts
       - name: Save failure diagnostics
@@ -45,7 +93,7 @@ jobs:
           if-no-files-found: ignore
 
   packages:
-    # 标签发布通过相同质量检查后，直接由 Release 构建安装包。
-    if: github.ref_type != 'tag'
-    needs: quality
+    # PR 不打包；标签发布由 Release 直接构建安装包。
+    if: github.event_name != 'pull_request' && github.ref_type != 'tag' && needs.changes.outputs.packaging == 'true'
+    needs: [changes, static, unit, electron]
     uses: ./.github/workflows/package.yml

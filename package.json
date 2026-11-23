@@ -47,7 +47,7 @@
     "test:e2e": "pnpm test:e2e:electron",
     "test:e2e:electron": "pnpm build:desktop && playwright test --config playwright.electron.config.ts",
     "test:unit": "turbo run test --concurrency=1",
-    "test:release": "node --test scripts/release.test.mjs",
+    "test:release": "node --test scripts/release.test.mjs scripts/ci-changes.test.mjs",
     "test:watch": "vitest --config vitest.config.ts",
     "typecheck": "turbo run typecheck",
     "typecheck:desktop": "turbo run typecheck --filter @chaptale/desktop"

@@ -28,14 +28,15 @@ jobs:
   checks:
     needs: version
     uses: ./.github/workflows/ci.yml
+  # 检查与安装包同时进行，两边都通过才创建 Release 草稿。
   installers:
-    needs: checks
+    needs: version
     uses: ./.github/workflows/package.yml
     with:
       installers: true
     secrets: inherit
   release:
-    needs: installers
+    needs: [checks, installers]
     runs-on: ubuntu-latest
     permissions:
       contents: write
