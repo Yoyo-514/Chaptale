@@ -1,6 +1,6 @@
 # Chaptale Agent 工作指南
 
-Chaptale 是面向小说与剧本的跨平台创作 IDE，正在重建为由 pi SDK（`@earendil-works/pi-coding-agent`）支撑的通用 Agent harness。本文件约束在本仓库工作的编码 Agent；用户手册见 `docs/`，开发与发布流程见 `CONTRIBUTING.md`。
+Chaptale 是面向小说与剧本的跨平台创作 IDE，由 pi SDK（`@earendil-works/pi-coding-agent`）支撑的通用 Agent harness 驱动；桌面版自 `v0.2.0` 起公开发布。本文件约束在本仓库工作的编码 Agent；用户手册见 `docs/`，开发与发布流程见 `CONTRIBUTING.md`。
 
 ## 信息来源与权威顺序
 
@@ -33,7 +33,7 @@ creation 子路径入口：`.`（作品服务与仓储接口）、`./contracts`�
 
 agent-host 内部按领域分目录：`protocol/`、`application/`、`conversation/`、`permissions/`、`work/`、`instructions/`、`skills/`、`mcp/`、`retrieval/`、`runtime/`、`session/`、`settings/`、`tools/`。`protocol/` 只放纯类型与持久化常量。
 
-desktop-ui 的 feature 依赖自下而上：`notifications` → `settings` → `cloud-sync` → `creation`、`workbench` → `story` → `editor` → `explorer`、`agent` → `shell`。设置页分区放在拥有数据的 feature，面板外壳在 `shell`；下层需要上层能力时由 `layouts/` 接入，不反向导入。
+desktop-ui 的 feature 依赖自下而上：`notifications` → `settings` → `cloud-sync` → `creation`、`workbench` → `story` → `editor` → `explorer`、`agent`、`search` → `shell`。设置页分区放在拥有数据的 feature，面板外壳在 `shell`；下层需要上层能力时由 `layouts/` 接入，不反向导入。
 
 桌面 preload、主进程与 Renderer 共用 `apps/desktop/src/bridge/`：`@chaptale/desktop/bridge` 入口只导出纯类型与无 Electron 依赖的常量、守卫；参数校验器（`bridge/schemas`、`app.ts`、`window.ts` 中的 Validator）只给 main 与 preload；Electron 通道归 `bridge/channels.ts`，主进程桥接归 `application-host/ipc.ts`。
 
@@ -79,7 +79,7 @@ pnpm test:unit                     # 全仓单测，较慢
 - **复用 pi，不复制 pi。** 直接使用原生 `AgentSession`、`SessionManager`、`ModelRuntime`、事件与 JSONL 格式；不自建模型循环、会话树、消息格式或工具调度器。依赖跟随上游升级，不 fork、不冻结版本。
 - **按领域职责组织代码。** 应用服务协调用例、事务与事件；正文修订、目录约束、候选演进和审阅决策归各自领域模块。规则与依赖混杂时及时拆分，不按行数机械切文件，也不为 DDD 增设空洞分层或接口。重构前后通过公共接口测试验证行为与契约。
 - **只实现已确认的需求。** 不加预留接口、未要求的后台任务或兼容层；被替代的代码直接删除。设计文档里写明后续要用的契约（如快照、游标、授权、传输信封）属于已确认需求，即使暂时没有消费者，也不能当作死代码清理。
-- **不兼容旧实现。** 旧接口、配置与历史格式不做迁移兼容，但真实作品与历史原件不得删除或静默改写。
+- **发布后的数据要能升级。** `v0.2.0` 是首发基线：本机库 `library.sqlite` 结构第 4 版，作品库 `work.sqlite` 第 2 版，`.chaptale` 作品包格式 3。此后两种库的结构变化都在 `SchemaPlan.migrations` 末尾追加迁移（`packages/storage/src/schema.ts`），已有的 `create` 和迁移不改；`v0.2.0` 及之后版本的数据目录和导出的作品包，新版本必须能打开和导入。首发前的旧接口、配置与历史格式不做兼容。真实作品与历史原件不得删除或静默改写。
 - **配置在应用内完成。** 常用设置提供界面，高级设置沿用 pi 原生配置；不恢复根目录 `agent.config.json`，不新建第二套配置语言。
 - **界面重新设计。** `DESIGN.md` 只能参考配色；布局、字体、控件与交互以 `design-docs/PRODUCT.md` 为准，参照 VS Code / Zed / Cursor 等编辑器的通行做法，按 `impeccable` skill 的方法设计与评审。
 - **界面验收由用户完成。** 用户通过 `pnpm dev` 检查界面表现与渲染。Agent 负责实现、静态检查和自动化行为测试，交付时给出“入口 → 操作 → 预期结果”；用户另行要求时才做截图或视觉、渲染检查。
@@ -207,7 +207,7 @@ pnpm test:unit                     # 全仓单测，较慢
 - **适用范围**：作品库的 FTS5 索引、`vectors.sqlite`、`agent-host/retrieval` 与相关测试。
 - **风险机制**：FTS5 的表选项决定哪些影子表存在，换选项后删除或清空会报 `table ... may not be dropped`。better-sqlite3 把超出 int32 的整数按浮点数绑定，返回的 BLOB 起始位置不保证按 4 字节对齐。后台建立在服务繁忙或连不上时按 1、2、4 秒重试，这期间状态仍是“正在建立”。
 - **实施要求**：
-  - 正式索引用 `content=''` 加 `contentless_delete=1`，条目与索引行的对应关系存在 `indexed_entries`，删除条目走 `unindexDocument`。应用未发布，索引结构变化不写迁移，本机测试数据用 `temp/migrate-search-index.mjs` 转换。
+  - 正式索引用 `content=''` 加 `contentless_delete=1`，条目与索引行的对应关系存在 `indexed_entries`，删除条目走 `unindexDocument`。应用未发布，索引结构变化不写迁移，本机测试数据用 `temp/migrate-search-index.mjs` 转换。（这是首发前的做法。`v0.2.0` 发布后，索引结构再变按“工程约束”写迁移；已经发生的这次变化不追补。）
   - 需要“取全部”时给出范围内的实际上限（如条目数加事件、关系数），不传超大整数作 `LIMIT`。读向量时先把 BLOB 拷进自己分配的缓冲再按 `Float32Array` 读。
   - 向量按文字的 SHA-256 保存，连接只在一次操作内打开。删除、覆盖、恢复作品和宿主停止前先 `retrieval.stop`，否则 Windows 上作品目录被占用。
   - 测试失败路径时用 401 这类不重试的回复；用 503 或断开连接会让用例等满 7 秒重试。检索时的补算和问题向量不重试。
